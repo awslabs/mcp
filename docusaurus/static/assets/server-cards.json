@@ -78,6 +78,46 @@
       ]
     },
     {
+      "category": "Documentation",
+      "description": "Get latest AWS docs, code samples, and other official content",
+      "icon": "\ud83d\udcda",
+      "id": "aws-knowledge-mcp-server",
+      "name": "AWS Knowledge MCP Server",
+      "source_path": "src/aws-knowledge-mcp-server/",
+      "subcategory": "Real-time Documentation Access",
+      "tags": [
+        "documentation",
+        "real-time-access",
+        "api-reference",
+        "vibe-coding",
+        "conversational",
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational"
+      ]
+    },
+    {
+      "category": "Core",
+      "description": "Interact with AWS services and resources through AWS CLI commands.",
+      "icon": "\u26a1",
+      "id": "aws-api-mcp-server",
+      "name": "AWS API MCP Server",
+      "source_path": "src/aws-api-mcp-server/",
+      "subcategory": "AWS CLI",
+      "tags": [
+        "documentation",
+        "real-time-access",
+        "api-reference",
+        "vibe-coding",
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Infrastructure & Deployment",
       "description": "AWS CDK development with security compliance",
       "icon": "\ud83c\udfd7\ufe0f",

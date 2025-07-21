@@ -90,8 +90,6 @@ async def run_server():
     else:
         logger.info('Server running in read-only mode. Write operations are disabled.')
 
-    # Register prompts
-
     async with create_task_group() as tg:
         tg.start_soon(signal_handler, tg.cancel_scope)
         await mcp.run_stdio_async()

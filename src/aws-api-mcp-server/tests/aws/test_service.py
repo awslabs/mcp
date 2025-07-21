@@ -549,3 +549,40 @@ def test_execute_awscli_customization_error(mock_driver):
     assert result.detail == "Error while executing 'aws invalid command': Invalid command"
 
     mock_driver.main.assert_called_once_with(['invalid', 'command'])
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', None)
+def test_profile_not_added_when_env_var_none(mock_main):
+    """Test that profile is not added when AWS_API_MCP_PROFILE_NAME is None."""
+    execute_awscli_customization('aws s3 ls')
+
+    # Verify profile was not added to args
+    args = mock_main.call_args[0][0]
+    assert '--profile' not in args
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', 'test-profile')
+def test_profile_added_when_env_var_set(mock_main):
+    """Test that profile is added when AWS_API_MCP_PROFILE_NAME is set."""
+    execute_awscli_customization('aws s3 ls')
+
+    # Verify profile was added to args
+    args = mock_main.call_args[0][0]
+    assert '--profile' in args
+    profile_index = args.index('--profile')
+    assert args[profile_index + 1] == 'test-profile'
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', 'test-profile')
+def test_profile_not_added_if_present_for_customizations(mock_main):
+    """Test that profile is not added when one is already present."""
+    execute_awscli_customization('aws s3 ls --profile different')
+
+    # Verify profile was added to args
+    args = mock_main.call_args[0][0]
+    assert '--profile' in args
+    profile_index = args.index('--profile')
+    assert args[profile_index + 1] == 'different'
