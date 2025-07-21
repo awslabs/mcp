@@ -56,15 +56,15 @@ class HybridNodesHandler:
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
         
-        # Initialize AWS clients
-        self.ec2_client = AwsHelper.create_boto3_client('ec2')
-        self.eks_client = AwsHelper.create_boto3_client('eks')
-        self.ssm_client = AwsHelper.create_boto3_client('ssm')
-        
         # Register tools
         self.mcp.tool(name='get_eks_vpc_config')(self.get_eks_vpc_config)
         self.mcp.tool(name='get_eks_dns_status')(self.get_eks_dns_status)
         self.mcp.tool(name='get_eks_insights')(self.get_eks_insights)
+
+         # Initialize AWS clients
+        self.ec2_client = AwsHelper.create_boto3_client('ec2')
+        self.eks_client = AwsHelper.create_boto3_client('eks')
+        self.ssm_client = AwsHelper.create_boto3_client('ssm')
         
 
 
@@ -139,6 +139,7 @@ class HybridNodesHandler:
                             routes=[],
                             remote_node_cidr_blocks=[],
                             remote_pod_cidr_blocks=[],
+                            subnets=[],
                             cluster_name=cluster_name
                         )
                 except Exception as eks_error:
@@ -152,6 +153,7 @@ class HybridNodesHandler:
                         routes=[],
                         remote_node_cidr_blocks=[],
                         remote_pod_cidr_blocks=[],
+                        subnets=[],
                         cluster_name=cluster_name
                     )
             
@@ -169,6 +171,7 @@ class HybridNodesHandler:
                     routes=[],
                     remote_node_cidr_blocks=[],
                     remote_pod_cidr_blocks=[],
+                    subnets=[],
                     cluster_name=cluster_name
                 )
             
@@ -176,6 +179,38 @@ class HybridNodesHandler:
             vpc = vpc_response['Vpcs'][0]
             cidr_block = vpc.get('CidrBlock', '')
             additional_cidr_blocks = [cidr_association.get('CidrBlock', '') for cidr_association in vpc.get('CidrBlockAssociationSet', [])[1:] if 'CidrBlock' in cidr_association]
+            
+            # Get subnets for the VPC
+            subnets_response = self.ec2_client.describe_subnets(
+                Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+            )
+            
+            subnets = []
+            for subnet in subnets_response.get('Subnets', []):
+                # Calculate subnet information
+                subnet_cidr_block = subnet.get('CidrBlock', '')
+                available_ips = subnet.get('AvailableIpAddressCount', 0)
+                is_public = subnet.get('MapPublicIpOnLaunch', False)
+                assign_ipv6 = subnet.get('AssignIpv6AddressOnCreation', False)
+                az_id = subnet.get('AvailabilityZoneId', '')
+                
+                # Check for disallowed AZs
+                disallowed_azs = ['use1-az3', 'usw1-az2', 'cac1-az3']
+                in_disallowed_az = az_id in disallowed_azs
+                
+                # Store subnet information
+                subnet_info = {
+                    'subnet_id': subnet.get('SubnetId', ''),
+                    'cidr_block': subnet_cidr_block,
+                    'az_id': az_id,
+                    'az_name': subnet.get('AvailabilityZone', ''),
+                    'available_ips': available_ips,
+                    'is_public': is_public,
+                    'assign_ipv6': assign_ipv6,
+                    'in_disallowed_az': in_disallowed_az,
+                    'has_sufficient_ips': available_ips >= 16  # AWS recommends 16
+                }
+                subnets.append(subnet_info)
             
             # Get route tables for the VPC
             route_tables_response = self.ec2_client.describe_route_tables(
@@ -220,69 +255,60 @@ class HybridNodesHandler:
             remote_node_cidr_blocks = []
             remote_pod_cidr_blocks = []
             
-            # We already have the cluster response, no need to call describe_cluster again if vpc_id came from it
-            if vpc_id and 'cluster' in cluster_response and 'remoteNetworkConfig' in cluster_response['cluster']:
-                # Use the already retrieved cluster response
-                remote_config = cluster_response['cluster']['remoteNetworkConfig']
-                
-                # Extract remote node CIDRs
-                if 'remoteNodeNetworks' in remote_config:
-                    for network in remote_config['remoteNodeNetworks']:
-                        if 'cidrs' in network:
-                            for cidr in network['cidrs']:
-                                if cidr not in remote_node_cidr_blocks:
-                                    remote_node_cidr_blocks.append(cidr)
-                                    log_with_request_id(ctx, LogLevel.INFO, f"Found remote node CIDR in remoteNetworkConfig: {cidr}")
-                
-                # Extract remote pod CIDRs
-                if 'remotePodNetworks' in remote_config:
-                    for network in remote_config['remotePodNetworks']:
-                        if 'cidrs' in network:
-                            for cidr in network['cidrs']:
-                                if cidr not in remote_pod_cidr_blocks:
-                                    remote_pod_cidr_blocks.append(cidr)
-                                    log_with_request_id(ctx, LogLevel.INFO, f"Found remote pod CIDR in remoteNetworkConfig: {cidr}")
-            else:
-                # Need to call describe_cluster again to get remote network config
-                try:
-                    # Check EKS API remoteNetworkConfig (primary source)
-                    cluster_detail_response = self.eks_client.describe_cluster(name=cluster_name)
+            # Only try to fetch remote networks if not using explicit VPC ID
+            # When an explicit VPC ID is provided, we skip fetching remote networks completely
+            if vpc_id and 'cluster_response' in locals():
+                # We already have the cluster response, use it without making a new call
+                if 'remoteNetworkConfig' in locals().get('cluster_response', {}).get('cluster', {}):
+                    remote_config = cluster_response['cluster']['remoteNetworkConfig']
                     
-                    if 'remoteNetworkConfig' in cluster_detail_response['cluster']:
-                        remote_config = cluster_detail_response['cluster']['remoteNetworkConfig']
-                        
-                        # Extract remote node CIDRs
-                        if 'remoteNodeNetworks' in remote_config:
-                            for network in remote_config['remoteNodeNetworks']:
-                                if 'cidrs' in network:
-                                    for cidr in network['cidrs']:
-                                        if cidr not in remote_node_cidr_blocks:
-                                            remote_node_cidr_blocks.append(cidr)
-                                            log_with_request_id(ctx, LogLevel.INFO, f"Found remote node CIDR in remoteNetworkConfig: {cidr}")
-                        
-                        # Extract remote pod CIDRs
-                        if 'remotePodNetworks' in remote_config:
-                            for network in remote_config['remotePodNetworks']:
-                                if 'cidrs' in network:
-                                    for cidr in network['cidrs']:
-                                        if cidr not in remote_pod_cidr_blocks:
-                                            remote_pod_cidr_blocks.append(cidr)
-                                            log_with_request_id(ctx, LogLevel.INFO, f"Found remote pod CIDR in remoteNetworkConfig: {cidr}")
+                    # Extract remote node CIDRs
+                    if 'remoteNodeNetworks' in remote_config:
+                        for network in remote_config['remoteNodeNetworks']:
+                            if 'cidrs' in network:
+                                for cidr in network['cidrs']:
+                                    if cidr not in remote_node_cidr_blocks:
+                                        remote_node_cidr_blocks.append(cidr)
+                                        log_with_request_id(ctx, LogLevel.INFO, f"Found remote node CIDR in remoteNetworkConfig: {cidr}")
+                    
+                    # Extract remote pod CIDRs
+                    if 'remotePodNetworks' in remote_config:
+                        for network in remote_config['remotePodNetworks']:
+                            if 'cidrs' in network:
+                                for cidr in network['cidrs']:
+                                    if cidr not in remote_pod_cidr_blocks:
+                                        remote_pod_cidr_blocks.append(cidr)
+                                        log_with_request_id(ctx, LogLevel.INFO, f"Found remote pod CIDR in remoteNetworkConfig: {cidr}")
+            # Only try to fetch remote networks if vpc_id was not provided explicitly
+            elif not vpc_id:
+                try:
+                    # Check EKS API remoteNetworkConfig
+                    cluster_detail_response = self.eks_client.describe_cluster(name=cluster_name)
                 except Exception as config_error:
                     log_with_request_id(ctx, LogLevel.WARNING, f"Error getting remote CIDR information from EKS API: {str(config_error)}")
+            elif 'cluster' in locals().get('cluster_response', {}):
+                # We already have the cluster response, no need to call describe_cluster again
+                if 'remoteNetworkConfig' in locals().get('cluster_response', {}).get('cluster', {}):
+                    remote_config = cluster_response['cluster']['remoteNetworkConfig']
+                    
+                    # Extract remote node CIDRs
+                    if 'remoteNodeNetworks' in remote_config:
+                        for network in remote_config['remoteNodeNetworks']:
+                            if 'cidrs' in network:
+                                for cidr in network['cidrs']:
+                                    if cidr not in remote_node_cidr_blocks:
+                                        remote_node_cidr_blocks.append(cidr)
+                                        log_with_request_id(ctx, LogLevel.INFO, f"Found remote node CIDR in remoteNetworkConfig: {cidr}")
+                    
+                    # Extract remote pod CIDRs
+                    if 'remotePodNetworks' in remote_config:
+                        for network in remote_config['remotePodNetworks']:
+                            if 'cidrs' in network:
+                                for cidr in network['cidrs']:
+                                    if cidr not in remote_pod_cidr_blocks:
+                                        remote_pod_cidr_blocks.append(cidr)
+                                        log_with_request_id(ctx, LogLevel.INFO, f"Found remote pod CIDR in remoteNetworkConfig: {cidr}")
             
-            # Fallback: Check route tables for potential remote networks
-            if not remote_node_cidr_blocks and not remote_pod_cidr_blocks:
-                log_with_request_id(ctx, LogLevel.INFO, "No CIDRs found in EKS API, checking route tables for potential remote networks...")
-                for route in routes:
-                    # Look for routes that might indicate remote connectivity (not internet or local VPC routes)
-                    if (route.get('destination_cidr_block') != '0.0.0.0/0' and 
-                        route.get('destination_cidr_block') != cidr_block and
-                        route.get('target_type') != 'gateway'):
-                        dest_cidr = route.get('destination_cidr_block')
-                        log_with_request_id(ctx, LogLevel.INFO, f"Found potential remote CIDR in route table: {dest_cidr} (target type: {route.get('target_type')})")
-                        if dest_cidr and dest_cidr not in remote_node_cidr_blocks:
-                            remote_node_cidr_blocks.append(dest_cidr)
             
             # Log summary of detected CIDRs
             if remote_node_cidr_blocks:
@@ -295,7 +321,7 @@ class HybridNodesHandler:
             else:
                 log_with_request_id(ctx, LogLevel.WARNING, "No remote pod CIDRs detected")
             
-            # Create the response - Note: removed subnets and DNS settings
+            # Create the response 
             success_message = f"Retrieved VPC configuration for {vpc_id} (cluster {cluster_name})"
             log_with_request_id(ctx, LogLevel.INFO, success_message)
             
@@ -308,6 +334,7 @@ class HybridNodesHandler:
                 routes=routes,
                 remote_node_cidr_blocks=remote_node_cidr_blocks,
                 remote_pod_cidr_blocks=remote_pod_cidr_blocks,
+                subnets=subnets,
                 cluster_name=cluster_name
             )
             
@@ -322,11 +349,276 @@ class HybridNodesHandler:
                 routes=[],
                 remote_node_cidr_blocks=[],
                 remote_pod_cidr_blocks=[],
+                subnets=[],
                 cluster_name=cluster_name
+            )            
+    
+ # -------------------------------------------------------------------------------------------------------------------------------------------- #  
+
+    # EKS Insights tool
+    async def get_eks_insights(
+        self,
+        ctx: Context,
+        cluster_name: str = Field(..., description='Name of the EKS cluster'),
+        insight_id: Optional[str] = Field(
+            None,
+            description='ID of a specific insight to get detailed information for. If provided, returns detailed information about this specific insight.',
+        ),
+        category: Optional[str] = Field(
+            None,
+            description='Filter insights by category (e.g., "CONFIGURATION" or "UPGRADE_READINESS")',
+        ),
+        region: Optional[str] = Field(
+            None,
+            description='AWS region code (e.g., "us-west-2"). If not provided, uses the default region from AWS configuration.',
+        ),
+    ) -> EksInsightsResponse:
+        """Get EKS Insights for cluster configuration and upgrade readiness.
+        
+        This tool retrieves Amazon EKS Insights that identify potential issues with 
+        your EKS cluster. These insights help identify both cluster configuration issues
+        and upgrade readiness concerns that might affect hybrid nodes functionality.
+        
+        Amazon EKS provides two types of insights:
+        - CONFIGURATION insights: Identify misconfigurations in your EKS cluster setup
+        - UPGRADE_READINESS insights: Identify issues that could prevent successful cluster upgrades
+        
+        When used without an insight_id, it returns a list of all insights.
+        When used with an insight_id, it returns detailed information about 
+        that specific insight, including recommendations.
+        
+        ## Response Information
+        The response includes insight details such as status, description, and 
+        recommendations for addressing identified issues.
+        
+        ## Usage Tips
+        - Review CONFIGURATION insights to identify cluster misconfigurations
+        - Check UPGRADE_READINESS insights before upgrading your cluster
+        - Pay special attention to insights with FAILING status
+        - Focus on insights related to node and network configuration for hybrid nodes
+        
+        Args:
+            ctx: MCP context
+            cluster_name: Name of the EKS cluster
+            insight_id: Optional ID of a specific insight to get detailed information for
+            category: Optional category to filter insights by (e.g., "CONFIGURATION" or "UPGRADE_READINESS")
+            region: Optional AWS region code. If not provided, uses the default region from AWS configuration
+            
+        Returns:
+            EksInsightsResponse with insights information
+        """
+        # Extract values from Field objects before passing them to the implementation method
+        cluster_name_value = cluster_name
+        insight_id_value = insight_id
+        category_value = category
+        region_value = region
+        
+        # Delegate to the implementation method with extracted values
+        return await self._get_eks_insights_impl(ctx, cluster_name_value, insight_id_value, category_value, region_value)
+    
+    async def _get_eks_insights_impl(
+        self,
+        ctx: Context,
+        cluster_name: str,
+        insight_id: Optional[str] = None,
+        category: Optional[str] = None,
+        region: Optional[str] = None
+    ) -> EksInsightsResponse:
+        """Internal implementation of get_eks_insights."""
+        try:
+            # Create EKS client - use region-specific if provided
+            eks_client = self.eks_client
+            if region:
+                log_with_request_id(ctx, LogLevel.INFO, f"Using specified region: {region}")
+                eks_client = AwsHelper.create_boto3_client('eks', region_name=region)
+            
+            # Determine operation mode based on whether insight_id is provided
+            detail_mode = insight_id is not None
+            
+            if detail_mode:
+                # Get details for a specific insight
+                return await self._get_insight_detail(ctx, eks_client, cluster_name, insight_id)
+            else:
+                # List all insights with optional category filter
+                return await self._list_insights(ctx, eks_client, cluster_name, category)
+                
+        except Exception as e:
+            error_message = f"Error processing EKS insights request: {str(e)}"
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+            return EksInsightsResponse(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+                cluster_name=cluster_name,
+                insights=[],
+                detail_mode=(insight_id is not None)
+            )
+    
+    async def _get_insight_detail(
+        self,
+        ctx: Context,
+        eks_client,
+        cluster_name: str,
+        insight_id: str
+    ) -> EksInsightsResponse:
+        """Get details for a specific EKS insight."""
+        log_with_request_id(ctx, LogLevel.INFO, f"Getting details for insight {insight_id} in cluster {cluster_name}")
+        
+        try:
+            response = eks_client.describe_insight(
+                id=insight_id, 
+                clusterName=cluster_name
+            )
+            
+            # Extract and format the insight details
+            if 'insight' in response:
+                insight_data = response['insight']
+                
+                # Create insight status object
+                status_obj = EksInsightStatus(
+                    status=insight_data.get('insightStatus', {}).get('status', 'UNKNOWN'),
+                    reason=insight_data.get('insightStatus', {}).get('reason', '')
+                )
+                
+                # Handle datetime objects for timestamps
+                last_refresh_time = insight_data.get('lastRefreshTime', 0)
+                if isinstance(last_refresh_time, datetime):
+                    last_refresh_time = last_refresh_time.timestamp()
+                    
+                last_transition_time = insight_data.get('lastTransitionTime', 0)
+                if isinstance(last_transition_time, datetime):
+                    last_transition_time = last_transition_time.timestamp()
+                
+                # Convert insight to EksInsightItem format
+                insight_item = EksInsightItem(
+                    id=insight_data.get('id', ''),
+                    name=insight_data.get('name', ''),
+                    category=insight_data.get('category', ''),
+                    kubernetes_version=insight_data.get('kubernetesVersion'),
+                    last_refresh_time=last_refresh_time,
+                    last_transition_time=last_transition_time,
+                    description=insight_data.get('description', ''),
+                    insight_status=status_obj,
+                    recommendation=insight_data.get('recommendation'),
+                    additional_info=insight_data.get('additionalInfo', {}),
+                    resources=insight_data.get('resources', []),
+                    category_specific_summary=insight_data.get('categorySpecificSummary', {})
+                )
+                
+                success_message = f"Successfully retrieved details for insight {insight_id}"
+                return EksInsightsResponse(
+                    isError=False,
+                    content=[TextContent(type='text', text=success_message)],
+                    cluster_name=cluster_name,
+                    insights=[insight_item],
+                    detail_mode=True
+                )
+            else:
+                error_message = f"No insight details found for ID {insight_id}"
+                log_with_request_id(ctx, LogLevel.WARNING, error_message)
+                return EksInsightsResponse(
+                    isError=True,
+                    content=[TextContent(type='text', text=error_message)],
+                    cluster_name=cluster_name,
+                    insights=[],
+                    detail_mode=True
+                )
+                
+        except Exception as e:
+            error_message = f"Error retrieving insight details: {str(e)}"
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+            return EksInsightsResponse(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+                cluster_name=cluster_name,
+                insights=[],
+                detail_mode=True
+            )
+    
+    async def _list_insights(
+        self,
+        ctx: Context,
+        eks_client,
+        cluster_name: str,
+        category: Optional[str] = None
+    ) -> EksInsightsResponse:
+        """List EKS insights for a cluster with optional category filtering."""
+        log_with_request_id(ctx, LogLevel.INFO, f"Listing insights for cluster {cluster_name}")
+        
+        try:
+            # Build the list_insights parameters
+            list_params = {
+                'clusterName': cluster_name
+            }
+            
+            # Add category filter if provided
+            if category:
+                log_with_request_id(ctx, LogLevel.INFO, f"Filtering insights by category: {category}")
+                list_params['categories'] = [category]
+            
+            response = eks_client.list_insights(**list_params)
+            
+            # Extract and format the insights
+            insight_items = []
+            
+            if 'insights' in response:
+                for insight_data in response['insights']:
+                    # Create insight status object
+                    status_obj = EksInsightStatus(
+                        status=insight_data.get('insightStatus', {}).get('status', 'UNKNOWN'),
+                        reason=insight_data.get('insightStatus', {}).get('reason', '')
+                    )
+                    
+                    # Handle datetime objects for timestamps
+                    last_refresh_time = insight_data.get('lastRefreshTime', 0)
+                    if isinstance(last_refresh_time, datetime):
+                        last_refresh_time = last_refresh_time.timestamp()
+                        
+                    last_transition_time = insight_data.get('lastTransitionTime', 0)
+                    if isinstance(last_transition_time, datetime):
+                        last_transition_time = last_transition_time.timestamp()
+                    
+                    # Convert insight to EksInsightItem format
+                    insight_item = EksInsightItem(
+                        id=insight_data.get('id', ''),
+                        name=insight_data.get('name', ''),
+                        category=insight_data.get('category', ''),
+                        kubernetes_version=insight_data.get('kubernetesVersion'),
+                        last_refresh_time=last_refresh_time,
+                        last_transition_time=last_transition_time,
+                        description=insight_data.get('description', ''),
+                        insight_status=status_obj,
+                        # List mode doesn't include these fields
+                        recommendation=None,
+                        additional_info=None,
+                        resources=None,
+                        category_specific_summary=None
+                    )
+                    
+                    insight_items.append(insight_item)
+            
+            success_message = f"Successfully retrieved {len(insight_items)} insights for cluster {cluster_name}"
+            return EksInsightsResponse(
+                isError=False,
+                content=[TextContent(type='text', text=success_message)],
+                cluster_name=cluster_name,
+                insights=insight_items,
+                next_token=response.get('nextToken'),
+                detail_mode=False
+            )
+            
+        except Exception as e:
+            error_message = f"Error listing insights: {str(e)}"
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+            return EksInsightsResponse(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+                cluster_name=cluster_name,
+                insights=[],
+                detail_mode=False
             )
 
- # -------------------------------------------------------------------------------------------------------------------------------------------- #            
-            
+ # -------------------------------------------------------------------------------------------------------------------------------------------- #
+
     # DNS resolution status tool
     async def get_eks_dns_status(
         self,
@@ -456,236 +748,3 @@ class HybridNodesHandler:
                 content=[TextContent(type='text', text=error_message)],
                 cluster_name=cluster_name_value
             )
- # -------------------------------------------------------------------------------------------------------------------------------------------- #  
-
-    # EKS Insights tool
-    async def get_eks_insights(
-        self,
-        ctx: Context,
-        cluster_name: str = Field(..., description='Name of the EKS cluster'),
-        insight_id: Optional[str] = Field(
-            None,
-            description='ID of a specific insight to get detailed information for. If provided, returns detailed information about this specific insight.',
-        ),
-        category: Optional[str] = Field(
-            None,
-            description='Filter insights by category (e.g., "CONFIGURATION" or "UPGRADE_READINESS")',
-        ),
-        region: Optional[str] = Field(
-            None,
-            description='AWS region code (e.g., "us-west-2"). If not provided, uses the default region from AWS configuration.',
-        ),
-    ) -> EksInsightsResponse:
-        """Get EKS Insights for cluster configuration and upgrade readiness.
-        
-        This tool retrieves Amazon EKS Insights that identify potential issues with 
-        your EKS cluster. These insights help identify both cluster configuration issues
-        and upgrade readiness concerns that might affect hybrid nodes functionality.
-        
-        Amazon EKS provides two types of insights:
-        - CONFIGURATION insights: Identify misconfigurations in your EKS cluster setup
-        - UPGRADE_READINESS insights: Identify issues that could prevent successful cluster upgrades
-        
-        When used without an insight_id, it returns a list of all insights.
-        When used with an insight_id, it returns detailed information about 
-        that specific insight, including recommendations.
-        
-        ## Response Information
-        The response includes insight details such as status, description, and 
-        recommendations for addressing identified issues.
-        
-        ## Usage Tips
-        - Review CONFIGURATION insights to identify cluster misconfigurations
-        - Check UPGRADE_READINESS insights before upgrading your cluster
-        - Pay special attention to insights with FAILING status
-        - Focus on insights related to node and network configuration for hybrid nodes
-        
-        Args:
-            ctx: MCP context
-            cluster_name: Name of the EKS cluster
-            insight_id: Optional ID of a specific insight to get detailed information for
-            category: Optional category to filter insights by (e.g., "CONFIGURATION" or "UPGRADE_READINESS")
-            region: Optional AWS region code. If not provided, uses the default region from AWS configuration
-            
-        Returns:
-            EksInsightsResponse with insights information
-        """
-        from awslabs.eks_mcp_server.models import EksInsightStatus, EksInsightItem, EksInsightsResponse
-        
-        # Extract parameters
-        cluster_name_value = cluster_name
-        insight_id_value = insight_id
-        category_value = category
-        region_value = region
-        
-        try:
-            # Create EKS client - use region-specific if provided
-            eks_client = self.eks_client
-            if region_value:
-                log_with_request_id(ctx, LogLevel.INFO, f"Using specified region: {region_value}")
-                eks_client = AwsHelper.create_boto3_client('eks', region_name=region_value)
-            
-            # Determine operation mode based on whether insight_id is provided
-            detail_mode = insight_id_value is not None
-            
-            if detail_mode:
-                # Describe a specific insight
-                log_with_request_id(ctx, LogLevel.INFO, f"Getting details for insight {insight_id_value} in cluster {cluster_name_value}")
-                
-                try:
-                    response = eks_client.describe_insight(
-                        id=insight_id_value, 
-                        clusterName=cluster_name_value
-                    )
-                    
-                    # Extract and format the insight details
-                    if 'insight' in response:
-                        insight_data = response['insight']
-                        
-                        # Create insight status object
-                        status_obj = EksInsightStatus(
-                            status=insight_data.get('insightStatus', {}).get('status', 'UNKNOWN'),
-                            reason=insight_data.get('insightStatus', {}).get('reason', '')
-                        )
-                        
-                        # Handle datetime objects for timestamps
-                        last_refresh_time = insight_data.get('lastRefreshTime', 0)
-                        if isinstance(last_refresh_time, datetime):
-                            last_refresh_time = last_refresh_time.timestamp()
-                            
-                        last_transition_time = insight_data.get('lastTransitionTime', 0)
-                        if isinstance(last_transition_time, datetime):
-                            last_transition_time = last_transition_time.timestamp()
-                        
-                        # Convert insight to EksInsightItem format
-                        insight_item = EksInsightItem(
-                            id=insight_data.get('id', ''),
-                            name=insight_data.get('name', ''),
-                            category=insight_data.get('category', ''),
-                            kubernetes_version=insight_data.get('kubernetesVersion'),
-                            last_refresh_time=last_refresh_time,
-                            last_transition_time=last_transition_time,
-                            description=insight_data.get('description', ''),
-                            insight_status=status_obj,
-                            recommendation=insight_data.get('recommendation'),
-                            additional_info=insight_data.get('additionalInfo', {}),
-                            resources=insight_data.get('resources', []),
-                            category_specific_summary=insight_data.get('categorySpecificSummary', {})
-                        )
-                        
-                        return EksInsightsResponse(
-                            isError=False,
-                            content=[TextContent(type='text', text=f"Successfully retrieved details for insight {insight_id_value}")],
-                            cluster_name=cluster_name_value,
-                            insights=[insight_item],
-                            detail_mode=True
-                        )
-                    else:
-                        error_message = f"No insight details found for ID {insight_id_value}"
-                        log_with_request_id(ctx, LogLevel.WARNING, error_message)
-                        return EksInsightsResponse(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                            cluster_name=cluster_name_value,
-                            insights=[],
-                            detail_mode=True
-                        )
-                        
-                except Exception as e:
-                    error_message = f"Error retrieving insight details: {str(e)}"
-                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return EksInsightsResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        cluster_name=cluster_name_value,
-                        insights=[],
-                        detail_mode=True
-                    )
-            else:
-                # List all insights
-                log_with_request_id(ctx, LogLevel.INFO, f"Listing insights for cluster {cluster_name_value}")
-                
-                try:
-                    # Build the list_insights parameters
-                    list_params = {
-                        'clusterName': cluster_name_value
-                    }
-                    
-                    # Add category filter if provided
-                    if category_value:
-                        log_with_request_id(ctx, LogLevel.INFO, f"Filtering insights by category: {category_value}")
-                        list_params['categories'] = [category_value]
-                    
-                    response = eks_client.list_insights(**list_params)
-                    
-                    # Extract and format the insights
-                    insight_items = []
-                    
-                    if 'insights' in response:
-                        for insight_data in response['insights']:
-                            # Create insight status object
-                            status_obj = EksInsightStatus(
-                                status=insight_data.get('insightStatus', {}).get('status', 'UNKNOWN'),
-                                reason=insight_data.get('insightStatus', {}).get('reason', '')
-                            )
-                            
-                            # Handle datetime objects for timestamps
-                            last_refresh_time = insight_data.get('lastRefreshTime', 0)
-                            if isinstance(last_refresh_time, datetime):
-                                last_refresh_time = last_refresh_time.timestamp()
-                                
-                            last_transition_time = insight_data.get('lastTransitionTime', 0)
-                            if isinstance(last_transition_time, datetime):
-                                last_transition_time = last_transition_time.timestamp()
-                            
-                            # Convert insight to EksInsightItem format
-                            insight_item = EksInsightItem(
-                                id=insight_data.get('id', ''),
-                                name=insight_data.get('name', ''),
-                                category=insight_data.get('category', ''),
-                                kubernetes_version=insight_data.get('kubernetesVersion'),
-                                last_refresh_time=last_refresh_time,
-                                last_transition_time=last_transition_time,
-                                description=insight_data.get('description', ''),
-                                insight_status=status_obj,
-                                # List mode doesn't include these fields
-                                recommendation=None,
-                                additional_info=None,
-                                resources=None,
-                                category_specific_summary=None
-                            )
-                            
-                            insight_items.append(insight_item)
-                    
-                    return EksInsightsResponse(
-                        isError=False,
-                        content=[TextContent(type='text', text=f"Successfully retrieved {len(insight_items)} insights for cluster {cluster_name_value}")],
-                        cluster_name=cluster_name_value,
-                        insights=insight_items,
-                        next_token=response.get('nextToken'),
-                        detail_mode=False
-                    )
-                    
-                except Exception as e:
-                    error_message = f"Error listing insights: {str(e)}"
-                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return EksInsightsResponse(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                        cluster_name=cluster_name_value,
-                        insights=[],
-                        detail_mode=False
-                    )
-                    
-        except Exception as e:
-            error_message = f"Error processing EKS insights request: {str(e)}"
-            log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return EksInsightsResponse(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-                cluster_name=cluster_name_value,
-                insights=[],
-                detail_mode=False
-            )
-
- # -------------------------------------------------------------------------------------------------------------------------------------------- #

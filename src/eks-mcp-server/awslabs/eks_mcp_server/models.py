@@ -293,31 +293,6 @@ class MetricsGuidanceResponse(CallToolResult):
 
 
 
-
-class HybridNodeTroubleshootingResponse(CallToolResult):
-    """Response model for search_hybrid_node_troubleshooting tool.
-    
-    This model contains the response from a hybrid node troubleshooting query,
-    including description, troubleshooting steps, symptoms, and references.
-    """
-    
-    query: str = Field(
-        ..., description='Original user query for troubleshooting'
-    )
-    description: str = Field(
-        ..., description='General description of the issue'
-    )
-    troubleshooting_steps: List[str] = Field(
-        ..., description='List of steps to troubleshoot the issue'
-    )
-    symptoms: List[str] = Field(
-        ..., description='List of symptoms associated with the issue'
-    )
-    references: List[str] = Field(
-        ..., description='List of reference links for further information'
-    )
-
-
 class EksVpcConfigResponse(CallToolResult):
     """Response model for get_eks_vpc_config tool.
     
@@ -344,6 +319,9 @@ class EksVpcConfigResponse(CallToolResult):
     )
     remote_pod_cidr_blocks: List[str] = Field(
         [], description='CIDR blocks configured for remote pod access (for hybrid setups)'
+    )
+    subnets: List[Dict[str, Any]] = Field(
+        [], description='List of subnets in the VPC with their configurations'
     )
     cluster_name: str = Field(
         ..., description='Name of the EKS cluster'
