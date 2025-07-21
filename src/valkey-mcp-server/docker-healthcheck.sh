@@ -1,5 +1,4 @@
-#!/bin/bash
-
+#!/bin/sh
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,17 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Check if the process is running
-if ! pgrep -f "awslabs.valkey-mcp-server" > /dev/null; then
-    echo "Process not running"
-    exit 1
-fi
+SERVER="valkey-mcp-server"
 
-# Check if the port is listening (default MCP server port is 8080)
-if ! lsof -i :8080 -sTCP:LISTEN > /dev/null; then
-    echo "Port 8080 not listening"
-    exit 1
-fi
+# Check if the server process is running
+if pgrep -P 0 -a -l -x -f "/app/.venv/bin/python3 /app/.venv/bin/awslabs.$SERVER" > /dev/null; then
+  echo -n "$SERVER is running";
+  exit 0;
+fi;
 
-# All checks passed
-exit 0
+# Unhealthy
+exit 1;

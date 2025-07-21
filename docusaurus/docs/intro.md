@@ -3,6 +3,8 @@ slug: /
 title: Welcome to AWS MCP Servers
 ---
 
+import styles from '@site/src/components/ServerCards/styles.module.css';
+
 # Welcome to AWS MCP Servers
 
 Get started with AWS MCP Servers and learn core features.
@@ -35,7 +37,73 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 
 - **Specialized Domain Knowledge**: MCP servers provide deep, contextual knowledge about AWS services that might not be fully represented in foundation models' training data, enabling more accurate and helpful responses for cloud development tasks.
 
-## Available MCP Servers
+## Getting Started Essentials
+
+<div style={{
+  background: '#F9FAFB',
+  border: '1px solid #E5E7EB',
+  borderLeft: '4px solid #0078D4',
+  padding: '1.25rem',
+  marginBottom: '2rem',
+  borderRadius: '4px',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '1rem'
+}}>
+
+  <div>
+    <div style={{ fontWeight: 600, color: '#111827', marginBottom: '0.25rem' }}>New from AWS New York Summit 2025!</div>
+    <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>Essential MCP servers for AWS resource management</div>
+  </div>
+</div>
+
+Before diving into specific AWS services, set up these fundamental MCP servers for working with AWS resources:
+
+<div className={styles.cardGrid}>
+  <a href="/mcp/servers/aws-api-mcp-server" className={styles.serverCardLink}>
+    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
+    <div className={styles.serverCardHeader}>
+      <div className={styles.serverCardIcon}>
+        <img src="/mcp/assets/icons/key.svg" alt="API icon" style={{ width: '22px', height: '22px' }} />
+      </div>
+      <div className={styles.serverCardTitleSection}>
+        <h3 className={styles.serverCardTitle}>AWS API MCP</h3>
+        <div className={styles.serverCardTags}>
+          <span className={styles.serverCardCategory}>Essential Setup</span>
+        </div>
+      </div>
+    </div>
+    <div className={styles.serverCardContent}>
+      <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', WebkitLineClamp: 'unset' }}>
+        Set up secure programmatic access to AWS services with credential management and authentication handling. Manage infrastructure, explore resources, and execute AWS operations through natural language.
+      </p>
+    </div>
+  </div>
+  </a>
+
+  <a href="/mcp/servers/aws-knowledge-mcp-server" className={styles.serverCardLink}>
+    <div className={styles.serverCard} style={{ minHeight: '200px' }}>
+    <div className={styles.serverCardHeader}>
+      <div className={styles.serverCardIcon}>
+        <img src="/mcp/assets/icons/book-open.svg" alt="Documentation icon" style={{ width: '22px', height: '22px' }} />
+      </div>
+      <div className={styles.serverCardTitleSection}>
+        <h3 className={styles.serverCardTitle}>AWS Knowledge MCP</h3>
+        <div className={styles.serverCardTags}>
+          <span className={styles.serverCardCategory}>Essential Setup</span>
+        </div>
+      </div>
+    </div>
+    <div className={styles.serverCardContent}>
+      <p className={styles.serverCardDescription} style={{ height: 'auto', overflow: 'visible', WebkitLineClamp: 'unset' }}>
+        An AWS-managed remote MCP server that provides instant access to up-to-date AWS docs, API references, What's New posts, Getting Started information, Builder Library, blog posts, architectural references, and contextual guidance.
+      </p>
+    </div>
+  </div>
+  </a>
+</div>
+
+## Available AWS MCP Servers
 
 The servers are organized into these main categories:
 
@@ -51,6 +119,26 @@ The servers are organized into these main categories:
 import ServerCards from '@site/src/components/ServerCards';
 
 <ServerCards />
+
+## When to use local vs remote MCP servers?
+
+AWS MCP servers can be run either locally on your development machine or remotely on the cloud. Here's when to use each approach:
+
+### Local MCP Servers
+- **Development & Testing**: Perfect for local development, testing, and debugging
+- **Offline Work**: Continue working when internet connectivity is limited
+- **Data Privacy**: Keep sensitive data and credentials on your local machine
+- **Low Latency**: Minimal network overhead for faster response times
+- **Resource Control**: Direct control over server resources and configuration
+
+### Remote MCP Servers
+- **Team Collaboration**: Share consistent server configurations across your team
+- **Resource Intensive Tasks**: Offload heavy processing to dedicated cloud resources
+- **Always Available**: Access your MCP servers from anywhere, any device
+- **Automatic Updates**: Get the latest features and security patches automatically
+- **Scalability**: Easily handle varying workloads without local resource constraints
+
+> **Note**: Some MCP servers, like AWS Knowledge MCP, are provided as fully managed services by AWS. These AWS-managed remote servers require no setup or infrastructure management on your part - just connect and start using them.
 
 ## Workflows
 

@@ -64,9 +64,19 @@ The AWS MSK MCP Server provides a set of tools for interacting with Amazon MSK t
 
 This MCP server can be used by AI assistants to help users manage their Amazon MSK resources. It provides structured access to MSK APIs, making it easier for AI to understand and interact with MSK clusters.
 
+## Prerequisites
+
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python using `uv python install 3.10`
+3. Set up AWS credentials with access to AWS services
+   - You need an AWS account with appropriate permissions
+   - Configure AWS credentials with profile name 'default' with `aws configure` or environment variables
+
 ### Installation
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2eCUyMGF3c2xhYnMuYXdzLW1zay1tY3Atc2VydmVyJTQwbGF0ZXN0JTIwLS1hbGxvdy13cml0ZXMlMjIlMkMlMjJlbnYlMjIlM0ElN0IlMjJGQVNUTUNQX0xPR19MRVZFTCUyMiUzQSUyMkVSUk9SJTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-msk-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2eCUyMGF3c2xhYnMuYXdzLW1zay1tY3Atc2VydmVyJTQwbGF0ZXN0JTIwLS1hbGxvdy13cml0ZXMlMjIlMkMlMjJlbnYlMjIlM0ElN0IlMjJGQVNUTUNQX0xPR19MRVZFTCUyMiUzQSUyMkVSUk9SJTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20MSK%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-msk-mcp-server%40latest%22%2C%22--allow-writes%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 To use this MCP server with your MCP client, add the following configuration to your MCP client settings:
 

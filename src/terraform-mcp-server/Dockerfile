@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#FROM public.ecr.aws/sam/build-python3.10:1.137.1-20250411084548
-FROM public.ecr.aws/sam/build-python3.10@sha256:84738adb2767299571443d742c006d2f153c809c7181b099468583ac97be2dda AS uv
+# dependabot should continue to update this to the latest hash.
+FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:6544e0e002b40ae0f59bc3618b07c1e48064c4faed3a15ae2fbd2e8f663e8283 AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -33,38 +33,48 @@ ENV UV_FROZEN=true
 # Copy the required files first
 COPY pyproject.toml uv.lock uv-requirements.txt ./
 
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt && \
-    uv sync --frozen --no-install-project --no-dev --no-editable
+    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
+    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
-# Then, add the rest of the project source code and install it
+    # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --python 3.13 --frozen --no-dev --no-editable
 
 # Make the directory just in case it doesn't exist
-RUN mkdir -p /root/.local
+# RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/sam/build-python3.10@sha256:84738adb2767299571443d742c006d2f153c809c7181b099468583ac97be2dda
-
+FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:6544e0e002b40ae0f59bc3618b07c1e48064c4faed3a15ae2fbd2e8f663e8283
+ARG TERRAFORM_VERSION="1.12.2"
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+
+RUN echo $TERRAFORM_VERSION
 
 # Install lsof for the healthcheck
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
-RUN yum update -y && \
-    yum install -y lsof && \
-    yum clean all -y && \
-    rm -rf /var/cache/yum && \
+RUN out=$(mktemp) && \
+    apt-get update -y && \
+    apt-get install -y wget unzip procps && \
+    (wget -nv -O$out wget "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_$(dpkg --print-architecture).zip" || echo "Getting Network Error 4 ? $?" ) && \
+    unzip "$out" -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/terraform && \
+    apt-get clean -y && \
+    apt-get autoremove -y && \
     groupadd --force --system app && \
     useradd app -g app -d /app && \
     chmod o+x /root
 
 # Get the project from the uv layer
-COPY --from=uv --chown=app:app /root/.local /root/.local
+# COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
@@ -74,5 +84,5 @@ COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
 ENTRYPOINT ["awslabs.terraform-mcp-server"]

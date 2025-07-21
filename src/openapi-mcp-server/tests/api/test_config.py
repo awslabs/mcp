@@ -25,9 +25,8 @@ def test_config_default_values():
     assert config.api_base_url == 'https://localhost:8000'
     assert config.auth_type == 'none'
     assert config.host == '127.0.0.1'  # Default host should be localhost for security
-    assert config.port == 8000
     assert config.transport == 'stdio'
-    assert config.version == '0.1.0'
+    assert config.version == '0.2.0'
 
 
 def test_config_custom_values():
@@ -41,8 +40,7 @@ def test_config_custom_values():
         auth_username='user',
         auth_password='pass',
         host='127.0.0.1',
-        port=9000,
-        transport='sse',
+        transport='stdio',
         version='1.0.0',
     )
 
@@ -54,8 +52,7 @@ def test_config_custom_values():
     assert config.auth_username == 'user'
     assert config.auth_password == 'pass'
     assert config.host == '127.0.0.1'
-    assert config.port == 9000
-    assert config.transport == 'sse'
+    assert config.transport == 'stdio'
     assert config.version == '1.0.0'
 
 
@@ -66,8 +63,6 @@ def test_load_config_from_args():
     args.api_url = 'https://test.api.com'
     args.spec_url = 'https://test.api.com/openapi.json'
     args.spec_path = '/path/to/spec.json'
-    args.port = 9000
-    args.sse = True
     args.host = None  # Host is not set in args
     args.auth_type = 'basic'
     args.auth_username = 'user'
@@ -85,7 +80,6 @@ def test_load_config_from_args():
     assert config.api_base_url == 'https://test.api.com'
     assert config.api_spec_url == 'https://test.api.com/openapi.json'
     assert config.api_spec_path == '/path/to/spec.json'
-    assert config.port == 9000
     assert config.transport == 'stdio'  # Updated to match the default in config.py
     assert config.host == '127.0.0.1'  # Default host
     assert config.auth_type == 'basic'
@@ -108,7 +102,6 @@ def test_load_config_environment_variables():
         os.environ['API_BASE_URL'] = 'https://env-api.com'
         os.environ['API_SPEC_URL'] = 'https://env-api.com/openapi.json'
         os.environ['API_SPEC_PATH'] = '/path/to/env-spec.json'
-        os.environ['SERVER_PORT'] = '7777'
         os.environ['SERVER_TRANSPORT'] = 'stdio'
         os.environ['SERVER_HOST'] = '127.0.0.1'
         os.environ['AUTH_TYPE'] = 'bearer'
@@ -123,7 +116,6 @@ def test_load_config_environment_variables():
         assert config.api_base_url == 'https://env-api.com'
         assert config.api_spec_url == 'https://env-api.com/openapi.json'
         assert config.api_spec_path == '/path/to/env-spec.json'
-        assert config.port == 7777
         assert config.transport == 'stdio'
         assert config.host == '127.0.0.1'
         assert config.auth_type == 'bearer'
@@ -201,17 +193,14 @@ def test_load_config_precedence():
         # Set environment variables
         os.environ['API_NAME'] = 'env-api'
         os.environ['API_BASE_URL'] = 'https://env-api.com'
-        os.environ['SERVER_PORT'] = '7777'
 
         # Create arguments
         args = MagicMock()
         args.api_name = 'arg-api'
         args.api_url = 'https://arg-api.com'
-        args.port = 9999
         args.host = None
         args.spec_url = None
         args.spec_path = None
-        args.sse = False
         args.auth_type = None
         args.auth_username = None
         args.auth_password = None
@@ -228,7 +217,6 @@ def test_load_config_precedence():
         # Assert arguments take precedence
         assert config.api_name == 'arg-api'
         assert config.api_base_url == 'https://arg-api.com'
-        assert config.port == 9999
     finally:
         # Restore original environment
         os.environ.clear()

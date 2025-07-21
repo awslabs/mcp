@@ -1,6 +1,6 @@
 # Installation
 
-Each server has specific installation instructions. Generally, you can:
+Each server has specific installation instructions with one-click installs for Cursor and VSCode. Generally, you can:
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
 2. Install Python using `uv python install 3.10`
@@ -128,6 +128,90 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
   }
   ```
 
+### Getting Started with Amazon Q Developer CLI
+
+See [Amazon Q Developer CLI documentation](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html) for details.
+
+1. **Access MCP Settings**
+   - Open the Q Developer panel and open the **Chat** panel.
+   - Choose the tools icon to access to MCP configuration.
+
+2. **Add MCP Servers**
+   - Choose the plus (+) symbol.
+   - Select the scope: global or local.
+    If you select global scope, the MCP server configuration is stored in ~/.aws/amazonq/mcp.json and available across all your projects. If you select local scope, the configuration is stored in .amazonq/mcp.json within your current project.
+   - Fill in values as applicable.
+
+3. **Manual Configuration**
+   - You can also manually edit the MCP configuration file located at `~/.aws/amazonq/mcp.json` globally or `.amazonq/mcp.json` locally.
+
+#### `~/.aws/amazonq/mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+### Getting Started with Kiro
+
+See [Kiro Model Context Protocol Documentation](https://kiro.dev/docs/mcp/configuration/) for details.
+
+1. Navigate `Kiro` > `MCP Servers`
+2. Add a new MCP server by clicking the `+ Add` button.
+3. Paste the configuration given below:
+
+#### `kiro_mcp_settings.json`
+
+For macOS/Linux:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+For Windows:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.core-mcp-server@latest",
+        "awslabs.core-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
 ### Getting Started with Cline and Amazon Bedrock
 
 **IMPORTANT:** Following these instructions may incur costs and are subject to the [Amazon Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/). You are responsible for any associated costs. In addition to selecting the desired model in the Cline settings, ensure you have your selected model (e.g. `anthropic.claude-3-7-sonnet`) also enabled in Amazon Bedrock. For more information on this, see [these AWS docs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html) on enabling model access to Amazon Bedrock Foundation Models (FMs).
@@ -166,7 +250,6 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 
 
 ### Getting Started with Cursor
-
 
 1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
@@ -222,17 +305,37 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 #### `~/.codeium/windsurf/mcp_config.json`
 
  ```json
-  {
+ {
    "mcpServers": {
-     "awslabs.nova-canvas-mcp-server": {
+     "awslabs.core-mcp-server": {
        "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
+       "args": ["awslabs.core-mcp-server@latest"],
        "env": {
-         "AWS_PROFILE": "your-aws-profile",
-         "AWS_REGION": "us-east-1",
-         "FASTMCP_LOG_LEVEL": "ERROR"
+         "FASTMCP_LOG_LEVEL": "ERROR",
+         "MCP_SETTINGS_PATH": "path to your mcp settings file"
        }
      }
     }
   }
  ```
+
+### Getting Started with VS Code
+
+
+Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code MCP docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more info.):
+
+#### `.vscode/mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```

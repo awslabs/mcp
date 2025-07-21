@@ -634,52 +634,8 @@ class TestDatetimeConversion:
         assert result == data
 
 
-class TestGetLogsClient:
-    """Test the get_logs_client function."""
-
-    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_aws_session')
-    def test_get_logs_client_success(self, mock_get_aws_session):
-        """Test successful CloudWatch Logs client creation."""
-        from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import get_logs_client
-
-        # Arrange
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_get_aws_session.return_value = mock_session
-        mock_session.client.return_value = mock_client
-
-        # Act
-        result = get_logs_client()
-
-        # Assert
-        assert result == mock_client
-        mock_session.client.assert_called_once_with('logs')
-
-    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_aws_session')
-    def test_get_logs_client_failure(self, mock_get_aws_session):
-        """Test CloudWatch Logs client creation failure."""
-        from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import get_logs_client
-
-        # Arrange
-        mock_get_aws_session.side_effect = Exception('AWS session error')
-
-        # Act & Assert
-        with pytest.raises(Exception, match='AWS session error'):
-            get_logs_client()
-
-    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_aws_session')
-    def test_get_logs_client_session_client_failure(self, mock_get_aws_session):
-        """Test CloudWatch Logs client creation failure at session.client level."""
-        from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import get_logs_client
-
-        # Arrange
-        mock_session = MagicMock()
-        mock_get_aws_session.return_value = mock_session
-        mock_session.client.side_effect = Exception('Client creation failed')
-
-        # Act & Assert
-        with pytest.raises(Exception, match='Client creation failed'):
-            get_logs_client()
+# Note: get_logs_client tests have been moved to test_aws_utils.py since the function
+# is now centralized in aws_utils.py
 
 
 class TestGetLogsFromStream:

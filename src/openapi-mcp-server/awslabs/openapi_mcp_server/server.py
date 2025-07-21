@@ -393,7 +393,6 @@ def main():
         description='This project is a server that dynamically creates Model Context Protocol (MCP) tools and resources from OpenAPI specifications. It allows Large Language Models (LLMs) to interact with APIs through the Model Context Protocol.'
     )
     # Server configuration
-    parser.add_argument('--port', type=int, help='Port to run the server on')
     parser.add_argument(
         '--log-level',
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
@@ -439,6 +438,17 @@ def main():
         '--auth-cognito-user-pool-id', help='User Pool ID for Cognito authentication'
     )
     parser.add_argument('--auth-cognito-region', help='AWS region for Cognito (default: us-east-1)')
+    parser.add_argument(
+        '--auth-cognito-client-secret',
+        help='Client secret for Cognito OAuth 2.0 client credentials flow',
+    )
+    parser.add_argument(
+        '--auth-cognito-domain', help='Domain prefix for Cognito OAuth 2.0 client credentials flow'
+    )
+    parser.add_argument(
+        '--auth-cognito-scopes',
+        help='Comma-separated list of scopes for Cognito OAuth 2.0 client credentials flow',
+    )
 
     args = parser.parse_args()
 

@@ -140,9 +140,16 @@ jobs:
       id-token: write # Required for trusted publishing
     runs-on: ubuntu-latest
     steps:
+      - name: Clear Up Space (Agressively) for Multi-Architecture Builds that Run Out of Space
+        if: contains(toJson('["aws-api-mcp-server"]'), matrix.package)
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          lfs: true
           ref: ${{ needs.create-metadata.outputs.version }}
+          sparse-checkout: |
+            src/${{ matrix.package }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
@@ -182,7 +189,7 @@ jobs:
 
       - name: Build and Publish ${{ matrix.package }} Container
         id: build-and-publish
-        uses: ./.github/actions/build-and-push-container-image
+        uses: awslabs/mcp/.github/actions/build-and-push-container-image@9ae15a5007b0d2d13dd58a6660484c6962157566
         if: hashFiles(format('./src/{0}/Dockerfile', matrix.package))
         with:
           image: ${{ matrix.package }}
