@@ -18,28 +18,7 @@ import pyarrow as pa
 from ..utils import pyiceberg_load_catalog
 from daft import Catalog as DaftCatalog
 from daft.session import Session
-from datetime import date, datetime, time
-from decimal import Decimal
 from pydantic import BaseModel
-from pyiceberg.types import (
-    BinaryType,
-    BooleanType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    FixedType,
-    FloatType,
-    IntegerType,
-    ListType,
-    LongType,
-    MapType,
-    StringType,
-    StructType,
-    TimestampType,
-    TimestamptzType,
-    TimeType,
-    UUIDType,
-)
 
 # pyiceberg and daft imports
 from typing import Any, Dict, Optional
@@ -55,78 +34,6 @@ class PyIcebergConfig(BaseModel):
     catalog_name: str = 's3tablescatalog'  # default
     rest_signing_name: str = 's3tables'
     rest_sigv4_enabled: str = 'true'
-
-
-def convert_value_for_append(value, iceberg_type):
-    """Convert a value to the appropriate type for appending to an Iceberg table column.
-
-    Args:
-        value: The value to convert. Can be of various types (str, int, float, etc.).
-        iceberg_type: The Iceberg type to convert the value to.
-
-    Returns:
-        The value converted to the appropriate type for the Iceberg column, or None if value is None.
-
-    Raises:
-        NotImplementedError: If the iceberg_type is a complex type (ListType, MapType, StructType).
-        ValueError: If the conversion is unsupported or fails.
-    """
-    if value is None:
-        return None
-    # Already correct type
-    if isinstance(iceberg_type, BooleanType) and isinstance(value, bool):
-        return value
-    if isinstance(iceberg_type, (IntegerType, LongType)) and isinstance(value, int):
-        return value
-    if isinstance(iceberg_type, (FloatType, DoubleType)) and isinstance(value, float):
-        return value
-    if isinstance(iceberg_type, DecimalType) and isinstance(value, Decimal):
-        return value
-    if isinstance(iceberg_type, DateType) and isinstance(value, date):
-        return value
-    if isinstance(iceberg_type, TimeType) and isinstance(value, time):
-        return value
-    if isinstance(iceberg_type, (TimestampType, TimestamptzType)) and isinstance(value, datetime):
-        return value
-    if isinstance(iceberg_type, StringType) and isinstance(value, str):
-        return value
-    # Convert from string
-    if isinstance(value, str):
-        if isinstance(iceberg_type, BooleanType):
-            return value.lower() in ('true', '1', 'yes')
-        if isinstance(iceberg_type, (IntegerType, LongType)):
-            return int(value)
-        if isinstance(iceberg_type, (FloatType, DoubleType)):
-            return float(value)
-        if isinstance(iceberg_type, DecimalType):
-            return Decimal(value)
-        if isinstance(iceberg_type, DateType):
-            return date.fromisoformat(value)
-        if isinstance(iceberg_type, TimeType):
-            return time.fromisoformat(value)
-        if isinstance(iceberg_type, (TimestampType, TimestamptzType)):
-            return datetime.fromisoformat(value)
-        if isinstance(iceberg_type, StringType):
-            return value
-        if isinstance(iceberg_type, UUIDType):
-            import uuid
-
-            return uuid.UUID(value)
-        if isinstance(iceberg_type, (BinaryType, FixedType)):
-            return bytes.fromhex(value)
-    # Convert from number
-    if isinstance(value, (int, float)):
-        if isinstance(iceberg_type, (IntegerType, LongType)):
-            return int(value)
-        if isinstance(iceberg_type, (FloatType, DoubleType)):
-            return float(value)
-        if isinstance(iceberg_type, DecimalType):
-            return Decimal(str(value))
-        if isinstance(iceberg_type, StringType):
-            return str(value)
-    if isinstance(iceberg_type, (ListType, MapType, StructType)):
-        raise NotImplementedError(f'Complex type {iceberg_type} not supported in append_rows')
-    raise ValueError(f'Unsupported conversion from {type(value)} to {iceberg_type}')
 
 
 class PyIcebergEngine:
@@ -196,8 +103,73 @@ class PyIcebergEngine:
         except Exception:
             return False
 
+    def _convert_row_to_schema_types(self, row: dict, schema: pa.Schema) -> dict:
+        converted_row = {}
+        for field_name, value in row.items():
+            schema_field = None
+            for field in schema:
+                if field.name == field_name:
+                    schema_field = field
+                    break
+
+            if schema_field is None:
+                converted_row[field_name] = value
+                continue
+
+            try:
+                field_type_str = str(schema_field.type)
+                if field_type_str.startswith('date'):
+                    if isinstance(value, str):
+                        from datetime import datetime
+
+                        converted_row[field_name] = datetime.strptime(value, '%Y-%m-%d').date()
+                    else:
+                        converted_row[field_name] = value
+                elif field_type_str.startswith('timestamp'):
+                    # Handle timestamp fields (e.g., timestamp[us], timestamp[ms], etc.)
+                    if isinstance(value, str):
+                        from datetime import datetime
+
+                        try:
+                            # Try parsing with microseconds first, then fallback
+                            converted_row[field_name] = datetime.fromisoformat(value)
+                        except ValueError:
+                            # Try parsing without T separator
+                            try:
+                                converted_row[field_name] = datetime.strptime(
+                                    value, '%Y-%m-%d %H:%M:%S'
+                                )
+                            except Exception:
+                                converted_row[field_name] = value
+                elif field_type_str in ['int64', 'int32', 'int16', 'int8']:
+                    if isinstance(value, str) and value.isdigit():
+                        converted_row[field_name] = int(value)
+                    else:
+                        converted_row[field_name] = value
+                elif field_type_str in [
+                    'double',
+                    'float',
+                    'float64',
+                    'float32',
+                    'Float64',
+                    'Float32',
+                ]:
+                    if (
+                        isinstance(value, str)
+                        and value.replace('.', '').replace('-', '').isdigit()
+                    ):
+                        converted_row[field_name] = float(value)
+                    else:
+                        converted_row[field_name] = value
+                else:
+                    converted_row[field_name] = value
+            except Exception:
+                converted_row[field_name] = value
+
+        return converted_row
+
     def append_rows(self, table_name: str, rows: list[dict]) -> None:
-        """Append rows to an Iceberg table using pyiceberg.
+        """Append rows to an Iceberg table using pyiceberg with automatic schema inference.
 
         Args:
             table_name: The name of the table (e.g., 'namespace.tablename' or just 'tablename' if namespace is set)
@@ -214,26 +186,32 @@ class PyIcebergEngine:
                 full_table_name = f'{self.config.namespace}.{table_name}'
             else:
                 full_table_name = table_name
+
+            # Load the Iceberg table
             table = self._catalog.load_table(full_table_name)
-            iceberg_schema = table.schema()
+
+            # Retrieve the table schema as a PyArrow schema
+            iceberg_pyarrow_schema = table.schema().as_arrow()
+
+            # Convert data types to match schema
             converted_rows = []
-            for row in rows:
-                converted_row = {}
-                for field in iceberg_schema.fields:
-                    field_name = field.name
-                    field_type = field.field_type
-                    value = row.get(field_name)
-                    if field.required and value is None:
-                        raise ValueError(f'Required field {field_name} is missing or None')
-                    try:
-                        converted_row[field_name] = convert_value_for_append(value, field_type)
-                    except (ValueError, TypeError) as e:
-                        raise ValueError(
-                            f'Error converting value for field {field_name}: {str(e)}'
-                        )
+            for i, row in enumerate(rows):
+                converted_row = self._convert_row_to_schema_types(row, iceberg_pyarrow_schema)
                 converted_rows.append(converted_row)
-            schema = iceberg_schema.as_arrow()
-            pa_table = pa.Table.from_pylist(converted_rows, schema=schema)
-            table.append(pa_table)
+
+            # Create a PyArrow table from the new row data, enforcing the Iceberg schema
+            # This step also acts as an explicit schema validation check
+            try:
+                new_data_table = pa.Table.from_pylist(
+                    converted_rows, schema=iceberg_pyarrow_schema
+                )
+            except pa.ArrowInvalid as e:
+                raise ValueError(
+                    f'Schema mismatch detected: {e}. Please ensure your data matches the table schema.'
+                )
+
+            # Append the new data to the Iceberg table
+            table.append(new_data_table)
+
         except Exception as e:
             raise Exception(f'Error appending rows: {str(e)}')
