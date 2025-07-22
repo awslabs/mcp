@@ -23,7 +23,6 @@ import os
 import signal
 from anyio import create_task_group, open_signal_receiver, run
 from anyio.abc import CancelScope
-from awslabs.aws_msk_mcp_server.resources import documentation
 from awslabs.aws_msk_mcp_server.tools import (
     logs_and_telemetry,
     mutate_cluster,
@@ -92,9 +91,6 @@ async def run_server():
         replicator.register_module(mcp)
     else:
         logger.info('Server running in read-only mode. Write operations are disabled.')
-
-    # Register prompts
-    documentation.register_module(mcp)
 
     async with create_task_group() as tg:
         tg.start_soon(signal_handler, tg.cancel_scope)
