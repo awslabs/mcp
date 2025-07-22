@@ -46,7 +46,7 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
         "awslabs.aws_api_mcp_server.server"
       ],
       "env": {
-        "AWS_REGION": "us-east-1",
+        "AWS_REGION": "us-east-1"
       },
       "disabled": false,
       "autoApprove": []
@@ -68,7 +68,7 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
         "awslabs.aws-api-mcp-server@latest"
       ],
       "env": {
-        "AWS_REGION": "us-east-1",
+        "AWS_REGION": "us-east-1"
       },
       "disabled": false,
       "autoApprove": []
@@ -90,7 +90,7 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
         "awslabs.aws-api-mcp-server.exe"
       ],
       "env": {
-        "AWS_REGION": "us-east-1",
+        "AWS_REGION": "us-east-1"
       },
       "disabled": false,
       "autoApprove": []
