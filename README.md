@@ -555,6 +555,14 @@ Docker images for each MCP server are published to the [public AWS ECR registry]
     }
   }
   ```
+
+- For testing local changes you can build and tag the image. You have to update the MCP configuration to use this tag instead of the ECR image.
+
+  ```base
+  cd src/nova-canvas-mcp-server
+  docker build -t awslabs/nova-canvas-mcp-server .
+  ```
+
 ### Getting Started with Amazon Q Developer CLI
 
 <details>
