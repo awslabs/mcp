@@ -3,7 +3,7 @@ name = "awslabs.aws-diagram-mcp-server"
 version = "1.0.3"
 description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 dependencies = [
     "diagrams>=0.24.4",
     "boto3>=1.37.27",
