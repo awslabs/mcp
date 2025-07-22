@@ -69,38 +69,6 @@ async def test_import_parquet_to_table_success():
 
 
 @pytest.mark.asyncio
-async def test_import_parquet_to_table_non_parquet_file():
-    """Test import_parquet_to_table returns error when non-Parquet file is provided."""
-    from awslabs.s3_tables_mcp_server.file_processor import parquet as parquet_mod
-
-    warehouse = 'warehouse-arn'
-    region = 'us-west-2'
-    namespace = 'testns'
-    table_name = 'testtable'
-    s3_url = 's3://bucket/file.txt'  # Non-Parquet file
-    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
-    catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
-
-    result = await parquet_mod.import_parquet_to_table(
-        warehouse=warehouse,
-        region=region,
-        namespace=namespace,
-        table_name=table_name,
-        s3_url=s3_url,
-        uri=uri,
-        catalog_name=catalog_name,
-        rest_signing_name=rest_signing_name,
-        rest_sigv4_enabled=rest_sigv4_enabled,
-    )
-
-    assert result['status'] == 'error'
-    assert 'is not a Parquet file' in result['error']
-    assert 'Only .parquet files are supported' in result['error']
-
-
-@pytest.mark.asyncio
 async def test_import_parquet_to_table_create_new_table():
     """Test import_parquet_to_table successfully creates a new table when it doesn't exist."""
     from awslabs.s3_tables_mcp_server.file_processor import parquet as parquet_mod

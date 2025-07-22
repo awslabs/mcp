@@ -62,12 +62,6 @@ async def import_parquet_to_table(
     bucket = parsed.netloc
     key = parsed.path.lstrip('/')
 
-    if not key.lower().endswith('.parquet'):
-        return {
-            'status': 'error',
-            'error': f'File {key} is not a Parquet file. Only .parquet files are supported.',
-        }
-
     try:
         # Load Iceberg catalog
         catalog = pyiceberg_load_catalog(

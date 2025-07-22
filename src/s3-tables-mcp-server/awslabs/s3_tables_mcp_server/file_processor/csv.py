@@ -67,12 +67,6 @@ async def import_csv_to_table(
     bucket = parsed.netloc
     key = parsed.path.lstrip('/')
 
-    if not key.lower().endswith('.csv'):
-        return {
-            'status': 'error',
-            'error': f'File {key} is not a CSV file. Only .csv files are supported.',
-        }
-
     try:
         # Load Iceberg catalog
         catalog = pyiceberg_load_catalog(
