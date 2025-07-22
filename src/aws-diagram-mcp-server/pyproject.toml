@@ -10,6 +10,10 @@ dependencies = [
     "mcp[cli]>=1.11.0",
     "pydantic>=2.10.6",
     "bandit>=1.7.5",
+    # Security fixes for CVEs
+    "setuptools>=78.1.1",  # Fixes CVE-2025-47273
+    "starlette>=0.47.2",   # Fixes CVE-2025-54121
+    "urllib3>=2.5.0",      # Fixes CVE-2025-50181, CVE-2025-50182
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
