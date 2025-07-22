@@ -40,11 +40,12 @@ from typing import List
 from dotenv import load_dotenv
 
 load_dotenv()
+DEFAULT_PORT = 8053
+DEFAULT_HOST = "0.0.0.0"
 
 transport = os.getenv("TRANSPORT", "streamable-http")
-DEFAULT_PORT = 8053
-host = "0.0.0.0"
-port = DEFAULT_PORT
+host = os.getenv("HOST", DEFAULT_HOST)
+port = int(os.getenv("DOC_PORT", DEFAULT_PORT))
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
 RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'

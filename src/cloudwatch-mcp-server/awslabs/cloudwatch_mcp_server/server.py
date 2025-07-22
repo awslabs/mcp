@@ -33,10 +33,12 @@ mcp = FastMCP(
     ],
 )
 
-transport = os.getenv("TRANSPORT", "streamable-http")
 DEFAULT_PORT = 8051
-host = "0.0.0.0"
-port = DEFAULT_PORT
+DEFAULT_HOST = "0.0.0.0"
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+host = os.getenv("HOST", DEFAULT_HOST)
+port = int(os.getenv("CLOUDWATCH_PORT", DEFAULT_PORT))
 
 # Initialize and register CloudWatch tools
 try:

@@ -52,10 +52,12 @@ load_dotenv()
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'INFO'))
 
-transport = os.getenv("TRANSPORT", "streamable-http")
 DEFAULT_PORT = 8055
-host = "0.0.0.0"
-port = DEFAULT_PORT
+DEFAULT_HOST = "0.0.0.0"
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+host = os.getenv("HOST", DEFAULT_HOST)
+port = int(os.getenv("GITREPO_PORT", DEFAULT_PORT))
 
 # Create the MCP server
 mcp = FastMCP(

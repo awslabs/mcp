@@ -52,11 +52,12 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv(ENV_LOG_LEVEL, 'INFO'))
 
 load_dotenv()  # load .env values into os.environ
+DEFAULT_PORT = 8054
+DEFAULT_HOST = "0.0.0.0"
 
 transport = os.getenv("TRANSPORT", "streamable-http")
-DEFAULT_PORT = 8054
-host = "0.0.0.0"
-port = DEFAULT_PORT
+host = os.getenv("HOST", DEFAULT_HOST)
+port = int(os.getenv("PROMETHEUS_PORT", DEFAULT_PORT))
 
 
 class ConfigManager:

@@ -26,10 +26,12 @@ import os
 
 load_dotenv()
 
-transport = os.getenv("TRANSPORT", "streamable-http")
 DEFAULT_PORT = 8050
-host = "0.0.0.0"
-port = DEFAULT_PORT
+DEFAULT_HOST = "0.0.0.0"
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+host = os.getenv("HOST", DEFAULT_HOST)
+port = int(os.getenv("CORE_PORT", DEFAULT_PORT))
 
 class ContentItem(TypedDict):
     """A TypedDict representing a single content item in an MCP response.
