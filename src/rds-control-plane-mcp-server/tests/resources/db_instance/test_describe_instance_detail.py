@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for get_instance_detail resource."""
+"""Tests for describe_instance_detail resource."""
 
 import pytest
-from awslabs.rds_control_plane_mcp_server.resources.db_instance.get_instance_detail import (
+from awslabs.rds_control_plane_mcp_server.resources.db_instance.describe_instance_detail import (
     Instance,
     InstanceEndpoint,
     InstanceStorage,
-    get_instance_detail,
+    describe_instance_detail,
 )
 from typing import Any
 
 
-class TestGetInstanceDetail:
-    """Test get_instance_detail function."""
+class TestDescribeInstanceDetail:
+    """Test describe_instance_detail function."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_rds_client):
@@ -59,7 +59,7 @@ class TestGetInstanceDetail:
             ]
         }
 
-        result = await get_instance_detail(instance_id='test-instance')
+        result = await describe_instance_detail(instance_id='test-instance')
 
         assert result.instance_id == 'test-instance'
         assert result.status == 'available'
@@ -95,7 +95,7 @@ class TestGetInstanceDetail:
             ]
         }
 
-        await get_instance_detail(instance_id='test-instance')
+        await describe_instance_detail(instance_id='test-instance')
 
         mock_rds_client.describe_db_instances.assert_called_once_with(
             DBInstanceIdentifier='test-instance'
@@ -158,8 +158,7 @@ class TestInstance:
 
         assert instance.instance_id == 'test-instance'
         assert instance.engine_version == ''
-        assert instance.endpoint is not None
-        assert instance.endpoint.address is None
+        assert instance.endpoint is None
         assert instance.availability_zone is None
         assert instance.multi_az is False
         assert instance.storage is not None

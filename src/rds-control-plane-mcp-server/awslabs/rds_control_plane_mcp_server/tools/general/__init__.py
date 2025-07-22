@@ -16,6 +16,5 @@
 # It is intentionally minimal to support PEP 420 namespace packages.
 
 from .describe_rds_events import describe_rds_events
-from .describe_rds_performance_metrics import describe_rds_performance_metrics
 
-__all__ = ['describe_rds_events', 'describe_rds_performance_metrics']
+__all__ = ['describe_rds_events']

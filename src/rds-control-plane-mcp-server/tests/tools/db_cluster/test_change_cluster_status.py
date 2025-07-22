@@ -30,31 +30,28 @@ class TestChangeClusterStatus:
         """Test cluster status change in readonly mode."""
         result = await change_cluster_status(db_cluster_identifier='test-cluster', action='start')
 
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_status_cluster_requires_confirmation(self, mock_rds_context_allowed):
         """Test that cluster status change requires confirmation."""
         result = await change_cluster_status(db_cluster_identifier='test-cluster', action='start')
 
-        result_dict = json.loads(result)
-        assert result_dict['requires_confirmation'] is True
-        assert 'confirmation_token' in result_dict
+        assert result['requires_confirmation'] is True
+        assert 'confirmation_token' in result
 
     @pytest.mark.asyncio
     async def test_invalid_action(self, mock_rds_context_allowed):
         """Test invalid action returns error."""
         with patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ) as mock_get:
-            mock_get.return_value = (
-                'change_cluster_status',
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'token': (
+                'ChangeDBClusterStatus',
                 {'db_cluster_identifier': 'test-cluster', 'action': 'invalid'},
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await change_cluster_status(
                 db_cluster_identifier='test-cluster', action='invalid', confirmation_token='token'
             )
@@ -69,27 +66,19 @@ class TestChangeClusterStatus:
             'DBCluster': {'DBClusterIdentifier': 'test-cluster', 'Status': 'starting'}
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'change_cluster_status',
+        with patch(
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'token': (
+                'ChangeDBClusterStatus',
                 {'db_cluster_identifier': 'test-cluster', 'action': 'start'},
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await change_cluster_status(
                 db_cluster_identifier='test-cluster', action='start', confirmation_token='token'
             )
 
             assert 'DB cluster test-cluster has been started successfully' in result['message']
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
 
     @pytest.mark.asyncio
     async def test_stop_cluster_success(self, mock_rds_client, mock_rds_context_allowed):
@@ -98,20 +87,14 @@ class TestChangeClusterStatus:
             'DBCluster': {'DBClusterIdentifier': 'test-cluster', 'Status': 'stopping'}
         }
 
-        with (
-            patch(
-                'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-            ) as mock_get,
-            patch(
-                'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-            ),
-        ):
-            mock_get.return_value = (
-                'change_cluster_status',
+        with patch(
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'token': (
+                'ChangeDBClusterStatus',
                 {'db_cluster_identifier': 'test-cluster', 'action': 'stop'},
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await change_cluster_status(
                 db_cluster_identifier='test-cluster', action='stop', confirmation_token='token'
             )
@@ -125,45 +108,31 @@ class TestChangeClusterStatus:
             'DBCluster': {'DBClusterIdentifier': 'test-cluster', 'Status': 'rebooting'}
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'change_cluster_status',
+        with patch(
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'token': (
+                'ChangeDBClusterStatus',
                 {'db_cluster_identifier': 'test-cluster', 'action': 'reboot'},
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await change_cluster_status(
                 db_cluster_identifier='test-cluster', action='reboot', confirmation_token='token'
             )
 
             assert 'DB cluster test-cluster has been rebooted successfully' in result['message']
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
 
     @pytest.mark.asyncio
     async def test_invalid_confirmation_token(self, mock_rds_context_allowed):
         """Test invalid confirmation token."""
-        with patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ) as mock_get:
-            mock_get.return_value = None
+        result = await change_cluster_status(
+            db_cluster_identifier='test-cluster',
+            action='start',
+            confirmation_token='invalid-token',
+        )
 
-            result = await change_cluster_status(
-                db_cluster_identifier='test-cluster',
-                action='start',
-                confirmation_token='invalid-token',
-            )
-
-            result_dict = json.loads(result) if isinstance(result, str) else result
-            assert 'error' in result_dict
-            assert 'Invalid or expired confirmation token' in result_dict['error']
+        assert 'error' in result
+        assert 'Invalid or expired confirmation token' in result['error']
 
     @pytest.mark.asyncio
     async def test_case_insensitive_actions(self, mock_rds_client, mock_rds_context_allowed):
@@ -172,20 +141,14 @@ class TestChangeClusterStatus:
             'DBCluster': {'DBClusterIdentifier': 'test-cluster', 'Status': 'starting'}
         }
 
-        with (
-            patch(
-                'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-            ) as mock_get,
-            patch(
-                'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-            ),
-        ):
-            mock_get.return_value = (
-                'change_cluster_status',
+        with patch(
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'token': (
+                'ChangeDBClusterStatus',
                 {'db_cluster_identifier': 'test-cluster', 'action': 'START'},
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await change_cluster_status(
                 db_cluster_identifier='test-cluster', action='START', confirmation_token='token'
             )

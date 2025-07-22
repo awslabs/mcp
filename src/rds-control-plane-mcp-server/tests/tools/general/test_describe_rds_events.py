@@ -117,12 +117,8 @@ class TestDescribeRDSEvents:
             event_categories=['invalid-category'],
         )
 
-        # The decorator returns JSON error response instead of raising
-        import json
-
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'Invalid event categories' in result_dict['error_message']
+        assert 'error' in result
+        assert 'Invalid event categories' in result['error_message']
 
     @pytest.mark.asyncio
     async def test_describe_events_cluster_source(self, mock_rds_client):

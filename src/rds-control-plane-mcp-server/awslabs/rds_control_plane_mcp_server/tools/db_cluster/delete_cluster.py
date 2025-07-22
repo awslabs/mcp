@@ -15,18 +15,18 @@
 """Tool to delete an Amazon RDS database cluster."""
 
 import asyncio
-from ...common.confirmation import readonly_check, require_confirmation
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.constants import (
+    SUCCESS_DELETED,
+)
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.readonly_check import readonly_check
+from ...common.decorators.require_confirmation import require_confirmation
 from ...common.server import mcp
 from ...common.utils import (
     format_rds_api_response,
 )
-from ...constants import (
-    SUCCESS_DELETED,
-)
 from loguru import logger
-from mcp.server.fastmcp import Context as FastMCPContext
 from pydantic import Field
 from typing import Any, Dict, Optional
 from typing_extensions import Annotated
@@ -48,7 +48,7 @@ This is a destructive operation that permanently deletes data. A confirmation to
 )
 @handle_exceptions
 @readonly_check
-@require_confirmation('delete_db_cluster')
+@require_confirmation('DeleteDBCluster')
 async def delete_db_cluster(
     db_cluster_identifier: Annotated[str, Field(description='The identifier for the DB cluster')],
     skip_final_snapshot: Annotated[
@@ -66,7 +66,6 @@ async def delete_db_cluster(
     confirmation_token: Annotated[
         Optional[str], Field(description='The confirmation token for the operation')
     ] = None,
-    ctx: Optional[FastMCPContext] = None,
 ) -> Dict[str, Any]:
     """Delete an RDS database cluster.
 
@@ -75,7 +74,6 @@ async def delete_db_cluster(
         skip_final_snapshot: Determines whether a final DB snapshot is created
         final_db_snapshot_identifier: The DB snapshot identifier if creating final snapshot
         confirmation_token: The confirmation token for the operation
-        ctx: MCP context for logging and state management
 
     Returns:
         Dict[str, Any]: The response from the AWS API

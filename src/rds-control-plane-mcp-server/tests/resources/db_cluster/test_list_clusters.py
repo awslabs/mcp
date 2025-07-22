@@ -94,12 +94,9 @@ class TestListClusters:
 
         result = await list_clusters()
 
-        # The decorator returns JSON error response instead of raising
-        assert isinstance(result, str)
-        import json
-
-        error_data = json.loads(result)
-        assert error_data['error_code'] == 'InvalidParameterCombination'
+        # The decorator returns dict error response instead of raising
+        assert isinstance(result, dict)
+        assert result['error_code'] == 'InvalidParameterCombination'
 
 
 class TestClusterSummary:

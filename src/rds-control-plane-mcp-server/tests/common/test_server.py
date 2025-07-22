@@ -14,12 +14,12 @@
 
 """Tests for the RDS Control Plane MCP Server."""
 
+from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
 from awslabs.rds_control_plane_mcp_server.common.server import (
     SERVER_DEPENDENCIES,
     SERVER_INSTRUCTIONS,
     mcp,
 )
-from awslabs.rds_control_plane_mcp_server.constants import MCP_SERVER_VERSION
 from mcp.server.fastmcp import FastMCP
 
 

@@ -16,15 +16,16 @@
 
 import asyncio
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
+from ...tools.db_instance.utils import format_instance_info
 from loguru import logger
 from mypy_boto3_rds.type_defs import DBInstanceTypeDef
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
 
 
-GET_INSTANCE_DETAIL_DOCSTRING = """Get detailed information about a specific Amazon RDS instance.
+DESCRIBE_INSTANCE_DETAIL_DOCSTRING = """Get detailed information about a specific Amazon RDS instance.
 
 This resource retrieves comprehensive details about a specific RDS database instance identified by its instance ID, including configuration, status, endpoints, storage details, and security settings.
 """
@@ -56,7 +57,7 @@ class Instance(BaseModel):
     instance_id: str = Field(description='The DB instance identifier')
     status: str = Field(description='The current status of the DB instance')
     engine: str = Field(description='The database engine')
-    engine_version: Optional[str] = Field(None, description='The version of the database engine')
+    engine_version: str = Field('', description='The version of the database engine')
     instance_class: str = Field(
         description='The compute and memory capacity class of the DB instance'
     )
@@ -88,10 +89,10 @@ class Instance(BaseModel):
 
     @classmethod
     def from_DBInstanceTypeDef(cls, instance: DBInstanceTypeDef) -> 'Instance':
-        """Format instance information into a detailed model with comprehensive information.
+        """Format instance information into a detailed model using the shared utility function.
 
         Takes raw instance data from AWS and formats it into a structured Instance model
-        containing all relevant details about the RDS instance configuration.
+        using the centralized format_instance_info utility to avoid code duplication.
 
         Args:
             instance: Raw instance data from AWS
@@ -99,59 +100,57 @@ class Instance(BaseModel):
         Returns:
             Instance: Formatted instance information with comprehensive details
         """
-        endpoint = InstanceEndpoint(
-            address=instance.get('Endpoint', {}).get('Address'),
-            hosted_zone_id=instance.get('Endpoint', {}).get('HostedZoneId'),
-            port=instance.get('Endpoint', {}).get('Port'),
-        )
+        # Use the shared utility function to format the instance data
+        formatted_data = format_instance_info(instance)
 
-        storage = InstanceStorage(
-            type=instance.get('StorageType'),
-            allocated=instance.get('AllocatedStorage'),
-            encrypted=instance.get('StorageEncrypted'),
-        )
-
-        vpc_security_groups = []
-        for sg in instance.get('VpcSecurityGroups', []):
-            vpc_security_groups.append(
-                {'id': sg.get('VpcSecurityGroupId', ''), 'status': sg.get('Status', '')}
+        # Convert the formatted data to the pydantic models
+        endpoint = None
+        if formatted_data.get('endpoint'):
+            endpoint_data = formatted_data['endpoint']
+            endpoint = InstanceEndpoint(
+                address=endpoint_data.get('address'),
+                port=endpoint_data.get('port'),
+                hosted_zone_id=endpoint_data.get('hosted_zone_id'),
             )
 
-        tags = {}
-        if instance.get('TagList'):
-            for tag in instance.get('TagList', []):
-                if 'Key' in tag and 'Value' in tag:
-                    tags[tag['Key']] = tag['Value']
+        storage = None
+        if formatted_data.get('storage'):
+            storage_data = formatted_data['storage']
+            storage = InstanceStorage(
+                type=storage_data.get('type'),
+                allocated=storage_data.get('allocated'),
+                encrypted=storage_data.get('encrypted'),
+            )
 
         return cls(
-            instance_id=instance.get('DBInstanceIdentifier', ''),
-            status=instance.get('DBInstanceStatus', ''),
-            engine=instance.get('Engine', ''),
-            engine_version=instance.get('EngineVersion', ''),
-            instance_class=instance.get('DBInstanceClass', ''),
+            instance_id=formatted_data.get('instance_id', ''),
+            status=formatted_data.get('status', ''),
+            engine=formatted_data.get('engine', ''),
+            engine_version=formatted_data.get('engine_version') or '',
+            instance_class=formatted_data.get('instance_class', ''),
             endpoint=endpoint,
-            availability_zone=instance.get('AvailabilityZone'),
-            multi_az=instance.get('MultiAZ', False),
+            availability_zone=formatted_data.get('availability_zone'),
+            multi_az=formatted_data.get('multi_az', False),
             storage=storage,
-            preferred_backup_window=instance.get('PreferredBackupWindow'),
-            preferred_maintenance_window=instance.get('PreferredMaintenanceWindow'),
-            publicly_accessible=instance.get('PubliclyAccessible', False),
-            vpc_security_groups=vpc_security_groups,
-            db_cluster=instance.get('DBClusterIdentifier'),
-            tags=tags,
-            dbi_resource_id=instance.get('DbiResourceId'),
+            preferred_backup_window=formatted_data.get('preferred_backup_window'),
+            preferred_maintenance_window=formatted_data.get('preferred_maintenance_window'),
+            publicly_accessible=formatted_data.get('publicly_accessible', False),
+            vpc_security_groups=formatted_data.get('vpc_security_groups', []),
+            db_cluster=formatted_data.get('db_cluster'),
+            tags=formatted_data.get('tags', {}),
+            dbi_resource_id=formatted_data.get('resource_id'),
             resource_uri=None,
         )
 
 
 @mcp.resource(
     uri='aws-rds://db-instance/{instance_id}',
-    name='GetDBInstanceDetails',
+    name='DescribeDBInstanceDetails',
     mime_type='application/json',
-    description=GET_INSTANCE_DETAIL_DOCSTRING,
+    description=DESCRIBE_INSTANCE_DETAIL_DOCSTRING,
 )
 @handle_exceptions
-async def get_instance_detail(
+async def describe_instance_detail(
     instance_id: str = Field(..., description='The instance identifier'),
 ) -> Instance:
     """Get detailed information about a specific instance as a resource.

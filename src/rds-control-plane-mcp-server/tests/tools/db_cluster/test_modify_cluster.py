@@ -29,9 +29,8 @@ class TestModifyCluster:
         """Test cluster modification in readonly mode."""
         result = await modify_db_cluster(db_cluster_identifier='test-cluster')
 
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_modify_cluster_success(

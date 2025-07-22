@@ -35,7 +35,7 @@ class TestReadDBLogFile:
         }
 
         result = await read_db_log_file(
-            db_instance_identifier='test-instance', log_file_name='error/postgresql.log'
+            db_instance_identifier='test-instance', log_file_name='error/postgresql.log', pattern=None
         )
 
         assert isinstance(result, DBLogFileResponse)
@@ -80,6 +80,7 @@ class TestReadDBLogFile:
             db_instance_identifier='test-instance',
             log_file_name='error/postgresql.log',
             marker='previous-marker',
+            pattern=None,
         )
 
         assert isinstance(result, DBLogFileResponse)
@@ -99,31 +100,36 @@ class TestReadDBLogFile:
             db_instance_identifier='test-instance',
             log_file_name='error/postgresql.log',
             number_of_lines=50,
+            pattern=None,
         )
 
         assert isinstance(result, DBLogFileResponse)
         call_args = mock_rds_client.download_db_log_file_portion.call_args[1]
         assert call_args['NumberOfLines'] == 50
 
-    def test_preprocess_log_content_no_pattern(self):
+    @pytest.mark.asyncio
+    async def test_preprocess_log_content_no_pattern(self):
         """Test log content preprocessing without pattern."""
         content = 'Line 1\nLine 2\nLine 3'
-        result = preprocess_log_content(content)
+        result = await preprocess_log_content(content)
         assert result == content
 
-    def test_preprocess_log_content_with_pattern(self):
+    @pytest.mark.asyncio
+    async def test_preprocess_log_content_with_pattern(self):
         """Test log content preprocessing with pattern."""
         content = 'ERROR: Failed\nINFO: Success\nERROR: Timeout'
-        result = preprocess_log_content(content, pattern='ERROR')
+        result = await preprocess_log_content(content, pattern='ERROR')
         assert result == 'ERROR: Failed\nERROR: Timeout'
 
-    def test_preprocess_log_content_empty(self):
+    @pytest.mark.asyncio
+    async def test_preprocess_log_content_empty(self):
         """Test log content preprocessing with empty content."""
-        result = preprocess_log_content('', pattern='ERROR')
+        result = await preprocess_log_content('', pattern='ERROR')
         assert result == ''
 
-    def test_preprocess_log_content_no_matches(self):
+    @pytest.mark.asyncio
+    async def test_preprocess_log_content_no_matches(self):
         """Test log content preprocessing with no pattern matches."""
         content = 'INFO: Success\nDEBUG: Details'
-        result = preprocess_log_content(content, pattern='ERROR')
+        result = await preprocess_log_content(content, pattern='ERROR')
         assert result == ''

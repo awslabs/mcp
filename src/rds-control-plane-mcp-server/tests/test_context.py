@@ -14,7 +14,7 @@
 
 """Tests for RDSContext class."""
 
-from awslabs.rds_control_plane_mcp_server.context import RDSContext
+from awslabs.rds_control_plane_mcp_server.common.context import RDSContext
 
 
 class TestRDSContext:

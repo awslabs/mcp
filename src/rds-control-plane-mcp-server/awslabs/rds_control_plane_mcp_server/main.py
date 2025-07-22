@@ -15,10 +15,11 @@
 """awslabs RDS Control Plane MCP Server implementation."""
 
 import argparse
-import awslabs.rds_control_plane_mcp_server.resources  # noqa: F401 - imported for side effects to register tools
+import awslabs.rds_control_plane_mcp_server.resources  # noqa: F401 - imported for side effects to register resources
 import awslabs.rds_control_plane_mcp_server.tools  # noqa: F401 - imported for side effects to register tools
+from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
+from awslabs.rds_control_plane_mcp_server.common.context import RDSContext
 from awslabs.rds_control_plane_mcp_server.common.server import mcp
-from awslabs.rds_control_plane_mcp_server.context import RDSContext
 from loguru import logger
 
 
@@ -47,7 +48,7 @@ def main():
     mcp.settings.port = args.port
     RDSContext.initialize(args.readonly, args.max_items)
 
-    logger.info('Starting RDS Control Plane MCP Server')
+    logger.info(f'Starting RDS Control Plane MCP Server v{MCP_SERVER_VERSION}')
 
     # default streamable HTTP transport
     mcp.run()

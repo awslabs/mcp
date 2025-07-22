@@ -16,7 +16,7 @@
 
 import asyncio
 from ...common.connection import PIConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
 from datetime import datetime
 from loguru import logger

@@ -15,18 +15,18 @@
 """Tool to modify an existing Amazon RDS database instance."""
 
 import asyncio
-from ...common.confirmation import readonly_check
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.constants import (
+    SUCCESS_MODIFIED,
+)
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.readonly_check import readonly_check
 from ...common.server import mcp
 from ...common.utils import (
     format_rds_api_response,
 )
-from ...constants import (
-    SUCCESS_MODIFIED,
-)
+from .utils import format_instance_info
 from loguru import logger
-from mcp.server.fastmcp import Context as FastMCPContext
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 from typing_extensions import Annotated
@@ -124,7 +124,6 @@ async def modify_db_instance(
         Optional[bool],
         Field(description='Specifies whether the DB instance is publicly accessible'),
     ] = None,
-    ctx: Optional[FastMCPContext] = None,
 ) -> Dict[str, Any]:
     """Modify an existing RDS database instance configuration.
 
@@ -146,7 +145,6 @@ async def modify_db_instance(
         allow_major_version_upgrade: Indicates whether major version upgrades are allowed
         auto_minor_version_upgrade: Indicates that minor version upgrades are applied automatically
         publicly_accessible: Specifies whether the DB instance is publicly accessible
-        ctx: MCP context for logging and state management
 
     Returns:
         Dict[str, Any]: The response from the AWS API
@@ -197,4 +195,6 @@ async def modify_db_instance(
 
     result = format_rds_api_response(response)
     result['message'] = SUCCESS_MODIFIED.format(f'DB instance {db_instance_identifier}')
+    result['formatted_instance'] = format_instance_info(result.get('DBInstance', {}))
+
     return result

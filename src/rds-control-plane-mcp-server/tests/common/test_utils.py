@@ -18,11 +18,11 @@ import datetime
 from awslabs.rds_control_plane_mcp_server.common.utils import (
     add_mcp_tags,
     convert_datetime_to_string,
-    format_cluster_info,
-    format_instance_info,
     format_rds_api_response,
     handle_paginated_aws_api_call,
 )
+from awslabs.rds_control_plane_mcp_server.tools.db_cluster.utils import format_cluster_info
+from awslabs.rds_control_plane_mcp_server.tools.db_instance.utils import format_instance_info
 from unittest.mock import MagicMock
 
 

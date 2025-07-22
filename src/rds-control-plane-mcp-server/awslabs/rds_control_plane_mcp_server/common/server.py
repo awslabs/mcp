@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..constants import MCP_SERVER_VERSION
+from .constants import MCP_SERVER_VERSION
 from mcp.server.fastmcp import FastMCP
 
 

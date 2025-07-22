@@ -14,8 +14,8 @@
 
 """General utility functions for the RDS Control Plane MCP Server."""
 
-from ..constants import MCP_SERVER_VERSION
-from ..context import RDSContext
+from .constants import MCP_SERVER_VERSION
+from .context import RDSContext
 from botocore.client import BaseClient
 from typing import Any, Callable, Dict, List, TypeVar
 
@@ -104,92 +104,3 @@ def add_mcp_tags(params: Dict[str, Any]) -> Dict[str, Any]:
     tags.append({'Key': 'created_by', 'Value': 'rds-control-plane-mcp-server'})
     params['Tags'] = tags
     return params
-
-
-def format_cluster_info(cluster: Dict[str, Any]) -> Dict[str, Any]:
-    """Format cluster information for better readability.
-
-    Args:
-        cluster: Raw cluster data from AWS
-
-    Returns:
-        Formatted cluster information
-    """
-    return {
-        'cluster_id': cluster.get('DBClusterIdentifier'),
-        'status': cluster.get('Status'),
-        'engine': cluster.get('Engine'),
-        'engine_version': cluster.get('EngineVersion'),
-        'endpoint': cluster.get('Endpoint'),
-        'reader_endpoint': cluster.get('ReaderEndpoint'),
-        'multi_az': cluster.get('MultiAZ'),
-        'backup_retention': cluster.get('BackupRetentionPeriod'),
-        'preferred_backup_window': cluster.get('PreferredBackupWindow'),
-        'preferred_maintenance_window': cluster.get('PreferredMaintenanceWindow'),
-        'created_time': convert_datetime_to_string(cluster.get('ClusterCreateTime')),
-        'members': [
-            {
-                'instance_id': member.get('DBInstanceIdentifier'),
-                'is_writer': member.get('IsClusterWriter'),
-                'status': member.get('DBClusterParameterGroupStatus'),
-            }
-            for member in cluster.get('DBClusterMembers', [])
-        ],
-        'vpc_security_groups': [
-            {'id': sg.get('VpcSecurityGroupId'), 'status': sg.get('Status')}
-            for sg in cluster.get('VpcSecurityGroups', [])
-        ],
-        'tags': {tag['Key']: tag['Value'] for tag in cluster.get('TagList', [])}
-        if cluster.get('TagList')
-        else {},
-    }
-
-
-def format_instance_info(instance: Dict[str, Any]) -> Dict[str, Any]:
-    """Format instance information for better readability.
-
-    Args:
-        instance: Raw instance data from AWS
-
-    Returns:
-        Formatted instance information
-    """
-    # Handle potentially nested endpoint structure
-    endpoint = {}
-    if instance.get('Endpoint'):
-        if isinstance(instance['Endpoint'], dict):
-            endpoint = {
-                'address': instance['Endpoint'].get('Address'),
-                'port': instance['Endpoint'].get('Port'),
-                'hosted_zone_id': instance['Endpoint'].get('HostedZoneId'),
-            }
-        else:
-            endpoint = {'address': instance.get('Endpoint')}
-
-    return {
-        'instance_id': instance.get('DBInstanceIdentifier'),
-        'status': instance.get('DBInstanceStatus'),
-        'engine': instance.get('Engine'),
-        'engine_version': instance.get('EngineVersion'),
-        'instance_class': instance.get('DBInstanceClass'),
-        'endpoint': endpoint,
-        'availability_zone': instance.get('AvailabilityZone'),
-        'multi_az': instance.get('MultiAZ', False),
-        'storage': {
-            'type': instance.get('StorageType'),
-            'allocated': instance.get('AllocatedStorage'),
-            'encrypted': instance.get('StorageEncrypted'),
-        },
-        'publicly_accessible': instance.get('PubliclyAccessible', False),
-        'vpc_security_groups': [
-            {'id': sg.get('VpcSecurityGroupId'), 'status': sg.get('Status')}
-            for sg in instance.get('VpcSecurityGroups', [])
-        ],
-        'db_cluster': instance.get('DBClusterIdentifier'),
-        'preferred_backup_window': instance.get('PreferredBackupWindow'),
-        'preferred_maintenance_window': instance.get('PreferredMaintenanceWindow'),
-        'tags': {tag['Key']: tag['Value'] for tag in instance.get('TagList', [])}
-        if instance.get('TagList')
-        else {},
-        'resource_id': instance.get('DbiResourceId'),
-    }

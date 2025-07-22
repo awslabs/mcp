@@ -15,7 +15,7 @@
 """Resource for listing available RDS DB Instances."""
 
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
 from ...common.utils import handle_paginated_aws_api_call
 from loguru import logger
@@ -46,7 +46,6 @@ class InstanceSummary(BaseModel):
         None, description='The DB cluster identifier, if this is a member of a DB cluster'
     )
     tag_list: Dict[str, str] = Field(default_factory=dict, description='A list of tags')
-    resource_uri: Optional[str] = Field(None, description='The resource URI for this instance')
 
     @classmethod
     def from_DBInstanceTypeDef(cls, instance: DBInstanceTypeDef) -> 'InstanceSummary':
@@ -76,7 +75,6 @@ class InstanceSummary(BaseModel):
             publicly_accessible=instance.get('PubliclyAccessible', False),
             db_cluster=instance.get('DBClusterIdentifier'),
             tag_list=tags,
-            resource_uri=None,
         )
 
 

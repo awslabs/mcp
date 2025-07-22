@@ -15,21 +15,20 @@
 """Tool to create a new Amazon RDS database instance."""
 
 import asyncio
-from ...common.confirmation import readonly_check
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
-from ...common.server import mcp
-from ...common.utils import (
-    add_mcp_tags,
-    format_instance_info,
-    format_rds_api_response,
-)
-from ...constants import (
+from ...common.constants import (
     ENGINE_PORT_MAP,
     SUCCESS_CREATED,
 )
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.readonly_check import readonly_check
+from ...common.server import mcp
+from ...common.utils import (
+    add_mcp_tags,
+    format_rds_api_response,
+)
+from .utils import format_instance_info
 from loguru import logger
-from mcp.server.fastmcp import Context as FastMCPContext
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 from typing_extensions import Annotated
@@ -112,7 +111,6 @@ async def create_db_instance(
         Optional[int],
         Field(description='The number of days for which automated backups are retained'),
     ] = None,
-    ctx: Optional[FastMCPContext] = None,
 ) -> Dict[str, Any]:
     """Create a new RDS database instance.
 
@@ -136,7 +134,6 @@ async def create_db_instance(
         port: The port number on which the database accepts connections
         publicly_accessible: Specifies whether the DB instance is publicly accessible
         backup_retention_period: The number of days for which automated backups are retained
-        ctx: MCP context for logging and state management
 
     Returns:
         Dict[str, Any]: The response from the AWS API

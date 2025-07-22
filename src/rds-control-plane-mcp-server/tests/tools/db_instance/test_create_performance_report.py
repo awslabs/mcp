@@ -16,9 +16,7 @@
 
 import pytest
 from awslabs.rds_control_plane_mcp_server.tools.db_instance.create_performance_report import (
-    _get_default_time_range,
-    _parse_iso_datetime,
-    _parse_time_parameters,
+    _parse_datetime,
     _validate_time_range,
     create_performance_report,
 )
@@ -33,12 +31,8 @@ class TestCreatePerformanceReport:
         """Test performance report creation in readonly mode."""
         result = await create_performance_report(dbi_resource_identifier='db-instance-1')
 
-        # The decorator returns JSON error response instead of raising
-        import json
-
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_create_report_success(self, mock_pi_client, mock_rds_context_allowed):
@@ -78,69 +72,44 @@ class TestCreatePerformanceReport:
 
         result = await create_performance_report(dbi_resource_identifier='db-instance-1')
 
-        # The decorator returns JSON error response instead of raising
-        import json
-
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'Failed to create performance report' in result_dict['error_message']
+        assert 'error' in result
+        assert 'Failed to create performance report' in result['error_message']
 
 
 class TestTimeUtilities:
     """Test time utility functions."""
 
-    def test_parse_iso_datetime_with_z(self):
+    def test_parse_datetime_with_z(self):
         """Test parsing ISO datetime with Z suffix."""
-        result = _parse_iso_datetime('2024-01-01T12:00:00Z')
+        result = _parse_datetime('2024-01-01T12:00:00Z', 5)
         expected = datetime(
             2024, 1, 1, 12, 0, 0, tzinfo=datetime.fromisoformat('2024-01-01T12:00:00+00:00').tzinfo
         )
         assert result == expected
 
-    def test_parse_iso_datetime_without_z(self):
+    def test_parse_datetime_without_z(self):
         """Test parsing ISO datetime without Z suffix."""
-        result = _parse_iso_datetime('2024-01-01T12:00:00+00:00')
+        result = _parse_datetime('2024-01-01T12:00:00+00:00', 5)
         expected = datetime(
             2024, 1, 1, 12, 0, 0, tzinfo=datetime.fromisoformat('2024-01-01T12:00:00+00:00').tzinfo
         )
         assert result == expected
 
-    def test_get_default_time_range(self):
-        """Test getting default time range."""
-        start, end = _get_default_time_range()
+    def test_parse_datetime_with_default(self):
+        """Test parsing with default value when None is provided."""
+        result = _parse_datetime(None, 5)
 
-        assert isinstance(start, datetime)
-        assert isinstance(end, datetime)
-        assert start < end
-        # Should be roughly 5 days ago to 2 days ago
+        assert isinstance(result, datetime)
+        # Should be roughly 5 days ago
         now = datetime.now()
-        assert (now - start).days >= 4
-        assert (now - end).days >= 1
+        assert 4 <= (now - result).days <= 6
 
-    def test_parse_time_parameters_both_provided(self):
-        """Test parsing time parameters when both are provided."""
-        start, end = _parse_time_parameters('2024-01-01T10:00:00Z', '2024-01-01T11:00:00Z')
-
-        assert start.year == 2024
-        assert start.month == 1
-        assert start.day == 1
-        assert start.hour == 10
-        assert end.hour == 11
-
-    def test_parse_time_parameters_none_provided(self):
-        """Test parsing time parameters when none are provided."""
-        start, end = _parse_time_parameters(None, None)
-
-        assert isinstance(start, datetime)
-        assert isinstance(end, datetime)
-        assert start < end
-
-    def test_parse_time_parameters_invalid_format(self):
-        """Test parsing time parameters with invalid format."""
+    def test_parse_datetime_invalid_format(self):
+        """Test parsing datetime with invalid format."""
         with pytest.raises(ValueError) as exc_info:
-            _parse_time_parameters('invalid-date', None)
+            _parse_datetime('invalid-date', 5)
 
-        assert 'Invalid start_time format' in str(exc_info.value)
+        assert 'Invalid time format' in str(exc_info.value)
 
     def test_validate_time_range_valid(self):
         """Test validating valid time range."""

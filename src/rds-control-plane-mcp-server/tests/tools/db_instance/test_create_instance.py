@@ -30,11 +30,8 @@ class TestCreateInstance:
             db_instance_identifier='test-instance', db_instance_class='db.t3.micro', engine='mysql'
         )
 
-        import json
-
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_create_cluster_instance_success(
@@ -112,7 +109,5 @@ class TestCreateInstance:
             allocated_storage=20,
         )
 
-        # The decorator returns a JSON string, so parse it
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'MasterUsername' in result_dict['error_message']
+        assert 'error' in result
+        assert 'MasterUsername' in result['error_message']

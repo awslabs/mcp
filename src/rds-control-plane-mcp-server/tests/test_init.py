@@ -62,7 +62,7 @@ def test_server_has_mcp_instance():
 def test_constants_has_version():
     """Test that the constants module has a version."""
     # Import the constants module
-    from awslabs.rds_control_plane_mcp_server.constants import MCP_SERVER_VERSION
+    from awslabs.rds_control_plane_mcp_server.common.constants import MCP_SERVER_VERSION
 
     assert MCP_SERVER_VERSION is not None
     assert isinstance(MCP_SERVER_VERSION, str)

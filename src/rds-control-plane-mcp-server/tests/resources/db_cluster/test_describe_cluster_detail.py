@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for get_cluster_detail resource."""
+"""Tests for describe_cluster_detail resource."""
 
 import pytest
-from awslabs.rds_control_plane_mcp_server.resources.db_cluster.get_cluster_detail import (
+from awslabs.rds_control_plane_mcp_server.resources.db_cluster.describe_cluster_detail import (
     Cluster,
     ClusterMember,
-    get_cluster_detail,
+    describe_cluster_detail,
 )
 from datetime import datetime
 from typing import Any
 
 
-class TestGetClusterDetail:
-    """Test get_cluster_detail function."""
+class TestDescribeClusterDetail:
+    """Test describe_cluster_detail function."""
 
     @pytest.mark.asyncio
     async def test_success(self, mock_rds_client):
@@ -57,7 +57,7 @@ class TestGetClusterDetail:
             ]
         }
 
-        result = await get_cluster_detail(cluster_id='test-cluster')
+        result = await describe_cluster_detail(cluster_id='test-cluster')
 
         assert result.cluster_id == 'test-cluster'
         assert result.status == 'available'
@@ -88,7 +88,7 @@ class TestGetClusterDetail:
             ]
         }
 
-        await get_cluster_detail(cluster_id='test-cluster')
+        await describe_cluster_detail(cluster_id='test-cluster')
 
         mock_rds_client.describe_db_clusters.assert_called_once_with(
             DBClusterIdentifier='test-cluster'

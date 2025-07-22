@@ -59,11 +59,8 @@ class TestCreateCluster:
             db_cluster_identifier='test-cluster', engine='aurora-mysql', master_username='admin'
         )
 
-        import json
-
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_create_cluster_with_optional_params(

@@ -15,7 +15,7 @@
 """Resource for listing available RDS DB Clusters."""
 
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
 from ...common.utils import handle_paginated_aws_api_call
 from loguru import logger

@@ -30,18 +30,16 @@ class TestFailoverCluster:
         """Test cluster failover in readonly mode."""
         result = await failover_db_cluster(db_cluster_identifier='test-cluster')
 
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_failover_cluster_no_confirmation(self, mock_rds_context_allowed):
         """Test cluster failover without confirmation token."""
         result = await failover_db_cluster(db_cluster_identifier='test-cluster')
 
-        result_dict = json.loads(result)
-        assert result_dict['requires_confirmation'] is True
-        assert 'confirmation_token' in result_dict
+        assert result['requires_confirmation'] is True
+        assert 'confirmation_token' in result
 
     @pytest.mark.asyncio
     async def test_failover_cluster_success(self, mock_rds_client, mock_rds_context_allowed):
@@ -54,19 +52,14 @@ class TestFailoverCluster:
             }
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'failover_db_cluster',
+        with patch(
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'valid-token': (
+                'FailoverDBCluster',
                 {'db_cluster_identifier': 'test-cluster'},
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await failover_db_cluster(
                 db_cluster_identifier='test-cluster',
                 confirmation_token='valid-token',
@@ -75,10 +68,6 @@ class TestFailoverCluster:
             assert (
                 result['message'] == 'DB cluster test-cluster has been failed over successfully.'
             )
-            mock_remove.assert_called_once_with('valid-token')
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
 
     @pytest.mark.asyncio
     async def test_failover_cluster_with_target(self, mock_rds_client, mock_rds_context_allowed):
@@ -91,22 +80,17 @@ class TestFailoverCluster:
             }
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'failover_db_cluster',
+        with patch(
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'valid-token': (
+                'FailoverDBCluster',
                 {
                     'db_cluster_identifier': 'test-cluster',
                     'target_db_instance_identifier': 'target-instance',
                 },
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await failover_db_cluster(
                 db_cluster_identifier='test-cluster',
                 target_db_instance_identifier='target-instance',
@@ -116,7 +100,3 @@ class TestFailoverCluster:
             assert (
                 result['message'] == 'DB cluster test-cluster has been failed over successfully.'
             )
-            mock_remove.assert_called_once_with('valid-token')
-        finally:
-            mock_get.stop()
-            mock_remove.stop()

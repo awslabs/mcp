@@ -31,9 +31,8 @@ class TestChangeInstanceStatus:
             db_instance_identifier='test-instance', action='start'
         )
 
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_status_instance_requires_confirmation(self, mock_rds_context_allowed):
@@ -42,99 +41,86 @@ class TestChangeInstanceStatus:
             db_instance_identifier='test-instance', action='start'
         )
 
-        result_dict = json.loads(result)
-        assert result_dict['requires_confirmation'] is True
-        assert 'confirmation_token' in result_dict
+        assert result['requires_confirmation'] is True
+        assert 'confirmation_token' in result
 
     @pytest.mark.asyncio
     async def test_invalid_action(self, mock_rds_context_allowed):
         """Test invalid action returns error."""
-        from unittest.mock import patch
+        # Manually add a pending operation to simulate the confirmation flow
+        from awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation import _pending_operations
+        import time
 
-        with patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ) as mock_get:
-            mock_get.return_value = (
-                'change_instance_status',
-                {'db_instance_identifier': 'test-instance', 'action': 'invalid'},
-                123456,
-            )
+        # Add a fake pending operation
+        token = 'test-token'
+        _pending_operations[token] = (
+            'ChangeDBInstanceStatus',
+            {'db_instance_identifier': 'test-instance', 'action': 'invalid'},
+            time.time() + 300,
+        )
 
-            result = await change_instance_status(
-                db_instance_identifier='test-instance',
-                action='invalid',
-                confirmation_token='token',
-            )
+        result = await change_instance_status(
+            db_instance_identifier='test-instance',
+            action='invalid',
+            confirmation_token=token,
+        )
 
-            assert 'error' in result
-            assert 'Invalid action' in result['error']
+        assert 'error' in result
+        assert 'Invalid action' in result['error']
 
     @pytest.mark.asyncio
     async def test_start_instance_success(self, mock_rds_client, mock_rds_context_allowed):
         """Test successful instance start."""
-        from unittest.mock import patch
+        from awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation import _pending_operations
+        import time
 
         mock_rds_client.start_db_instance.return_value = {
             'DBInstance': {'DBInstanceIdentifier': 'test-instance', 'DBInstanceStatus': 'starting'}
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'change_instance_status',
-                {'db_instance_identifier': 'test-instance', 'action': 'start'},
-                123456,
-            )
+        # Add a fake pending operation
+        token = 'test-token'
+        _pending_operations[token] = (
+            'ChangeDBInstanceStatus',
+            {'db_instance_identifier': 'test-instance', 'action': 'start'},
+            time.time() + 300,
+        )
 
-            result = await change_instance_status(
-                db_instance_identifier='test-instance', action='start', confirmation_token='token'
-            )
+        result = await change_instance_status(
+            db_instance_identifier='test-instance', action='start', confirmation_token=token
+        )
 
-            assert 'DB instance test-instance has been started successfully' in result['message']
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
+        assert 'DB instance test-instance has been started successfully' in result['message']
 
     @pytest.mark.asyncio
     async def test_stop_instance_success(self, mock_rds_client, mock_rds_context_allowed):
         """Test successful instance stop."""
-        from unittest.mock import patch
+        from awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation import _pending_operations
+        import time
 
         mock_rds_client.stop_db_instance.return_value = {
             'DBInstance': {'DBInstanceIdentifier': 'test-instance', 'DBInstanceStatus': 'stopping'}
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'change_instance_status',
-                {'db_instance_identifier': 'test-instance', 'action': 'stop'},
-                123456,
-            )
+        # Add a fake pending operation
+        token = 'test-token'
+        _pending_operations[token] = (
+            'ChangeDBInstanceStatus',
+            {'db_instance_identifier': 'test-instance', 'action': 'stop'},
+            time.time() + 300,
+        )
 
-            result = await change_instance_status(
-                db_instance_identifier='test-instance', action='stop', confirmation_token='token'
-            )
+        result = await change_instance_status(
+            db_instance_identifier='test-instance', action='stop', confirmation_token=token
+        )
 
-            assert 'DB instance test-instance has been stopped successfully' in result['message']
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
+        assert 'DB instance test-instance has been stopped successfully' in result['message']
 
     @pytest.mark.asyncio
     async def test_reboot_instance_success(self, mock_rds_client, mock_rds_context_allowed):
         """Test successful instance reboot."""
-        from unittest.mock import patch
+        from awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation import _pending_operations
+        import time
 
         mock_rds_client.reboot_db_instance.return_value = {
             'DBInstance': {
@@ -143,32 +129,25 @@ class TestChangeInstanceStatus:
             }
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'change_instance_status',
-                {'db_instance_identifier': 'test-instance', 'action': 'reboot'},
-                123456,
-            )
+        # Add a fake pending operation
+        token = 'test-token'
+        _pending_operations[token] = (
+            'ChangeDBInstanceStatus',
+            {'db_instance_identifier': 'test-instance', 'action': 'reboot'},
+            time.time() + 300,
+        )
 
-            result = await change_instance_status(
-                db_instance_identifier='test-instance', action='reboot', confirmation_token='token'
-            )
+        result = await change_instance_status(
+            db_instance_identifier='test-instance', action='reboot', confirmation_token=token
+        )
 
-            assert 'DB instance test-instance has been rebooted successfully' in result['message']
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
+        assert 'DB instance test-instance has been rebooted successfully' in result['message']
 
     @pytest.mark.asyncio
     async def test_reboot_with_failover(self, mock_rds_client, mock_rds_context_allowed):
         """Test reboot with force failover."""
-        from unittest.mock import patch
+        from awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation import _pending_operations
+        import time
 
         mock_rds_client.reboot_db_instance.return_value = {
             'DBInstance': {
@@ -177,31 +156,23 @@ class TestChangeInstanceStatus:
             }
         }
 
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'change_instance_status',
-                {
-                    'db_instance_identifier': 'test-instance',
-                    'action': 'reboot',
-                    'force_failover': True,
-                },
-                123456,
-            )
+        # Add a fake pending operation
+        token = 'test-token'
+        _pending_operations[token] = (
+            'ChangeDBInstanceStatus',
+            {
+                'db_instance_identifier': 'test-instance',
+                'action': 'reboot',
+                'force_failover': True,
+            },
+            time.time() + 300,
+        )
 
-            result = await change_instance_status(
-                db_instance_identifier='test-instance',
-                action='reboot',
-                force_failover=True,
-                confirmation_token='token',
-            )
+        result = await change_instance_status(
+            db_instance_identifier='test-instance',
+            action='reboot',
+            force_failover=True,
+            confirmation_token=token,
+        )
 
-            assert 'DB instance test-instance has been rebooted successfully' in result['message']
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
+        assert 'DB instance test-instance has been rebooted successfully' in result['message']

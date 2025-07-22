@@ -6,7 +6,7 @@ from awslabs.rds_control_plane_mcp_server.common.connection import (
     PIConnectionManager,
     RDSConnectionManager,
 )
-from awslabs.rds_control_plane_mcp_server.context import RDSContext
+from awslabs.rds_control_plane_mcp_server.common.context import RDSContext
 from unittest.mock import MagicMock, patch
 
 

@@ -11,11 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# This file is part of the awslabs namespace.
-# It is intentionally minimal to support PEP 420 namespace packages.
-
-from .describe_cluster_detail import describe_cluster_detail
-from .list_clusters import list_clusters
-
-__all__ = ['describe_cluster_detail', 'list_clusters']

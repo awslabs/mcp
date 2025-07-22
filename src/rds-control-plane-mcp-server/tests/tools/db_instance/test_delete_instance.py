@@ -32,9 +32,8 @@ class TestDeleteInstance:
             db_instance_identifier='test-instance', skip_final_snapshot=True
         )
 
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_delete_instance_no_confirmation(self, mock_rds_context_allowed):
@@ -43,10 +42,9 @@ class TestDeleteInstance:
             db_instance_identifier='test-instance', skip_final_snapshot=True
         )
 
-        result_dict = json.loads(result)
-        assert result_dict['requires_confirmation'] is True
-        assert 'confirmation_token' in result_dict
-        assert 'WARNING' in result_dict['message']
+        assert result['requires_confirmation'] is True
+        assert 'confirmation_token' in result
+        assert 'WARNING' in result['warning']
 
     @pytest.mark.asyncio
     async def test_delete_instance_with_valid_token(
@@ -61,20 +59,14 @@ class TestDeleteInstance:
             }
         }
 
-        # Mock the confirmation flow by patching the decorator functions
-        mock_get = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ).start()
-        mock_remove = patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.remove_pending_operation'
-        ).start()
-        try:
-            mock_get.return_value = (
-                'delete_db_instance',
+        with patch(
+            'awslabs.rds_control_plane_mcp_server.common.decorators.require_confirmation._pending_operations',
+            {'valid-token': (
+                'DeleteDBInstance',
                 {'db_instance_identifier': 'test-instance', 'skip_final_snapshot': True},
-                123456,
-            )
-
+                9999999999,
+            )}
+        ):
             result = await delete_db_instance(
                 db_instance_identifier='test-instance',
                 skip_final_snapshot=True,
@@ -82,25 +74,15 @@ class TestDeleteInstance:
             )
 
             assert result['message'] == 'DB instance test-instance has been deleted successfully.'
-            mock_remove.assert_called_once_with('valid-token')
-        finally:
-            mock_get.stop()
-            mock_remove.stop()
 
     @pytest.mark.asyncio
     async def test_delete_instance_invalid_token(self, mock_rds_context_allowed):
         """Test instance deletion with invalid confirmation token."""
-        with patch(
-            'awslabs.rds_control_plane_mcp_server.common.confirmation.get_pending_operation'
-        ) as mock_get:
-            mock_get.return_value = None
+        result = await delete_db_instance(
+            db_instance_identifier='test-instance',
+            skip_final_snapshot=True,
+            confirmation_token='invalid-token',
+        )
 
-            result = await delete_db_instance(
-                db_instance_identifier='test-instance',
-                skip_final_snapshot=True,
-                confirmation_token='invalid-token',
-            )
-
-            result_dict = json.loads(result) if isinstance(result, str) else result
-            assert 'error' in result_dict
-            assert 'Invalid or expired confirmation token' in result_dict['error']
+        assert 'error' in result
+        assert 'Invalid or expired confirmation token' in result['error']

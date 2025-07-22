@@ -15,9 +15,9 @@
 """describe_rds_events helpers, data models and tool implementation."""
 
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.context import RDSContext
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
-from ...context import RDSContext
 from datetime import datetime
 from mcp.types import ToolAnnotations
 from mypy_boto3_rds.type_defs import EventTypeDef

@@ -160,6 +160,7 @@ Work with databases, caching systems, and data processing workflows.
 ##### SQL & NoSQL Databases
 
 - **[Amazon DynamoDB MCP Server](src/dynamodb-mcp-server/)** - Complete DynamoDB operations and table management
+- **[Amazon RDS Control Plane MCP Server](src/rds-control-plane-mcp-server/)** - Comprehensive RDS database management with cluster/instance operations, performance monitoring, and log analysis
 - **[Amazon Aurora PostgreSQL MCP Server](src/postgres-mcp-server/)** - PostgreSQL database operations via RDS Data API
 - **[Amazon Aurora MySQL MCP Server](src/mysql-mcp-server/)** - MySQL database operations via RDS Data API
 - **[Amazon Aurora DSQL MCP Server](src/aurora-dsql-mcp-server/)** - Distributed SQL with PostgreSQL compatibility
@@ -294,6 +295,7 @@ Interact with AWS HealthAI services.
 
 - **[Amazon Data Processing MCP Server](src/aws-dataprocessing-mcp-server/)** - Comprehensive data processing tools and real-time pipeline visibility across AWS Glue and Amazon EMR-EC2
 - **[Amazon DynamoDB MCP Server](src/dynamodb-mcp-server/)** - NoSQL database operations and table management
+- **[Amazon RDS Control Plane MCP Server](src/rds-control-plane-mcp-server/)** - Comprehensive RDS database management with cluster/instance operations, performance monitoring, and log analysis
 - **[Amazon Aurora PostgreSQL MCP Server](src/postgres-mcp-server/)** - PostgreSQL operations via RDS Data API
 - **[Amazon Aurora MySQL MCP Server](src/mysql-mcp-server/)** - MySQL operations via RDS Data API
 - **[Amazon Aurora DSQL MCP Server](src/aurora-dsql-mcp-server/)** - Distributed SQL database operations

@@ -16,7 +16,7 @@
 
 import asyncio
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
 from datetime import datetime
 from loguru import logger
@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, List, Optional
 
 
-GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION = """Get detailed information about a specific Amazon RDS cluster.
+DESCRIBE_CLUSTER_DETAIL_RESOURCE_DESCRIPTION = """Get detailed information about a specific Amazon RDS cluster.
 
 This resource retrieves comprehensive details about a specific RDS database cluster identified by its cluster ID, including configuration, endpoints, backup settings, and maintenance windows.
 """
@@ -133,12 +133,12 @@ class Cluster(BaseModel):
 
 @mcp.resource(
     uri='aws-rds://db-cluster/{cluster_id}',
-    name='GetDBClusterDetail',
-    description=GET_CLUSTER_DETAIL_RESOURCE_DESCRIPTION,
+    name='DescribeDBClusterDetail',
+    description=DESCRIBE_CLUSTER_DETAIL_RESOURCE_DESCRIPTION,
     mime_type='application/json',
 )
 @handle_exceptions
-async def get_cluster_detail(
+async def describe_cluster_detail(
     cluster_id: str = Field(
         ..., description='The unique identifier of the RDS DB cluster to retrieve details for'
     ),

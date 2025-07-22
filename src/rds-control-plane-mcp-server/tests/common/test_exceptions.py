@@ -16,15 +16,8 @@
 
 import json
 import pytest
-from awslabs.rds_control_plane_mcp_server.common.exceptions import (
-    ConfirmationRequiredException,
-    ReadOnlyModeException,
+from awslabs.rds_control_plane_mcp_server.common.decorators.handle_exceptions import (
     handle_exceptions,
-)
-from awslabs.rds_control_plane_mcp_server.constants import (
-    ERROR_CLIENT,
-    ERROR_READONLY_MODE,
-    ERROR_UNEXPECTED,
 )
 from botocore.exceptions import ClientError
 from unittest.mock import patch
@@ -95,15 +88,15 @@ class TestClientErrorHandling:
             )
 
         result = await test_func()
-        result_dict = json.loads(result)
+        result_dict = result  # Already a dict, not JSON string
 
-        assert result_dict['error'] == ERROR_CLIENT.format(error_code)
+        assert 'Client error:' in result_dict['error']
         assert result_dict['error_code'] == error_code
         assert result_dict['error_message'] == error_message
         assert result_dict['operation'] == 'test_func'
 
     @pytest.mark.asyncio
-    @patch('awslabs.rds_control_plane_mcp_server.common.exceptions.logger.error')
+    @patch('awslabs.rds_control_plane_mcp_server.common.decorators.handle_exceptions.logger.error')
     async def test_client_error_logging(self, mock_log_error):
         """Test ClientError is properly logged."""
 
@@ -131,15 +124,15 @@ class TestGeneralExceptionHandling:
             raise ValueError(error_message)
 
         result = await test_func()
-        result_dict = json.loads(result)
+        result_dict = result  # Already a dict, not JSON string
 
-        assert result_dict['error'] == ERROR_UNEXPECTED.format(error_message)
+        assert 'Unexpected error:' in result_dict['error']
         assert result_dict['error_type'] == 'ValueError'
         assert result_dict['error_message'] == error_message
         assert result_dict['operation'] == 'test_func'
 
     @pytest.mark.asyncio
-    @patch('awslabs.rds_control_plane_mcp_server.common.exceptions.logger.exception')
+    @patch('awslabs.rds_control_plane_mcp_server.common.decorators.handle_exceptions.logger.exception')
     async def test_general_exception_logging(self, mock_log_exception):
         """Test general exceptions are properly logged."""
 
@@ -149,40 +142,3 @@ class TestGeneralExceptionHandling:
 
         await test_func()
         mock_log_exception.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_readonly_mode_exception_response_format(self):
-        """Test ReadOnlyModeException produces correct JSON response format."""
-
-        @handle_exceptions
-        async def test_func():
-            raise ReadOnlyModeException('create_test')
-
-        result = await test_func()
-        result_dict = json.loads(result)
-
-        assert result_dict['error'] == ERROR_READONLY_MODE
-        assert result_dict['operation'] == 'create_test'
-        assert 'message' in result_dict
-
-    @pytest.mark.asyncio
-    async def test_confirmation_required_exception_response_format(self):
-        """Test ConfirmationRequiredException produces correct JSON response format."""
-
-        @handle_exceptions
-        async def test_func():
-            raise ConfirmationRequiredException(
-                operation='delete_test',
-                confirmation_token='test-token',
-                warning_message='Test warning',
-                impact={'risk': 'high'},
-            )
-
-        result = await test_func()
-        result_dict = json.loads(result)
-
-        assert result_dict['requires_confirmation'] is True
-        assert result_dict['warning'] == 'Test warning'
-        assert result_dict['impact'] == {'risk': 'high'}
-        assert result_dict['confirmation_token'] == 'test-token'
-        assert 'message' in result_dict

@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""read_rds_db_logs data models, helpers and tool implementation."""
+"""read_db_log_file data models, helpers and tool implementation."""
 
+import re
 from ...common.connection import RDSConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
 from ...common.server import mcp
-from mcp.types import ToolAnnotations
+from mcp.server.fastmcp import Context as FastMCPContext
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -51,36 +52,44 @@ class DBLogFileResponse(BaseModel):
     )
 
 
-def preprocess_log_content(log_file_content: str, pattern: Optional[str] = None) -> str:
+async def preprocess_log_content(
+    log_file_content: str,
+    pattern: Optional[str] = None,
+    use_regex: bool = False,
+    ctx: Optional[FastMCPContext] = None,
+) -> str:
     """Preprocess and filter the log content before returning it.
 
-    This function processes the raw log file content and applies any specified pattern filtering.
-    If a pattern is provided, only lines containing that pattern will be included in the result.
+    This function processes the raw log file content and applies pattern filtering.
+    If a pattern is provided, only lines matching that pattern will be included.
 
     Args:
         log_file_content: Raw log content from the RDS instance
-        pattern: Optional filter pattern; when provided, only lines containing this pattern are returned
+        pattern: Optional filter pattern; when provided, only matching lines are returned
+        use_regex: Whether to treat the pattern as a regular expression (default: False)
+        ctx: Optional FastMCP context for error reporting
 
     Returns:
-        str: The processed log content, potentially filtered by the pattern
+        str: The processed log content, filtered by the pattern
     """
-    # Handle FieldInfo objects by extracting the default value
-    if hasattr(pattern, 'default'):
-        pattern = pattern.default
-
     if not pattern or not log_file_content:
         return log_file_content
 
-    return '\n'.join(line for line in log_file_content.splitlines() if pattern in line)
+    if use_regex:
+        try:
+            regex = re.compile(pattern)
+            return '\n'.join(line for line in log_file_content.splitlines() if regex.search(line))
+        except re.error as e:
+            if ctx:
+                await ctx.error(f'Regex Error: {str(e)}')
+            return log_file_content
+    else:
+        return '\n'.join(line for line in log_file_content.splitlines() if pattern in line)
 
 
 @mcp.tool(
     name='ReadDBLogFiles',
     description=READ_LOG_FILE_TOOL_DESCRIPTION,
-    annotations=ToolAnnotations(
-        title='Read RDS DB Log Files',
-        readOnlyHint=True,
-    ),
 )
 @handle_exceptions
 async def read_db_log_file(
@@ -92,11 +101,11 @@ async def read_db_log_file(
         ...,
         description='The name of the log file to read (e.g., "error/postgresql.log").',
     ),
-    marker: Optional[str] = Field(
+    marker: str = Field(
         '0',
         description='The pagination marker returned by a previous call to this tool for reading the next portion of a log file. Set to the first page by default.',
     ),
-    number_of_lines: Optional[int] = Field(
+    number_of_lines: int = Field(
         100,
         description='The number of lines to read from the log file (default: 100).',
         ge=1,
@@ -104,8 +113,13 @@ async def read_db_log_file(
     ),
     pattern: Optional[str] = Field(
         None,
-        description='The pattern to filter log entries. Only returns lines that contain the specified pattern string.',
+        description='The pattern to filter log entries. By default, performs simple substring matching. Set use_regex=True to use regular expressions.',
     ),
+    use_regex: bool = Field(
+        False,
+        description='Whether to treat the pattern as a regular expression. If False (default), performs simple substring matching.',
+    ),
+    ctx: Optional[FastMCPContext] = None,
 ) -> DBLogFileResponse:
     """Retrieve RDS database log file contents.
 
@@ -115,6 +129,8 @@ async def read_db_log_file(
         marker: The pagination marker from a previous call (set to '0' for first page)
         number_of_lines: Number of lines to retrieve (1-9999)
         pattern: Optional filter pattern to only return matching lines
+        use_regex: Whether to treat the pattern as a regular expression (default: False)
+        ctx: MCP context for logging and state management
 
     Returns:
         DBLogFileResponse: A data model containing the log content, pagination marker, and pending data flag
@@ -124,18 +140,20 @@ async def read_db_log_file(
     params = {
         'DBInstanceIdentifier': db_instance_identifier,
         'LogFileName': log_file_name,
+        'NumberOfLines': number_of_lines,  # No need to check for None
     }
-
-    if number_of_lines is not None:
-        params['NumberOfLines'] = number_of_lines  # type: ignore
 
     if marker:
         params['Marker'] = marker
 
     response = rds_client.download_db_log_file_portion(**params)
 
+    log_content = await preprocess_log_content(
+        response.get('LogFileData', ''), pattern=pattern, use_regex=use_regex, ctx=ctx
+    )
+
     result = DBLogFileResponse(
-        log_content=preprocess_log_content(response.get('LogFileData', ''), pattern=pattern),
+        log_content=log_content,
         next_marker=response.get('Marker', None),
         additional_data_pending=response.get('AdditionalDataPending', False),
     )

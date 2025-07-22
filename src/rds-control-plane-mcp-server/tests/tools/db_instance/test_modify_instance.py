@@ -31,9 +31,8 @@ class TestModifyInstance:
             db_instance_identifier='test-instance', allocated_storage=30
         )
 
-        result_dict = json.loads(result)
-        assert 'error' in result_dict
-        assert 'read-only mode' in result_dict['error']
+        assert 'error' in result
+        assert 'read-only mode' in result['error']
 
     @pytest.mark.asyncio
     async def test_modify_instance_success(self, mock_rds_client, mock_rds_context_allowed):

@@ -14,12 +14,12 @@
 
 """Performance report creation tool for RDS instances."""
 
-from ...common.confirmation import readonly_check
 from ...common.connection import PIConnectionManager
-from ...common.exceptions import handle_exceptions
+from ...common.decorators.handle_exceptions import handle_exceptions
+from ...common.decorators.readonly_check import readonly_check
 from ...common.server import mcp
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Optional
 
 
 # Constants
@@ -48,66 +48,29 @@ This operation will fail if running in read-only mode. The analysis period must 
 """
 
 
-def _parse_iso_datetime(time_str: str) -> datetime:
-    """Parse ISO8601 datetime string, handling Z suffix.
+def _parse_datetime(time_str: Optional[str], default_days_ago: int) -> datetime:
+    """Parse ISO8601 datetime string or return default time.
 
     Args:
-        time_str: ISO8601 formatted datetime string
+        time_str: ISO8601 formatted datetime string or None
+        default_days_ago: Days to subtract from now for default value
 
     Returns:
         datetime: Parsed datetime object
-    """
-    if time_str.endswith('Z'):
-        time_str = time_str.replace('Z', '+00:00')
-    return datetime.fromisoformat(time_str)
-
-
-def _get_default_time_range() -> Tuple[datetime, datetime]:
-    """Get default start and end times for the report.
-
-    Returns:
-        Tuple[datetime, datetime]: Default start and end times based on configured defaults
-    """
-    now = datetime.now()
-    start = now - timedelta(days=DEFAULT_START_DAYS_AGO)
-    end = now - timedelta(days=DEFAULT_END_DAYS_AGO)
-    return start, end
-
-
-def _parse_time_parameters(
-    start_time: Optional[str], end_time: Optional[str]
-) -> Tuple[datetime, datetime]:
-    """Parse and validate start and end time parameters.
-
-    Args:
-        start_time: Optional ISO8601 formatted start time string
-        end_time: Optional ISO8601 formatted end time string
-
-    Returns:
-        Tuple[datetime, datetime]: Parsed start and end datetime objects
 
     Raises:
-        ValueError: If time string formats are invalid
+        ValueError: If time string format is invalid
     """
-    default_start, default_end = _get_default_time_range()
+    if not time_str:
+        return datetime.now() - timedelta(days=default_days_ago)
 
-    if start_time:
-        try:
-            start = _parse_iso_datetime(start_time)
-        except ValueError as e:
-            raise ValueError(f'Invalid start_time format: {e}')
-    else:
-        start = default_start
+    if time_str.endswith('Z'):
+        time_str = time_str.replace('Z', '+00:00')
 
-    if end_time:
-        try:
-            end = _parse_iso_datetime(end_time)
-        except ValueError as e:
-            raise ValueError(f'Invalid end_time format: {e}')
-    else:
-        end = default_end
-
-    return start, end
+    try:
+        return datetime.fromisoformat(time_str)
+    except ValueError as e:
+        raise ValueError(f'Invalid time format: {e}')
 
 
 def _validate_time_range(start: datetime, end: datetime) -> None:
@@ -151,7 +114,8 @@ async def create_performance_report(
     Raises:
         ValueError: If running in readonly mode or if parameters are invalid
     """
-    start, end = _parse_time_parameters(start_time, end_time)
+    start = _parse_datetime(start_time, DEFAULT_START_DAYS_AGO)
+    end = _parse_datetime(end_time, DEFAULT_END_DAYS_AGO)
     _validate_time_range(start, end)
 
     params = {
