@@ -512,7 +512,6 @@ async def test_call_aws_awscli_customization_success(
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
     mock_validate.assert_called_once_with(mock_ir)
     mock_execute_awscli_customization.assert_called_once_with('aws configure list')
-    mock_get_creds.assert_called_once()
 
 
 @patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
@@ -555,20 +554,21 @@ async def test_call_aws_awscli_customization_error(
     mock_validate.assert_called_once_with(mock_ir)
     mock_execute_awscli_customization.assert_called_once_with('aws configure list')
     mock_ctx.error.assert_called_once_with(error_response.detail)
-    mock_get_creds.assert_called_once()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', None)
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
-def test_main_missing_aws_region():
+def test_main_missing_aws_region(mock_thread):
     """Test main function raises ValueError when AWS_REGION environment variable is not set."""
     with pytest.raises(ValueError, match=r'AWS_REGION environment variable is not defined.'):
         main()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', None)
-def test_main_missing_working_directory():
+def test_main_missing_working_directory(mock_thread):
     """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR environment variable is not set."""
     with pytest.raises(
         ValueError,
@@ -577,9 +577,10 @@ def test_main_missing_working_directory():
         main()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', 'relative/path')
-def test_main_relative_working_directory():
+def test_main_relative_working_directory(mock_thread):
     """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR is a relative path."""
     with pytest.raises(
         ValueError,
@@ -588,6 +589,7 @@ def test_main_relative_working_directory():
         main()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.os.chdir')
 @patch('awslabs.aws_api_mcp_server.server.server')
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
@@ -600,6 +602,7 @@ def test_main_success_with_read_only_mode(
     mock_get_read_only_operations,
     mock_server,
     mock_chdir,
+    mock_thread,
 ):
     """Test main function executes successfully with read-only mode enabled."""
     mock_knowledge_base.setup = MagicMock()

@@ -20,7 +20,9 @@ This MCP server is meant for testing, development, and evaluation purposes.
 
 Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Q CLI, Cursor or Cline.
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-api-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnB5dGhvbiUyMC1tJTIwYXdzbGFicy5hd3NfbWNwX3NlcnZlci5zZXJ2ZXIlMjIlMkMlMjJlbnYlMjIlM0ElN0IlMjJBV1NfUkVHSU9OJTIyJTNBJTIydXMtZWFzdC0xJTIyJTJDJTIyQVdTX01DUF9XT1JLSU5HX0RJUiUyMiUzQSUyMkMlM0ElNUMlNUNwYXRoJTVDJTVDdG8lNUMlNUN3b3JraW5nJTVDJTVDZGlyZWN0b3J5JTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.aws-api-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWFwaS1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIiwiQVdTX0FQSV9NQ1BfV09SS0lOR19ESVIiOiIvcGF0aC90by93b3JraW5nL2RpcmVjdG9yeSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20API%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-api-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_REGION%22%3A%22us-east-1%22%2C%22AWS_API_MCP_WORKING_DIR%22%3A%22%2Fpath%2Fto%2Fworking%2Fdirectory%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 
 
@@ -32,27 +34,26 @@ pip install awslabs.aws-api-mcp-server
 ```
 
 **Step 2: Configure your MCP client**
-   Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
-   ```json
-   {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "python",
-          "args": [
-            "-m",
-            "awslabs.aws_api_mcp_server.server"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "python",
+      "args": [
+        "-m",
+        "awslabs.aws_api_mcp_server.server"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
-   ```
+  }
+}
+```
 
 ### ⚡ Using uv
 
@@ -60,44 +61,42 @@ pip install awslabs.aws-api-mcp-server
 
 ```json
 {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "uvx",
-          "args": [
-            "awslabs.aws-api-mcp-server@latest"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-api-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
+  }
+}
 ```
 
 **For Windows users:**
 
 ```json
-   {
-      "mcpServers": {
-        "awslabs.aws-api-mcp-server": {
-          "command": "uvx",
-          "args": [
-            "--from",
-            "awslabs.aws-api-mcp-server@latest",
-            "awslabs.aws-api-mcp-server.exe"
-          ],
-          "env": {
-            "AWS_REGION": "us-east-1",
-            "AWS_API_MCP_WORKING_DIR": "C:\\path\\to\\working\\directory"
-          },
-          "disabled": false,
-          "autoApprove": []
-        }
-      }
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "awslabs.aws-api-mcp-server@latest",
+        "awslabs.aws-api-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
+  }
+}
 ```
 
 ### 🔧 Using Cloned Repository
@@ -111,7 +110,7 @@ For detailed instructions on setting up your local development environment and r
 | Environment Variable | Required | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 |---------------------|----------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `AWS_REGION` | ✅ Yes | - | Sets the default AWS region for all CLI commands, unless a specific region is provided in the request. This provides a consistent default while allowing flexibility to run commands in different regions as needed.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `AWS_API_MCP_WORKING_DIR` | ✅ Yes | - | Working directory path for the MCP server operations. Must be an absolute path. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions                                                                                                                                                                                                                                                                        |
+| `AWS_API_MCP_WORKING_DIR` | ❌ No | \<Platform-specific temp directory\>/aws-api-mcp/workdir | Working directory path for the MCP server operations. Must be an absolute path when provided. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions. If not provided, defaults to a platform-specific directory:<br/><br/>• **Windows**: `%TEMP%\aws-api-mcp\workdir` (typically `C:\Users\<username>\AppData\Local\Temp\aws-api-mcp\workdir`)<br/>• **macOS**: `/private/var/folders/<hash>/T/aws-api-mcp/workdir`<br/>• **Linux**: `$XDG_RUNTIME_DIR/aws-api-mcp/workdir` (if set) or `$TMPDIR/aws-api-mcp/workdir` (if set) or `/tmp/aws-api-mcp/workdir` |
 | `AWS_API_MCP_PROFILE_NAME` | ❌ No | `"default"` | AWS Profile for credentials to use for command executions. If not provided, the MCP server will follow the boto3's [default credentials chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) to look for credentials. We strongly recommend you to configure your credentials this way.                                                                                                                            |
 | `READ_OPERATIONS_ONLY` | ❌ No | `"false"` | When set to "true", restricts execution to read-only operations only. IAM permissions remain the primary security control. For a complete list of allowed operations under this flag, refer to the [Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html). Only operations where the **Access level** column is not `Write` will be allowed when this is set to "true". |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | ❌ No | - | Use environment variables to configure AWS credentials                                                                                                                                                                                                                                                                                                                                                                                                                       |

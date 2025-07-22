@@ -13,11 +13,12 @@
       "**/*requirements.txt",
       "**/*.pyc",
       "**/trivy-results.sarif",
-      "**/py.typed"
+      "**/py.typed",
+      "**/*.npz"
     ],
     "include": [
       "**/*.py",
-      "**/Dockerfile",
+      "**/*Dockerfile",
       "**/*.sh"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
@@ -50,7 +51,8 @@
       "**/yarn.lock",
       "**/*.pyc",
       "**/trivy-results.sarif",
-      "**/py.typed"
+      "**/py.typed",
+      "**/*.npz"
     ]
   }
 ]
