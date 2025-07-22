@@ -12,12 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Cluster Best Practices Module.
+"""MSK Best Practices Resources.
 
-This module provides tools for retrieving best practices and quotas for AWS MSK clusters.
+This module provides resources for accessing AWS MSK best practices and recommendations.
 """
 
-# Global best-practice thresholds and guidelines
+import json
+from mcp.server.fastmcp import FastMCP
+
+
+# Define all constants directly in this file
 RECOMMENDED_CPU_UTILIZATION_PERCENT = 60  # Keep CPU (user+sys) under 60% for headroom
 MAX_CPU_UTILIZATION_PERCENT = 70  # Avoid exceeding 70% (risk of instability during reassignments)
 STORAGE_UTILIZATION_WARNING_PERCENT = 85  # Alert threshold for disk usage
@@ -290,30 +294,14 @@ INSTANCE_SPECS = {
 
 
 def get_cluster_best_practices(instance_type: str, number_of_brokers: int) -> dict:
-    """Provides detailed best practices and quotas for AWS MSK clusters to guide AI agents in evaluating cluster health and identifying deviations.
+    """Provides detailed best practices and quotas for AWS MSK clusters.
 
     Args:
         instance_type (str): The AWS MSK broker instance type (e.g., kafka.m5.large).
         number_of_brokers (int): The total number of brokers in the MSK cluster.
 
     Returns:
-        dict: Detailed best practice guidelines and recommended quotas, structured in natural language for easy interpretation by AI.
-
-    How to interpret results:
-        - **CPU Utilization**: Maintain CPU usage below 60% for regular operations and never exceed 70%.
-        - **Disk Utilization**: Act if storage surpasses 85%, urgently address at 90%.
-        - **Partition Count**: Keep partition counts within recommended broker limits.
-        - **Replication Factor**: Follow replication factor 3 and minimum ISR of 2 for optimal resilience.
-        - **Under-Replicated Partitions**: Any deviation from zero indicates potential replication health issues.
-        - **Leader Imbalance**: Maintain leader distribution within 10% balance to avoid performance bottlenecks.
-
-    Additional Considerations:
-        - Never recommond moving out of express broker, as they are more stable and better performing.
-        - Always consider recommonded throughput for ingress, egress objective, no the max
-
-    Example usage:
-        advisory = get_cluster_best_practices('kafka.m5.large', 3)
-        # Evaluate actual metrics against advisory data provided.
+        dict: Detailed best practice guidelines and recommended quotas.
     """
     if instance_type not in INSTANCE_SPECS:
         return {'Error': f"Instance type '{instance_type}' is not supported or recognized."}
@@ -366,3 +354,105 @@ def get_cluster_best_practices(instance_type: str, number_of_brokers: int) -> di
         'Under-Replicated Partitions Tolerance': UNDER_REPLICATED_PARTITIONS_TOLERANCE,
         'Leader Imbalance Tolerance (%)': LEADER_IMBALANCE_TOLERANCE_PERCENT,
     }
+
+
+async def register_module(mcp: FastMCP) -> None:
+    """Register MSK best practices resources with the MCP server."""
+
+    @mcp.resource(
+        uri='resource://msk-best-practices', name='MSKBestPractices', mime_type='application/json'
+    )
+    async def msk_best_practices() -> str:
+        """Access comprehensive best practices for AWS MSK clusters.
+
+        This resource provides a complete set of best practices, thresholds, and
+        instance specifications for AWS MSK clusters in a single JSON document.
+
+        When to use:
+        - When designing or sizing a new MSK cluster
+        - When evaluating the health and configuration of an existing cluster
+        - When troubleshooting performance issues or planning capacity changes
+        - When establishing monitoring thresholds and alerts
+
+        Content overview:
+        - Recommended thresholds for CPU, disk, replication, and other metrics
+        - Detailed specifications for all supported instance types
+        - Guidelines for partition counts, replication factors, and other configurations
+
+        Returns:
+            JSON string containing all best practice guidelines and specifications
+        """
+        # Create a comprehensive best practices object
+        best_practices = {
+            'thresholds': {
+                'cpu_utilization': {
+                    'recommended_max': RECOMMENDED_CPU_UTILIZATION_PERCENT,
+                    'critical_max': MAX_CPU_UTILIZATION_PERCENT,
+                    'description': f'Keep below {RECOMMENDED_CPU_UTILIZATION_PERCENT}% regularly; never exceed {MAX_CPU_UTILIZATION_PERCENT}%.',
+                },
+                'disk_utilization': {
+                    'warning': STORAGE_UTILIZATION_WARNING_PERCENT,
+                    'critical': STORAGE_UTILIZATION_CRITICAL_PERCENT,
+                    'description': f'Warning at {STORAGE_UTILIZATION_WARNING_PERCENT}%, critical at {STORAGE_UTILIZATION_CRITICAL_PERCENT}%.',
+                },
+                'replication': {
+                    'recommended_factor': RECOMMENDED_REPLICATION_FACTOR,
+                    'min_insync_replicas': RECOMMENDED_MIN_INSYNC_REPLICAS,
+                    'description': 'For optimal resilience, use replication factor 3 with minimum ISR of 2.',
+                },
+                'under_replicated_partitions': {
+                    'tolerance': UNDER_REPLICATED_PARTITIONS_TOLERANCE,
+                    'description': 'Any deviation from zero indicates potential replication health issues.',
+                },
+                'leader_imbalance': {
+                    'tolerance_percent': LEADER_IMBALANCE_TOLERANCE_PERCENT,
+                    'description': f'Maintain leader distribution within {LEADER_IMBALANCE_TOLERANCE_PERCENT}% balance to avoid performance bottlenecks.',
+                },
+            },
+            'instance_specs': INSTANCE_SPECS,
+            'instance_categories': {
+                'standard': [key for key in INSTANCE_SPECS.keys() if key.startswith('kafka.')],
+                'express': [key for key in INSTANCE_SPECS.keys() if key.startswith('express.')],
+            },
+        }
+
+        return json.dumps(best_practices)
+
+    @mcp.resource(
+        uri='resource://msk-best-practices/cluster/{instance_type}/{number_of_brokers}',
+        name='MSKClusterBestPractices',
+        mime_type='application/json',
+    )
+    async def msk_cluster_best_practices(instance_type: str, number_of_brokers: int) -> str:
+        """Access best practices for MSK clusters based on instance type and broker count.
+
+        This resource provides detailed best practices and quotas for AWS MSK clusters to guide
+        in evaluating cluster health and identifying deviations from recommended configurations.
+
+        When to use:
+        - When designing or sizing a new MSK cluster
+        - When evaluating the health and configuration of an existing cluster
+        - When troubleshooting performance issues or planning capacity changes
+        - When establishing monitoring thresholds and alerts
+
+        How to use:
+        - Specify the instance type (e.g., 'kafka.m5.large') and number of brokers
+        - Parse the returned JSON to access detailed recommendations
+        - Compare actual cluster metrics against the recommended thresholds
+
+        Content overview:
+        - Instance specifications (vCPU, memory, network bandwidth)
+        - Throughput recommendations (ingress and egress)
+        - Partition guidelines (per broker and per cluster)
+        - Resource utilization thresholds (CPU and disk)
+        - Reliability configuration (replication factor, in-sync replicas)
+
+        Args:
+            instance_type: The AWS MSK broker instance type (e.g., kafka.m5.large)
+            number_of_brokers: The total number of brokers in the MSK cluster
+
+        Returns:
+            JSON string containing best practice guidelines and recommended quotas
+        """
+        result = get_cluster_best_practices(instance_type, int(number_of_brokers))
+        return json.dumps(result)

@@ -11,3 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""
+Documentation Resources Module
+
+This module provides resources for accessing AWS MSK documentation.
+"""
+
+from mcp.server.fastmcp import FastMCP
+
+from .best_practices import register_module as register_best_practices
+from .dev_guide import register_module as register_dev_guide
+
+
+async def register_resources(mcp: FastMCP) -> None:
+    """Register the documentation resources with the MCP server."""
+
+    # Register resources from other modules
+    await register_dev_guide(mcp)
+    await register_best_practices(mcp)

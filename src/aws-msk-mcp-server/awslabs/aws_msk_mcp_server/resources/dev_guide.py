@@ -27,52 +27,7 @@ async def register_module(mcp: FastMCP) -> None:
     """Register MSK documentation resources with the MCP server."""
 
     @mcp.resource(
-        uri='resource://msk-documentation', name='MSKDocumentation', mime_type='application/json'
-    )
-    async def msk_documentation_index() -> str:
-        """Access an index of available MSK documentation resources.
-
-        This resource serves as the entry point for all MSK documentation, providing a comprehensive
-        list of available documentation resources with their URIs, names, descriptions, and URLs.
-
-        When to use:
-        - As the first step when exploring MSK documentation
-        - When you need to discover what documentation resources are available
-        - To find the appropriate resource URI for more specific documentation needs
-
-        How to use:
-        - Access this resource directly without parameters
-        - Parse the returned JSON to find the URI of the specific documentation resource you need
-        - Use the URIs provided to access more detailed documentation resources
-
-        Returns:
-        - A JSON object containing an array of resources, each with:
-          * uri: The resource URI to access the specific documentation
-          * name: The human-readable name of the resource
-          * description: A brief description of the resource
-          * url: The source URL for the documentation
-        """
-        return json.dumps(
-            {
-                'resources': [
-                    {
-                        'uri': 'resource://msk-documentation/developer-guide',
-                        'name': 'Amazon MSK Developer Guide',
-                        'description': 'Comprehensive reference for MSK features, configurations, security, monitoring, and best practices. Use for detailed technical information and implementation guidance.',
-                        'url': PDF_RESOURCES['developer-guide']['url'],
-                    },
-                    {
-                        'uri': 'resource://msk-documentation/developer-guide/toc',
-                        'name': 'Amazon MSK Developer Guide Table of Contents',
-                        'description': 'Navigation aid for the MSK Developer Guide. Use to quickly locate specific topics, identify relevant sections, and find page numbers for targeted reading.',
-                        'url': PDF_RESOURCES['developer-guide']['url'],
-                    },
-                ]
-            }
-        )
-
-    @mcp.resource(
-        uri='resource://msk-documentation/developer-guide',
+        uri='resource://msk-documentation/developer-guide/{start_page}/{end_page}',
         name='MSKDeveloperGuide',
         mime_type='application/json',
     )
@@ -133,7 +88,7 @@ async def register_module(mcp: FastMCP) -> None:
             )
 
     @mcp.resource(
-        uri='resource://msk-documentation/developer-guide/toc',
+        uri='resource://msk-documentation/developer-guide',
         name='MSKDeveloperGuideTOC',
         mime_type='application/json',
     )

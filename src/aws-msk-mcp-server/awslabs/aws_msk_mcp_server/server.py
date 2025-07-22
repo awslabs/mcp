@@ -23,17 +23,17 @@ import os
 import signal
 from anyio import create_task_group, open_signal_receiver, run
 from anyio.abc import CancelScope
+from awslabs.aws_msk_mcp_server.resources import register_resources
 from awslabs.aws_msk_mcp_server.tools import (
-    logs_and_telemetry,
-    mutate_cluster,
-    mutate_config,
-    mutate_vpc,
-    read_cluster,
-    read_config,
-    read_global,
-    read_vpc,
-    replicator,
-    static_tools,
+    register_logs_and_telemetry,
+    register_mutate_cluster,
+    register_mutate_config,
+    register_mutate_vpc,
+    register_read_cluster,
+    register_read_config,
+    register_read_global,
+    register_read_vpc,
+    register_replicator,
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
@@ -75,22 +75,24 @@ async def run_server():
     )
 
     # Register read modules (always available)
-    read_cluster.register_module(mcp)
-    read_global.register_module(mcp)
-    read_vpc.register_module(mcp)
-    read_config.register_module(mcp)
-    logs_and_telemetry.register_module(mcp)
-    static_tools.register_module(mcp)
+    register_read_cluster(mcp)
+    register_read_global(mcp)
+    register_read_vpc(mcp)
+    register_read_config(mcp)
+    register_logs_and_telemetry(mcp)
 
     # Only register mutate modules if write operations are allowed
     if not read_only:
         logger.info('Write operations are enabled')
-        mutate_cluster.register_module(mcp)
-        mutate_config.register_module(mcp)
-        mutate_vpc.register_module(mcp)
-        replicator.register_module(mcp)
+        register_mutate_cluster(mcp)
+        register_mutate_config(mcp)
+        register_mutate_vpc(mcp)
+        register_replicator(mcp)
     else:
         logger.info('Server running in read-only mode. Write operations are disabled.')
+
+    # Register resources
+    await register_resources(mcp)
 
     async with create_task_group() as tg:
         tg.start_soon(signal_handler, tg.cancel_scope)
