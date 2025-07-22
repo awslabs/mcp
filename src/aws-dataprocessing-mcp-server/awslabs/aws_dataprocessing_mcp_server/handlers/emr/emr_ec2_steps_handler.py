@@ -25,6 +25,9 @@ from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
     ListStepsResponseModel,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
+    EMR_STEPS_RESOURCE_TYPE,
+)
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -223,8 +226,24 @@ class EMREc2StepsHandler:
                         params['ExecutionRoleArn'] = step['ExecutionRoleArn']
                         break
 
+                # verify if resource is already MCP managed
+                verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                    self.emr_client, cluster_id, EMR_STEPS_RESOURCE_TYPE
+                )
+
+                tags = None
+                if not verification_result['is_valid']:
+                    tags = AwsHelper.prepare_resource_tags(EMR_STEPS_RESOURCE_TYPE)
+
                 # Add steps to the cluster
                 response = self.emr_client.add_job_flow_steps(**params)
+
+                # Apply tags to the cluster if not already
+                if tags and not verification_result['is_valid'] and 'StepIds' in response:
+                    self.emr_client.add_tags(
+                        ResourceId=cluster_id,
+                        Tags=[{'Key': k, 'Value': v} for k, v in tags.items()],
+                    )
 
                 step_ids_list = response.get('StepIds', [])
                 steps_count = len(actual_steps)
@@ -264,6 +283,33 @@ class EMREc2StepsHandler:
                         'TERMINATE_PROCESS',
                     ]:
                         params['StepCancellationOption'] = step_cancellation_option
+
+                # Verify that the cluster is managed by MCP and has the correct resource type
+                verification_result = AwsHelper.verify_emr_cluster_managed_by_mcp(
+                    self.emr_client, cluster_id, EMR_STEPS_RESOURCE_TYPE
+                )
+
+                if not verification_result['is_valid']:
+                    error_message = verification_result['error_message']
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    model = CancelStepsResponseModel(
+                        cluster_id=cluster_id,
+                        step_cancellation_info=[],
+                        count=0,
+                        operation='cancel',
+                    )
+                    return CancelStepsResponse.create(
+                        is_error=True,
+                        content=[TextContent(type='text', text=error_message)],
+                        model=model,
+                    )
+
+                # Resource is MCP managed with correct type, proceed with cancellation
+                log_with_request_id(
+                    ctx,
+                    LogLevel.INFO,
+                    'Resource is MCP managed with correct type, proceeding with step cancellation',
+                )
 
                 # Cancel steps
                 response = self.emr_client.cancel_steps(**params)

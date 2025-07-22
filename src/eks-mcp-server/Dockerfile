@@ -32,6 +32,20 @@ ENV UV_FROZEN=true
 # Copy the required files first
 COPY README.md .
 
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies and Python package manager
+RUN apk update && \
+    apk add --no-cache --virtual .build-deps \
+    build-base \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo
+
 # Install the project's dependencies using the lockfile and settings
 COPY pyproject.toml uv.lock uv-requirements.txt ./
 COPY awslabs/ awslabs/
@@ -50,7 +64,8 @@ RUN mkdir -p /root/.local
 FROM python:3.10-slim
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
 
 # Install lsof for the healthcheck
 # Install other tools as needed for the MCP server
@@ -63,8 +78,7 @@ RUN apt-get update \
   && mkdir -p /root/.local \
   && chmod o+x /root
 
-# Get the project from the uv layer
-COPY --from=uv --chown=app:app /root/.local /root/.local
+# Copy application artifacts from build stage
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
@@ -74,5 +88,5 @@ COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
 ENTRYPOINT ["awslabs.eks-mcp-server"]
