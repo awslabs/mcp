@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awslabs.elastic-beanstalk-mcp-server"
+version = "0.1.0"
+authors = [
+    {name = "AWS Labs", email = "aws-labs@amazon.com"},
+]
+description = "AWS Elastic Beanstalk MCP Server"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastmcp>=0.1.0",
+    "boto3>=1.28.0",
+    "pydantic>=2.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/awslabs/mcp"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+
+[project.scripts]
+awslabs-elastic-beanstalk-mcp-server = "awslabs.elastic_beanstalk_mcp_server.main:main"
+
+[tool.setuptools.packages.find]
+include = ["awslabs*"]

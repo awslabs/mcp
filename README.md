@@ -485,6 +485,17 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
       },
       "disabled": false,
       "autoApprove": []
+    },
+    "awslabs.elastic-beanstalk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.elastic-beanstalk-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }

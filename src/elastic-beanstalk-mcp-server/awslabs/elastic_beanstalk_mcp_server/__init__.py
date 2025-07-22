@@ -1,0 +1,1 @@
+"""AWS Elastic Beanstalk MCP Server."""
