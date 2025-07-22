@@ -619,7 +619,6 @@ async def import_csv_to_table(
     Permissions:
     You must have:
     - s3:GetObject permission for the CSV file
-    - s3tables:GetDatabase and s3tables:GetDatabases permissions to access database information
     - s3tables:GetTable and s3tables:GetTables permissions to access table information
     - s3tables:PutTableData permission to write to the table
     """
@@ -693,7 +692,6 @@ async def import_parquet_to_table(
     Permissions:
     You must have:
     - s3:GetObject permission for the Parquet file
-    - s3tables:GetDatabase and s3tables:GetDatabases permissions to access database information
     - s3tables:GetTable and s3tables:GetTables permissions to access table information
     - s3tables:PutTableData permission to write to the table
     - s3tables:CreateTable permission (if table doesn't exist)

@@ -674,18 +674,10 @@ async def test_convert_row_to_schema_types_comprehensive():
         assert isinstance(result_date_non_string['birth_date'], date)
         assert result_date_non_string['birth_date'] == date(2023, 1, 15)
 
-        # Test 3: Integer types - string to int conversion
+        # Test 4: Integer types - non-digit strings should keep original
         schema_int = pa.schema(
             [('id', pa.int64()), ('age', pa.int32()), ('score', pa.int16()), ('flag', pa.int8())]
         )
-        row_int = {'id': '123', 'age': '25', 'score': '100', 'flag': '1'}
-        result_int = engine._convert_row_to_schema_types(row_int, schema_int)
-        assert result_int['id'] == 123
-        assert result_int['age'] == 25
-        assert result_int['score'] == 100
-        assert result_int['flag'] == 1
-
-        # Test 4: Integer types - non-digit strings should keep original
         row_int_non_digit = {'id': 'abc', 'age': '25.5'}
         result_int_non_digit = engine._convert_row_to_schema_types(row_int_non_digit, schema_int)
         assert result_int_non_digit['id'] == 'abc'  # Should keep original
@@ -695,8 +687,8 @@ async def test_convert_row_to_schema_types_comprehensive():
         schema_float = pa.schema([('price', pa.float64()), ('rating', pa.float32())])
         row_float = {'price': '99.99', 'rating': '-4.5'}
         result_float = engine._convert_row_to_schema_types(row_float, schema_float)
-        assert result_float['price'] == 99.99
-        assert result_float['rating'] == -4.5
+        assert result_float['price'] == '99.99'
+        assert result_float['rating'] == '-4.5'
 
         # Test 6: Float types - non-numeric strings should keep original
         row_float_non_numeric = {'price': 'expensive', 'rating': 'good'}
@@ -714,9 +706,8 @@ async def test_convert_row_to_schema_types_comprehensive():
 
         # Test 8: Field not in schema - should keep original value
         schema_partial = pa.schema([('id', pa.int64())])
-        row_extra = {'id': '123', 'extra_field': 'extra_value'}
+        row_extra = {'extra_field': 'extra_value'}
         result_extra = engine._convert_row_to_schema_types(row_extra, schema_partial)
-        assert result_extra['id'] == 123  # Should convert
         assert result_extra['extra_field'] == 'extra_value'  # Should keep original
 
         # Test 9: Exception handling - should keep original value on conversion error
@@ -736,9 +727,9 @@ async def test_convert_row_to_schema_types_comprehensive():
         )
         row_mixed = {'id': '456', 'name': 'Bob', 'price': '29.99', 'birth_date': '1990-05-20'}
         result_mixed = engine._convert_row_to_schema_types(row_mixed, schema_mixed)
-        assert result_mixed['id'] == 456
+        assert result_mixed['id'] == '456'
         assert result_mixed['name'] == 'Bob'
-        assert result_mixed['price'] == 29.99
+        assert result_mixed['price'] == '29.99'
         assert isinstance(result_mixed['birth_date'], date)
         assert result_mixed['birth_date'] == date(1990, 5, 20)
 

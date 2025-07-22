@@ -99,19 +99,6 @@ async def import_csv_to_table(
         try:
             # Try to load existing table
             table = catalog.load_table(f'{namespace}.{table_name}')
-
-            # Validate schema compatibility for existing table
-            iceberg_schema = table.schema()
-            iceberg_fields = {f.name for f in iceberg_schema.fields}
-            csv_fields = set(csv_schema.names)
-
-            missing_columns = iceberg_fields - csv_fields
-            if missing_columns:
-                return {
-                    'status': 'error',
-                    'error': f'CSV file is missing required columns: {", ".join(missing_columns)}',
-                }
-
         except NoSuchTableError:
             # Table doesn't exist, create it using the CSV schema
             try:
@@ -135,6 +122,7 @@ async def import_csv_to_table(
             'rows_processed': csv_table.num_rows,
             'file_processed': os.path.basename(key),
             'table_created': table_created,
+            'table_uuid': table.metadata.table_uuid,
         }
 
     except Exception as e:

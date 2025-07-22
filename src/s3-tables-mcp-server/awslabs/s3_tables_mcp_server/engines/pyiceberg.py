@@ -104,6 +104,11 @@ class PyIcebergEngine:
             return False
 
     def _convert_row_to_schema_types(self, row: dict, schema: pa.Schema) -> dict:
+        # NOTE: PyArrow (and thus Iceberg) sometimes fails to infer date/timestamp types from string values like '2023-07-21T10:26:00'.
+        # If a string is passed for a date or timestamp field, PyArrow may throw an error such as:
+        #   Exception: Error appending rows: object of type <class 'str'> cannot be converted to int.
+        # This is because PyArrow expects a native Python datetime.date or datetime.datetime object for date/timestamp fields.
+        # To work around this, we explicitly convert string representations of dates/timestamps to the appropriate Python types.
         converted_row = {}
         for field_name, value in row.items():
             schema_field = None
@@ -141,26 +146,6 @@ class PyIcebergEngine:
                                 )
                             except Exception:
                                 converted_row[field_name] = value
-                elif field_type_str in ['int64', 'int32', 'int16', 'int8']:
-                    if isinstance(value, str) and value.isdigit():
-                        converted_row[field_name] = int(value)
-                    else:
-                        converted_row[field_name] = value
-                elif field_type_str in [
-                    'double',
-                    'float',
-                    'float64',
-                    'float32',
-                    'Float64',
-                    'Float32',
-                ]:
-                    if (
-                        isinstance(value, str)
-                        and value.replace('.', '').replace('-', '').isdigit()
-                    ):
-                        converted_row[field_name] = float(value)
-                    else:
-                        converted_row[field_name] = value
                 else:
                     converted_row[field_name] = value
             except Exception:
