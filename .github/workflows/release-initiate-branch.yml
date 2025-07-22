@@ -1,0 +1,150 @@
+---
+# Look for changes since the last release, bumps those versions, and creates a pull request.
+#
+# 1. Find directories that changed since the last release, or since first commit if no prior releases.
+# 2. If there are changes, then create a release branch formatted as `release/YYYY.MM.YYYYMMDDHHIISS`
+# 3. Now for each directory that changed, bump the package on the release branch
+# 4. Create a PR and watch it build.
+
+on:
+  workflow_dispatch:
+
+env:
+  GITHUB_USER_EMAIL: "scottschreckengaust@users.noreply.github.com"
+  GITHUB_USER_NAME: "Scott Schreckengaust"
+
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  discussions: none
+  id-token: none
+  issues: none
+  models: none
+  packages: none
+  pages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+
+jobs:
+
+  look-for-changes:
+    env:
+      ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || secrets.ACTIONS_STEP_DEBUG || 'false' }}
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    outputs:
+      changed-directories: ${{ steps.find-changed-directories.outputs.changed-directories }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - if: env.ACTIONS_STEP_DEBUG == 'true'
+        name: Debug
+        run: |
+          echo "::group::GITHUB object"
+          echo "${{ toJson(github) }}"
+          echo "::endgroup::"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Find Changed Directories Since Last Release
+        id: find-changed-directories
+        run: |
+          SINCE="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName | jq -r '.[].tagName')"
+          if [ -z "$SINCE" ]; then SINCE="$(git rev-list --max-parents=0 HEAD)"; fi;
+          echo "$SINCE"
+          CHANGED_FILES="$(git diff --name-only "$SINCE" HEAD | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+          SRC_DIRECTORIES="$(echo $CHANGED_FILES | jq -r '.[] | select(. | startswith("${{ env.SRC_DIRECTORY }}\/"))' | cut -d'/' -f2 | sort -u | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+          echo "changed-directories=$SRC_DIRECTORIES" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+
+  create-branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release-branch: ${{ steps.make-a-branch.outputs.release-branch }}
+    needs: [look-for-changes]
+    if: ${{ needs.look-for-changes.outputs.changed-directories != '[]' && needs.look-for-changes.outputs.changed-directories != '' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+      - name: make a branch
+        id: make-a-branch
+        run: |
+          RELEASE="$(date +'%Y.%m.%Y%m%d%H%I%S')"
+          RELEASE_BRANCH="release/$RELEASE"
+          git config --local user.email "${{ env.GITHUB_USER_EMAIL }}"
+          git config --local user.name "${{ env.GITHUB_USER_NAME }}"
+          git checkout -b "release/$RELEASE"
+          git push --set-upstream origin "$RELEASE_BRANCH"
+          echo "release-branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+    
+  bump-changed-directories:
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        changed-directory: ${{ fromJson(needs.look-for-changes.outputs.changed-directories) }}
+      max-parallel: 1 # so a linear commit history is created
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: [look-for-changes, create-branch]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          ref: ${{ needs.create-branch.outputs.release-branch }}
+          sparse-checkout: |
+            ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+            .github/workflows/release.py
+
+      - name: configure git
+        run: |
+          git config --local user.email "${{ env.GITHUB_USER_EMAIL }}"
+          git config --local user.name "${{ env.GITHUB_USER_NAME }}"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
+
+      - name: bump
+        run: |
+          uv run --script .github/workflows/release.py bump-package --directory=${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+      - name: push
+        run: |
+          git add "${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}"
+          git commit -m "chore: bump ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}"
+          git pull
+          git push
+
+  create_pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: [look-for-changes, create-branch, bump-changed-directories]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          ref: ${{ needs.create-branch.outputs.release-branch }}
+      - name: create pr
+        run: |
+          gh pr create --base "${{ github.ref_name }}" --head "${{ needs.create-branch.outputs.release-branch }}" --title "chore: ${{ needs.create-branch.outputs.release-branch }}" --body "# ${{ needs.create-branch.outputs.release-branch }}
+
+          triggered ${{ github.workflow}} by @${{ github.triggering_actor }} for @${{ github.actor }}
+
+          ## Acknowledgment
+
+          By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of the [project license](https://github.com/awslabs/mcp/blob/main/LICENSE)."
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}

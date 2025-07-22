@@ -1,0 +1,207 @@
+---
+# When a tag with format `YYYY.MM.YYYYMMDDHHIISS` is pushed create a "Release"
+
+on:
+  push:
+    tags:
+      - '[0-9][0-9][0-9][0-9].[0-9]+.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  discussions: none
+  id-token: none
+  issues: none
+  models: none
+  packages: none
+  pages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+jobs:
+  draft_release_when_tagged:
+    if: github.repository == ${{ vars.REPOSITORY || 'scottschreckengaust/mcp' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Draft release
+        id: draft-release
+        env:
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          gh release create "$VERSION" \
+            --generate-notes \
+            --draft \
+            --verify-tag
+          echo "# $VERSION" > RELEASE_NOTES.md
+          gh release view "$VERSION" --json body | jq -r '.body' > GENERATED_NOTES.md
+          cat RELEASE_NOTES.md GENERATED_NOTES.md | gh release edit "$VERSION" \
+            --draft=true \
+            --notes-file -
+
+  look-for-changes:
+    env:
+      ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || secrets.ACTIONS_STEP_DEBUG || 'false' }}
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    outputs:
+      changed-directories: ${{ steps.find-changed-directories.outputs.changed-directories }}
+      python-changed-directories: ${{ steps.find-changed-directories.outputs.python-changed-directories }}
+      node-changed-directories: ${{ steps.find-changed-directories.outputs.node-changed-directories }}
+      docker-changed-directories: ${{ steps.find-changed-directories.outputs.docker-changed-directories }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - if: env.ACTIONS_STEP_DEBUG == 'true'
+        name: Debug
+        run: |
+          echo "::group::GITHUB object"
+          echo "${{ toJson(github) }}"
+          echo "::endgroup::"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Find Changed Directories Since Last Published Release
+        id: find-changed-directories
+        run: |
+          SINCE="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName | jq -r '.[].tagName')"
+          if [ -z "$SINCE" ]; then SINCE="$(git rev-list --max-parents=0 HEAD)"; fi;
+          echo "$SINCE"
+          CHANGED_FILES="$(git diff --name-only "$SINCE" HEAD | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+          SRC_DIRECTORIES="$(echo $CHANGED_FILES | jq -r '.[] | select(. | startswith("${{ env.SRC_DIRECTORY }}\/"))' | cut -d'/' -f2 | sort -u | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+          echo "changed-directories=$SRC_DIRECTORIES" >> $GITHUB_OUTPUT
+          PYTHON_CHANGED_DIRECTORIES="$(echo $SRC_DIRECTORIES | jq -r '.[]' | xargs -I{} ls -1 ${{ env.SRC_DIRECTORY }}/{}/pyproject.toml 2> /dev/null | sed 's/\/pyproject\.toml$//' | jq -R -s -c 'split("\n")[:-1]' || echo "[]")"
+          NODE_CHANGED_DIRECTORIES="$(echo $SRC_DIRECTORIES | jq -r '.[]' | xargs -I{} ls -1 ${{ env.SRC_DIRECTORY }}/{}/package.json 2> /dev/null | sed 's/\/package\.json$//' | jq -R -s -c 'split("\n")[:-1]' || echo "[]")"
+          DOCKER_CHANGED_DIRECTORIES="$(echo $SRC_DIRECTORIES | jq -r '.[]' | xargs -I{} ls -1 ${{ env.SRC_DIRECTORY }}/{}/Dockerfile 2> /dev/null | sed 's/\/Dockerfile$//' | jq -R -s -c 'split("\n")[:-1]' || echo "[]")"
+          echo "python-changed-directories=$PYTHON_CHANGED_DIRECTORIES" >> $GITHUB_OUTPUT
+          echo "node-changed-directories=$NODE_CHANGED_DIRECTORIES" >> $GITHUB_OUTPUT
+          echo "docker-changed-directories=$NODE_CHANGED_DIRECTORIES" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+
+  publish-npmjs:
+    if: github.repository == ${{ vars.REPOSITORY || 'scottschreckengaust/mcp' }} && needs.look-for-changes.outputs.node-changed-directories != '[]' && needs.look-for-changes.outputs.node-changed-directories != ''
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        changed-directory: ${{ fromJson(needs.look-for-changes.outputs.node-changed-directories) }}
+      max-parallel: 1 # so a linear commit history is created
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: [look-for-changes]
+    steps:
+      - name: TBD
+        run: |
+          echo "This job is not yet implemented. Please implement it to publish Python packages to PyPI."
+
+#   publish-container:
+#     if: github.repository == ${{ vars.REPOSITORY || 'scottschreckengaust/mcp' }} && needs.look-for-changes.outputs.docker-changed-directories != '[]' && needs.look-for-changes.outputs.docker-changed-directories != ''
+#     env:
+#       SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+#     strategy:
+#       fail-fast: true
+#       matrix:
+#         changed-directory: ${{ fromJson(needs.look-for-changes.outputs.docker-changed-directories) }}
+#       max-parallel: 1 # so a linear commit history is created
+#     runs-on: ubuntu-latest
+#     permissions:
+#       contents: write
+#     needs: [look-for-changes]
+#     steps:
+#       - name: TBD
+#         run: |
+#           echo "This job is not yet implemented. Please implement it to publish Python packages to PyPI."
+
+  publish-pypi:
+    if: github.repository == ${{ vars.REPOSITORY || 'scottschreckengaust/mcp' }} && needs.look-for-changes.outputs.python-changed-directories != '[]' && needs.look-for-changes.outputs.python-changed-directories != ''
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        changed-directory: ${{ fromJson(needs.look-for-changes.outputs.python-changed-directories) }}
+      max-parallel: 1 # so a linear commit history is created
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: [look-for-changes]
+    steps:
+      - name: Clear Up Space (Agressively) for Specific Projects that Run Out of Space
+        if: contains(toJson('["aws-api-mcp-server"]'), matrix.changed-directory) && hashFiles(format('{0}/${1}/pyproject.toml', env.SRC_DIRECTORY, matrix.changed-directory)) != ''
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          sparse-checkout: |
+            ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
+    #   - name: Generate Embedding for aws-api-mcp-server
+    #     env:
+    #       GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+    #     if: matrix.changed-directory == 'aws-api-mcp-server'
+    #     working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+    #     run: |
+    #       uv run --frozen generate-embeddings
+      - name: Build package
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        run: |
+          uv build
+      - name: Upload distribution
+        id: upload-distribution
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: distribution-${{ matrix.changed-directory }}
+          path: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}/dist'
+          if-no-files-found: error
+          retention-days: 1
+      - name: Get Version from ${{ matrix.changed-directory }} Package
+        id: get-package-version
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        run: |
+          echo "version=$(uv tree 2> /dev/null | grep awslabs | sed -e 's/^.*[[:space:]]v\(.*\)/\1/g')" >> $GITHUB_OUTPUT
+      - name: Build and Publish Container
+        id: build-and-publish
+        uses: ./.github/actions/build-and-push-container-image
+        if: hashFiles(format('./{0}/{1}/Dockerfile', env.SRC_DIRECTORY, matrix.changed-directory))
+        with:
+          image: ${{ matrix.changed-directory }}
+          version: ${{ steps.get-package-version.outputs.version }}
+          public-erc-role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
+          public-erc-registry-alias: 'a1c4e6g8' # 'f3y8w4n0' # 'w3i4n7u1'
+          public-erc-aws-region: ${{ env.AWS_REGION || 'us-east-1' }}
+          push: false
+      - name: Test
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        run: |
+          echo "Publishing ${{ matrix.changed-directory }}"
+          ls -al dist
+          docker image list | grep ${{ matrix.changed-directory }}     
+
+  release_when_successful:
+    if: github.repository == ${{ vars.REPOSITORY || 'scottschreckengaust/mcp' }} && !failure() && !cancelled() && ( needs.publish-npmjs.result == 'success' || needs.publish-pypi.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: [draft_release_when_tagged, publish-pypi, publish-npmjs]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Create release
+        id: create-release
+        env:
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          echo "# $VERSION" > RELEASE_NOTES.md
+          gh release edit "$VERSION" \
+            --draft=false

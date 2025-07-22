@@ -1,0 +1,47 @@
+---
+# Creates a tag on `main` when a PR is merged from a `release/**`
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+env:
+  GITHUB_USER_EMAIL: "scottschreckengaust@users.noreply.github.com"
+  GITHUB_USER_NAME: "Scott Schreckengaust"
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  discussions: none
+  id-token: none
+  issues: none
+  models: none
+  packages: none
+  pages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+jobs:
+  tag_on_release_merge:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+      - name: Create Tag
+        id: create-tag
+        run: |
+          TAG=$(echo "${{ github.event.pull_request.head.ref }}" | cut -d'/' -f2)
+          if [ -z "$TAG" ]; then echo "Release cannot be empty"; exit 1; fi;
+          git config --local user.email "${{ env.GITHUB_USER_EMAIL }}"
+          git config --local user.name "${{ env.GITHUB_USER_NAME }}"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
