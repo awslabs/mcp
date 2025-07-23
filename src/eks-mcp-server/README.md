@@ -427,6 +427,21 @@ Parameters:
 
 * cluster_name, kind, name, namespace (optional)
 
+#### `get_eks_vpc_config`
+
+Retrieves comprehensive VPC configuration details for EKS clusters, with special support for hybrid node setups.
+
+Features:
+
+* Returns detailed VPC configuration including CIDR blocks, route tables, and subnet information
+* Automatically identifies and includes remote node and pod CIDR configurations for hybrid node setups
+* Validates subnet capacity for EKS networking requirements
+* Flags subnets in disallowed availability zones that can't be used with EKS
+
+Parameters:
+
+* cluster_name, vpc_id (optional)
+
 ### CloudWatch Integration
 
 #### `get_cloudwatch_logs`
@@ -529,6 +544,22 @@ Features:
 Parameters:
 
 * query
+
+#### `get_eks_insights`
+
+Retrieves Amazon EKS Insights that identify potential issues with your EKS cluster configuration and upgrade readiness.
+
+Features:
+
+* Returns insights in two categories: CONFIGURATION (for misconfigurations) and UPGRADE_READINESS (for upgrade blockers)
+* Supports both list mode (all insights) and detail mode (specific insight with recommendations)
+* Includes status, descriptions, and timestamps for each insight
+* Provides detailed recommendations for addressing identified issues when using detail mode
+* Supports optional filtering by insight category and cross-region analysis
+
+Parameters:
+
+* cluster_name, insight_id (optional), category (optional), region (optional)
 
 
 ## Security & permissions
