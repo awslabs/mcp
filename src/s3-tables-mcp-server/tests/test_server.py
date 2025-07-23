@@ -35,15 +35,15 @@ from awslabs.s3_tables_mcp_server.server import (
     get_table_maintenance_config,
     get_table_metadata_location,
     import_csv_to_table,
+    import_parquet_to_table,
     list_namespaces,
     list_table_buckets,
     list_tables,
-    preview_csv_file,
     query_database,
     rename_table,
     update_table_metadata_location,
 )
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 
 # Fixtures
@@ -119,14 +119,6 @@ def mock_database():
     with patch('awslabs.s3_tables_mcp_server.server.database') as mock:
         mock.query_database_resource = AsyncMock(return_value={'status': 'success'})
         mock.append_rows_to_table_resource = AsyncMock(return_value={'status': 'success'})
-        yield mock
-
-
-@pytest.fixture
-def mock_file_processor():
-    """Mock file_processor module."""
-    with patch('awslabs.s3_tables_mcp_server.server.file_processor') as mock:
-        mock.preview_csv_structure = Mock(return_value={'headers': ['a', 'b'], 'rows': [[1, 2]]})
         yield mock
 
 
@@ -587,17 +579,6 @@ async def test_query_database(mock_database):
 
 
 @pytest.mark.asyncio
-async def test_preview_csv_file(mock_file_processor):
-    """Test preview_csv_file tool."""
-    s3_url = 's3://bucket/file.csv'
-    expected_response = {'headers': ['a', 'b'], 'rows': [[1, 2]]}
-
-    result = await preview_csv_file(s3_url=s3_url)
-    assert result == expected_response
-    mock_file_processor.preview_csv_structure.assert_called_once_with(s3_url)
-
-
-@pytest.mark.asyncio
 async def test_get_bucket_metadata_config(mock_s3_operations):
     """Test get_bucket_metadata_config tool."""
     bucket = 'test-bucket'
@@ -709,10 +690,11 @@ async def test_import_csv_to_table_default_uri(monkeypatch, setup_app):
     """Test import_csv_to_table uses default uri if None."""
     import awslabs.s3_tables_mcp_server.server as server_mod
 
+    # Mock the imported function from file_processor module
+    mock_import_func = AsyncMock(return_value={'status': 'success'})
     monkeypatch.setattr(
-        server_mod.file_processor,
-        'import_csv_to_table',
-        AsyncMock(return_value={'status': 'success'}),
+        'awslabs.s3_tables_mcp_server.server.import_csv_to_table_func',
+        mock_import_func,
     )
     warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
     region = 'us-west-2'
@@ -730,7 +712,110 @@ async def test_import_csv_to_table_default_uri(monkeypatch, setup_app):
         rest_signing_name='s3tables',
         rest_sigv4_enabled='true',
     )
-    args, kwargs = server_mod.file_processor.import_csv_to_table.call_args  # type: ignore
+    args, kwargs = mock_import_func.call_args  # type: ignore
+    assert kwargs['uri'] == 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+
+
+@pytest.mark.asyncio
+async def test_import_parquet_to_table(monkeypatch, setup_app):
+    """Test import_parquet_to_table tool."""
+    import awslabs.s3_tables_mcp_server.server as server_mod
+
+    # Mock the imported function from file_processor module
+    mock_import_func = AsyncMock(return_value={'status': 'success'})
+    monkeypatch.setattr(
+        'awslabs.s3_tables_mcp_server.server.import_parquet_to_table_func',
+        mock_import_func,
+    )
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    s3_url = 's3://bucket/file.parquet'
+    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    catalog_name = 's3tablescatalog'
+    rest_signing_name = 's3tables'
+    rest_sigv4_enabled = 'true'
+    expected_response = {'status': 'success'}
+
+    result = await server_mod.import_parquet_to_table(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        s3_url=s3_url,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+    assert result == expected_response
+    mock_import_func.assert_called_once_with(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        s3_url=s3_url,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+
+
+@pytest.mark.asyncio
+async def test_import_parquet_to_table_readonly_mode(setup_app_readonly):
+    """Test import_parquet_to_table tool when allow_write is disabled."""
+    # Arrange
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    s3_url = 's3://bucket/file.parquet'
+    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError, match='Operation not permitted: Server is configured in read-only mode'
+    ):
+        await import_parquet_to_table(
+            warehouse=warehouse,
+            region=region,
+            namespace=namespace,
+            table_name=table_name,
+            s3_url=s3_url,
+            uri=uri,
+        )
+
+
+@pytest.mark.asyncio
+async def test_import_parquet_to_table_default_uri(monkeypatch, setup_app):
+    """Test import_parquet_to_table uses default uri if None."""
+    import awslabs.s3_tables_mcp_server.server as server_mod
+
+    # Mock the imported function from file_processor module
+    mock_import_func = AsyncMock(return_value={'status': 'success'})
+    monkeypatch.setattr(
+        'awslabs.s3_tables_mcp_server.server.import_parquet_to_table_func',
+        mock_import_func,
+    )
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    s3_url = 's3://bucket/file.parquet'
+    await server_mod.import_parquet_to_table(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        s3_url=s3_url,
+        uri=None,
+        catalog_name='s3tablescatalog',
+        rest_signing_name='s3tables',
+        rest_sigv4_enabled='true',
+    )
+    args, kwargs = mock_import_func.call_args  # type: ignore
     assert kwargs['uri'] == 'https://s3tables.us-west-2.amazonaws.com/iceberg'
 
 
