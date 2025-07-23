@@ -33,7 +33,26 @@ Choose the installation method that best fits your workflow and get started with
 pip install awslabs.aws-api-mcp-server
 ```
 
-**Step 2: Configure your MCP client**
+**Step 2: Run the MCP Python server in a separate terminal**
+
+```bash
+python -m awslabs.aws_api_mcp_server.server
+```
+
+You can verify that the MCP server is running by executing:
+
+```bash
+ps aux | grep awslabs.aws_api_mcp_server.server
+```
+
+If the server is active, you'll see a Python process like:
+
+```bash
+python -m awslabs.aws_api_mcp_server.server
+```
+
+
+**Step 3: Configure your MCP client**
 Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
