@@ -25,7 +25,7 @@ async def import_parquet_to_table(
     namespace: str,
     table_name: str,
     s3_url: str,
-    uri: str = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
+    uri: str,
     catalog_name: str = 's3tablescatalog',
     rest_signing_name: str = 's3tables',
     rest_sigv4_enabled: str = 'true',

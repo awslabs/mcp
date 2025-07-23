@@ -20,7 +20,7 @@ particularly focusing on CSV file handling and import capabilities.
 
 import io
 import os
-import pyarrow.csv as pv
+import pyarrow.csv as pc
 from ..utils import get_s3_client, pyiceberg_load_catalog
 from pyiceberg.exceptions import NoSuchTableError
 from typing import Dict
@@ -33,7 +33,7 @@ async def import_csv_to_table(
     namespace: str,
     table_name: str,
     s3_url: str,
-    uri: str = 'https://s3tables.us-west-2.amazonaws.com/iceberg',
+    uri: str,
     catalog_name: str = 's3tablescatalog',
     rest_signing_name: str = 's3tables',
     rest_sigv4_enabled: str = 'true',
@@ -86,7 +86,7 @@ async def import_csv_to_table(
         # Read CSV file into PyArrow Table to infer schema
         # Convert bytes to file-like object for PyArrow
         csv_buffer = io.BytesIO(csv_data)
-        csv_table = pv.read_csv(csv_buffer)
+        csv_table = pc.read_csv(csv_buffer)
         csv_schema = csv_table.schema
 
         table_created = False

@@ -14,7 +14,10 @@
 
 """Engine for interacting with Iceberg tables using pyiceberg and daft (read-only)."""
 
+import io
+import json
 import pyarrow as pa
+import pyarrow.json as pj
 from ..utils import pyiceberg_load_catalog
 from daft import Catalog as DaftCatalog
 from daft.session import Session
@@ -103,58 +106,8 @@ class PyIcebergEngine:
         except Exception:
             return False
 
-    def _convert_row_to_schema_types(self, row: dict, schema: pa.Schema) -> dict:
-        # NOTE: PyArrow (and thus Iceberg) sometimes fails to infer date/timestamp types from string values like '2023-07-21T10:26:00'.
-        # If a string is passed for a date or timestamp field, PyArrow may throw an error such as:
-        #   Exception: Error appending rows: object of type <class 'str'> cannot be converted to int.
-        # This is because PyArrow expects a native Python datetime.date or datetime.datetime object for date/timestamp fields.
-        # To work around this, we explicitly convert string representations of dates/timestamps to the appropriate Python types.
-        converted_row = {}
-        for field_name, value in row.items():
-            schema_field = None
-            for field in schema:
-                if field.name == field_name:
-                    schema_field = field
-                    break
-
-            if schema_field is None:
-                converted_row[field_name] = value
-                continue
-
-            try:
-                field_type_str = str(schema_field.type)
-                if field_type_str.startswith('date'):
-                    if isinstance(value, str):
-                        from datetime import datetime
-
-                        converted_row[field_name] = datetime.strptime(value, '%Y-%m-%d').date()
-                    else:
-                        converted_row[field_name] = value
-                elif field_type_str.startswith('timestamp'):
-                    # Handle timestamp fields (e.g., timestamp[us], timestamp[ms], etc.)
-                    if isinstance(value, str):
-                        from datetime import datetime
-
-                        try:
-                            # Try parsing with microseconds first, then fallback
-                            converted_row[field_name] = datetime.fromisoformat(value)
-                        except ValueError:
-                            # Try parsing without T separator
-                            try:
-                                converted_row[field_name] = datetime.strptime(
-                                    value, '%Y-%m-%d %H:%M:%S'
-                                )
-                            except Exception:
-                                converted_row[field_name] = value
-                else:
-                    converted_row[field_name] = value
-            except Exception:
-                converted_row[field_name] = value
-
-        return converted_row
-
     def append_rows(self, table_name: str, rows: list[dict]) -> None:
-        """Append rows to an Iceberg table using pyiceberg with automatic schema inference.
+        """Append rows to an Iceberg table using pyiceberg with JSON encoding.
 
         Args:
             table_name: The name of the table (e.g., 'namespace.tablename' or just 'tablename' if namespace is set)
@@ -174,21 +127,20 @@ class PyIcebergEngine:
 
             # Load the Iceberg table
             table = self._catalog.load_table(full_table_name)
+            # Encode rows as JSON (line-delimited format)
+            json_lines = []
+            for row in rows:
+                json_lines.append(json.dumps(row))
+            json_data = '\n'.join(json_lines)
 
-            # Retrieve the table schema as a PyArrow schema
-            iceberg_pyarrow_schema = table.schema().as_arrow()
+            # Create a file-like object from the JSON data
+            json_buffer = io.BytesIO(json_data.encode('utf-8'))
 
-            # Convert data types to match schema
-            converted_rows = []
-            for i, row in enumerate(rows):
-                converted_row = self._convert_row_to_schema_types(row, iceberg_pyarrow_schema)
-                converted_rows.append(converted_row)
-
-            # Create a PyArrow table from the new row data, enforcing the Iceberg schema
-            # This step also acts as an explicit schema validation check
+            # Read JSON data into PyArrow Table using pyarrow.json.read_json
+            # This enforces the Iceberg schema and validates the data
             try:
-                new_data_table = pa.Table.from_pylist(
-                    converted_rows, schema=iceberg_pyarrow_schema
+                new_data_table = pj.read_json(
+                    json_buffer, read_options=pj.ReadOptions(use_threads=True)
                 )
             except pa.ArrowInvalid as e:
                 raise ValueError(
