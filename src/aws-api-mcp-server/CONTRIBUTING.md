@@ -62,7 +62,6 @@ Add the following code to your MCP client configuration (e.g., for Amazon Q Deve
       ],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_API_MCP_WORKING_DIR": "/path/to/working/directory",
         "AWS_API_MCP_PROFILE_NAME": "<your_profile_name>",
         "READ_OPERATIONS_ONLY": "false",
         "AWS_API_MCP_TELEMETRY": "true"

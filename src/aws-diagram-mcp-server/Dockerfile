@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/sam/build-python3.12@sha256:e76d50b20fa10ee101886cb62962aaf87a5cd1d737af48e1b8395a05f3a7c52f AS uv
+FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm@sha256:4600f71648e110b005bf7bca92dbb335e549e6b27f2e83fceee5e11b3e1a4d01 AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -48,24 +48,26 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --python 3.12 --frozen --no-dev --no-editable
 
-# Make the directory just in case it doesn't exist
-RUN mkdir -p /root/.local
+# # Make the directory just in case it doesn't exist
+# RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/sam/build-python3.12@sha256:e76d50b20fa10ee101886cb62962aaf87a5cd1d737af48e1b8395a05f3a7c52f
+FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm@sha256:4600f71648e110b005bf7bca92dbb335e549e6b27f2e83fceee5e11b3e1a4d01
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
     PYTHONUNBUFFERED=1
 
 # Add non-root user and ability to change directory into /root
-RUN dnf update -y && \
-    dnf install -y graphviz && \
-    dnf clean all -y && \
-    rm -rf /var/cache/dnf && \
-    groupadd --force --system app
+RUN apt-get update -y && \
+    apt-get install -y graphviz && \
+    apt-get clean -y && \
+    apt-get autoremove -y && \
+    groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
 
 # Copy application artifacts from build stage
-COPY --from=uv --chown=app:app /root/.local /root/.local
+# COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
