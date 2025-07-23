@@ -37,12 +37,38 @@ def get_aws_config() -> Config:
     return Config(user_agent_extra="awslabs/mcp/ecs-mcp-server/0.1.0")
 
 
+# Dictionary to store clients for reuse
+_aws_clients = {}
+
+
 async def get_aws_client(service_name: str):
-    """Gets an AWS service client."""
+    """
+    Gets an AWS service client.
+
+    Parameters
+    ----------
+    service_name : str
+        The name of the AWS service (e.g., 'ecs', 's3', 'ec2')
+
+    Returns
+    -------
+    A boto3 client for the specified service
+    """
+    # Use client from cache if available
+    if service_name in _aws_clients:
+        return _aws_clients[service_name]
+
+    # Create new client if not in cache
     region = os.environ.get("AWS_REGION", "us-east-1")
     profile = os.environ.get("AWS_PROFILE", "default")
     logger.info(f"Using AWS profile: {profile} and region: {region}")
-    return boto3.client(service_name, region_name=region, config=get_aws_config())
+
+    client = boto3.client(service_name, region_name=region, config=get_aws_config())
+
+    # Cache the client for reuse
+    _aws_clients[service_name] = client
+
+    return client
 
 
 async def get_aws_account_id() -> str:
@@ -52,9 +78,21 @@ async def get_aws_account_id() -> str:
     return response["Account"]
 
 
-async def get_default_vpc_and_subnets() -> Dict[str, Any]:
-    """Gets the default VPC and subnets."""
-    ec2 = await get_aws_client("ec2")
+async def get_default_vpc_and_subnets(ec2_client=None) -> Dict[str, Any]:
+    """
+    Gets the default VPC and subnets.
+
+    Parameters
+    ----------
+    ec2_client : boto3.client, optional
+        EC2 client to use. If not provided, a new client will be created.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Dictionary containing VPC ID, subnet IDs, and route table IDs
+    """
+    ec2 = ec2_client or await get_aws_client("ec2")
 
     # Get default VPC
     vpcs = ec2.describe_vpcs(Filters=[{"Name": "isDefault", "Values": ["true"]}])  # Removed await
@@ -207,14 +245,26 @@ async def get_ecr_login_password(role_arn: str) -> str:
     return password
 
 
-async def get_route_tables_for_vpc(vpc_id: str) -> List[str]:
-    """Gets route tables for a specific VPC."""
-    ec2 = await get_aws_client("ec2")
+async def get_route_tables_for_vpc(vpc_id: str, ec2_client=None) -> List[str]:
+    """
+    Gets route tables for a specific VPC.
+
+    Parameters
+    ----------
+    vpc_id : str
+        ID of the VPC to get route tables for
+    ec2_client : boto3.client, optional
+        EC2 client to use. If not provided, a new client will be created.
+
+    Returns
+    -------
+    List[str]
+        List of route table IDs
+    """
+    ec2 = ec2_client or await get_aws_client("ec2")
 
     # Get route tables for the VPC
-    route_tables = ec2.describe_route_tables(
-        Filters=[{"Name": "vpc-id", "Values": [vpc_id]}]
-    )  # Removed await
+    route_tables = ec2.describe_route_tables(Filters=[{"Name": "vpc-id", "Values": [vpc_id]}])
 
     # Find the main route table
     main_route_tables = [

@@ -368,6 +368,49 @@ class TestK8sApisOperations:
         assert kwargs2['body']['kind'] == 'Pod'
         assert kwargs2['content_type'] == 'application/merge-patch+json'
 
+    def test_patch_resource_direct(self, k8s_apis):
+        """Test _patch_resource method directly."""
+        # Mock the resource
+        mock_resource = MagicMock()
+
+        # Test body and parameters
+        body = {'metadata': {'labels': {'app': 'test'}}}
+        name = 'test-pod'
+        namespace = 'default'
+
+        # Call _patch_resource directly
+        k8s_apis._patch_resource(mock_resource, body, name, namespace)
+
+        # Verify patch was called with strategic merge patch
+        mock_resource.patch.assert_called_once()
+        args, kwargs = mock_resource.patch.call_args
+        assert kwargs['body'] == body
+        assert kwargs['name'] == name
+        assert kwargs['namespace'] == namespace
+        assert kwargs['content_type'] == 'application/strategic-merge-patch+json'
+
+    def test_patch_resource_with_other_error(self, k8s_apis):
+        """Test _patch_resource method with an error other than 415."""
+        # Mock the resource
+        mock_resource = MagicMock()
+
+        # Make patch raise a non-415 error
+        mock_resource.patch.side_effect = Exception('Some other error')
+
+        # Test body and parameters
+        body = {'metadata': {'labels': {'app': 'test'}}}
+        name = 'test-pod'
+        namespace = 'default'
+
+        # Call _patch_resource - should raise the original error
+        with pytest.raises(Exception, match='Some other error'):
+            k8s_apis._patch_resource(mock_resource, body, name, namespace)
+
+        # Verify patch was called once with strategic merge patch
+        mock_resource.patch.assert_called_once()
+        args, kwargs = mock_resource.patch.call_args
+        assert kwargs['content_type'] == 'application/strategic-merge-patch+json'
+
     def test_manage_resource_validation(self, k8s_apis):
         """Test manage_resource method validation."""
         # Test missing name for read operation
@@ -377,6 +420,27 @@ class TestK8sApisOperations:
         # Test missing body for create operation
         with pytest.raises(ValueError, match='Resource body is required for create operation'):
             k8s_apis.manage_resource(Operation.CREATE, 'Pod', 'v1', name='test-pod')
+
+    def test_manage_resource_unsupported_operation(self, k8s_apis):
+        """Test manage_resource method with unsupported operation."""
+        # Create a custom operation that's not supported
+        unsupported_op = MagicMock()
+        unsupported_op.value = 'UNSUPPORTED'
+
+        # Test with unsupported operation
+        with pytest.raises(ValueError, match='Unsupported operation: UNSUPPORTED'):
+            k8s_apis.manage_resource(unsupported_op, 'Pod', 'v1', name='test-pod')
+
+    def test_manage_resource_error_handling(self, k8s_apis):
+        """Test manage_resource method error handling."""
+        # Mock the dynamic client and resources
+        mock_resources = MagicMock()
+        mock_resources.get.side_effect = Exception('Resource not found')
+        k8s_apis.dynamic_client.resources = mock_resources
+
+        # Test with an error during resource retrieval
+        with pytest.raises(ValueError, match='Error managing Pod resource: Resource not found'):
+            k8s_apis.manage_resource(Operation.READ, 'Pod', 'v1', name='test-pod')
 
     def test_list_resources_with_namespace(self, k8s_apis):
         """Test list_resources method with namespace."""
@@ -419,6 +483,42 @@ class TestK8sApisOperations:
         mock_resource.get.assert_called_once()
         args, kwargs = mock_resource.get.call_args
         assert 'namespace' not in kwargs
+
+    def test_list_resources_with_additional_kwargs(self, k8s_apis):
+        """Test list_resources method with additional kwargs."""
+        # Mock the dynamic client and resources
+        mock_resource = MagicMock()
+        mock_resources = MagicMock()
+        mock_resources.get.return_value = mock_resource
+        k8s_apis.dynamic_client.resources = mock_resources
+
+        # Test list operation with additional kwargs
+        k8s_apis.list_resources(
+            'Pod',
+            'v1',
+            namespace='default',
+            limit=100,
+            timeout_seconds=30,
+        )
+
+        # Verify the dynamic client was used correctly
+        mock_resources.get.assert_called_once_with(api_version='v1', kind='Pod')
+        mock_resource.get.assert_called_once()
+        args, kwargs = mock_resource.get.call_args
+        assert kwargs['namespace'] == 'default'
+        assert kwargs['limit'] == 100
+        assert kwargs['timeout_seconds'] == 30
+
+    def test_list_resources_error_handling(self, k8s_apis):
+        """Test list_resources method error handling."""
+        # Mock the dynamic client and resources
+        mock_resources = MagicMock()
+        mock_resources.get.side_effect = Exception('Resource not found')
+        k8s_apis.dynamic_client.resources = mock_resources
+
+        # Test with an error during resource retrieval
+        with pytest.raises(ValueError, match='Error listing Pod resources: Resource not found'):
+            k8s_apis.list_resources('Pod', 'v1')
 
     def test_get_pod_logs(self, k8s_apis):
         """Test get_pod_logs method."""
@@ -485,6 +585,27 @@ class TestK8sApisOperations:
                 name='test-pod',
                 namespace='test-namespace',
             )
+
+    def test_get_pod_logs_error_handling(self, k8s_apis):
+        """Test get_pod_logs method error handling."""
+        # Mock the CoreV1Api client
+        with patch('kubernetes.client') as mock_client:
+            # Create mock CoreV1Api
+            mock_core_v1_api = MagicMock()
+            mock_client.CoreV1Api.return_value = mock_core_v1_api
+
+            # Make read_namespaced_pod_log raise an exception
+            mock_core_v1_api.read_namespaced_pod_log.side_effect = Exception('Pod not found')
+
+            # Call get_pod_logs - should raise ValueError with context
+            with pytest.raises(
+                ValueError,
+                match='Error getting logs from pod test-namespace/test-pod: Pod not found',
+            ):
+                k8s_apis.get_pod_logs(
+                    pod_name='test-pod',
+                    namespace='test-namespace',
+                )
 
     def _create_mock_event(self):
         """Create a mock event for testing."""
@@ -572,6 +693,235 @@ class TestK8sApisOperations:
             name='test-pod',
             namespace='test-namespace',
         )
+
+    def test_get_events_implementation(self):
+        """Test the actual implementation of get_events method."""
+        # Mock the kubernetes dynamic client
+        with (
+            patch('kubernetes.client') as mock_client,
+            patch('kubernetes.dynamic') as mock_dynamic,
+        ):
+            # Create mock API client
+            mock_api_client = MagicMock()
+            mock_client.ApiClient.return_value = mock_api_client
+
+            # Create mock dynamic client
+            mock_dynamic_client = MagicMock()
+            mock_dynamic.DynamicClient.return_value = mock_dynamic_client
+
+            # Create mock resource
+            mock_resource = MagicMock()
+            mock_dynamic_client.resources.get.return_value = mock_resource
+
+            # Create mock event response
+            mock_event_response = MagicMock()
+            mock_event_item1 = MagicMock()
+            mock_event_item1.to_dict.return_value = {
+                'metadata': {'name': 'event-1', 'namespace': 'test-namespace'},
+                'firstTimestamp': datetime(2023, 1, 1, 0, 0, 0),
+                'lastTimestamp': datetime(2023, 1, 1, 0, 5, 0),
+                'count': 5,
+                'message': 'Container created',
+                'reason': 'Created',
+                'source': {'component': 'kubelet', 'host': 'node-1'},
+                'type': 'Normal',
+                'involvedObject': {
+                    'kind': 'Pod',
+                    'name': 'test-pod',
+                    'namespace': 'test-namespace',
+                },
+            }
+            mock_event_item2 = MagicMock()
+            mock_event_item2.to_dict.return_value = {
+                'metadata': {'name': 'event-2', 'namespace': 'test-namespace'},
+                'firstTimestamp': datetime(2023, 1, 1, 0, 10, 0),
+                'lastTimestamp': datetime(2023, 1, 1, 0, 15, 0),
+                'count': 3,
+                'message': 'Container started',
+                'reason': 'Started',
+                'source': {'component': 'kubelet', 'host': 'node-1'},
+                'type': 'Normal',
+                'involvedObject': {
+                    'kind': 'Pod',
+                    'name': 'test-pod',
+                    'namespace': 'test-namespace',
+                },
+            }
+            mock_event_response.items = [mock_event_item1, mock_event_item2]
+            mock_resource.get.return_value = mock_event_response
+
+            # Create a temporary file for CA certificate
+            with (
+                patch('tempfile.NamedTemporaryFile') as mock_temp_file,
+                patch('os.path.exists', return_value=True),
+                patch('os.unlink'),
+            ):
+                # Mock the context manager for NamedTemporaryFile
+                mock_file = MagicMock()
+                mock_file.name = '/tmp/ca-cert-file'
+                mock_temp_file.return_value.__enter__.return_value = mock_file
+
+                # Create K8sApis instance
+                ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+                apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+                # Call get_events with namespace
+                events = apis.get_events(
+                    kind='Pod',
+                    name='test-pod',
+                    namespace='test-namespace',
+                )
+
+                # Verify the dynamic client was used correctly
+                mock_dynamic_client.resources.get.assert_called_once_with(
+                    api_version='v1', kind='Event'
+                )
+                mock_resource.get.assert_called_once_with(
+                    namespace='test-namespace',
+                    field_selector='involvedObject.kind=Pod,involvedObject.name=test-pod',
+                )
+
+                # Verify the result
+                assert len(events) == 2
+
+                # Check first event
+                assert events[0]['first_timestamp'] == str(datetime(2023, 1, 1, 0, 0, 0))
+                assert events[0]['last_timestamp'] == str(datetime(2023, 1, 1, 0, 5, 0))
+                assert events[0]['count'] == 5
+                assert events[0]['message'] == 'Container created'
+                assert events[0]['reason'] == 'Created'
+                assert events[0]['reporting_component'] == 'kubelet'
+                assert events[0]['type'] == 'Normal'
+
+                # Check second event
+                assert events[1]['first_timestamp'] == str(datetime(2023, 1, 1, 0, 10, 0))
+                assert events[1]['last_timestamp'] == str(datetime(2023, 1, 1, 0, 15, 0))
+                assert events[1]['count'] == 3
+                assert events[1]['message'] == 'Container started'
+                assert events[1]['reason'] == 'Started'
+                assert events[1]['reporting_component'] == 'kubelet'
+                assert events[1]['type'] == 'Normal'
+
+    def test_get_events_implementation_all_namespaces(self):
+        """Test the actual implementation of get_events method without namespace."""
+        # Mock the kubernetes dynamic client
+        with (
+            patch('kubernetes.client') as mock_client,
+            patch('kubernetes.dynamic') as mock_dynamic,
+        ):
+            # Create mock API client
+            mock_api_client = MagicMock()
+            mock_client.ApiClient.return_value = mock_api_client
+
+            # Create mock dynamic client
+            mock_dynamic_client = MagicMock()
+            mock_dynamic.DynamicClient.return_value = mock_dynamic_client
+
+            # Create mock resource
+            mock_resource = MagicMock()
+            mock_dynamic_client.resources.get.return_value = mock_resource
+
+            # Create mock event response
+            mock_event_response = MagicMock()
+            mock_event_item = MagicMock()
+            mock_event_item.to_dict.return_value = {
+                'metadata': {'name': 'event-1'},
+                'firstTimestamp': datetime(2023, 1, 1, 0, 0, 0),
+                'lastTimestamp': datetime(2023, 1, 1, 0, 5, 0),
+                'count': 5,
+                'message': 'Node condition changed',
+                'reason': 'NodeConditionChanged',
+                'source': {'component': 'kubelet', 'host': 'node-1'},
+                'type': 'Normal',
+                'involvedObject': {'kind': 'Node', 'name': 'test-node'},
+            }
+            mock_event_response.items = [mock_event_item]
+            mock_resource.get.return_value = mock_event_response
+
+            # Create a temporary file for CA certificate
+            with (
+                patch('tempfile.NamedTemporaryFile') as mock_temp_file,
+                patch('os.path.exists', return_value=True),
+                patch('os.unlink'),
+            ):
+                # Mock the context manager for NamedTemporaryFile
+                mock_file = MagicMock()
+                mock_file.name = '/tmp/ca-cert-file'
+                mock_temp_file.return_value.__enter__.return_value = mock_file
+
+                # Create K8sApis instance
+                ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+                apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+                # Call get_events without namespace
+                events = apis.get_events(
+                    kind='Node',
+                    name='test-node',
+                )
+
+                # Verify the dynamic client was used correctly
+                mock_dynamic_client.resources.get.assert_called_once_with(
+                    api_version='v1', kind='Event'
+                )
+                mock_resource.get.assert_called_once_with(
+                    field_selector='involvedObject.kind=Node,involvedObject.name=test-node'
+                )
+
+                # Verify the result
+                assert len(events) == 1
+                assert events[0]['first_timestamp'] == str(datetime(2023, 1, 1, 0, 0, 0))
+                assert events[0]['last_timestamp'] == str(datetime(2023, 1, 1, 0, 5, 0))
+                assert events[0]['count'] == 5
+                assert events[0]['message'] == 'Node condition changed'
+                assert events[0]['reason'] == 'NodeConditionChanged'
+                assert events[0]['reporting_component'] == 'kubelet'
+                assert events[0]['type'] == 'Normal'
+
+    def test_get_events_implementation_error(self):
+        """Test the actual implementation of get_events method with error."""
+        # Mock the kubernetes dynamic client
+        with (
+            patch('kubernetes.client') as mock_client,
+            patch('kubernetes.dynamic') as mock_dynamic,
+        ):
+            # Create mock API client
+            mock_api_client = MagicMock()
+            mock_client.ApiClient.return_value = mock_api_client
+
+            # Create mock dynamic client
+            mock_dynamic_client = MagicMock()
+            mock_dynamic.DynamicClient.return_value = mock_dynamic_client
+
+            # Create mock resource that raises an exception
+            mock_resource = MagicMock()
+            mock_dynamic_client.resources.get.return_value = mock_resource
+            mock_resource.get.side_effect = Exception('Resource not found')
+
+            # Create a temporary file for CA certificate
+            with (
+                patch('tempfile.NamedTemporaryFile') as mock_temp_file,
+                patch('os.path.exists', return_value=True),
+                patch('os.unlink'),
+            ):
+                # Mock the context manager for NamedTemporaryFile
+                mock_file = MagicMock()
+                mock_file.name = '/tmp/ca-cert-file'
+                mock_temp_file.return_value.__enter__.return_value = mock_file
+
+                # Create K8sApis instance
+                ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+                apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+                # Call get_events - should raise ValueError with context
+                with pytest.raises(
+                    ValueError,
+                    match='Error getting events for Pod test-namespace/test-pod: Resource not found',
+                ):
+                    apis.get_events(
+                        kind='Pod',
+                        name='test-pod',
+                        namespace='test-namespace',
+                    )
 
     def test_apply_from_yaml_create_new_resources(self, k8s_apis):
         """Test applying YAML that creates new resources."""
@@ -783,6 +1133,55 @@ class TestK8sApisOperations:
         ):
             k8s_apis.apply_from_yaml(yaml_objects)
 
+    def test_apply_from_yaml_empty_objects(self, k8s_apis):
+        """Test applying YAML with empty objects."""
+        # Setup test data with empty objects
+        yaml_objects = [None, {}, None]
+
+        # Call the method
+        results, created_count, updated_count = k8s_apis.apply_from_yaml(yaml_objects)
+
+        # Verify results - should not create or update any resources
+        assert created_count == 0
+        assert updated_count == 0
+        assert len(results) == 0
+        assert k8s_apis.dynamic_client.resources.get.call_count == 0
+
+    def test_apply_from_yaml_with_additional_kwargs(self, k8s_apis):
+        """Test applying YAML with additional kwargs."""
+        # Setup mock resources
+        resource_mock = MagicMock()
+        k8s_apis.dynamic_client.resources.get.return_value = resource_mock
+
+        # Setup test data
+        yaml_objects = [
+            {
+                'kind': 'Deployment',
+                'apiVersion': 'apps/v1',
+                'metadata': {'name': 'test-deployment', 'namespace': 'default'},
+                'spec': {'replicas': 1},
+            }
+        ]
+
+        # Mock resource.get to raise exception (resource doesn't exist)
+        resource_mock.get.side_effect = Exception('Not found')
+
+        # Call the method with additional kwargs
+        results, created_count, updated_count = k8s_apis.apply_from_yaml(
+            yaml_objects, dry_run='All', field_manager='test-manager'
+        )
+
+        # Verify results
+        assert created_count == 1
+        assert updated_count == 0
+        assert resource_mock.create.call_count == 1
+
+        # Verify create was called with correct parameters including additional kwargs
+        args, kwargs = resource_mock.create.call_args
+        assert kwargs['body']['kind'] == 'Deployment'
+        assert kwargs['dry_run'] == 'All'
+        assert kwargs['field_manager'] == 'test-manager'
+
     def test_get_api_versions_success(self, k8s_apis):
         """Test get_api_versions method success."""
         # Mock the kubernetes client imports
@@ -847,3 +1246,38 @@ class TestK8sApisOperations:
             # Verify the API was called
             mock_client.CoreApi.assert_called_once_with(k8s_apis.api_client)
             mock_core_api.get_api_versions.assert_called_once()
+
+    def test_get_api_versions_core_api_error_apis_api_success(self, k8s_apis):
+        """Test get_api_versions method with CoreApi error but ApisApi success."""
+        # Mock the kubernetes client imports
+        with patch('kubernetes.client') as mock_client:
+            # Mock CoreApi to raise an exception
+            mock_core_api = MagicMock()
+            mock_core_api.get_api_versions.side_effect = Exception('Core API discovery failed')
+            mock_client.CoreApi.return_value = mock_core_api
+
+            # Mock ApisApi
+            mock_apis_api = MagicMock()
+            mock_api_groups = MagicMock()
+
+            # Create mock groups with versions
+            mock_group1 = MagicMock()
+            mock_version1 = MagicMock()
+            mock_version1.group_version = 'apps/v1'
+            mock_group1.preferred_version = mock_version1
+
+            mock_api_groups.groups = [mock_group1]
+            mock_apis_api.get_api_versions.return_value = mock_api_groups
+            mock_client.ApisApi.return_value = mock_apis_api
+
+            # Call the method - should raise ValueError because CoreApi failed
+            with pytest.raises(
+                ValueError, match='Error getting API versions: Core API discovery failed'
+            ):
+                k8s_apis.get_api_versions()
+
+            # Verify the APIs were called correctly
+            mock_client.CoreApi.assert_called_once_with(k8s_apis.api_client)
+            mock_core_api.get_api_versions.assert_called_once()
+            # ApisApi should not be called since CoreApi failed
+            mock_client.ApisApi.assert_not_called()

@@ -55,24 +55,17 @@ class K8sClientCache:
         # Client cache with TTL to handle token expiration
         self._client_cache = TTLCache(maxsize=100, ttl=TOKEN_TTL)
 
-        # Clients for credential retrieval
-        self._eks_client = None
-        self._sts_client = None
+        # Flag to track if STS event handlers have been registered
+        self._sts_event_handlers_registered = False
 
         self._initialized = True
 
-    def _get_eks_client(self):
-        """Get or create the EKS client."""
-        if self._eks_client is None:
-            self._eks_client = AwsHelper.create_boto3_client('eks')
-        return self._eks_client
-
     def _get_sts_client(self):
-        """Get or create the STS client with event handlers registered."""
-        if self._sts_client is None:
-            sts_client = AwsHelper.create_boto3_client('sts')
+        """Get the STS client with event handlers registered."""
+        sts_client = AwsHelper.create_boto3_client('sts')
 
-            # Register STS event handlers
+        # Register STS event handlers only once
+        if not self._sts_event_handlers_registered:
             sts_client.meta.events.register(
                 'provide-client-params.sts.GetCallerIdentity',
                 self._retrieve_k8s_aws_id,
@@ -81,10 +74,9 @@ class K8sClientCache:
                 'before-sign.sts.GetCallerIdentity',
                 self._inject_k8s_aws_id_header,
             )
+            self._sts_event_handlers_registered = True
 
-            self._sts_client = sts_client
-
-        return self._sts_client
+        return sts_client
 
     def _retrieve_k8s_aws_id(self, params, context, **kwargs):
         """Retrieve the Kubernetes AWS ID from parameters."""
@@ -109,7 +101,7 @@ class K8sClientCache:
             ValueError: If the cluster credentials are invalid
             Exception: If there's an error getting the cluster credentials
         """
-        eks_client = self._get_eks_client()
+        eks_client = AwsHelper.create_boto3_client('eks')
         sts_client = self._get_sts_client()
 
         # Get cluster details

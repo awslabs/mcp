@@ -48,14 +48,65 @@ from awslabs.dynamodb_mcp_server.common import (
 )
 from botocore.config import Config
 from mcp.server.fastmcp import FastMCP
+from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Union
 
 
 app = FastMCP(
     name='dynamodb-server',
-    instructions='The official MCP Server for interacting with AWS DynamoDB',
-    version='0.1.1',
+    instructions="""The official MCP Server for interacting with AWS DynamoDB
+
+This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
+items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt
+
+IMPORTANT: DynamoDB Attribute Value Format
+-----------------------------------------
+When working with DynamoDB, all attribute values must be specified with their data types.
+Each attribute value is represented as a dictionary with a single key-value pair where the key
+is the data type and the value is the data itself:
+
+- S: String
+  Example: {"S": "Hello"}
+
+- N: Number (sent as a string)
+  Example: {"N": "123.45"}
+
+- B: Binary data (Base64-encoded)
+  Example: {"B": "dGhpcyB0ZXh0IGlzIGJhc2U2NC1lbmNvZGVk"}
+
+- BOOL: Boolean value
+  Example: {"BOOL": true}
+
+- NULL: Null value
+  Example: {"NULL": true}
+
+- L: List of AttributeValue objects
+  Example: {"L": [{"S": "Cookies"}, {"S": "Coffee"}, {"N": "3.14159"}]}
+
+- M: Map of attribute name/value pairs
+  Example: {"M": {"Name": {"S": "Joe"}, "Age": {"N": "35"}}}
+
+- SS: String Set (array of strings)
+  Example: {"SS": ["Giraffe", "Hippo", "Zebra"]}
+
+- NS: Number Set (array of strings representing numbers)
+  Example: {"NS": ["42.2", "-19", "7.5", "3.14"]}
+
+- BS: Binary Set (array of Base64-encoded binary data objects)
+  Example: {"BS": ["U3Vubnk=", "UmFpbnk=", "U25vd3k="]}
+
+Common usage examples:
+- Primary key: {"userId": {"S": "user123"}}
+- Composite key: {"userId": {"S": "user123"}, "timestamp": {"N": "1612345678"}}
+- Expression attribute values: {":minScore": {"N": "100"}, ":active": {"BOOL": true}}
+- Complete item: {"userId": {"S": "user123"}, "score": {"N": "100"}, "data": {"B": "binarydata=="}}
+
+Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design expertise.
+This tool provides systematic methodology for creating production-ready multi-table design with
+advanced optimizations, cost analysis, and integration patterns.
+""",
+    version='0.1.3',
 )
 
 
@@ -81,7 +132,9 @@ index_name = Field(
     default=None,
     description='The name of a GSI',
 )
-key: Dict[str, KeyAttributeValue] = Field(description='The primary key of an item')
+key: Dict[str, KeyAttributeValue] = Field(
+    description='The primary key of an item. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
+)
 filter_expression: str = Field(
     default=None,
     description='Filter conditions expression that DynamoDB applies to filter out data',
@@ -94,7 +147,8 @@ expression_attribute_names: Dict[str, str] = Field(
     default=None, description='Substitution tokens for attribute names in an expression.'
 )
 expression_attribute_values: Dict[str, AttributeValue] = Field(
-    default=None, description='Values that can be substituted in an expression'
+    default=None,
+    description='Values that can be substituted in an expression. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
 )
 select: Select = Field(
     default=None,
@@ -102,7 +156,8 @@ select: Select = Field(
 )
 limit: int = Field(default=None, description='The maximum number of items to evaluate', ge=1)
 exclusive_start_key: Dict[str, KeyAttributeValue] = Field(
-    default=None, description='Use the LastEvaluatedKey from the previous call.'
+    default=None,
+    description='Use the LastEvaluatedKey from the previous call. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
 )
 
 billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = Field(
@@ -110,6 +165,30 @@ billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = Field(
     description='Specifies if billing is PAY_PER_REQUEST or by provisioned throughput',
 )
 resource_arn: str = Field(description='The Amazon Resource Name (ARN) of the DynamoDB resource')
+
+
+@app.tool()
+@handle_exceptions
+async def dynamodb_data_modeling() -> str:
+    """Retrieves the complete DynamoDB Data Modeling Expert prompt.
+
+    This tool returns a production-ready prompt to help user with data modeling on DynamoDB.
+    The prompt guides through requirements gathering, access pattern analysis, and production-ready
+    schema design. The prompt contains:
+
+    - Structured 2-phase workflow (requirements → final design)
+    - Enterprise design patterns: hot partition analysis, write sharding, sparse GSIs, and more
+    - Cost optimization strategies and RPS-based capacity planning
+    - Multi-table design philosophy with advanced denormalization patterns
+    - Integration guidance for OpenSearch, Lambda, and analytics
+
+    Usage: Simply call this tool to get the expert prompt.
+
+    Returns: Complete expert system prompt as text (no parameters required)
+    """
+    prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
+    architect_prompt = prompt_file.read_text(encoding='utf-8')
+    return architect_prompt
 
 
 @app.tool()
@@ -324,7 +403,7 @@ async def get_item(
 async def put_item(
     table_name: str = table_name,
     item: Dict[str, AttributeValue] = Field(
-        description='A map of attribute name/value pairs, one for each attribute.'
+        description='A map of attribute name/value pairs, one for each attribute. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
     ),
     condition_expression: str = Field(
         default=None,

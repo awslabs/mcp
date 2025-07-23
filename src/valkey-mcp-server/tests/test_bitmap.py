@@ -22,6 +22,7 @@ from awslabs.valkey_mcp_server.tools.bitmap import (
     bitmap_set,
 )
 from unittest.mock import Mock, patch
+from valkey.exceptions import ValkeyError
 
 
 class TestBitmap:
@@ -37,13 +38,21 @@ class TestBitmap:
             mock_manager.get_connection.return_value = mock_conn
             yield mock_conn
 
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock Context."""
+        with patch('awslabs.valkey_mcp_server.tools.bitmap.Context') as mock_ctx:
+            mock_ctx.readonly_mode.return_value = False
+            yield mock_ctx
+
     @pytest.mark.asyncio
-    async def test_bitmap_set(self, mock_connection):
+    async def test_bitmap_set(self, mock_connection, mock_context):
         """Test setting bits in a bitmap."""
         key = 'test_bitmap'
 
         # Mock the setbit response
         mock_connection.setbit.return_value = 0
+        mock_context.readonly_mode.return_value = False
 
         # Test setting individual bits
         result = await bitmap_set(key, 0, 1)
@@ -57,6 +66,20 @@ class TestBitmap:
         # Test negative offset
         result = await bitmap_set(key, -1, 1)
         assert 'Error: offset must be non-negative' in result
+
+        # Test readonly mode
+        mock_connection.setbit.reset_mock()
+        mock_context.readonly_mode.return_value = True
+        result = await bitmap_set(key, 0, 1)
+        assert 'Error: Cannot set bitmap bit in readonly mode' in result
+        mock_connection.setbit.assert_not_called()
+
+        # Test error handling
+        mock_context.readonly_mode.return_value = False
+        mock_connection.setbit.side_effect = ValkeyError('Test error')
+        result = await bitmap_set(key, 0, 1)
+        assert f"Error setting bit in '{key}'" in result
+        assert 'Test error' in result
 
     @pytest.mark.asyncio
     async def test_bitmap_get(self, mock_connection):

@@ -1,202 +1,202 @@
-# This workflow runs an automated pull request code review when labeled
-name: Claude
-on:
-  pull_request_target:
-    branches: ["main"]
-    types:
-      - labeled
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
-permissions: {}
-jobs:
-  precheck:
-    name: Code Review Upon All Successful Runs
-    runs-on: ubuntu-latest
-    env:
-      SLEEP_WAIT: ${{ vars.SLEEP_WAIT }}
-      GH_TOKEN: ${{ github.token }}
-    permissions:
-      id-token: write
-    if: contains(github.event.pull_request.labels.*.name, 'code-review')
-    steps:
-      - name: List Running Workflows Until Complete
-        id: list-workflows-until-complete
-        timeout-minutes: 15
-        env:
-          SLEEP_WAIT: ${{ env.SLEEP_WAIT || '60' }}
-        run: |
-          # Record the list of runs for this commit
-
-          # Loop Protection of a maximum of 15 loops (coordinated to step's timeout)
-          counter=0;
-          until [[ ! $counter -lt 15 ]]; do
-
-            echo "Loop $counter waiting ${{ env.SLEEP_WAIT }}..."
-            # Wait time for runs to update
-            sleep ${{ env.SLEEP_WAIT }}; # Wait time until all the jobs for the commit get queued
-
-            # Get all the runs (except this one) into a file
-            gh run list \
-              --repo "${{ github.repository }}" \
-              --event pull_request \
-              --commit "${{ github.event.pull_request.head.sha }}" \
-              --json "attempt,conclusion,headBranch,name,number,status,workflowName" \
-              --jq ".[] | select(.workflowName != \"${{ github.workflow }}\" and .workflowName != \"Merge Prevention\")" \
-              --limit 1000 | \
-              jq --slurp '.' | \
-              tee pull_request_runs.json;
-
-            # Increment the counter (to prevent an infinite loop)
-            counter=`expr $counter + 1`;
-
-            # Immediately break the loop when all are complete
-            if [[ "$(cat pull_request_runs.json | jq '.[]|select(.status != "completed")' | jq --slurp 'length')" == "0" ]]; then
-              echo "All runs are \"completed\".";
-              break;
-            else
-              echo "There are runs that are not \"completed\"...";
-            fi;
-          done;
-      - name: Check for Successful Conclusions
-        id: dont-run-review-until-passed-checks
-        run: |
-            # Find Conclusions that are not Success
-            cat pull_request_runs.json | \
-              jq '.[] | select(.conclusion != "success")' | \
-              jq --slurp '. | if length>0 then error("\n\n\(.) \n\nincomplete worflow status or not a successful conclusion") else empty end'
-
-  claude:
-    name: Perform Code Review
-    runs-on: ubuntu-latest
-    needs: ["precheck"]
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
-      checks: read
-      issues: read
-      security-events: read
-      statuses: read
-    environment: claude
-    env:
-      # Tools look for the GitHub token in different places
-      GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-      # The GitHub MCP server has some variables
-      GITHUB_DYNAMIC_TOOLSETS: 1
-      GITHUB_TOOLSETS: "all"
-      # Give a default region if one isn't given for AWS credentials
-      AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
-      # Determination to run debugging details
-      ACTIONS_RUNNER_DEBUG: ${{ vars.ACTIONS_RUNNER_DEBUG || 'false' }}
-      ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || 'false' }}
-      # Claude specific environmental variables
-      CLAUDE_CODE_USE_BEDROCK: 1
-      ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'us.anthropic.claude-3-7-sonnet-20250219-v1:0' }}
-      DISABLE_PROMPT_CACHING: 1
-      # Secrets aren't available for step `if` statements.
-      IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
-      IS_THERE_A_BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN != '' }}
-    timeout-minutes: 20
-    if: contains(github.event.pull_request.labels.*.name, 'code-review')
-    steps:
-      - name: Checkout repository
-        id: checkout-repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Debug OIDC Claims
-        id: debug-oidc-claims
-        if: ${{ env.ACTIONS_RUNNER_DEBUG == 'true' && env.ACTIONS_STEP_DEBUG == 'true' }}
-        uses: github/actions-oidc-debugger@0ac6a1f7fefa4229fabe4ce05f17d9ad03a5b328 #main
-        with:
-          audience: '${{ github.server_url }}/${{ github.repository_owner }}'
-      - name: Setup AWS Credentials
-        id: setup-aws-credentials
-        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
-        if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && env.AWS_REGION }}
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-duration-seconds: 7200
-          role-session-name: GitHubActions${{ github.run_id }}
-          mask-aws-account-id: true
-      - name: Create NPM Package Lock
-        id: create-package-lock
-        run: |
-          cat <<EOT > package-lock.json
-          {
-            "name": "automated-code-review",
-            "version": "0.0.0",
-            "lockfileVersion": 3,
-            "packages": {}
-          }
-          EOT
-      - name: Setup Node
-        id: setup-node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "22.x"
-          cache: npm
-      - name: Setup Claude
-        id: setup-claude
-        run: |
-          npm install -g @anthropic-ai/claude-code@1.0.16 --force --no-os-check
-          echo "Claude Version"
-          claude --version
-          echo "Claude Setup"
-          claude config set hasTrustDialogAccepted true
-          claude config add allowedTools mcp__GitHub__add_pull_request_review_comment
-          claude config add allowedTools mcp__GitHub__create_pull_request_review
-          claude config add allowedTools mcp__GitHub__enable_toolset
-          claude config add allowedTools mcp__GitHub__get_pull_request
-          claude config add allowedTools mcp__GitHub__get_pull_request_files
-          claude config add allowedTools mcp__GitHub__get_pull_request_status
-          claude config add allowedTools mcp__GitHub__get_pull_request_reviews
-          claude config add allowedTools mcp__GitHub__get_pull_request_comments
-          claude config add allowedTools mcp__GitHub__get_toolset_tools
-          claude config add allowedTools mcp__GitHub__list_available_toolsets
-          claude config add allowedTools mcp__GitHub__list_pull_requests
-          claude config add allowedTools Bash
-          claude config add allowedTools Read
-          claude config add allowedTools Write
-          claude config add allowedTools Edit
-          claude config add allowedTools Create
-          claude config add allowedTools gh
-          claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","--env","GITHUB_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ env.GITHUB_PERSONAL_ACCESS_TOKEN }}","GITHUB_TOOLSETS":"${{ env.GITHUB_TOOLSETS }}","GITHUB_DYNAMIC_TOOLSETS":"${{ env.GITHUB_DYNAMIC_TOOLSETS }}"}}'
-          echo "Claude Project MCP"
-          cat .mcp.json
-          echo "Claude Global Configuration"
-          claude config list --global
-          echo "Claude Local Configuration"
-          claude config list
-          echo "Claude MCP List"
-          claude mcp list
-      - name: Run Claude Pull Request Review
-        id: run-claude-pull-request-review
-        if: github.event_name == 'pull_request_target'
-        timeout-minutes: 20
-        run: |
-          # Pipe the prompt guide into claude with placeholder values
-          (cat .github/workflows/CLAUDE_PR_REVIEW_GUIDE.md; cat <<EOF |
-
-
-          ## **!!IMPORTANT**
-
-          The placeholder values above are:
-
-          * <PR-NUMBER> = ${{ github.event.pull_request.number }}
-          * <REPOSITORY-OWNER>/<REPOSITORY-REPO> = ${{ github.repository }}
-          * <RUN-ID> = ${{ github.run_id }}
-          * <WORKFLOW> = ${{ github.workflow }}
-          EOF
-            cat;) | claude \
-              --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,mcp__GitHub__enable_toolset,mcp__GitHub__get_pull_request,mcp__GitHub__get_pull_request_files,mcp__GitHub__get_pull_request_status,mcp__GitHub__get_pull_request_reviews,mcp__GitHub__get_pull_request_comments,mcp__GitHub__get_toolset_tools,mcp__GitHub__list_available_toolsets,mcp__GitHub__list_pull_requests,Bash,Read,Write,Edit,Create,gh" \
-              --mcp-debug \
-              --mcp-config .mcp.json \
-              --print --output-format json | tee output.json
-          cat output.json | jq '.'
-          #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...
+# # This workflow runs an automated pull request code review when labeled
+# name: Claude
+# on:
+#   pull_request_target:
+#     branches: ["main"]
+#     types:
+#       - labeled
+#       - opened
+#       - reopened
+#       - synchronize
+#       - ready_for_review
+# permissions: {}
+# jobs:
+#   precheck:
+#     name: Code Review Upon All Successful Runs
+#     runs-on: ubuntu-latest
+#     env:
+#       SLEEP_WAIT: ${{ vars.SLEEP_WAIT }}
+#       GH_TOKEN: ${{ github.token }}
+#     permissions:
+#       id-token: write
+#     if: contains(github.event.pull_request.labels.*.name, 'code-review')
+#     steps:
+#       - name: List Running Workflows Until Complete
+#         id: list-workflows-until-complete
+#         timeout-minutes: 15
+#         env:
+#           SLEEP_WAIT: ${{ env.SLEEP_WAIT || '60' }}
+#         run: |
+#           # Record the list of runs for this commit
+#
+#           # Loop Protection of a maximum of 15 loops (coordinated to step's timeout)
+#           counter=0;
+#           until [[ ! $counter -lt 15 ]]; do
+#
+#             echo "Loop $counter waiting ${{ env.SLEEP_WAIT }}..."
+#             # Wait time for runs to update
+#             sleep ${{ env.SLEEP_WAIT }}; # Wait time until all the jobs for the commit get queued
+#
+#             # Get all the runs (except this one) into a file
+#             gh run list \
+#               --repo "${{ github.repository }}" \
+#               --event pull_request \
+#               --commit "${{ github.event.pull_request.head.sha }}" \
+#               --json "attempt,conclusion,headBranch,name,number,status,workflowName" \
+#               --jq ".[] | select(.workflowName != \"${{ github.workflow }}\" and .workflowName != \"Merge Prevention\")" \
+#               --limit 1000 | \
+#               jq --slurp '.' | \
+#               tee pull_request_runs.json;
+#
+#             # Increment the counter (to prevent an infinite loop)
+#             counter=`expr $counter + 1`;
+#
+#             # Immediately break the loop when all are complete
+#             if [[ "$(cat pull_request_runs.json | jq '.[]|select(.status != "completed")' | jq --slurp 'length')" == "0" ]]; then
+#               echo "All runs are \"completed\".";
+#               break;
+#             else
+#               echo "There are runs that are not \"completed\"...";
+#             fi;
+#           done;
+#       - name: Check for Successful Conclusions
+#         id: dont-run-review-until-passed-checks
+#         run: |
+#             # Find Conclusions that are not Success
+#             cat pull_request_runs.json | \
+#               jq '.[] | select(.conclusion != "success")' | \
+#               jq --slurp '. | if length>0 then error("\n\n\(.) \n\nincomplete worflow status or not a successful conclusion") else empty end'
+#
+#   claude:
+#     name: Perform Code Review
+#     runs-on: ubuntu-latest
+#     needs: ["precheck"]
+#     permissions:
+#       id-token: write
+#       contents: read
+#       pull-requests: write
+#       checks: read
+#       issues: read
+#       security-events: read
+#       statuses: read
+#     environment: claude
+#     env:
+#       # Tools look for the GitHub token in different places
+#       GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+#       GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+#       GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+#       # The GitHub MCP server has some variables
+#       GITHUB_DYNAMIC_TOOLSETS: 1
+#       GITHUB_TOOLSETS: "all"
+#       # Give a default region if one isn't given for AWS credentials
+#       AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+#       # Determination to run debugging details
+#       ACTIONS_RUNNER_DEBUG: ${{ vars.ACTIONS_RUNNER_DEBUG || 'false' }}
+#       ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG || 'false' }}
+#       # Claude specific environmental variables
+#       CLAUDE_CODE_USE_BEDROCK: 1
+#       ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'us.anthropic.claude-3-7-sonnet-20250219-v1:0' }}
+#       DISABLE_PROMPT_CACHING: 1
+#       # Secrets aren't available for step `if` statements.
+#       IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME != '' }}
+#       IS_THERE_A_BOT_GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN != '' }}
+#     timeout-minutes: 20
+#     if: contains(github.event.pull_request.labels.*.name, 'code-review')
+#     steps:
+#       - name: Checkout repository
+#         id: checkout-repository
+#         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#         with:
+#           persist-credentials: false
+#       - name: Debug OIDC Claims
+#         id: debug-oidc-claims
+#         if: ${{ env.ACTIONS_RUNNER_DEBUG == 'true' && env.ACTIONS_STEP_DEBUG == 'true' }}
+#         uses: github/actions-oidc-debugger@0705a46041e35206455b781a260e4af1c6e60b6d #main
+#         with:
+#           audience: '${{ github.server_url }}/${{ github.repository_owner }}'
+#       - name: Setup AWS Credentials
+#         id: setup-aws-credentials
+#         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df
+#         if: ${{ env.IS_THERE_AN_AWS_ROLE_ARN_TO_ASSUME == 'true' && env.AWS_REGION }}
+#         with:
+#           role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
+#           aws-region: ${{ env.AWS_REGION }}
+#           role-duration-seconds: 7200
+#           role-session-name: GitHubActions${{ github.run_id }}
+#           mask-aws-account-id: true
+#       - name: Create NPM Package Lock
+#         id: create-package-lock
+#         run: |
+#           cat <<EOT > package-lock.json
+#           {
+#             "name": "automated-code-review",
+#             "version": "0.0.0",
+#             "lockfileVersion": 3,
+#             "packages": {}
+#           }
+#           EOT
+#       - name: Setup Node
+#         id: setup-node
+#         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+#         with:
+#           node-version: "22.x"
+#           cache: npm
+#       - name: Setup Claude
+#         id: setup-claude
+#         run: |
+#           npm install -g @anthropic-ai/claude-code@1.0.16 --force --no-os-check
+#           echo "Claude Version"
+#           claude --version
+#           echo "Claude Setup"
+#           claude config set hasTrustDialogAccepted true
+#           claude config add allowedTools mcp__GitHub__add_pull_request_review_comment
+#           claude config add allowedTools mcp__GitHub__create_pull_request_review
+#           claude config add allowedTools mcp__GitHub__enable_toolset
+#           claude config add allowedTools mcp__GitHub__get_pull_request
+#           claude config add allowedTools mcp__GitHub__get_pull_request_files
+#           claude config add allowedTools mcp__GitHub__get_pull_request_status
+#           claude config add allowedTools mcp__GitHub__get_pull_request_reviews
+#           claude config add allowedTools mcp__GitHub__get_pull_request_comments
+#           claude config add allowedTools mcp__GitHub__get_toolset_tools
+#           claude config add allowedTools mcp__GitHub__list_available_toolsets
+#           claude config add allowedTools mcp__GitHub__list_pull_requests
+#           claude config add allowedTools Bash
+#           claude config add allowedTools Read
+#           claude config add allowedTools Write
+#           claude config add allowedTools Edit
+#           claude config add allowedTools Create
+#           claude config add allowedTools gh
+#           claude mcp add-json --scope "project" "GitHub" '{"type":"stdio","command":"docker","args":["run","--rm","--interactive","--env","GITHUB_PERSONAL_ACCESS_TOKEN","--env","GITHUB_DYNAMIC_TOOLSETS","--env","GITHUB_TOOLSETS","ghcr.io/github/github-mcp-server"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"${{ env.GITHUB_PERSONAL_ACCESS_TOKEN }}","GITHUB_TOOLSETS":"${{ env.GITHUB_TOOLSETS }}","GITHUB_DYNAMIC_TOOLSETS":"${{ env.GITHUB_DYNAMIC_TOOLSETS }}"}}'
+#           echo "Claude Project MCP"
+#           cat .mcp.json
+#           echo "Claude Global Configuration"
+#           claude config list --global
+#           echo "Claude Local Configuration"
+#           claude config list
+#           echo "Claude MCP List"
+#           claude mcp list
+#       - name: Run Claude Pull Request Review
+#         id: run-claude-pull-request-review
+#         if: github.event_name == 'pull_request_target'
+#         timeout-minutes: 20
+#         run: |
+#           # Pipe the prompt guide into claude with placeholder values
+#           (cat .github/workflows/CLAUDE_PR_REVIEW_GUIDE.md; cat <<EOF |
+#
+#
+#           ## **!!IMPORTANT**
+#
+#           The placeholder values above are:
+#
+#           * <PR-NUMBER> = ${{ github.event.pull_request.number }}
+#           * <REPOSITORY-OWNER>/<REPOSITORY-REPO> = ${{ github.repository }}
+#           * <RUN-ID> = ${{ github.run_id }}
+#           * <WORKFLOW> = ${{ github.workflow }}
+#           EOF
+#             cat;) | claude \
+#               --allowedTools "mcp__GitHub__add_pull_request_review_comment,mcp__GitHub__create_pull_request_review,mcp__GitHub__enable_toolset,mcp__GitHub__get_pull_request,mcp__GitHub__get_pull_request_files,mcp__GitHub__get_pull_request_status,mcp__GitHub__get_pull_request_reviews,mcp__GitHub__get_pull_request_comments,mcp__GitHub__get_toolset_tools,mcp__GitHub__list_available_toolsets,mcp__GitHub__list_pull_requests,Bash,Read,Write,Edit,Create,gh" \
+#               --mcp-debug \
+#               --mcp-config .mcp.json \
+#               --print --output-format json | tee output.json
+#           cat output.json | jq '.'
+#           #### Adding --mcp-debug --debug --verbose are useful when troubleshooting BUT "tool_result" values are too long and create invalid JSON...

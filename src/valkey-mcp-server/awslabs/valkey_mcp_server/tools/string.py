@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Any, Optional
 from valkey.exceptions import ValkeyError
 
@@ -44,6 +45,10 @@ async def string_set(
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set string value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.set(key, value, ex=ex, px=px, nx=nx, xx=xx, keepttl=keepttl)
@@ -85,6 +90,10 @@ async def string_append(key: str, value: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot append to string value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.append(key, value)
@@ -126,6 +135,10 @@ async def string_get_set(key: str, value: Any) -> str:
     Returns:
         Old value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set string value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.getset(key, value)
@@ -147,6 +160,10 @@ async def string_increment(key: str, amount: int = 1) -> str:
     Returns:
         New value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot increment string value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.incrby(key, amount)
@@ -166,6 +183,10 @@ async def string_increment_float(key: str, amount: float) -> str:
     Returns:
         New value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot increment float string value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.incrbyfloat(key, amount)
@@ -185,6 +206,10 @@ async def string_decrement(key: str, amount: int = 1) -> str:
     Returns:
         New value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot decrement string value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.decrby(key, amount)
@@ -223,6 +248,10 @@ async def string_set_range(key: str, offset: int, value: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set range in string value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.setrange(key, offset, value)

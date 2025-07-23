@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for the main function in main.py."""
 
-import sys
 from awslabs.valkey_mcp_server.main import main
 from unittest.mock import patch
 
@@ -22,10 +21,10 @@ class TestMain:
     """Tests for the main function."""
 
     @patch('awslabs.valkey_mcp_server.common.server.mcp.run')
+    @patch('sys.argv', ['awslabs.valkey-mcp-server'])
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
         # Call the main function
-        print(sys.path)
         main()
 
         # Check that mcp.run was called with the correct arguments

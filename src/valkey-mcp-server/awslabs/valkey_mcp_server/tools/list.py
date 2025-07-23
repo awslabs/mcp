@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Any, Optional
 from typing import List as PyList
 from valkey.exceptions import ValkeyError
@@ -32,6 +33,10 @@ async def list_append(key: str, value: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot append to list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.rpush(key, value)
@@ -51,6 +56,10 @@ async def list_prepend(key: str, value: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot prepend to list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.lpush(key, value)
@@ -70,6 +79,10 @@ async def list_append_multiple(key: str, values: PyList[Any]) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot append to list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.rpush(key, *values)
@@ -89,6 +102,10 @@ async def list_prepend_multiple(key: str, values: PyList[Any]) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot prepend to list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.lpush(key, *values)
@@ -130,6 +147,10 @@ async def list_set(key: str, index: int, value: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set list value in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         r.lset(key, index, value)
@@ -172,6 +193,10 @@ async def list_trim(key: str, start: int, stop: int) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot trim list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         r.ltrim(key, start, stop)
@@ -209,6 +234,10 @@ async def list_pop_left(key: str, count: Optional[int] = None) -> str:
     Returns:
         Value(s) or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot pop from list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         if count:
@@ -233,6 +262,10 @@ async def list_pop_right(key: str, count: Optional[int] = None) -> str:
     Returns:
         Value(s) or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot pop from list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         if count:
@@ -299,6 +332,10 @@ async def list_move(
     Returns:
         Moved value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot move list elements in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         wherefrom = wherefrom.upper()
@@ -327,6 +364,10 @@ async def list_insert_before(key: str, pivot: Any, value: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot insert into list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.linsert(key, 'BEFORE', pivot, value)
@@ -349,6 +390,10 @@ async def list_insert_after(key: str, pivot: Any, value: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot insert into list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.linsert(key, 'AFTER', pivot, value)
@@ -371,6 +416,10 @@ async def list_remove(key: str, value: Any, count: int = 0) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot remove from list in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.lrem(key, count, value)

@@ -36,13 +36,21 @@ class TestHyperLogLog:
             mock_manager.get_connection.return_value = mock_conn
             yield mock_conn
 
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock Context."""
+        with patch('awslabs.valkey_mcp_server.tools.hyperloglog.Context') as mock_ctx:
+            mock_ctx.readonly_mode.return_value = False
+            yield mock_ctx
+
     @pytest.mark.asyncio
-    async def test_hll_add(self, mock_connection):
+    async def test_hll_add(self, mock_connection, mock_context):
         """Test adding elements to HyperLogLog."""
         key = 'test_hll'
         element = 'element1'
 
         # Test successful add with new elements
+        mock_context.readonly_mode.return_value = False
         mock_connection.pfadd.return_value = True
         result = await hll_add(key, element)
         assert f"Added 1 element to '{key}'" in result
@@ -62,6 +70,14 @@ class TestHyperLogLog:
         result = await hll_add(key, element)
         assert f"Error adding element to '{key}'" in result
         assert 'Test error' in result
+
+        # Test readonly mode
+        mock_connection.pfadd.reset_mock()
+        mock_connection.pfadd.side_effect = None
+        mock_context.readonly_mode.return_value = True
+        result = await hll_add(key, element)
+        assert 'Error: Cannot add to HyperLogLog in readonly mode' in result
+        mock_connection.pfadd.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_hll_count(self, mock_connection):

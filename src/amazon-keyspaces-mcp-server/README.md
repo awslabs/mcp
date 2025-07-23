@@ -28,6 +28,10 @@ Here are some example prompts that this MCP server can help with:
 
 ## Installation
 
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.amazon-keyspaces-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWtleXNwYWNlcy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUFJPRklMRSI6InlvdXItYXdzLXByb2ZpbGUiLCJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20Keyspaces%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-keyspaces-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+
 ### Prerequisites
 
 - Python 3.10 or 3.11 (Python 3.12+ is not fully supported due to asyncore module removal)
@@ -62,7 +66,8 @@ pip install awslabs.amazon-keyspaces-mcp-server
 
 ## Configuration
 
-Create a `.env` file in your working directory with your database connection settings:
+Create a `.keyspaces-mcp` directory in your home directory. In the `.keyspaces-mcp` directory, create an
+`env` file with your database connection settings:
 
 ```
 # Set to true for Amazon Keyspaces, false for Apache Cassandra
@@ -79,6 +84,9 @@ DB_CASSANDRA_PASSWORD=
 DB_KEYSPACES_ENDPOINT=cassandra.us-west-2.amazonaws.com
 DB_KEYSPACES_REGION=us-west-2
 ```
+
+Note that all of these settings can be set directly as environment variables, if you prefer that
+to using a configuration file.
 
 ### Authentication Credentials
 
@@ -103,16 +111,9 @@ Keyspaces uses for TLS connections:
 
 2. Place the certificate in the correct location:
    ```bash
-   # If you installed the package from PyPI
    mkdir -p ~/.keyspaces-mcp/certs
    cp sf-class2-root.crt ~/.keyspaces-mcp/certs/
-
-   # If you installed from source
-   mkdir -p /path/to/mcp/src/amazon-keyspaces-mcp-server/awslabs/certs
-   cp sf-class2-root.crt /path/to/mcp/src/amazon-keyspaces-mcp-server/awslabs/certs/
    ```
-
-The MCP server looks for the certificate in the `awslabs/certs` directory relative to the installation.
 
 ## Running the MCP Server
 
@@ -128,7 +129,7 @@ To use the Amazon Keyspaces MCP server with Amazon Q CLI, you need to configure 
 
 ### Configuration for Amazon Q CLI
 
-Edit the Q configuration file at `~/.config/amazon-q/config.json`:
+Edit the Q configuration file at `~/.aws/amazonq/mcp.json`:
 
 ```json
 {
@@ -170,10 +171,10 @@ invoke AWS SDK operations on your behalf, including mutating operations.
 
 ### Connection Issues
 
-- Verify your database connection settings in the `.env` file.
+- Verify your database connection settings in the `.keyspaces-mcp/env` file in your home directory.
 - Ensure your logged-in user has the necessary permissions for the operations performed by this server.
 - Check that your database is accessible from your network.
-- For Amazon Keyspaces, verify that the Starfield certificate is correctly installed in the `awslabs/certs` directory.
+- For Amazon Keyspaces, verify that the Starfield certificate is correctly installed in the `.keyspaces-mcp/certs` directory.
 - If you get SSL/TLS errors, check that the certificate path is correct and the certificate is valid.
 
 ### Python Version Compatibility

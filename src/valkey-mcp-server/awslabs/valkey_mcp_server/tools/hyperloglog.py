@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from valkey.exceptions import ValkeyError
 
 
@@ -30,6 +31,10 @@ async def hll_add(key: str, element: str) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot add to HyperLogLog in readonly mode'
+
     try:
         if not element:
             return 'Error: an element is required'

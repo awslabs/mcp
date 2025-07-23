@@ -16,6 +16,7 @@
 
 from awslabs.valkey_mcp_server.common.connection import ValkeyConnectionManager
 from awslabs.valkey_mcp_server.common.server import mcp
+from awslabs.valkey_mcp_server.context import Context
 from typing import Any, Dict, Optional, Union
 from valkey.exceptions import ValkeyError
 
@@ -32,6 +33,10 @@ async def hash_set(key: str, field: str, value: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set hash field in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         r.hset(key, field, value)
@@ -51,6 +56,10 @@ async def hash_set_multiple(key: str, mapping: Dict[str, Any]) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set multiple hash fields in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.hset(key, mapping=mapping)
@@ -71,6 +80,10 @@ async def hash_set_if_not_exists(key: str, field: str, value: Any) -> str:
     Returns:
         Success message or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot set hash field in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         result = r.hsetnx(key, field, value)
@@ -153,6 +166,10 @@ async def hash_increment(key: str, field: str, amount: Union[int, float] = 1) ->
     Returns:
         New value or error message
     """
+    # Check if readonly mode is enabled
+    if Context.readonly_mode():
+        return 'Error: Cannot increment hash field in readonly mode'
+
     try:
         r = ValkeyConnectionManager.get_connection()
         if isinstance(amount, int):

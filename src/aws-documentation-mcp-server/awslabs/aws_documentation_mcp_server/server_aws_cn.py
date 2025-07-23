@@ -15,6 +15,7 @@
 
 import httpx
 import re
+import uuid
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     read_documentation_impl,
@@ -31,6 +32,8 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import AnyUrl, Field
 from typing import Union
 
+
+SESSION_UUID = str(uuid.uuid4())
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
@@ -128,7 +131,7 @@ async def read_documentation(
         await ctx.error(error_msg)
         return error_msg
 
-    return await read_documentation_impl(ctx, url_str, max_length, start_index)
+    return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
 
 @mcp.tool()
@@ -156,10 +159,11 @@ async def get_available_services(
         Markdown content of the AWS China documentation about available services
     """
     url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
+    url_with_session = f'{url_str}?session={SESSION_UUID}'
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                url_str,
+                url_with_session,
                 follow_redirects=True,
                 headers={'User-Agent': DEFAULT_USER_AGENT},
                 timeout=30,

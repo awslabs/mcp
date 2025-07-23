@@ -40,7 +40,7 @@ class TestConfigureDomain:
         mock_acm_client.list_certificates.return_value = {
             'CertificateSummaryList': [
                 {
-                    'CertificateArn': 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890',
+                    'CertificateArn': 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1',
                     'DomainName': 'test.example.com',
                     'Status': 'ISSUED',
                 }
@@ -53,7 +53,7 @@ class TestConfigureDomain:
                 'Items': [
                     {
                         'Id': 'ABCDEF12345',  # pragma: allowlist secret
-                        'ARN': 'arn:aws:cloudfront::123456789012:distribution/ABCDEF12345',
+                        'ARN': 'arn:aws:cloudfront::000000000000:distribution/ABCDEF12345',
                         'Status': 'Deployed',
                         'DomainName': 'd1234abcdef.cloudfront.net',
                         'Origins': {
@@ -101,7 +101,7 @@ class TestConfigureDomain:
         mock_cloudfront_client.update_distribution.return_value = {
             'Distribution': {
                 'Id': 'ABCDEF12345',  # pragma: allowlist secret
-                'ARN': 'arn:aws:cloudfront::123456789012:distribution/ABCDEF12345',
+                'ARN': 'arn:aws:cloudfront::000000000000:distribution/ABCDEF12345',
                 'Status': 'InProgress',
                 'LastModifiedTime': '2023-05-21T12:00:00Z',
                 'DomainName': 'd1234abcdef.cloudfront.net',
@@ -109,7 +109,7 @@ class TestConfigureDomain:
                     'CallerReference': 'test-reference',
                     'Aliases': {'Quantity': 1, 'Items': ['test.example.com']},
                     'ViewerCertificate': {
-                        'ACMCertificateArn': 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890',
+                        'ACMCertificateArn': 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1',
                         'SSLSupportMethod': 'sni-only',
                         'MinimumProtocolVersion': 'TLSv1.2_2021',
                     },
@@ -157,7 +157,7 @@ class TestConfigureDomain:
             assert result['domain_name'] == 'test.example.com'
             assert (
                 result['certificate']['arn']
-                == 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890'
+                == 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1'
             )
             assert result['certificate']['status'] == 'ISSUED'
             assert (
@@ -189,7 +189,7 @@ class TestConfigureDomain:
             assert kwargs['DistributionConfig']['Aliases']['Items'] == ['test.example.com']
             assert (
                 kwargs['DistributionConfig']['ViewerCertificate']['ACMCertificateArn']
-                == 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890'
+                == 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1'
             )
 
             # Verify Route53 client was called with the correct parameters
@@ -225,7 +225,7 @@ class TestConfigureDomain:
 
         # Mock ACM request_certificate response
         mock_acm_client.request_certificate.return_value = {
-            'CertificateArn': 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890'
+            'CertificateArn': 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1'
         }
 
         # Mock ACM waiter
@@ -238,7 +238,7 @@ class TestConfigureDomain:
                 'Items': [
                     {
                         'Id': 'ABCDEF12345',  # pragma: allowlist secret
-                        'ARN': 'arn:aws:cloudfront::123456789012:distribution/ABCDEF12345',
+                        'ARN': 'arn:aws:cloudfront::000000000000:distribution/ABCDEF12345',
                         'Status': 'Deployed',
                         'DomainName': 'd1234abcdef.cloudfront.net',
                         'Origins': {
@@ -286,7 +286,7 @@ class TestConfigureDomain:
         mock_cloudfront_client.update_distribution.return_value = {
             'Distribution': {
                 'Id': 'ABCDEF12345',  # pragma: allowlist secret
-                'ARN': 'arn:aws:cloudfront::123456789012:distribution/ABCDEF12345',
+                'ARN': 'arn:aws:cloudfront::000000000000:distribution/ABCDEF12345',
                 'Status': 'InProgress',
                 'LastModifiedTime': '2023-05-21T12:00:00Z',
                 'DomainName': 'd1234abcdef.cloudfront.net',
@@ -294,7 +294,7 @@ class TestConfigureDomain:
                     'CallerReference': 'test-reference',
                     'Aliases': {'Quantity': 1, 'Items': ['test.example.com']},
                     'ViewerCertificate': {
-                        'ACMCertificateArn': 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890',
+                        'ACMCertificateArn': 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1',
                         'SSLSupportMethod': 'sni-only',
                         'MinimumProtocolVersion': 'TLSv1.2_2021',
                     },
@@ -320,7 +320,7 @@ class TestConfigureDomain:
             assert result['domain_name'] == 'test.example.com'
             assert (
                 result['certificate']['arn']
-                == 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890'
+                == 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1'
             )
             assert result['certificate']['status'] == 'ISSUED'
             assert (
@@ -351,7 +351,7 @@ class TestConfigureDomain:
             assert kwargs['DistributionConfig']['Aliases']['Items'] == ['test.example.com']
             assert (
                 kwargs['DistributionConfig']['ViewerCertificate']['ACMCertificateArn']
-                == 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890'
+                == 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1'
             )
 
             # Verify Route53 client was not called
@@ -375,7 +375,7 @@ class TestConfigureDomain:
         mock_acm_client.list_certificates.return_value = {
             'CertificateSummaryList': [
                 {
-                    'CertificateArn': 'arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890',
+                    'CertificateArn': 'arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE-CERT-ID-1',
                     'DomainName': 'test.example.com',
                     'Status': 'ISSUED',
                 }

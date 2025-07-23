@@ -20,55 +20,18 @@ container images exist and are accessible, helping to diagnose image pull failur
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (
-    get_task_definitions as _get_task_definitions,
+    get_task_definitions,
+    validate_container_images,
 )
-from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (
-    validate_container_images as _validate_container_images,
-)
+
+# Create internal aliases to make the module more testable
+_get_task_definitions = get_task_definitions
+_validate_container_images = validate_container_images
 
 logger = logging.getLogger(__name__)
-
-
-# Re-export these functions for testing purposes
-async def get_task_definitions(app_name: str) -> List[Dict[str, Any]]:
-    """
-    Find task definitions related to the application.
-
-    This is a wrapper around the function in get_ecs_troubleshooting_guidance.
-
-    Parameters
-    ----------
-    app_name : str
-        The name of the application to find task definitions for
-
-    Returns
-    -------
-    List[Dict[str, Any]]
-        List of task definition dictionaries with full details
-    """
-    return await _get_task_definitions(app_name)
-
-
-async def validate_container_images(task_definitions: List[Dict]) -> List[Dict]:
-    """
-    Validate container images in task definitions.
-
-    This is a wrapper around the function in get_ecs_troubleshooting_guidance.
-
-    Parameters
-    ----------
-    task_definitions : List[Dict]
-        List of task definition dictionaries
-
-    Returns
-    -------
-    List[Dict]
-        List of validation results for each container image
-    """
-    return await _validate_container_images(task_definitions)
 
 
 async def detect_image_pull_failures(app_name: str) -> Dict[str, Any]:
@@ -95,7 +58,7 @@ async def detect_image_pull_failures(app_name: str) -> Dict[str, Any]:
 
         # Find related task definitions
         try:
-            task_definitions = await get_task_definitions(app_name)
+            task_definitions = await _get_task_definitions(app_name)
         except Exception as e:
             logger.exception("Error getting task definitions: %s", str(e))
             return {
@@ -112,7 +75,7 @@ async def detect_image_pull_failures(app_name: str) -> Dict[str, Any]:
 
         # Check container images
         try:
-            image_results = await validate_container_images(task_definitions)
+            image_results = await _validate_container_images(task_definitions)
         except Exception as e:
             logger.exception("Error validating container images: %s", str(e))
             return {
