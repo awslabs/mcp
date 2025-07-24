@@ -41,6 +41,7 @@ from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_rea
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from typing import Annotated, Any, Optional, cast
 
@@ -111,6 +112,9 @@ READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
         - Required parameters
         - Description of what the command does
     """,
+    annotations=ToolAnnotations(
+        title='Suggest AWS CLI commands', readOnlyHint=True, openWorldHint=False
+    ),
 )
 async def suggest_aws_commands(
     query: Annotated[
@@ -167,6 +171,12 @@ async def suggest_aws_commands(
     Returns:
         CLI execution results with API response data or error message
     """,
+    annotations=ToolAnnotations(
+        title='Execute AWS CLI commands',
+        readOnlyHint=READ_OPERATIONS_ONLY_MODE,
+        destructiveHint=not READ_OPERATIONS_ONLY_MODE,
+        openWorldHint=True,
+    ),
 )
 async def call_aws(
     cli_command: Annotated[
