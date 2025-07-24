@@ -170,6 +170,11 @@ runs:
         echo version="${{ steps.meta.outputs.version }}" >>"$GITHUB_OUTPUT"
       shell: bash
     - name: Save an image
+      env:
+        IMAGE: ${{ inputs.image }}
+        ALIAS: ${{ inputs.public-erc-registry-alias }}
+        OWNER: ${{ github.repository_owner }}
+        VERSION: ${{ steps.meta.outputs.version }}
       run: |
         docker image save -o "${{ runner.temp }}/image.tar" public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION
       shell: bash

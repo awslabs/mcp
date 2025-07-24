@@ -261,7 +261,6 @@ jobs:
       contents: read
     needs: [validate-repository, draft_release_when_tagged, look-for-changes]
     steps:
-      # Validate directory before processing
       - name: Validate package directory
         run: |
           set -euo pipefail
@@ -290,7 +289,7 @@ jobs:
         changed-directory: ${{ fromJson(needs.look-for-changes.outputs.python-changed-directories) }}
       max-parallel: 10
     runs-on: ubuntu-latest
-    timeout-minutes: 240  # llow time for large packages but prevent hanging
+    timeout-minutes: 240  # allow time for large packages but prevent hanging
     permissions:
       contents: read
       id-token: write
@@ -300,6 +299,7 @@ jobs:
       - name: Clear Up Space (Aggressively) for Specific Projects
         if: contains(fromJson('["aws-api-mcp-server"]'), matrix.changed-directory)
         uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
+      #TODO: remove local action checkout when working...
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -394,13 +394,11 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "::debug::Package version: $VERSION"
       - name: Publish package to PyPI
-        continue-on-error: true #TODO: Remove when merged into main
         uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
         with:
           packages-dir: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}/dist
           print-hash: true
       - name: Build and Publish Container
-        continue-on-error: true #TODO: Remove when merged into main
         id: build-and-publish
         uses: ./.github/actions/build-and-push-container-image
         if: hashFiles(format('./{0}/{1}/Dockerfile', env.SRC_DIRECTORY, matrix.changed-directory))
