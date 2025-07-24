@@ -20,7 +20,7 @@ This module provides utilities for processing PDF documentation directly from UR
 import httpx
 import io
 import PyPDF2
-from typing import Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 # Define PDF resources
@@ -69,7 +69,7 @@ async def get_pdf_content(pdf_id: str) -> bytes:
 
 def extract_pdf_content(
     pdf_content: bytes, start_page: int = 1, end_page: Optional[int] = None
-) -> dict:
+) -> Dict[str, Any]:
     """Extract content from PDF bytes.
 
     Args:
@@ -80,11 +80,18 @@ def extract_pdf_content(
     Returns:
         Dictionary containing the extracted content and pagination information
     """
+    # Create a PDF reader from the bytes
     try:
-        # Create a PDF reader from the bytes
         pdf_bytes = io.BytesIO(pdf_content)
-        reader = PyPDF2.PdfReader(pdf_bytes)
+    except Exception as e:
+        return {'error': f'Failed to extract PDF content: {str(e)}', 'content': None}
 
+    try:
+        reader = PyPDF2.PdfReader(pdf_bytes)
+    except Exception as e:
+        return {'error': f'Failed to extract PDF content: {str(e)}', 'content': None}
+
+    try:
         # Get total pages
         total_pages = len(reader.pages)
 
@@ -97,8 +104,11 @@ def extract_pdf_content(
         # Extract content from specified pages
         content = []
         for page_num in range(start_page - 1, end_page):
-            page = reader.pages[page_num]
-            content.append(page.extract_text())
+            try:
+                page = reader.pages[page_num]
+                content.append(page.extract_text())
+            except Exception as e:
+                return {'error': f'Failed to extract PDF content: {str(e)}', 'content': None}
 
         # Join content with page breaks
         full_content = '\n\n--- Page Break ---\n\n'.join(content)
@@ -113,11 +123,10 @@ def extract_pdf_content(
             },
         }
     except Exception as e:
-        # Using the exception variable to include the error message in the response
         return {'error': f'Failed to extract PDF content: {str(e)}', 'content': None}
 
 
-def extract_pdf_toc(pdf_content: bytes) -> list:
+def extract_pdf_toc(pdf_content: bytes) -> List[Dict[str, Union[str, int]]]:
     """Extract table of contents from PDF bytes.
 
     Args:
@@ -137,21 +146,25 @@ def extract_pdf_toc(pdf_content: bytes) -> list:
         # PyPDF2 doesn't have great TOC extraction, so we'll use a simple approach
         # Extract first line of each page as a potential heading
         for i in range(len(reader.pages)):
-            page = reader.pages[i]
-            text = page.extract_text(0, 200)  # Get first 200 chars
+            try:
+                page = reader.pages[i]
+                text = page.extract_text(0, 200)  # Get first 200 chars
 
-            # Skip empty pages
-            if not text:
+                # Skip empty pages
+                if not text:
+                    continue
+
+                # Get the first line
+                first_line = text.split('\n')[0].strip()
+
+                # Skip very short lines or page numbers
+                if len(first_line) < 3 or first_line.isdigit():
+                    continue
+
+                toc.append({'title': first_line, 'page': i + 1})
+            except Exception:
+                # Skip pages that cause errors
                 continue
-
-            # Get the first line
-            first_line = text.split('\n')[0].strip()
-
-            # Skip very short lines or page numbers
-            if len(first_line) < 3 or first_line.isdigit():
-                continue
-
-            toc.append({'title': first_line, 'page': i + 1})
 
         return toc
     except Exception:

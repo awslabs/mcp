@@ -17,16 +17,3 @@ MSK MCP Server Tools Package
 
 This package contains all the tool modules for the MSK MCP Server.
 """
-
-from awslabs.aws_msk_mcp_server import __version__
-
-# Import register_module functions from each module
-from .logs_and_telemetry.register_module import register_module as register_logs_and_telemetry
-from .mutate_cluster.register_module import register_module as register_mutate_cluster
-from .mutate_config.register_module import register_module as register_mutate_config
-from .mutate_vpc.register_module import register_module as register_mutate_vpc
-from .read_cluster.register_module import register_module as register_read_cluster
-from .read_config.register_module import register_module as register_read_config
-from .read_global.register_module import register_module as register_read_global
-from .read_vpc.register_module import register_module as register_read_vpc
-from .replicator.register_module import register_module as register_replicator

@@ -172,7 +172,9 @@ def register_module(mcp: FastMCP) -> None:
                 kafka_client = client_manager.get_client(region, 'kafka')
 
                 # Get cluster's monitoring level
-                cluster_info = kafka_client.describe_cluster(ClusterArn=cluster_arn)['ClusterInfo']
+                cluster_info = kafka_client.describe_cluster_v2(ClusterArn=cluster_arn)[
+                    'ClusterInfo'
+                ]
                 cluster_monitoring = cluster_info.get('EnhancedMonitoring', 'DEFAULT')
 
                 # Return metrics filtered by the cluster's monitoring level

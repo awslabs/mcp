@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .register_module import register_module
+"""Test package for AWS MSK MCP Server."""
