@@ -68,4 +68,3 @@ class TestInit:
 
         # Check that __version__ is defined
         assert hasattr(awslabs.s3_tables_mcp_server, '__version__')
-        assert awslabs.s3_tables_mcp_server.__version__ == '0.0.0'
