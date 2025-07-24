@@ -31,7 +31,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Any, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
 
 class GovernanceHandler:
@@ -66,34 +66,48 @@ class GovernanceHandler:
     async def manage_aws_lakeformation_permissions(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: list-permissions, batch-get-effective-permissions-for-path.',
-        ),
-        principal: Optional[str] = Field(
-            None,
-            description='The principal to be granted a permission.',
-        ),
-        resource_type: Optional[str] = Field(
-            None,
-            description='The type of the resource.',
-        ),
-        resource_path: Optional[str] = Field(
-            None,
-            description='The path to the resource.',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description='ID of the catalog (optional, defaults to account ID).',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Token for pagination.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: list-permissions, batch-get-effective-permissions-for-path.',
+            ),
+        ],
+        principal: Annotated[
+            Optional[str],
+            Field(
+                description='The principal to be granted a permission.',
+            ),
+        ] = None,
+        resource_type: Annotated[
+            Optional[str],
+            Field(
+                description='The type of the resource.',
+            ),
+        ] = None,
+        resource_path: Annotated[
+            Optional[str],
+            Field(
+                description='The path to the resource.',
+            ),
+        ] = None,
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the catalog (optional, defaults to account ID).',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Token for pagination.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return.',
+            ),
+        ] = None,
     ) -> Union[
         ListPermissionsResponse,
         BatchGetEffectivePermissionsForPathResponse,
@@ -164,14 +178,18 @@ class GovernanceHandler:
     async def manage_aws_lakeformation_datalakesettings(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: get-data-lake-settings.',
-        ),
-        catalog_id: Optional[str] = Field(
-            None,
-            description='ID of the catalog (optional, defaults to account ID).',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: get-data-lake-settings.',
+            ),
+        ],
+        catalog_id: Annotated[
+            Optional[str],
+            Field(
+                description='ID of the catalog (optional, defaults to account ID).',
+            ),
+        ] = None,
     ) -> GetDataLakeSettingsResponse:
         """Manage AWS Lake Formation data lake settings."
 
@@ -218,22 +236,30 @@ class GovernanceHandler:
     async def manage_aws_lakeformation_resources(
         self,
         ctx: Context,
-        operation: str = Field(
-            ...,
-            description='Operation to perform: list-resources, describe-resource.',
-        ),
-        resource_arn: Optional[str] = Field(
-            None,
-            description='The ARN of the resource to describe.',
-        ),
-        next_token: Optional[str] = Field(
-            None,
-            description='Token for pagination.',
-        ),
-        max_results: Optional[int] = Field(
-            None,
-            description='Maximum number of results to return.',
-        ),
+        operation: Annotated[
+            str,
+            Field(
+                description='Operation to perform: list-resources, describe-resource.',
+            ),
+        ],
+        resource_arn: Annotated[
+            Optional[str],
+            Field(
+                description='The ARN of the resource to describe.',
+            ),
+        ] = None,
+        next_token: Annotated[
+            Optional[str],
+            Field(
+                description='Token for pagination.',
+            ),
+        ] = None,
+        max_results: Annotated[
+            Optional[int],
+            Field(
+                description='Maximum number of results to return.',
+            ),
+        ] = None,
     ) -> Union[
         ListResourcesResponse,
         DescribeResourceResponse,
