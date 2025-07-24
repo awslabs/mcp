@@ -20,63 +20,186 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import click
-import datetime
 import json
 import logging
 import re
-import subprocess
 import sys
 import tomlkit
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, NewType, Protocol
+from typing import NewType, Protocol
 
 
-# Configure logging to stderr
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s', stream=sys.stderr)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+    stream=sys.stderr,
+)
 
 Version = NewType('Version', str)
-BuildRelease = NewType('BuildRelease', str)
-GitHash = NewType('GitHash', str)
-
-# https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
 SemVerRegEx = r'^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
+PACKAGE_NAME_REGEX = r'^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$'
+DIRECTORY_NAME_REGEX = r'^[a-zA-Z0-9_-]+$'
+MAX_VERSION_COMPONENT = 9999999999999999999
+MAX_PACKAGE_NAME_LENGTH = 100
+MAX_PATH_DEPTH = 15
 
 
-class GitHashParamType(click.ParamType):
-    """The GitHash paramater type."""
+def validate_path_security(path: Path, allowed_base: Path = None) -> Path:
+    """Validate path for security issues including path traversal.
 
-    name = 'git_hash'
+    Args:
+        path: Path to validate
+        allowed_base: Optional base path that the resolved path must be within
 
-    def convert(
-        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
-    ) -> GitHash | None:
-        """Convert the value to a GitHash."""
-        if value is None:
-            return None
+    Returns:
+        Resolved path if valid
 
-        if not (8 <= len(value) <= 40):
-            self.fail(f'Git hash must be between 8 and 40 characters, got {len(value)}')
+    Raises:
+        ValueError: If path is invalid or contains security issues
+    """
+    try:
+        resolved_path = path.resolve()
+        if len(resolved_path.parts) > MAX_PATH_DEPTH:
+            raise ValueError(f'Path depth exceeds maximum allowed ({MAX_PATH_DEPTH}): {path}')
+        if allowed_base:
+            allowed_base_resolved = allowed_base.resolve()
+            try:
+                resolved_path.relative_to(allowed_base_resolved)
+            except ValueError:
+                raise ValueError(
+                    f'Path traversal detected: {path} is outside allowed base {allowed_base}'
+                )
+        if not resolved_path.exists():
+            raise ValueError(f'Path does not exist: {path}')
+        logging.debug(f'Path validation successful: {resolved_path}')
+        return resolved_path
+    except Exception as e:
+        logging.error(f'Path validation failed for {path}: {e}')
+        raise ValueError(f'Invalid path: {path} - {e}')
 
-        if not re.match(r'^[0-9a-fA-F]+$', value):
-            self.fail('Git hash must contain only hex digits (0-9, a-f)')
 
-        try:
-            # Verify hash exists in repo
-            command = ['git', 'rev-parse', '--verify', value]
-            # The `value` is verified to match a GitHash above
-            subprocess.run(command, check=True, shell=False, capture_output=True)  # nosec B603
-        except subprocess.CalledProcessError:
-            self.fail(f'Git hash {value} not found in repository')
+def validate_package_name(name: str) -> str:
+    """Validate and sanitize package name.
 
-        return GitHash(value.lower())
+    Args:
+        name: Package name to validate
+
+    Returns:
+        Validated package name
+
+    Raises:
+        ValueError: If package name is invalid
+    """
+    if not name or not isinstance(name, str):
+        raise ValueError('Package name cannot be empty or non-string')
+    if len(name) > MAX_PACKAGE_NAME_LENGTH:
+        raise ValueError(
+            f'Package name exceeds maximum length ({MAX_PACKAGE_NAME_LENGTH}): {name}'
+        )
+    if not re.match(PACKAGE_NAME_REGEX, name):
+        raise ValueError(f'Invalid package name format: {name}')
+    suspicious_patterns = [
+        r'\.\.',
+        r'//',
+        r'\\\\',
+        r'[<>:"|?*]',
+        r'^\.',  # Path traversal and invalid chars
+        r'(con|prn|aux|nul|com[1-9]|lpt[1-9])$',  # Windows reserved names
+    ]
+    for pattern in suspicious_patterns:
+        if re.search(pattern, name, re.IGNORECASE):
+            raise ValueError(f'Package name contains suspicious pattern: {name}')
+    logging.debug(f'Package name validation successful: {name}')
+    return name
 
 
-GIT_HASH = GitHashParamType()
+def validate_version_format(version: str) -> bool:
+    """Validate version follows semantic versioning with additional security checks.
+
+    Args:
+        version: Version string to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    if not version or not isinstance(version, str):
+        return False
+    if len(version) > 50:
+        return False
+    match = re.match(SemVerRegEx, version)
+    if not match:
+        return False
+    try:
+        major = int(match.group('major'))
+        minor = int(match.group('minor'))
+        patch = int(match.group('patch'))
+        if any(component > MAX_VERSION_COMPONENT for component in [major, minor, patch]):
+            logging.warning(
+                f'Version component exceeds maximum ({MAX_VERSION_COMPONENT}): {version}'
+            )
+            return False
+    except (ValueError, TypeError):
+        return False
+    return True
+
+
+def secure_file_read(file_path: Path, encoding: str = 'utf-8') -> str:
+    """Securely read file with validation.
+
+    Args:
+        file_path: Path to file
+        encoding: File encoding
+
+    Returns:
+        File content
+
+    Raises:
+        ValueError: If file cannot be read securely
+    """
+    validated_path = validate_path_security(file_path)
+    try:
+        file_size = validated_path.stat().st_size
+        if file_size > 10 * 1024 * 1024:  # 10MB limit
+            raise ValueError(f'File too large: {file_size} bytes')
+        with open(validated_path, 'r', encoding=encoding) as f:
+            content = f.read()
+        logging.debug(f'File read successful: {validated_path}')
+        return content
+    except Exception as e:
+        logging.error(f'Secure file read failed for {file_path}: {e}')
+        raise ValueError(f'Cannot read file securely: {file_path} - {e}')
+
+
+def secure_file_write(file_path: Path, content: str, encoding: str = 'utf-8') -> None:
+    """Securely write file with validation.
+
+    Args:
+        file_path: Path to file
+        content: Content to write
+        encoding: File encoding
+
+    Raises:
+        ValueError: If file cannot be written securely
+    """
+    if not content or not isinstance(content, str):
+        raise ValueError('Content cannot be empty or non-string')
+    if len(content) > 10 * 1024 * 1024:  # 10MB limit
+        raise ValueError(f'Content too large: {len(content)} characters')
+    try:
+        parent_dir = file_path.parent
+        validate_path_security(parent_dir)
+        with open(file_path, 'w', encoding=encoding) as f:
+            f.write(content)
+        file_path.chmod(0o644)
+        logging.debug(f'File write successful: {file_path}')
+    except Exception as e:
+        logging.error(f'Secure file write failed for {file_path}: {e}')
+        raise ValueError(f'Cannot write file securely: {file_path} - {e}')
 
 
 class Package(Protocol):
-    """The package protocol."""
+    """The package protocol with security enhancements."""
 
     path: Path
 
@@ -88,321 +211,261 @@ class Package(Protocol):
         """The package version."""
         ...
 
-    def update_version(self, build_release: BuildRelease | None = None) -> str:
+    def bump_version(self) -> str:
         """Update the package version."""
         ...
 
 
 @dataclass
 class NpmPackage:
-    """A NPM package."""
+    """A NPM package with security enhancements."""
 
     path: Path
 
+    def __post_init__(self):
+        """Validate path on initialization."""
+        self.path = validate_path_security(self.path)
+
     def package_name(self) -> str:
-        """Get the package name from the package.json file."""
-        with open(self.path / 'package.json', 'r', encoding='utf-8') as f:
-            return json.load(f)['name']
+        """Get the package name from the package.json file with security validation."""
+        try:
+            package_json_path = self.path / 'package.json'
+            content = secure_file_read(package_json_path)
+            data = json.loads(content)
+            if 'name' not in data:
+                raise ValueError("No 'name' field in package.json")
+            name = str(data['name'])
+            return validate_package_name(name)
+        except Exception as e:
+            logging.error(f'Failed to get NPM package name from {self.path}: {e}')
+            raise ValueError(f'Cannot read NPM package name: {e}')
 
     def package_version(self) -> str:
-        """Get the package version from the package.json file."""
-        with open(self.path / 'package.json', 'r', encoding='utf-8') as f:
-            return json.load(f)['version']
-
-    def update_version(self, build_release: BuildRelease | None = None) -> str:
-        """Update the package.json with a version."""
-        with open(self.path / 'package.json', 'r+', encoding='utf-8') as f:
-            data = json.load(f)
-            matched = re.match(SemVerRegEx, data['version'])
-            patch = int(matched.group('patch')) + 1
-            if patch > sys.maxsize:
-                patch = 0
-            version = '.'.join([matched.group('major'), matched.group('minor'), str(patch)])
-            data['version'] = version
-            f.seek(0)
-            json.dump(data, f, indent=2)
-            f.truncate()
+        """Get the package version from the package.json file with security validation."""
+        try:
+            package_json_path = self.path / 'package.json'
+            content = secure_file_read(package_json_path)
+            data = json.loads(content)
+            if 'version' not in data:
+                raise ValueError("No 'version' field in package.json")
+            version = str(data['version'])
+            if not validate_version_format(version):
+                raise ValueError(f'Invalid version format: {version}')
             return version
+        except Exception as e:
+            logging.error(f'Failed to get NPM package version from {self.path}: {e}')
+            raise ValueError(f'Cannot read NPM package version: {e}')
+
+    def bump_version(self) -> str:
+        """Update the package.json with a bumped version with security validation."""
+        try:
+            package_json_path = self.path / 'package.json'
+            content = secure_file_read(package_json_path)
+            data = json.loads(content)
+            current_version = str(data.get('version', ''))
+            if not validate_version_format(current_version):
+                raise ValueError(f'Invalid current version format: {current_version}')
+            matched = re.match(SemVerRegEx, current_version)
+            if not matched:
+                raise ValueError(f'Cannot parse version: {current_version}')
+            major = int(matched.group('major'))
+            minor = int(matched.group('minor'))
+            patch = int(matched.group('patch'))
+            patch += 1
+            if patch > MAX_VERSION_COMPONENT:
+                patch = 0
+                minor += 1
+                if minor > MAX_VERSION_COMPONENT:
+                    minor = 0
+                    major += 1
+                    if major > MAX_VERSION_COMPONENT:
+                        raise ValueError('Version overflow detected')
+            new_version = f'{major}.{minor}.{patch}'
+            if not validate_version_format(new_version):
+                raise ValueError(f'Generated invalid version: {new_version}')
+            data['version'] = new_version
+            updated_content = json.dumps(data, indent=2, ensure_ascii=False)
+            secure_file_write(package_json_path, updated_content)
+            logging.info(f'NPM package version bumped: {current_version} -> {new_version}')
+            return new_version
+
+        except Exception as e:
+            logging.error(f'Failed to bump NPM package version in {self.path}: {e}')
+            raise ValueError(f'Cannot bump NPM package version: {e}')
 
 
 @dataclass
 class PyPiPackage:
-    """A PyPi package."""
+    """A PyPi package with security enhancements."""
 
     path: Path
 
+    def __post_init__(self):
+        """Validate path on initialization."""
+        self.path = validate_path_security(self.path)
+
     def package_name(self) -> str:
-        """Get the package name from the pyproject.toml file."""
-        with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
-            toml_data = tomlkit.parse(f.read())
-            name = toml_data.get('project', {}).get('name')
+        """Get the package name from the pyproject.toml file with security validation."""
+        try:
+            pyproject_path = self.path / 'pyproject.toml'
+            content = secure_file_read(pyproject_path)
+            toml_data = tomlkit.parse(content)
+            project_section = toml_data.get('project')
+            if not project_section:
+                raise ValueError('No project section in pyproject.toml')
+            name = project_section.get('name')
             if not name:
                 raise ValueError('No name in pyproject.toml project section')
-            return str(name)
+            name_str = str(name)
+            return validate_package_name(name_str)
+        except Exception as e:
+            logging.error(f'Failed to get PyPI package name from {self.path}: {e}')
+            raise ValueError(f'Cannot read PyPI package name: {e}')
 
     def package_version(self) -> str:
-        """Read the version from the pyproject.toml file."""
-        with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
-            toml_data = tomlkit.parse(f.read())
-            version = toml_data.get('project', {}).get('version')
+        """Read the version from the pyproject.toml file with security validation."""
+        try:
+            pyproject_path = self.path / 'pyproject.toml'
+            content = secure_file_read(pyproject_path)
+            toml_data = tomlkit.parse(content)
+            project_section = toml_data.get('project')
+            if not project_section:
+                raise ValueError('No project section in pyproject.toml')
+            version = project_section.get('version')
             if not version:
                 raise ValueError('No version in pyproject.toml project section')
-            return str(version)
+            version_str = str(version)
+            if not validate_version_format(version_str):
+                raise ValueError(f'Invalid version format: {version_str}')
+            return version_str
+        except Exception as e:
+            logging.error(f'Failed to get PyPI package version from {self.path}: {e}')
+            raise ValueError(f'Cannot read PyPI package version: {e}')
 
-    def update_version(self, build_release: BuildRelease | None = None) -> str:
-        """Update version in pyproject.toml."""
-        package_name = self.package_name()
-        version_str = self.package_version()
-        with open(self.path / 'pyproject.toml', encoding='utf-8') as f:
-            data = tomlkit.parse(f.read())
-            # Access the version safely from tomlkit document
+    def bump_version(self) -> str:
+        """Update version in pyproject.toml and __init__.py with security validation."""
+        try:
+            package_name = self.package_name()
+            current_version = self.package_version()
+            matched = re.match(SemVerRegEx, current_version)
+            if not matched:
+                raise ValueError(f'Cannot parse version: {current_version}')
+            major = int(matched.group('major'))
+            minor = int(matched.group('minor'))
+            patch = int(matched.group('patch'))
+            patch += 1
+            if patch > MAX_VERSION_COMPONENT:
+                patch = 0
+                minor += 1
+                if minor > MAX_VERSION_COMPONENT:
+                    minor = 0
+                    major += 1
+                    if major > MAX_VERSION_COMPONENT:
+                        raise ValueError('Version overflow detected')
+            new_version = f'{major}.{minor}.{patch}'
+            if not validate_version_format(new_version):
+                raise ValueError(f'Generated invalid version: {new_version}')
+            pyproject_path = self.path / 'pyproject.toml'
+            content = secure_file_read(pyproject_path)
+            data = tomlkit.parse(content)
             project_table = data.get('project')
             if project_table is None:
                 raise ValueError('No project section in pyproject.toml')
-            matched = re.match(SemVerRegEx, version_str)
-            patch = int(matched.group('patch')) + 1
-            if patch > sys.maxsize:
-                patch = 0
-            version = '.'.join([matched.group('major'), matched.group('minor'), str(patch)])
-
-            # Update the version safely
-            project_table['version'] = version
-
-        with open(self.path / 'pyproject.toml', 'w', encoding='utf-8') as f:
-            f.write(tomlkit.dumps(data))
-
-        # Find the corresponding __init__.py file
-        # Convert package name from awslabs.package-name to package_name format
-        if package_name.startswith('awslabs.'):
-            # Remove 'awslabs.' prefix and convert hyphens
-            module_name = package_name[8:].replace('-', '_')
-            init_file = self.path / 'awslabs' / module_name / '__init__.py'
-            if init_file.exists():
-                # Read current __init__.py
-                with open(init_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                # Update __version__ line
-                version_pattern = r"__version__\s*=\s*['\"][^'\"]*['\"]"
-                new_version_line = f"__version__ = '{version}'"
-                if re.search(version_pattern, content):
-                    # Replace existing __version__
-                    updated_content = re.sub(version_pattern, new_version_line, content)
-                    with open(init_file, 'w', encoding='utf-8') as f:
-                        f.write(updated_content)
-                    click.echo(f"Updated {init_file}: __version__ = '{version}'")
-                else:
-                    click.echo(f'Warning: No __version__ found in {init_file}')
+            project_table['version'] = new_version
+            updated_content = tomlkit.dumps(data)
+            secure_file_write(pyproject_path, updated_content)
+            if package_name.startswith('awslabs.'):
+                module_name = package_name[8:].replace('-', '_')
+                if not re.match(DIRECTORY_NAME_REGEX, module_name):
+                    raise ValueError(f'Invalid module name derived from package: {module_name}')
+                init_file = self.path / 'awslabs' / module_name / '__init__.py'
+                try:
+                    validate_path_security(init_file, self.path)
+                    if init_file.exists():
+                        init_content = secure_file_read(init_file)
+                        version_pattern = r"__version__\s*=\s*['\"][^'\"]*['\"]"
+                        new_version_line = f"__version__ = '{new_version}'"
+                        if re.search(version_pattern, init_content):
+                            updated_init_content = re.sub(
+                                version_pattern, new_version_line, init_content
+                            )
+                            secure_file_write(init_file, updated_init_content)
+                            click.echo(f"Updated {init_file}: __version__ = '{new_version}'")
+                        else:
+                            click.echo(f'Warning: No __version__ found in {init_file}')
+                    else:
+                        click.echo(f'Warning: {init_file} not found for package {package_name}')
+                except ValueError as e:
+                    click.echo(f'Warning: Cannot update __init__.py safely: {e}')
             else:
-                click.echo(f'Warning: {init_file} not found for package {package_name}')
-        else:
-            click.echo(
-                f"Warning: Package {package_name} doesn't follow awslabs.* naming convention"
-            )
-        return version
-
-
-def has_changes(path: Path, git_hash: GitHash) -> bool:
-    """Check if any files changed between current state and git hash."""
-    try:
-        logging.debug('Checking changes in %s since %s', path, git_hash)  # import logging
-
-        # Get the repository root directory
-        command = ['git', 'rev-parse', '--show-toplevel']
-        repo_root = subprocess.run(
-            command,
-            check=True,
-            shell=False,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-
-        try:
-            # Get the relative path from repo root to package directory
-            rel_path = path.relative_to(Path(repo_root))
-
-            # Run git diff from repo root, but filter by package path
-            command = ['git', 'diff', '--name-only', git_hash, '--', str(rel_path)]
-            output = subprocess.run(
-                command,
-                cwd=repo_root,  # Run from repo root
-                check=True,
-                shell=False,
-                capture_output=True,
-                text=True,
-            )
-
-            logging.debug('Git command: git diff --name-only %s -- %s', git_hash, rel_path)
-            logging.debug('Working directory: %s', repo_root)
-
-            changed_files = [Path(f) for f in output.stdout.splitlines()]
-            logging.debug('Changed files: %s', changed_files)
-
-            relevant_files = [
-                f
-                for f in changed_files
-                if f.suffix in ['.py', '.ts', '.toml', '.lock', '.json'] or f.name == 'Dockerfile'
-            ]
-            logging.debug('Relevant files: %s', relevant_files)
-
-            return len(relevant_files) >= 1
-        except ValueError:
-            # Handle case where path is not relative to repo_root
-            logging.debug('Path error: %s is not inside repo root %s', path, repo_root)
-            logging.debug('Using absolute path as fallback')
-
-            # Use absolute path as fallback
-            command = ['git', 'diff', '--name-only', git_hash]
-            output = subprocess.run(
-                command,
-                check=True,
-                shell=False,
-                capture_output=True,
-                text=True,
-            )
-
-            # Filter to only include files under the specified path
-            path_str = str(path).rstrip('/') + '/'
-            changed_files = [Path(f) for f in output.stdout.splitlines() if f.startswith(path_str)]
-
-            relevant_files = [
-                f
-                for f in changed_files
-                if f.suffix in ['.py', '.ts', '.toml', '.lock', '.json'] or f.name == 'Dockerfile'
-            ]
-            return len(relevant_files) >= 1
-    except subprocess.CalledProcessError as e:
-        logging.error('Error executing git command: %s', e)
-        return False
-
-
-def gen_version() -> Version:
-    """Generate release version based on current time."""
-    now = datetime.datetime.now(datetime.UTC)
-    return Version(f'{now.year}.{now.month}.{gen_buildrelease()}')
-
-
-def gen_buildrelease() -> BuildRelease:
-    """Generate version based on current UTC timestamp."""
-    now = datetime.datetime.now(datetime.UTC)
-    # return Patch(f"{int(now.timestamp())}")
-    return BuildRelease(f'{now.year:04d}{now.day:02d}{now.hour:02d}{now.minute:02d}')
-
-
-def find_changed_packages(directory: Path, git_hash: GitHash) -> Iterator[Package]:
-    """This looks for changed packages."""
-    # Debug info
-    logging.debug('Searching for changed packages in %s since %s', directory, git_hash)
-
-    # List all PyPI packages
-    for path in directory.glob('*/pyproject.toml'):
-        logging.debug('Found PyPI package at %s', path.parent)
-        # Check if it has relevant changes
-        if has_changes(path.parent, git_hash):
-            yield PyPiPackage(path.parent)
-
-    # List all NPM packages
-    for path in directory.glob('*/package.json'):
-        logging.debug('Found NPM package at %s', path.parent)
-        # Check if it has relevant changes
-        if has_changes(path.parent, git_hash):
-            yield NpmPackage(path.parent)
+                click.echo(
+                    f"Warning: Package {package_name} doesn't follow awslabs.* naming convention"
+                )
+            logging.info(f'PyPI package version bumped: {current_version} -> {new_version}')
+            return new_version
+        except Exception as e:
+            logging.error(f'Failed to bump PyPI package version in {self.path}: {e}')
+            raise ValueError(f'Cannot bump PyPI package version: {e}')
 
 
 @click.group()
 def cli():
-    """Simply pass."""
+    """Release management CLI with security enhancements."""
     pass
-
-
-@cli.command('update-packages')
-@click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
-@click.option('--build-release', type=BuildRelease, default=None, help='Optional build release version')
-@click.argument('git_hash', type=GIT_HASH)
-def update_packages(directory: Path, git_hash: GitHash, build_release: str | None = None) -> int:
-    """Updates the package version with a patch."""
-    # Detect package type
-    path = directory.resolve(strict=True)
-    build_release_param = BuildRelease(build_release) if build_release else gen_buildrelease()
-
-    for package in find_changed_packages(path, git_hash):
-        name = package.package_name()
-        version = package.update_version(build_release_param)
-
-        click.echo(f'{name}@{version}')
-
-    return 0
-
-
-@cli.command('generate-notes')
-@click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
-@click.argument('git_hash', type=GIT_HASH)
-def generate_notes(directory: Path, git_hash: GitHash) -> int:
-    """Generates detailed release notes."""
-    # Detect package type
-    path = directory.resolve(strict=True)
-    release = gen_version()
-
-    click.echo(f'# Release: {release}')
-    click.echo('')
-    click.echo('## Updated packages')
-    for package in find_changed_packages(path, git_hash):
-        name = package.package_name()
-        version = package.package_version()
-        click.echo(f'- {name}@{version}')
-    click.echo('')
-
-    return 0
-
-
-@cli.command('generate-version')
-def generate_version() -> int:
-    """Generates a version."""
-    # Detect package type
-    click.echo(gen_version())
-    return 0
-
-
-@cli.command('generate-matrix')
-@click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
-@click.option('--npm', is_flag=True, default=False)
-@click.option('--pypi', is_flag=True, default=False)
-@click.argument('git_hash', type=GIT_HASH)
-def generate_matrix(directory: Path, git_hash: GitHash, pypi: bool, npm: bool) -> int:
-    """Outputs JSON for changes in the repository under a path."""
-    # Detect package type
-    path = directory.resolve(strict=True)
-
-    changes = []
-    for package in find_changed_packages(path, git_hash):
-        pkg = package.path.relative_to(path)
-        if npm and isinstance(package, NpmPackage):
-            changes.append(str(pkg))
-        if pypi and isinstance(package, PyPiPackage):
-            changes.append(str(pkg))
-
-    click.echo(json.dumps(changes))
-    return 0
 
 
 @cli.command('bump-package')
 @click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
 def bump_package(directory: Path) -> int:
-    """Updates the package version with a patch."""
-    # Detect package type
-    if Path(str(directory), 'pyproject.toml').is_file():
-        logging.debug('Found PyPI package at %s', directory)
-        package = PyPiPackage(directory)
-        name = package.package_name()
-        version = package.update_version(None)
-        click.echo(f'{name}@{version}')
-    if Path(str(directory), 'package.json').is_file():
-        logging.debug('Found NPM package at %s', directory)
-        package = NpmPackage(directory)
-        name = package.package_name()
-        version = package.update_version(None)
-        click.echo(f'{name}@{version}')
+    """Updates the package version with a patch bump and security validation."""
+    try:
+        validated_directory = validate_path_security(directory)
+        if not re.match(DIRECTORY_NAME_REGEX, validated_directory.name):
+            raise ValueError(f'Invalid directory name format: {validated_directory.name}')
+        logging.debug(f'Processing directory: {validated_directory}')
+        pyproject_file = validated_directory / 'pyproject.toml'
+        package_json_file = validated_directory / 'package.json'
+        processed = False
+        if pyproject_file.exists():
+            logging.debug(f'Found PyPI package at {validated_directory}')
+            try:
+                package = PyPiPackage(validated_directory)
+                name = package.package_name()
+                version = package.bump_version()
+                click.echo(f'{name}@{version}')
+                processed = True
+            except Exception as e:
+                logging.error(f'Failed to process PyPI package: {e}')
+                click.echo(f'Error processing PyPI package: {e}', err=True)
+                return 1
+        if package_json_file.exists():
+            logging.debug(f'Found NPM package at {validated_directory}')
+            try:
+                package = NpmPackage(validated_directory)
+                name = package.package_name()
+                version = package.bump_version()
+                click.echo(f'{name}@{version}')
+                processed = True
+            except Exception as e:
+                logging.error(f'Failed to process NPM package: {e}')
+                click.echo(f'Error processing NPM package: {e}', err=True)
+                return 1
+        if not processed:
+            error_msg = f'No supported package files found in {validated_directory}'
+            logging.error(error_msg)
+            click.echo(error_msg, err=True)
+            return 1
+        return 0
+    except Exception as e:
+        logging.error(f'Bump package failed: {e}')
+        click.echo(f'Error: {e}', err=True)
+        return 1
 
-    return 0
 
 if __name__ == '__main__':
-    sys.exit(cli())
+    try:
+        sys.exit(cli())
+    except Exception as e:
+        logging.critical(f'Critical error in release script: {e}')
+        click.echo(f'Critical error: {e}', err=True)
+        sys.exit(1)
