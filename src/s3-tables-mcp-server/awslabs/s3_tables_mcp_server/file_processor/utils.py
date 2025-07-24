@@ -159,10 +159,12 @@ async def import_file_to_table(
         pyarrow_schema = pyarrow_table.schema
 
         # Convert column names to snake_case unless preserve_case is True
+        columns_converted = False
         if not preserve_case:
             try:
                 pyarrow_schema = convert_column_names_to_snake_case(pyarrow_schema)
                 pyarrow_table = pyarrow_table.rename_columns(pyarrow_schema.names)
+                columns_converted = True
             except Exception as conv_err:
                 return {
                     'status': 'error',
@@ -190,9 +192,14 @@ async def import_file_to_table(
         # Append data to Iceberg table
         table.append(pyarrow_table)
 
+        # Build message with warnings if applicable
+        message = f'Successfully imported {pyarrow_table.num_rows} rows{" and created new table" if table_created else ""}'
+        if columns_converted:
+            message += '. WARNING: Column names were converted to snake_case format. To preserve the original case, set preserve_case to True.'
+
         return {
             'status': 'success',
-            'message': f'Successfully imported {pyarrow_table.num_rows} rows{" and created new table" if table_created else ""}',
+            'message': message,
             'rows_processed': pyarrow_table.num_rows,
             'file_processed': os.path.basename(key),
             'table_created': table_created,
