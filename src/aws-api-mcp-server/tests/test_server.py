@@ -3,11 +3,13 @@ from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
+    Consent,
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
 from awslabs.aws_api_mcp_server.server import call_aws, main, suggest_aws_commands
 from botocore.exceptions import NoCredentialsError
+from mcp.server.elicitation import AcceptedElicitation
 from tests.fixtures import TEST_CREDENTIALS, DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -114,19 +116,20 @@ async def test_suggest_aws_commands_exception(mock_knowledge_base):
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+@patch('awslabs.aws_api_mcp_server.server.BYPASS_TOOL_CONSENT', False)
 @patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
 @patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
-async def test_call_aws_with_mutating_action(
+async def test_call_aws_with_elicitation(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
     mock_get_creds,
 ):
-    """Test call_aws with mutating action."""
+    """Test call_aws with mutating action and elicitation."""
     mock_get_creds.return_value = TEST_CREDENTIALS
 
     # Create a proper ProgramInterpretationResponse mock
@@ -156,15 +159,19 @@ async def test_call_aws_with_mutating_action(
     mock_response.validation_failed = False
     mock_validate.return_value = mock_response
 
-    # Execute
-    result = await call_aws('aws s3api create-bucket --bucket somebucket', DummyCtx())
+    mock_ctx = AsyncMock()
+    mock_ctx.elicit.return_value = AcceptedElicitation(data=Consent(answer=True))
 
-    # Verify that no consent was requested
+    # Execute
+    result = await call_aws('aws s3api create-bucket --bucket somebucket', mock_ctx)
+
+    # Verify that consent was requested
     assert result == mock_result
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
     mock_validate.assert_called_once_with(mock_ir)
     mock_get_creds.assert_called_once()
     mock_interpret.assert_called_once()
+    mock_ctx.elicit.assert_called_once()
 
 
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')

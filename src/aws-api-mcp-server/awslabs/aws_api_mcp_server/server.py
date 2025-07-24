@@ -23,6 +23,7 @@ from .core.aws.service import (
     validate,
 )
 from .core.common.config import (
+    BYPASS_TOOL_CONSENT,
     DEFAULT_REGION,
     FASTMCP_LOG_LEVEL,
     READ_ONLY_KEY,
@@ -34,12 +35,14 @@ from .core.common.errors import AwsApiMcpError
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
+    Consent,
     ProgramInterpretationResponse,
 )
 from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
+from mcp.server.elicitation import AcceptedElicitation
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -202,17 +205,31 @@ async def call_aws(
                 detail=error_message,
             )
 
-        if READ_OPERATIONS_ONLY_MODE and (
-            READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX)
-        ):
-            error_message = (
-                'Execution of this operation is not allowed because read only mode is enabled. '
-                f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
-            )
-            await ctx.error(error_message)
-            return AwsApiMcpServerErrorResponse(
-                detail=error_message,
-            )
+        if READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX):
+            if READ_OPERATIONS_ONLY_MODE:
+                error_message = (
+                    'Execution of this operation is not allowed because read only mode is enabled. '
+                    f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
+                )
+                await ctx.error(error_message)
+                return AwsApiMcpServerErrorResponse(
+                    detail=error_message,
+                )
+            elif not BYPASS_TOOL_CONSENT:
+                elicitation_result = await ctx.elicit(
+                    message=f"The CLI command '{cli_command}' requires explicit consent. Do you approve the execution of this command?",
+                    schema=Consent,
+                )
+
+                if (
+                    not isinstance(elicitation_result, AcceptedElicitation)
+                    or not elicitation_result.data.answer
+                ):
+                    error_message = 'User rejected the execution of the command.'
+                    await ctx.error(error_message)
+                    return AwsApiMcpServerErrorResponse(
+                        detail=error_message,
+                    )
 
     except AwsApiMcpError as e:
         error_message = f'Error while validating the command: {e.as_failure().reason}'
@@ -299,7 +316,7 @@ def main():
         logger.error(error_message)
         raise RuntimeError(error_message)
 
-    if READ_OPERATIONS_ONLY_MODE:
+    if READ_OPERATIONS_ONLY_MODE or not BYPASS_TOOL_CONSENT:
         READ_OPERATIONS_INDEX = get_read_only_operations()
 
     server.run(transport='stdio')
