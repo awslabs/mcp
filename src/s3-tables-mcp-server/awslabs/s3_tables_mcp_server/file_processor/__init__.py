@@ -12,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file is part of the awslabs namespace.
-# It is intentionally minimal to support PEP 420 namespace packages.
+"""AWS S3 Tables MCP Server file processing module.
 
-__version__ = '0.0.3'
+This module provides functionality for processing and analyzing uploaded files,
+particularly focusing on CSV and Parquet file handling and import capabilities.
+"""
+
+from .csv import import_csv_to_table
+from .parquet import import_parquet_to_table
+
+__all__ = ['import_csv_to_table', 'import_parquet_to_table']
