@@ -35,6 +35,11 @@ For read operations, the following permissions are required:
       "Effect": "Allow",
       "Action": [
         "eks:DescribeCluster",
+        "eks:DescribeInsight",
+        "eks:ListInsights",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeRouteTables",
         "cloudformation:DescribeStacks",
         "cloudwatch:GetMetricData",
         "logs:StartQuery",

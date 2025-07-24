@@ -48,12 +48,6 @@ def mock_eks_client():
     return MagicMock()
 
 
-@pytest.fixture
-def mock_ssm_client():
-    """Create a mock SSM client."""
-    return MagicMock()
-
-
 class TestHybridNodesHandler:
     """Tests for the HybridNodesHandler class."""
 
@@ -69,10 +63,9 @@ class TestHybridNodesHandler:
             assert handler.allow_sensitive_data_access is False
 
             # Verify that AWS clients were created
-            assert mock_aws_helper.create_boto3_client.call_count == 3
+            assert mock_aws_helper.create_boto3_client.call_count == 2
             mock_aws_helper.create_boto3_client.assert_any_call('ec2')
             mock_aws_helper.create_boto3_client.assert_any_call('eks')
-            mock_aws_helper.create_boto3_client.assert_any_call('ssm')
 
         # Verify that the tools were registered
         assert mock_mcp.tool.call_count == 2
@@ -95,7 +88,12 @@ class TestHybridNodesHandler:
 
     @pytest.mark.asyncio
     async def test_get_eks_vpc_config_with_explicit_vpc_id(self, mock_context, mock_mcp):
-        """Test _get_eks_vpc_config_impl with an explicitly provided VPC ID."""
+        """Test _get_eks_vpc_config_impl with an explicitly provided VPC ID.
+        
+        When a VPC ID is explicitly provided, we should:
+        1. Use the provided VPC ID directly without looking it up from the cluster
+        2. Still retrieve remote CIDR information by calling describe_cluster
+        """
         # Create mock AWS clients
         mock_eks_client = MagicMock()
         mock_ec2_client = MagicMock()
@@ -139,6 +137,14 @@ class TestHybridNodesHandler:
                 }
             ]
         }
+        
+        # Set up mock response for EKS client (for remote CIDR information)
+        mock_eks_client.describe_cluster.return_value = {
+            'cluster': {
+                'resourcesVpcConfig': {'vpcId': 'vpc-explicit'},  # Include VPC ID in response
+                # No remote network config in this test
+            }
+        }
 
         # Initialize the handler with our mock clients
         handler = HybridNodesHandler(mock_mcp)
@@ -155,8 +161,8 @@ class TestHybridNodesHandler:
         # Verify the explicit VPC was used
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-explicit'])
 
-        # Verify EKS client was NOT called to look up VPC ID
-        mock_eks_client.describe_cluster.assert_not_called()
+        # Verify EKS client was called once to get remote CIDR information
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
 
         # Verify the result
         assert not result.isError
@@ -200,8 +206,6 @@ class TestHybridNodesHandler:
 
         # Verify error response
         assert result.isError
-        # We're just checking that this is an error response, the specific error message may vary
-        # because we're using real exceptions from boto in the handler
         assert 'Error' in result.content[0].text
         assert result.vpc_id == ''
         assert result.cluster_name == 'test-cluster'
@@ -263,7 +267,7 @@ class TestHybridNodesHandler:
 
         # Verify error response
         assert result.isError
-        assert 'Error getting cluster VPC information' in result.content[0].text
+        assert 'Error getting cluster information' in result.content[0].text
         assert 'API Error' in result.content[0].text
         assert result.vpc_id == ''
         assert result.cluster_name == 'test-cluster'
@@ -743,44 +747,46 @@ class TestHybridNodesHandler:
         assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
 
     @pytest.mark.asyncio
-    async def test_get_eks_insights_with_region(self, mock_context, mock_mcp):
-        """Test _get_eks_insights_impl with region parameter."""
+    async def test_get_eks_insights_with_pagination(self, mock_context, mock_mcp):
+        """Test _get_eks_insights_impl with pagination token."""
         # Create mock AWS client
         mock_eks_client = MagicMock()
 
-        # Setup mock response
+        # Set up mock responses with nextToken
         mock_eks_client.list_insights.return_value = {
             'insights': [
-                self._create_mock_insight_item(
-                    insight_id='region-insight', category='CONFIGURATION'
-                ),
-            ]
+                self._create_mock_insight_item(insight_id='paginated-insight-1'),
+                self._create_mock_insight_item(insight_id='paginated-insight-2'),
+            ],
+            'nextToken': 'test-next-token-value'
         }
 
-        # Mock the AWS helper to check region parameter
-        with patch('awslabs.eks_mcp_server.hybrid_nodes_handler.AwsHelper') as mock_aws_helper:
-            # Set up AwsHelper to return our mock EKS client
-            mock_aws_helper.create_boto3_client.return_value = mock_eks_client
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
 
-            # Initialize the handler without setting eks_client directly
-            handler = HybridNodesHandler(mock_mcp)
+        # Call the implementation method with next_token
+        result = await handler._get_eks_insights_impl(
+            mock_context, 
+            cluster_name='test-cluster', 
+            next_token='previous-token'
+        )
 
-            # Call the implementation method with region
-            result = await handler._get_eks_insights_impl(
-                mock_context, cluster_name='test-cluster', region='us-west-2'
-            )
+        # Verify API calls with next_token parameter
+        mock_eks_client.list_insights.assert_called_once_with(
+            clusterName='test-cluster',
+            nextToken='previous-token'
+        )
 
-            # Verify client was created with region
-            mock_aws_helper.create_boto3_client.assert_called_with('eks', region_name='us-west-2')
+        # Verify the result
+        assert not result.isError
+        assert result.cluster_name == 'test-cluster'
+        assert len(result.insights) == 2
+        assert result.next_token == 'test-next-token-value'  # Verify next_token is passed through
 
-            # Verify API call was made with our mock client
-            mock_eks_client.list_insights.assert_called_once()
-
-            # Verify the result
-            assert not result.isError
-            assert result.cluster_name == 'test-cluster'
-            assert len(result.insights) == 1
-            assert result.insights[0].id == 'region-insight'
+        # Verify success message
+        assert isinstance(result.content[0], TextContent)
+        assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_get_eks_insights_error_handling(self, mock_context, mock_mcp):
@@ -922,3 +928,403 @@ class TestHybridNodesHandler:
         assert result.insights[0].id == 'impl-detail-insight'
         assert result.cluster_name == 'test-cluster'
         assert result.detail_mode
+        
+    # Tests for the helper methods created during refactoring
+    @pytest.mark.asyncio
+    async def test_get_vpc_id_for_cluster_success(self, mock_context, mock_mcp):
+        """Test _get_vpc_id_for_cluster when successful."""
+        # Create mock EKS client
+        mock_eks_client = MagicMock()
+        
+        # Set up mock response with VPC ID
+        mock_eks_client.describe_cluster.return_value = {
+            'cluster': {
+                'resourcesVpcConfig': {'vpcId': 'vpc-12345'}
+            }
+        }
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+        
+        # Call the helper method
+        vpc_id, cluster_response = await handler._get_vpc_id_for_cluster(mock_context, 'test-cluster')
+        
+        # Verify EKS client was called
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+        
+        # Verify the result
+        assert vpc_id == 'vpc-12345'
+        assert cluster_response == mock_eks_client.describe_cluster.return_value
+        
+    @pytest.mark.asyncio
+    async def test_get_vpc_id_for_cluster_no_vpc_id(self, mock_context, mock_mcp):
+        """Test _get_vpc_id_for_cluster when no VPC ID is found."""
+        # Create mock EKS client
+        mock_eks_client = MagicMock()
+        
+        # Set up mock response without VPC ID
+        mock_eks_client.describe_cluster.return_value = {
+            'cluster': {
+                'resourcesVpcConfig': {}  # No VPC ID
+            }
+        }
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+        
+        # Call the helper method and expect an exception
+        with pytest.raises(Exception) as excinfo:
+            await handler._get_vpc_id_for_cluster(mock_context, 'test-cluster')
+        
+        # Verify EKS client was called
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+        
+        # Verify the exception message
+        assert 'Could not determine VPC ID for cluster' in str(excinfo.value)
+        
+    @pytest.mark.asyncio
+    async def test_get_vpc_id_for_cluster_api_error(self, mock_context, mock_mcp):
+        """Test _get_vpc_id_for_cluster when API call fails."""
+        # Create mock EKS client
+        mock_eks_client = MagicMock()
+        
+        # Set up mock to raise an exception
+        mock_eks_client.describe_cluster.side_effect = Exception('API Error')
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+        
+        # Call the helper method and expect an exception
+        with pytest.raises(Exception) as excinfo:
+            await handler._get_vpc_id_for_cluster(mock_context, 'test-cluster')
+        
+        # Verify EKS client was called
+        mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+        
+        # Verify the exception message
+        assert 'API Error' in str(excinfo.value)
+        
+    @pytest.mark.asyncio
+    async def test_get_vpc_details_success(self, mock_context, mock_mcp):
+        """Test _get_vpc_details when successful."""
+        # Create mock EC2 client
+        mock_ec2_client = MagicMock()
+        
+        # Set up mock response
+        mock_ec2_client.describe_vpcs.return_value = {
+            'Vpcs': [
+                {
+                    'VpcId': 'vpc-12345',
+                    'CidrBlock': '10.0.0.0/16',
+                    'CidrBlockAssociationSet': [
+                        {'CidrBlock': '10.0.0.0/16'},
+                        {'CidrBlock': '10.1.0.0/16'},
+                    ],
+                }
+            ]
+        }
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        
+        # Call the helper method
+        vpc, cidr_block, additional_cidr_blocks = await handler._get_vpc_details(mock_context, 'vpc-12345')
+        
+        # Verify EC2 client was called
+        mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
+        
+        # Verify the result
+        assert vpc == mock_ec2_client.describe_vpcs.return_value['Vpcs'][0]
+        assert cidr_block == '10.0.0.0/16'
+        assert len(additional_cidr_blocks) == 1
+        assert additional_cidr_blocks[0] == '10.1.0.0/16'
+        
+    @pytest.mark.asyncio
+    async def test_get_vpc_details_vpc_not_found(self, mock_context, mock_mcp):
+        """Test _get_vpc_details when VPC is not found."""
+        # Create mock EC2 client
+        mock_ec2_client = MagicMock()
+        
+        # Set up mock response with no VPCs
+        mock_ec2_client.describe_vpcs.return_value = {'Vpcs': []}
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        
+        # Call the helper method and expect an exception
+        with pytest.raises(Exception) as excinfo:
+            await handler._get_vpc_details(mock_context, 'vpc-nonexistent')
+        
+        # Verify EC2 client was called
+        mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-nonexistent'])
+        
+        # Verify the exception message
+        assert 'VPC vpc-nonexistent not found' in str(excinfo.value)
+        
+    @pytest.mark.asyncio
+    async def test_get_vpc_details_api_error(self, mock_context, mock_mcp):
+        """Test _get_vpc_details when API call fails."""
+        # Create mock EC2 client
+        mock_ec2_client = MagicMock()
+        
+        # Set up mock to raise an exception
+        mock_ec2_client.describe_vpcs.side_effect = Exception('API Error')
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        
+        # Call the helper method and expect an exception
+        with pytest.raises(Exception) as excinfo:
+            await handler._get_vpc_details(mock_context, 'vpc-12345')
+        
+        # Verify EC2 client was called
+        mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
+        
+        # Verify the exception message
+        assert 'API Error' in str(excinfo.value)
+        
+    @pytest.mark.asyncio
+    async def test_get_subnet_information(self, mock_context, mock_mcp):
+        """Test _get_subnet_information."""
+        # Create mock EC2 client
+        mock_ec2_client = MagicMock()
+        
+        # Set up mock response
+        mock_ec2_client.describe_subnets.return_value = {
+            'Subnets': [
+                {
+                    'SubnetId': 'subnet-12345',
+                    'CidrBlock': '10.0.1.0/24',
+                    'AvailabilityZone': 'us-west-2a',
+                    'AvailabilityZoneId': 'usw2-az1',
+                    'AvailableIpAddressCount': 250,
+                    'MapPublicIpOnLaunch': False,
+                    'AssignIpv6AddressOnCreation': False,
+                },
+                {
+                    'SubnetId': 'subnet-67890',
+                    'CidrBlock': '10.0.2.0/24',
+                    'AvailabilityZone': 'us-west-2b',
+                    'AvailabilityZoneId': 'usw2-az2',
+                    'AvailableIpAddressCount': 10,
+                    'MapPublicIpOnLaunch': True,
+                    'AssignIpv6AddressOnCreation': True,
+                },
+                {
+                    'SubnetId': 'subnet-disallowed',
+                    'CidrBlock': '10.0.3.0/24',
+                    'AvailabilityZone': 'us-east-1c',
+                    'AvailabilityZoneId': 'use1-az3',  # Disallowed AZ
+                    'AvailableIpAddressCount': 100,
+                    'MapPublicIpOnLaunch': False,
+                    'AssignIpv6AddressOnCreation': False,
+                },
+            ]
+        }
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        
+        # Call the helper method
+        subnets = await handler._get_subnet_information(mock_context, 'vpc-12345')
+        
+        # Verify EC2 client was called
+        mock_ec2_client.describe_subnets.assert_called_once_with(
+            Filters=[{'Name': 'vpc-id', 'Values': ['vpc-12345']}]
+        )
+        
+        # Verify the result
+        assert len(subnets) == 3
+        
+        # Check first subnet
+        subnet1 = next((s for s in subnets if s['subnet_id'] == 'subnet-12345'), None)
+        assert subnet1 is not None
+        assert subnet1['cidr_block'] == '10.0.1.0/24'
+        assert subnet1['az_name'] == 'us-west-2a'
+        assert subnet1['available_ips'] == 250
+        assert subnet1['is_public'] is False
+        assert subnet1['assign_ipv6'] is False
+        assert subnet1['has_sufficient_ips'] is True
+        assert subnet1['in_disallowed_az'] is False
+        
+        # Check second subnet
+        subnet2 = next((s for s in subnets if s['subnet_id'] == 'subnet-67890'), None)
+        assert subnet2 is not None
+        assert subnet2['cidr_block'] == '10.0.2.0/24'
+        assert subnet2['az_name'] == 'us-west-2b'
+        assert subnet2['available_ips'] == 10
+        assert subnet2['is_public'] is True
+        assert subnet2['assign_ipv6'] is True
+        assert subnet2['has_sufficient_ips'] is False  # Only 10 IPs, needs 16
+        assert subnet2['in_disallowed_az'] is False
+        
+        # Check disallowed AZ subnet
+        subnet3 = next((s for s in subnets if s['subnet_id'] == 'subnet-disallowed'), None)
+        assert subnet3 is not None
+        assert subnet3['az_id'] == 'use1-az3'
+        assert subnet3['in_disallowed_az'] is True
+        
+    @pytest.mark.asyncio
+    async def test_get_route_table_information(self, mock_context, mock_mcp):
+        """Test _get_route_table_information."""
+        # Create mock EC2 client
+        mock_ec2_client = MagicMock()
+        
+        # Set up mock response
+        mock_ec2_client.describe_route_tables.return_value = {
+            'RouteTables': [
+                {
+                    'RouteTableId': 'rtb-12345',
+                    'Associations': [{'Main': True}],  # Main route table
+                    'Routes': [
+                        {'DestinationCidrBlock': '10.0.0.0/16', 'GatewayId': 'local'},  # Local route
+                        {'DestinationCidrBlock': '0.0.0.0/0', 'GatewayId': 'igw-12345'},
+                        {'DestinationCidrBlock': '192.168.0.0/16', 'TransitGatewayId': 'tgw-12345'},
+                        {'DestinationCidrBlock': '172.16.0.0/16', 'NatGatewayId': 'nat-12345'},
+                        {'DestinationCidrBlock': '10.1.0.0/16', 'VpcPeeringConnectionId': 'pcx-12345'},
+                        {'DestinationCidrBlock': '10.2.0.0/16', 'NetworkInterfaceId': 'eni-12345'},
+                        {'DestinationCidrBlock': '10.3.0.0/16'},  # No target
+                    ],
+                },
+                {
+                    'RouteTableId': 'rtb-67890',
+                    'Associations': [{'Main': False}],  # Not main route table
+                    'Routes': [
+                        {'DestinationCidrBlock': '10.0.0.0/16', 'GatewayId': 'local'},
+                        {'DestinationCidrBlock': '0.0.0.0/0', 'GatewayId': 'igw-67890'},
+                    ],
+                },
+            ]
+        }
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+        
+        # Call the helper method
+        routes = await handler._get_route_table_information(mock_context, 'vpc-12345')
+        
+        # Verify EC2 client was called
+        mock_ec2_client.describe_route_tables.assert_called_once_with(
+            Filters=[{'Name': 'vpc-id', 'Values': ['vpc-12345']}]
+        )
+        
+        # Verify the result
+        assert len(routes) == 6  # Local route should be filtered out
+        
+        # Check routes
+        assert any(r['destination_cidr_block'] == '0.0.0.0/0' and r['target_type'] == 'gateway' for r in routes)
+        assert any(r['destination_cidr_block'] == '192.168.0.0/16' and r['target_type'] == 'transitgateway' for r in routes)
+        assert any(r['destination_cidr_block'] == '172.16.0.0/16' and r['target_type'] == 'natgateway' for r in routes)
+        assert any(r['destination_cidr_block'] == '10.1.0.0/16' and r['target_type'] == 'vpcpeeringconnection' for r in routes)
+        assert any(r['destination_cidr_block'] == '10.2.0.0/16' and r['target_type'] == 'networkinterface' for r in routes)
+        assert any(r['destination_cidr_block'] == '10.3.0.0/16' and r['target_type'] == 'unknown' for r in routes)
+        
+        # Verify that routes from non-main route table are not included
+        assert not any(r['destination_cidr_block'] == '0.0.0.0/0' and r['target_id'] == 'igw-67890' for r in routes)
+        
+    @pytest.mark.asyncio
+    async def test_get_remote_cidr_blocks_with_cluster_response(self, mock_context, mock_mcp):
+        """Test _get_remote_cidr_blocks with a provided cluster response."""
+        # Create mock cluster response with remote network config
+        cluster_response = {
+            'cluster': {
+                'remoteNetworkConfig': {
+                    'remoteNodeNetworks': [{'cidrs': ['192.168.0.0/16', '192.168.1.0/24']}],
+                    'remotePodNetworks': [{'cidrs': ['172.16.0.0/16', '172.17.0.0/16']}],
+                },
+            }
+        }
+        
+        # Initialize the handler
+        handler = HybridNodesHandler(mock_mcp)
+        
+        # Call the helper method
+        remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
+            mock_context, 'test-cluster', cluster_response
+        )
+        
+        # Verify the result
+        assert len(remote_node_cidr_blocks) == 2
+        assert '192.168.0.0/16' in remote_node_cidr_blocks
+        assert '192.168.1.0/24' in remote_node_cidr_blocks
+        
+        assert len(remote_pod_cidr_blocks) == 2
+        assert '172.16.0.0/16' in remote_pod_cidr_blocks
+        assert '172.17.0.0/16' in remote_pod_cidr_blocks
+        
+    @pytest.mark.asyncio
+    async def test_get_remote_cidr_blocks_without_cluster_response(self, mock_context, mock_mcp):
+        """Test _get_remote_cidr_blocks without a provided cluster response."""
+        # Create mock EKS client
+        mock_eks_client = MagicMock()
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+        
+        # Call the helper method with no cluster response
+        remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
+            mock_context, 'test-cluster'
+        )
+        
+        # when cluster_response is None, it just returns empty lists
+        mock_eks_client.describe_cluster.assert_not_called()
+        
+        # Verify the result (should be empty lists)
+        assert len(remote_node_cidr_blocks) == 0
+        assert len(remote_pod_cidr_blocks) == 0
+        
+    @pytest.mark.asyncio
+    async def test_get_remote_cidr_blocks_with_empty_cluster_response(self, mock_context, mock_mcp):
+        """Test _get_remote_cidr_blocks with a cluster response that has no remote network config."""
+        # Create mock cluster response without remote network config
+        cluster_response = {
+            'cluster': {
+                # No remoteNetworkConfig
+            }
+        }
+        
+        # Initialize the handler
+        handler = HybridNodesHandler(mock_mcp)
+        
+        # Call the helper method
+        remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
+            mock_context, 'test-cluster', cluster_response
+        )
+        
+        # Verify the result
+        assert len(remote_node_cidr_blocks) == 0
+        assert len(remote_pod_cidr_blocks) == 0
+        
+    @pytest.mark.asyncio
+    async def test_get_remote_cidr_blocks_api_error(self, mock_context, mock_mcp):
+        """Test _get_remote_cidr_blocks when API call fails."""
+        # Create mock EKS client
+        mock_eks_client = MagicMock()
+        
+        # Set up mock to raise an exception
+        mock_eks_client.describe_cluster.side_effect = Exception('API Error')
+        
+        # Initialize the handler with our mock client
+        handler = HybridNodesHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+        
+        # Call the helper method
+        remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
+            mock_context, 'test-cluster'
+        )
+        
+        # when cluster_response is None, it just returns empty lists
+        mock_eks_client.describe_cluster.assert_not_called()
+        
+        # Verify the result (should be empty lists)
+        assert len(remote_node_cidr_blocks) == 0
+        assert len(remote_pod_cidr_blocks) == 0
