@@ -81,9 +81,6 @@ When a user presents a query, follow these steps to break it down:
 - **AWS Lambda Tool MCP Server**
   - Use `awslabs.lambda-tool-mcp-server` to execute Lambda functions as AI tools for private resource access
 
-- **AWS Lambda MCP Server**
-  - Use `awslabs.lambda-mcp-server` for Lambda function management and operations
-
 #### AI & Machine Learning
 
 - **Amazon Bedrock Knowledge Bases Retrieval MCP Server**
@@ -243,7 +240,7 @@ When a user presents a query, follow these steps to break it down:
 Map user requirements to these AWS categories and their corresponding MCP servers:
 
 #### Compute
-- AWS Lambda (serverless functions) → `awslabs.lambda-mcp-server`, `awslabs.lambda-tool-mcp-server`
+- AWS Lambda (serverless functions) → `awslabs.lambda-tool-mcp-server`
 - ECS Fargate (containerized applications) → `awslabs.ecs-mcp-server`
 - EC2 (virtual machines) → `awslabs.aws-api-mcp-server`
 - App Runner (containerized web apps) → `awslabs.aws-serverless-mcp-server`
