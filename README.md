@@ -31,6 +31,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [🛠️ Developer Tools \& Support](#️-developer-tools--support)
       - [📡 Integration \& Messaging](#-integration--messaging)
       - [💰 Cost \& Operations](#-cost--operations)
+      - [🛡️ Resilience \& Testing](#-resilience--testing)
       - [🧬 Healthcare \& Lifesciences](#-healthcare--lifesciences)
     - [Browse by How You're Working](#browse-by-how-youre-working)
       - [👨‍💻 Vibe Coding \& Development](#-vibe-coding--development)
@@ -226,6 +227,12 @@ Monitor, optimize, and manage your AWS infrastructure and costs.
 - **[Amazon CloudWatch Logs MCP Server (deprecated)](src/cloudwatch-logs-mcp-server/)** - Log analysis and operational troubleshooting
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
 
+#### 🛡️ Resilience & Testing
+
+Test system resilience, perform chaos engineering experiments, and validate fault tolerance.
+
+- **[AWS FIS MCP Server](src/aws-fis-mcp-server/)** - Design and execute AWS Fault Injection Simulator experiments
+
 #### 🧬 Healthcare & Lifesciences
 
 Interact with AWS HealthAI services.
@@ -269,6 +276,7 @@ Interact with AWS HealthAI services.
 ##### Testing & Data
 
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for your applications
+- **[AWS FIS MCP Server](src/aws-fis-mcp-server/)** - Plan, create, and execute controlled fault injection experiments
 
 ##### Lifesciences Workflow Development
 
@@ -336,6 +344,7 @@ Interact with AWS HealthAI services.
 - **[Amazon CloudWatch Application Signals MCP Server](src/cloudwatch-appsignals-mcp-server/)** - Application monitoring and performance insights
 - **[AWS Cost Explorer MCP Server](src/cost-explorer-mcp-server/)** - Cost monitoring and spend analysis
 - **[AWS Managed Prometheus MCP Server](src/prometheus-mcp-server/)** - Prometheus-compatible operations
+- **[AWS FIS MCP Server](src/aws-fis-mcp-server/)** - Plan, create, and execute controlled fault injection experiments
 
 ## MCP AWS Lambda Handler Module
 
