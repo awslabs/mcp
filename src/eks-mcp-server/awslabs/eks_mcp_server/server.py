@@ -27,8 +27,10 @@ import argparse
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatchMetricsHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
+from awslabs.eks_mcp_server.eks_resiliency_handler import EKSResiliencyHandler
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
 from awslabs.eks_mcp_server.iam_handler import IAMHandler
+from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
@@ -68,6 +70,15 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 4. Monitor metrics: `get_cloudwatch_metrics(cluster_name='my-cluster', metric_name='cpu_usage_total', namespace='ContainerInsights', dimensions={'ClusterName': 'my-cluster', 'PodName': 'my-pod', 'Namespace': 'default'})`
 5. Search troubleshooting guide: `search_eks_troubleshoot_guide(query='pod pending')`
 
+### Checking Cluster Resiliency
+1. Run full resiliency checks: check_eks_resiliency(cluster_name='my-cluster')
+2. For a specific namespace: check_eks_resiliency(cluster_name='my-cluster', namespace='my-namespace')
+3. Return all check results in a JSON object with a top-level array named results.
+    1. If output is truncated, include "is_truncated": true.
+    2. If any errors are encountered during checks, include them explicitly in the output under a key named "errors".
+4. Ensure all checks are executed, and no check is skipped.
+5. Group the results by Severity level before displaying to users
+
 ## Best Practices
 
 - Use descriptive names for resources to make them easier to identify and manage.
@@ -78,6 +89,7 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 - Follow the principle of least privilege when creating IAM policies.
 - Use the search_eks_troubleshoot_guide tool when encountering common EKS issues.
 - Always verify API versions with list_api_versions before creating resources.
+- Run resiliency checks with check_eks_resiliency to identify potential availability issues.
 """
 
 SERVER_DEPENDENCIES = [
@@ -141,14 +153,18 @@ def main():
 
     # Create the MCP server instance
     mcp = create_server()
+    
+    # Create client cache to be shared between handlers
+    client_cache = K8sClientCache()
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     CloudWatchHandler(mcp, allow_sensitive_data_access)
     EKSKnowledgeBaseHandler(mcp)
     EksStackHandler(mcp, allow_write)
-    K8sHandler(mcp, allow_write, allow_sensitive_data_access)
+    K8sHandler(mcp, allow_write, allow_sensitive_data_access, client_cache)
     IAMHandler(mcp, allow_write)
     CloudWatchMetricsHandler(mcp)
+    EKSResiliencyHandler(mcp, client_cache)
 
     # Run server
     mcp.run()
