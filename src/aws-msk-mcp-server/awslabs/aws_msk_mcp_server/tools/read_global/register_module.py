@@ -31,7 +31,125 @@ from pydantic import Field
 def register_module(mcp: FastMCP) -> None:
     """Registers this tool with the mcp."""
 
-    @mcp.tool(name='get_global_info')
+    @mcp.tool(
+        name='get_global_info',
+        description="""Unified API to retrieve various types of global information about MSK resources.
+
+This operation provides a comprehensive view of MSK resources across your AWS account in a specified region.
+
+=== ACTION MODES ===
+
+1. info_type = "clusters"
+- Retrieves information about all MSK clusters in the region.
+
+Required parameters:
+- region (str): AWS region. Ask for this if not yet in context
+
+Optional parameters:
+- cluster_name_filter (str): Filter clusters by name
+- cluster_type_filter (str): Filter clusters by type (PROVISIONED or SERVERLESS)
+- max_results (int): Maximum number of clusters to return (default: 10)
+- next_token (str): Token for pagination
+
+Output (JSON):
+{
+    "ClusterInfoList": [
+        {
+            "ClusterArn": "arn:aws:kafka:us-west-2:123456789012:cluster/cluster-name/abcd1234",
+            "ClusterName": "cluster-name",
+            "ClusterType": "PROVISIONED",
+            "State": "ACTIVE",
+            "CreationTime": "2023-01-01T12:00:00.000Z"
+        }
+    ],
+    "NextToken": "AAAABBBCCC"
+}
+
+2. info_type = "configurations"
+- Retrieves information about all MSK configurations in the region.
+
+Required parameters:
+- region (str): AWS region
+
+Optional parameters:
+- max_results (int): Maximum number of configurations to return (default: 10)
+- next_token (str): Token for pagination
+
+Output (JSON):
+{
+    "ConfigurationInfoList": [
+        {
+            "Arn": "arn:aws:kafka:us-west-2:123456789012:configuration/configuration-name/abcd1234",
+            "Name": "configuration-name",
+            "CreationTime": "2023-01-01T12:00:00.000Z"
+        }
+    ],
+    "NextToken": "AAAABBBCCC"
+}
+
+3. info_type = "vpc_connections"
+- Retrieves information about all VPC connections in the region.
+
+Required parameters:
+- region (str): AWS region
+
+Optional parameters:
+- max_results (int): Maximum number of VPC connections to return (default: 10)
+- next_token (str): Token for pagination
+
+Output (JSON):
+{
+    "VpcConnectionInfoList": [
+        {
+            "VpcConnectionArn": "arn:aws:kafka:us-west-2:123456789012:vpc-connection/connection-id",
+            "VpcConnectionState": "ACTIVE",
+            "CreationTime": "2023-01-01T12:00:00.000Z"
+        }
+    ],
+    "NextToken": "AAAABBBCCC"
+}
+
+4. info_type = "kafka_versions"
+- Retrieves information about all available Kafka versions.
+
+Required parameters:
+- region (str): AWS region
+
+Output (JSON):
+{
+    "KafkaVersions": [
+        "2.8.1",
+        "3.3.1"
+    ]
+}
+
+5. info_type = "all"
+- Retrieves all of the above information in a single call.
+
+Required parameters:
+- region (str): AWS region
+
+Optional parameters:
+- cluster_name_filter (str): Filter clusters by name
+- cluster_type_filter (str): Filter clusters by type
+- max_results (int): Maximum number of items to return per category (default: 10)
+- next_token (str): Token for pagination
+
+Output (JSON):
+{
+    "clusters": { /* clusters response */ },
+    "configurations": { /* configurations response */ },
+    "vpc_connections": { /* vpc_connections response */ },
+    "kafka_versions": { /* kafka_versions response */ }
+}
+
+=== NOTES ===
+
+- This tool provides a convenient way to get a comprehensive view of MSK resources in a region.
+- For accounts with many resources, use pagination parameters to retrieve all results.
+- The cluster_type_filter parameter can be used to filter for PROVISIONED or SERVERLESS clusters.
+- The response structure varies based on the info_type requested.""",
+    )
     def get_global_info(
         region: str = Field(..., description='AWS region'),
         info_type: str = Field(
@@ -40,123 +158,6 @@ def register_module(mcp: FastMCP) -> None:
         ),
         kwargs: dict = Field({}, description='Additional arguments specific to each info type'),
     ):
-        """Unified API to retrieve various types of global information about MSK resources.
-
-        This operation provides a comprehensive view of MSK resources across your AWS account in a specified region.
-
-        === ACTION MODES ===
-
-        1. info_type = "clusters"
-        - Retrieves information about all MSK clusters in the region.
-
-        Required parameters:
-        - region (str): AWS region. Ask for this if not yet in context
-
-        Optional parameters:
-        - cluster_name_filter (str): Filter clusters by name
-        - cluster_type_filter (str): Filter clusters by type (PROVISIONED or SERVERLESS)
-        - max_results (int): Maximum number of clusters to return (default: 10)
-        - next_token (str): Token for pagination
-
-        Output (JSON):
-        {
-            "ClusterInfoList": [
-                {
-                    "ClusterArn": "arn:aws:kafka:us-west-2:123456789012:cluster/cluster-name/abcd1234",
-                    "ClusterName": "cluster-name",
-                    "ClusterType": "PROVISIONED",
-                    "State": "ACTIVE",
-                    "CreationTime": "2023-01-01T12:00:00.000Z"
-                }
-            ],
-            "NextToken": "AAAABBBCCC"
-        }
-
-        2. info_type = "configurations"
-        - Retrieves information about all MSK configurations in the region.
-
-        Required parameters:
-        - region (str): AWS region
-
-        Optional parameters:
-        - max_results (int): Maximum number of configurations to return (default: 10)
-        - next_token (str): Token for pagination
-
-        Output (JSON):
-        {
-            "ConfigurationInfoList": [
-                {
-                    "Arn": "arn:aws:kafka:us-west-2:123456789012:configuration/configuration-name/abcd1234",
-                    "Name": "configuration-name",
-                    "CreationTime": "2023-01-01T12:00:00.000Z"
-                }
-            ],
-            "NextToken": "AAAABBBCCC"
-        }
-
-        3. info_type = "vpc_connections"
-        - Retrieves information about all VPC connections in the region.
-
-        Required parameters:
-        - region (str): AWS region
-
-        Optional parameters:
-        - max_results (int): Maximum number of VPC connections to return (default: 10)
-        - next_token (str): Token for pagination
-
-        Output (JSON):
-        {
-            "VpcConnectionInfoList": [
-                {
-                    "VpcConnectionArn": "arn:aws:kafka:us-west-2:123456789012:vpc-connection/connection-id",
-                    "VpcConnectionState": "ACTIVE",
-                    "CreationTime": "2023-01-01T12:00:00.000Z"
-                }
-            ],
-            "NextToken": "AAAABBBCCC"
-        }
-
-        4. info_type = "kafka_versions"
-        - Retrieves information about all available Kafka versions.
-
-        Required parameters:
-        - region (str): AWS region
-
-        Output (JSON):
-        {
-            "KafkaVersions": [
-                "2.8.1",
-                "3.3.1"
-            ]
-        }
-
-        5. info_type = "all"
-        - Retrieves all of the above information in a single call.
-
-        Required parameters:
-        - region (str): AWS region
-
-        Optional parameters:
-        - cluster_name_filter (str): Filter clusters by name
-        - cluster_type_filter (str): Filter clusters by type
-        - max_results (int): Maximum number of items to return per category (default: 10)
-        - next_token (str): Token for pagination
-
-        Output (JSON):
-        {
-            "clusters": { /* clusters response */ },
-            "configurations": { /* configurations response */ },
-            "vpc_connections": { /* vpc_connections response */ },
-            "kafka_versions": { /* kafka_versions response */ }
-        }
-
-        === NOTES ===
-
-        - This tool provides a convenient way to get a comprehensive view of MSK resources in a region.
-        - For accounts with many resources, use pagination parameters to retrieve all results.
-        - The cluster_type_filter parameter can be used to filter for PROVISIONED or SERVERLESS clusters.
-        - The response structure varies based on the info_type requested.
-        """
         # Create a single boto3 client to be shared across all function calls
         client = boto3.client(
             'kafka',

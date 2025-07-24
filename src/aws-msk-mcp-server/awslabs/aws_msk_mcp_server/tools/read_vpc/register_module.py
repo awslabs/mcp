@@ -28,53 +28,54 @@ from pydantic import Field
 def register_module(mcp: FastMCP) -> None:
     """Registers this tool with the mcp."""
 
-    @mcp.tool(name='describe_vpc_connection')
+    @mcp.tool(
+        name='describe_vpc_connection',
+        description="""Get detailed information about a specific VPC connection for an MSK cluster.
+
+This operation retrieves comprehensive details about a specific VPC connection for an MSK cluster.
+
+=== INPUT PARAMETERS ===
+
+- vpc_connection_arn (str): The Amazon Resource Name (ARN) of the VPC connection to describe.
+- region (str): AWS region where the VPC connection is located.
+
+=== OUTPUT (JSON) ===
+
+{
+    "Authentication": {
+        "Sasl": {
+            "Iam": {
+                "Enabled": true
+            }
+        }
+    },
+    "ClientSubnets": ["subnet-abcd1234", "subnet-efgh5678"],
+    "ClusterArn": "arn:aws:kafka:us-west-2:123456789012:cluster/cluster-name/abcd1234",
+    "CreationTime": "2023-01-01T12:00:00.000Z",
+    "SecurityGroups": ["sg-abcd1234"],
+    "SubnetIds": ["subnet-1234abcd", "subnet-5678efgh"],
+    "Tags": {
+        "Name": "production-vpc-connection",
+        "Environment": "Production"
+    },
+    "VpcConnectionArn": "arn:aws:kafka:us-west-2:123456789012:vpc-connection/connection-id",
+    "VpcConnectionState": "ACTIVE",
+    "VpcId": "vpc-abcd1234"
+}
+
+=== NOTES ===
+
+- VPC connections allow clients in a specific VPC to access an MSK cluster.
+- The VpcConnectionState field indicates the current status (CREATING, AVAILABLE, DELETING, etc.).
+- Authentication settings show which authentication methods are enabled for this connection.
+- Security groups must allow traffic on the appropriate Kafka ports (9092, 9094, 2181).""",
+    )
     def describe_vpc_connection_tool(
         region: str = Field(..., description='AWS region'),
         vpc_connection_arn: str = Field(
             ..., description='The Amazon Resource Name (ARN) of the VPC connection'
         ),
     ):
-        """Get detailed information about a VPC connection.
-
-        This operation retrieves comprehensive details about a specific VPC connection for an MSK cluster.
-
-        === INPUT PARAMETERS ===
-
-        - vpc_connection_arn (str): The Amazon Resource Name (ARN) of the VPC connection to describe.
-        - region (str): AWS region where the VPC connection is located.
-
-        === OUTPUT (JSON) ===
-
-        {
-            "Authentication": {
-                "Sasl": {
-                    "Iam": {
-                        "Enabled": true
-                    }
-                }
-            },
-            "ClientSubnets": ["subnet-abcd1234", "subnet-efgh5678"],
-            "ClusterArn": "arn:aws:kafka:us-west-2:123456789012:cluster/cluster-name/abcd1234",
-            "CreationTime": "2023-01-01T12:00:00.000Z",
-            "SecurityGroups": ["sg-abcd1234"],
-            "SubnetIds": ["subnet-1234abcd", "subnet-5678efgh"],
-            "Tags": {
-                "Name": "production-vpc-connection",
-                "Environment": "Production"
-            },
-            "VpcConnectionArn": "arn:aws:kafka:us-west-2:123456789012:vpc-connection/connection-id",
-            "VpcConnectionState": "ACTIVE",
-            "VpcId": "vpc-abcd1234"
-        }
-
-        === NOTES ===
-
-        - VPC connections allow clients in a specific VPC to access an MSK cluster.
-        - The VpcConnectionState field indicates the current status (CREATING, AVAILABLE, DELETING, etc.).
-        - Authentication settings show which authentication methods are enabled for this connection.
-        - Security groups must allow traffic on the appropriate Kafka ports (9092, 9094, 2181).
-        """
         # Create a boto3 client
         client = boto3.client(
             'kafka',

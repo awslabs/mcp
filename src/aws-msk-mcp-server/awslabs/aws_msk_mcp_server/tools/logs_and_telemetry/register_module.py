@@ -28,7 +28,94 @@ from pydantic import Field
 def register_module(mcp: FastMCP) -> None:
     """Registers this tool with the mcp."""
 
-    @mcp.tool(name='get_cluster_telemetry')
+    @mcp.tool(
+        name='get_cluster_telemetry',
+        description="""Access metrics and telemetry data for MSK clusters via CloudWatch
+
+Capabilities:
+- Supports cluster-level and broker-level metrics
+- Compatible with both PROVISIONED and SERVERLESS clusters
+- Allows querying available metrics or retrieving time-series data
+- Parses metric formats including list and dict inputs with validation
+
+=== ACTION MODES ===
+
+1. action = "metrics"
+- Retrieves time-series telemetry data for specified metrics.
+
+Required kwargs:
+    - start_time (datetime): Start timestamp for metric retrieval
+    - end_time (datetime): End timestamp for metric retrieval
+    - period (int): Data granularity in seconds
+    - metrics (list or dict):
+        Either:
+        - List of metric names: ['BytesInPerSec', 'MessagesInPerSec']
+        - Dict of metric name -> statistic: {'BytesInPerSec': 'Sum'}
+
+        A list of dicts is NOT supported and will cause an "unhashable type: 'dict'" error.
+
+Optional kwargs:
+    - scan_by (str): 'TimestampAscending' | 'TimestampDescending'
+    - label_options (dict): e.g., {'timezone': 'UTC'}
+    - pagination_config (dict): e.g., {'PageSize': 500}
+
+Output (JSON):
+{
+    "MetricDataResults": [
+    {
+        "Id": "string",
+        "Label": "string",
+        "Timestamps": ["2024-01-01T00:00:00Z"],
+        "Values": [1.2],
+        "StatusCode": "Complete"
+    }
+    ]
+}
+
+2. action = "available_metrics"
+- Returns the set of available metrics based on the cluster's Enhanced Monitoring level.
+
+No kwargs.
+
+Output (JSON):
+{
+    "Metrics": ["BytesInPerSec", "MessagesInPerSec", ...],
+    "MonitoringLevel": "DEFAULT" | "PER_BROKER" | "PER_TOPIC_PER_BROKER"
+}
+
+Input Schema:
+region: str (required) — AWS region (e.g., 'us-west-2')
+action: str (required) — 'metrics' | 'available_metrics'
+cluster_arn: str (required) — ARN of the MSK cluster
+kwargs: dict (optional) — See action-specific parameters above
+
+Notes on Recommended Metrics:
+
+PROVISIONED clusters (recommended):
+- GlobalTopicCount: Indicates cluster-wide topic count.
+- GlobalPartitionCount: Important for understanding broker resource usage.
+- OfflinePartitionsCount: Should always be 0; >0 indicates data loss risk.
+- UnderReplicatedPartitions: Alert-worthy when >0.
+- ConnectionCount: Watch for large or sudden spikes.
+- ActiveControllerCount: Should always be exactly 1.
+
+BROKER-level metrics (if enabled):
+- BytesInPerSec, BytesOutPerSec
+- UnderReplicatedPartitions (per broker)
+- LeaderCount
+- ProduceTotalTimeMsMean
+- FetchConsumerTotalTimeMsMean
+
+SERVERLESS clusters:
+- BytesInPerSec, BytesOutPerSec (per topic)
+- FetchMessageConversionsPerSec
+- MessagesInPerSec
+- ProduceMessageConversionsPerSec
+
+Related Resources:
+- resource://msk-best-practices - Access comprehensive best practices and recommended thresholds
+  for interpreting the metrics returned by this tool""",
+    )
     def get_cluster_telemetry(
         region: str = Field(..., description='AWS region'),
         action: str = Field(
@@ -39,92 +126,6 @@ def register_module(mcp: FastMCP) -> None:
         ),
         kwargs: dict = Field({}, description='Additional arguments based on the action type'),
     ):
-        """Unified telemetry API for Amazon MSK clusters. This tool provides access to metrics via CloudWatch for both provisioned and serverless MSK clusters.
-
-        Capabilities:
-        - Supports cluster-level and broker-level metrics
-        - Compatible with both PROVISIONED and SERVERLESS clusters
-        - Allows querying available metrics or retrieving time-series data
-        - Parses metric formats including list and dict inputs with validation
-
-        === ACTION MODES ===
-
-        1. action = "metrics"
-        - Retrieves time-series telemetry data for specified metrics.
-
-        Required kwargs:
-            - start_time (datetime): Start timestamp for metric retrieval
-            - end_time (datetime): End timestamp for metric retrieval
-            - period (int): Data granularity in seconds
-            - metrics (list or dict):
-                Either:
-                - List of metric names: ['BytesInPerSec', 'MessagesInPerSec']
-                - Dict of metric name -> statistic: {'BytesInPerSec': 'Sum'}
-
-                A list of dicts is NOT supported and will cause an "unhashable type: 'dict'" error.
-
-        Optional kwargs:
-            - scan_by (str): 'TimestampAscending' | 'TimestampDescending'
-            - label_options (dict): e.g., {'timezone': 'UTC'}
-            - pagination_config (dict): e.g., {'PageSize': 500}
-
-        Output (JSON):
-        {
-            "MetricDataResults": [
-            {
-                "Id": "string",
-                "Label": "string",
-                "Timestamps": ["2024-01-01T00:00:00Z"],
-                "Values": [1.2],
-                "StatusCode": "Complete"
-            }
-            ]
-        }
-
-        2. action = "available_metrics"
-        - Returns the set of available metrics based on the cluster's Enhanced Monitoring level.
-
-        No kwargs.
-
-        Output (JSON):
-        {
-            "Metrics": ["BytesInPerSec", "MessagesInPerSec", ...],
-            "MonitoringLevel": "DEFAULT" | "PER_BROKER" | "PER_TOPIC_PER_BROKER"
-        }
-
-        Input Schema:
-        region: str (required) — AWS region (e.g., 'us-west-2')
-        action: str (required) — 'metrics' | 'available_metrics'
-        cluster_arn: str (required) — ARN of the MSK cluster
-        kwargs: dict (optional) — See action-specific parameters above
-
-        Notes on Recommended Metrics:
-
-        PROVISIONED clusters (recommended):
-        - GlobalTopicCount: Indicates cluster-wide topic count.
-        - GlobalPartitionCount: Important for understanding broker resource usage.
-        - OfflinePartitionsCount: Should always be 0; >0 indicates data loss risk.
-        - UnderReplicatedPartitions: Alert-worthy when >0.
-        - ConnectionCount: Watch for large or sudden spikes.
-        - ActiveControllerCount: Should always be exactly 1.
-
-        BROKER-level metrics (if enabled):
-        - BytesInPerSec, BytesOutPerSec
-        - UnderReplicatedPartitions (per broker)
-        - LeaderCount
-        - ProduceTotalTimeMsMean
-        - FetchConsumerTotalTimeMsMean
-
-        SERVERLESS clusters:
-        - BytesInPerSec, BytesOutPerSec (per topic)
-        - FetchMessageConversionsPerSec
-        - MessagesInPerSec
-        - ProduceMessageConversionsPerSec
-
-        Related Resources:
-        - resource://msk-best-practices - Access comprehensive best practices and recommended thresholds
-          for interpreting the metrics returned by this tool
-        """
         if action == 'metrics' and cluster_arn:
             # Create a client manager instance
             client_manager = AWSClientManager()
@@ -185,55 +186,56 @@ def register_module(mcp: FastMCP) -> None:
         else:
             raise ValueError(f'Unsupported action or missing required arguments for {action}')
 
-    @mcp.tool(name='list_customer_iam_access')
+    @mcp.tool(
+        name='list_customer_iam_access',
+        description="""Audit IAM access configuration and policies for an MSK cluster
+
+This tool audits both resource-based and identity-based (IAM) policies associated with the specified MSK cluster. It helps determine whether IAM authentication is enabled and which principals have access.
+
+=== INPUT PARAMETERS ===
+
+- cluster_arn (str): The ARN of the target MSK cluster.
+- region (str): The AWS region where the cluster is deployed.
+
+=== OUTPUT (JSON) ===
+
+{
+"cluster_info": {
+    "ClusterArn": "arn:aws:kafka:us-west-2:123456789012:cluster/my-cluster/abcd1234",
+    "ClusterName": "my-cluster",
+    "IamAuthEnabled": true
+},
+"resource_policies": [
+    {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+        "Effect": "Allow",
+        "Action": ["kafka:DescribeCluster"],
+        "Resource": "*"
+        }
+    ]
+    }
+],
+"matching_policies": [
+    {
+    "PolicyName": "KafkaAccessPolicy",
+    "PolicyArn": "arn:aws:iam::123456789012:policy/KafkaAccessPolicy",
+    "Actions": ["kafka:DescribeCluster", "kafka:Connect"]
+    }
+]
+}
+
+=== NOTES ===
+
+- `resource_policies` represent policies directly attached to the cluster.
+- `matching_policies` are IAM identity policies (users, roles, or groups) granting access to the cluster.
+- Useful for compliance, security audits, and debugging IAM access issues.""",
+    )
     def list_customer_iam_access_tool(
         region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(..., description='The ARN of the MSK cluster'),
     ):
-        """Fetch IAM access configuration and policies for a given Amazon MSK cluster.
-
-        This tool audits both resource-based and identity-based (IAM) policies associated with the specified MSK cluster. It helps determine whether IAM authentication is enabled and which principals have access.
-
-        === INPUT PARAMETERS ===
-
-        - cluster_arn (str): The ARN of the target MSK cluster.
-        - region (str): The AWS region where the cluster is deployed.
-
-        === OUTPUT (JSON) ===
-
-        {
-        "cluster_info": {
-            "ClusterArn": "arn:aws:kafka:us-west-2:123456789012:cluster/my-cluster/abcd1234",
-            "ClusterName": "my-cluster",
-            "IamAuthEnabled": true
-        },
-        "resource_policies": [
-            {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                "Effect": "Allow",
-                "Action": ["kafka:DescribeCluster"],
-                "Resource": "*"
-                }
-            ]
-            }
-        ],
-        "matching_policies": [
-            {
-            "PolicyName": "KafkaAccessPolicy",
-            "PolicyArn": "arn:aws:iam::123456789012:policy/KafkaAccessPolicy",
-            "Actions": ["kafka:DescribeCluster", "kafka:Connect"]
-            }
-        ]
-        }
-
-        === NOTES ===
-
-        - `resource_policies` represent policies directly attached to the cluster.
-        - `matching_policies` are IAM identity policies (users, roles, or groups) granting access to the cluster.
-        - Useful for compliance, security audits, and debugging IAM access issues.
-        """
         # Create a client manager instance
         client_manager = AWSClientManager()
 

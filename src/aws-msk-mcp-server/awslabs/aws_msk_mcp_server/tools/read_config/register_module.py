@@ -31,7 +31,88 @@ from pydantic import Field
 def register_module(mcp: FastMCP) -> None:
     """Registers this tool with the mcp."""
 
-    @mcp.tool(name='get_configuration_info')
+    @mcp.tool(
+        name='get_configuration_info',
+        description="""Get detailed information about MSK configurations and their revisions.
+
+This operation provides detailed information about MSK configurations and their revisions.
+
+=== ACTION MODES ===
+
+1. action = "describe"
+- Retrieves basic information about a configuration.
+
+Required parameters:
+- arn (str): The ARN of the configuration
+- region (str): AWS region
+
+Output (JSON):
+{
+    "Arn": "arn:aws:kafka:us-west-2:123456789012:configuration/my-configuration/abcd1234",
+    "CreationTime": "2023-01-01T12:00:00.000Z",
+    "Description": "My MSK configuration",
+    "KafkaVersions": ["2.8.1", "3.3.1"],
+    "LatestRevision": {
+        "CreationTime": "2023-01-01T12:00:00.000Z",
+        "Description": "Initial configuration",
+        "Revision": 1
+    },
+    "Name": "my-configuration",
+    "State": "ACTIVE"
+}
+
+2. action = "revisions"
+- Lists all revisions for a configuration.
+
+Required parameters:
+- arn (str): The ARN of the configuration
+- region (str): AWS region
+
+Optional parameters:
+- max_results (int): Maximum number of revisions to return (default: 10)
+- next_token (str): Token for pagination
+
+Output (JSON):
+{
+    "Revisions": [
+        {
+            "CreationTime": "2023-01-02T12:00:00.000Z",
+            "Description": "Updated configuration",
+            "Revision": 2
+        },
+        {
+            "CreationTime": "2023-01-01T12:00:00.000Z",
+            "Description": "Initial configuration",
+            "Revision": 1
+        }
+    ],
+    "NextToken": "AAAABBBCCC"
+}
+
+3. action = "revision_details"
+- Retrieves detailed information about a specific configuration revision.
+
+Required parameters:
+- arn (str): The ARN of the configuration
+- region (str): AWS region
+- revision (int): The revision number to describe
+
+Output (JSON):
+{
+    "Arn": "arn:aws:kafka:us-west-2:123456789012:configuration/my-configuration/abcd1234",
+    "CreationTime": "2023-01-01T12:00:00.000Z",
+    "Description": "Initial configuration",
+    "Revision": 1,
+    "ServerProperties": "auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=168"
+}
+
+=== NOTES ===
+
+- Configuration revisions are immutable; each change creates a new revision.
+- The ServerProperties field contains the actual Kafka broker configuration settings.
+- To apply a configuration to a cluster, use the update_cluster_configuration tool with the configuration ARN and revision number.
+- Configurations can be associated with multiple Kafka versions.""",
+    )
     def get_configuration_info(
         region: str = Field(..., description='AWS region'),
         action: str = Field(
@@ -41,86 +122,6 @@ def register_module(mcp: FastMCP) -> None:
         arn: str = Field(..., description='The Amazon Resource Name (ARN) of the configuration'),
         kwargs: dict = Field({}, description='Additional arguments based on the action'),
     ):
-        r"""Get information about MSK configurations.
-
-        This operation provides detailed information about MSK configurations and their revisions.
-
-        === ACTION MODES ===
-
-        1. action = "describe"
-        - Retrieves basic information about a configuration.
-
-        Required parameters:
-        - arn (str): The ARN of the configuration
-        - region (str): AWS region
-
-        Output (JSON):
-        {
-            "Arn": "arn:aws:kafka:us-west-2:123456789012:configuration/my-configuration/abcd1234",
-            "CreationTime": "2023-01-01T12:00:00.000Z",
-            "Description": "My MSK configuration",
-            "KafkaVersions": ["2.8.1", "3.3.1"],
-            "LatestRevision": {
-                "CreationTime": "2023-01-01T12:00:00.000Z",
-                "Description": "Initial configuration",
-                "Revision": 1
-            },
-            "Name": "my-configuration",
-            "State": "ACTIVE"
-        }
-
-        2. action = "revisions"
-        - Lists all revisions for a configuration.
-
-        Required parameters:
-        - arn (str): The ARN of the configuration
-        - region (str): AWS region
-
-        Optional parameters:
-        - max_results (int): Maximum number of revisions to return (default: 10)
-        - next_token (str): Token for pagination
-
-        Output (JSON):
-        {
-            "Revisions": [
-                {
-                    "CreationTime": "2023-01-02T12:00:00.000Z",
-                    "Description": "Updated configuration",
-                    "Revision": 2
-                },
-                {
-                    "CreationTime": "2023-01-01T12:00:00.000Z",
-                    "Description": "Initial configuration",
-                    "Revision": 1
-                }
-            ],
-            "NextToken": "AAAABBBCCC"
-        }
-
-        3. action = "revision_details"
-        - Retrieves detailed information about a specific configuration revision.
-
-        Required parameters:
-        - arn (str): The ARN of the configuration
-        - region (str): AWS region
-        - revision (int): The revision number to describe
-
-        Output (JSON):
-        {
-            "Arn": "arn:aws:kafka:us-west-2:123456789012:configuration/my-configuration/abcd1234",
-            "CreationTime": "2023-01-01T12:00:00.000Z",
-            "Description": "Initial configuration",
-            "Revision": 1,
-            "ServerProperties": "auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=168"
-        }
-
-        === NOTES ===
-
-        - Configuration revisions are immutable; each change creates a new revision.
-        - The ServerProperties field contains the actual Kafka broker configuration settings.
-        - To apply a configuration to a cluster, use the update_cluster_configuration tool with the configuration ARN and revision number.
-        - Configurations can be associated with multiple Kafka versions.
-        """
         # Create a boto3 client
         client = boto3.client(
             'kafka',
@@ -146,38 +147,39 @@ def register_module(mcp: FastMCP) -> None:
                 f'Unsupported action: {action}. Supported actions are: describe, revisions, revision_details'
             )
 
-    @mcp.tool(name='list_tags_for_resource')
+    @mcp.tool(
+        name='list_tags_for_resource',
+        description="""List all tags associated with an MSK resource.
+
+This operation retrieves all tags associated with an MSK resource.
+
+=== INPUT PARAMETERS ===
+
+- arn (str): The Amazon Resource Name (ARN) of the MSK resource.
+- region (str): AWS region where the resource is located.
+
+=== OUTPUT (JSON) ===
+
+{
+    "Tags": {
+        "Name": "production-cluster",
+        "Environment": "Production",
+        "Owner": "DataTeam",
+        "CostCenter": "12345",
+        "MCP Generated": "true"
+    }
+}
+
+=== NOTES ===
+
+- Tags are key-value pairs used for resource organization and management.
+- The "MCP Generated" tag is used by this system to identify resources it can modify.
+- Tags can be used for cost allocation, access control, and resource grouping.""",
+    )
     def list_tags_for_resource_tool(
         region: str = Field(description='AWS region'),
         arn: str = Field(description='The Amazon Resource Name (ARN) of the resource'),
     ):
-        """List all tags for an MSK resource.
-
-        This operation retrieves all tags associated with an MSK resource.
-
-        === INPUT PARAMETERS ===
-
-        - arn (str): The Amazon Resource Name (ARN) of the MSK resource.
-        - region (str): AWS region where the resource is located.
-
-        === OUTPUT (JSON) ===
-
-        {
-            "Tags": {
-                "Name": "production-cluster",
-                "Environment": "Production",
-                "Owner": "DataTeam",
-                "CostCenter": "12345",
-                "MCP Generated": "true"
-            }
-        }
-
-        === NOTES ===
-
-        - Tags are key-value pairs used for resource organization and management.
-        - The "MCP Generated" tag is used by this system to identify resources it can modify.
-        - Tags can be used for cost allocation, access control, and resource grouping.
-        """
         # Create a boto3 client
         client = boto3.client(
             'kafka',
