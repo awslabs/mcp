@@ -52,6 +52,9 @@ outputs:
   version:
     description: 'The version uploaded'
     value: ${{ steps.get-version.outputs.version }}
+  artifact:
+    description: 'The artifact uploaded'
+    value: ${{ steps.upload-image.outputs.artifact-id }}
 
 runs:
   using: "composite"
@@ -147,6 +150,7 @@ runs:
         ALIAS: ${{ inputs.public-erc-registry-alias }}
         OWNER: ${{ github.repository_owner }}
       run: |
+        echo "DOCKER_METADATA_OUTPUT_JSON=$DOCKER_METADATA_OUTPUT_JSON"
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
           $(printf 'public.ecr.aws/'$ALIAS'/'$OWNER'/'$IMAGE'@sha256:%s ' *)
       shell: bash
@@ -165,3 +169,15 @@ runs:
       run: |
         echo version="${{ steps.meta.outputs.version }}" >>"$GITHUB_OUTPUT"
       shell: bash
+    - name: Save an image
+      run: |
+        docker image save -o "${{ runner.temp }}/image.tar" public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION
+      shell: bash
+    - name: Upload image
+      id: upload-image
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: image-${{ inputs.image }}
+        path: ${{ runner.temp }}/image.tar
+        if-no-files-found: error
+        retention-days: 1

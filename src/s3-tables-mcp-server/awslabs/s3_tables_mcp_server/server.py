@@ -32,7 +32,6 @@ from .utils import set_user_agent_mode
 from awslabs.s3_tables_mcp_server import (
     __version__,
     database,
-    file_processor,
     namespaces,
     resources,
     s3_operations,
@@ -47,6 +46,12 @@ from awslabs.s3_tables_mcp_server.constants import (
     TABLE_BUCKET_ARN_FIELD,
     TABLE_BUCKET_NAME_PATTERN,
     TABLE_NAME_FIELD,
+)
+from awslabs.s3_tables_mcp_server.file_processor import (
+    import_csv_to_table as import_csv_to_table_func,
+)
+from awslabs.s3_tables_mcp_server.file_processor import (
+    import_parquet_to_table as import_parquet_to_table_func,
 )
 from datetime import datetime, timezone
 from mcp.server.fastmcp import FastMCP
@@ -567,30 +572,6 @@ async def query_database(
 
 @app.tool()
 @log_tool_call_with_response
-async def preview_csv_file(
-    s3_url: Annotated[str, S3_URL_FIELD],
-) -> dict:
-    """Preview the structure of a CSV file stored in S3.
-
-    This tool provides a quick preview of a CSV file's structure by reading
-    only the headers and first row of data from an S3 location. It's useful for
-    understanding the schema and data format without downloading the entire file.
-    It can be used before creating an s3 table from a csv file to get the schema and data format.
-
-    Returns error dictionary with status and error message if:
-        - URL is not a valid S3 URL
-        - File is not a CSV file
-        - File cannot be accessed
-        - Any other error occurs
-
-    Permissions:
-    You must have the s3:GetObject permission for the S3 bucket and key.
-    """
-    return file_processor.preview_csv_structure(s3_url)
-
-
-@app.tool()
-@log_tool_call_with_response
 @write_operation
 async def import_csv_to_table(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
@@ -611,12 +592,10 @@ async def import_csv_to_table(
 ) -> dict:
     """Import data from a CSV file into an S3 table.
 
-    This tool reads data from a CSV file stored in S3 and imports it into an existing S3 table.
-    The CSV file must have headers that match the table's schema. The tool will validate the CSV structure
-    before attempting to import the data.
-
-    To create a table, first use the preview_csv_file tool to get the schema and data format.
-    Then use the create_table tool to create the table.
+    This tool reads data from a CSV file stored in S3 and imports it into an S3 table.
+    If the table doesn't exist, it will be created with a schema inferred from the CSV file.
+    If the table exists, the CSV file schema must be compatible with the table's schema.
+    The tool will validate the schema before attempting to import the data.
 
     Returns error dictionary with status and error message if:
         - URL is not a valid S3 URL
@@ -640,13 +619,86 @@ async def import_csv_to_table(
     Permissions:
     You must have:
     - s3:GetObject permission for the CSV file
-    - s3tables:GetDatabase and s3tables:GetDatabases permissions to access database information
     - s3tables:GetTable and s3tables:GetTables permissions to access table information
     - s3tables:PutTableData permission to write to the table
     """
     if uri is None:
         uri = _default_uri_for_region(region)
-    return await file_processor.import_csv_to_table(
+    return await import_csv_to_table_func(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        s3_url=s3_url,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+
+
+@app.tool()
+@log_tool_call_with_response
+@write_operation
+async def import_parquet_to_table(
+    warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
+    region: Annotated[
+        str, Field(..., description='AWS region for S3Tables/Iceberg REST endpoint')
+    ],
+    namespace: Annotated[str, NAMESPACE_NAME_FIELD],
+    table_name: Annotated[str, TABLE_NAME_FIELD],
+    s3_url: Annotated[str, S3_URL_FIELD],
+    uri: Annotated[str, Field(..., description='REST URI for Iceberg catalog')],
+    catalog_name: Annotated[
+        str, Field('s3tablescatalog', description='Catalog name')
+    ] = 's3tablescatalog',
+    rest_signing_name: Annotated[
+        str, Field('s3tables', description='REST signing name')
+    ] = 's3tables',
+    rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
+) -> dict:
+    """Import data from a Parquet file into an S3 table.
+
+    This tool reads data from a Parquet file stored in S3 and imports it into an S3 table.
+    If the table doesn't exist, it will be created with a schema inferred from the Parquet file.
+    If the table exists, the Parquet file schema must be compatible with the table's schema.
+    The tool will validate the schema before attempting to import the data.
+
+    Returns error dictionary with status and error message if:
+        - URL is not a valid S3 URL
+        - File is not a Parquet file
+        - File cannot be accessed
+        - Parquet schema is incompatible with existing table schema
+        - Any other error occurs
+
+    Returns success dictionary with:
+        - status: 'success'
+        - message: Success message with row count
+        - rows_processed: Number of rows imported
+        - file_processed: Name of the processed file
+        - table_created: True if a new table was created
+
+    Example input values:
+        warehouse: 'arn:aws:s3tables:<Region>:<accountID>:bucket/<bucketname>'
+        region: 'us-west-2'
+        namespace: 'retail_data'
+        table_name: 'customers'
+        s3_url: 's3://bucket-name/path/to/file.parquet'
+        uri: 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+        catalog_name: 's3tablescatalog'
+        rest_signing_name: 's3tables'
+        rest_sigv4_enabled: 'true'
+
+    Permissions:
+    You must have:
+    - s3:GetObject permission for the Parquet file
+    - s3tables:GetTable and s3tables:GetTables permissions to access table information
+    - s3tables:PutTableData permission to write to the table
+    - s3tables:CreateTable permission (if table doesn't exist)
+    """
+    if uri is None:
+        uri = _default_uri_for_region(region)
+    return await import_parquet_to_table_func(
         warehouse=warehouse,
         region=region,
         namespace=namespace,
