@@ -714,6 +714,55 @@ async def test_import_csv_to_table_default_uri(monkeypatch, setup_app):
     )
     args, kwargs = mock_import_func.call_args  # type: ignore
     assert kwargs['uri'] == 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    assert not kwargs['preserve_case']
+
+
+@pytest.mark.asyncio
+async def test_import_csv_to_table(monkeypatch, setup_app):
+    """Test import_csv_to_table tool."""
+    import awslabs.s3_tables_mcp_server.server as server_mod
+
+    # Mock the imported function from file_processor module
+    mock_import_func = AsyncMock(return_value={'status': 'success'})
+    monkeypatch.setattr(
+        'awslabs.s3_tables_mcp_server.server.import_csv_to_table_func',
+        mock_import_func,
+    )
+    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    region = 'us-west-2'
+    namespace = 'test-namespace'
+    table_name = 'test-table'
+    s3_url = 's3://bucket/file.csv'
+    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    catalog_name = 's3tablescatalog'
+    rest_signing_name = 's3tables'
+    rest_sigv4_enabled = 'true'
+    expected_response = {'status': 'success'}
+
+    result = await server_mod.import_csv_to_table(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        s3_url=s3_url,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+    )
+    assert result == expected_response
+    mock_import_func.assert_called_once_with(
+        warehouse=warehouse,
+        region=region,
+        namespace=namespace,
+        table_name=table_name,
+        s3_url=s3_url,
+        uri=uri,
+        catalog_name=catalog_name,
+        rest_signing_name=rest_signing_name,
+        rest_sigv4_enabled=rest_sigv4_enabled,
+        preserve_case=False,
+    )
 
 
 @pytest.mark.asyncio
@@ -760,6 +809,7 @@ async def test_import_parquet_to_table(monkeypatch, setup_app):
         catalog_name=catalog_name,
         rest_signing_name=rest_signing_name,
         rest_sigv4_enabled=rest_sigv4_enabled,
+        preserve_case=False,
     )
 
 
@@ -817,6 +867,7 @@ async def test_import_parquet_to_table_default_uri(monkeypatch, setup_app):
     )
     args, kwargs = mock_import_func.call_args  # type: ignore
     assert kwargs['uri'] == 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    assert not kwargs['preserve_case']
 
 
 @pytest.mark.asyncio
