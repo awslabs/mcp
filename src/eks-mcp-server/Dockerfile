@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d AS uv
+FROM python:3.10-slim AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -31,7 +30,7 @@ ENV UV_PYTHON_PREFERENCE=only-system
 ENV UV_FROZEN=true
 
 # Copy the required files first
-COPY pyproject.toml uv.lock uv-requirements.txt ./
+COPY README.md .
 
 # Python optimization and uv configuration
 ENV PIP_NO_CACHE_DIR=1 \
@@ -48,31 +47,36 @@ RUN apk update && \
     cargo
 
 # Install the project's dependencies using the lockfile and settings
-RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
-    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
+COPY pyproject.toml uv.lock uv-requirements.txt ./
+COPY awslabs/ awslabs/
 
-# Then, add the rest of the project source code and install it
-# Installing separately from its dependencies allows optimal layer caching
-COPY . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --python 3.13 --frozen --no-dev --no-editable
+RUN python -m venv /app/.venv \
+ && /app/.venv/bin/pip install --upgrade pip \
+ && /app/.venv/bin/pip install --no-cache-dir --require-hashes --requirement uv-requirements.txt \
+ && /app/.venv/bin/pip install --no-cache-dir .
+
+# Copy in your code and install the package
+
 
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d
+FROM python:3.10-slim
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-# Install runtime dependencies and create application user
-RUN apk update && \
-    apk add --no-cache ca-certificates && \
-    update-ca-certificates && \
-    addgroup -S app && \
-    adduser -S app -G app -h /app
+# Install lsof for the healthcheck
+# Install other tools as needed for the MCP server
+# Add non-root user and ability to change directory into /root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends lsof \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd --system app \
+  && useradd --system --gid app --home-dir /app app \
+  && mkdir -p /root/.local \
+  && chmod o+x /root
 
 # Copy application artifacts from build stage
 COPY --from=uv --chown=app:app /app/.venv /app/.venv

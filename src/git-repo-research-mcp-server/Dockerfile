@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.10-slim AS uv 
+#FROM public.ecr.aws/sam/build-python3.13:1.137.1-20250411084548
+FROM python:3.12-slim AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -30,46 +31,48 @@ ENV UV_PYTHON_PREFERENCE=only-system
 ENV UV_FROZEN=true
 
 
-# Install the project's dependencies using the lockfile and settings
-COPY pyproject.toml uv.lock ./
 COPY README.md .
+
+# Install the project's dependencies using the lockfile and settings
+COPY pyproject.toml uv.lock uv-requirements.txt ./
 COPY awslabs/ awslabs/
 
-# Install build backend and dependencies in a venv
 RUN python -m venv /app/.venv \
  && /app/.venv/bin/pip install --upgrade pip \
- && /app/.venv/bin/pip install --no-cache-dir hatchling \
+ && /app/.venv/bin/pip install --no-cache-dir --require-hashes --requirement uv-requirements.txt \
  && /app/.venv/bin/pip install --no-cache-dir .
 
+ RUN apt-get update && apt-get install -y --no-install-recommends git
+ 
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM python:3.10-slim AS builder
+FROM python:3.12-slim
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
 
 # Install lsof for the healthcheck
 # Install other tools as needed for the MCP server
 # Add non-root user and ability to change directory into /root
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends lsof \
+  && apt-get install -y --no-install-recommends lsof git \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system app \
   && useradd --system --gid app --home-dir /app app \
   && mkdir -p /root/.local \
   && chmod o+x /root
 
-# Copy application artifacts from build stage
+# Get the project from the uv layer
+COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
-COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+# COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 
 # Run as non-root
 USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
-HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
-ENTRYPOINT ["awslabs.cloudwatch-mcp-server"]
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
+ENTRYPOINT ["awslabs.git-repo-research-mcp-server"]

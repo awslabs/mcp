@@ -1,0 +1,86 @@
+version: "3.8"
+
+services:
+  core-mcp:
+    build:
+      context: ./src/core-mcp-server
+      dockerfile: Dockerfile
+    container_name: core-mcp
+    ports:
+      - "8050:8050"
+    env_file:
+      - .env
+    environment:
+      # if your tools need AWS creds:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - ~/.aws:/app/.aws:ro
+
+  cloudwatch-mcp:
+    build:
+      context: ./src/cloudwatch-mcp-server
+      dockerfile: Dockerfile
+    container_name: cloudwatch-mcp
+    ports:
+      - "8051:8051"
+    env_file:
+      - .env
+    environment:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - ~/.aws:/app/.aws:ro
+
+  eks-mcp:
+    build:
+      context: ./src/eks-mcp-server
+      dockerfile: Dockerfile
+    container_name: eks-mcp
+    ports:
+      - "8052:8052"
+    env_file:
+      - .env
+    environment:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - ~/.aws:/app/.aws:ro
+
+  docs-mcp:
+    build:
+      context: ./src/aws-documentation-mcp-server
+      dockerfile: Dockerfile
+    container_name: docs-mcp
+    environment:
+      - AWS_DEFAULT_REGION=europe-north-1
+      - AWS_PROFILE=default
+    env_file:
+      - .env
+    ports:
+      - "8053:8053"
+    volumes:
+      - ~/.aws:/app/.aws:ro
+
+  prometheus-mcp:
+    build:
+      context: ./src/prometheus-mcp-server
+      dockerfile: Dockerfile
+    container_name: prometheus-mcp
+    env_file:
+      - .env
+    ports:
+      - "8054:8054"
+    volumes:
+      - /Users/vihaankhandelwal/.aws:/app/.aws:ro
+    
+  git-repo-research-mcp:
+    build:
+      context: ./src/git-repo-research-mcp-server
+      dockerfile: Dockerfile
+    container_name: git-repo-research-mcp
+    ports:
+      - "8055:8055"
+    env_file:
+      - .env
+    environment:
+      - AWS_DEFAULT_REGION=us-west-2
+    volumes:
+      - /Users/vihaankhandelwal/.aws:/app/.aws:ro
