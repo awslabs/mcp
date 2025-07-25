@@ -52,7 +52,6 @@ class RedshiftClientManager:
             try:
                 if self.aws_profile:
                     session = boto3.Session(profile_name=self.aws_profile)
-                    logger.info(f'Created Redshift client with profile: {self.aws_profile}')
                     self._redshift_client = session.client('redshift', config=self._config, region_name=self.aws_region)
                     logger.info(f'Created Redshift client with profile: {self.aws_profile} and region: {self.aws_region}')
                 else:
