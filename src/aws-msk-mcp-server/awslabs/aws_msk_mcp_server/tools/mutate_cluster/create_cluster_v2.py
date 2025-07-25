@@ -79,6 +79,8 @@ def create_cluster_v2(cluster_name, cluster_type='PROVISIONED', client=None, **k
         ]:
             if param in kwargs:
                 provisioned_params[key] = kwargs.get(param)
+            if key in kwargs:
+                provisioned_params[key] = kwargs.get(key)
 
         params['Provisioned'] = provisioned_params
 
