@@ -134,9 +134,8 @@ Resource Identification Guide:
 
 === NOTES ===
 
-- After creating a cluster, you should follow up with a tag_resource tool call
-  to add the "MCP Generated" tag to the created resource.
-- Example: tag_resource_tool(resource_arn=response["ClusterArn"], tags={"MCP Generated": "true"})""",
+- When making the cluster, add the "MCP Generated" tag to the created resource.
+- Or add the tag after making it. Example: tag_resource_tool(resource_arn=response["ClusterArn"], tags={"MCP Generated": "true"})""",
     )
     def create_cluster_tool(
         region: str = Field(..., description="AWS region (e.g., 'us-east-1', 'eu-west-1')"),
