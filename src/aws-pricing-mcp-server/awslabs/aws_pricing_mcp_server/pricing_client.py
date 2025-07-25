@@ -67,7 +67,7 @@ def get_pricing_region(requested_region: Optional[str] = None) -> str:
         pricing_region = 'eu-central-1'
     elif requested_region.startswith('ap-'):
         # Asia Pacific regions
-        pricing_region = 'ap-southeast-1'
+        pricing_region = 'ap-south-1'
     else:
         # Default to US East (covers us-, ca-, sa- and any unknown regions)
         pricing_region = 'us-east-1'

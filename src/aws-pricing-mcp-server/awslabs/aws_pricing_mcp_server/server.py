@@ -32,7 +32,7 @@ from awslabs.aws_pricing_mcp_server.models import (
     SERVICE_CODE_FIELD,
     ErrorResponse,
     OutputOptions,
-    PricingFilters,
+    PricingFilter,
 )
 from awslabs.aws_pricing_mcp_server.pricing_client import (
     create_pricing_client,
@@ -99,7 +99,7 @@ mcp = FastMCP(
        instance_types = get_pricing_attribute_values('AmazonEC2', 'instanceType')
 
        # Get pricing for specific instance types in a region
-       filters = {"filters": [{"Field": "instanceType", "Value": "t3.medium", "Type": "TERM_MATCH"}]}
+       filters = [{"Field": "instanceType", "Value": "t3.medium", "Type": "TERM_MATCH"}]
        pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
 
        # Get bulk pricing data files for historical analysis
@@ -228,7 +228,7 @@ async def analyze_terraform_project_wrapper(
     **PARAMETERS:**
     - service_code (required): AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES')
     - region (required): AWS region string (e.g., 'us-east-1') OR list for multi-region comparison (e.g., ['us-east-1', 'eu-west-1'])
-    - filters (optional): PricingFilters object with list of filter dictionaries
+    - filters (optional): List of filter dictionaries in format {'Field': str, 'Type': str, 'Value': str}
     - max_allowed_characters (optional): Response size limit in characters (default: 100,000, use -1 for unlimited)
     - output_options (optional): OutputOptions object for response transformation and size reduction
     - max_results (optional): Maximum number of results to return per page (default: 100, min: 1, max: 100)
@@ -246,13 +246,11 @@ async def analyze_terraform_project_wrapper(
     **Step 2: Build Precise Filters**
     ```python
     # Use ONLY values discovered in Step 1
-    filters = {
-       "filters": [
-           {"Field": "memory", "Value": ["8 GiB", "16 GiB", "32 GiB"], "Type": "ANY_OF"},     # Multiple options
-           {"Field": "instanceType", "Value": "m5", "Type": "CONTAINS"},                      # Pattern matching
-           {"Field": "instanceType", "Value": ["t2", "m4"], "Type": "NONE_OF"}                # Exclude older
-       ]
-    }
+    filters = [
+       {"Field": "memory", "Value": ["8 GiB", "16 GiB", "32 GiB"], "Type": "ANY_OF"},     # Multiple options
+       {"Field": "instanceType", "Value": "m5", "Type": "CONTAINS"},                      # Pattern matching
+       {"Field": "instanceType", "Value": ["t2", "m4"], "Type": "NONE_OF"}                # Exclude older
+   ]
     ```
 
     **Step 3: Execute Query**
@@ -325,19 +323,19 @@ async def analyze_terraform_project_wrapper(
     ```python
     # Find cheapest EC2 instances meeting minimum requirements (>= 8 GiB memory, >= 30 GB storage)
     # EXHAUSTIVE ENUMERATION of qualifying tiers - each is mutually exclusive
-    filters = {"filters": [
+    filters = [
        {"Field": "memory", "Value": ["8 GiB", "16 GiB", "32 GiB"], "Type": "ANY_OF"},  # All tiers ≥8GB up to reasonable limit
        {"Field": "storage", "Value": ["1 x 32 SSD", "1 x 60 SSD", "1 x 75 NVMe SSD"], "Type": "ANY_OF"},  # All tiers ≥30GB up to reasonable limit
        {"Field": "instanceType", "Value": ["t2", "m4"], "Type": "NONE_OF"},  # Exclude older generations
        {"Field": "tenancy", "Value": "Shared", "Type": "EQUALS"}  # Exclude more expensive dedicated
-    ]}
+    ]
     pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
     ```
 
     **2. Efficient Multi-Region Comparison:**
     ```python
     # Compare same configuration across regions - use region parameter for multi-region
-    filters = {"filters": [{"Field": "instanceType", "Value": "m5.large", "Type": "EQUALS"}]}
+    filters = [{"Field": "instanceType", "Value": "m5.large", "Type": "EQUALS"}]
     pricing = get_pricing('AmazonEC2', ['us-east-1', 'us-west-2', 'eu-west-1'], filters)
     ```
 
@@ -350,10 +348,10 @@ async def analyze_terraform_project_wrapper(
     **4. Pattern-Based Discovery with Refinement:**
     ```python
     # Find all Standard storage tiers except expensive ones
-    filters = {"filters": [
+    filters = [
         {"Field": "storageClass", "Value": "Standard", "Type": "CONTAINS"},
         {"Field": "storageClass", "Value": ["Standard-IA"], "Type": "NONE_OF"}
-    ]}
+    ]
     ```
 
     **FILTERING STRATEGY:**
@@ -375,7 +373,7 @@ async def get_pricing(
     ctx: Context,
     service_code: str = SERVICE_CODE_FIELD,
     region: Union[str, List[str]] = REGION_FIELD,
-    filters: Optional[PricingFilters] = FILTERS_FIELD,
+    filters: Optional[List[PricingFilter]] = FILTERS_FIELD,
     max_allowed_characters: int = GET_PRICING_MAX_ALLOWED_CHARACTERS_FIELD,
     output_options: Optional[OutputOptions] = OUTPUT_OPTIONS_FIELD,
     max_results: int = MAX_RESULTS_FIELD,
@@ -435,8 +433,8 @@ async def get_pricing(
         ]
 
         # Add any additional filters if provided
-        if filters and filters.filters:
-            api_filters.extend([f.model_dump(by_alias=True) for f in filters.filters])
+        if filters:
+            api_filters.extend([f.model_dump(by_alias=True) for f in filters])
 
         # Make the API request
         api_params = {

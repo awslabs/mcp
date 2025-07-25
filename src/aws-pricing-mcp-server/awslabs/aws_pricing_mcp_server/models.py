@@ -54,14 +54,6 @@ class PricingFilter(BaseModel):
         return data
 
 
-class PricingFilters(BaseModel):
-    """Container for multiple pricing filters."""
-
-    filters: list[PricingFilter] = Field(
-        default_factory=list, description='List of filters to apply to the pricing query'
-    )
-
-
 class OutputOptions(BaseModel):
     """Output filtering options for pricing responses to reduce response size."""
 
@@ -95,7 +87,7 @@ ATTRIBUTE_NAMES_FIELD = Field(
     ..., description='List of attribute names (e.g., ["instanceType", "location", "storageClass"])'
 )
 
-FILTERS_FIELD = Field(None, description='Optional filters for pricing queries')
+FILTERS_FIELD = Field(None, description='Optional list of filters to apply to the pricing query')
 
 GET_PRICING_MAX_ALLOWED_CHARACTERS_FIELD = Field(
     100000,

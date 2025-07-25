@@ -15,7 +15,7 @@
 """Tests for the server module of the aws-pricing-mcp-server."""
 
 import pytest
-from awslabs.aws_pricing_mcp_server.models import PricingFilter, PricingFilters
+from awslabs.aws_pricing_mcp_server.models import PricingFilter
 from awslabs.aws_pricing_mcp_server.pricing_transformer import (
     _is_free_product,
 )
@@ -94,14 +94,12 @@ class TestGetPricing:
 
     @pytest.mark.asyncio
     async def test_get_pricing_with_filters(self, mock_boto3, mock_context):
-        """Test getting pricing with filters using PricingFilters model."""
+        """Test getting pricing with filters."""
         # Create filters using the Pydantic models
-        filters = PricingFilters(
-            filters=[
-                PricingFilter(Field='instanceType', Value='t3.medium'),
-                PricingFilter(Field='location', Value='US East (N. Virginia)', Type='EQUALS'),
-            ]
-        )
+        filters = [
+            PricingFilter(Field='instanceType', Value='t3.medium'),
+            PricingFilter(Field='location', Value='US East (N. Virginia)', Type='EQUALS'),
+        ]
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
             result = await get_pricing(mock_context, 'AmazonEC2', 'us-east-1', filters)
@@ -125,8 +123,8 @@ class TestGetPricing:
         assert 'regionCode' in filter_fields  # Always added by the function
 
     @pytest.mark.asyncio
-    async def test_pricing_filters_model_validation(self):
-        """Test that PricingFilters model validates correctly."""
+    async def test_pricing_filter_model_validation(self):
+        """Test that PricingFilter model validates correctly."""
         # Test valid filter creation
         valid_filter = PricingFilter(Field='instanceType', Value='t3.medium')
         assert valid_filter.field == 'instanceType'
@@ -141,11 +139,6 @@ class TestGetPricing:
         assert filter_dict['Field'] == 'instanceType'
         assert filter_dict['Value'] == 't3.medium'
         assert filter_dict['Type'] == 'EQUALS'
-
-        # Test PricingFilters container
-        filters = PricingFilters(filters=[valid_filter])
-        assert len(filters.filters) == 1
-        assert filters.filters[0].field == 'instanceType'
 
     @pytest.mark.asyncio
     async def test_new_filter_types_validation(self):
