@@ -139,6 +139,9 @@ jobs:
           # Create signed tag with proper message
           git tag -a "$TAG" -m "Release $TAG" --sign
 
+          # Avoid checking too fast
+          sleep 5
+
           # Verify tag was created and is signed
           if ! git tag -v "$TAG" 2>/dev/null; then
             echo "::error::Failed to verify signed tag: $TAG" >&2
