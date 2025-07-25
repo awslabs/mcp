@@ -20,66 +20,12 @@ particularly focusing on column name conversion and schema transformation.
 
 import os
 import pyarrow as pa
-import re
 from ..utils import get_s3_client, pyiceberg_load_catalog
 from io import BytesIO
+from pydantic.alias_generators import to_snake
 from pyiceberg.exceptions import NoSuchTableError
 from typing import Any, Callable, Dict
 from urllib.parse import urlparse
-
-
-def to_snake_case(name: str) -> str:
-    """Convert a string to snake_case.
-
-    Handles:
-    - CamelCase -> snake_case (FirstName -> first_name)
-    - PascalCase -> snake_case (CustomerID -> customer_id)
-    - Spaces -> underscores (First Name -> first_name)
-    - Invalid characters -> underscores (Price-USD -> price_usd, Email@Domain -> email_domain)
-    - Multiple consecutive invalid chars -> single underscore (Price--USD -> price_usd)
-    - Ensures names start with letter/underscore (1stColumn -> _1st_column)
-    - Preserves existing underscores and converts remaining text to lowercase
-
-    Args:
-        name: Original column name
-
-    Returns:
-        snake_case column name
-    """
-    if not name:
-        return '_empty_column'
-
-    # Step 1: Handle CamelCase/PascalCase by inserting underscores before uppercase letters
-    # This regex finds uppercase letters that are either:
-    # - Preceded by a lowercase letter or digit (camelCase)
-    # - Followed by a lowercase letter (XMLHttp -> XML_Http)
-    name = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', name)
-    name = re.sub(r'(?<=[A-Z])(?=[A-Z][a-z])', '_', name)
-
-    # Step 2: Replace spaces with underscores
-    name = name.replace(' ', '_')
-
-    # Step 3: Replace invalid characters (anything that's not alphanumeric or underscore) with underscores
-    name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
-
-    # Step 4: Replace multiple consecutive underscores with single underscore
-    name = re.sub(r'_+', '_', name)
-
-    # Step 5: Convert to lowercase
-    name = name.lower()
-
-    # Step 6: Handle edge case of empty result or only underscores
-    if not name or name == '_':
-        return '_column'
-
-    # Step 7: Remove leading/trailing underscores if they exist after processing
-    name = name.strip('_')
-
-    # Step 8: Ensure name starts with letter or underscore (not a digit)
-    if name and name[0].isdigit():
-        name = '_' + name
-
-    return name
 
 
 def convert_column_names_to_snake_case(schema: pa.Schema) -> pa.Schema:
@@ -98,7 +44,7 @@ def convert_column_names_to_snake_case(schema: pa.Schema) -> pa.Schema:
     original_names = schema.names
 
     # Convert each column name to snake_case
-    converted_names = [to_snake_case(name) for name in original_names]
+    converted_names = [to_snake(name) for name in original_names]
 
     # Check for duplicates after conversion using set and len
     if len(set(converted_names)) != len(converted_names):

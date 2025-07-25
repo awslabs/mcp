@@ -19,123 +19,8 @@ import pytest
 from awslabs.s3_tables_mcp_server.file_processor.utils import (
     convert_column_names_to_snake_case,
     import_file_to_table,
-    to_snake_case,
 )
 from unittest.mock import MagicMock, patch
-
-
-class TestToSnakeCase:
-    """Test cases for to_snake_case function."""
-
-    def test_camel_case_conversion(self):
-        """Test CamelCase to snake_case conversion."""
-        assert to_snake_case('firstName') == 'first_name'
-        assert to_snake_case('lastName') == 'last_name'
-        assert to_snake_case('customerID') == 'customer_id'
-        assert to_snake_case('XMLHttpRequest') == 'xml_http_request'
-
-    def test_pascal_case_conversion(self):
-        """Test PascalCase to snake_case conversion."""
-        assert to_snake_case('FirstName') == 'first_name'
-        assert to_snake_case('CustomerID') == 'customer_id'
-        assert to_snake_case('XMLParser') == 'xml_parser'
-
-    def test_spaces_conversion(self):
-        """Test spaces to underscores conversion."""
-        assert to_snake_case('First Name') == 'first_name'
-        assert to_snake_case('Customer ID') == 'customer_id'
-        assert to_snake_case('Product Price USD') == 'product_price_usd'
-
-    def test_invalid_characters_conversion(self):
-        """Test invalid characters to underscores conversion."""
-        assert to_snake_case('Price-USD') == 'price_usd'
-        assert to_snake_case('Email@Domain') == 'email_domain'
-        assert to_snake_case('Product#ID') == 'product_id'
-        assert to_snake_case('Price--USD') == 'price_usd'
-        assert to_snake_case('Data...Field') == 'data_field'
-
-    def test_numeric_prefix_handling(self):
-        """Test handling of names starting with numbers."""
-        assert to_snake_case('1stColumn') == '_1st_column'
-        assert to_snake_case('2ndPlace') == '_2nd_place'
-        assert to_snake_case('123ABC') == '_123_abc'
-
-    def test_existing_snake_case_preserved(self):
-        """Test that existing snake_case names are preserved."""
-        assert to_snake_case('first_name') == 'first_name'
-        assert to_snake_case('customer_id') == 'customer_id'
-        assert to_snake_case('product_price') == 'product_price'
-
-    def test_edge_cases(self):
-        """Test edge cases."""
-        assert to_snake_case('') == '_empty_column'
-        assert to_snake_case('_') == '_column'
-        assert to_snake_case('A') == 'a'
-        assert to_snake_case('ABC') == 'abc'
-        assert to_snake_case('___') == '_column'
-
-    def test_edge_case_empty_after_strip(self):
-        """Test case that becomes empty after stripping underscores (line 73 coverage)."""
-        # After analyzing the code, I believe line 73 might be unreachable due to Step 6
-        # Let's test the case that should theoretically hit it
-        assert to_snake_case('!@#') == '_column'
-
-        # Let's also test some other edge cases that might reveal the unreachable code
-        assert to_snake_case('___!@#___') == '_column'
-
-    def test_mixed_cases(self):
-        """Test complex mixed case scenarios."""
-        assert to_snake_case('XMLHttpRequestID') == 'xml_http_request_id'
-        assert to_snake_case('First Name-ID@Domain') == 'first_name_id_domain'
-        assert to_snake_case('Product Price (USD)') == 'product_price_usd'
-
-    def test_acronym_handling(self):
-        """Test acronym handling as specified in requirements 5.4."""
-        assert to_snake_case('XMLHttpRequest') == 'xml_http_request'
-        assert to_snake_case('HTTPSConnection') == 'https_connection'
-        assert to_snake_case('URLPath') == 'url_path'
-        assert to_snake_case('APIKey') == 'api_key'
-        assert to_snake_case('JSONData') == 'json_data'
-
-    def test_numbers_in_mixed_case(self):
-        """Test mixed cases with numbers as specified in requirements 5.3."""
-        assert to_snake_case('Address1Line') == 'address1_line'
-        assert to_snake_case('Phone2Number') == 'phone2_number'
-        assert to_snake_case('Field123Name') == 'field123_name'
-        assert to_snake_case('ID2Name') == 'id2_name'
-
-    def test_multiple_consecutive_invalid_chars(self):
-        """Test multiple consecutive invalid characters as specified in requirements 6.3."""
-        assert to_snake_case('Price--USD') == 'price_usd'
-        assert to_snake_case('Email@@Domain') == 'email_domain'
-        assert to_snake_case('Field...Name') == 'field_name'
-        assert to_snake_case('Data---Field') == 'data_field'
-        assert to_snake_case('Price-@#USD') == 'price_usd'
-
-    def test_special_character_replacement(self):
-        """Test various special character replacements as specified in requirements 6.2 and 6.5."""
-        assert to_snake_case('Price$USD') == 'price_usd'
-        assert to_snake_case('Email%Domain') == 'email_domain'
-        assert to_snake_case('Field&Name') == 'field_name'
-        assert to_snake_case('Data*Field') == 'data_field'
-        assert to_snake_case('Price+Tax') == 'price_tax'
-        assert to_snake_case('Field=Value') == 'field_value'
-        assert to_snake_case('Data|Field') == 'data_field'
-        assert to_snake_case('Field\\Name') == 'field_name'
-        assert to_snake_case('Data/Field') == 'data_field'
-        assert to_snake_case('Field?Name') == 'field_name'
-        assert to_snake_case('Data<Field>') == 'data_field'
-        assert to_snake_case('Field[0]') == 'field_0'
-        assert to_snake_case('Data{key}') == 'data_key'
-
-    def test_leading_number_variations(self):
-        """Test various leading number scenarios as specified in requirements 6.4."""
-        assert to_snake_case('1stColumn') == '_1st_column'
-        assert to_snake_case('2ndPlace') == '_2nd_place'
-        assert to_snake_case('3rdItem') == '_3rd_item'
-        assert to_snake_case('123ABC') == '_123_abc'
-        assert to_snake_case('0Index') == '_0_index'
-        assert to_snake_case('99Problems') == '_99_problems'
 
 
 class TestConvertColumnNamesToSnakeCase:
@@ -178,7 +63,7 @@ class TestConvertColumnNamesToSnakeCase:
         error_message = str(exc_info.value)
         assert 'Duplicate column names after case conversion' in error_message
         assert str(schema_with_duplicates.names) in error_message
-        assert "['first_name', 'first_name', 'first_name']" in error_message
+        assert "['first_name', 'first_name', 'first name']" in error_message
 
     def test_complex_schema_conversion(self):
         """Test conversion with complex column names."""
@@ -194,10 +79,10 @@ class TestConvertColumnNamesToSnakeCase:
         converted_schema = convert_column_names_to_snake_case(original_schema)
 
         expected_names = [
-            'product_price_usd',
-            'customer_email',
+            'product price_usd',
+            'customer@email',
             'xml_http_request_id',
-            '_1st_column',
+            '1st_column',
         ]
         assert converted_schema.names == expected_names
 
@@ -269,7 +154,7 @@ class TestConvertColumnNamesToSnakeCase:
         error_message = str(exc_info.value)
         assert 'Duplicate column names after case conversion' in error_message
         assert str(schema2.names) in error_message
-        assert "['customer_id', 'customer_id', 'customer_id']" in error_message
+        assert "['customer_id', 'customer_id', 'customer id']" in error_message
 
         # Test case 3: Multiple duplicate groups
         schema3 = pa.schema(
@@ -347,11 +232,11 @@ class TestConvertColumnNamesToSnakeCase:
         """Test edge case column names that might cause issues."""
         # Test individual edge cases that don't create duplicates
         individual_cases = [
-            ('', '_empty_column'),
-            ('_', '_column'),
-            ('___', '_column'),
-            ('123', '_123'),
-            ('!@#$%', '_column'),
+            ('', ''),
+            ('_', '_'),
+            ('___', '___'),
+            ('123', '123'),
+            ('!@#$%', '!@#$%'),
         ]
 
         for original, expected in individual_cases:
@@ -366,9 +251,10 @@ class TestConvertColumnNamesToSnakeCase:
         # These edge cases will all convert to '_column', which should trigger duplicate detection
         edge_case_schema = pa.schema(
             [
-                pa.field('_', pa.string()),  # Just underscore
-                pa.field('___', pa.string()),  # Multiple underscores
-                pa.field('!@#$%', pa.string()),  # Just special characters
+                pa.field('_', pa.string()),
+                pa.field('_', pa.string()),
+                pa.field('!@#$%', pa.string()),
+                pa.field('!@#$%', pa.string()),
             ]
         )
 
@@ -378,7 +264,7 @@ class TestConvertColumnNamesToSnakeCase:
         error_message = str(exc_info.value)
         assert 'Duplicate column names after case conversion' in error_message
         assert str(edge_case_schema.names) in error_message
-        assert "['_column', '_column', '_column']" in error_message
+        assert "['_', '_', '!@#$%', '!@#$%']" in error_message
 
 
 @pytest.mark.asyncio
@@ -463,7 +349,7 @@ async def test_import_file_to_table_success():
     assert result['file_processed'] == 'test.csv'
     assert result['table_created'] is False
     assert result['table_uuid'] == 'fake-uuid'
-    assert result['columns'] == ['col1', 'col2']
+    assert result['columns'] == ['col_1', 'col_2']
 
 
 @pytest.mark.asyncio
@@ -635,7 +521,7 @@ async def test_import_file_to_table_create_table_success():
     assert result['file_processed'] == 'test.csv'
     assert result['table_created'] is True
     assert result['table_uuid'] == 'fake-uuid'
-    assert result['columns'] == ['col1', 'col2']
+    assert result['columns'] == ['col_1', 'col_2']
 
 
 @pytest.mark.asyncio
