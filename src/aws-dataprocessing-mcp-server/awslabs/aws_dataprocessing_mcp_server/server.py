@@ -63,6 +63,9 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.interactive_sessions_ha
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.worklows_handler import (
     GlueWorkflowAndTriggerHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.lakeformation.governance_handler import (
+    GovernanceHandler,
+)
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -222,7 +225,7 @@ It enables you to create, manage, and monitor data processing workflows.
 6. Update a classifier: `manage_aws_glue_classifiers(operation='update-classifier', classifier_definition={...})`
 7. Delete a classifier: `manage_aws_glue_classifiers(operation='delete-classifier', classifier_name='my-classifier')`
 8. List all classifiers: `manage_aws_glue_classifiers(operation='get-classifiers')`
-9. Manage crawler schedules: `manage_aws_glue_crawler_management(operation='update-crawler-schedule', crawler_name='my-crawler', schedule='cron(0 0 * * ? *)')`
+9. Manage crawler schedules: `manage_aws_glue_crawler_management(operation='update-crawler-schedule', crawler_name='my-crawler', schedule='cron(0 12 * * ? *)')`
 10. Get crawler metrics: `manage_aws_glue_crawler_management(operation='get-crawler-metrics', crawler_name_list=['my-crawler'])`
 
 ### IAM Role Management
@@ -246,6 +249,13 @@ It enables you to create, manage, and monitor data processing workflows.
 - Use Glue Crawlers to automatically discover and catalog data in your data lake.
 - Organize your Data Catalog with meaningful database and table names.
 - Use connections to securely store and manage credentials for external data sources.
+### Lake Formation Governance
+1. List permissions: `manage_aws_lakeformation_permissions(operation='list-permissions', principal='arn:aws:iam::123456789012:user/testuser')`
+2. Get data lake settings: `manage_aws_lakeformation_datalakesettings(operation='get-data-lake-settings')`
+3. List resources: `manage_aws_lakeformation_resources(operation='list-resources')`
+4. Describe resource: `manage_aws_lakeformation_resources(operation='describe-resource', resource_arn='arn:aws:s3:::my-lake-bucket')`
+5. Batch get effective permissions for path: `manage_aws_lakeformation_permissions(operation='batch-get-effective-permissions-for-path', resource_path='s3://my-lake-bucket/my-data/')`
+
 """
 
 SERVER_DEPENDENCIES = [
@@ -373,6 +383,11 @@ def main():
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
     CommonResourceHandler(mcp, allow_write=allow_write)
+    GovernanceHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
 
     # Run server
     mcp.run()
