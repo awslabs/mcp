@@ -44,7 +44,8 @@ from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.elicitation import AcceptedElicitation
 from mcp.server.fastmcp import Context, FastMCP
-from mcp.types import ToolAnnotations
+from mcp.shared.exceptions import McpError
+from mcp.types import METHOD_NOT_FOUND, ToolAnnotations
 from pydantic import Field
 from typing import Annotated, Any, Optional, cast
 
@@ -216,20 +217,28 @@ async def call_aws(
                     detail=error_message,
                 )
             elif not BYPASS_TOOL_CONSENT:
-                elicitation_result = await ctx.elicit(
-                    message=f"The CLI command '{cli_command}' requires explicit consent. Do you approve the execution of this command?",
-                    schema=Consent,
-                )
-
-                if (
-                    not isinstance(elicitation_result, AcceptedElicitation)
-                    or not elicitation_result.data.answer
-                ):
-                    error_message = 'User rejected the execution of the command.'
-                    await ctx.error(error_message)
-                    return AwsApiMcpServerErrorResponse(
-                        detail=error_message,
+                try:
+                    elicitation_result = await ctx.elicit(
+                        message=f"The CLI command '{cli_command}' requires explicit consent. Do you approve the execution of this command?",
+                        schema=Consent,
                     )
+
+                    if (
+                        not isinstance(elicitation_result, AcceptedElicitation)
+                        or not elicitation_result.data.answer
+                    ):
+                        error_message = 'User rejected the execution of the command.'
+                        await ctx.error(error_message)
+                        return AwsApiMcpServerErrorResponse(
+                            detail=error_message,
+                        )
+                except McpError as e:
+                    if e.error.code == METHOD_NOT_FOUND:
+                        error_message = 'Client does not support elicitation. Use a different client or update the server configuration.'
+                        logger.error(error_message)
+                        raise AwsApiMcpError(error_message)
+
+                    raise e
 
     except AwsApiMcpError as e:
         error_message = f'Error while validating the command: {e.as_failure().reason}'
