@@ -19,6 +19,7 @@ in the Finch MCP server tools.
 """
 
 from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional
 
 
 class Result(BaseModel):
@@ -31,3 +32,18 @@ class Result(BaseModel):
 
     status: str = Field(..., description="Status of the operation ('success', 'error', etc.)")
     message: str = Field(..., description='Descriptive message about the result of the operation')
+
+
+class ContainerInspectResult(Result):
+    """Result model for inspecting a container."""
+
+    container_info: Optional[Dict[str, Any]] = Field(
+        None, description='Detailed information about the container'
+    )
+    raw_output: Optional[str] = Field(None, description='Raw output from the inspect command')
+
+
+class ContainerLSResult(Result):
+    """Result model for listing containers."""
+
+    raw_output: Optional[str] = Field(None, description='Raw output from the command')
