@@ -52,8 +52,9 @@ class RedshiftClientManager:
             try:
                 if self.aws_profile:
                     session = boto3.Session(profile_name=self.aws_profile)
-                    self._redshift_client = session.client('redshift', config=self._config)
                     logger.info(f'Created Redshift client with profile: {self.aws_profile}')
+                    self._redshift_client = session.client('redshift', config=self._config, region_name=self.aws_region)
+                    logger.info(f'Created Redshift client with profile: {self.aws_profile} and region: {self.aws_region}')
                 else:
                     self._redshift_client = boto3.client(
                         'redshift', config=self._config, region_name=self.aws_region
@@ -72,10 +73,10 @@ class RedshiftClientManager:
                 if self.aws_profile:
                     session = boto3.Session(profile_name=self.aws_profile)
                     self._redshift_serverless_client = session.client(
-                        'redshift-serverless', config=self._config
+                        'redshift-serverless', config=self._config, region_name=self.aws_region
                     )
                     logger.info(
-                        f'Created Redshift Serverless client with profile: {self.aws_profile}'
+                        f'Created Redshift Serverless client with profile: {self.aws_profile} and region: {self.aws_region}'
                     )
                 else:
                     self._redshift_serverless_client = boto3.client(
@@ -95,10 +96,10 @@ class RedshiftClientManager:
                 if self.aws_profile:
                     session = boto3.Session(profile_name=self.aws_profile)
                     self._redshift_data_client = session.client(
-                        'redshift-data', config=self._config
+                        'redshift-data', config=self._config, region_name=self.aws_region
                     )
                     logger.info(
-                        f'Created Redshift Data API client with profile: {self.aws_profile}'
+                        f'Created Redshift Data API client with profile: {self.aws_profile} and region: {self.aws_region}'
                     )
                 else:
                     self._redshift_data_client = boto3.client(
