@@ -59,7 +59,6 @@ class TestHybridNodesHandler:
 
             # Verify that the handler has the correct attributes
             assert handler.mcp == mock_mcp
-            assert handler.allow_write is False
             assert handler.allow_sensitive_data_access is False
 
             # Verify that AWS clients were created
@@ -78,12 +77,11 @@ class TestHybridNodesHandler:
         # Initialize the handler with custom parameters
         with patch('awslabs.eks_mcp_server.hybrid_nodes_handler.AwsHelper'):
             handler = HybridNodesHandler(
-                mock_mcp, allow_write=True, allow_sensitive_data_access=True
+                mock_mcp, allow_sensitive_data_access=True
             )
 
             # Verify that the handler has the correct attributes
             assert handler.mcp == mock_mcp
-            assert handler.allow_write is True
             assert handler.allow_sensitive_data_access is True
 
     @pytest.mark.asyncio
@@ -220,11 +218,11 @@ class TestHybridNodesHandler:
         # Set up EKS mock response with missing VPC ID
         mock_eks_client.describe_cluster.return_value = {
             'cluster': {
-                'resourcesVpcConfig': {}  # No VPC ID in response
+                'resourcesVpcConfig': {}
             }
         }
 
-        # Initialize the handler with our mock clients
+        # Initialize the handler with mock clients
         handler = HybridNodesHandler(mock_mcp)
         handler.ec2_client = mock_ec2_client
         handler.eks_client = mock_eks_client
@@ -733,7 +731,7 @@ class TestHybridNodesHandler:
         # Verify API calls with category filter parameter
         mock_eks_client.list_insights.assert_called_once_with(
             clusterName='test-cluster',
-            categories=['CONFIGURATION'],  # Verify category passed to API
+            filter={'categories': ['CONFIGURATION']},  # Verify filter structure matches AWS API
         )
 
         # Verify the result
@@ -1032,13 +1030,12 @@ class TestHybridNodesHandler:
         handler.ec2_client = mock_ec2_client
         
         # Call the helper method
-        vpc, cidr_block, additional_cidr_blocks = await handler._get_vpc_details(mock_context, 'vpc-12345')
+        cidr_block, additional_cidr_blocks = await handler._get_vpc_details(mock_context, 'vpc-12345')
         
         # Verify EC2 client was called
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
         
         # Verify the result
-        assert vpc == mock_ec2_client.describe_vpcs.return_value['Vpcs'][0]
         assert cidr_block == '10.0.0.0/16'
         assert len(additional_cidr_blocks) == 1
         assert additional_cidr_blocks[0] == '10.1.0.0/16'

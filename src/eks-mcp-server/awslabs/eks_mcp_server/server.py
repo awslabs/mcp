@@ -150,7 +150,7 @@ def main():
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
     IAMHandler(mcp, allow_write)
     CloudWatchMetricsHandler(mcp)
-    HybridNodesHandler(mcp, allow_write, allow_sensitive_data_access)
+    HybridNodesHandler(mcp, allow_sensitive_data_access)
 
     # Run server
     mcp.run()

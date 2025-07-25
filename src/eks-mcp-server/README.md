@@ -404,6 +404,7 @@ Features:
 * Automatically identifies and includes remote node and pod CIDR configurations for hybrid node setups
 * Validates subnet capacity for EKS networking requirements
 * Flags subnets in disallowed availability zones that can't be used with EKS
+* Requires `--allow-sensitive-data-access` server flag to be enabled
 
 Parameters:
 
@@ -518,15 +519,16 @@ Retrieves Amazon EKS Insights that identify potential issues with your EKS clust
 
 Features:
 
-* Returns insights in two categories: CONFIGURATION (for misconfigurations) and UPGRADE_READINESS (for upgrade blockers)
+* Returns insights in two categories: MISCONFIGURATION and UPGRADE_READINESS (for upgrade blockers)
 * Supports both list mode (all insights) and detail mode (specific insight with recommendations)
 * Includes status, descriptions, and timestamps for each insight
 * Provides detailed recommendations for addressing identified issues when using detail mode
-* Supports optional filtering by insight category and cross-region analysis
+* Supports optional filtering by insight category
+* Requires `--allow-sensitive-data-access` server flag to be enabled
 
 Parameters:
 
-* cluster_name, insight_id (optional), category (optional), region (optional)
+* cluster_name, insight_id (optional), category (optional), next_token (optional)
 
 
 ## Security & permissions

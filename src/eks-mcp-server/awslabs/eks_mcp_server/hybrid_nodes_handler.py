@@ -39,18 +39,15 @@ class HybridNodesHandler:
     def __init__(
         self,
         mcp,
-        allow_write: bool = False,
         allow_sensitive_data_access: bool = False,
     ):
         """Initialize the Hybrid Nodes handler.
 
         Args:
             mcp: The MCP server instance
-            allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
         """
         self.mcp = mcp
-        self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
 
         # Register tools
@@ -136,7 +133,7 @@ class HybridNodesHandler:
 
     async def _get_vpc_details(
         self, ctx: Context, vpc_id: str
-    ) -> tuple[dict, str, list[str]]:
+    ) -> tuple[str, list[str]]:
         """Get VPC details using the VPC ID.
 
         Args:
@@ -144,7 +141,7 @@ class HybridNodesHandler:
             vpc_id: ID of the VPC to query
 
         Returns:
-            Tuple of (vpc, cidr_block, additional_cidr_blocks)
+            Tuple of (cidr_block, additional_cidr_blocks)
 
         Raises:
             Exception: If the VPC is not found
@@ -166,7 +163,7 @@ class HybridNodesHandler:
             if 'CidrBlock' in cidr_association
         ]
 
-        return vpc, cidr_block, additional_cidr_blocks
+        return cidr_block, additional_cidr_blocks
 
     async def _get_subnet_information(self, ctx: Context, vpc_id: str) -> list[dict]:
         """Get subnet information for a VPC.
@@ -371,7 +368,7 @@ class HybridNodesHandler:
 
             try:
                 # Get VPC details
-                _, cidr_block, additional_cidr_blocks = await self._get_vpc_details(ctx, vpc_id)
+                cidr_block, additional_cidr_blocks = await self._get_vpc_details(ctx, vpc_id)
                 
                 # Get subnet information
                 subnets = await self._get_subnet_information(ctx, vpc_id)
@@ -441,7 +438,7 @@ class HybridNodesHandler:
         ),
         category: Optional[str] = Field(
             None,
-            description='Filter insights by category (e.g., "CONFIGURATION" or "UPGRADE_READINESS")',
+            description='Filter insights by category (e.g., "MISCONFIGURATION" or "UPGRADE_READINESS")',
         ),
         next_token: Optional[str] = Field(
             None,
@@ -455,7 +452,7 @@ class HybridNodesHandler:
         and upgrade readiness concerns that might affect hybrid nodes functionality.
 
         Amazon EKS provides two types of insights:
-        - CONFIGURATION insights: Identify misconfigurations in your EKS cluster setup
+        - MISCONFIGURATION insights: Identify misconfigurations in your EKS cluster setup
         - UPGRADE_READINESS insights: Identify issues that could prevent successful cluster upgrades
 
         When used without an insight_id, it returns a list of all insights.
@@ -470,7 +467,7 @@ class HybridNodesHandler:
         recommendations for addressing identified issues.
 
         ## Usage Tips
-        - Review CONFIGURATION insights to identify cluster misconfigurations
+        - Review MISCONFIGURATION insights to identify cluster misconfigurations
         - Check UPGRADE_READINESS insights before upgrading your cluster
         - Pay special attention to insights with FAILING status
         - Focus on insights related to node and network configuration for hybrid nodes
@@ -479,7 +476,7 @@ class HybridNodesHandler:
             ctx: MCP context
             cluster_name: Name of the EKS cluster
             insight_id: Optional ID of a specific insight to get detailed information for
-            category: Optional category to filter insights by (e.g., "CONFIGURATION" or "UPGRADE_READINESS")
+            category: Optional category to filter insights by (e.g., "MISCONFIGURATION" or "UPGRADE_READINESS")
             next_token: Optional token for pagination to get the next set of results
 
         Returns:
@@ -623,7 +620,10 @@ class HybridNodesHandler:
                 log_with_request_id(
                     ctx, LogLevel.INFO, f'Filtering insights by category: {category}'
                 )
-                list_params['categories'] = [category]
+                # Use the filter parameter with the correct structure
+                list_params['filter'] = {
+                    'categories': [category]
+                }
                 
             # Add next_token if provided
             if next_token:
