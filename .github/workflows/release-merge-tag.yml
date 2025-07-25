@@ -139,6 +139,9 @@ jobs:
           # Create signed tag with proper message
           git tag -a "$TAG" -m "Release $TAG" --sign
 
+          # Avoid checking too fast
+          sleep 5
+
           # Verify tag was created and is signed
           if ! git tag -v "$TAG" 2>/dev/null; then
             echo "::error::Failed to verify signed tag: $TAG" >&2
@@ -161,7 +164,7 @@ jobs:
           echo "tag-created=true" >> $GITHUB_OUTPUT
           echo "::debug::Successfully created and pushed signed tag: $TAG"
           echo "### :pushpin: Merge Tagged" >> $GITHUB_STEP_SUMMARY
-          echo "[$TAG](https://github.com/${{ github.repository }}/releases/tag/$TAG) create so watch the [workflow](https://github.com/${{ github.repository }}/actions/workflows/release-tag-release.yml)" >> $GITHUB_STEP_SUMMARY
+          echo "[$TAG](https://github.com/${{ github.repository }}/releases/tag/$TAG) create so watch the [workflow](https://github.com/${{ github.repository }}/actions/workflows/release.yml)" >> $GITHUB_STEP_SUMMARY
       - name: Secure cleanup
         if: always()
         run: |

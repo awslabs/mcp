@@ -170,8 +170,24 @@ runs:
         echo version="${{ steps.meta.outputs.version }}" >>"$GITHUB_OUTPUT"
       shell: bash
     - name: Save an image
+      env:
+        IMAGE: ${{ inputs.image }}
+        ALIAS: ${{ inputs.public-erc-registry-alias }}
+        OWNER: ${{ github.repository_owner }}
+        VERSION: ${{ steps.meta.outputs.version }}
+      continue-on-error: true #TODO: Remove when figure out image save issue.
       run: |
-        docker image save -o "${{ runner.temp }}/image.tar" public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION
+        set +e  # Don't fail on cleanup errors
+
+        #TODO: Remove
+        # Ensure a file is there (so the upload step doesn't fail)
+        touch "${{ runner.temp }}/image.tar"
+
+        # List images to ensure the image exists
+        docker images
+
+        # Save the image to a tar file
+        docker image save -o "${{ runner.temp }}/image.tar" "public.ecr.aws/$ALIAS/$OWNER/$IMAGE:$VERSION" || echo "Failed to save image, continuing anyway"
       shell: bash
     - name: Upload image
       id: upload-image

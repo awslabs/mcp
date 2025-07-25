@@ -36,7 +36,7 @@ NOTICE                                @awslabs/mcp-admins
 /src/aws-healthomics-mcp-server         @markjschreiber			             @awslabs/mcp-admins
 #/src/aws-location-mcp-server           @awslabs/mcp-maintainers         @awslabs/mcp-admins
 /src/aws-msk-mcp-server                 @elmoctarebnou @dingyiheng       @awslabs/mcp-admins
-/src/aws-pricing-mcp-server             @nspring00 @aytech-in            @awslabs/mcp-admins
+/src/aws-pricing-mcp-server             @nspring00 @aytech-in @s12v      @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                          @awslabs/mcp-admins
 /src/aws-support-mcp-server             @Wook133                         @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers         @awslabs/mcp-admins
