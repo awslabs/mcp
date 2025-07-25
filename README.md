@@ -133,6 +133,7 @@ Build, deploy, and manage cloud infrastructure with Infrastructure as Code best 
 
 ##### Infrastructure as Code
 
+- **[AWS Cloud Control API MCP Server](src/ccapi-mcp-server/)** - Comprehensive AWS resource management with integrated security scanning and full CRUDL (Create/Read/Update/Read/List) to AWS services using a standardized API, the AWS Cloud Control API.
 - **[AWS CDK MCP Server](src/cdk-mcp-server/)** - AWS CDK development with security compliance and best practices
 - **[AWS Terraform MCP Server](src/terraform-mcp-server/)** - Terraform workflows with integrated security scanning
 - **[AWS CloudFormation MCP Server](src/cfn-mcp-server/)** - Direct CloudFormation resource management via Cloud Control API
@@ -215,7 +216,6 @@ Connect systems with messaging, workflows, and location services.
 - **[Amazon Location Service MCP Server](src/aws-location-mcp-server/)** - Place search, geocoding, and route optimization
 - **[OpenAPI MCP Server](src/openapi-mcp-server/)** - Dynamic API integration through OpenAPI specifications
 
-
 #### 💰 Cost & Operations
 
 Monitor, optimize, and manage your AWS infrastructure and costs.
@@ -238,7 +238,7 @@ Interact with AWS HealthAI services.
 
 #### 👨‍💻 Vibe Coding & Development
 
-*AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Code helping you build faster*
+_AI coding assistants like Amazon Q Developer CLI, Cline, Cursor, and Claude Code helping you build faster_
 
 ##### Core Development Workflow
 
@@ -248,6 +248,7 @@ Interact with AWS HealthAI services.
 
 ##### Infrastructure as Code
 
+- **[AWS Cloud Control API MCP Server](src/ccapi-mcp-server/)** - Comprehensive AWS resource management with integrated security scanning and full CRUDL (Create/Read/Update/Read/List) to AWS services using a standardized API, the AWS Cloud Control API.
 - **[AWS CDK MCP Server](src/cdk-mcp-server/)** - CDK development with security best practices and compliance
 - **[AWS Terraform MCP Server](src/terraform-mcp-server/)** - Terraform with integrated security scanning and best practices
 - **[AWS CloudFormation MCP Server](src/cfn-mcp-server/)** - Direct AWS resource management through Cloud Control API
@@ -276,7 +277,7 @@ Interact with AWS HealthAI services.
 
 #### 💬 Conversational Assistants
 
-*Customer-facing chatbots, business agents, and interactive Q&A systems*
+_Customer-facing chatbots, business agents, and interactive Q&A systems_
 
 ##### Knowledge & Search
 
@@ -300,7 +301,7 @@ Interact with AWS HealthAI services.
 
 #### 🤖 Autonomous Background Agents
 
-*Headless automation, ETL pipelines, and operational systems*
+_Headless automation, ETL pipelines, and operational systems_
 
 ##### Data Operations & ETL
 
@@ -327,7 +328,6 @@ Interact with AWS HealthAI services.
 - **[Amazon SNS / SQS MCP Server](src/amazon-sns-sqs-mcp-server/)** - Event-driven messaging and queue processing
 - **[Amazon MQ MCP Server](src/amazon-mq-mcp-server/)** - Message broker operations
 - **[Amazon MSK MCP Server](src/aws-msk-mcp-server/)** - Managed Kafka cluster operations and streaming
-
 
 ##### Operations & Monitoring
 
@@ -356,6 +356,7 @@ See [`src/mcp-lambda-handler/README.md`](src/mcp-lambda-handler/README.md) for f
 AWS MCP servers can be run either locally on your development machine or remotely on the cloud. Here's when to use each approach:
 
 ### Local MCP Servers
+
 - **Development & Testing**: Perfect for local development, testing, and debugging
 - **Offline Work**: Continue working when internet connectivity is limited
 - **Data Privacy**: Keep sensitive data and credentials on your local machine
@@ -363,6 +364,7 @@ AWS MCP servers can be run either locally on your development machine or remotel
 - **Resource Control**: Direct control over server resources and configuration
 
 ### Remote MCP Servers
+
 - **Team Collaboration**: Share consistent server configurations across your team
 - **Resource Intensive Tasks**: Offload heavy processing to dedicated cloud resources
 - **Always Available**: Access your MCP servers from anywhere, any device
@@ -391,18 +393,14 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
   "mcpServers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.core-mcp-server@latest"
-      ],
+      "args": ["awslabs.core-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.nova-canvas-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.nova-canvas-mcp-server@latest"
-      ],
+      "args": ["awslabs.nova-canvas-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -411,9 +409,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.bedrock-kb-retrieval-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.bedrock-kb-retrieval-mcp-server@latest"
-      ],
+      "args": ["awslabs.bedrock-kb-retrieval-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -422,9 +418,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.aws-pricing-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.aws-pricing-mcp-server@latest"
-      ],
+      "args": ["awslabs.aws-pricing-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -432,18 +426,14 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.cdk-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.cdk-mcp-server@latest"
-      ],
+      "args": ["awslabs.cdk-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
     "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.aws-documentation-mcp-server@latest"
-      ],
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -452,9 +442,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.lambda-tool-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.lambda-tool-mcp-server@latest"
-      ],
+      "args": ["awslabs.lambda-tool-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
@@ -466,9 +454,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.terraform-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.terraform-mcp-server@latest"
-      ],
+      "args": ["awslabs.terraform-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -477,9 +463,7 @@ Example configuration for Amazon Q CLI MCP (`~/.aws/amazonq/mcp.json`):
     },
     "awslabs.frontend-mcp-server": {
       "command": "uvx",
-      "args": [
-        "awslabs.frontend-mcp-server@latest"
-      ],
+      "args": ["awslabs.frontend-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -507,16 +491,16 @@ usage: awslabs.mysql-mcp-server [-h] --resource_arn RESOURCE_ARN --secret_arn SE
 awslabs.mysql-mcp-server: error: the following arguments are required: --resource_arn, --secret_arn, --database, --region, --readonly
 ```
 
-**Note about performance when using `uvx` *"@latest"* suffix:**
+**Note about performance when using `uvx` _"@latest"_ suffix:**
 
-Using the *"@latest"* suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove *"@latest"* and manage your uv cache yourself using one of these approaches:
+Using the _"@latest"_ suffix checks and downloads the latest MCP server package from pypi every time you start your MCP clients, but it comes with a cost of increased initial load times. If you want to minimize the initial load time, remove _"@latest"_ and manage your uv cache yourself using one of these approaches:
 
 - `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-tool-mcp-server") (remember to remove the '<>').
 - `uvx <tool>@latest`: this will refresh the tool with the latest version and add it to the uv cache.
 
 ### Running MCP servers in containers
 
-*This example uses docker with the "awslabs.nova-canvas-mcp-server and can be repeated for each MCP server*
+_This example uses docker with the "awslabs.nova-canvas-mcp-server and can be repeated for each MCP server_
 
 - Build and tag the image
 
@@ -560,6 +544,7 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
     }
   }
   ```
+
 ### Getting Started with Amazon Q Developer CLI
 
 <details>
@@ -567,15 +552,16 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 
 See [Amazon Q Developer CLI documentation](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-mcp-config-CLI.html) for details.
 
-
 1. **Access MCP Settings**
+
    - Open the Q Developer panel and open the **Chat** panel.
    - Choose the tools icon to access to MCP configuration.
 
 2. **Add MCP Servers**
+
    - Choose the plus (+) symbol.
    - Select the scope: global or local.
-    If you select global scope, the MCP server configuration is stored in ~/.aws/amazonq/mcp.json and available across all your projects. If you select local scope, the configuration is stored in .amazonq/mcp.json within your current project.
+     If you select global scope, the MCP server configuration is stored in ~/.aws/amazonq/mcp.json and available across all your projects. If you select local scope, the configuration is stored in .amazonq/mcp.json within your current project.
    - Fill in values as applicable.
 
 3. **Manual Configuration**
@@ -596,8 +582,8 @@ See [Amazon Q Developer CLI documentation](https://docs.aws.amazon.com/amazonq/l
   }
 }
 ```
-</details>
 
+</details>
 
 ### Getting Started with Kiro
 
@@ -682,42 +668,42 @@ For Windows:
    <img src="./docs/images/root-readme/configure-mcp-servers.png" width="500" height="800"  />
  <p>
 
- 5. In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
+5.  In the `cline_mcp_settings.json` file, add your desired MCP servers in the `mcpServers` object. See the following example that will use some of the current AWS MCP servers that are available in this repository. Ensure you save the file to install the MCP servers.
 
 #### `cline_mcp_settings.json`
 
- ```json
- {
-   "mcpServers": {
-     "awslabs.core-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.core-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR",
-         "MCP_SETTINGS_PATH": "path to your mcp settings file"
-       }
-     },
-     "awslabs.nova-canvas-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.nova-canvas-mcp-server@latest"],
-       "env": {
-         "AWS_PROFILE": "your-aws-profile",
-         "AWS_REGION": "us-east-1",
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       }
-     },
-     "awslabs.terraform-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.terraform-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR"
-       },
-       "disabled": false,
-       "autoApprove": []
-     },
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MCP_SETTINGS_PATH": "path to your mcp settings file"
+      }
+    },
+    "awslabs.nova-canvas-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.nova-canvas-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.terraform-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.terraform-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
- ```
+}
+```
 
 6. Once installed, you should see a list of your MCP Servers under the MCP Server Installed tab, and they should have a green slider to show that they are enabled. See the following for an example with two of the possible AWS MCP Servers. Click **Done** when finished. You should now see the Cline chat interface.
 
@@ -762,6 +748,7 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 12. Now you can begin asking questions and testing out the functionality of your installed AWS MCP Servers. The default option in the chat interface is is `Plan` which will provide the output for you to take manual action on (e.g. providing you a sample configuration that you copy and paste into a file). However, you can optionally toggle this to `Act` which will allow Cline to act on your behalf (e.g. searching for content using a web browser, cloning a repository, executing code, etc). You can optionally toggle on the "Auto-approve" section to avoid having to click to approve the suggestions, however we recommend leaving this off during testing, especially if you have the Act toggle selected.
 
 **Note:** For the best results, please prompt Cline to use the desired AWS MCP Server you wish to use. For example, `Using the Terraform MCP Server, do...`
+
 </details>
 
 ### Getting Started with Cursor
@@ -773,18 +760,14 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 
 2. You can place MCP configuration in two locations, depending on your use case:
 
-  A. **Project Configuration**
-    - For tools specific to a project, create a `.cursor/mcp.json` file in your project directory.
-    - This allows you to define MCP servers that are only available within that specific project.
+A. **Project Configuration** - For tools specific to a project, create a `.cursor/mcp.json` file in your project directory. - This allows you to define MCP servers that are only available within that specific project.
 
-  B. **Global Configuration**
-    - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory.
-    - This makes MCP servers available in all your Cursor workspaces.
+B. **Global Configuration** - For tools that you want to use across all projects, create a `~/.cursor/mcp.json` file in your home directory. - This makes MCP servers available in all your Cursor workspaces.
 
 #### `.cursor/mcp.json`
 
 ```json
- {
+{
   "mcpServers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
@@ -811,10 +794,12 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
 2. **Access MCP Settings**
+
    - Navigate to Windsurf - Settings > Advanced Settings or use the Command Palette > Open Windsurf Settings Page
    - Look for the "Model Context Protocol (MCP) Servers" section
 
 3. **Add MCP Servers**
+
    - Click "Add Server" to add a new MCP server
    - You can choose from available templates like GitHub, Puppeteer, PostgreSQL, etc.
    - Alternatively, click "Add custom server" to configure your own server
@@ -824,20 +809,20 @@ For every new project, always look at your MCP servers and use mcp-core as the s
 
 #### `~/.codeium/windsurf/mcp_config.json`
 
- ```json
- {
-   "mcpServers": {
-     "awslabs.core-mcp-server": {
-       "command": "uvx",
-       "args": ["awslabs.core-mcp-server@latest"],
-       "env": {
-         "FASTMCP_LOG_LEVEL": "ERROR",
-         "MCP_SETTINGS_PATH": "path to your mcp settings file"
-       }
-     }
+```json
+{
+  "mcpServers": {
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.core-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MCP_SETTINGS_PATH": "path to your mcp settings file"
+      }
     }
   }
- ```
+}
+```
 
 </details>
 
@@ -863,6 +848,7 @@ Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code
   }
 }
 ```
+
 </details>
 
 ## Samples
