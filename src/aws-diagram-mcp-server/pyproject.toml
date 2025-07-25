@@ -3,13 +3,17 @@ name = "awslabs.aws-diagram-mcp-server"
 version = "1.0.3"
 description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 dependencies = [
     "diagrams>=0.24.4",
     "boto3>=1.37.27",
     "mcp[cli]>=1.11.0",
     "pydantic>=2.10.6",
     "bandit>=1.7.5",
+    # Security fixes for CVEs
+    "setuptools>=78.1.1",  # Fixes CVE-2025-47273
+    "starlette>=0.47.2",   # Fixes CVE-2025-54121
+    "urllib3>=2.5.0",      # Fixes CVE-2025-50181, CVE-2025-50182
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
