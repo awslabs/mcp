@@ -436,6 +436,25 @@ class TestAWSToolGenerator(unittest.TestCase):
         self.assertEqual(generator.get_mcp(), self.mcp_mock)
 
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
+    def test_user_agent_config(self, mock_session):
+        """Test user agent configuration in the Config object."""
+        mock_session.return_value = self.boto3_session_mock
+        # Create the tool generator
+        service_name = 'mq'
+        service_display_name = 'Amazon MQ'
+        generator = AWSToolGenerator(
+            service_name=service_name, service_display_name=service_display_name, mcp=self.mcp_mock
+        )
+        # Verify the config has the correct user_agent_extra
+        from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
+
+        expected_user_agent = f'awslabs/mcp/{service_name}/{MCP_SERVER_VERSION}'
+        self.assertEqual(generator.config.user_agent_extra, expected_user_agent)
+        # Verify the config is used when creating a client
+        generator._AWSToolGenerator__get_client()
+        self.boto3_session_mock.client.assert_called_with(service_name, config=generator.config)
+
+    @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.botocore.session.get_session')
     def test_skip_param_documentation(self, mock_botocore_session, mock_boto3_session):
         """Test skip_param_documentation flag."""
