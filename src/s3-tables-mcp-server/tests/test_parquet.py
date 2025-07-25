@@ -1,52 +1,55 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Tests for Parquet file processor (import_parquet_to_table)."""
+
 import pytest
-from pyiceberg.exceptions import NoSuchTableError
-from unittest.mock import MagicMock, patch
+from awslabs.s3_tables_mcp_server.file_processor import parquet
+from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio
 async def test_import_parquet_to_table_success():
-    """Test import_parquet_to_table successfully imports Parquet data into an existing table."""
-    from awslabs.s3_tables_mcp_server.file_processor import parquet as parquet_mod
-
-    warehouse = 'warehouse-arn'
+    """Test successful import_parquet_to_table."""
+    # Arrange
+    warehouse = 'test-warehouse'
     region = 'us-west-2'
     namespace = 'testns'
     table_name = 'testtable'
-    s3_url = 's3://bucket/file.parquet'
-    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
+    s3_url = 's3://bucket/test.parquet'
+    uri = 'http://localhost:8181'
     catalog_name = 's3tablescatalog'
     rest_signing_name = 's3tables'
     rest_sigv4_enabled = 'true'
+    preserve_case = False
 
-    # Mock objects
-    mock_catalog = MagicMock()
-    mock_table = MagicMock()
-    mock_iceberg_schema = MagicMock()
-    mock_iceberg_schema.fields = [MagicMock(name='col1'), MagicMock(name='col2')]
-    mock_iceberg_schema.fields[0].name = 'col1'
-    mock_iceberg_schema.fields[1].name = 'col2'
-    mock_table.schema.return_value = mock_iceberg_schema
-    mock_catalog.load_table.return_value = mock_table
-
-    mock_s3_client = MagicMock()
-    mock_s3_client.get_object.return_value = {
-        'Body': MagicMock(read=MagicMock(return_value=b'data'))
+    # Patch import_file_to_table to simulate a successful import
+    success_result = {
+        'status': 'success',
+        'message': 'Successfully imported 2 rows',
+        'rows_processed': 2,
+        'file_processed': 'test.parquet',
+        'table_created': True,
+        'table_uuid': 'fake-uuid',
+        'columns': ['col1', 'col2'],
     }
-
-    mock_parquet_table = MagicMock()
-    mock_parquet_table.schema.names = ['col1', 'col2']
-    mock_parquet_table.num_rows = 42
-
-    with (
-        patch.object(
-            parquet_mod, 'pyiceberg_load_catalog', return_value=mock_catalog
-        ) as mock_load_catalog,
-        patch.object(
-            parquet_mod, 'get_s3_client', return_value=mock_s3_client
-        ) as mock_get_s3_client,
-        patch('pyarrow.parquet.read_table', return_value=mock_parquet_table) as mock_read_parquet,
+    with patch(
+        'awslabs.s3_tables_mcp_server.file_processor.parquet.import_file_to_table',
+        new=AsyncMock(return_value=success_result),
     ):
-        result = await parquet_mod.import_parquet_to_table(
+        # Act
+        result = await parquet.import_parquet_to_table(
             warehouse=warehouse,
             region=region,
             namespace=namespace,
@@ -56,186 +59,12 @@ async def test_import_parquet_to_table_success():
             catalog_name=catalog_name,
             rest_signing_name=rest_signing_name,
             rest_sigv4_enabled=rest_sigv4_enabled,
-        )
-        assert result['status'] == 'success'
-        assert result['rows_processed'] == 42
-        assert result['file_processed'] == 'file.parquet'
-        assert result['table_created'] is False
-        assert 'Successfully imported' in result['message']
-        mock_load_catalog.assert_called_once()
-        mock_get_s3_client.assert_called_once()
-        mock_read_parquet.assert_called_once()
-        mock_table.append.assert_called_once_with(mock_parquet_table)
-
-
-@pytest.mark.asyncio
-async def test_import_parquet_to_table_create_new_table():
-    """Test import_parquet_to_table successfully creates a new table when it doesn't exist."""
-    from awslabs.s3_tables_mcp_server.file_processor import parquet as parquet_mod
-
-    warehouse = 'warehouse-arn'
-    region = 'us-west-2'
-    namespace = 'testns'
-    table_name = 'testtable'
-    s3_url = 's3://bucket/file.parquet'
-    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
-    catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
-
-    # Mock objects
-    mock_catalog = MagicMock()
-    mock_table = MagicMock()
-
-    # Mock load_table to raise NoSuchTableError (table doesn't exist)
-    mock_catalog.load_table.side_effect = NoSuchTableError('Table not found')
-    # Mock create_table to return the new table
-    mock_catalog.create_table.return_value = mock_table
-
-    mock_s3_client = MagicMock()
-    mock_s3_client.get_object.return_value = {
-        'Body': MagicMock(read=MagicMock(return_value=b'data'))
-    }
-
-    mock_parquet_table = MagicMock()
-    mock_parquet_table.schema.names = ['col1', 'col2']
-    mock_parquet_table.num_rows = 42
-    mock_parquet_schema = MagicMock()
-    mock_parquet_table.schema = mock_parquet_schema
-
-    with (
-        patch.object(
-            parquet_mod, 'pyiceberg_load_catalog', return_value=mock_catalog
-        ) as mock_load_catalog,
-        patch.object(
-            parquet_mod, 'get_s3_client', return_value=mock_s3_client
-        ) as mock_get_s3_client,
-        patch('pyarrow.parquet.read_table', return_value=mock_parquet_table) as mock_read_parquet,
-    ):
-        result = await parquet_mod.import_parquet_to_table(
-            warehouse=warehouse,
-            region=region,
-            namespace=namespace,
-            table_name=table_name,
-            s3_url=s3_url,
-            uri=uri,
-            catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
+            preserve_case=preserve_case,
         )
 
-        assert result['status'] == 'success'
-        assert result['rows_processed'] == 42
-        assert result['file_processed'] == 'file.parquet'
-        assert result['table_created'] is True
-        assert 'Successfully imported' in result['message']
-        assert 'created new table' in result['message']
-        mock_load_catalog.assert_called_once()
-        mock_get_s3_client.assert_called_once()
-        mock_read_parquet.assert_called_once()
-        mock_catalog.create_table.assert_called_once_with(
-            identifier=f'{namespace}.{table_name}', schema=mock_parquet_schema
-        )
-        mock_table.append.assert_called_once_with(mock_parquet_table)
-
-
-@pytest.mark.asyncio
-async def test_import_parquet_to_table_create_table_error():
-    """Test import_parquet_to_table returns error when table creation fails."""
-    from awslabs.s3_tables_mcp_server.file_processor import parquet as parquet_mod
-
-    warehouse = 'warehouse-arn'
-    region = 'us-west-2'
-    namespace = 'testns'
-    table_name = 'testtable'
-    s3_url = 's3://bucket/file.parquet'
-    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
-    catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
-
-    # Mock objects
-    mock_catalog = MagicMock()
-
-    # Mock load_table to raise NoSuchTableError (table doesn't exist)
-    mock_catalog.load_table.side_effect = NoSuchTableError('Table not found')
-    # Mock create_table to raise an exception (table creation fails)
-    mock_catalog.create_table.side_effect = Exception('Permission denied')
-
-    mock_s3_client = MagicMock()
-    mock_s3_client.get_object.return_value = {
-        'Body': MagicMock(read=MagicMock(return_value=b'data'))
-    }
-
-    mock_parquet_table = MagicMock()
-    mock_parquet_table.schema.names = ['col1', 'col2']
-    mock_parquet_table.num_rows = 42
-    mock_parquet_schema = MagicMock()
-    mock_parquet_table.schema = mock_parquet_schema
-
-    with (
-        patch.object(
-            parquet_mod, 'pyiceberg_load_catalog', return_value=mock_catalog
-        ) as mock_load_catalog,
-        patch.object(
-            parquet_mod, 'get_s3_client', return_value=mock_s3_client
-        ) as mock_get_s3_client,
-        patch('pyarrow.parquet.read_table', return_value=mock_parquet_table) as mock_read_parquet,
-    ):
-        result = await parquet_mod.import_parquet_to_table(
-            warehouse=warehouse,
-            region=region,
-            namespace=namespace,
-            table_name=table_name,
-            s3_url=s3_url,
-            uri=uri,
-            catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
-        )
-
-        assert result['status'] == 'error'
-        assert 'Failed to create table' in result['error']
-        assert 'Permission denied' in result['error']
-        mock_load_catalog.assert_called_once()
-        mock_get_s3_client.assert_called_once()
-        mock_read_parquet.assert_called_once()
-        mock_catalog.create_table.assert_called_once_with(
-            identifier=f'{namespace}.{table_name}', schema=mock_parquet_schema
-        )
-
-
-@pytest.mark.asyncio
-async def test_import_parquet_to_table_general_exception():
-    """Test import_parquet_to_table returns error when a general exception occurs."""
-    from awslabs.s3_tables_mcp_server.file_processor import parquet as parquet_mod
-
-    warehouse = 'warehouse-arn'
-    region = 'us-west-2'
-    namespace = 'testns'
-    table_name = 'testtable'
-    s3_url = 's3://bucket/file.parquet'
-    uri = 'https://s3tables.us-west-2.amazonaws.com/iceberg'
-    catalog_name = 's3tablescatalog'
-    rest_signing_name = 's3tables'
-    rest_sigv4_enabled = 'true'
-
-    # Mock pyiceberg_load_catalog to raise a general exception
-    with patch.object(
-        parquet_mod, 'pyiceberg_load_catalog', side_effect=Exception('Connection timeout')
-    ) as mock_load_catalog:
-        result = await parquet_mod.import_parquet_to_table(
-            warehouse=warehouse,
-            region=region,
-            namespace=namespace,
-            table_name=table_name,
-            s3_url=s3_url,
-            uri=uri,
-            catalog_name=catalog_name,
-            rest_signing_name=rest_signing_name,
-            rest_sigv4_enabled=rest_sigv4_enabled,
-        )
-
-        assert result['status'] == 'error'
-        assert result['error'] == 'Connection timeout'
-        mock_load_catalog.assert_called_once()
+    # Assert
+    assert result['status'] == 'success'
+    assert result['rows_processed'] == 2
+    assert result['file_processed'] == 'test.parquet'
+    assert result['table_created'] is True
+    assert result['columns'] == ['col1', 'col2']
