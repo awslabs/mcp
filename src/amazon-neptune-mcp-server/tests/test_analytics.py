@@ -102,30 +102,6 @@ class TestNeptuneAnalytics:
             NeptuneAnalytics(graph_identifier='test-graph-id')
 
     @patch('boto3.Session')
-    async def test_init_refresh_schema_error(self, mock_session):
-        """Test handling of schema refresh errors.
-        This test verifies that:
-        1. Errors during schema refresh are properly caught and re-raised as NeptuneException
-        2. The error message is appropriate.
-        """
-        # Arrange
-        mock_session_instance = MagicMock()
-        mock_client = MagicMock()
-        mock_session_instance.client.return_value = mock_client
-        mock_session.return_value = mock_session_instance
-
-        # Mock _refresh_schema to raise an exception
-        with patch.object(
-            NeptuneAnalytics, '_refresh_schema', side_effect=Exception('Schema refresh error')
-        ):
-            # Act & Assert
-            with pytest.raises(NeptuneException) as exc_info:
-                NeptuneAnalytics(graph_identifier='test-graph-id')
-
-            # Check the exception details
-            assert 'Could not get schema for Neptune database' in exc_info.value.message
-
-    @patch('boto3.Session')
     async def test_refresh_schema(self, mock_session):
         """Test schema refresh functionality.
         This test verifies that:
@@ -214,8 +190,8 @@ class TestNeptuneAnalytics:
         assert knows_pattern.right_node == 'Person'
 
     @patch('boto3.Session')
-    async def test_get_schema_cached(self, mock_session):
-        """Test that get_schema returns cached schema when available.
+    async def test_get_lpg_schema_cached(self, mock_session):
+        """Test that get_lpg_schema returns cached schema when available.
         This test verifies that:
         1. When schema is already cached, _refresh_schema is not called
         2. The cached schema is returned.
@@ -235,14 +211,14 @@ class TestNeptuneAnalytics:
             analytics = NeptuneAnalytics(graph_identifier='test-graph-id')
 
             # Act
-            result = analytics.get_schema()
+            result = analytics.get_lpg_schema()
 
             # Assert - just verify the result is the mock schema
             assert result == mock_schema
 
     @patch('boto3.Session')
-    async def test_get_schema_refresh(self, mock_session):
-        """Test that get_schema refreshes schema when not cached.
+    async def test_get_lpg_schema_refresh(self, mock_session):
+        """Test that get_lpg_schema refreshes schema when not cached.
         This test verifies that:
         1. When schema is not cached, _refresh_schema is called
         2. The refreshed schema is returned.
@@ -269,7 +245,7 @@ class TestNeptuneAnalytics:
             NeptuneAnalytics._refresh_schema.return_value = mock_schema
 
             # Act
-            result = analytics.get_schema()
+            result = analytics.get_lpg_schema()
 
             # Assert
             NeptuneAnalytics._refresh_schema.assert_called_once()
@@ -406,3 +382,195 @@ class TestNeptuneAnalytics:
                 match='Gremlin queries are not supported for Neptune Analytics graphs',
             ):
                 analytics.query_gremlin('g.V().limit(1)')
+
+    @patch('boto3.Session')
+    async def test_query_rdf_not_supported(self, mock_session):
+        """Test that RDF queries are not supported."""
+        # Arrange
+        mock_session_instance = MagicMock()
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        mock_session.return_value = mock_session_instance
+
+        # Mock _refresh_schema to avoid actual API calls during init
+        with patch.object(NeptuneAnalytics, '_refresh_schema'):
+            # Create the analytics instance
+            analytics = NeptuneAnalytics(graph_identifier='test-graph-id')
+
+            # Act & Assert
+            with pytest.raises(
+                NotImplementedError,
+                match='RDF queries are not supported for Neptune Analytics graphs',
+            ):
+                analytics.query_sparql('SELECT ?s ?p ?o WHERE {?s ?p ?o} LIMIT 1')
+
+    @patch('boto3.Session')
+    async def test_query_rdf_schema_supported(self, mock_session):
+        """Test that RDF schama are not supported."""
+        # Arrange
+        mock_session_instance = MagicMock()
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        mock_session.return_value = mock_session_instance
+
+        # Mock _refresh_schema to avoid actual API calls during init
+        with patch.object(NeptuneAnalytics, '_refresh_schema'):
+            # Create the analytics instance
+            analytics = NeptuneAnalytics(graph_identifier='test-graph-id')
+
+            # Act & Assert
+            with pytest.raises(
+                NotImplementedError,
+                match='RDF schema not supported for Neptune Analytics graphs.',
+            ):
+                analytics.get_rdf_schema()
+
+    @patch('boto3.Session')
+    async def test_get_lpg_schema_empty_schema(self, mock_session):
+        """Test that get_lpg_schema returns empty schema when schema is None.
+
+        This test verifies that:
+        1. When schema is None and _refresh_schema returns None, an empty schema is returned
+        2. The empty schema has the expected structure
+        """
+        # Arrange
+        mock_session_instance = MagicMock()
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        mock_session.return_value = mock_session_instance
+
+        # Mock _refresh_schema to return None
+        with patch.object(NeptuneAnalytics, '_refresh_schema', return_value=None):
+            # Create the analytics instance
+            analytics = NeptuneAnalytics(graph_identifier='test-graph-id')
+
+            # Set schema to None to force refresh
+            analytics.schema = None
+
+            # Reset the mock to verify it's called again
+            NeptuneAnalytics._refresh_schema.reset_mock()
+
+            # Act
+            result = analytics.get_lpg_schema()
+
+            # Assert
+            NeptuneAnalytics._refresh_schema.assert_called_once()
+            assert isinstance(result, GraphSchema)
+            assert result.nodes == []
+            assert result.relationships == []
+            assert result.relationship_patterns == []
+
+    @patch('boto3.Session')
+    async def test_propertygraph_schema(self, mock_session):
+        """Test that propertygraph_schema calls get_lpg_schema.
+
+        This test verifies that:
+        1. The propertygraph_schema method calls get_lpg_schema
+        2. The result from get_lpg_schema is returned unchanged
+        """
+        # Arrange
+        mock_session_instance = MagicMock()
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        mock_session.return_value = mock_session_instance
+
+        # Create a mock schema
+        mock_schema = GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
+
+        # Mock _refresh_schema to avoid actual API calls during init
+        with patch.object(NeptuneAnalytics, '_refresh_schema', return_value=mock_schema):
+            # Create the analytics instance
+            analytics = NeptuneAnalytics(graph_identifier='test-graph-id')
+
+            # Mock get_lpg_schema
+            analytics.get_lpg_schema = MagicMock(return_value=mock_schema)
+
+            # Act
+            result = analytics.propertygraph_schema()
+
+            # Assert
+            analytics.get_lpg_schema.assert_called_once()
+            assert result == mock_schema
+
+    @patch('boto3.Session')
+    async def test_refresh_schema_empty_response(self, mock_session):
+        """Test schema refresh with empty response.
+
+        This test verifies that:
+        1. When the API returns an empty response, a valid empty schema is created
+        2. The schema is stored in the instance and returned
+        """
+        # Arrange
+        mock_session_instance = MagicMock()
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        mock_session.return_value = mock_session_instance
+
+        # Create the analytics instance with mocked _refresh_schema
+        with patch.object(NeptuneAnalytics, '_refresh_schema'):
+            NeptuneAnalytics(graph_identifier='test-graph-id')
+
+        # Create a new instance for testing the actual method
+        analytics2 = NeptuneAnalytics.__new__(NeptuneAnalytics)
+        analytics2.graph_identifier = 'test-graph-id'
+        analytics2.schema = None
+
+        # Mock query_opencypher to return empty schema data
+        empty_schema_data = {
+            'labelTriples': [],
+            'nodeLabels': [],
+            'edgeLabels': [],
+            'nodeLabelDetails': {},
+            'edgeLabelDetails': {},
+        }
+        analytics2.query_opencypher = MagicMock(return_value=[{'schema': empty_schema_data}])
+
+        # Act
+        schema = analytics2._refresh_schema()
+
+        # Assert
+        analytics2.query_opencypher.assert_called_once()
+        assert len(schema.nodes) == 0
+        assert len(schema.relationships) == 0
+        assert len(schema.relationship_patterns) == 0
+
+        # Check that the schema was stored in the instance
+        assert analytics2.schema == schema
+
+    @patch('boto3.Session')
+    async def test_query_opencypher_empty_params(self, mock_session):
+        """Test execution of openCypher queries with empty parameters.
+
+        This test verifies that:
+        1. When params is an empty dict, it's passed correctly to the API
+        2. The result is correctly extracted from the response
+        """
+        # Arrange
+        mock_session_instance = MagicMock()
+        mock_client = MagicMock()
+        mock_session_instance.client.return_value = mock_client
+        mock_session.return_value = mock_session_instance
+
+        # Mock the API response
+        mock_payload = MagicMock()
+        mock_payload.read.return_value = '{"results": [{"n": {"id": "1"}}]}'.encode('utf-8')
+        mock_client.execute_query.return_value = {'payload': mock_payload}
+
+        # Mock _refresh_schema to avoid actual API calls during init
+        with patch.object(NeptuneAnalytics, '_refresh_schema'):
+            # Create the analytics instance
+            analytics = NeptuneAnalytics(graph_identifier='test-graph-id')
+
+            # Act
+            query = 'MATCH (n) RETURN n LIMIT 1'
+            params = {}
+            result = analytics.query_opencypher(query, params)
+
+            # Assert
+            mock_client.execute_query.assert_called_once_with(
+                graphIdentifier='test-graph-id',
+                queryString=query,
+                parameters={},
+                language='OPEN_CYPHER',
+            )
+            assert result == [{'n': {'id': '1'}}]

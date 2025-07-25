@@ -16,13 +16,16 @@
 import pytest
 from awslabs.amazon_neptune_mcp_server.server import (
     get_graph,
-    get_schema,
-    get_schema_resource,
+    get_graph_schema,
+    get_propertygraph_schema_resource,
+    get_rdf_schema,
+    get_rdf_schema_resource,
     get_status,
     get_status_resource,
     main,
     run_gremlin_query,
     run_opencypher_query,
+    run_sparql_query,
 )
 from unittest.mock import MagicMock, patch
 
@@ -52,25 +55,46 @@ class TestServerTools:
         mock_graph.status.assert_called_once()
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
-    async def test_get_schema(self, mock_get_graph):
-        """Test that get_schema correctly returns the schema from the graph.
+    async def test_get_graph_schema(self, mock_get_graph):
+        """Test that get_graph_schema correctly returns the property graph schema from the graph.
         This test verifies that:
         1. The get_graph function is called to obtain the graph instance
-        2. The schema method is called on the graph instance
-        3. The result from the graph's schema method is returned unchanged.
+        2. The propertygraph_schema method is called on the graph instance
+        3. The result from the graph's propertygraph_schema method is returned unchanged.
         """
         # Arrange
         mock_graph = MagicMock()
         mock_schema = MagicMock()
-        mock_graph.schema.return_value = mock_schema
+        mock_graph.propertygraph_schema.return_value = mock_schema
         mock_get_graph.return_value = mock_graph
 
         # Act
-        result = get_schema()
+        result = get_graph_schema()
 
         # Assert
         assert result == mock_schema
-        mock_graph.schema.assert_called_once()
+        mock_graph.propertygraph_schema.assert_called_once()
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_get_rdf_schema(self, mock_get_graph):
+        """Test that get_rdf_schema correctly returns the RDF schema from the graph.
+        This test verifies that:
+        1. The get_graph function is called to obtain the graph instance
+        2. The rdf_schema method is called on the graph instance
+        3. The result from the graph's rdf_schema method is returned unchanged.
+        """
+        # Arrange
+        mock_graph = MagicMock()
+        mock_schema = MagicMock()
+        mock_graph.rdf_schema.return_value = mock_schema
+        mock_get_graph.return_value = mock_graph
+
+        # Act
+        result = get_rdf_schema()
+
+        # Assert
+        assert result == mock_schema
+        mock_graph.rdf_schema.assert_called_once()
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
     async def test_run_opencypher_query(self, mock_get_graph):
@@ -139,6 +163,35 @@ class TestServerTools:
         mock_graph.query_gremlin.assert_called_once_with('g.V().limit(1)')
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_run_sparql_query(self, mock_get_graph):
+        """Test that run_sparql_query correctly executes a SPARQL query.
+        This test verifies that:
+        1. The get_graph function is called to obtain the graph instance
+        2. The query_sparql method is called with the correct query
+        3. The result from the graph's query_sparql method is returned unchanged.
+        """
+        # Arrange
+        mock_graph = MagicMock()
+        mock_result = {
+            'results': [
+                {
+                    's': 'http://example.org/subject',
+                    'p': 'http://example.org/predicate',
+                    'o': 'Object',
+                }
+            ]
+        }
+        mock_graph.query_sparql.return_value = mock_result
+        mock_get_graph.return_value = mock_graph
+
+        # Act
+        result = run_sparql_query('SELECT * WHERE { ?s ?p ?o } LIMIT 1')
+
+        # Assert
+        assert result == mock_result
+        mock_graph.query_sparql.assert_called_once_with('SELECT * WHERE { ?s ?p ?o } LIMIT 1')
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
     async def test_get_status_resource(self, mock_get_graph):
         """Test that get_status_resource correctly returns the status from the graph.
         This test verifies that:
@@ -159,25 +212,46 @@ class TestServerTools:
         mock_graph.status.assert_called_once()
 
     @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
-    async def test_get_schema_resource(self, mock_get_graph):
-        """Test that get_schema_resource correctly returns the schema from the graph.
+    async def test_get_propertygraph_schema_resource(self, mock_get_graph):
+        """Test that get_propertygraph_schema_resource correctly returns the property graph schema from the graph.
         This test verifies that:
         1. The get_graph function is called to obtain the graph instance
-        2. The schema method is called on the graph instance
-        3. The result from the graph's schema method is returned unchanged.
+        2. The propertygraph_schema method is called on the graph instance
+        3. The result from the graph's propertygraph_schema method is returned unchanged.
         """
         # Arrange
         mock_graph = MagicMock()
         mock_schema = MagicMock()
-        mock_graph.schema.return_value = mock_schema
+        mock_graph.propertygraph_schema.return_value = mock_schema
         mock_get_graph.return_value = mock_graph
 
         # Act
-        result = get_schema_resource()
+        result = get_propertygraph_schema_resource()
 
         # Assert
         assert result == mock_schema
-        mock_graph.schema.assert_called_once()
+        mock_graph.propertygraph_schema.assert_called_once()
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_get_rdf_schema_resource(self, mock_get_graph):
+        """Test that get_rdf_schema_resource correctly returns the RDF schema from the graph.
+        This test verifies that:
+        1. The get_graph function is called to obtain the graph instance
+        2. The rdf_schema method is called on the graph instance
+        3. The result from the graph's rdf_schema method is returned unchanged.
+        """
+        # Arrange
+        mock_graph = MagicMock()
+        mock_schema = MagicMock()
+        mock_graph.rdf_schema.return_value = mock_schema
+        mock_get_graph.return_value = mock_graph
+
+        # Act
+        result = get_rdf_schema_resource()
+
+        # Assert
+        assert result == mock_schema
+        mock_graph.rdf_schema.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -207,7 +281,9 @@ class TestGraphInitialization:
 
         # Assert
         assert graph == mock_server
-        mock_neptune_server.assert_called_once_with('neptune-db://test-endpoint', use_https=True)
+        mock_neptune_server.assert_called_once_with(
+            'neptune-db://test-endpoint', port=8182, use_https=True
+        )
 
         # Call again to verify singleton behavior
         graph2 = get_graph()
@@ -263,7 +339,9 @@ class TestGraphInitialization:
 
         # Assert
         assert graph == mock_server
-        mock_neptune_server.assert_called_once_with('neptune-db://test-endpoint', use_https=False)
+        mock_neptune_server.assert_called_once_with(
+            'neptune-db://test-endpoint', port=8182, use_https=False
+        )
 
 
 @pytest.mark.asyncio
@@ -280,3 +358,163 @@ class TestMainFunction:
 
         # Assert
         assert mock_mcp.run.call_count == 1
+
+    @patch('os.environ.get')
+    @patch('awslabs.amazon_neptune_mcp_server.server.NeptuneServer')
+    async def test_get_graph_with_custom_port(self, mock_neptune_server, mock_environ_get):
+        """Test that get_graph correctly uses a custom port from environment variables.
+
+        This test verifies that:
+        1. The NEPTUNE_PORT environment variable is correctly read and converted to an integer
+        2. NeptuneServer is initialized with the correct port parameter
+        """
+        # Arrange
+        mock_environ_get.side_effect = lambda key, default=None: {
+            'NEPTUNE_ENDPOINT': 'neptune-db://test-endpoint',
+            'NEPTUNE_PORT': '8183',  # Custom port
+            'NEPTUNE_USE_HTTPS': 'True',
+        }.get(key, default)
+
+        # Reset the global _graph variable
+        import awslabs.amazon_neptune_mcp_server.server
+
+        awslabs.amazon_neptune_mcp_server.server._graph = None
+
+        mock_server = MagicMock()
+        mock_neptune_server.return_value = mock_server
+
+        # Act
+        graph = get_graph()
+
+        # Assert
+        assert graph == mock_server
+        mock_neptune_server.assert_called_once_with(
+            'neptune-db://test-endpoint', port=8183, use_https=True
+        )
+
+    @patch('os.environ.get')
+    @patch('awslabs.amazon_neptune_mcp_server.server.NeptuneServer')
+    async def test_get_graph_with_https_variations(self, mock_neptune_server, mock_environ_get):
+        """Test that get_graph correctly handles different HTTPS settings.
+
+        This test verifies that:
+        1. Different string values for NEPTUNE_USE_HTTPS are correctly interpreted
+        2. NeptuneServer is initialized with the correct use_https parameter
+        """
+        # Test cases for different HTTPS settings
+        test_cases = [
+            ('true', True),
+            ('True', True),
+            ('TRUE', True),
+            ('1', True),
+            ('t', True),
+            ('false', False),
+            ('False', False),
+            ('FALSE', False),
+            ('0', False),
+            ('f', False),
+            ('anything_else', False),
+        ]
+
+        mock_server = MagicMock()
+        mock_neptune_server.return_value = mock_server
+
+        for https_value, expected_bool in test_cases:
+            # Arrange
+            mock_environ_get.side_effect = lambda key, default=None: {
+                'NEPTUNE_ENDPOINT': 'neptune-db://test-endpoint',
+                'NEPTUNE_USE_HTTPS': https_value,
+            }.get(key, default)
+
+            # Reset the global _graph variable
+            import awslabs.amazon_neptune_mcp_server.server
+
+            awslabs.amazon_neptune_mcp_server.server._graph = None
+
+            # Act
+            graph = get_graph()
+
+            # Assert
+            assert graph == mock_server
+            mock_neptune_server.assert_called_with(
+                'neptune-db://test-endpoint', port=8182, use_https=expected_bool
+            )
+            mock_neptune_server.reset_mock()
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_run_sparql_query_logging(self, mock_get_graph, caplog):
+        """Test that run_sparql_query correctly logs the query.
+
+        This test verifies that:
+        1. The SPARQL query is logged at INFO level
+        2. The query_sparql method is called with the correct query
+        """
+        # Arrange
+        mock_graph = MagicMock()
+        mock_result = {'results': [{'s': 'http://example.org/subject'}]}
+        mock_graph.query_sparql.return_value = mock_result
+        mock_get_graph.return_value = mock_graph
+        query = 'SELECT * WHERE { ?s ?p ?o } LIMIT 1'
+
+        # Act
+        with patch('awslabs.amazon_neptune_mcp_server.server.logger.info') as mock_logger:
+            result = run_sparql_query(query)
+
+        # Assert
+        assert result == mock_result
+        mock_graph.query_sparql.assert_called_once_with(query)
+        mock_logger.assert_called_once_with(f'query: {query}')
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_get_rdf_schema_resource_error_handling(self, mock_get_graph):
+        """Test error handling in get_rdf_schema_resource.
+
+        This test verifies that:
+        1. When an exception occurs in the graph's rdf_schema method, it's propagated
+        """
+        # Arrange
+        mock_graph = MagicMock()
+        mock_graph.rdf_schema.side_effect = Exception('Test error')
+        mock_get_graph.return_value = mock_graph
+
+        # Act & Assert
+        from awslabs.amazon_neptune_mcp_server.server import get_rdf_schema_resource
+
+        with pytest.raises(Exception, match='Test error'):
+            get_rdf_schema_resource()
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_get_propertygraph_schema_resource_error_handling(self, mock_get_graph):
+        """Test error handling in get_propertygraph_schema_resource.
+
+        This test verifies that:
+        1. When an exception occurs in the graph's propertygraph_schema method, it's propagated
+        """
+        # Arrange
+        mock_graph = MagicMock()
+        mock_graph.propertygraph_schema.side_effect = Exception('Test error')
+        mock_get_graph.return_value = mock_graph
+
+        # Act & Assert
+        from awslabs.amazon_neptune_mcp_server.server import get_propertygraph_schema_resource
+
+        with pytest.raises(Exception, match='Test error'):
+            get_propertygraph_schema_resource()
+
+    @patch('awslabs.amazon_neptune_mcp_server.server.get_graph')
+    async def test_get_status_resource_error_handling(self, mock_get_graph):
+        """Test error handling in get_status_resource.
+
+        This test verifies that:
+        1. When an exception occurs in the graph's status method, it's propagated
+        """
+        # Arrange
+        mock_graph = MagicMock()
+        mock_graph.status.side_effect = Exception('Test error')
+        mock_get_graph.return_value = mock_graph
+
+        # Act & Assert
+        from awslabs.amazon_neptune_mcp_server.server import get_status_resource
+
+        with pytest.raises(Exception, match='Test error'):
+            get_status_resource()
