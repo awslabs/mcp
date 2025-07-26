@@ -125,6 +125,12 @@ class ProgramInterpretationResponse(BaseModel):
     failed_constraints: list[str] | None = Field(default=None)
 
 
+class Consent(BaseModel):
+    """Represents the consent of the user for executing a particular command."""
+
+    answer: bool
+
+
 @dataclasses.dataclass(frozen=True)
 class IRTranslation:
     """Represents the results of validation and translation to intermediate representation."""
