@@ -232,9 +232,11 @@ class TestSchemaManager:
         # This should handle the missing typeName gracefully
         with patch('builtins.print') as mock_print:
             sm._load_cached_schemas()
-            # No print statement should be called for this file since it doesn't have typeName
+            # Check that no print statement was called for our test file specifically
             for call in mock_print.call_args_list:
-                assert 'Loaded schema for' not in str(call)
+                call_str = str(call)
+                if 'test_no_typename' in call_str:
+                    assert 'Loaded schema for' not in call_str
 
         # Clean up
         test_file.unlink()

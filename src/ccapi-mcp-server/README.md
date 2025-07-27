@@ -44,6 +44,16 @@ This workflow ensures that:
 - **IaC Preservation**: Users have the option to preserve their infrastructure as code
 - **Multiple Formats**: Multiple IaC formats are supported for maximum flexibility
 
+## Security Architecture
+
+The MCP server uses a token-based workflow system that ensures:
+- **Sequential validation**: Each step must be completed before the next
+- **Server-side enforcement**: Tokens are generated and validated server-side
+- **No bypass capability**: AI agents cannot skip security steps or fake credentials
+- **Audit trail**: All operations are tracked through the token chain
+
+This prevents AI agents from bypassing security scans, credential checks, or user explanations.
+
 ## Security Protections
 
 The MCP server implements several critical security protections:
@@ -306,24 +316,27 @@ NOTE: Your credentials will need to be kept refreshed from your host
 
 **Tool Ordering & Workflow Enforcement**: These tools are designed with parameter dependencies that enforce proper workflow order. LLMs must follow the logical sequence: environment setup → security validation → resource operations. This prevents security bypasses and ensures proper credential validation.
 
-### check_environment_variables()
+### Core Tools
+
+#### check_environment_variables()
 
 **Requirements**: None (starting point)
 
 Checks if AWS credentials are properly configured through AWS_PROFILE or environment variables. Returns detailed information about credential source, authentication type, and configuration status.
 **Example**: Verify that AWS credentials are available before performing operations.
-**Returns**: Environment variables, AWS profile, region, authentication type (sso_profile, standard_profile, assume_role_profile, env), and configuration status.
+**Returns**: `environment_token` for use with `get_aws_session_info()`, plus environment variables, AWS profile, region, authentication type (sso_profile, standard_profile, assume_role_profile, env), and configuration status.
 
-### get_aws_session_info()
+#### get_aws_session_info()
 
-**Requirements**: `env_check_result` parameter from `check_environment_variables()`
+**Requirements**: `environment_token` parameter from `check_environment_variables()`
 
 Provides detailed information about the current AWS session including account ID, region, credential source, and masked credential information for security.
 **Example**: Display which AWS account and region will be affected by operations.
 **Use when**: You need detailed session info and have already called `check_environment_variables()`.
 **Security**: Automatically masks sensitive credential information (shows only last 4 characters).
+**Returns**: `credentials_token` for use with `generate_infrastructure_code()`
 
-### get_aws_account_info()
+#### get_aws_account_info()
 
 **Requirements**: None (calls `check_environment_variables()` internally)
 
@@ -331,29 +344,29 @@ Convenience tool that automatically calls `check_environment_variables()` intern
 **Example**: "What AWS account am I using?" - Quick one-step account info.
 **Use when**: You want account info quickly without calling `check_environment_variables()` first.
 
-### generate_infrastructure_code()
+#### generate_infrastructure_code()
 
-**Requirements**: `aws_session_info` parameter from `get_aws_session_info()`
+**Requirements**: `credentials_token` parameter from `get_aws_session_info()`
 
 Prepares resource properties for Cloud Control API operations, applies default management tags, and generates a CloudFormation-format template for security scanning. **Important**: The CloudFormation service is never involved - the template is only used by Checkov for security analysis.
 
 **Consistency guarantee**: The exact same properties object is used for both the CF template (for Checkov scanning) and passed to `create_resource()`/`update_resource()` (for CCAPI operations). This ensures what gets security-scanned is identical to what gets deployed.
 
 **Example**: Process S3 bucket properties, apply default tags, create CF-format template for Checkov, then use the same properties for CCAPI resource creation.
-**Returns**: `properties_token` for use with `explain()`, CloudFormation template for security scanning, and properties for explanation.
+**Returns**: `generated_code_token` for use with `explain()`, CloudFormation template for security scanning, and properties for explanation.
 **Workflow**: generate_infrastructure_code() → explain() → run_checkov() (if enabled) → create_resource().
 
-### explain()
+#### explain()
 
-**Requirements**: `properties_token` from `generate_infrastructure_code()` (for infrastructure operations) OR `content` parameter (for general explanations)
+**Requirements**: `generated_code_token` from `generate_infrastructure_code()` (for infrastructure operations) OR `content` parameter (for general explanations)
 
-Explains any data in clear, human-readable format. For infrastructure operations, this tool consumes the `properties_token` and returns an `execution_token` that must be used for create/update/delete operations.
+Explains any data in clear, human-readable format. For infrastructure operations, this tool consumes the `generated_code_token` and returns an `explained_token` that must be used for create/update/delete operations.
 
 **Infrastructure workflow**:
 
-- Takes `properties_token` from `generate_infrastructure_code()`
+- Takes `generated_code_token` from `generate_infrastructure_code()`
 - Provides comprehensive explanation of what will be created/updated/deleted
-- Returns `execution_token` for use with `create_resource()`/`update_resource()`/`delete_resource()`
+- Returns `explained_token` for use with `create_resource()`/`update_resource()`/`delete_resource()`
 - **Security**: Ensures users see exactly what will be created/modified before execution.
 
 **General data explanation**:
@@ -364,39 +377,35 @@ Explains any data in clear, human-readable format. For infrastructure operations
 
 **Example**: Explain S3 bucket configuration when fetching an existing bucket, or explain general API response data.
 
-### run_checkov()
+#### run_checkov()
 
-**Requirements**: IaC template content and `file_type` parameter
+**Requirements**: `explained_token` from `explain()`
 
-Runs Checkov security and compliance scanner on Infrastructure as Code content. Supports CloudFormation (JSON/YAML), Terraform (HCL), and other IaC formats. **Security validation behavior depends on SECURITY_SCANNING environment variable**.
+Runs Checkov security and compliance scanner on server-stored CloudFormation template. Returns scan results for user review.
 
-**When SECURITY_SCANNING=enabled (default)**: `create_resource()` and `update_resource()` require a `checkov_validation_token` from this tool.
-**When SECURITY_SCANNING=disabled**: Security scanning is optional, and operations can proceed with a warning.
+**Security validation behavior depends on SECURITY_SCANNING environment variable**:
+- **When SECURITY_SCANNING=enabled (default)**: This tool is required, returns scan results for user review
+- **When SECURITY_SCANNING=disabled**: Shows warning, proceeds without security validation
 
-**Example**: Scan CloudFormation template for security issues before executing Cloud Control API operations.
-**Returns**: Security scan results, passed/failed checks, and `checkov_validation_token` for resource operations.
+**Example**: `run_checkov(explained_token)` - Returns security scan results.
+**Returns**: `security_scan_token` for use with `create_resource()` (when security scanning enabled), plus detailed scan results.
 
-### get_resource_schema_information()
+### Resource Modification Tools (CRUDL)
 
-**Requirements**: None
+#### create_resource()
 
-Get schema information for an AWS CloudFormation resource.
-**Example**: Get the schema for AWS::S3::Bucket to understand all available properties.
-
-### create_resource()
-
-**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
+**Requirements**: `credentials_token` from `get_aws_session_info()` AND `explained_token` from `explain()`
 
 **Security Requirements**:
 
-- When SECURITY_SCANNING=enabled (default): Requires `checkov_validation_token` from `run_checkov()`
+- When SECURITY_SCANNING=enabled (default): Requires `security_scan_token` from `run_checkov()`
 - When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
 
 Creates an AWS resource using the AWS Cloud Control API with a declarative approach. Automatically adds default management tags for tracking and support.
 **Example**: Create an S3 bucket with versioning and encryption enabled.
 **Security**: Uses only properties that were explained to the user via `explain()` tool.
 
-### get_resource()
+#### get_resource()
 
 **Requirements**: None
 
@@ -404,47 +413,68 @@ Gets details of a specific AWS resource using the AWS Cloud Control API.
 **Example**: Get the configuration of an EC2 instance.
 **Returns**: Resource identifier and detailed properties.
 
-### update_resource()
+#### update_resource()
 
-**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
+**Requirements**: `credentials_token` from `get_aws_session_info()` AND `explained_token` from `explain()`
 
 **Security Requirements**:
 
-- When SECURITY_SCANNING=enabled (default): Requires `checkov_validation_token` from `run_checkov()`
+- When SECURITY_SCANNING=enabled (default): Requires `security_scan_token` from `run_checkov()`
 - When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
 
 Updates an AWS resource using the AWS Cloud Control API with RFC 6902 JSON Patch operations.
 **Example**: Update an RDS instance's storage capacity.
 **Security**: Requires explanation of changes via `explain()` tool before execution.
 
-### delete_resource()
+#### delete_resource()
 
-**Requirements**: `aws_session_info` from `get_aws_session_info()` AND `execution_token` from `explain()`
+**Requirements**: `credentials_token` from `get_aws_session_info()` AND `explained_token` from `explain()`
 
 Deletes an AWS resource using the AWS Cloud Control API. Requires explicit confirmation and explanation of what will be deleted.
 **Example**: Remove an unused NAT gateway.
 **Security**: Requires explanation of deletion impact via `explain()` tool and explicit confirmation.
 
-### list_resources()
+#### list_resources()
 
 **Requirements**: None
 
 Lists AWS resources of a specified type using AWS Cloud Control API.
 **Example**: List all EC2 instances in a region.
 
-### get_resource_request_status()
+### Utility Tools
+
+#### get_resource_schema_information()
+
+**Requirements**: None
+
+Get schema information for an AWS CloudFormation resource.
+**Example**: Get the schema for AWS::S3::Bucket to understand all available properties.
+
+#### get_resource_request_status()
 
 **Requirements**: `request_token` from create/update/delete operations
 
 Get the status of a mutation that was initiated by create/update/delete resource.
 **Example**: Give me the status of the last request I made.
 
-### create_template()
+#### create_template()
 
 **Requirements**: None (but typically used after resource operations)
 
 Creates CloudFormation templates from existing AWS resources using AWS CloudFormation's IaC Generator API. **Currently only generates CloudFormation templates** in JSON or YAML format. While this MCP tool doesn't directly generate other IaC formats like Terraform or CDK, LLMs can use their native capabilities to convert the generated CloudFormation template to other formats - though this conversion happens outside the MCP server's scope.
 **Example**: Generate a CloudFormation YAML template from existing S3 buckets and EC2 instances, then ask the LLM to convert it to Terraform HCL.
+
+### Token Workflow Summary
+
+**Example workflow for create/update operations:**
+1. `check_environment_variables()` → `environment_token`
+2. `get_aws_session_info(environment_token)` → `credentials_token`
+3. `generate_infrastructure_code(credentials_token)` → `generated_code_token`
+4. `explain(generated_code_token)` → `explained_token`
+5. `run_checkov(explained_token)` → `security_scan_token` (if SECURITY_SCANNING=enabled)
+6. `create_resource(credentials_token, explained_token, security_scan_token)`
+
+**No-token tools:** `get_resource()`, `list_resources()`, `get_resource_schema_information()`, `create_template()`, `get_aws_account_info()`
 
 ## LLM Tool Selection Guidelines
 

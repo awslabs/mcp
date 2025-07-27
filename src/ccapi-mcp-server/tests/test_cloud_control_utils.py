@@ -213,7 +213,9 @@ class TestUtils:
             tag_dict['MCP_SERVER_SOURCE_CODE']
             == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
         )
-        assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
+        from awslabs.ccapi_mcp_server import __version__
+
+        assert tag_dict['MCP_SERVER_VERSION'] == __version__
 
     def test_add_default_tags_no_properties(self):
         """Test add_default_tags with no properties."""
@@ -322,7 +324,9 @@ class TestUtils:
             tag_dict['MCP_SERVER_SOURCE_CODE']
             == 'https://github.com/awslabs/mcp/tree/main/src/ccapi-mcp-server'
         )
-        assert tag_dict['MCP_SERVER_VERSION'] == '1.1.0'
+        from awslabs.ccapi_mcp_server import __version__
+
+        assert tag_dict['MCP_SERVER_VERSION'] == __version__
 
     def test_progress_event_with_error_code(self):
         """Test progress event with error code."""
