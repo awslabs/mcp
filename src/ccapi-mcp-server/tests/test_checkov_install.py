@@ -1,10 +1,8 @@
 """Tests for Checkov availability check."""
 
 import subprocess
-from unittest.mock import MagicMock, patch
-import pytest
-
 from awslabs.ccapi_mcp_server.server import _check_checkov_installed
+from unittest.mock import MagicMock, patch
 
 
 class TestCheckovCheck:
@@ -15,7 +13,7 @@ class TestCheckovCheck:
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             result = _check_checkov_installed()
-            
+
             assert result['installed'] is True
             assert result['message'] == 'Checkov is available'
             assert result['needs_user_action'] is False
@@ -31,7 +29,7 @@ class TestCheckovCheck:
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = FileNotFoundError()
             result = _check_checkov_installed()
-            
+
             assert result['installed'] is False
             assert 'not available' in result['message']
             assert 'declared dependency' in result['message']
@@ -42,7 +40,7 @@ class TestCheckovCheck:
         with patch('subprocess.run') as mock_run:
             mock_run.side_effect = subprocess.CalledProcessError(1, 'checkov')
             result = _check_checkov_installed()
-            
+
             assert result['installed'] is False
             assert 'not available' in result['message']
             assert result['needs_user_action'] is True

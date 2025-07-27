@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Test script to verify Checkov installation logic"""
+"""Test script to verify Checkov installation logic."""
 
 import subprocess
-import tempfile
-import os
+
 
 def test_checkov_install_logic():
-    """Test the Checkov installation detection and installation logic"""
-    
+    """Test the Checkov installation detection and installation logic."""
     # First, test detection when checkov IS available
     try:
         result = subprocess.run(
@@ -30,12 +28,12 @@ def test_checkov_install_logic():
             check=False,
         )
         if result.returncode == 0:
-            print("✅ Checkov detection works - found version:", result.stdout.strip())
+            print('✅ Checkov detection works - found version:', result.stdout.strip())
         else:
-            print("❌ Checkov detection failed")
+            print('❌ Checkov detection failed')
     except FileNotFoundError:
-        print("❌ Checkov not found (FileNotFoundError)")
-    
+        print('❌ Checkov not found (FileNotFoundError)')
+
     # Test what happens when we simulate checkov not being found
     # We'll temporarily rename checkov if it exists
     checkov_path = None
@@ -44,12 +42,12 @@ def test_checkov_install_logic():
         result = subprocess.run(['which', 'checkov'], capture_output=True, text=True)
         if result.returncode == 0:
             checkov_path = result.stdout.strip()
-            print(f"📍 Found checkov at: {checkov_path}")
-    except:
+            print(f'📍 Found checkov at: {checkov_path}')
+    except Exception:
         pass
-    
+
     # Test the uv tool install command syntax
-    print("\n🧪 Testing uv tool install syntax...")
+    print('\n🧪 Testing uv tool install syntax...')
     try:
         result = subprocess.run(
             ['uv', 'tool', 'install', '--help'],
@@ -58,11 +56,12 @@ def test_checkov_install_logic():
             check=False,
         )
         if result.returncode == 0:
-            print("✅ uv tool install command is valid")
+            print('✅ uv tool install command is valid')
         else:
-            print("❌ uv tool install command failed:", result.stderr)
+            print('❌ uv tool install command failed:', result.stderr)
     except FileNotFoundError:
-        print("❌ uv not found")
+        print('❌ uv not found')
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     test_checkov_install_logic()
