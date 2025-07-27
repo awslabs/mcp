@@ -57,7 +57,7 @@ class TestRedshiftClientManagerRedshiftClient:
 
         # Verify session was created with profile and client was created
         mock_session_class.assert_called_once_with(profile_name='test-profile')
-        mock_session.client.assert_called_once_with('redshift', config=config)
+        mock_session.client.assert_called_once_with('redshift', config=config, region_name='us-west-2')
 
     def test_redshift_client_creation_error_default_credentials(self, mocker):
         """Test error handling when client creation fails with default credentials."""
@@ -114,7 +114,7 @@ class TestRedshiftClientManagerServerlessClient:
 
         # Verify session was created with profile and client was created
         mock_session_class.assert_called_once_with(profile_name='test-profile')
-        mock_session.client.assert_called_once_with('redshift-serverless', config=config)
+        mock_session.client.assert_called_once_with('redshift-serverless', config=config, region_name='us-west-2')
 
     def test_redshift_serverless_client_creation_error_default_credentials(self, mocker):
         """Test error handling when serverless client creation fails with default credentials."""
@@ -171,7 +171,7 @@ class TestRedshiftClientManagerDataClient:
 
         # Verify session was created with profile and client was created
         mock_session_class.assert_called_once_with(profile_name='test-profile')
-        mock_session.client.assert_called_once_with('redshift-data', config=config)
+        mock_session.client.assert_called_once_with('redshift-data', config=config, region_name='us-west-2')
 
     def test_redshift_data_client_creation_error_default_credentials(self, mocker):
         """Test error handling when data client creation fails with default credentials."""
