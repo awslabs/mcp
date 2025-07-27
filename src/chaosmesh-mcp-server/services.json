@@ -1,0 +1,23 @@
+{
+    "mcp_configuration": {
+        "chaosmesh-mcp": {
+            "autoApprove": [],
+            "disabled": false,
+            "command": "uv",
+            "args": [
+                "--directory",
+                "/<your directory>/chaosmesh-mcp",
+                "run",
+                "python",
+                "server.py",
+                "--transport",
+                "stdio"
+            ],
+            "env": {
+                "AWS_PROFILE": " <your-PROFILE>",
+                "AWS_REGION": " <your-region>"
+            },
+            "transportType": "stdio"
+        }
+    }
+}
