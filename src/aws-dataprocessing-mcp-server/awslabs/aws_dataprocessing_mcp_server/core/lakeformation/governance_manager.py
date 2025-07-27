@@ -14,19 +14,19 @@
 
 """GovernanceManager for Data Processing MCP Server."""
 
-import boto3
-from botocore.exceptions import ClientError
 from awslabs.aws_dataprocessing_mcp_server.models.governance_models import (
-    ListPermissionsResponse,
-    GetDataLakeSettingsResponse,
-    ListResourcesResponse,
-    DescribeResourceResponse,
     BatchGetEffectivePermissionsForPathResponse,
+    DescribeResourceResponse,
+    GetDataLakeSettingsResponse,
+    ListPermissionsResponse,
+    ListResourcesResponse,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
+from botocore.exceptions import ClientError
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from typing import Optional
@@ -39,7 +39,7 @@ class GovernanceManager:
         """Initialize the Lake Formation Governance manager."""
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        self.lakeformation_client = boto3.client("lakeformation")
+        self.lakeformation_client = AwsHelper.create_boto3_client('lakeformation')
 
     async def list_permissions(
         self,
@@ -57,19 +57,19 @@ class GovernanceManager:
             while True:
                 params = {}
                 if principal:
-                    params["Principal"] = {"DataLakePrincipalIdentifier": principal}
+                    params['Principal'] = {'DataLakePrincipalIdentifier': principal}
                 if resource_type:
-                    params["ResourceType"] = resource_type
+                    params['ResourceType'] = resource_type
                 if catalog_id:
-                    params["CatalogId"] = catalog_id
+                    params['CatalogId'] = catalog_id
                 if max_results:
-                    params["MaxResults"] = max_results
+                    params['MaxResults'] = max_results
                 if current_next_token:
-                    params["NextToken"] = current_next_token
+                    params['NextToken'] = current_next_token
 
                 response = self.lakeformation_client.list_permissions(**params)
-                all_permissions.extend(response.get("PrincipalResourcePermissions", []))
-                current_next_token = response.get("NextToken")
+                all_permissions.extend(response.get('PrincipalResourcePermissions', []))
+                current_next_token = response.get('NextToken')
                 if not current_next_token:
                     break
 
@@ -77,16 +77,16 @@ class GovernanceManager:
                 isError=False,
                 content=[],
                 permissions=all_permissions,
-                operation="list-permissions",
+                operation='list-permissions',
                 next_token=current_next_token,
             )
         except ClientError as e:
-            log_with_request_id(ctx, LogLevel.ERROR, f"Error listing permissions: {e}")
+            log_with_request_id(ctx, LogLevel.ERROR, f'Error listing permissions: {e}')
             return ListPermissionsResponse(
                 isError=True,
-                content=[TextContent(type="text", text=str(e))],
+                content=[TextContent(type='text', text=str(e))],
                 permissions=[],
-                operation="list-permissions",
+                operation='list-permissions',
             )
 
     async def get_data_lake_settings(
@@ -96,22 +96,22 @@ class GovernanceManager:
         try:
             params = {}
             if catalog_id:
-                params["CatalogId"] = catalog_id
+                params['CatalogId'] = catalog_id
 
             response = self.lakeformation_client.get_data_lake_settings(**params)
             return GetDataLakeSettingsResponse(
                 isError=False,
                 content=[],
-                data_lake_settings=response.get("DataLakeSettings", {}),
-                operation="get-data-lake-settings",
+                data_lake_settings=response.get('DataLakeSettings', {}),
+                operation='get-data-lake-settings',
             )
         except ClientError as e:
-            log_with_request_id(ctx, LogLevel.ERROR, f"Error getting data lake settings: {e}")
+            log_with_request_id(ctx, LogLevel.ERROR, f'Error getting data lake settings: {e}')
             return GetDataLakeSettingsResponse(
                 isError=True,
-                content=[TextContent(type="text", text=str(e))],
+                content=[TextContent(type='text', text=str(e))],
                 data_lake_settings={},
-                operation="get-data-lake-settings",
+                operation='get-data-lake-settings',
             )
 
     async def list_resources(
@@ -124,13 +124,13 @@ class GovernanceManager:
             while True:
                 params = {}
                 if max_results:
-                    params["MaxResults"] = max_results
+                    params['MaxResults'] = max_results
                 if current_next_token:
-                    params["NextToken"] = current_next_token
+                    params['NextToken'] = current_next_token
 
                 response = self.lakeformation_client.list_resources(**params)
-                all_resources.extend(response.get("ResourceInfoList", []))
-                current_next_token = response.get("NextToken")
+                all_resources.extend(response.get('ResourceInfoList', []))
+                current_next_token = response.get('NextToken')
                 if not current_next_token:
                     break
 
@@ -138,37 +138,35 @@ class GovernanceManager:
                 isError=False,
                 content=[],
                 resources=all_resources,
-                operation="list-resources",
+                operation='list-resources',
                 next_token=current_next_token,
             )
         except ClientError as e:
-            log_with_request_id(ctx, LogLevel.ERROR, f"Error listing resources: {e}")
+            log_with_request_id(ctx, LogLevel.ERROR, f'Error listing resources: {e}')
             return ListResourcesResponse(
                 isError=True,
-                content=[TextContent(type="text", text=str(e))],
+                content=[TextContent(type='text', text=str(e))],
                 resources=[],
-                operation="list-resources",
+                operation='list-resources',
             )
 
-    async def describe_resource(
-        self, ctx: Context, resource_arn: str
-    ) -> DescribeResourceResponse:
+    async def describe_resource(self, ctx: Context, resource_arn: str) -> DescribeResourceResponse:
         """Describe an AWS Lake Formation resource."""
         try:
             response = self.lakeformation_client.describe_resource(ResourceArn=resource_arn)
             return DescribeResourceResponse(
                 isError=False,
                 content=[],
-                resource_info=response.get("ResourceInfo", {}),
-                operation="describe-resource",
+                resource_info=response.get('ResourceInfo', {}),
+                operation='describe-resource',
             )
         except ClientError as e:
-            log_with_request_id(ctx, LogLevel.ERROR, f"Error describing resource: {e}")
+            log_with_request_id(ctx, LogLevel.ERROR, f'Error describing resource: {e}')
             return DescribeResourceResponse(
                 isError=True,
-                content=[TextContent(type="text", text=str(e))],
+                content=[TextContent(type='text', text=str(e))],
                 resource_info={},
-                operation="describe-resource",
+                operation='describe-resource',
             )
 
     async def batch_get_effective_permissions_for_path(
@@ -176,26 +174,24 @@ class GovernanceManager:
     ) -> BatchGetEffectivePermissionsForPathResponse:
         """Get effective permissions for a path in AWS Lake Formation."""
         try:
-            params = {"ResourcePath": resource_path}
+            params = {'ResourcePath': resource_path}
             if catalog_id:
-                params["CatalogId"] = catalog_id
+                params['CatalogId'] = catalog_id
 
-            response = self.lakeformation_client.batch_get_effective_permissions_for_path(
-                **params
-            )
+            response = self.lakeformation_client.batch_get_effective_permissions_for_path(**params)
             return BatchGetEffectivePermissionsForPathResponse(
                 isError=False,
                 content=[],
-                permissions=response.get("Permissions", []),
-                operation="batch-get-effective-permissions-for-path",
+                permissions=response.get('Permissions', []),
+                operation='batch-get-effective-permissions-for-path',
             )
         except ClientError as e:
             log_with_request_id(
-                ctx, LogLevel.ERROR, f"Error getting effective permissions for path: {e}"
+                ctx, LogLevel.ERROR, f'Error getting effective permissions for path: {e}'
             )
             return BatchGetEffectivePermissionsForPathResponse(
                 isError=True,
-                content=[TextContent(type="text", text=str(e))],
+                content=[TextContent(type='text', text=str(e))],
                 permissions=[],
-                operation="batch-get-effective-permissions-for-path",
+                operation='batch-get-effective-permissions-for-path',
             )

@@ -18,11 +18,11 @@ from awslabs.aws_dataprocessing_mcp_server.core.lakeformation.governance_manager
     GovernanceManager,
 )
 from awslabs.aws_dataprocessing_mcp_server.models.governance_models import (
-    ListPermissionsResponse,
-    GetDataLakeSettingsResponse,
-    ListResourcesResponse,
-    DescribeResourceResponse,
     BatchGetEffectivePermissionsForPathResponse,
+    DescribeResourceResponse,
+    GetDataLakeSettingsResponse,
+    ListPermissionsResponse,
+    ListResourcesResponse,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
@@ -31,7 +31,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Union
+from typing import Annotated, Optional, Union
 
 
 class GovernanceHandler:
@@ -53,7 +53,7 @@ class GovernanceHandler:
         )
 
         # Register tools
-        self.mcp.tool(name='manage_aws_lakeformation_permissions') (
+        self.mcp.tool(name='manage_aws_lakeformation_permissions')(
             self.manage_aws_lakeformation_permissions
         )
         self.mcp.tool(name='manage_aws_lakeformation_datalakesettings')(
@@ -112,7 +112,7 @@ class GovernanceHandler:
         ListPermissionsResponse,
         BatchGetEffectivePermissionsForPathResponse,
     ]:
-        """Manage AWS Lake Formation permissions."
+        """Manage AWS Lake Formation permissions !
 
         This tool provides operations for managing AWS Lake Formation permissions, including listing permissions
         and getting effective permissions for a path.
@@ -128,7 +128,7 @@ class GovernanceHandler:
             max_results: Maximum number of results to return.
 
         Returns:
-            Union of response types specific to the operation performed
+            Union of response types specific to the operation performed.
         """
         log_with_request_id(
             ctx,
@@ -147,7 +147,9 @@ class GovernanceHandler:
                 )
             elif operation == 'batch-get-effective-permissions-for-path':
                 if resource_path is None:
-                    raise ValueError('resource_path is required for batch-get-effective-permissions-for-path operation')
+                    raise ValueError(
+                        'resource_path is required for batch-get-effective-permissions-for-path operation'
+                    )
                 return await self.governance_manager.batch_get_effective_permissions_for_path(
                     ctx=ctx,
                     resource_path=resource_path,
@@ -191,7 +193,7 @@ class GovernanceHandler:
             ),
         ] = None,
     ) -> GetDataLakeSettingsResponse:
-        """Manage AWS Lake Formation data lake settings."
+        """Manage AWS Lake Formation data lake settings !
 
         This tool provides operations for managing AWS Lake Formation data lake settings, including getting the settings.
 
@@ -201,7 +203,7 @@ class GovernanceHandler:
             catalog_id: ID of the catalog (optional, defaults to account ID)
 
         Returns:
-            The response for the get-data-lake-settings operation
+            The response for the get-data-lake-settings operation.
         """
         log_with_request_id(
             ctx,
@@ -215,7 +217,9 @@ class GovernanceHandler:
                     catalog_id=catalog_id,
                 )
             else:
-                error_message = f'Invalid operation: {operation}. Must be one of: get-data-lake-settings'
+                error_message = (
+                    f'Invalid operation: {operation}. Must be one of: get-data-lake-settings'
+                )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return GetDataLakeSettingsResponse(
                     isError=True,
@@ -264,7 +268,7 @@ class GovernanceHandler:
         ListResourcesResponse,
         DescribeResourceResponse,
     ]:
-        """Manage AWS Lake Formation resources."
+        """Manage AWS Lake Formation resources !
 
         This tool provides operations for managing AWS Lake Formation resources, including listing and describing resources.
 
@@ -276,7 +280,7 @@ class GovernanceHandler:
             max_results: Maximum number of results to return.
 
         Returns:
-            Union of response types specific to the operation performed
+            Union of response types specific to the operation performed.
         """
         log_with_request_id(
             ctx,
