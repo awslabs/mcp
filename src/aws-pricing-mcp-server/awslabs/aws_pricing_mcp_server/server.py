@@ -32,7 +32,7 @@ from awslabs.aws_pricing_mcp_server.models import (
     SERVICE_CODE_FIELD,
     ErrorResponse,
     OutputOptions,
-    PricingFilters,
+    PricingFilter,
 )
 from awslabs.aws_pricing_mcp_server.pricing_client import (
     create_pricing_client,
@@ -99,7 +99,7 @@ mcp = FastMCP(
        instance_types = get_pricing_attribute_values('AmazonEC2', 'instanceType')
 
        # Get pricing for specific instance types in a region
-       filters = {"filters": [{"Field": "instanceType", "Value": "t3.medium", "Type": "TERM_MATCH"}]}
+       filters = [{"Field": "instanceType", "Value": "t3.medium", "Type": "TERM_MATCH"}]
        pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
 
        # Get bulk pricing data files for historical analysis
@@ -228,7 +228,7 @@ async def analyze_terraform_project_wrapper(
     **PARAMETERS:**
     - service_code (required): AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES')
     - region (required): AWS region string (e.g., 'us-east-1') OR list for multi-region comparison (e.g., ['us-east-1', 'eu-west-1'])
-    - filters (optional): PricingFilters object with list of filter dictionaries
+    - filters (optional): List of filter dictionaries in format {'Field': str, 'Type': str, 'Value': str}
     - max_allowed_characters (optional): Response size limit in characters (default: 100,000, use -1 for unlimited)
     - output_options (optional): OutputOptions object for response transformation and size reduction
     - max_results (optional): Maximum number of results to return per page (default: 100, min: 1, max: 100)
@@ -246,13 +246,11 @@ async def analyze_terraform_project_wrapper(
     **Step 2: Build Precise Filters**
     ```python
     # Use ONLY values discovered in Step 1
-    filters = {
-       "filters": [
-           {"Field": "memory", "Value": ["8 GiB", "16 GiB", "32 GiB"], "Type": "ANY_OF"},     # Multiple options
-           {"Field": "instanceType", "Value": "m5", "Type": "CONTAINS"},                      # Pattern matching
-           {"Field": "instanceType", "Value": ["t2", "m4"], "Type": "NONE_OF"}                # Exclude older
-       ]
-    }
+    filters = [
+       {"Field": "memory", "Value": ["8 GiB", "16 GiB", "32 GiB"], "Type": "ANY_OF"},     # Multiple options
+       {"Field": "instanceType", "Value": "m5", "Type": "CONTAINS"},                      # Pattern matching
+       {"Field": "instanceType", "Value": ["t2", "m4"], "Type": "NONE_OF"}                # Exclude older
+   ]
     ```
 
     **Step 3: Execute Query**
@@ -266,7 +264,7 @@ async def analyze_terraform_project_wrapper(
     - **CONTAINS**: Pattern match - `{"Field": "instanceType", "Value": "m5", "Type": "CONTAINS"}`
     - **NONE_OF**: Exclusion - `{"Field": "instanceType", "Value": ["t2", "m4"], "Type": "NONE_OF"}`
 
-    **⚠️ CRITICAL: ANY_OF FILTER VALUE LIMITS:**
+    **CRITICAL: ANY_OF FILTER VALUE LIMITS:**
     - **1024 CHARACTER LIMIT**: Total length of all values in ANY_OF arrays cannot exceed 1024 characters
     - **PROGRESSIVE FILTERING**: Start with minimal qualifying options, expand if needed
     - **EXAMPLE VIOLATION**: `["8 GiB", "16 GiB", "32 GiB", "64 GiB", "96 GiB", "128 GiB", ...]` (TOO LONG)
@@ -278,7 +276,7 @@ async def analyze_terraform_project_wrapper(
     - **LOWER = CHEAPER ASSUMPTION**: For cost optimization, assume lower capabilities cost less than higher ones
       * 32 GB storage is cheaper than 300 GB storage
       * 8 GiB RAM is cheaper than 64 GiB RAM
-    - **⚠️ CRITICAL FOR COST QUERIES**: Start IMMEDIATELY above minimum requirement and test ALL options incrementally
+    - **CRITICAL FOR COST QUERIES**: Start IMMEDIATELY above minimum requirement and test ALL options incrementally
     - **EXHAUSTIVE ENUMERATION REQUIRED**: Each storage/memory tier is MUTUALLY EXCLUSIVE - must list each one explicitly
     - **STOP AT REASONABLE UPPER BOUND**: For cost optimization, limit upper bound to 2-3x minimum requirement to avoid expensive options
     - **exclude_free_products**: ESSENTIAL for cost analysis - removes $0.00 reservation placeholders, SQL licensing variants, and special pricing entries that obscure actual billable instances when finding cheapest options
@@ -308,16 +306,16 @@ async def analyze_terraform_project_wrapper(
     - **CHARACTER LIMIT**: 100,000 characters default response limit (use output_options to reduce)
     - **REGION AUTO-FILTER**: Region parameter automatically creates regionCode filter
 
-    **ANTI-PATTERNS - AVOID THESE:**
-    ❌ Making multiple API calls that could be combined with ANY_OF
-    ❌ Building cross-products manually when API can handle combinations
-    ❌ Calling get_pricing_service_codes() when service code is already known (e.g., "AmazonEC2")
-    ❌ Using EQUALS without first checking get_pricing_attribute_values()
-    ❌ Skipping discovery workflow for any use case
-    ❌ Using broad queries without specific filters on large services
-    ❌ Assuming attribute values exist across different services/regions
-    ❌ **SKIPPING INTERMEDIATE TIERS**: Missing 50GB, 59GB options when testing 32GB → 75GB jump
-    ❌ **SETTING UPPER BOUNDS TOO HIGH**: Including 500GB+ storage when user needs ≥30GB (wastes character limit)
+    **ANTI-PATTERNS:**
+    - DO NOT make multiple API calls that could be combined with ANY_OF
+    - DO NOT build cross-products manually when API can handle combinations
+    - DO NOT call get_pricing_service_codes() when service code is already known (e.g., "AmazonEC2")
+    - DO NOT use EQUALS without first checking get_pricing_attribute_values()
+    - DO NOT skip discovery workflow for any use case
+    - DO NOT use broad queries without specific filters on large services
+    - DO NOT assume attribute values exist across different services/regions
+    - DO NOT skip intermediate tiers: Missing 50GB, 59GB options when testing 32GB → 75GB jump
+    - DO NOT set upper bounds too high: Including 500GB+ storage when user needs ≥30GB (wastes character limit)
 
     **EXAMPLE USE CASES:**
 
@@ -325,19 +323,19 @@ async def analyze_terraform_project_wrapper(
     ```python
     # Find cheapest EC2 instances meeting minimum requirements (>= 8 GiB memory, >= 30 GB storage)
     # EXHAUSTIVE ENUMERATION of qualifying tiers - each is mutually exclusive
-    filters = {"filters": [
+    filters = [
        {"Field": "memory", "Value": ["8 GiB", "16 GiB", "32 GiB"], "Type": "ANY_OF"},  # All tiers ≥8GB up to reasonable limit
        {"Field": "storage", "Value": ["1 x 32 SSD", "1 x 60 SSD", "1 x 75 NVMe SSD"], "Type": "ANY_OF"},  # All tiers ≥30GB up to reasonable limit
        {"Field": "instanceType", "Value": ["t2", "m4"], "Type": "NONE_OF"},  # Exclude older generations
        {"Field": "tenancy", "Value": "Shared", "Type": "EQUALS"}  # Exclude more expensive dedicated
-    ]}
+    ]
     pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
     ```
 
     **2. Efficient Multi-Region Comparison:**
     ```python
     # Compare same configuration across regions - use region parameter for multi-region
-    filters = {"filters": [{"Field": "instanceType", "Value": "m5.large", "Type": "EQUALS"}]}
+    filters = [{"Field": "instanceType", "Value": "m5.large", "Type": "EQUALS"}]
     pricing = get_pricing('AmazonEC2', ['us-east-1', 'us-west-2', 'eu-west-1'], filters)
     ```
 
@@ -350,10 +348,10 @@ async def analyze_terraform_project_wrapper(
     **4. Pattern-Based Discovery with Refinement:**
     ```python
     # Find all Standard storage tiers except expensive ones
-    filters = {"filters": [
+    filters = [
         {"Field": "storageClass", "Value": "Standard", "Type": "CONTAINS"},
         {"Field": "storageClass", "Value": ["Standard-IA"], "Type": "NONE_OF"}
-    ]}
+    ]
     ```
 
     **FILTERING STRATEGY:**
@@ -364,18 +362,18 @@ async def analyze_terraform_project_wrapper(
     - **Smart Exclusion**: Use NONE_OF for compliance or cost filtering
 
     **SUCCESS CRITERIA:**
-    ✅ Used discovery workflow (skip get_pricing_service_codes() if service known)
-    ✅ Applied appropriate filters for the service size
-    ✅ Used exact values from get_pricing_attribute_values()
-    ✅ Used ANY_OF for multi-option scenarios instead of multiple calls
-    ✅ For cost optimization: tested ALL qualifying tiers exhaustively (in a reasonable range)
+    - Used discovery workflow (skip get_pricing_service_codes() if service known)
+    - Applied appropriate filters for the service size
+    - Used exact values from get_pricing_attribute_values()
+    - Used ANY_OF for multi-option scenarios instead of multiple calls
+    - For cost optimization: tested ALL qualifying tiers exhaustively (in a reasonable range)
     """,
 )
 async def get_pricing(
     ctx: Context,
     service_code: str = SERVICE_CODE_FIELD,
     region: Union[str, List[str]] = REGION_FIELD,
-    filters: Optional[PricingFilters] = FILTERS_FIELD,
+    filters: Optional[List[PricingFilter]] = FILTERS_FIELD,
     max_allowed_characters: int = GET_PRICING_MAX_ALLOWED_CHARACTERS_FIELD,
     output_options: Optional[OutputOptions] = OUTPUT_OPTIONS_FIELD,
     max_results: int = MAX_RESULTS_FIELD,
@@ -435,8 +433,8 @@ async def get_pricing(
         ]
 
         # Add any additional filters if provided
-        if filters and filters.filters:
-            api_filters.extend([f.model_dump(by_alias=True) for f in filters.filters])
+        if filters:
+            api_filters.extend([f.model_dump(by_alias=True) for f in filters])
 
         # Make the API request
         api_params = {
@@ -1196,6 +1194,7 @@ async def get_pricing_attribute_values(
     - Historical pricing analysis (get_pricing() only provides current pricing)
     - Bulk data processing without repeated API calls
     - Offline analysis of complete pricing datasets
+    - Savings Plans analysis across services
 
     **FILE PROCESSING:**
     - CSV files: Lines 1-5 are metadata, Line 6 contains headers, Line 7+ contains pricing data

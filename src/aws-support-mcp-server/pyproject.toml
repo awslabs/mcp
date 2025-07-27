@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-support-mcp-server"
-version = "0.1.5"
+version = "0.1.7"
 description = "An Model Context Protocol (MCP) server for AWS SupportAPI."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -54,27 +54,45 @@ packages = ["awslabs", "awslabs.aws_support_mcp_server"]
 
 [tool.ruff]
 line-length = 99
-target-version = "py310"
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "Q"]
-ignore = ["E203", "E501", "B008"]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["awslabs"]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.format]
-quote-style = "double"
+quote-style = "single"
 indent-style = "space"
+skip-magic-trailing-comma = false
 line-ending = "auto"
+docstring-code-format = true
 
 [tool.pyright]
-include = ["awslabs"]
-exclude = ["**/__pycache__", "**/.pytest_cache"]
-typeCheckingMode = "basic"
-useLibraryCodeForTypes = true
-reportMissingImports = true
-reportMissingTypeStubs = false
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
