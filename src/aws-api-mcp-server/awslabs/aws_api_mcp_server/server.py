@@ -20,14 +20,15 @@ from .core.aws.service import (
     get_local_credentials,
     interpret_command,
     is_operation_read_only,
+    request_consent,
     validate,
 )
 from .core.common.config import (
-    BYPASS_TOOL_CONSENT,
     DEFAULT_REGION,
     FASTMCP_LOG_LEVEL,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
+    REQUIRE_MUTATION_CONSENT,
     WORKING_DIRECTORY,
     get_server_directory,
 )
@@ -35,17 +36,14 @@ from .core.common.errors import AwsApiMcpError
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
-    Consent,
     ProgramInterpretationResponse,
 )
 from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
-from mcp.server.elicitation import AcceptedElicitation
 from mcp.server.fastmcp import Context, FastMCP
-from mcp.shared.exceptions import McpError
-from mcp.types import METHOD_NOT_FOUND, ToolAnnotations
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from typing import Annotated, Any, Optional, cast
 
@@ -205,41 +203,6 @@ async def call_aws(
             return AwsApiMcpServerErrorResponse(
                 detail=error_message,
             )
-
-        if READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX):
-            if READ_OPERATIONS_ONLY_MODE:
-                error_message = (
-                    'Execution of this operation is not allowed because read only mode is enabled. '
-                    f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
-                )
-                await ctx.error(error_message)
-                return AwsApiMcpServerErrorResponse(
-                    detail=error_message,
-                )
-            elif not BYPASS_TOOL_CONSENT:
-                try:
-                    elicitation_result = await ctx.elicit(
-                        message=f"The CLI command '{cli_command}' requires explicit consent. Do you approve the execution of this command?",
-                        schema=Consent,
-                    )
-
-                    if (
-                        not isinstance(elicitation_result, AcceptedElicitation)
-                        or not elicitation_result.data.answer
-                    ):
-                        error_message = 'User rejected the execution of the command.'
-                        await ctx.error(error_message)
-                        return AwsApiMcpServerErrorResponse(
-                            detail=error_message,
-                        )
-                except McpError as e:
-                    if e.error.code == METHOD_NOT_FOUND:
-                        error_message = 'Client does not support elicitation. Use a different client or update the server configuration.'
-                        logger.error(error_message)
-                        raise AwsApiMcpError(error_message)
-
-                    raise e
-
     except AwsApiMcpError as e:
         error_message = f'Error while validating the command: {e.as_failure().reason}'
         await ctx.error(error_message)
@@ -254,6 +217,19 @@ async def call_aws(
         )
 
     try:
+        if READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX):
+            if READ_OPERATIONS_ONLY_MODE:
+                error_message = (
+                    'Execution of this operation is not allowed because read only mode is enabled. '
+                    f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
+                )
+                await ctx.error(error_message)
+                return AwsApiMcpServerErrorResponse(
+                    detail=error_message,
+                )
+            elif REQUIRE_MUTATION_CONSENT:
+                await request_consent(cli_command, ctx)
+
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
                 execute_awscli_customization(cli_command)
@@ -325,7 +301,7 @@ def main():
         logger.error(error_message)
         raise RuntimeError(error_message)
 
-    if READ_OPERATIONS_ONLY_MODE or not BYPASS_TOOL_CONSENT:
+    if READ_OPERATIONS_ONLY_MODE or REQUIRE_MUTATION_CONSENT:
         READ_OPERATIONS_INDEX = get_read_only_operations()
 
     server.run(transport='stdio')

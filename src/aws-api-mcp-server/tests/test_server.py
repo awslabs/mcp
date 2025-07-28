@@ -116,7 +116,7 @@ async def test_suggest_aws_commands_exception(mock_knowledge_base):
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.BYPASS_TOOL_CONSENT', False)
+@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
 @patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
@@ -175,7 +175,7 @@ async def test_call_aws_with_consent_and_accept(
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.BYPASS_TOOL_CONSENT', False)
+@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
 @patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
@@ -215,14 +215,14 @@ async def test_call_aws_with_consent_and_reject(
 
     # Verify that consent was requested
     assert result == AwsApiMcpServerErrorResponse(
-        detail='User rejected the execution of the command.'
+        detail='Error while executing the command: User rejected the execution of the command.'
     )
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
     mock_validate.assert_called_once_with(mock_ir)
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.BYPASS_TOOL_CONSENT', True)
+@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False)
 @patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
