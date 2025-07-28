@@ -47,10 +47,23 @@ logger.debug(f'Using AWS region: {AWS_REGION}')
 # Initialize AWS clients with logging
 try:
     config = Config(user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}')
-    logs_client = boto3.client('logs', region_name=AWS_REGION, config=config)
-    appsignals_client = boto3.client('application-signals', region_name=AWS_REGION, config=config)
-    cloudwatch_client = boto3.client('cloudwatch', region_name=AWS_REGION, config=config)
-    xray_client = boto3.client('xray', region_name=AWS_REGION, config=config)
+
+    # Check for AWS_PROFILE environment variable
+    if aws_profile := os.environ.get('AWS_PROFILE'):
+        logger.debug(f'Using AWS profile: {aws_profile}')
+        session = boto3.Session(profile_name=aws_profile, region_name=AWS_REGION)
+        logs_client = session.client('logs', config=config)
+        appsignals_client = session.client('application-signals', config=config)
+        cloudwatch_client = session.client('cloudwatch', config=config)
+        xray_client = session.client('xray', config=config)
+    else:
+        logs_client = boto3.client('logs', region_name=AWS_REGION, config=config)
+        appsignals_client = boto3.client(
+            'application-signals', region_name=AWS_REGION, config=config
+        )
+        cloudwatch_client = boto3.client('cloudwatch', region_name=AWS_REGION, config=config)
+        xray_client = boto3.client('xray', region_name=AWS_REGION, config=config)
+
     logger.debug('AWS clients initialized successfully')
 except Exception as e:
     logger.error(f'Failed to initialize AWS clients: {str(e)}')
