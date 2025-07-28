@@ -14,6 +14,9 @@
 
 """Constants for the DataProcessing MCP Server."""
 
+# Environment Variables
+CUSTOM_TAGS_ENV_VAR = 'CUSTOM_TAGS'
+
 # Dataprocessing Stack Management Operations
 MCP_MANAGED_TAG_KEY = 'ManagedBy'
 MCP_MANAGED_TAG_VALUE = 'DataprocessingMcpServer'

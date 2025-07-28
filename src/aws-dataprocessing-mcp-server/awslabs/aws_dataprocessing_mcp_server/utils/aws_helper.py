@@ -17,6 +17,7 @@
 import boto3
 import os
 from .consts import (
+    CUSTOM_TAGS_ENV_VAR,
     DEFAULT_RESOURCE_TAGS,
     EMR_CLUSTER_RESOURCE_TYPE,
     MCP_CREATION_TIME_TAG_KEY,
@@ -52,6 +53,19 @@ class AwsHelper:
     def get_aws_profile() -> Optional[str]:
         """Get the AWS profile from the environment if set."""
         return os.environ.get('AWS_PROFILE')
+
+    @staticmethod
+    def is_custom_tags_enabled() -> bool:
+        """Check if custom tags are enabled.
+
+        When CUSTOM_TAGS environment variable is set to 'True', the system will
+        ignore adding new tags or verifying ManagedBy tags for resources.
+
+        Returns:
+            True if custom tags are enabled, False otherwise
+        """
+        custom_tags = os.environ.get(CUSTOM_TAGS_ENV_VAR, '').lower()
+        return custom_tags == 'true'
 
     # Class variables to cache AWS information
     _aws_account_id = None
@@ -156,6 +170,11 @@ class AwsHelper:
         Returns:
             Dictionary of tags to apply to the resource
         """
+        # If custom tags are enabled, only use additional tags if provided
+        if AwsHelper.is_custom_tags_enabled():
+            return additional_tags or {}
+
+        # Otherwise, apply default MCP tags
         tags = DEFAULT_RESOURCE_TAGS.copy()
         tags[MCP_RESOURCE_TYPE_TAG_KEY] = resource_type
         tags[MCP_CREATION_TIME_TAG_KEY] = datetime.utcnow().isoformat()
@@ -217,6 +236,10 @@ class AwsHelper:
         Returns:
             True if the resource is managed by MCP server, False otherwise
         """
+        # If custom tags are enabled, skip verification
+        if AwsHelper.is_custom_tags_enabled():
+            return True
+
         if not tags:
             return False
 
@@ -263,6 +286,10 @@ class AwsHelper:
         Returns:
             True if the resource is managed by MCP, False otherwise
         """
+        # If custom tags are enabled, skip verification
+        if AwsHelper.is_custom_tags_enabled():
+            return True
+
         # First try to check tags
         try:
             tags_response = glue_client.get_tags(ResourceArn=resource_arn)
@@ -299,6 +326,10 @@ class AwsHelper:
                 - is_valid: True if verification passed, False otherwise
                 - error_message: Error message if verification failed, None otherwise
         """
+        # If custom tags are enabled, skip verification
+        if AwsHelper.is_custom_tags_enabled():
+            return {'is_valid': True, 'error_message': None}
+
         result = {'is_valid': False, 'error_message': None}
 
         try:
@@ -350,6 +381,10 @@ class AwsHelper:
                 - is_valid: True if verification passed, False otherwise
                 - error_message: Error message if verification failed, None otherwise
         """
+        # If custom tags are enabled, skip verification
+        if cls.is_custom_tags_enabled():
+            return {'is_valid': True, 'error_message': None}
+
         result = {'is_valid': False, 'error_message': None}
 
         try:

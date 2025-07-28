@@ -257,7 +257,8 @@ The `env` field in the MCP server definition allows you to configure environment
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
-        "AWS_REGION": "us-west-2"
+        "AWS_REGION": "us-west-2",
+        "CUSTOM_TAGS": "true"  // Skip adding and verifying MCP-managed tags
       }
     }
   }
@@ -285,6 +286,17 @@ Specifies the AWS region where Glue,EMR clusters or Athena are managed, which wi
 
 * Default: None (If not set, uses default AWS region).
 * Example: `"AWS_REGION": "us-west-2"`
+
+#### `CUSTOM_TAGS` (optional)
+
+Controls whether the MCP server adds and verifies MCP-managed tags on resources.
+
+* When set to 'true', the server will:
+  * Skip adding default MCP tags to resources during creation
+  * Skip verifying that resources have MCP-managed tags during operations
+* Default: None (If not set, MCP tags are added and verified)
+* Example: `"CUSTOM_TAGS": "true"`
+* **Important**: Enabling this option means resources won't be tagged as MCP-managed. This is done at the owner's consent and responsibility, as it bypasses the built-in resource management safeguards.
 
 ## Tools
 
