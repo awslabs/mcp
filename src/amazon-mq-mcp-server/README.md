@@ -51,6 +51,8 @@ The authorization between AmazonMQ MCP server and your AWS accounts are performe
 |:------:|:-------:|
 | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.amazon-mq-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLW1xLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ%3D%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20MQ%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-mq-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
+#### Amazon Q Developer
+
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 ```json
@@ -85,8 +87,8 @@ If you would like to specify a flag (for example, to allow creation of resources
 }
 ```
 
-
-or docker after a successful `docker build -t awslabs/amazon-mq-mcp-server .`:
+#### Docker
+First build the image `docker build -t awslabs/amazon-mq-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials
@@ -115,6 +117,45 @@ AWS_SESSION_TOKEN=<from the profile you set up>
     }
   }
 ```
+
+You can also pull the public ECR image at public.ecr.aws/awslabs-mcp/awslabs/amazon-mq-mcp-server:latest
+
+#### Kiro
+
+At the project level `.kiro/settings/mcp.json`
+
+```
+{
+  "mcpServers": {
+    "awslabs.amazon-mq-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.amazon-mq-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+#### Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "awslabs.amazon-mq-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.amazon-mq-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 ## Server Configuration Options
 
 The Amazon MQ MCP Server supports several command-line arguments that can be used to configure its behavior:
@@ -164,7 +205,3 @@ When using this MCP server, consider:
 - For connection issues, check network configurations and security groups
 - If resource modification fails with a tag validation error, it means the resource was not created by the MCP server
 - For general Amazon MQ issues, consult the [Amazon MQ documentation](https://docs.aws.amazon.com/amazon-mq/)
-
-## Version
-
-Current MCP server version: 1.0.0
