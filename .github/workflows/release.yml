@@ -1,5 +1,5 @@
 ---
-name: Release v2 Release (approval)
+name: Release Deploy (approvals)
 description: |
   This workflow drafts a release when a tag is pushed to the repository.
   It checks for changes in specific directories and publishes packages to PyPI and npmjs if there are changes.
@@ -363,14 +363,6 @@ jobs:
           echo "::debug::Building package: ${{ matrix.changed-directory }}"
           uv build
           echo "::debug::Package build completed"
-      - name: Upload distribution
-        id: upload-distribution
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: distribution-${{ matrix.changed-directory }}
-          path: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}/dist
-          if-no-files-found: error
-          retention-days: 1
       - name: Get Version from Package
         id: get-package-version
         working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
@@ -419,7 +411,7 @@ jobs:
           echo "* [PyPi](https://pypi.org/project/awslabs.${{ matrix.changed-directory }})" >> $GITHUB_STEP_SUMMARY
           echo "::debug::Docker images:"
           docker images || echo "No Docker images found"
-          docker images --filter=reference="public.ecr.aws/awslabs-mcp/awslabs/core-mcp-server" --format '{{ json . }}' | jq -r '"* [Public ECR](https://gallery.ecr.aws/awslabs-mcp/awslabs/${{ matrix.changed-directory }}"'  >> $GITHUB_STEP_SUMMARY
+          echo "* [Public ECR](https://gallery.ecr.aws/awslabs-mcp/awslabs/${{ matrix.changed-directory }} (if applicable)"  >> $GITHUB_STEP_SUMMARY
   release_when_successful:
     name: Publish Release
     if: needs.validate-repository.outputs.is-authorized-repo == 'true' && !failure() && !cancelled() && (needs.publish-npmjs.result == 'success' || needs.publish-pypi.result == 'success' || (needs.publish-npmjs.result == 'skipped' && needs.publish-pypi.result == 'skipped'))

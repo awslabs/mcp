@@ -1,5 +1,5 @@
 ---
-name: Release v2 Branch (manual)
+name: Release Branch (initiated)
 description: |
   This workflow initiates a release branch when changes are detected in the source directory.
   It finds changed directories since the last published release, creates a new branch,
@@ -7,8 +7,8 @@ description: |
 on:
   workflow_dispatch:
 env:
-  GITHUB_USER_EMAIL: ${{ vars.GITHUB_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
-  GITHUB_USER_NAME: ${{ vars.GITHUB_USER_NAME || 'awslabs-mcp' }}
+  BOT_USER_EMAIL: ${{ vars.BOT_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
+  BOT_USER_NAME: ${{ vars.BOT_USER_NAME || 'awslabs-mcp' }}
 permissions:
   actions: none
   attestations: none
@@ -29,7 +29,7 @@ jobs:
   look-for-changes:
     name: Changes Since Last Release
     env:
-      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || 'src' }}
     outputs:
       changed-directories: ${{ steps.find-changed-directories.outputs.changed-directories }}
     permissions:
@@ -147,8 +147,8 @@ jobs:
           fi
 
           # Configure git user
-          git config --local user.email "${{ env.GITHUB_USER_EMAIL }}"
-          git config --local user.name "${{ env.GITHUB_USER_NAME }}"
+          git config --local user.email "${{ env.BOT_USER_EMAIL }}"
+          git config --local user.name "${{ env.BOT_USER_NAME }}"
 
           # Create and push branch
           git checkout -b "$RELEASE_BRANCH"
@@ -203,8 +203,8 @@ jobs:
           echo "::debug::Setting up secure GPG environment"
 
           # Configure git user
-          git config --local user.email "${{ env.GITHUB_USER_EMAIL }}"
-          git config --local user.name "${{ env.GITHUB_USER_NAME }}"
+          git config --local user.email "${{ env.BOT_USER_EMAIL }}"
+          git config --local user.name "${{ env.BOT_USER_NAME }}"
 
           # Import GPG key without exposing secrets in command line
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import --quiet
