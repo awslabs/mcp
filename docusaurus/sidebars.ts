@@ -124,6 +124,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'servers/aws-pricing-mcp-server',
             'servers/cost-explorer-mcp-server',
+            'servers/aws-finops-mcp-server',
             'servers/cloudwatch-mcp-server',
             'servers/cloudwatch-appsignals-mcp-server',
           ],
