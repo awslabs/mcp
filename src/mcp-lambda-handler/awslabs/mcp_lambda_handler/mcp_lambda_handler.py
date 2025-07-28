@@ -20,6 +20,7 @@ from awslabs.mcp_lambda_handler.session import DynamoDBSessionStore, NoOpSession
 from awslabs.mcp_lambda_handler.types import (
     Capabilities,
     ErrorContent,
+    ImageContent,
     InitializeResult,
     JSONRPCError,
     JSONRPCRequest,
@@ -304,6 +305,39 @@ class MCPLambdaHandler:
         }
         return error_map.get(error_code, 500)
 
+    def _convert_result_to_content(self, result: Any) -> List[Dict]:
+        """Convert a result object to appropriate content object(s).
+
+        Args:
+            result: The result object from a tool function
+
+        Returns:
+            A list of content objects as dictionaries
+        """
+        if isinstance(result, bytes):
+            # Handle byte stream (likely an image)
+            import base64
+
+            # Try to determine MIME type from the first few bytes
+            mime_type = 'application/octet-stream'  # Default MIME type
+
+            # Check for common image signatures
+            if result.startswith(b'\xff\xd8\xff'):  # JPEG
+                mime_type = 'image/jpeg'
+            elif result.startswith(b'\x89PNG\r\n\x1a\n'):  # PNG
+                mime_type = 'image/png'
+            elif result.startswith(b'GIF87a') or result.startswith(b'GIF89a'):  # GIF
+                mime_type = 'image/gif'
+            elif result.startswith(b'RIFF') and result[8:12] == b'WEBP':  # WebP
+                mime_type = 'image/webp'
+
+            # Convert bytes to base64 string
+            base64_data = base64.b64encode(result).decode('utf-8')
+            return [ImageContent(data=base64_data, mimeType=mime_type).model_dump()]
+        else:
+            # Default to text content for other result types
+            return [TextContent(text=str(result)).model_dump()]
+
     def _create_success_response(
         self, result: Any, request_id: str | None, session_id: Optional[str] = None
     ) -> Dict:
@@ -435,7 +469,7 @@ class MCPLambdaHandler:
                             converted_args[arg_name] = arg_value
 
                     result = tool_func(**converted_args)
-                    content = [TextContent(text=str(result)).model_dump()]
+                    content = self._convert_result_to_content(result)
                     return self._create_success_response(
                         {'content': content}, request.id, session_id
                     )
