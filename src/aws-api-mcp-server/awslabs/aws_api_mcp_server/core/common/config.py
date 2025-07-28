@@ -12,9 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import boto3
 import os
 import tempfile
 from pathlib import Path
+
+
+def get_region() -> str:
+    """Get the default region for executing cli commands."""
+    if aws_region := os.getenv('AWS_REGION'):
+        return aws_region
+
+    fallback_region = 'us-east-1'
+
+    if AWS_API_MCP_PROFILE_NAME:
+        return boto3.Session(profile_name=AWS_API_MCP_PROFILE_NAME).region_name or fallback_region
+
+    return boto3.Session().region_name or fallback_region
 
 
 def get_server_directory():
@@ -40,8 +54,8 @@ def get_env_bool(env_key: str, default: bool) -> bool:
 
 
 FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'WARNING')
-DEFAULT_REGION = os.getenv('AWS_REGION')
+AWS_API_MCP_PROFILE_NAME = os.getenv('AWS_API_MCP_PROFILE_NAME')
+DEFAULT_REGION = get_region()
 READ_OPERATIONS_ONLY_MODE = get_env_bool(READ_ONLY_KEY, False)
 OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
 WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
-AWS_API_MCP_PROFILE_NAME = os.getenv('AWS_API_MCP_PROFILE_NAME')

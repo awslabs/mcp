@@ -59,10 +59,7 @@ class DenseRetriever:
             from sentence_transformers import SentenceTransformer
 
             models_dir = get_server_directory() / 'models' / self.model_name
-            local_files_only = models_dir.exists()
-            self._model = SentenceTransformer(
-                self.model_name, cache_folder=str(models_dir), local_files_only=local_files_only
-            )
+            self._model = SentenceTransformer(self.model_name, cache_folder=str(models_dir))
             self._model_ready = True
         return self._model
 
