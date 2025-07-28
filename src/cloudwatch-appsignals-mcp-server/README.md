@@ -269,7 +269,7 @@ The server requires the following AWS IAM permissions:
 
 ### Environment Variables
 
-- `AWS_PROFILE` - AWS profile name to use for authentication
+- `AWS_PROFILE` - AWS profile name to use for authentication (defaults to `default` profile)
 - `AWS_REGION` - AWS region (defaults to us-east-1)
 - `MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL` - Logging level (defaults to INFO)
 
