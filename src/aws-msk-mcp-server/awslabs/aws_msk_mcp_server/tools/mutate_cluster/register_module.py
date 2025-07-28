@@ -35,7 +35,7 @@ from awslabs.aws_msk_mcp_server import __version__
 from botocore.config import Config
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 def register_module(mcp: FastMCP) -> None:
@@ -216,7 +216,7 @@ This operation increases the storage capacity of broker nodes in an MSK cluster.
             ..., description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
         current_version: str = Field(..., description='The version of cluster to update from'),
-        target_broker_ebs_volume_info: str = Field(
+        target_broker_ebs_volume_info: Union[str, List[Dict[str, Any]]] = Field(
             ...,
             description='List of dictionaries describing the target volume size and broker IDs',
         ),
@@ -234,6 +234,13 @@ This operation increases the storage capacity of broker nodes in an MSK cluster.
                 f"Resource {cluster_arn} does not have the 'MCP Generated' tag. "
                 "This operation can only be performed on resources tagged with 'MCP Generated'."
             )
+
+        # Handle target_broker_ebs_volume_info
+        if isinstance(target_broker_ebs_volume_info, str):
+            try:
+                target_broker_ebs_volume_info = json.loads(target_broker_ebs_volume_info)
+            except json.JSONDecodeError:
+                raise ValueError('Invalid JSON format for target_broker_ebs_volume_info')
 
         return update_broker_storage(
             cluster_arn, current_version, target_broker_ebs_volume_info, client
@@ -411,10 +418,10 @@ This operation modifies the monitoring and logging configuration of an MSK clust
         enhanced_monitoring: str = Field(
             ..., description='Specifies the level of monitoring for the MSK cluster'
         ),
-        open_monitoring: Optional[dict] = Field(
+        open_monitoring: Optional[Union[dict, str]] = Field(
             None, description='The settings for open monitoring with Prometheus'
         ),
-        logging_info: Optional[dict] = Field(
+        logging_info: Optional[Union[dict, str]] = Field(
             None, description='The settings for broker logs delivery'
         ),
     ):
@@ -433,9 +440,23 @@ This operation modifies the monitoring and logging configuration of an MSK clust
             )
 
         kwargs = {}
+
+        # Handle open_monitoring
         if open_monitoring:
+            if isinstance(open_monitoring, str):
+                try:
+                    open_monitoring = json.loads(open_monitoring)
+                except json.JSONDecodeError:
+                    raise ValueError('Invalid JSON format for open_monitoring')
             kwargs['open_monitoring'] = open_monitoring
+
+        # Handle logging_info
         if logging_info:
+            if isinstance(logging_info, str):
+                try:
+                    logging_info = json.loads(logging_info)
+                except json.JSONDecodeError:
+                    raise ValueError('Invalid JSON format for logging_info')
             kwargs['logging_info'] = logging_info
 
         return update_monitoring(
@@ -495,10 +516,12 @@ This operation modifies the security configuration of an MSK cluster, including 
         current_version: str = Field(
             ..., description='The version of the cluster that you want to update'
         ),
-        client_authentication: Optional[dict] = Field(
+        client_authentication: Optional[Union[dict, str]] = Field(
             None, description='Client authentication settings'
         ),
-        encryption_info: Optional[dict] = Field(None, description='Encryption settings'),
+        encryption_info: Optional[Union[dict, str]] = Field(
+            None, description='Encryption settings'
+        ),
     ):
         # Create a boto3 client
         client = boto3.client(
@@ -515,9 +538,23 @@ This operation modifies the security configuration of an MSK cluster, including 
             )
 
         kwargs = {}
+
+        # Handle client_authentication
         if client_authentication:
+            if isinstance(client_authentication, str):
+                try:
+                    client_authentication = json.loads(client_authentication)
+                except json.JSONDecodeError:
+                    raise ValueError('Invalid JSON format for client_authentication')
             kwargs['client_authentication'] = client_authentication
+
+        # Handle encryption_info
         if encryption_info:
+            if isinstance(encryption_info, str):
+                try:
+                    encryption_info = json.loads(encryption_info)
+                except json.JSONDecodeError:
+                    raise ValueError('Invalid JSON format for encryption_info')
             kwargs['encryption_info'] = encryption_info
 
         return update_security(cluster_arn, current_version, client=client, **kwargs)
@@ -567,7 +604,7 @@ This operation attaches an IAM resource policy to an MSK cluster to control acce
         cluster_arn: str = Field(
             description='The Amazon Resource Name (ARN) that uniquely identifies the cluster'
         ),
-        policy: dict = Field(description='The JSON policy to attach to the cluster'),
+        policy: Union[dict, str] = Field(description='The JSON policy to attach to the cluster'),
     ):
         # Create a boto3 client
         client = boto3.client(
@@ -582,6 +619,13 @@ This operation attaches an IAM resource policy to an MSK cluster to control acce
                 f"Resource {cluster_arn} does not have the 'MCP Generated' tag. "
                 "This operation can only be performed on resources tagged with 'MCP Generated'."
             )
+
+        # Handle policy
+        if isinstance(policy, str):
+            try:
+                policy = json.loads(policy)
+            except json.JSONDecodeError:
+                raise ValueError('Invalid JSON format for policy')
 
         return put_cluster_policy(cluster_arn, policy, client)
 
@@ -674,7 +718,7 @@ This operation associates AWS Secrets Manager secrets containing SCRAM credentia
     def associate_scram_secret_tool(
         region: str = Field(description='AWS region'),
         cluster_arn: str = Field(description='The ARN of the cluster'),
-        secret_arns: list = Field(description='List of secret ARNs to associate'),
+        secret_arns: Union[list, str] = Field(description='List of secret ARNs to associate'),
     ):
         # Create a boto3 client
         client = boto3.client(
@@ -689,6 +733,13 @@ This operation associates AWS Secrets Manager secrets containing SCRAM credentia
                 f"Resource {cluster_arn} does not have the 'MCP Generated' tag. "
                 "This operation can only be performed on resources tagged with 'MCP Generated'."
             )
+
+        # Handle secret_arns
+        if isinstance(secret_arns, str):
+            try:
+                secret_arns = json.loads(secret_arns)
+            except json.JSONDecodeError:
+                raise ValueError('Invalid JSON format for secret_arns')
 
         return batch_associate_scram_secret(cluster_arn, secret_arns, client)
 
@@ -721,7 +772,7 @@ This operation removes the association between AWS Secrets Manager secrets and a
     def disassociate_scram_secret_tool(
         region: str = Field(description='AWS region'),
         cluster_arn: str = Field(description='The ARN of the cluster'),
-        secret_arns: list = Field(description='List of secret ARNs to disassociate'),
+        secret_arns: Union[list, str] = Field(description='List of secret ARNs to disassociate'),
     ):
         # Create a boto3 client
         client = boto3.client(
@@ -736,6 +787,13 @@ This operation removes the association between AWS Secrets Manager secrets and a
                 f"Resource {cluster_arn} does not have the 'MCP Generated' tag. "
                 "This operation can only be performed on resources tagged with 'MCP Generated'."
             )
+
+        # Handle secret_arns
+        if isinstance(secret_arns, str):
+            try:
+                secret_arns = json.loads(secret_arns)
+            except json.JSONDecodeError:
+                raise ValueError('Invalid JSON format for secret_arns')
 
         return batch_disassociate_scram_secret(cluster_arn, secret_arns, client)
 
@@ -768,7 +826,7 @@ This operation reboots specific broker nodes in an MSK cluster.
     def reboot_broker_tool(
         region: str = Field(description='AWS region'),
         cluster_arn: str = Field(description='The ARN of the cluster'),
-        broker_ids: list = Field(description='List of broker IDs to reboot'),
+        broker_ids: Union[list, str] = Field(description='List of broker IDs to reboot'),
     ):
         # Create a boto3 client
         client = boto3.client(
@@ -776,4 +834,12 @@ This operation reboots specific broker nodes in an MSK cluster.
             region_name=region,
             config=Config(user_agent_extra=f'awslabs/mcp/aws-msk-mcp-server/{__version__}'),
         )
+
+        # Handle broker_ids
+        if isinstance(broker_ids, str):
+            try:
+                broker_ids = json.loads(broker_ids)
+            except json.JSONDecodeError:
+                raise ValueError('Invalid JSON format for broker_ids')
+
         return reboot_broker(cluster_arn, broker_ids, client)
