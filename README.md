@@ -516,14 +516,9 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 
 ### Running MCP servers in containers
 
+Docker images for each MCP server are published to the [public AWS ECR registry](https://gallery.ecr.aws/awslabs-mcp).
+
 *This example uses docker with the "awslabs.nova-canvas-mcp-server and can be repeated for each MCP server*
-
-- Build and tag the image
-
-  ```base
-  cd src/nova-canvas-mcp-server
-  docker build -t awslabs/nova-canvas-mcp-server .
-  ```
 
 - Optionally save sensitive environmental variables in a file:
 
@@ -553,13 +548,21 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
           "/full/path/to/.env",
           "--volume",
           "/full/path/to/.aws:/app/.aws",
-          "awslabs/nova-canvas-mcp-server:latest"
+          "public.ecr.aws/awslabs-mcp/awslabs/nova-canvas-mcp-server:latest"
         ],
         "env": {}
       }
     }
   }
   ```
+
+- For testing local changes you can build and tag the image. You have to update the MCP configuration to use this tag instead of the ECR image.
+
+  ```base
+  cd src/nova-canvas-mcp-server
+  docker build -t awslabs/nova-canvas-mcp-server .
+  ```
+
 ### Getting Started with Amazon Q Developer CLI
 
 <details>
