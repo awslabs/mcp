@@ -46,6 +46,7 @@ def get_server_directory():
 TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
 READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
 TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
+REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
 
 
 def get_env_bool(env_key: str, default: bool) -> bool:
@@ -59,3 +60,4 @@ DEFAULT_REGION = get_region()
 READ_OPERATIONS_ONLY_MODE = get_env_bool(READ_ONLY_KEY, False)
 OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
 WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
+REQUIRE_MUTATION_CONSENT = get_env_bool(REQUIRE_MUTATION_CONSENT_KEY, False)
