@@ -25,7 +25,10 @@ from awslabs.mcp_lambda_handler.types import (
     JSONRPCError,
     JSONRPCRequest,
     JSONRPCResponse,
+    Resource,
+    ResourceContent,
     ServerInfo,
+    StaticResource,
     TextContent,
 )
 from contextvars import ContextVar
@@ -97,6 +100,7 @@ class MCPLambdaHandler:
         self.version = version
         self.tools: Dict[str, Dict] = {}
         self.tool_implementations: Dict[str, Callable] = {}
+        self.resources: Dict[str, Resource] = {}
 
         # Configure session storage
         if session_store is None:
@@ -269,6 +273,41 @@ class MCPLambdaHandler:
 
         return decorator
 
+    def add_resource(self, resource: Resource) -> None:
+        """Add a resource to the handler.
+
+        Args:
+            resource: Resource instance to add
+        """
+        self.resources[resource.uri] = resource
+
+    def resource(
+        self,
+        uri: str,
+        name: str,
+        description: Optional[str] = None,
+        mime_type: Optional[str] = None,
+    ):
+        """Decorator to register a function as a resource provider.
+
+        The decorated function should return the resource content as a string.
+        """
+
+        def decorator(func: Callable):
+            resource = StaticResource(
+                uri=uri,
+                name=name,
+                content='',  # Will be populated by function call
+                description=description,
+                mime_type=mime_type or 'text/plain',
+            )
+            # Store the function to call when resource is accessed
+            resource._content_func = func
+            self.resources[uri] = resource
+            return func
+
+        return decorator
+
     def _create_error_response(
         self,
         code: int,
@@ -420,7 +459,9 @@ class MCPLambdaHandler:
                 result = InitializeResult(
                     protocolVersion='2024-11-05',
                     serverInfo=ServerInfo(name=self.name, version=self.version),
-                    capabilities=Capabilities(tools={'list': True, 'call': True}),
+                    capabilities=Capabilities(
+                        tools={'list': True, 'call': True}, resources={'list': True, 'read': True}
+                    ),
                 )
                 return self._create_success_response(result.model_dump(), request.id, session_id)
 
@@ -479,6 +520,66 @@ class MCPLambdaHandler:
                     return self._create_error_response(
                         -32603,
                         f'Error executing tool: {str(e)}',
+                        request.id,
+                        error_content,
+                        session_id,
+                    )
+            # Handle resources/list request
+            if request.method == 'resources/list':
+                logger.info('Handling resources/list request')
+                resources_list = [resource.model_dump() for resource in self.resources.values()]
+                return self._create_success_response(
+                    {'resources': resources_list}, request.id, session_id
+                )
+
+            # Handle resources/read request
+            if request.method == 'resources/read':
+                if not request.params:
+                    return self._create_error_response(
+                        -32602,
+                        'Missing required parameter: uri',
+                        request.id,
+                        session_id=session_id,
+                    )
+                resource_uri = request.params.get('uri')
+                if not resource_uri:
+                    return self._create_error_response(
+                        -32602,
+                        'Missing required parameter: uri',
+                        request.id,
+                        session_id=session_id,
+                    )
+
+                if resource_uri not in self.resources:
+                    return self._create_error_response(
+                        -32601,
+                        f'Resource not found: {resource_uri}',
+                        request.id,
+                        session_id=session_id,
+                    )
+
+                try:
+                    resource = self.resources[resource_uri]
+
+                    # Handle content resources that requires function calls
+                    if hasattr(resource, '_content_func') and resource._content_func is not None:
+                        content = resource._content_func()
+                        resource_content = ResourceContent(
+                            uri=resource_uri, mimeType=resource.mimeType, text=str(content)
+                        )
+                    else:
+                        # Handle static resources (like FileResource)
+                        resource_content = resource.read_content()
+
+                    return self._create_success_response(
+                        {'contents': [resource_content.model_dump()]}, request.id, session_id
+                    )
+                except Exception as e:
+                    logger.error(f'Error reading resource {resource_uri}: {e}')
+                    error_content = [ErrorContent(text=str(e)).model_dump()]
+                    return self._create_error_response(
+                        -32603,
+                        f'Error reading resource: {str(e)}',
                         request.id,
                         error_content,
                         session_id,
