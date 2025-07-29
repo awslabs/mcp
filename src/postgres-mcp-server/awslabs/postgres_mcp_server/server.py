@@ -121,7 +121,8 @@ async def run_query(
             await ctx.error("No database connection available")
             return [{'error': 'No database connection available'}]
 
-    assert db_connection is not None, "db_connection should never be None"
+    if db_connection is None:
+        raise AssertionError("db_connection should never be None")
 
     if db_connection.readonly_query:
         matches = detect_mutating_keywords(sql)
@@ -148,7 +149,7 @@ async def run_query(
         # Execute the query using the abstract connection interface
         response = await db_connection.execute_query(sql, query_parameters)
 
-        logger.success('run_query successfully executed query:{}', sql)
+        logger.success(f'run_query successfully executed query:{sql}')
         return parse_execute_response(response)
     except ClientError as e:
         logger.exception(client_error_code_key)
@@ -280,20 +281,11 @@ def main():
 
     if args.resource_arn:
         logger.info(
-            'Postgres MCP init with RDS Data API: CONNECTION_TARGET:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
-            connection_target,
-            args.secret_arn,
-            args.region,
-            args.database,
-            args.readonly,
+            f'Postgres MCP init with RDS Data API: CONNECTION_TARGET:{connection_target}, SECRET_ARN:{args.secret_arn}, REGION:{args.region}, DATABASE:{args.database}, READONLY:{args.readonly}'
         )
     else:
         logger.info(
-            'Postgres MCP init with psycopg: CONNECTION_TARGET:{}, PORT:{}, DATABASE:{}, READONLY:{}',
-            connection_target,
-            args.port,
-            args.database,
-            args.readonly,
+            f'Postgres MCP init with psycopg: CONNECTION_TARGET:{connection_target}, PORT:{args.port}, DATABASE:{args.database}, READONLY:{args.readonly}'
         )
 
     # Create the appropriate database connection based on the provided parameters
