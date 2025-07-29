@@ -16,10 +16,11 @@ import boto3
 import contextlib
 from ..aws.services import driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME
-from ..common.errors import Failure
+from ..common.errors import AwsApiMcpError, Failure
 from ..common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
+    Consent,
     Credentials,
     InterpretationMetadata,
     InterpretationResponse,
@@ -37,6 +38,11 @@ from ..parser.lexer import split_cli_command
 from .driver import interpret_command as _interpret_command
 from botocore.exceptions import NoCredentialsError
 from io import StringIO
+from loguru import logger
+from mcp.server.elicitation import AcceptedElicitation
+from mcp.server.fastmcp import Context
+from mcp.shared.exceptions import McpError
+from mcp.types import METHOD_NOT_FOUND
 from typing import Any
 
 
@@ -56,6 +62,30 @@ def get_local_credentials() -> Credentials:
         secret_access_key=aws_creds.secret_key,
         session_token=aws_creds.token,
     )
+
+
+async def request_consent(cli_command: str, ctx: Context):
+    """Request consent of the user using elicitation."""
+    try:
+        elicitation_result = await ctx.elicit(
+            message=f"The CLI command '{cli_command}' requires explicit consent. Do you approve the execution of this command?",
+            schema=Consent,
+        )
+
+        if (
+            not isinstance(elicitation_result, AcceptedElicitation)
+            or not elicitation_result.data.answer
+        ):
+            error_message = 'User rejected the execution of the command.'
+            await ctx.error(error_message)
+            raise AwsApiMcpError(error_message)
+    except McpError as e:
+        if e.error.code == METHOD_NOT_FOUND:
+            error_message = 'Client does not support elicitation. Use a different client or update the server configuration.'
+            logger.error(error_message)
+            raise AwsApiMcpError(error_message)
+
+        raise e
 
 
 def is_operation_read_only(ir: IRTranslation, read_only_operations: ReadOnlyOperations):
