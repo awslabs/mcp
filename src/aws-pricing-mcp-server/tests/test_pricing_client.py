@@ -32,7 +32,7 @@ class TestGetPricingRegion:
             # Direct pricing regions
             ('us-east-1', 'us-east-1'),
             ('eu-central-1', 'eu-central-1'),
-            ('ap-southeast-1', 'ap-southeast-1'),
+            ('ap-south-1', 'ap-south-1'),
             ('cn-northwest-1', 'cn-northwest-1'),
             # US/Americas regions
             ('us-west-2', 'us-east-1'),
@@ -43,7 +43,7 @@ class TestGetPricingRegion:
             ('me-south-1', 'eu-central-1'),
             ('af-south-1', 'eu-central-1'),
             # Asia Pacific regions
-            ('ap-east-1', 'ap-southeast-1'),
+            ('ap-east-1', 'ap-south-1'),
             # China regions
             ('cn-north-1', 'cn-northwest-1'),
             # Unknown regions default to us-east-1
@@ -59,7 +59,7 @@ class TestGetPricingRegion:
         [
             ('eu-west-1', 'eu-central-1'),
             ('us-east-1', 'us-east-1'),
-            ('ap-northeast-1', 'ap-southeast-1'),
+            ('ap-northeast-1', 'ap-south-1'),
         ],
     )
     def test_uses_aws_region_env_var(self, env_region, expected, monkeypatch):
@@ -77,7 +77,7 @@ class TestCreatePricingClient:
             (None, None, None, 'us-east-1'),
             ('test-profile', None, 'test-profile', 'us-east-1'),
             (None, 'eu-west-1', None, 'eu-central-1'),
-            ('my-profile', 'ap-northeast-1', 'my-profile', 'ap-southeast-1'),
+            ('my-profile', 'ap-northeast-1', 'my-profile', 'ap-south-1'),
             (None, 'us-east-1', None, 'us-east-1'),  # Direct pricing region
         ],
     )

@@ -15,6 +15,7 @@
 """Tests for the AwsHelper class."""
 
 import os
+from awslabs.aws_dataprocessing_mcp_server import __version__
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
     MCP_CREATION_TIME_TAG_KEY,
@@ -160,7 +161,7 @@ class TestAwsHelper:
             assert isinstance(kwargs['config'], Config)
             assert (
                 kwargs['config'].user_agent_extra
-                == 'awslabs/mcp/aws-dataprocessing-mcp-server/0.1.0'
+                == f'awslabs/mcp/aws-dataprocessing-mcp-server/{__version__}'
             )
 
     def test_create_boto3_client_with_env_region(self):
@@ -194,7 +195,7 @@ class TestAwsHelper:
                 assert isinstance(kwargs['config'], Config)
                 assert (
                     kwargs['config'].user_agent_extra
-                    == 'awslabs/mcp/aws-dataprocessing-mcp-server/0.1.0'
+                    == f'awslabs/mcp/aws-dataprocessing-mcp-server/{__version__}'
                 )
 
     def test_create_boto3_client_with_profile_and_region(self):

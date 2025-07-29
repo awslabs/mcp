@@ -14,6 +14,7 @@
 
 import json
 import numpy as np
+from ...core.common.config import get_server_directory
 from awscli.clidriver import __version__ as awscli_version
 from copy import deepcopy
 from loguru import logger
@@ -49,6 +50,7 @@ class DenseRetriever:
         self._index = None
         self._documents = None
         self._embeddings = None
+        self._model_ready = False
 
     @property
     def model(self):
@@ -56,8 +58,15 @@ class DenseRetriever:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self.model_name)
+            models_dir = get_server_directory() / 'models' / self.model_name
+            self._model = SentenceTransformer(self.model_name, cache_folder=str(models_dir))
+            self._model_ready = True
         return self._model
+
+    @property
+    def is_model_ready(self):
+        """Return if the model is ready to be used or not."""
+        return self._model_ready
 
     @model.setter
     def model(self, value):

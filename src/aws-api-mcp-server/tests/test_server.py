@@ -3,11 +3,13 @@ from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
+    Consent,
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
 from awslabs.aws_api_mcp_server.server import call_aws, main, suggest_aws_commands
 from botocore.exceptions import NoCredentialsError
+from mcp.server.elicitation import AcceptedElicitation
 from tests.fixtures import TEST_CREDENTIALS, DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -114,19 +116,126 @@ async def test_suggest_aws_commands_exception(mock_knowledge_base):
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
 @patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
 @patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
-async def test_call_aws_with_mutating_action(
+async def test_call_aws_with_consent_and_accept(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
     mock_get_creds,
 ):
-    """Test call_aws with mutating action."""
+    """Test call_aws with mutating action and consent enabled."""
+    mock_get_creds.return_value = TEST_CREDENTIALS
+
+    # Create a proper ProgramInterpretationResponse mock
+    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
+
+    mock_result = ProgramInterpretationResponse(
+        response=mock_response,
+        metadata=None,
+        validation_failures=None,
+        missing_context_failures=None,
+        failed_constraints=None,
+    )
+    mock_interpret.return_value = mock_result
+
+    mock_is_operation_read_only.return_value = False
+
+    # Mock IR with command metadata
+    mock_ir = MagicMock()
+    mock_ir.command_metadata = MagicMock()
+    mock_ir.command_metadata.service_sdk_name = 's3api'
+    mock_ir.command_metadata.operation_sdk_name = 'create-bucket'
+    mock_ir.command = MagicMock()
+    mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_translate_cli_to_ir.return_value = mock_ir
+
+    mock_response = MagicMock()
+    mock_response.validation_failed = False
+    mock_validate.return_value = mock_response
+
+    mock_ctx = AsyncMock()
+    mock_ctx.elicit.return_value = AcceptedElicitation(data=Consent(answer=True))
+
+    # Execute
+    result = await call_aws('aws s3api create-bucket --bucket somebucket', mock_ctx)
+
+    # Verify that consent was requested
+    assert result == mock_result
+    mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
+    mock_validate.assert_called_once_with(mock_ir)
+    mock_get_creds.assert_called_once()
+    mock_interpret.assert_called_once()
+    mock_ctx.elicit.assert_called_once()
+
+
+@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
+@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+async def test_call_aws_with_consent_and_reject(
+    mock_is_operation_read_only,
+    mock_translate_cli_to_ir,
+    mock_validate,
+    mock_interpret,
+    mock_get_creds,
+):
+    """Test call_aws with mutating action and consent enabled."""
+    mock_get_creds.return_value = TEST_CREDENTIALS
+
+    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
+    mock_is_operation_read_only.return_value = False
+
+    # Mock IR with command metadata
+    mock_ir = MagicMock()
+    mock_ir.command_metadata = MagicMock()
+    mock_ir.command_metadata.service_sdk_name = 's3api'
+    mock_ir.command_metadata.operation_sdk_name = 'create-bucket'
+    mock_ir.command = MagicMock()
+    mock_ir.command.is_awscli_customization = False
+    mock_translate_cli_to_ir.return_value = mock_ir
+
+    mock_response = MagicMock()
+    mock_response.validation_failed = False
+    mock_validate.return_value = mock_response
+
+    mock_ctx = AsyncMock()
+    mock_ctx.elicit.return_value = AcceptedElicitation(data=Consent(answer=False))
+
+    # Execute
+    result = await call_aws('aws s3api create-bucket --bucket somebucket', mock_ctx)
+
+    # Verify that consent was requested
+    assert result == AwsApiMcpServerErrorResponse(
+        detail='Error while executing the command: User rejected the execution of the command.'
+    )
+    mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
+    mock_validate.assert_called_once_with(mock_ir)
+
+
+@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False)
+@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+async def test_call_aws_without_consent(
+    mock_is_operation_read_only,
+    mock_translate_cli_to_ir,
+    mock_validate,
+    mock_interpret,
+    mock_get_creds,
+):
+    """Test call_aws with mutating action and with consent disabled."""
     mock_get_creds.return_value = TEST_CREDENTIALS
 
     # Create a proper ProgramInterpretationResponse mock
@@ -159,7 +268,7 @@ async def test_call_aws_with_mutating_action(
     # Execute
     result = await call_aws('aws s3api create-bucket --bucket somebucket', DummyCtx())
 
-    # Verify that no consent was requested
+    # Verify that consent was requested
     assert result == mock_result
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
     mock_validate.assert_called_once_with(mock_ir)
@@ -512,7 +621,6 @@ async def test_call_aws_awscli_customization_success(
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
     mock_validate.assert_called_once_with(mock_ir)
     mock_execute_awscli_customization.assert_called_once_with('aws configure list')
-    mock_get_creds.assert_called_once()
 
 
 @patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
@@ -555,20 +663,21 @@ async def test_call_aws_awscli_customization_error(
     mock_validate.assert_called_once_with(mock_ir)
     mock_execute_awscli_customization.assert_called_once_with('aws configure list')
     mock_ctx.error.assert_called_once_with(error_response.detail)
-    mock_get_creds.assert_called_once()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', None)
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
-def test_main_missing_aws_region():
+def test_main_missing_aws_region(mock_thread):
     """Test main function raises ValueError when AWS_REGION environment variable is not set."""
     with pytest.raises(ValueError, match=r'AWS_REGION environment variable is not defined.'):
         main()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', None)
-def test_main_missing_working_directory():
+def test_main_missing_working_directory(mock_thread):
     """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR environment variable is not set."""
     with pytest.raises(
         ValueError,
@@ -577,9 +686,10 @@ def test_main_missing_working_directory():
         main()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', 'relative/path')
-def test_main_relative_working_directory():
+def test_main_relative_working_directory(mock_thread):
     """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR is a relative path."""
     with pytest.raises(
         ValueError,
@@ -588,6 +698,7 @@ def test_main_relative_working_directory():
         main()
 
 
+@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.os.chdir')
 @patch('awslabs.aws_api_mcp_server.server.server')
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
@@ -600,6 +711,7 @@ def test_main_success_with_read_only_mode(
     mock_get_read_only_operations,
     mock_server,
     mock_chdir,
+    mock_thread,
 ):
     """Test main function executes successfully with read-only mode enabled."""
     mock_knowledge_base.setup = MagicMock()
