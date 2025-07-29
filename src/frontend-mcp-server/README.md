@@ -36,12 +36,17 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   "mcpServers": {
     "awslabs.frontend-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.frontend-mcp-server@latest"],
+      "args": [
+          "--from",
+          "awslabs.frontend-mcp-server@latest",
+          "awslabs.frontend-mcp-server.exe"
+      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
-      "autoApprove": []
+      "autoApprove": [],
+			"type": "stdio"
     }
   }
 }
