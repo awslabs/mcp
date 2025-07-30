@@ -201,7 +201,12 @@ jobs:
             while IFS= read -r dir; do
               # Validate directory name format
               if [[ "$dir" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ -n "$dir" ]]; then
-                echo "$dir"
+                # Check if DO_NOT_RELEASE file exists
+                if [[ -f "${{ env.SRC_DIRECTORY }}/$dir/DO_NOT_RELEASE" ]]; then
+                  echo "::warning::Skipping because DO_NOT_RELEASE: $dir" >&2
+                else
+                  echo "$dir"
+                fi
               else
                 echo "::warning::Skipping invalid directory name: $dir" >&2
               fi
