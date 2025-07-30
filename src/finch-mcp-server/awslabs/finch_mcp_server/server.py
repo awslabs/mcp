@@ -20,19 +20,24 @@ Note: The tools provided by this MCP server are intended for development and pro
 purposes only and are not meant for production use cases.
 """
 
+import json
 import os
 import re
 import sys
-from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME
+from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME, STATUS_ERROR
 
 # Import Pydantic models for input validation
-from awslabs.finch_mcp_server.models import Result
+from awslabs.finch_mcp_server.models import ContainerInspectResult, ContainerLSResult, Result
 from awslabs.finch_mcp_server.utils.build import build_image, contains_ecr_reference
 from awslabs.finch_mcp_server.utils.common import format_result
+from awslabs.finch_mcp_server.utils.container_inspect import inspect_container
+from awslabs.finch_mcp_server.utils.container_ls import list_containers
 from awslabs.finch_mcp_server.utils.ecr import create_ecr_repository
+from awslabs.finch_mcp_server.utils.image_ls import list_images
 
 # Import utility functions from local modules
 from awslabs.finch_mcp_server.utils.push import is_ecr_repository, push_image
+from awslabs.finch_mcp_server.utils.version import get_version
 from awslabs.finch_mcp_server.utils.vm import (
     check_finch_installation,
     configure_ecr,
@@ -425,6 +430,176 @@ async def finch_create_ecr_repo(
     except Exception as e:
         error_result = format_result('error', f'Error checking/creating ECR repository: {str(e)}')
         return Result(**error_result)
+
+
+@mcp.resource(uri='finch://containers', name='finch_container_ls', mime_type='application/json')
+async def finch_container_ls() -> ContainerLSResult:
+    """List containers using Finch.
+
+    This resource provides a list of containers with various filtering options.
+    By default, it shows all containers (including stopped ones) with all_containers=True.
+    The output is formatted as JSON for easy parsing by LLMs and other tools.
+    Note: This resource does not accept any parameters directly. The implementation
+    uses default parameters (all_containers=True) to show all containers.
+
+    Returns:
+        ContainerLSResult: An object containing:
+            - status (str): "success" if the operation succeeded, "error" otherwise
+            - message (str): A descriptive message about the result of the operation
+            - raw_output (str): Raw JSON output from the command if successful
+    Example response:
+        ContainerLSResult(
+            status="success",
+            message="Successfully listed containers",
+            raw_output='[{"ID":"test-container-1","Image":"nginx:latest","Command":"/docker-entrypoint.sh nginx -g daemon off;","Created":"2025-07-17 10:30:45 -0700 PDT","Status":"Up 2 hours","Ports":"0.0.0.0:8080->80/tcp","Names":"test-nginx"},{"ID":"test-container-2","Image":"python:3.9-alpine","Command":"python app.py","Created":"2025-07-17 09:15:30 -0700 PDT","Status":"Exited (0) 30 minutes ago","Ports":"","Names":"test-python"}]'
+        )
+
+    """
+    logger.info('resource-name: finch_container_ls')
+    logger.info('resource-args: none')
+
+    try:
+        finch_install_status = check_finch_installation()
+        if finch_install_status['status'] == 'error':
+            return ContainerLSResult(
+                status=finch_install_status['status'],
+                message=finch_install_status['message'],
+                raw_output=None,
+            )
+
+        vm_status = ensure_vm_running()
+        if vm_status['status'] == 'error':
+            return ContainerLSResult(
+                status=vm_status['status'], message=vm_status['message'], raw_output=None
+            )
+
+        # Use default parameters for list_containers
+        result = list_containers(
+            all_containers=True,  # Show all containers by default
+            filter_expr=None,
+            format_str=None,
+            last=None,
+            latest=False,
+            no_trunc=False,
+            quiet=False,
+            size=False,
+        )
+        return ContainerLSResult(
+            status=result['status'], message=result['message'], raw_output=result.get('raw_output')
+        )
+    except Exception as e:
+        return ContainerLSResult(
+            status='error', message=f'Error listing containers: {str(e)}', raw_output=None
+        )
+
+
+@mcp.resource(
+    uri='finch://containers/{container_id}',
+    name='finch_container_inspect',
+    mime_type='application/json',
+)
+async def finch_container_inspect(container_id: str) -> ContainerInspectResult:
+    """Inspect a container to get detailed information.
+
+    This resource retrieves detailed information about a specific container,
+    including its configuration, state, network settings, and more.
+    The output is formatted as JSON for easy parsing by LLMs and other tools.
+
+    Args:
+        container_id (str): The ID or name of the container to inspect
+    Returns:
+        ContainerInspectResult: An object containing:
+            - status (str): "success" if the operation succeeded, "error" otherwise
+            - message (str): A descriptive message about the result of the operation
+            - raw_output (str, optional): Raw JSON output from the inspect command if successful
+    Example response:
+        ContainerInspectResult(
+            status="success",
+            message="Successfully inspected container test-container-1",
+            raw_output='[{"Id":"test-container-1","Created":"2025-07-17T10:30:45.000000000Z","State":{"Status":"running","Running":true},"Config":{"Image":"nginx:latest","ExposedPorts":{"80/tcp":{}}},"NetworkSettings":{"Ports":{"80/tcp":[{"HostIp":"0.0.0.0","HostPort":"8080"}]}}}]'
+        )
+
+    """
+    logger.info('resource-name: finch_container_inspect')
+    logger.info(f'resource-args: container_id={container_id}')
+
+    try:
+        finch_install_status = check_finch_installation()
+        if finch_install_status['status'] == 'error':
+            return ContainerInspectResult(
+                status=finch_install_status['status'],
+                message=finch_install_status['message'],
+                container_info=None,
+                raw_output=None,
+            )
+
+        vm_status = ensure_vm_running()
+        if vm_status['status'] == 'error':
+            return ContainerInspectResult(
+                status=vm_status['status'],
+                message=vm_status['message'],
+                container_info=None,
+                raw_output=None,
+            )
+
+        result = inspect_container(container_id)
+        return ContainerInspectResult(
+            status=result['status'],
+            message=result['message'],
+            container_info=result.get('container_info'),
+            raw_output=result.get('raw_output'),
+        )
+    except Exception as e:
+        return ContainerInspectResult(
+            status='error',
+            message=f'Error inspecting container: {str(e)}',
+            container_info=None,
+            raw_output=None,
+        )
+
+
+@mcp.resource(uri='finch://images', name='finch_image_list', mime_type='application/json')
+async def finch_image_list() -> str:
+    """List container images using Finch.
+
+    This resource provides a list of container images.
+    It returns structured information about each image including repository,
+    tag, image ID, created time, and size.
+
+    Returns:
+        str: JSON string containing image list information
+
+    """
+    logger.info('resource: finch_image_list')
+
+    try:
+        # Always use all_images=True to show all images by default
+        result = list_images(all_images=True)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        error_result = format_result(STATUS_ERROR, f'Error listing images: {str(e)}')
+        return json.dumps(error_result, indent=2)
+
+
+@mcp.resource(uri='finch://version', name='finch_version', mime_type='application/json')
+async def finch_version() -> str:
+    """Get Finch version information.
+
+    This resource provides version information for the Finch installation,
+    including version numbers and build information.
+
+    Returns:
+        str: JSON string containing version information
+
+    """
+    logger.info('resource: finch_version')
+
+    try:
+        result = get_version()
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        error_result = format_result(STATUS_ERROR, f'Error getting version: {str(e)}')
+        return json.dumps(error_result, indent=2)
 
 
 def main(enable_aws_resource_write: bool = False):
