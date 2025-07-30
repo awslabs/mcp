@@ -1,284 +1,458 @@
-name: Release
-
+---
+name: Release Deploy (approvals)
+description: |
+  This workflow drafts a release when a tag is pushed to the repository.
+  It checks for changes in specific directories and publishes packages to PyPI and npmjs if there are changes.
+  The release is created when the jobs succeed, and it includes generated release notes.
+  NOTE: The tag format must match `YYYY.MM.YYYYMMDDHHIISS` to complete a "Release"
+  This workflow is intended for a protected environment for approval or rejection.
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 17 * * *'
-
-permissions: {}
-
+  push:
+    tags:
+      - '[0-9][0-9][0-9][0-9].[0-9]+.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  discussions: none
+  id-token: none
+  issues: none
+  models: none
+  packages: none
+  pages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
 jobs:
-  create-metadata:
-    if: github.repository == 'awslabs/mcp'
+  validate-repository:
+    name: Validate Repository
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
-      hash: ${{ steps.last-release.outputs.hash }}
-      version: ${{ steps.create-version.outputs.version}}
-      npm_packages: ${{ steps.create-npm-packages.outputs.npm_packages}}
-      pypi_packages: ${{ steps.create-pypi-packages.outputs.pypi_packages}}
+      is-authorized-repo: ${{ steps.validate-repo.outputs.is-authorized-repo }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-
-      - name: Get last release hash
-        id: last-release
+      - name: Validate repository and tag
+        id: validate-repo
         run: |
-          HASH=$(git rev-list --tags --max-count=1 || echo "HEAD~1")
-          echo "hash=${HASH}" >> $GITHUB_OUTPUT
-          echo "Using last release hash: ${HASH}"
+          set -euo pipefail
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
+          CURRENT_REPO="${{ github.repository }}"
+          AUTHORIZED_REPO="${{ vars.REPOSITORY || 'awslabs/mcp' }}"
+          TAG_NAME="${{ github.ref_name }}"
 
-      - name: Create release version name
-        id: create-version
-        run: |
-          VERSION=$(uv run --script scripts/release.py generate-version)
-          echo "version $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "::debug::Validating repository: $CURRENT_REPO"
+          echo "::debug::Authorized repository: $AUTHORIZED_REPO"
+          echo "::debug::Tag: $TAG_NAME"
 
-      - name: Create python matrix
-        id: create-pypi-packages
-        run: |
-          HASH="${{ steps.last-release.outputs.hash }}"
-          PYPI=$(uv run --script scripts/release.py generate-matrix --pypi --directory src $HASH)
-          echo "pypi_packages $PYPI"
-          echo "pypi_packages=$PYPI" >> $GITHUB_OUTPUT
-
-      - name: Create npm matrix
-        id: create-npm-packages
-        run: |
-          HASH="${{ steps.last-release.outputs.hash }}"
-          NPM=$(uv run --script scripts/release.py generate-matrix --npm --directory src $HASH)
-          echo "npm_packages $NPM"
-          echo "npm_packages=$NPM" >> $GITHUB_OUTPUT
-
-  update-packages:
-    if: github.repository == 'awslabs/mcp' && (needs.create-metadata.outputs.npm_packages != '[]' || needs.create-metadata.outputs.pypi_packages != '[]')
-    needs: [create-metadata]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    environment: release
-    outputs:
-      changes_made: ${{ steps.commit.outputs.changes_made }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
-
-      - name: Update packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-        run: |
-          HASH="${{ needs.create-metadata.outputs.hash }}"
-          uv run --script scripts/release.py update-packages --directory src/ $HASH
-
-      - name: Configure git
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "awslabs-mcp"
-          git config --global user.email "203918161+awslabs-mcp@users.noreply.github.com"
-
-      - name: Commit changes
-        id: commit
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ needs.create-metadata.outputs.version }}"
-          git config --global credential.helper store
-          echo "https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com" > ~/.git-credentials
-          git remote set-url origin https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          git add -u
-          if git diff-index --quiet HEAD; then
-            echo "changes_made=false" >> $GITHUB_OUTPUT
-          else
-            git commit -m 'Automatic update of packages'
-            git push https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main
-            git tag -a "$VERSION" -m "Release $VERSION"
-            git push https://x-access-token:${{ secrets.BOT_GITHUB_TOKEN }}@github.com/${{ github.repository }} tag "$VERSION"
-            echo "changes_made=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create notes
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-        run: |
-          HASH="${{ needs.create-metadata.outputs.hash }}"
-          uv run --script scripts/release.py generate-notes --directory src/ $HASH > RELEASE_NOTES.md
-          cat RELEASE_NOTES.md
-
-      - name: Release notes
-        env:
-          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-notes
-          path: RELEASE_NOTES.md
-
-  publish-pypi:
-    if: github.repository == 'awslabs/mcp' && needs.create-metadata.outputs.pypi_packages != '[]' && needs.create-metadata.outputs.pypi_packages != ''
-    needs: [update-packages, create-metadata]
-    strategy:
-      fail-fast: false
-      max-parallel: 10
-      matrix:
-        package: ${{ fromJson(needs.create-metadata.outputs.pypi_packages) }}
-    name: Build ${{ matrix.package }}
-    environment: release
-    permissions:
-      contents: read
-      id-token: write # Required for trusted publishing
-    runs-on: ubuntu-latest
-    steps:
-      - name: Clear Up Space (Agressively) for Multi-Architecture Builds that Run Out of Space
-        if: contains(toJson('["aws-api-mcp-server"]'), matrix.package)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
-
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          lfs: true
-          ref: ${{ needs.create-metadata.outputs.version }}
-          sparse-checkout: |
-            src/${{ matrix.package }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
-
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version-file: "src/${{ matrix.package }}/.python-version"
-
-      - name: Install dependencies
-        working-directory: src/${{ matrix.package }}
-        run: uv sync --frozen --all-extras --dev
-
-      - name: Run pyright
-        working-directory: src/${{ matrix.package }}
-        run: uv run --frozen pyright
-
-      - name: Generate Embeddings
-        if: matrix.package == 'aws-api-mcp-server'
-        working-directory: src/${{ matrix.package }}
-        run: uv run --frozen generate-embeddings
-
-      - name: Build package
-        working-directory: src/${{ matrix.package }}
-        run: uv build
-
-      - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
-        with:
-          packages-dir: src/${{ matrix.package }}/dist
-
-      - name: Get Version from ${{ matrix.package }} Package
-        id: get-package-version
-        working-directory: src/${{ matrix.package }}
-        run: |
-          echo "version=$(uv tree 2> /dev/null | grep awslabs | sed -e 's/^.*[[:space:]]v\(.*\)/\1/g')" >> $GITHUB_OUTPUT
-
-      - name: Build and Publish ${{ matrix.package }} Container
-        id: build-and-publish
-        uses: awslabs/mcp/.github/actions/build-and-push-container-image@9ae15a5007b0d2d13dd58a6660484c6962157566
-        if: hashFiles(format('./src/{0}/Dockerfile', matrix.package))
-        with:
-          image: ${{ matrix.package }}
-          version: ${{ steps.get-package-version.outputs.version || github.sha }}
-          public-erc-role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME }}
-          public-erc-registry-alias: 'f3y8w4n0' # 'w3i4n7u1'
-          public-erc-aws-region: ${{ env.AWS_REGION || 'us-east-1' }}
-
-      - name: Display Image Version ${{ matrix.package }}
-        id: display-image-version
-        if: success() && steps.build-and-publish.outcome == 'success'
-        run: |
-          echo "version: ${VERSION}"
-        env:
-          VERSION: ${{ steps.build-and-publish.outputs.version }}
-
-  publish-npm:
-    if: github.repository == 'awslabs/mcp' && needs.create-metadata.outputs.npm_packages != '[]' && needs.create-metadata.outputs.npm_packages != ''
-    needs: [update-packages, create-metadata]
-    strategy:
-      fail-fast: false
-      matrix:
-        package: ${{ fromJson(needs.create-metadata.outputs.npm_packages) }}
-    name: Build ${{ matrix.package }}
-    environment: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ needs.create-metadata.outputs.version }}
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: "src/${{ matrix.package }}/.node-version"
-          cache: npm
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install dependencies
-        working-directory: src/${{ matrix.package }}
-        run: npm ci
-
-      - name: Check if version exists on npm
-        working-directory: src/${{ matrix.package }}
-        run: |
-          VERSION=$(jq -r .version package.json)
-          if npm view --json | jq -e --arg version "$VERSION" '[.[]][0].versions | contains([$version])'; then
-            echo "Version $VERSION already exists on npm"
+          # Validate tag format
+          if [[ ! "$TAG_NAME" =~ ^[0-9]{4}\.[0-9]+\.[0-9]{14}$ ]]; then
+            echo "::error::Invalid tag format: $TAG_NAME" >&2
+            echo "::error::Expected format: YYYY.MM.YYYYMMDDHHIISS" >&2
             exit 1
           fi
-          echo "Version $VERSION is new, proceeding with publish"
 
-      - name: Build package
-        working-directory: src/${{ matrix.package }}
-        run: npm run build
-
-      - name: Publish package
-        working-directory: src/${{ matrix.package }}
-        run: |
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  create-release:
-    if: github.repository == 'awslabs/mcp' && needs.update-packages.outputs.changes_made == 'true' && !failure() && !cancelled() && ( needs.publish-npm.result == 'success' || needs.publish-pypi.result == 'success')
-    needs: [update-packages, create-metadata, publish-pypi, publish-npm]
+          # Check repository authorization
+          if [[ "$CURRENT_REPO" == "$AUTHORIZED_REPO" ]]; then
+            echo "is-authorized-repo=true" >> $GITHUB_OUTPUT
+            echo "::debug::Repository authorized for release"
+          else
+            echo "is-authorized-repo=false" >> $GITHUB_OUTPUT
+            echo "::debug::Repository not authorized for release: $CURRENT_REPO"
+          fi
+  skip-unauthorized:
+    name: Skip Unauthorized Repository
+    if: needs.validate-repository.outputs.is-authorized-repo != 'true'
     runs-on: ubuntu-latest
-    # environment: release
+    timeout-minutes: 1
+    needs: [validate-repository]
+    steps:
+      - name: Skip unauthorized repository
+        run: |
+          echo "::debug::Intentionally skipped - not intended to be run outside '${{ vars.REPOSITORY || 'awslabs/mcp' }}'"
+          echo "::debug::Current repository: ${{ github.repository }}"
+  draft_release_when_tagged:
+    name: Draft Release
+    if: needs.validate-repository.outputs.is-authorized-repo == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
+    needs: [validate-repository,look-for-changes]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Download release notes
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: release-notes
-
-      - name: Create release
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Draft release with validation
+        id: draft-release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
         run: |
-          VERSION="${{ needs.create-metadata.outputs.version }}"
+          set -euo pipefail
+
+          VERSION="${{ github.ref_name }}"
+          echo "::debug::Creating draft release for version: $VERSION"
+
+          # Validate version format again
+          if [[ ! "$VERSION" =~ ^[0-9]{4}\.[0-9]+\.[0-9]{14}$ ]]; then
+            echo "::error::Invalid version format: $VERSION" >&2
+            exit 1
+          fi
+
+          # Check if release already exists
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Release already exists: $VERSION" >&2
+            exit 1
+          fi
+
+          # Create draft release with validation
           gh release create "$VERSION" \
             --generate-notes \
             --draft \
             --verify-tag
+
+          # Generate and update release notes
+          echo "# $VERSION" > RELEASE_NOTES.md
           gh release view "$VERSION" --json body | jq -r '.body' > GENERATED_NOTES.md
+
+          # Update release with combined notes
           cat RELEASE_NOTES.md GENERATED_NOTES.md | gh release edit "$VERSION" \
-            --draft=false \
+            --draft=true \
             --notes-file -
+
+          echo "::debug::Successfully created draft release: $VERSION"
+  look-for-changes:
+    name: Look for Changes Since Last Published Release
+    if: needs.validate-repository.outputs.is-authorized-repo == 'true'
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    outputs:
+      changed-directories: ${{ steps.find-changed-directories.outputs.changed-directories }}
+      python-changed-directories: ${{ steps.find-changed-directories.outputs.python-changed-directories }}
+      node-changed-directories: ${{ steps.find-changed-directories.outputs.node-changed-directories }}
+      docker-changed-directories: ${{ steps.find-changed-directories.outputs.docker-changed-directories }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [validate-repository]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Validate source directory
+        run: |
+          set -euo pipefail  # SECURITY: Strict error handling
+
+          SRC_DIR="${{ env.SRC_DIRECTORY }}"
+          echo "::debug::Validating source directory: $SRC_DIR"
+
+          # Validate directory name format
+          if [[ ! "$SRC_DIR" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid source directory format: $SRC_DIR" >&2
+            exit 1
+          fi
+
+          # Check if directory exists
+          if [[ ! -d "$SRC_DIR" ]]; then
+            echo "::error::Source directory does not exist: $SRC_DIR" >&2
+            exit 1
+          fi
+
+          echo "::debug::Source directory validated: $SRC_DIR"
+      - name: Find Changed Directories Since Last Published Release
+        id: find-changed-directories
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "::debug::Finding changed directories since last published release"
+
+          # Get last published release with validation
+          SINCE="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName | jq -r '.[].tagName // empty')"
+
+          if [[ -z "$SINCE" ]]; then
+            echo "::warning::No previous published release found, using initial commit" >&2
+            SINCE="$(git rev-list --max-parents=0 HEAD)"
+          else
+            echo "::debug::Comparing against published release: $SINCE"
+
+            # Validate tag exists
+            if ! git rev-parse "$SINCE" >/dev/null 2>&1; then
+              echo "::error::Published release tag does not exist in repository: $SINCE" >&2
+              exit 1
+            fi
+          fi
+
+          # Get changed files with validation
+          CHANGED_FILES="$(git diff --name-only "$SINCE" HEAD | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+
+          # Filter and validate source directories
+          SRC_DIRECTORIES="$(echo "$CHANGED_FILES" | jq -r --arg src "${{ env.SRC_DIRECTORY }}" \
+            '.[] | select(. | startswith($src + "/"))' | \
+            cut -d'/' -f2 | \
+            sort -u | \
+            while IFS= read -r dir; do
+              # Validate directory name format
+              if [[ "$dir" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ -n "$dir" ]]; then
+                # Check if DO_NOT_RELEASE file exists
+                if [[ -f "${{ env.SRC_DIRECTORY }}/$dir/DO_NOT_RELEASE" ]]; then
+                  echo "::warning::Skipping because DO_NOT_RELEASE: $dir" >&2
+                else
+                  echo "$dir"
+                fi
+              else
+                echo "::warning::Skipping invalid directory name: $dir" >&2
+              fi
+            done | \
+            jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')"
+
+          echo "changed-directories=$SRC_DIRECTORIES" >> $GITHUB_OUTPUT
+
+          # Find Python packages with validation
+          PYTHON_CHANGED_DIRECTORIES="$(echo "$SRC_DIRECTORIES" | jq -r '.[]' | \
+            while IFS= read -r dir; do
+              if [[ -f "${{ env.SRC_DIRECTORY }}/$dir/pyproject.toml" ]]; then
+                echo "$dir"
+              fi
+            done | \
+            jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')"
+
+          # Find Node packages with validation
+          NODE_CHANGED_DIRECTORIES="$(echo "$SRC_DIRECTORIES" | jq -r '.[]' | \
+            while IFS= read -r dir; do
+              if [[ -f "${{ env.SRC_DIRECTORY }}/$dir/package.json" ]]; then
+                echo "$dir"
+              fi
+            done | \
+            jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')"
+
+          # Find Docker packages with validation
+          DOCKER_CHANGED_DIRECTORIES="$(echo "$SRC_DIRECTORIES" | jq -r '.[]' | \
+            while IFS= read -r dir; do
+              if [[ -f "${{ env.SRC_DIRECTORY }}/$dir/Dockerfile" ]]; then
+                echo "$dir"
+              fi
+            done | \
+            jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')"
+
+          echo "python-changed-directories=$PYTHON_CHANGED_DIRECTORIES" >> $GITHUB_OUTPUT
+          echo "node-changed-directories=$NODE_CHANGED_DIRECTORIES" >> $GITHUB_OUTPUT
+          echo "docker-changed-directories=$DOCKER_CHANGED_DIRECTORIES" >> $GITHUB_OUTPUT
+
+          echo "::debug::Found changed directories: $SRC_DIRECTORIES"
+          echo "::debug::Python packages: $PYTHON_CHANGED_DIRECTORIES"
+          echo "::debug::Node packages: $NODE_CHANGED_DIRECTORIES"
+          echo "::debug::Docker packages: $DOCKER_CHANGED_DIRECTORIES"
+  publish-npmjs:
+    name: Publish to NPMjs
+    if: needs.validate-repository.outputs.is-authorized-repo == 'true' && needs.look-for-changes.outputs.node-changed-directories != '[]' && needs.look-for-changes.outputs.node-changed-directories != ''
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        changed-directory: ${{ fromJson(needs.look-for-changes.outputs.node-changed-directories) }}
+      max-parallel: 10
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    needs: [validate-repository, draft_release_when_tagged, look-for-changes]
+    steps:
+      - name: Validate package directory
+        run: |
+          set -euo pipefail
+
+          CHANGED_DIR="${{ matrix.changed-directory }}"
+          echo "::debug::Validating Node.js package directory: $CHANGED_DIR"
+
+          # Validate directory name format
+          if [[ ! "$CHANGED_DIR" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid directory name format: $CHANGED_DIR" >&2
+            exit 1
+          fi
+
+          echo "::debug::Directory validated: $CHANGED_DIR"
+  publish-pypi:
+    name: Publish to PyPI
+    if: needs.validate-repository.outputs.is-authorized-repo == 'true' && needs.look-for-changes.outputs.python-changed-directories != '[]' && needs.look-for-changes.outputs.python-changed-directories != ''
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    environment:
+      name: release
+      url: https://pypi.org/project/awslabs.${{ matrix.changed-directory }}
+    strategy:
+      fail-fast: false
+      matrix:
+        changed-directory: ${{ fromJson(needs.look-for-changes.outputs.python-changed-directories) }}
+      max-parallel: 10
+    runs-on: ubuntu-latest
+    timeout-minutes: 240  # allow time for large packages but prevent hanging
+    permissions:
+      contents: read
+      id-token: write
+    needs: [validate-repository, draft_release_when_tagged, look-for-changes]
+    steps:
+      # Clear up space for specific large projects
+      - name: Clear Up Space (Aggressively) for Specific Projects
+        if: contains(fromJson('["aws-api-mcp-server"]'), matrix.changed-directory)
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
+      #TODO: remove local action checkout when working...
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          sparse-checkout: |
+            ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+            ./.github/actions/build-and-push-container-image
+      - name: Validate package directory
+        run: |
+          set -euo pipefail
+
+          CHANGED_DIR="${{ matrix.changed-directory }}"
+          FULL_PATH="${{ env.SRC_DIRECTORY }}/$CHANGED_DIR"
+
+          echo "::debug::Validating Python package directory: $FULL_PATH"
+
+          # Validate directory name format
+          if [[ ! "$CHANGED_DIR" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid directory name format: $CHANGED_DIR" >&2
+            exit 1
+          fi
+
+          # Check if directory exists
+          if [[ ! -d "$FULL_PATH" ]]; then
+            echo "::error::Directory does not exist: $FULL_PATH" >&2
+            exit 1
+          fi
+
+          # Validate pyproject.toml exists
+          if [[ ! -f "$FULL_PATH/pyproject.toml" ]]; then
+            echo "::error::pyproject.toml not found in: $FULL_PATH" >&2
+            exit 1
+          fi
+
+          # Check for path traversal attempts
+          RESOLVED_PATH="$(realpath "$FULL_PATH")"
+          EXPECTED_PREFIX="$(realpath "${{ env.SRC_DIRECTORY }}")"
+
+          if [[ ! "$RESOLVED_PATH" == "$EXPECTED_PREFIX"/* ]]; then
+            echo "::error::Path traversal detected: $FULL_PATH" >&2
+            exit 1
+          fi
+
+          echo "::debug::Directory validated: $FULL_PATH"
+      - name: Install uv
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
+      # Long running step with timeout protection
+      - name: Generate Embedding for aws-api-mcp-server
+        if: matrix.changed-directory == 'aws-api-mcp-server'
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        timeout-minutes: 180
+        run: |
+          set -euo pipefail
+          echo "::debug::Generating embeddings for aws-api-mcp-server"
+          uv run --frozen generate-embeddings
+          echo "::debug::Embedding generation completed"
+      - name: Build package
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        run: |
+          set -euo pipefail
+          echo "::debug::Building package: ${{ matrix.changed-directory }}"
+          uv build
+          echo "::debug::Package build completed"
+      - name: Get Version from Package
+        id: get-package-version
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        run: |
+          set -euo pipefail
+
+          # Get version with validation
+          VERSION="$(uv tree 2>/dev/null | grep awslabs | sed -e 's/^.*[[:space:]]v\(.*\)/\1/g' | head -1)"
+
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Failed to extract version for: ${{ matrix.changed-directory }}" >&2
+            exit 1
+          fi
+
+          # Validate version format
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version format: $VERSION" >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "::debug::Package version: $VERSION"
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+        with:
+          packages-dir: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}/dist
+          print-hash: true
+      - name: Build and Publish Container
+        id: build-and-publish
+        uses: ./.github/actions/build-and-push-container-image
+        if: hashFiles(format('./{0}/{1}/Dockerfile', env.SRC_DIRECTORY, matrix.changed-directory))
+        with:
+          image: ${{ matrix.changed-directory }}
+          version: ${{ steps.get-package-version.outputs.version }}
+          public-erc-role-to-assume: ${{ secrets.AWS_ROLE_ARN_TO_ASSUME || 'arn:aws:iam::444455556666:role/Admin' }}
+          public-erc-registry-alias: ${{ vars.REGISTRY_ALIAS || 'awslabs-mcp' }}
+          public-erc-aws-region: ${{ env.AWS_REGION || 'us-east-1' }}
+      - name: Distributions Summary
+        working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
+        run: |
+          set -euo pipefail
+          echo "::debug::Publishing completed for: ${{ matrix.changed-directory }}"
+          echo "::debug::Distribution files:"
+          ls -la dist/ || echo "No dist directory found"
+          echo "### :package: Published" >> $GITHUB_STEP_SUMMARY
+          echo "* [PyPi](https://pypi.org/project/awslabs.${{ matrix.changed-directory }})" >> $GITHUB_STEP_SUMMARY
+          echo "::debug::Docker images:"
+          docker images || echo "No Docker images found"
+          echo "* [Public ECR](https://gallery.ecr.aws/awslabs-mcp/awslabs/${{ matrix.changed-directory }} (if applicable)"  >> $GITHUB_STEP_SUMMARY
+  release_when_successful:
+    name: Publish Release
+    if: needs.validate-repository.outputs.is-authorized-repo == 'true' && !failure() && !cancelled() && (needs.publish-npmjs.result == 'success' || needs.publish-pypi.result == 'success' || (needs.publish-npmjs.result == 'skipped' && needs.publish-pypi.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    needs: [validate-repository, draft_release_when_tagged, publish-pypi, publish-npmjs]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Publish release
+        id: create-release
+        env:
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ github.ref_name }}"
+          echo "::debug::Publishing release: $VERSION"
+
+          # Validate version format
+          if [[ ! "$VERSION" =~ ^[0-9]{4}\.[0-9]+\.[0-9]{14}$ ]]; then
+            echo "::error::Invalid version format: $VERSION" >&2
+            exit 1
+          fi
+
+          # Verify draft release exists
+          if ! gh release view "$VERSION" --json isDraft | jq -e '.isDraft == true' >/dev/null; then
+            echo "::error::Draft release not found or already published: $VERSION" >&2
+            exit 1
+          fi
+
+          # Publish the release
+          gh release edit "$VERSION" --draft=false
+
+          echo "::debug::Successfully published release: $VERSION"
+          echo "### :rocket: Released" >> $GITHUB_STEP_SUMMARY
+          echo "[$VERSION](https://github.com/${{ github.repository }}/releases/tag/$VERSION)" >> $GITHUB_STEP_SUMMARY
