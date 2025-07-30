@@ -99,6 +99,27 @@ If the client you use does not support HTTP transport for MCP or if it encounter
 }
 ```
 
+### Using GitLab
+
+If you use GitLab Duo, you can use the following instructions to get started:
+
+ **Configure MCP Server in GitLab**:
+   - [Turn on](https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/#turn-on-mcp-for-your-group) MCP for your group 
+   - Configure the AWS Knowledge MCP Server in the [MCP server configuration file](https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/#specify-the-mcp-servers):
+
+   ```json
+        {
+          "mcpServers": {
+            "aws-knowledge": {
+              "command": "npx",
+              "args": [
+                "mcp-remote", 
+                "https://knowledge-mcp.global.api.aws"
+              ]
+            }
+          }
+        }
+           
 ### Using Cursor
 
 If you use Cursor, you can use the following instructions to get started:
