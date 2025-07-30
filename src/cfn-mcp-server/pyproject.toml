@@ -19,6 +19,8 @@ authors = [
     {name = "Karam Singh", email="karam.singh.vir@gmail.com"},
     {name = "Brian Terry", email="brianter@amazon.com"},
     {name = "Shardul Vaidya", email="cam.v737@gmail.com"},
+    {name = "Akila Tennakoon", email="tennakoo@amazon.com"},
+    {name = "Tenzing Sherpa", email="tenzingsherpa@princeton.edu"}
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",

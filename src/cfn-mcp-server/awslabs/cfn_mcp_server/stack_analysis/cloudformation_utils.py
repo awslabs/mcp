@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 class CloudFormationUtils:
     """Utility class for CloudFormation API operations."""
 
-    def __init__(self, region: Optional[str] = None):
+    def __init__(self, region: Optional[str] = None, resource_scan_id: Optional[str] = None):
         """Initialize the CloudFormationUtils with the specified AWS region and store the resource scan ID."""
         self.region = region
         self._cfn_client = None
-        self.resource_scan_id: Optional[str] = None
+        self.resource_scan_id = resource_scan_id
 
     @property
     def cfn_client(self):
@@ -222,6 +222,70 @@ class CloudFormationUtils:
 
         except Exception as e:
             logger.error(f'Error listing resource scan resources: {str(e)}')
+            raise handle_aws_api_error(e)
+
+    def list_resource_scan_resources_with_filters(
+        self,
+        scan_id: Optional[str] = None,
+        resource_identifier: Optional[str] = None,
+        resource_type_prefix: Optional[str] = None,
+        tag_key: Optional[str] = None,
+        tag_value: Optional[str] = None,
+        max_results: Optional[int] = None,
+        next_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List resources from resource scan with advanced filtering options.
+
+        Args:
+            scan_id: Resource scan ID (uses stored ID if not provided)
+            resource_identifier: Filter by resource identifier
+            resource_type_prefix: Filter by resource type prefix (e.g., "AWS::S3::")
+            tag_key: Filter by tag key
+            tag_value: Filter by tag value (requires tag_key)
+            max_results: Maximum number of results to return (1-100)
+            next_token: Token for pagination
+
+        Returns:
+            Dict containing resources and pagination information
+        """
+        effective_scan_id: Optional[str] = scan_id or self.resource_scan_id
+        if not effective_scan_id:
+            raise ClientError('No resource scan ID available')
+
+        try:
+            # Build the API call parameters
+            params: Dict[str, Any] = {'ResourceScanId': effective_scan_id}
+
+            if resource_identifier:
+                params['ResourceIdentifier'] = resource_identifier
+            if resource_type_prefix:
+                params['ResourceTypePrefix'] = resource_type_prefix
+            if tag_key:
+                params['TagKey'] = tag_key
+            if tag_value:
+                params['TagValue'] = tag_value
+            if max_results:
+                if max_results < 1 or max_results > 100:
+                    raise ClientError('max_results must be between 1 and 100')
+                params['MaxResults'] = max_results
+            if next_token:
+                params['NextToken'] = next_token
+
+            logger.info(f'Listing resources from scan {effective_scan_id} with filters: {params}')
+
+            response = self.cfn_client.list_resource_scan_resources(**params)
+
+            return {
+                'resources': response.get('Resources', []),
+                'next_token': response.get('NextToken'),
+                'scan_id': effective_scan_id,
+                'filters_applied': {
+                    key: value for key, value in params.items() if key != 'ResourceScanId'
+                },
+            }
+
+        except Exception as e:
+            logger.error(f'Error listing resource scan resources with filters: {str(e)}')
             raise handle_aws_api_error(e)
 
     def list_resource_scan_related_resources(

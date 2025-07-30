@@ -19,10 +19,14 @@ import json
 from awslabs.cfn_mcp_server.aws_client import get_aws_client
 from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_patch
 from awslabs.cfn_mcp_server.context import Context
-from awslabs.cfn_mcp_server.errors import ClientError, PromptUser, handle_aws_api_error
+from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.cfn_mcp_server.iac_generator import create_template as create_template_impl
+from awslabs.cfn_mcp_server.impl.tools import (
+    handle_start_resource_scan,
+    list_related_resources_impl,
+    list_resources_by_filter_impl,
+)
 from awslabs.cfn_mcp_server.schema_manager import schema_manager
-from awslabs.cfn_mcp_server.stack_analysis.cloudformation_utils import CloudFormationUtils
 from awslabs.cfn_mcp_server.stack_analysis.stack_analyzer import StackAnalyzer
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -423,6 +427,126 @@ async def create_template(
 
 
 @mcp.tool()
+async def list_resources_by_filter(
+    resource_identifier: str | None = Field(
+        default=None,
+        description='Filter by specific resource identifier (e.g., "my-bucket-name")',
+    ),
+    resource_scan_id: str | None = Field(
+        default=None,
+        description='Resource scan ID to use for filtering resources. If not provided, the latest completed scan will be used.',
+    ),
+    resource_type_prefix: str | None = Field(
+        default=None,
+        description='Filter by resource type prefix (e.g., "AWS::S3::" to get all S3 resources)',
+    ),
+    tag_key: str | None = Field(default=None, description='Filter resources by tag key'),
+    tag_value: str | None = Field(
+        default=None,
+        description='Filter resources by tag value (requires tag_key to be specified)',
+    ),
+    limit: int = Field(
+        default=100,
+        description='Maximum number of resources to return',
+    ),
+    next_token: str | None = Field(
+        default=None, description='Pagination token from previous response to get next page'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
+    """List AWS resources with filtering support.
+
+    To preserve tokens usage, this tool allows you to filter resources by type resourcetypeprefix,
+    tag key, and tag value. It returns a paginated list of resource identifiers. It is recommended
+    to use the filtering parameters to reduce the number of resources returned,
+
+    This tool uses AWS CloudFormation's resource scan API with server-side filtering.
+
+    Parameters:
+        resource_identifier: Filter by specific resource identifier (optional)
+        resource_scan_id: Resource scan ID to use for filtering resources. (optional)
+                           If not provided, the latest completed scan will be used even if it's partial or full scan.
+        resource_type_prefix: Filter by resource type prefix (optional)
+        tag_key: Filter resources by tag key (optional)
+        tag_value: Filter resources by tag value (optional, requires tag_key)
+        limit: Maximum number of resources to return (1-100, AWS API limit)
+        next_token: AWS pagination token from previous response (optional)
+        region: AWS region to use (optional)
+
+    Returns:
+        Resource identifiers with filtering applied at the AWS API level and pagination metadata
+    """
+    return await list_resources_by_filter_impl(
+        resource_identifier=resource_identifier,
+        resource_scan_id=resource_scan_id,
+        resource_type_prefix=resource_type_prefix,
+        tag_key=tag_key,
+        tag_value=tag_value,
+        limit=limit,
+        next_token=next_token,
+        region=region,
+    )
+
+
+@mcp.tool()
+async def list_related_resources(
+    resources: list = Field(
+        description='List of resources to find related resources for. Each resource should have resource_type and resource_identifier keys.'
+    ),
+    resource_scan_id: str | None = Field(
+        default=None,
+        description='Resource scan ID to use for finding related resources. If not provided, the latest completed scan will be used.',
+    ),
+    max_results: int = Field(
+        default=100,
+        description='Maximum number of related resources to return (default: 100, max: 100 due to AWS API limits)',
+    ),
+    next_token: str | None = Field(
+        default=None, description='Pagination token from previous response to get next page'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
+    """List AWS resources related to the specified list of resources or resource.
+
+    This tool uses AWS CloudFormation's list_resource_scan_related_resources API
+    to find resources that are related to the specified input resources.
+
+    Note: Call with one resource at a time if you want explicitly related resources
+
+    Parameters:
+        resources: List of resources to find related resources for. Each resource should have
+                  'resource_type' and 'resource_identifier' keys. Maximum 100 resources.
+        resource_scan_id: Resource scan ID to use for finding related resources.
+                         If not provided, the latest completed scan will be used even if it's partial or full scan.
+        max_results: Maximum number of related resources to return (1-100, AWS API limit)
+        next_token: AWS pagination token from previous response (optional)
+        region: AWS region to use (optional)
+
+    Returns:
+        Related resources grouped by managed/unmanaged status with pagination metadata
+
+    Example:
+        resources = [
+            {
+                "resource_type": "AWS::S3::Bucket",
+                "resource_identifier": {"BucketName": "my-bucket"}
+            }
+        ]
+    """
+    return await list_related_resources_impl(
+        resources=resources,
+        resource_scan_id=resource_scan_id,
+        max_results=max_results,
+        next_token=next_token,
+        region=region,
+    )
+
+
+@mcp.tool()
 async def start_resource_scan(
     resource_types: list | None = Field(
         default=None,
@@ -445,40 +569,10 @@ async def start_resource_scan(
             "scan_id": The unique identifier for the started scan
         }
     """
-    # Prompt user for input if no resource type is provided
-    if resource_types is None:
-        common_resource_types = [
-            'AWS::S3::Bucket',
-            'AWS::EC2::Instance',
-            'AWS::RDS::DBInstance',
-            'AWS::Lambda::Function',
-            'AWS::IAM::Role',
-        ]
-
-        raise PromptUser(
-            'Please specify resource types to scan. Options:\n\n'
-            '1. Provide specific resource types)\n'
-            '2. Provide an empty list [] to scan the entire account\n\n'
-            'Common resource types include:\n'
-            + '\n'.join([f'- {rt}' for rt in common_resource_types])
-            + f'\n\nExample usage:\n'
-            f'- Single resource type: ["AWS::S3::Bucket"]\n'
-            f'- Multiple types: {common_resource_types}\n'
-            f'- Entire account: []'
-        )
-
-    try:
-        cfn_utils = CloudFormationUtils(region=region or 'us-east-1')
-    except Exception as e:
-        raise handle_aws_api_error(e)
-
-    try:
-        scan_id = cfn_utils.start_resource_scan(resource_types)
-        return {
-            'scan_id': scan_id,
-        }
-    except Exception as e:
-        raise handle_aws_api_error(e)
+    return await handle_start_resource_scan(
+        resource_types=resource_types,
+        region=region,
+    )
 
 
 @mcp.tool()
@@ -555,6 +649,7 @@ async def analyze_stack(
             'outputs': stack_analysis.get('outputs', []),
             'parameters': stack_analysis.get('parameters', []),
             # Stack resource matching results
+            'prompt': f'Analyze the CloudFormation stack "{stack_name}" and its resources Offer insights on the stack resources, related resources, and best practices.',
             'stack_name': resources_data.get('stack_name'),
             'resource_scan_id': resources_data.get('resource_scan_id'),
             'matched_resources': resources_data.get('matched_resources', []),
