@@ -48,9 +48,9 @@ RUN apk update && \
     curl
 
 # Install Rust and Cargo with a newer version that supports edition2024
-RUN curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/rust-lang/rustup/f7935a8ad24a445629ceedb2cb706a4469e1e5b3/rustup-init.sh | sh -s -- -y --default-toolchain 1.28.2 && \
+RUN curl --proto '=https' --tlsv1.2 -sSf 'https://raw.githubusercontent.com/rust-lang/rustup/f7935a8ad24a445629ceedb2cb706a4469e1e5b3/rustup-init.sh' | sh -s -- -v -y --default-toolchain nightly && \
     . $HOME/.cargo/env && \
-    rustup default 1.28.2
+    rustup default nightly
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
