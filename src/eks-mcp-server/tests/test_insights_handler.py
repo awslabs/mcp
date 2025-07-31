@@ -143,7 +143,7 @@ class TestInsightsHandler:
         assert result.insights[1].category == 'UPGRADE_READINESS'
 
         # Verify success message in content
-        assert isinstance(result.content[0], TextContent)
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -193,6 +193,7 @@ class TestInsightsHandler:
         assert insight.category_specific_summary == {'detail': 'Some specific details'}
 
         # Verify success message in content
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert (
             'Successfully retrieved details for insight detail-insight' in result.content[0].text
         )
@@ -237,7 +238,7 @@ class TestInsightsHandler:
         assert all(insight.category == 'CONFIGURATION' for insight in result.insights)
 
         # Verify success message mentions insights
-        assert isinstance(result.content[0], TextContent)
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -332,6 +333,7 @@ class TestInsightsHandler:
         assert not result.isError
         assert result.cluster_name == 'test-cluster'
         assert len(result.insights) == 0
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert 'Successfully retrieved 0 insights' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -367,6 +369,7 @@ class TestInsightsHandler:
 
         # Verify error response
         assert result.isError
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert 'No insight details found for ID nonexistent-id' in result.content[0].text
         assert result.cluster_name == 'test-cluster'
         assert len(result.insights) == 0

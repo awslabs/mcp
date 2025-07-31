@@ -352,6 +352,7 @@ class VpcConfigHandler:
                     content=[TextContent(type='text', text=error_message)],
                     vpc_id='',
                     cidr_block='',
+                    additional_cidr_blocks=[],  # Add missing parameter
                     routes=[],
                     remote_node_cidr_blocks=[],
                     remote_pod_cidr_blocks=[],
@@ -398,6 +399,7 @@ class VpcConfigHandler:
                     content=[TextContent(type='text', text=error_message)],
                     vpc_id='',
                     cidr_block='',
+                    additional_cidr_blocks=[],  # Add missing parameter
                     routes=[],
                     remote_node_cidr_blocks=[],
                     remote_pod_cidr_blocks=[],
@@ -413,6 +415,7 @@ class VpcConfigHandler:
                 content=[TextContent(type='text', text=error_message)],
                 vpc_id='',
                 cidr_block='',
+                additional_cidr_blocks=[],  # Add missing parameter
                 routes=[],
                 remote_node_cidr_blocks=[],
                 remote_pod_cidr_blocks=[],

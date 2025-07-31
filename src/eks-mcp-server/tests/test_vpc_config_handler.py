@@ -218,6 +218,7 @@ class TestVpcConfigHandler:
 
         # Verify error response
         assert result.isError
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert 'Error' in result.content[0].text
         assert result.vpc_id == ''
         assert result.cluster_name == 'test-cluster'
@@ -252,6 +253,7 @@ class TestVpcConfigHandler:
 
         # Verify error response
         assert result.isError
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert 'Could not determine VPC ID for cluster' in result.content[0].text
         assert result.vpc_id == ''
         assert result.cluster_name == 'test-cluster'
@@ -279,6 +281,7 @@ class TestVpcConfigHandler:
 
         # Verify error response
         assert result.isError
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert 'Error getting cluster information' in result.content[0].text
         assert 'API Error' in result.content[0].text
         assert result.vpc_id == ''
@@ -568,7 +571,7 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        assert isinstance(result.content[0], TextContent)
+        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
         assert 'Retrieved VPC configuration' in result.content[0].text
         assert result.vpc_id == 'vpc-12345'
         assert result.cidr_block == '10.0.0.0/16'

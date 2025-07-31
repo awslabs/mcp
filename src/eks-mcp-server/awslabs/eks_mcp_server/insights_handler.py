@@ -139,7 +139,7 @@ class InsightsHandler:
 
             if detail_mode:
                 # Get details for a specific insight
-                return await self._get_insight_detail(ctx, eks_client, cluster_name, insight_id)
+                return await self._get_insight_detail(ctx, eks_client, cluster_name, insight_id, next_token)
             else:
                 # List all insights with optional category filter
                 return await self._list_insights(ctx, eks_client, cluster_name, category, next_token)
@@ -152,11 +152,12 @@ class InsightsHandler:
                 content=[TextContent(type='text', text=error_message)],
                 cluster_name=cluster_name,
                 insights=[],
+                next_token=None,
                 detail_mode=(insight_id is not None),
             )
 
     async def _get_insight_detail(
-        self, ctx: Context, eks_client, cluster_name: str, insight_id: str
+        self, ctx: Context, eks_client, cluster_name: str, insight_id: str, next_token: Optional[str] = None
     ) -> EksInsightsResponse:
         """Get details for a specific EKS insight."""
         log_with_request_id(
@@ -209,6 +210,7 @@ class InsightsHandler:
                     content=[TextContent(type='text', text=success_message)],
                     cluster_name=cluster_name,
                     insights=[insight_item],
+                    next_token=None,  # No pagination for detail view
                     detail_mode=True,
                 )
             else:
@@ -219,6 +221,7 @@ class InsightsHandler:
                     content=[TextContent(type='text', text=error_message)],
                     cluster_name=cluster_name,
                     insights=[],
+                    next_token=None,
                     detail_mode=True,
                 )
 
@@ -230,6 +233,7 @@ class InsightsHandler:
                 content=[TextContent(type='text', text=error_message)],
                 cluster_name=cluster_name,
                 insights=[],
+                next_token=None,
                 detail_mode=True,
             )
 
@@ -321,5 +325,6 @@ class InsightsHandler:
                 content=[TextContent(type='text', text=error_message)],
                 cluster_name=cluster_name,
                 insights=[],
+                next_token=None,
                 detail_mode=False,
             )
