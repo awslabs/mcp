@@ -25,18 +25,18 @@ from typing import Optional
 
 class VpcConfigHandler:
     """Handler for Amazon EKS VPC configuration.
-    
+
     This class provides tools for retrieving and analyzing VPC configurations
     for EKS clusters, with special support for hybrid node setups.
     """
-    
+
     def __init__(
         self,
         mcp,
         allow_sensitive_data_access: bool = False,
     ):
         """Initialize the VPC Config handler.
-        
+
         Args:
             mcp: The MCP server instance
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
@@ -98,9 +98,7 @@ class VpcConfigHandler:
         # Delegate to the implementation method with extracted values
         return await self._get_eks_vpc_config_impl(ctx, cluster_name, vpc_id_value)
 
-    async def _get_vpc_id_for_cluster(
-        self, ctx: Context, cluster_name: str
-    ) -> tuple[str, dict]:
+    async def _get_vpc_id_for_cluster(self, ctx: Context, cluster_name: str) -> tuple[str, dict]:
         """Get the VPC ID for a cluster.
 
         Args:
@@ -124,9 +122,7 @@ class VpcConfigHandler:
 
         return vpc_id, cluster_response
 
-    async def _get_vpc_details(
-        self, ctx: Context, vpc_id: str
-    ) -> tuple[str, list[str]]:
+    async def _get_vpc_details(self, ctx: Context, vpc_id: str) -> tuple[str, list[str]]:
         """Get VPC details using the VPC ID.
 
         Args:
@@ -340,7 +336,9 @@ class VpcConfigHandler:
             try:
                 if not vpc_id:
                     # Get both VPC ID and cluster response
-                    vpc_id, cluster_response = await self._get_vpc_id_for_cluster(ctx, cluster_name)
+                    vpc_id, cluster_response = await self._get_vpc_id_for_cluster(
+                        ctx, cluster_name
+                    )
                 else:
                     # Just get the cluster response when VPC ID is provided
                     _, cluster_response = await self._get_vpc_id_for_cluster(ctx, cluster_name)
@@ -363,22 +361,25 @@ class VpcConfigHandler:
             try:
                 # Get VPC details
                 cidr_block, additional_cidr_blocks = await self._get_vpc_details(ctx, vpc_id)
-                
+
                 # Get subnet information
                 subnets = await self._get_subnet_information(ctx, vpc_id)
-                
+
                 # Get route table information
                 routes = await self._get_route_table_information(ctx, vpc_id)
-                
+
                 # Get remote CIDR blocks
-                remote_node_cidr_blocks, remote_pod_cidr_blocks = await self._get_remote_cidr_blocks(
-                    ctx, cluster_name, cluster_response
-                )
-                
+                (
+                    remote_node_cidr_blocks,
+                    remote_pod_cidr_blocks,
+                ) = await self._get_remote_cidr_blocks(ctx, cluster_name, cluster_response)
+
                 # Create the response
-                success_message = f'Retrieved VPC configuration for {vpc_id} (cluster {cluster_name})'
+                success_message = (
+                    f'Retrieved VPC configuration for {vpc_id} (cluster {cluster_name})'
+                )
                 log_with_request_id(ctx, LogLevel.INFO, success_message)
-                
+
                 return EksVpcConfigResponse(
                     isError=False,
                     content=[TextContent(type='text', text=success_message)],

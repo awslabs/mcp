@@ -49,10 +49,11 @@ def mock_eks_client():
 
 class TestVpcConfigHandler:
     """Tests for the VpcConfigHandler class."""
-    
+
     @pytest.fixture(autouse=True)
     def mock_aws_helper(self, monkeypatch, mock_ec2_client, mock_eks_client):
         """Mock AWS Helper to avoid actual AWS client creation."""
+
         def mock_create_boto3_client(service_name, region_name=None):
             if service_name == 'ec2':
                 return mock_ec2_client
@@ -60,10 +61,10 @@ class TestVpcConfigHandler:
                 return mock_eks_client
             else:
                 return MagicMock()
-        
+
         monkeypatch.setattr(
             'awslabs.eks_mcp_server.aws_helper.AwsHelper.create_boto3_client',
-            mock_create_boto3_client
+            mock_create_boto3_client,
         )
 
     def test_init(self, mock_mcp):
@@ -90,9 +91,7 @@ class TestVpcConfigHandler:
         """Test initialization of VpcConfigHandler with custom options."""
         # Initialize the handler with custom parameters
         with patch('awslabs.eks_mcp_server.vpc_config_handler.AwsHelper'):
-            handler = VpcConfigHandler(
-                mock_mcp, allow_sensitive_data_access=True
-            )
+            handler = VpcConfigHandler(mock_mcp, allow_sensitive_data_access=True)
 
             # Verify that the handler has the correct attributes
             assert handler.mcp == mock_mcp
@@ -101,7 +100,7 @@ class TestVpcConfigHandler:
     @pytest.mark.asyncio
     async def test_get_eks_vpc_config_with_explicit_vpc_id(self, mock_context, mock_mcp):
         """Test _get_eks_vpc_config_impl with an explicitly provided VPC ID.
-        
+
         When a VPC ID is explicitly provided, we should:
         1. Use the provided VPC ID directly without looking it up from the cluster
         2. Still retrieve remote CIDR information by calling describe_cluster
@@ -149,7 +148,7 @@ class TestVpcConfigHandler:
                 }
             ]
         }
-        
+
         # Set up mock response for EKS client (for remote CIDR information)
         mock_eks_client.describe_cluster.return_value = {
             'cluster': {
@@ -218,7 +217,9 @@ class TestVpcConfigHandler:
 
         # Verify error response
         assert result.isError
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert 'Error' in result.content[0].text
         assert result.vpc_id == ''
         assert result.cluster_name == 'test-cluster'
@@ -253,7 +254,9 @@ class TestVpcConfigHandler:
 
         # Verify error response
         assert result.isError
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert 'Could not determine VPC ID for cluster' in result.content[0].text
         assert result.vpc_id == ''
         assert result.cluster_name == 'test-cluster'
@@ -281,7 +284,9 @@ class TestVpcConfigHandler:
 
         # Verify error response
         assert result.isError
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert 'Error getting cluster information' in result.content[0].text
         assert 'API Error' in result.content[0].text
         assert result.vpc_id == ''
@@ -571,7 +576,9 @@ class TestVpcConfigHandler:
 
         # Verify the result
         assert not result.isError
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert 'Retrieved VPC configuration' in result.content[0].text
         assert result.vpc_id == 'vpc-12345'
         assert result.cidr_block == '10.0.0.0/16'
@@ -615,84 +622,84 @@ class TestVpcConfigHandler:
         """Test _get_vpc_id_for_cluster when successful."""
         # Create mock EKS client
         mock_eks_client = MagicMock()
-        
+
         # Set up mock response with VPC ID
         mock_eks_client.describe_cluster.return_value = {
-            'cluster': {
-                'resourcesVpcConfig': {'vpcId': 'vpc-12345'}
-            }
+            'cluster': {'resourcesVpcConfig': {'vpcId': 'vpc-12345'}}
         }
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.eks_client = mock_eks_client
-        
+
         # Call the helper method
-        vpc_id, cluster_response = await handler._get_vpc_id_for_cluster(mock_context, 'test-cluster')
-        
+        vpc_id, cluster_response = await handler._get_vpc_id_for_cluster(
+            mock_context, 'test-cluster'
+        )
+
         # Verify EKS client was called
         mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
-        
+
         # Verify the result
         assert vpc_id == 'vpc-12345'
         assert cluster_response == mock_eks_client.describe_cluster.return_value
-        
+
     @pytest.mark.asyncio
     async def test_get_vpc_id_for_cluster_no_vpc_id(self, mock_context, mock_mcp):
         """Test _get_vpc_id_for_cluster when no VPC ID is found."""
         # Create mock EKS client
         mock_eks_client = MagicMock()
-        
+
         # Set up mock response without VPC ID
         mock_eks_client.describe_cluster.return_value = {
             'cluster': {
                 'resourcesVpcConfig': {}  # No VPC ID
             }
         }
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.eks_client = mock_eks_client
-        
+
         # Call the helper method and expect an exception
         with pytest.raises(Exception) as excinfo:
             await handler._get_vpc_id_for_cluster(mock_context, 'test-cluster')
-        
+
         # Verify EKS client was called
         mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
-        
+
         # Verify the exception message
         assert 'Could not determine VPC ID for cluster' in str(excinfo.value)
-        
+
     @pytest.mark.asyncio
     async def test_get_vpc_id_for_cluster_api_error(self, mock_context, mock_mcp):
         """Test _get_vpc_id_for_cluster when API call fails."""
         # Create mock EKS client
         mock_eks_client = MagicMock()
-        
+
         # Set up mock to raise an exception
         mock_eks_client.describe_cluster.side_effect = Exception('API Error')
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.eks_client = mock_eks_client
-        
+
         # Call the helper method and expect an exception
         with pytest.raises(Exception) as excinfo:
             await handler._get_vpc_id_for_cluster(mock_context, 'test-cluster')
-        
+
         # Verify EKS client was called
         mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
-        
+
         # Verify the exception message
         assert 'API Error' in str(excinfo.value)
-        
+
     @pytest.mark.asyncio
     async def test_get_vpc_details_success(self, mock_context, mock_mcp):
         """Test _get_vpc_details when successful."""
         # Create mock EC2 client
         mock_ec2_client = MagicMock()
-        
+
         # Set up mock response
         mock_ec2_client.describe_vpcs.return_value = {
             'Vpcs': [
@@ -706,74 +713,76 @@ class TestVpcConfigHandler:
                 }
             ]
         }
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.ec2_client = mock_ec2_client
-        
+
         # Call the helper method
-        cidr_block, additional_cidr_blocks = await handler._get_vpc_details(mock_context, 'vpc-12345')
-        
+        cidr_block, additional_cidr_blocks = await handler._get_vpc_details(
+            mock_context, 'vpc-12345'
+        )
+
         # Verify EC2 client was called
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
-        
+
         # Verify the result
         assert cidr_block == '10.0.0.0/16'
         assert len(additional_cidr_blocks) == 1
         assert additional_cidr_blocks[0] == '10.1.0.0/16'
-        
+
     @pytest.mark.asyncio
     async def test_get_vpc_details_vpc_not_found(self, mock_context, mock_mcp):
         """Test _get_vpc_details when VPC is not found."""
         # Create mock EC2 client
         mock_ec2_client = MagicMock()
-        
+
         # Set up mock response with no VPCs
         mock_ec2_client.describe_vpcs.return_value = {'Vpcs': []}
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.ec2_client = mock_ec2_client
-        
+
         # Call the helper method and expect an exception
         with pytest.raises(Exception) as excinfo:
             await handler._get_vpc_details(mock_context, 'vpc-nonexistent')
-        
+
         # Verify EC2 client was called
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-nonexistent'])
-        
+
         # Verify the exception message
         assert 'VPC vpc-nonexistent not found' in str(excinfo.value)
-        
+
     @pytest.mark.asyncio
     async def test_get_vpc_details_api_error(self, mock_context, mock_mcp):
         """Test _get_vpc_details when API call fails."""
         # Create mock EC2 client
         mock_ec2_client = MagicMock()
-        
+
         # Set up mock to raise an exception
         mock_ec2_client.describe_vpcs.side_effect = Exception('API Error')
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.ec2_client = mock_ec2_client
-        
+
         # Call the helper method and expect an exception
         with pytest.raises(Exception) as excinfo:
             await handler._get_vpc_details(mock_context, 'vpc-12345')
-        
+
         # Verify EC2 client was called
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
-        
+
         # Verify the exception message
         assert 'API Error' in str(excinfo.value)
-        
+
     @pytest.mark.asyncio
     async def test_get_subnet_information(self, mock_context, mock_mcp):
         """Test _get_subnet_information."""
         # Create mock EC2 client
         mock_ec2_client = MagicMock()
-        
+
         # Set up mock response
         mock_ec2_client.describe_subnets.return_value = {
             'Subnets': [
@@ -806,22 +815,22 @@ class TestVpcConfigHandler:
                 },
             ]
         }
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.ec2_client = mock_ec2_client
-        
+
         # Call the helper method
         subnets = await handler._get_subnet_information(mock_context, 'vpc-12345')
-        
+
         # Verify EC2 client was called
         mock_ec2_client.describe_subnets.assert_called_once_with(
             Filters=[{'Name': 'vpc-id', 'Values': ['vpc-12345']}]
         )
-        
+
         # Verify the result
         assert len(subnets) == 3
-        
+
         # Check first subnet
         subnet1 = next((s for s in subnets if s['subnet_id'] == 'subnet-12345'), None)
         assert subnet1 is not None
@@ -832,7 +841,7 @@ class TestVpcConfigHandler:
         assert subnet1['assign_ipv6'] is False
         assert subnet1['has_sufficient_ips'] is True
         assert subnet1['in_disallowed_az'] is False
-        
+
         # Check second subnet
         subnet2 = next((s for s in subnets if s['subnet_id'] == 'subnet-67890'), None)
         assert subnet2 is not None
@@ -843,19 +852,19 @@ class TestVpcConfigHandler:
         assert subnet2['assign_ipv6'] is True
         assert subnet2['has_sufficient_ips'] is False  # Only 10 IPs, needs 16
         assert subnet2['in_disallowed_az'] is False
-        
+
         # Check disallowed AZ subnet
         subnet3 = next((s for s in subnets if s['subnet_id'] == 'subnet-disallowed'), None)
         assert subnet3 is not None
         assert subnet3['az_id'] == 'use1-az3'
         assert subnet3['in_disallowed_az'] is True
-        
+
     @pytest.mark.asyncio
     async def test_get_route_table_information(self, mock_context, mock_mcp):
         """Test _get_route_table_information."""
         # Create mock EC2 client
         mock_ec2_client = MagicMock()
-        
+
         # Set up mock response
         mock_ec2_client.describe_route_tables.return_value = {
             'RouteTables': [
@@ -863,11 +872,20 @@ class TestVpcConfigHandler:
                     'RouteTableId': 'rtb-12345',
                     'Associations': [{'Main': True}],  # Main route table
                     'Routes': [
-                        {'DestinationCidrBlock': '10.0.0.0/16', 'GatewayId': 'local'},  # Local route
+                        {
+                            'DestinationCidrBlock': '10.0.0.0/16',
+                            'GatewayId': 'local',
+                        },  # Local route
                         {'DestinationCidrBlock': '0.0.0.0/0', 'GatewayId': 'igw-12345'},
-                        {'DestinationCidrBlock': '192.168.0.0/16', 'TransitGatewayId': 'tgw-12345'},
+                        {
+                            'DestinationCidrBlock': '192.168.0.0/16',
+                            'TransitGatewayId': 'tgw-12345',
+                        },
                         {'DestinationCidrBlock': '172.16.0.0/16', 'NatGatewayId': 'nat-12345'},
-                        {'DestinationCidrBlock': '10.1.0.0/16', 'VpcPeeringConnectionId': 'pcx-12345'},
+                        {
+                            'DestinationCidrBlock': '10.1.0.0/16',
+                            'VpcPeeringConnectionId': 'pcx-12345',
+                        },
                         {'DestinationCidrBlock': '10.2.0.0/16', 'NetworkInterfaceId': 'eni-12345'},
                         {'DestinationCidrBlock': '10.3.0.0/16'},  # No target
                     ],
@@ -882,33 +900,56 @@ class TestVpcConfigHandler:
                 },
             ]
         }
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.ec2_client = mock_ec2_client
-        
+
         # Call the helper method
         routes = await handler._get_route_table_information(mock_context, 'vpc-12345')
-        
+
         # Verify EC2 client was called
         mock_ec2_client.describe_route_tables.assert_called_once_with(
             Filters=[{'Name': 'vpc-id', 'Values': ['vpc-12345']}]
         )
-        
+
         # Verify the result
         assert len(routes) == 6  # Local route should be filtered out
-        
+
         # Check routes
-        assert any(r['destination_cidr_block'] == '0.0.0.0/0' and r['target_type'] == 'gateway' for r in routes)
-        assert any(r['destination_cidr_block'] == '192.168.0.0/16' and r['target_type'] == 'transitgateway' for r in routes)
-        assert any(r['destination_cidr_block'] == '172.16.0.0/16' and r['target_type'] == 'natgateway' for r in routes)
-        assert any(r['destination_cidr_block'] == '10.1.0.0/16' and r['target_type'] == 'vpcpeeringconnection' for r in routes)
-        assert any(r['destination_cidr_block'] == '10.2.0.0/16' and r['target_type'] == 'networkinterface' for r in routes)
-        assert any(r['destination_cidr_block'] == '10.3.0.0/16' and r['target_type'] == 'unknown' for r in routes)
-        
+        assert any(
+            r['destination_cidr_block'] == '0.0.0.0/0' and r['target_type'] == 'gateway'
+            for r in routes
+        )
+        assert any(
+            r['destination_cidr_block'] == '192.168.0.0/16'
+            and r['target_type'] == 'transitgateway'
+            for r in routes
+        )
+        assert any(
+            r['destination_cidr_block'] == '172.16.0.0/16' and r['target_type'] == 'natgateway'
+            for r in routes
+        )
+        assert any(
+            r['destination_cidr_block'] == '10.1.0.0/16'
+            and r['target_type'] == 'vpcpeeringconnection'
+            for r in routes
+        )
+        assert any(
+            r['destination_cidr_block'] == '10.2.0.0/16' and r['target_type'] == 'networkinterface'
+            for r in routes
+        )
+        assert any(
+            r['destination_cidr_block'] == '10.3.0.0/16' and r['target_type'] == 'unknown'
+            for r in routes
+        )
+
         # Verify that routes from non-main route table are not included
-        assert not any(r['destination_cidr_block'] == '0.0.0.0/0' and r['target_id'] == 'igw-67890' for r in routes)
-        
+        assert not any(
+            r['destination_cidr_block'] == '0.0.0.0/0' and r['target_id'] == 'igw-67890'
+            for r in routes
+        )
+
     @pytest.mark.asyncio
     async def test_get_remote_cidr_blocks_with_cluster_response(self, mock_context, mock_mcp):
         """Test _get_remote_cidr_blocks with a provided cluster response."""
@@ -921,48 +962,50 @@ class TestVpcConfigHandler:
                 },
             }
         }
-        
+
         # Initialize the handler
         handler = VpcConfigHandler(mock_mcp)
-        
+
         # Call the helper method
         remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
             mock_context, 'test-cluster', cluster_response
         )
-        
+
         # Verify the result
         assert len(remote_node_cidr_blocks) == 2
         assert '192.168.0.0/16' in remote_node_cidr_blocks
         assert '192.168.1.0/24' in remote_node_cidr_blocks
-        
+
         assert len(remote_pod_cidr_blocks) == 2
         assert '172.16.0.0/16' in remote_pod_cidr_blocks
         assert '172.17.0.0/16' in remote_pod_cidr_blocks
-        
+
     @pytest.mark.asyncio
     async def test_get_remote_cidr_blocks_without_cluster_response(self, mock_context, mock_mcp):
         """Test _get_remote_cidr_blocks without a provided cluster response."""
         # Create mock EKS client
         mock_eks_client = MagicMock()
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.eks_client = mock_eks_client
-        
+
         # Call the helper method with no cluster response
         remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
             mock_context, 'test-cluster'
         )
-        
+
         # when cluster_response is None, it just returns empty lists
         mock_eks_client.describe_cluster.assert_not_called()
-        
+
         # Verify the result (should be empty lists)
         assert len(remote_node_cidr_blocks) == 0
         assert len(remote_pod_cidr_blocks) == 0
-        
+
     @pytest.mark.asyncio
-    async def test_get_remote_cidr_blocks_with_empty_cluster_response(self, mock_context, mock_mcp):
+    async def test_get_remote_cidr_blocks_with_empty_cluster_response(
+        self, mock_context, mock_mcp
+    ):
         """Test _get_remote_cidr_blocks with a cluster response that has no remote network config."""
         # Create mock cluster response without remote network config
         cluster_response = {
@@ -970,40 +1013,40 @@ class TestVpcConfigHandler:
                 # No remoteNetworkConfig
             }
         }
-        
+
         # Initialize the handler
         handler = VpcConfigHandler(mock_mcp)
-        
+
         # Call the helper method
         remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
             mock_context, 'test-cluster', cluster_response
         )
-        
+
         # Verify the result
         assert len(remote_node_cidr_blocks) == 0
         assert len(remote_pod_cidr_blocks) == 0
-        
+
     @pytest.mark.asyncio
     async def test_get_remote_cidr_blocks_api_error(self, mock_context, mock_mcp):
         """Test _get_remote_cidr_blocks when API call fails."""
         # Create mock EKS client
         mock_eks_client = MagicMock()
-        
+
         # Set up mock to raise an exception
         mock_eks_client.describe_cluster.side_effect = Exception('API Error')
-        
+
         # Initialize the handler with our mock client
         handler = VpcConfigHandler(mock_mcp)
         handler.eks_client = mock_eks_client
-        
+
         # Call the helper method
         remote_node_cidr_blocks, remote_pod_cidr_blocks = await handler._get_remote_cidr_blocks(
             mock_context, 'test-cluster'
         )
-        
+
         # when cluster_response is None, it just returns empty lists
         mock_eks_client.describe_cluster.assert_not_called()
-        
+
         # Verify the result (should be empty lists)
         assert len(remote_node_cidr_blocks) == 0
         assert len(remote_pod_cidr_blocks) == 0

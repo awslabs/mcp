@@ -44,19 +44,20 @@ def mock_eks_client():
 
 class TestInsightsHandler:
     """Tests for the InsightsHandler class."""
-    
+
     @pytest.fixture(autouse=True)
     def mock_aws_helper(self, monkeypatch, mock_eks_client):
         """Mock AWS Helper to avoid actual AWS client creation."""
+
         def mock_create_boto3_client(service_name, region_name=None):
             if service_name == 'eks':
                 return mock_eks_client
             else:
                 return MagicMock()
-        
+
         monkeypatch.setattr(
             'awslabs.eks_mcp_server.aws_helper.AwsHelper.create_boto3_client',
-            mock_create_boto3_client
+            mock_create_boto3_client,
         )
 
     def test_init(self, mock_mcp):
@@ -81,9 +82,7 @@ class TestInsightsHandler:
         """Test initialization of InsightsHandler with custom options."""
         # Initialize the handler with custom parameters
         with patch('awslabs.eks_mcp_server.insights_handler.AwsHelper'):
-            handler = InsightsHandler(
-                mock_mcp, allow_sensitive_data_access=True
-            )
+            handler = InsightsHandler(mock_mcp, allow_sensitive_data_access=True)
 
             # Verify that the handler has the correct attributes
             assert handler.mcp == mock_mcp
@@ -143,7 +142,9 @@ class TestInsightsHandler:
         assert result.insights[1].category == 'UPGRADE_READINESS'
 
         # Verify success message in content
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -193,7 +194,9 @@ class TestInsightsHandler:
         assert insight.category_specific_summary == {'detail': 'Some specific details'}
 
         # Verify success message in content
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert (
             'Successfully retrieved details for insight detail-insight' in result.content[0].text
         )
@@ -238,7 +241,9 @@ class TestInsightsHandler:
         assert all(insight.category == 'CONFIGURATION' for insight in result.insights)
 
         # Verify success message mentions insights
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert f'Successfully retrieved {len(result.insights)} insights' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -253,7 +258,7 @@ class TestInsightsHandler:
                 self._create_mock_insight_item(insight_id='paginated-insight-1'),
                 self._create_mock_insight_item(insight_id='paginated-insight-2'),
             ],
-            'nextToken': 'test-next-token-value'
+            'nextToken': 'test-next-token-value',
         }
 
         # Initialize the handler with our mock client
@@ -262,15 +267,12 @@ class TestInsightsHandler:
 
         # Call the implementation method with next_token
         result = await handler._get_eks_insights_impl(
-            mock_context, 
-            cluster_name='test-cluster', 
-            next_token='previous-token'
+            mock_context, cluster_name='test-cluster', next_token='previous-token'
         )
 
         # Verify API calls with next_token parameter
         mock_eks_client.list_insights.assert_called_once_with(
-            clusterName='test-cluster',
-            nextToken='previous-token'
+            clusterName='test-cluster', nextToken='previous-token'
         )
 
         # Verify the result
@@ -333,7 +335,9 @@ class TestInsightsHandler:
         assert not result.isError
         assert result.cluster_name == 'test-cluster'
         assert len(result.insights) == 0
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert 'Successfully retrieved 0 insights' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -369,7 +373,9 @@ class TestInsightsHandler:
 
         # Verify error response
         assert result.isError
-        assert isinstance(result.content[0], TextContent)  # Ensure it's TextContent before accessing .text
+        assert isinstance(
+            result.content[0], TextContent
+        )  # Ensure it's TextContent before accessing .text
         assert 'No insight details found for ID nonexistent-id' in result.content[0].text
         assert result.cluster_name == 'test-cluster'
         assert len(result.insights) == 0

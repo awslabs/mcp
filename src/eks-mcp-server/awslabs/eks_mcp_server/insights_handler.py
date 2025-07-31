@@ -25,33 +25,33 @@ from datetime import datetime
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
-from typing import Optional
+from typing import Any, Optional
 
 
 class InsightsHandler:
     """Handler for Amazon EKS Insights.
-    
+
     This class provides tools for retrieving and analyzing insights about
     EKS cluster configuration and upgrade readiness.
     """
-    
+
     def __init__(
         self,
         mcp,
         allow_sensitive_data_access: bool = False,
     ):
         """Initialize the Insights handler.
-        
+
         Args:
             mcp: The MCP server instance
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
         """
         self.mcp = mcp
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        
+
         # Register tools
         self.mcp.tool(name='get_eks_insights')(self.get_eks_insights)
-        
+
         # Initialize AWS clients
         self.eks_client = AwsHelper.create_boto3_client('eks')
 
@@ -139,10 +139,14 @@ class InsightsHandler:
 
             if detail_mode:
                 # Get details for a specific insight
-                return await self._get_insight_detail(ctx, eks_client, cluster_name, insight_id, next_token)
+                return await self._get_insight_detail(
+                    ctx, eks_client, cluster_name, insight_id, next_token
+                )
             else:
                 # List all insights with optional category filter
-                return await self._list_insights(ctx, eks_client, cluster_name, category, next_token)
+                return await self._list_insights(
+                    ctx, eks_client, cluster_name, category, next_token
+                )
 
         except Exception as e:
             error_message = f'Error processing EKS insights request: {str(e)}'
@@ -157,7 +161,12 @@ class InsightsHandler:
             )
 
     async def _get_insight_detail(
-        self, ctx: Context, eks_client, cluster_name: str, insight_id: str, next_token: Optional[str] = None
+        self,
+        ctx: Context,
+        eks_client,
+        cluster_name: str,
+        insight_id: str,
+        next_token: Optional[str] = None,
     ) -> EksInsightsResponse:
         """Get details for a specific EKS insight."""
         log_with_request_id(
@@ -238,14 +247,19 @@ class InsightsHandler:
             )
 
     async def _list_insights(
-        self, ctx: Context, eks_client, cluster_name: str, category: Optional[str] = None, next_token: Optional[str] = None
+        self,
+        ctx: Context,
+        eks_client,
+        cluster_name: str,
+        category: Optional[str] = None,
+        next_token: Optional[str] = None,
     ) -> EksInsightsResponse:
         """List EKS insights for a cluster with optional category filtering."""
         log_with_request_id(ctx, LogLevel.INFO, f'Listing insights for cluster {cluster_name}')
 
         try:
             # Build the list_insights parameters
-            list_params = {'clusterName': cluster_name}
+            list_params: dict[str, Any] = {'clusterName': cluster_name}
 
             # Add category filter if provided
             if category:
@@ -253,14 +267,12 @@ class InsightsHandler:
                     ctx, LogLevel.INFO, f'Filtering insights by category: {category}'
                 )
                 # Use the filter parameter with the correct structure
-                list_params['filter'] = {
-                    'categories': [category]
-                }
-                
+                list_params['filter'] = {'categories': [category]}
+
             # Add next_token if provided
             if next_token:
                 log_with_request_id(
-                    ctx, LogLevel.INFO, f'Using pagination token for next page of results'
+                    ctx, LogLevel.INFO, 'Using pagination token for next page of results'
                 )
                 list_params['nextToken'] = next_token
 

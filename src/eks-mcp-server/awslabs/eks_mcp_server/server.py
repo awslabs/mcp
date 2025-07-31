@@ -28,8 +28,8 @@ from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatchMetricsHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
-from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from awslabs.eks_mcp_server.iam_handler import IAMHandler
+from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
 from loguru import logger
