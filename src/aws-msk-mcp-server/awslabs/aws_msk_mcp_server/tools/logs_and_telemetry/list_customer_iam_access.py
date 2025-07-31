@@ -41,9 +41,12 @@ def list_customer_iam_access(cluster_arn: str, client_manager=None) -> Dict[str,
                 'Client manager must be provided. This function should only be called from a tool function.'
             )
 
+        # Extract region from cluster ARN
+        region = cluster_arn.split(':')[3]
+
         # Get clients from the client manager
-        kafka = client_manager.get_client('kafka')
-        iam = client_manager.get_client('iam')
+        kafka = client_manager.get_client(region, 'kafka')
+        iam = client_manager.get_client(region, 'iam')
 
         if not cluster_arn.startswith('arn:aws:kafka:'):
             raise ValueError('cluster_arn must be a valid MSK cluster ARN')
