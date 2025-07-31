@@ -431,3 +431,63 @@ class TestInsightsHandler:
         assert result.insights[0].id == 'impl-detail-insight'
         assert result.cluster_name == 'test-cluster'
         assert result.detail_mode
+
+    @pytest.mark.asyncio
+    async def test_get_eks_insights_impl_general_exception(self, mock_context, mock_mcp):
+        """Test _get_eks_insights_impl when a general exception occurs."""
+        # Create a handler
+        handler = InsightsHandler(mock_mcp)
+
+        # Create a mock eks_client
+        mock_eks_client = MagicMock()
+        handler.eks_client = mock_eks_client
+
+        # Override the _list_insights method to raise a custom exception
+        with patch.object(
+            handler, '_list_insights', side_effect=Exception('Test general exception')
+        ):
+            # Call the implementation method
+            result = await handler._get_eks_insights_impl(
+                mock_context, cluster_name='test-cluster'
+            )
+
+        # Verify error response
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Error processing EKS insights request' in result.content[0].text
+        assert 'Test general exception' in result.content[0].text
+        assert result.cluster_name == 'test-cluster'
+        assert len(result.insights) == 0
+        assert result.next_token is None
+        assert result.detail_mode is False
+
+    @pytest.mark.asyncio
+    async def test_get_insight_detail_exception(self, mock_context, mock_mcp):
+        """Test _get_insight_detail when an exception occurs."""
+        # Create mock AWS client that raises an exception
+        mock_eks_client = MagicMock()
+        mock_eks_client.describe_insight.side_effect = Exception('Test detail API error')
+
+        # Initialize the handler with our mock client
+        handler = InsightsHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+
+        # Call the implementation method directly with insight_id
+        result = await handler._get_eks_insights_impl(
+            mock_context, cluster_name='test-cluster', insight_id='test-insight'
+        )
+
+        # Verify API call was attempted
+        mock_eks_client.describe_insight.assert_called_once_with(
+            id='test-insight', clusterName='test-cluster'
+        )
+
+        # Verify error response
+        assert result.isError
+        assert isinstance(result.content[0], TextContent)
+        assert 'Error retrieving insight details' in result.content[0].text
+        assert 'Test detail API error' in result.content[0].text
+        assert result.cluster_name == 'test-cluster'
+        assert len(result.insights) == 0
+        assert result.next_token is None
+        assert result.detail_mode is True
