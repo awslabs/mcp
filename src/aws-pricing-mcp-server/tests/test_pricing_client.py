@@ -123,6 +123,49 @@ class TestCreatePricingClient:
 
         mock_session.assert_called_once_with(profile_name='env-profile')
 
+    @patch('awslabs.aws_pricing_mcp_server.pricing_client.boto3.Session')
+    def test_uses_default_endpoint_when_not_set(self, mock_session, monkeypatch):
+        """Test that endpoint_url is None when PRICING_ENDPOINT is not set."""
+        monkeypatch.setattr('awslabs.aws_pricing_mcp_server.consts.PRICING_ENDPOINT', None)
+
+        mock_session_instance = Mock()
+        mock_client = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = mock_client
+
+        result = create_pricing_client()
+
+        # Verify client creation with endpoint_url=None
+        mock_session_instance.client.assert_called_once()
+        call_args = mock_session_instance.client.call_args
+        assert call_args[0][0] == 'pricing'
+        assert call_args[1]['endpoint_url'] is None
+
+        assert result == mock_client
+
+    @patch('awslabs.aws_pricing_mcp_server.pricing_client.boto3.Session')
+    def test_uses_custom_endpoint_when_set(self, mock_session, monkeypatch):
+        """Test that custom endpoint_url is used when PRICING_ENDPOINT is set."""
+        custom_endpoint = 'https://custom-pricing-endpoint.example.com'
+        monkeypatch.setattr(
+            'awslabs.aws_pricing_mcp_server.consts.PRICING_ENDPOINT', custom_endpoint
+        )
+
+        mock_session_instance = Mock()
+        mock_client = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = mock_client
+
+        result = create_pricing_client()
+
+        # Verify client creation with custom endpoint_url
+        mock_session_instance.client.assert_called_once()
+        call_args = mock_session_instance.client.call_args
+        assert call_args[0][0] == 'pricing'
+        assert call_args[1]['endpoint_url'] == custom_endpoint
+
+        assert result == mock_client
+
 
 class TestGetCurrencyForRegion:
     """Tests for the get_currency_for_region function."""

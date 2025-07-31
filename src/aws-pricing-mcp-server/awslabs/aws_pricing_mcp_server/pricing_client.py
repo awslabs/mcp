@@ -104,7 +104,7 @@ def create_pricing_client(profile: Optional[str] = None, region: Optional[str] =
     logger.debug(
         f'Creating pricing client for region "{pricing_region}" and profile "{profile_name}"'
     )
-    return session.client('pricing', config=config)
+    return session.client('pricing', config=config, endpoint_url=consts.PRICING_ENDPOINT)
 
 
 def get_currency_for_region(region: str) -> str:
