@@ -10,12 +10,11 @@ from awslabs.aws_api_mcp_server.core.common.models import (
 from awslabs.aws_api_mcp_server.server import call_aws, main, suggest_aws_commands
 from botocore.exceptions import NoCredentialsError
 from mcp.server.elicitation import AcceptedElicitation
-from tests.fixtures import TEST_CREDENTIALS, DummyCtx
+from tests.fixtures import DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
@@ -25,11 +24,8 @@ async def test_call_aws_success(
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
-    mock_get_creds,
 ):
     """Test call_aws returns success for a valid read-only command."""
-    mock_get_creds.return_value = TEST_CREDENTIALS
-
     # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
@@ -64,7 +60,6 @@ async def test_call_aws_success(
     assert result == mock_result
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api list-buckets')
     mock_validate.assert_called_once_with(mock_ir)
-    mock_get_creds.assert_called_once()
     mock_interpret.assert_called_once()
 
 
@@ -117,7 +112,6 @@ async def test_suggest_aws_commands_exception(mock_knowledge_base):
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
@@ -127,11 +121,8 @@ async def test_call_aws_with_consent_and_accept(
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
-    mock_get_creds,
 ):
     """Test call_aws with mutating action and consent enabled."""
-    mock_get_creds.return_value = TEST_CREDENTIALS
-
     # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
@@ -169,14 +160,12 @@ async def test_call_aws_with_consent_and_accept(
     assert result == mock_result
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
     mock_validate.assert_called_once_with(mock_ir)
-    mock_get_creds.assert_called_once()
     mock_interpret.assert_called_once()
     mock_ctx.elicit.assert_called_once()
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
@@ -186,11 +175,8 @@ async def test_call_aws_with_consent_and_reject(
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
-    mock_get_creds,
 ):
     """Test call_aws with mutating action and consent enabled."""
-    mock_get_creds.return_value = TEST_CREDENTIALS
-
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
     mock_is_operation_read_only.return_value = False
 
@@ -223,7 +209,6 @@ async def test_call_aws_with_consent_and_reject(
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False)
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
@@ -233,11 +218,8 @@ async def test_call_aws_without_consent(
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
-    mock_get_creds,
 ):
     """Test call_aws with mutating action and with consent disabled."""
-    mock_get_creds.return_value = TEST_CREDENTIALS
-
     # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
@@ -272,7 +254,6 @@ async def test_call_aws_without_consent(
     assert result == mock_result
     mock_translate_cli_to_ir.assert_called_once_with('aws s3api create-bucket --bucket somebucket')
     mock_validate.assert_called_once_with(mock_ir)
-    mock_get_creds.assert_called_once()
     mock_interpret.assert_called_once()
 
 
@@ -309,12 +290,12 @@ async def test_call_aws_validation_error_generic_exception(mock_translate_cli_to
     )
 
 
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
+@patch('awslabs.aws_api_mcp_server.server.interpret_command', side_effect=NoCredentialsError())
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
 @patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
 async def test_call_aws_no_credentials_error(
-    mock_is_operation_read_only, mock_translate_cli_to_ir, mock_validate, mock_get_creds
+    mock_is_operation_read_only, mock_translate_cli_to_ir, mock_validate, mock_interpret
 ):
     """Test call_aws returns error when no AWS credentials are found."""
     # Mock IR with command metadata
@@ -333,8 +314,6 @@ async def test_call_aws_no_credentials_error(
     mock_response.validation_failed = False
     mock_validate.return_value = mock_response
 
-    mock_get_creds.side_effect = NoCredentialsError()
-
     # Execute
     result = await call_aws('aws s3api list-buckets', DummyCtx())
 
@@ -347,7 +326,6 @@ async def test_call_aws_no_credentials_error(
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
@@ -357,11 +335,8 @@ async def test_call_aws_execution_error_awsmcp_error(
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
-    mock_get_creds,
 ):
     """Test call_aws returns error details for AwsApiMcpError during execution."""
-    mock_get_creds.return_value = TEST_CREDENTIALS
-
     # Mock IR with command metadata
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
@@ -394,7 +369,6 @@ async def test_call_aws_execution_error_awsmcp_error(
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
@@ -404,11 +378,8 @@ async def test_call_aws_execution_error_generic_exception(
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
-    mock_get_creds,
 ):
     """Test call_aws returns error details for generic exception during execution."""
-    mock_get_creds.return_value = TEST_CREDENTIALS
-
     # Mock IR with command metadata
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
@@ -588,7 +559,6 @@ async def test_call_aws_both_validation_failures_and_constraints(
 
 
 @patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
 @patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
@@ -596,7 +566,6 @@ async def test_call_aws_awscli_customization_success(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
-    mock_get_creds,
     mock_execute_awscli_customization,
 ):
     """Test call_aws returns success response for AWS CLI customization command."""
@@ -606,7 +575,6 @@ async def test_call_aws_awscli_customization_success(
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
-    mock_get_creds.return_value = TEST_CREDENTIALS
 
     mock_response = MagicMock()
     mock_response.validation_failed = False
@@ -624,7 +592,6 @@ async def test_call_aws_awscli_customization_success(
 
 
 @patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
-@patch('awslabs.aws_api_mcp_server.server.get_local_credentials')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
 @patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
@@ -632,7 +599,6 @@ async def test_call_aws_awscli_customization_error(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
-    mock_get_creds,
     mock_execute_awscli_customization,
 ):
     """Test call_aws handles error response from AWS CLI customization command."""
@@ -642,7 +608,6 @@ async def test_call_aws_awscli_customization_error(
     mock_translate_cli_to_ir.return_value = mock_ir
 
     mock_is_operation_read_only.return_value = True
-    mock_get_creds.return_value = TEST_CREDENTIALS
 
     mock_response = MagicMock()
     mock_response.validation_failed = False

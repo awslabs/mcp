@@ -17,7 +17,6 @@ import sys
 from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     execute_awscli_customization,
-    get_local_credentials,
     interpret_command,
     is_operation_read_only,
     request_consent,
@@ -238,10 +237,8 @@ async def call_aws(
                 await ctx.error(response.detail)
             return response
 
-        creds = get_local_credentials()
         return interpret_command(
             cli_command=cli_command,
-            credentials=creds,
             default_region=cast(str, DEFAULT_REGION),
             max_results=max_results,
         )

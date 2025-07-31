@@ -14,10 +14,9 @@
 
 """AWS-specific functionality for the AWS API MCP server."""
 
-from .driver import translate_cli_to_ir
+from .driver import translate_cli_to_ir, get_local_credentials
 from .regions import GLOBAL_SERVICE_REGIONS
 from .service import (
-    get_local_credentials,
     interpret_command,
     is_operation_read_only,
 )

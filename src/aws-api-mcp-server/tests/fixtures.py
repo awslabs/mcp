@@ -3,6 +3,7 @@ import botocore.exceptions
 import contextlib
 import datetime
 from .history_handler import history
+from awslabs.aws_api_mcp_server.core.common.models import Credentials
 from copy import deepcopy
 from unittest.mock import patch
 
@@ -216,9 +217,13 @@ def patch_boto3():
     def mock_can_paginate(self, operation_name):
         return False
 
-    with patch('botocore.client.BaseClient._make_api_call', new=mock_make_api_call):
-        with patch('botocore.client.BaseClient.can_paginate', new=mock_can_paginate):
-            yield
+    with patch(
+        'awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials',
+        return_value=Credentials(**TEST_CREDENTIALS),
+    ):
+        with patch('botocore.client.BaseClient._make_api_call', new=mock_make_api_call):
+            with patch('botocore.client.BaseClient.can_paginate', new=mock_can_paginate):
+                yield
 
 
 class DummyCtx:

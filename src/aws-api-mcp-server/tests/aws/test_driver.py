@@ -1,5 +1,9 @@
 import pytest
-from awslabs.aws_api_mcp_server.core.aws.driver import IRTranslation, translate_cli_to_ir
+from awslabs.aws_api_mcp_server.core.aws.driver import (
+    IRTranslation,
+    get_local_credentials,
+    translate_cli_to_ir,
+)
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
 from awslabs.aws_api_mcp_server.core.common.errors import (
@@ -16,7 +20,70 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
+from awslabs.aws_api_mcp_server.core.common.models import Credentials
+from botocore.exceptions import NoCredentialsError
 from tests.fixtures import S3_CLI_NO_REGION
+from unittest.mock import MagicMock, patch
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.boto3.Session')
+def test_get_local_credentials_success_with_aws_mcp_profile(mock_session_class):
+    """Test get_local_credentials returns credentials when available."""
+    mock_session = MagicMock()
+    mock_session_class.return_value = mock_session
+
+    mock_credentials = MagicMock()
+    mock_credentials.access_key = 'test-access-key'
+    mock_credentials.secret_key = 'test-secret-key'  # pragma: allowlist secret
+    mock_credentials.token = 'test-session-token'
+
+    mock_session.get_credentials.return_value = mock_credentials
+
+    result = get_local_credentials(profile='test')
+
+    assert isinstance(result, Credentials)
+    assert result.access_key_id == 'test-access-key'
+    assert result.secret_access_key == 'test-secret-key'  # pragma: allowlist secret
+    assert result.session_token == 'test-session-token'
+    mock_session_class.assert_called_once_with(profile_name='test')
+    mock_session.get_credentials.assert_called_once()
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.boto3.Session')
+def test_get_local_credentials_success_with_default_creds(mock_session_class):
+    """Test get_local_credentials returns credentials when available."""
+    mock_session = MagicMock()
+    mock_session_class.return_value = mock_session
+
+    mock_credentials = MagicMock()
+    mock_credentials.access_key = 'test-access-key'
+    mock_credentials.secret_key = 'test-secret-key'  # pragma: allowlist secret
+    mock_credentials.token = 'test-session-token'
+
+    mock_session.get_credentials.return_value = mock_credentials
+
+    result = get_local_credentials()
+
+    assert isinstance(result, Credentials)
+    assert result.access_key_id == 'test-access-key'
+    assert result.secret_access_key == 'test-secret-key'  # pragma: allowlist secret
+    assert result.session_token == 'test-session-token'
+    mock_session_class.assert_called_once()
+    mock_session.get_credentials.assert_called_once()
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.boto3.Session')
+def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
+    """Test get_local_credentials raises NoCredentialsError when credentials are None."""
+    mock_session = MagicMock()
+    mock_session_class.return_value = mock_session
+    mock_session.get_credentials.return_value = None
+
+    with pytest.raises(NoCredentialsError):
+        get_local_credentials()
+
+    mock_session_class.assert_called_once()
+    mock_session.get_credentials.assert_called_once()
 
 
 @pytest.mark.parametrize(

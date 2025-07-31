@@ -745,6 +745,7 @@ def _construct_command(
         command_metadata=command_metadata,
         parameters=parameters,
         region=region,
+        profile=getattr(global_args, 'profile', None),
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
     )

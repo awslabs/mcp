@@ -26,6 +26,7 @@ class IRCommand:
     command_metadata: CommandMetadata
     parameters: dict[str, Any]
     region: str | None = None
+    profile: str | None = None
     client_side_filter: ParsedResult | None = None
     is_awscli_customization: bool = False
 
