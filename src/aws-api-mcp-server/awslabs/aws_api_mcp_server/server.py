@@ -17,9 +17,9 @@ import sys
 from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     execute_awscli_customization,
-    get_local_credentials,
     interpret_command,
     is_operation_read_only,
+    request_consent,
     validate,
 )
 from .core.common.config import (
@@ -27,6 +27,7 @@ from .core.common.config import (
     FASTMCP_LOG_LEVEL,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
+    REQUIRE_MUTATION_CONSENT,
     WORKING_DIRECTORY,
     get_server_directory,
 )
@@ -41,6 +42,7 @@ from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_rea
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from typing import Annotated, Any, Optional, cast
 
@@ -111,6 +113,9 @@ READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
         - Required parameters
         - Description of what the command does
     """,
+    annotations=ToolAnnotations(
+        title='Suggest AWS CLI commands', readOnlyHint=True, openWorldHint=False
+    ),
 )
 async def suggest_aws_commands(
     query: Annotated[
@@ -167,6 +172,12 @@ async def suggest_aws_commands(
     Returns:
         CLI execution results with API response data or error message
     """,
+    annotations=ToolAnnotations(
+        title='Execute AWS CLI commands',
+        readOnlyHint=READ_OPERATIONS_ONLY_MODE,
+        destructiveHint=not READ_OPERATIONS_ONLY_MODE,
+        openWorldHint=True,
+    ),
 )
 async def call_aws(
     cli_command: Annotated[
@@ -191,19 +202,6 @@ async def call_aws(
             return AwsApiMcpServerErrorResponse(
                 detail=error_message,
             )
-
-        if READ_OPERATIONS_ONLY_MODE and (
-            READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX)
-        ):
-            error_message = (
-                'Execution of this operation is not allowed because read only mode is enabled. '
-                f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
-            )
-            await ctx.error(error_message)
-            return AwsApiMcpServerErrorResponse(
-                detail=error_message,
-            )
-
     except AwsApiMcpError as e:
         error_message = f'Error while validating the command: {e.as_failure().reason}'
         await ctx.error(error_message)
@@ -218,6 +216,19 @@ async def call_aws(
         )
 
     try:
+        if READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX):
+            if READ_OPERATIONS_ONLY_MODE:
+                error_message = (
+                    'Execution of this operation is not allowed because read only mode is enabled. '
+                    f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
+                )
+                await ctx.error(error_message)
+                return AwsApiMcpServerErrorResponse(
+                    detail=error_message,
+                )
+            elif REQUIRE_MUTATION_CONSENT:
+                await request_consent(cli_command, ctx)
+
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
                 execute_awscli_customization(cli_command)
@@ -226,10 +237,8 @@ async def call_aws(
                 await ctx.error(response.detail)
             return response
 
-        creds = get_local_credentials()
         return interpret_command(
             cli_command=cli_command,
-            credentials=creds,
             default_region=cast(str, DEFAULT_REGION),
             max_results=max_results,
         )
@@ -289,7 +298,7 @@ def main():
         logger.error(error_message)
         raise RuntimeError(error_message)
 
-    if READ_OPERATIONS_ONLY_MODE:
+    if READ_OPERATIONS_ONLY_MODE or REQUIRE_MUTATION_CONSENT:
         READ_OPERATIONS_INDEX = get_read_only_operations()
 
     server.run(transport='stdio')
