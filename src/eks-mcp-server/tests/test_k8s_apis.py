@@ -59,7 +59,7 @@ def k8s_apis(mock_kubernetes_client):
         patch('os.unlink'),
     ):
         # Create K8sApis instance with CA data
-        ca_data = base64.b64encode(b'fake-ca-data').decode('utf-8')
+        ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
 
         # Create a real K8sApis instance but with mocked components
         with (
@@ -68,10 +68,10 @@ def k8s_apis(mock_kubernetes_client):
             patch('tempfile.NamedTemporaryFile', return_value=mock_temp_file),
         ):
             # Create the actual instance
-            apis = K8sApis('https://test-endpoint', 'fake-token', ca_data)
+            apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
 
             # Verify CA data was written to the temp file
-            mock_temp_file.write.assert_called_once_with(b'fake-ca-data')
+            mock_temp_file.write.assert_called_once_with(b'test-ca-data')
 
             # Set up get_events to return different values for different tests
             apis.get_events = MagicMock()
@@ -97,7 +97,7 @@ class TestK8sApisInitialization:
         """Test initialization requires CA data."""
         # Initialize K8sApis without CA data - should raise TypeError
         with pytest.raises(TypeError):
-            K8sApis('https://test-endpoint', 'fake-token', None)
+            K8sApis('https://test-endpoint', 'test-token', None)
 
     def test_init_with_ca_data(self, mock_kubernetes_client):
         """Test initialization with CA data."""
@@ -118,19 +118,19 @@ class TestK8sApisInitialization:
             patch('kubernetes.dynamic.DynamicClient', return_value=mock_dynamic_client),
         ):
             # Create K8sApis instance with CA data
-            ca_data = base64.b64encode(b'fake-ca-data').decode('utf-8')
+            ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
 
             # Initialize the K8sApis instance
-            apis = K8sApis('https://test-endpoint', 'fake-token', ca_data)
+            apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
 
             # Verify configuration
             assert mock_config.host == 'https://test-endpoint'
-            assert mock_config.api_key == {'authorization': 'Bearer fake-token'}
+            assert mock_config.api_key == {'authorization': 'Bearer test-token'}
             assert mock_config.verify_ssl is True
             assert mock_config.ssl_ca_cert == '/tmp/ca-cert-file'
 
             # Verify CA data was written to the temp file
-            mock_temp_file.write.assert_called_once_with(b'fake-ca-data')
+            mock_temp_file.write.assert_called_once_with(b'test-ca-data')
 
             # Verify dynamic client was set
             assert apis.dynamic_client == mock_dynamic_client
@@ -154,9 +154,9 @@ class TestK8sApisInitialization:
             ),  # File doesn't exist yet when exception occurs
         ):
             # Initialize K8sApis with CA data - should raise the exception
-            ca_data = base64.b64encode(b'fake-ca-data').decode('utf-8')
+            ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
             with pytest.raises(Exception, match='Test error'):
-                K8sApis('https://test-endpoint', 'fake-token', ca_data)
+                K8sApis('https://test-endpoint', 'test-token', ca_data)
 
             # No need to verify cleanup as the file doesn't exist yet when the exception occurs
 
@@ -171,7 +171,7 @@ class TestK8sApisInitialization:
         ):
             # Initialize K8sApis - should raise ImportError
             with pytest.raises(ImportError, match='kubernetes package not installed'):
-                K8sApis('https://test-endpoint', 'fake-token', 'fake-ca-data')
+                K8sApis('https://test-endpoint', 'test-token', 'test-ca-data')
 
     def test_cleanup_on_deletion(self):
         """Test cleanup of temporary CA certificate file on deletion."""
@@ -763,8 +763,8 @@ class TestK8sApisOperations:
                 mock_temp_file.return_value.__enter__.return_value = mock_file
 
                 # Create K8sApis instance
-                ca_data = base64.b64encode(b'fake-ca-data').decode('utf-8')
-                apis = K8sApis('https://test-endpoint', 'fake-token', ca_data)
+                ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+                apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
 
                 # Call get_events with namespace
                 events = apis.get_events(
@@ -851,8 +851,8 @@ class TestK8sApisOperations:
                 mock_temp_file.return_value.__enter__.return_value = mock_file
 
                 # Create K8sApis instance
-                ca_data = base64.b64encode(b'fake-ca-data').decode('utf-8')
-                apis = K8sApis('https://test-endpoint', 'fake-token', ca_data)
+                ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+                apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
 
                 # Call get_events without namespace
                 events = apis.get_events(
