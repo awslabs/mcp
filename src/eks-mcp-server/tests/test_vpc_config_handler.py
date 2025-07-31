@@ -49,6 +49,22 @@ def mock_eks_client():
 
 class TestVpcConfigHandler:
     """Tests for the VpcConfigHandler class."""
+    
+    @pytest.fixture(autouse=True)
+    def mock_aws_helper(self, monkeypatch, mock_ec2_client, mock_eks_client):
+        """Mock AWS Helper to avoid actual AWS client creation."""
+        def mock_create_boto3_client(service_name, region_name=None):
+            if service_name == 'ec2':
+                return mock_ec2_client
+            elif service_name == 'eks':
+                return mock_eks_client
+            else:
+                return MagicMock()
+        
+        monkeypatch.setattr(
+            'awslabs.eks_mcp_server.aws_helper.AwsHelper.create_boto3_client',
+            mock_create_boto3_client
+        )
 
     def test_init(self, mock_mcp):
         """Test initialization of VpcConfigHandler."""
