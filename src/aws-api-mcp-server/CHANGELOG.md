@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Support for `--profile` in boto3 operations. (#986)
+
 ## [0.2.0] - 2025-07-29
 
 ### Added
