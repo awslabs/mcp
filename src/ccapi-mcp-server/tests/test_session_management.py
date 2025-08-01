@@ -4,12 +4,14 @@
 """Tests for session management module."""
 
 import pytest
-from awslabs.ccapi_mcp_server.impl.tools.session_management import (
-    check_aws_credentials, check_environment_variables_impl, 
-    get_aws_session_info_impl, get_aws_profile_info
-)
 from awslabs.ccapi_mcp_server.errors import ClientError
-from unittest.mock import patch, MagicMock
+from awslabs.ccapi_mcp_server.impl.tools.session_management import (
+    check_aws_credentials,
+    check_environment_variables_impl,
+    get_aws_profile_info,
+    get_aws_session_info_impl,
+)
+from unittest.mock import MagicMock, patch
 
 
 class TestSessionManagement:
@@ -18,6 +20,7 @@ class TestSessionManagement:
     def setup_method(self):
         """Set up test context."""
         from awslabs.ccapi_mcp_server.context import Context
+
         Context.initialize(False)
 
     @patch('awslabs.ccapi_mcp_server.impl.tools.session_management.get_aws_client')
@@ -27,18 +30,22 @@ class TestSessionManagement:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/test',
-            'UserId': 'AIDACKCEVSQ6C2EXAMPLE'
+            'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
         }
         mock_client.return_value = mock_sts
-        
-        with patch('awslabs.ccapi_mcp_server.impl.tools.session_management.environ') as mock_environ:
-            mock_environ.get.side_effect = lambda key, default='': {
-                'AWS_ACCESS_KEY_ID': 'AKIAIOSFODNN7EXAMPLE',
-                'AWS_SECRET_ACCESS_KEY': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-                'AWS_REGION': 'us-east-1',
-                'AWS_PROFILE': 'default'
-            }.get(key, default)
-            
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.session_management.environ'
+        ) as mock_environ:
+            mock_environ.get.side_effect = (
+                lambda key, default='': {
+                    'AWS_ACCESS_KEY_ID': 'AKIAIOSFODNN7EXAMPLE',  # pragma: allowlist secret
+                    'AWS_SECRET_ACCESS_KEY': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',  # pragma: allowlist secret
+                    'AWS_REGION': 'us-east-1',
+                    'AWS_PROFILE': 'default',
+                }.get(key, default)
+            )
+
             result = check_aws_credentials()
             assert result['valid'] is True
             assert result['account_id'] == '123456789012'
@@ -51,16 +58,18 @@ class TestSessionManagement:
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
             'Arn': 'arn:aws:iam::123456789012:user/test',
-            'UserId': 'AIDACKCEVSQ6C2EXAMPLE'
+            'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
         }
         mock_client.return_value = mock_sts
-        
-        with patch('awslabs.ccapi_mcp_server.impl.tools.session_management.environ') as mock_environ:
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.session_management.environ'
+        ) as mock_environ:
             mock_environ.get.side_effect = lambda key, default='': {
                 'AWS_REGION': 'us-east-1',
-                'AWS_PROFILE': 'test-profile'
+                'AWS_PROFILE': 'test-profile',
             }.get(key, default)
-            
+
             result = check_aws_credentials()
             assert result['valid'] is True
             assert result['credential_source'] == 'profile'
@@ -70,7 +79,7 @@ class TestSessionManagement:
     def test_check_aws_credentials_error(self, mock_client):
         """Test check_aws_credentials with error."""
         mock_client.side_effect = Exception('AWS Error')
-        
+
         result = check_aws_credentials()
         assert result['valid'] is False
         assert 'error' in result
@@ -83,15 +92,12 @@ class TestSessionManagement:
             'valid': True,
             'profile': 'default',
             'region': 'us-east-1',
-            'environment_variables': {
-                'AWS_PROFILE': 'default',
-                'AWS_REGION': 'us-east-1'
-            }
+            'environment_variables': {'AWS_PROFILE': 'default', 'AWS_REGION': 'us-east-1'},
         }
-        
+
         workflow_store = {}
         result = await check_environment_variables_impl(workflow_store)
-        
+
         assert result['properly_configured'] is True
         assert 'environment_token' in result
         assert len(workflow_store) == 1
@@ -105,12 +111,12 @@ class TestSessionManagement:
             'error': 'Invalid credentials',
             'profile': '',
             'region': 'us-east-1',
-            'environment_variables': {}
+            'environment_variables': {},
         }
-        
+
         workflow_store = {}
         result = await check_environment_variables_impl(workflow_store)
-        
+
         assert result['properly_configured'] is False
         assert 'environment_token' in result
 
@@ -126,18 +132,15 @@ class TestSessionManagement:
             'user_id': 'AIDACKCEVSQ6C2EXAMPLE',
             'profile': 'default',
             'credential_source': 'profile',
-            'profile_auth_type': 'standard_profile'
+            'profile_auth_type': 'standard_profile',
         }
-        
+
         workflow_store = {
-            'env_token': {
-                'type': 'environment',
-                'data': {'properly_configured': True}
-            }
+            'env_token': {'type': 'environment', 'data': {'properly_configured': True}}
         }
-        
+
         result = await get_aws_session_info_impl('env_token', workflow_store)
-        
+
         assert result['credentials_valid'] is True
         assert result['account_id'] == '123456789012'
         assert 'credentials_token' in result
@@ -153,24 +156,25 @@ class TestSessionManagement:
             'arn': 'arn:aws:iam::123456789012:user/test',
             'user_id': 'AIDACKCEVSQ6C2EXAMPLE',
             'profile': '',
-            'credential_source': 'env'
+            'credential_source': 'env',
         }
-        
+
         workflow_store = {
-            'env_token': {
-                'type': 'environment',
-                'data': {'properly_configured': True}
-            }
+            'env_token': {'type': 'environment', 'data': {'properly_configured': True}}
         }
-        
-        with patch('awslabs.ccapi_mcp_server.impl.tools.session_management.environ') as mock_environ:
-            mock_environ.get.side_effect = lambda key, default='': {
-                'AWS_ACCESS_KEY_ID': 'AKIAIOSFODNN7EXAMPLE',
-                'AWS_SECRET_ACCESS_KEY': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
-            }.get(key, default)
-            
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.session_management.environ'
+        ) as mock_environ:
+            mock_environ.get.side_effect = (
+                lambda key, default='': {
+                    'AWS_ACCESS_KEY_ID': 'AKIAIOSFODNN7EXAMPLE',  # pragma: allowlist secret
+                    'AWS_SECRET_ACCESS_KEY': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',  # pragma: allowlist secret
+                }.get(key, default)
+            )
+
             result = await get_aws_session_info_impl('env_token', workflow_store)
-            
+
             assert result['aws_auth_type'] == 'env'
             assert 'masked_credentials' in result
 
@@ -186,10 +190,10 @@ class TestSessionManagement:
         workflow_store = {
             'env_token': {
                 'type': 'environment',
-                'data': {'properly_configured': False, 'error': 'Not configured'}
+                'data': {'properly_configured': False, 'error': 'Not configured'},
             }
         }
-        
+
         with pytest.raises(ClientError):
             await get_aws_session_info_impl('env_token', workflow_store)
 
@@ -197,18 +201,12 @@ class TestSessionManagement:
     @patch('awslabs.ccapi_mcp_server.impl.tools.session_management.check_aws_credentials')
     async def test_get_aws_session_info_impl_invalid_credentials(self, mock_check):
         """Test get_aws_session_info_impl with invalid credentials."""
-        mock_check.return_value = {
-            'valid': False,
-            'error': 'Invalid credentials'
-        }
-        
+        mock_check.return_value = {'valid': False, 'error': 'Invalid credentials'}
+
         workflow_store = {
-            'env_token': {
-                'type': 'environment',
-                'data': {'properly_configured': True}
-            }
+            'env_token': {'type': 'environment', 'data': {'properly_configured': True}}
         }
-        
+
         with pytest.raises(ClientError):
             await get_aws_session_info_impl('env_token', workflow_store)
 
@@ -218,16 +216,18 @@ class TestSessionManagement:
         mock_sts = MagicMock()
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
-            'Arn': 'arn:aws:iam::123456789012:user/test'
+            'Arn': 'arn:aws:iam::123456789012:user/test',
         }
         mock_client.return_value = mock_sts
-        
-        with patch('awslabs.ccapi_mcp_server.impl.tools.session_management.environ') as mock_environ:
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.session_management.environ'
+        ) as mock_environ:
             mock_environ.get.side_effect = lambda key, default='': {
                 'AWS_PROFILE': 'test-profile',
-                'AWS_REGION': 'us-east-1'
+                'AWS_REGION': 'us-east-1',
             }.get(key, default)
-            
+
             result = get_aws_profile_info()
             assert result['profile'] == 'test-profile'
             assert result['account_id'] == '123456789012'
@@ -239,17 +239,21 @@ class TestSessionManagement:
         mock_sts = MagicMock()
         mock_sts.get_caller_identity.return_value = {
             'Account': '123456789012',
-            'Arn': 'arn:aws:iam::123456789012:user/test'
+            'Arn': 'arn:aws:iam::123456789012:user/test',
         }
         mock_client.return_value = mock_sts
-        
-        with patch('awslabs.ccapi_mcp_server.impl.tools.session_management.environ') as mock_environ:
-            mock_environ.get.side_effect = lambda key, default='': {
-                'AWS_ACCESS_KEY_ID': 'AKIAIOSFODNN7EXAMPLE',
-                'AWS_SECRET_ACCESS_KEY': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-                'AWS_REGION': 'us-east-1'
-            }.get(key, default)
-            
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.session_management.environ'
+        ) as mock_environ:
+            mock_environ.get.side_effect = (
+                lambda key, default='': {
+                    'AWS_ACCESS_KEY_ID': 'AKIAIOSFODNN7EXAMPLE',  # pragma: allowlist secret
+                    'AWS_SECRET_ACCESS_KEY': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',  # pragma: allowlist secret
+                    'AWS_REGION': 'us-east-1',
+                }.get(key, default)
+            )
+
             result = get_aws_profile_info()
             assert result['using_env_vars'] is True
 
@@ -257,6 +261,6 @@ class TestSessionManagement:
     def test_get_aws_profile_info_error(self, mock_client):
         """Test get_aws_profile_info with error."""
         mock_client.side_effect = Exception('AWS Error')
-        
+
         result = get_aws_profile_info()
         assert 'error' in result

@@ -27,10 +27,12 @@ def check_aws_credentials() -> dict:
     try:
         sts_client = get_aws_client('sts')
         identity = sts_client.get_caller_identity()
-        
+
         # Determine credential source
-        using_env_vars = bool(environ.get('AWS_ACCESS_KEY_ID') and environ.get('AWS_SECRET_ACCESS_KEY'))
-        
+        using_env_vars = bool(
+            environ.get('AWS_ACCESS_KEY_ID') and environ.get('AWS_SECRET_ACCESS_KEY')
+        )
+
         return {
             'valid': True,
             'account_id': identity.get('Account', 'Unknown'),
@@ -99,7 +101,7 @@ async def check_environment_variables_impl(workflow_store: dict) -> dict:
 
 async def get_aws_session_info_impl(environment_token: str, workflow_store: dict) -> dict:
     """Get information about the current AWS session implementation.
-    
+
     IMPORTANT: Always display the AWS context information to the user when this tool is called.
     Show them: AWS Profile (or "Environment Variables"), Authentication Type, Account ID, and Region so they know
     exactly which AWS account and region will be affected by any operations.

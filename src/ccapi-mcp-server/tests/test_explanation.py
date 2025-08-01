@@ -5,11 +5,14 @@
 
 import pytest
 from awslabs.ccapi_mcp_server.impl.tools.explanation import (
-    _format_value, _generate_explanation, _explain_dict, _explain_list, 
-    _explain_security_scan, explain_impl
+    _explain_dict,
+    _explain_list,
+    _explain_security_scan,
+    _format_value,
+    _generate_explanation,
+    explain_impl,
 )
 from awslabs.ccapi_mcp_server.models.models import ExplainRequest
-from unittest.mock import patch
 
 
 class TestExplanation:
@@ -59,10 +62,7 @@ class TestExplanation:
     def test_explain_dict_with_tags(self):
         """Test _explain_dict with Tags."""
         data = {
-            'Tags': [
-                {'Key': 'user', 'Value': 'test'},
-                {'Key': 'MANAGED_BY', 'Value': 'system'}
-            ]
+            'Tags': [{'Key': 'user', 'Value': 'test'}, {'Key': 'MANAGED_BY', 'Value': 'system'}]
         }
         result = _explain_dict(data, 'detailed')
         assert 'user' in result
@@ -91,7 +91,7 @@ class TestExplanation:
         data = {
             'scan_status': 'PASSED',
             'raw_failed_checks': [],
-            'raw_passed_checks': [{'check_id': 'CKV_1', 'check_name': 'Test'}]
+            'raw_passed_checks': [{'check_id': 'CKV_1', 'check_name': 'Test'}],
         }
         result = _explain_security_scan(data)
         assert 'PASSED' in result
@@ -101,7 +101,7 @@ class TestExplanation:
         data = {
             'scan_status': 'FAILED',
             'raw_failed_checks': [{'check_id': 'CKV_1', 'check_name': 'Test'}],
-            'raw_passed_checks': []
+            'raw_passed_checks': [],
         }
         result = _explain_security_scan(data)
         assert 'ISSUES FOUND' in result
@@ -129,10 +129,7 @@ class TestExplanation:
     async def test_explain_impl_with_generated_code_token(self):
         """Test explain_impl with generated code token."""
         workflow_store = {
-            'test_token': {
-                'type': 'generated_code',
-                'data': {'properties': {'test': 'data'}}
-            }
+            'test_token': {'type': 'generated_code', 'data': {'properties': {'test': 'data'}}}
         }
         request = ExplainRequest(generated_code_token='test_token', content=None)
         result = await explain_impl(request, workflow_store)

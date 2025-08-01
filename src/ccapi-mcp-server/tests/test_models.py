@@ -5,9 +5,15 @@
 
 import pytest
 from awslabs.ccapi_mcp_server.models.models import (
-    CreateResourceRequest, UpdateResourceRequest, DeleteResourceRequest,
-    GetResourceRequest, GenerateInfrastructureCodeRequest, ExplainRequest,
-    RunCheckovRequest, ResourceOperationResult, SecurityScanResult
+    CreateResourceRequest,
+    DeleteResourceRequest,
+    ExplainRequest,
+    GenerateInfrastructureCodeRequest,
+    GetResourceRequest,
+    ResourceOperationResult,
+    RunCheckovRequest,
+    SecurityScanResult,
+    UpdateResourceRequest,
 )
 from pydantic import ValidationError
 
@@ -22,7 +28,7 @@ class TestModels:
             credentials_token='creds_token',
             explained_token='explained_token',
             region='us-east-1',
-            skip_security_check=False
+            skip_security_check=False,
         )
         assert request.resource_type == 'AWS::S3::Bucket'
         assert request.credentials_token == 'creds_token'
@@ -36,7 +42,7 @@ class TestModels:
                 'region': 'us-east-1',
                 'credentials_token': 'test_token',
                 'explained_token': 'test_token',
-                'skip_security_check': False
+                'skip_security_check': False,
                 # Missing required 'resource_type' field
             }
             CreateResourceRequest(**data)
@@ -49,7 +55,7 @@ class TestModels:
             credentials_token='creds_token',
             explained_token='explained_token',
             region='us-east-1',
-            skip_security_check=False
+            skip_security_check=False,
         )
         assert request.resource_type == 'AWS::S3::Bucket'
         assert request.identifier == 'test-bucket'
@@ -64,7 +70,7 @@ class TestModels:
             credentials_token='creds_token',
             explained_token='explained_token',
             region='us-east-1',
-            skip_security_check=False
+            skip_security_check=False,
         )
         assert request.patch_document == patch_doc
 
@@ -76,7 +82,7 @@ class TestModels:
             credentials_token='creds_token',
             explained_token='explained_token',
             confirmed=True,
-            region='us-east-1'
+            region='us-east-1',
         )
         assert request.confirmed is True
 
@@ -88,7 +94,7 @@ class TestModels:
             credentials_token='creds_token',
             explained_token='explained_token',
             confirmed=False,
-            region='us-east-1'
+            region='us-east-1',
         )
         assert request.confirmed is False
 
@@ -98,7 +104,7 @@ class TestModels:
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
             region='us-east-1',
-            analyze_security=False
+            analyze_security=False,
         )
         assert request.resource_type == 'AWS::S3::Bucket'
         assert request.identifier == 'test-bucket'
@@ -110,16 +116,14 @@ class TestModels:
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
             analyze_security=True,
-            region='us-east-1'
+            region='us-east-1',
         )
         assert request.analyze_security is True
 
     def test_generate_infrastructure_code_request_valid(self):
         """Test GenerateInfrastructureCodeRequest with valid data."""
         request = GenerateInfrastructureCodeRequest(
-            resource_type='AWS::S3::Bucket',
-            credentials_token='creds_token',
-            region='us-east-1'
+            resource_type='AWS::S3::Bucket', credentials_token='creds_token', region='us-east-1'
         )
         assert request.resource_type == 'AWS::S3::Bucket'
         assert request.properties == {}
@@ -131,7 +135,7 @@ class TestModels:
             resource_type='AWS::S3::Bucket',
             properties=properties,
             credentials_token='creds_token',
-            region='us-east-1'
+            region='us-east-1',
         )
         assert request.properties == properties
 
@@ -150,11 +154,7 @@ class TestModels:
 
     def test_explain_request_with_operation(self):
         """Test ExplainRequest with operation."""
-        request = ExplainRequest(
-            content={'test': 'data'},
-            operation='create',
-            format='detailed'
-        )
+        request = ExplainRequest(content={'test': 'data'}, operation='create', format='detailed')
         assert request.operation == 'create'
         assert request.format == 'detailed'
 
@@ -166,10 +166,7 @@ class TestModels:
 
     def test_run_checkov_request_with_framework(self):
         """Test RunCheckovRequest with custom framework."""
-        request = RunCheckovRequest(
-            explained_token='test_token',
-            framework='terraform'
-        )
+        request = RunCheckovRequest(explained_token='test_token', framework='terraform')
         assert request.framework == 'terraform'
 
     def test_resource_operation_result_valid(self):
@@ -179,7 +176,7 @@ class TestModels:
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
             is_complete=True,
-            status_message='Operation completed successfully'
+            status_message='Operation completed successfully',
         )
         assert result.status == 'SUCCESS'
         assert result.status_message == 'Operation completed successfully'
@@ -192,7 +189,7 @@ class TestModels:
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
             is_complete=True,
-            status_message='Operation failed'
+            status_message='Operation failed',
         )
         assert result.status == 'FAILED'
         assert result.status_message == 'Operation failed'
@@ -203,7 +200,7 @@ class TestModels:
             scan_status='PASSED',
             resource_type='AWS::S3::Bucket',
             timestamp='2023-01-01T00:00:00Z',
-            message='Security scan completed'
+            message='Security scan completed',
         )
         assert result.scan_status == 'PASSED'
         assert result.resource_type == 'AWS::S3::Bucket'
@@ -217,7 +214,7 @@ class TestModels:
             raw_failed_checks=failed_checks,
             resource_type='AWS::S3::Bucket',
             timestamp='2023-01-01T00:00:00Z',
-            message='Security scan found issues'
+            message='Security scan found issues',
         )
         assert result.scan_status == 'FAILED'
         assert len(result.raw_failed_checks) == 1

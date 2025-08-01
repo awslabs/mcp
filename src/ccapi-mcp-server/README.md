@@ -286,9 +286,9 @@ or docker after a successful `docker build -t awslabs/ccapi-mcp-server .`:
 
 ```file
 # fictitious `.env` file with AWS temporary credentials
-AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE  # pragma: allowlist secret
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY  # pragma: allowlist secret
+AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk  # pragma: allowlist secret
 ```
 
 ```json

@@ -21,7 +21,6 @@ import subprocess
 import tempfile
 import uuid
 from awslabs.ccapi_mcp_server.errors import ClientError
-from awslabs.ccapi_mcp_server.impl.utils.validation import validate_workflow_token
 from awslabs.ccapi_mcp_server.models.models import RunCheckovRequest
 
 

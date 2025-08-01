@@ -20,12 +20,17 @@ from awslabs.ccapi_mcp_server.cloud_control_utils import progress_event, validat
 from awslabs.ccapi_mcp_server.context import Context
 from awslabs.ccapi_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.ccapi_mcp_server.impl.utils.validation import (
-    validate_workflow_token, cleanup_workflow_tokens, validate_resource_type, 
-    validate_identifier, ensure_region_string
+    cleanup_workflow_tokens,
+    ensure_region_string,
+    validate_identifier,
+    validate_resource_type,
+    validate_workflow_token,
 )
 from awslabs.ccapi_mcp_server.models.models import (
-    CreateResourceRequest, UpdateResourceRequest, DeleteResourceRequest, 
-    GetResourceRequest, ResourceOperationResult
+    CreateResourceRequest,
+    DeleteResourceRequest,
+    GetResourceRequest,
+    UpdateResourceRequest,
 )
 from os import environ
 
@@ -40,14 +45,16 @@ def check_security_scanning() -> tuple[bool, str | None]:
     """Check if security scanning is enabled and return warning if disabled."""
     security_scanning_enabled = environ.get('SECURITY_SCANNING', 'enabled').lower() == 'enabled'
     security_warning = None
-    
+
     if not security_scanning_enabled:
         security_warning = '⚠️ SECURITY SCANNING IS DISABLED. This MCP server is configured with SECURITY_SCANNING=disabled, which means resources will be created/updated WITHOUT automated security validation. For security best practices, consider enabling SECURITY_SCANNING in your MCP configuration or ensure other security scanning tools are in place.'
-    
+
     return security_scanning_enabled, security_warning
 
 
-def _validate_token_chain(explained_token: str, security_scan_token: str, workflow_store: dict) -> None:
+def _validate_token_chain(
+    explained_token: str, security_scan_token: str, workflow_store: dict
+) -> None:
     """Validate that tokens are from the same workflow chain."""
     if not explained_token or explained_token not in workflow_store:
         raise ClientError('Invalid explained_token')
@@ -101,7 +108,9 @@ async def create_resource_impl(request: CreateResourceRequest, workflow_store: d
     check_readonly_mode(aws_session_data)
 
     # CRITICAL SECURITY: Get properties from validated explained token only
-    workflow_data = validate_workflow_token(request.explained_token, 'explained_properties', workflow_store)
+    workflow_data = validate_workflow_token(
+        request.explained_token, 'explained_properties', workflow_store
+    )
 
     # Use ONLY the properties that were explained - no manual override possible
     properties = workflow_data['data']['properties']
@@ -117,7 +126,12 @@ async def create_resource_impl(request: CreateResourceRequest, workflow_store: d
         raise handle_aws_api_error(e)
 
     # Clean up consumed tokens after successful operation
-    cleanup_workflow_tokens(workflow_store, request.explained_token, request.credentials_token, request.security_scan_token or '')
+    cleanup_workflow_tokens(
+        workflow_store,
+        request.explained_token,
+        request.credentials_token,
+        request.security_scan_token or '',
+    )
 
     result = progress_event(response['ProgressEvent'], None)
     if security_warning:
@@ -138,7 +152,7 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
     aws_session_data = cred_data['data']
     if not aws_session_data.get('credentials_valid'):
         raise ClientError('Invalid AWS credentials')
-    
+
     # Check read-only mode
     try:
         check_readonly_mode(aws_session_data)
@@ -156,10 +170,10 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
 
     # CRITICAL SECURITY: Validate explained token (already validated in token chain if security enabled)
     if not security_scanning_enabled or request.skip_security_check:
-        workflow_data = validate_workflow_token(request.explained_token, 'explained_properties', workflow_store)
+        validate_workflow_token(request.explained_token, 'explained_properties', workflow_store)
     else:
         # Token already validated in chain
-        workflow_data = workflow_store[request.explained_token]
+        pass
 
     validate_patch(request.patch_document)
     # Ensure region is a string, not a FieldInfo object
@@ -172,13 +186,20 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
     # Update the resource
     try:
         response = cloudcontrol_client.update_resource(
-            TypeName=request.resource_type, Identifier=request.identifier, PatchDocument=patch_document_str
+            TypeName=request.resource_type,
+            Identifier=request.identifier,
+            PatchDocument=patch_document_str,
         )
     except Exception as e:
         raise handle_aws_api_error(e)
 
     # Clean up consumed tokens after successful operation
-    cleanup_workflow_tokens(workflow_store, request.explained_token, request.credentials_token, request.security_scan_token or '')
+    cleanup_workflow_tokens(
+        workflow_store,
+        request.explained_token,
+        request.credentials_token,
+        request.security_scan_token or '',
+    )
 
     result = progress_event(response['ProgressEvent'], None)
     if security_warning:
@@ -197,8 +218,10 @@ async def delete_resource_impl(request: DeleteResourceRequest, workflow_store: d
         )
 
     # CRITICAL SECURITY: Validate explained token to ensure deletion was explained
-    workflow_data = validate_workflow_token(request.explained_token, 'explained_delete', workflow_store)
-    
+    workflow_data = validate_workflow_token(
+        request.explained_token, 'explained_delete', workflow_store
+    )
+
     if workflow_data.get('operation') != 'delete':
         raise ClientError('Invalid explained token: token was not generated for delete operation')
 
@@ -230,14 +253,18 @@ async def delete_resource_impl(request: DeleteResourceRequest, workflow_store: d
     return progress_event(response['ProgressEvent'], None)
 
 
-async def get_resource_impl(request: GetResourceRequest, workflow_store: dict | None = None) -> dict:
+async def get_resource_impl(
+    request: GetResourceRequest, workflow_store: dict | None = None
+) -> dict:
     """Get details of a specific AWS resource implementation."""
     validate_resource_type(request.resource_type)
     validate_identifier(request.identifier)
 
     cloudcontrol = get_aws_client('cloudcontrol', request.region or 'us-east-1')
     try:
-        result = cloudcontrol.get_resource(TypeName=request.resource_type, Identifier=request.identifier)
+        result = cloudcontrol.get_resource(
+            TypeName=request.resource_type, Identifier=request.identifier
+        )
         properties_str = result['ResourceDescription']['Properties']
         properties = (
             json.loads(properties_str) if isinstance(properties_str, str) else properties_str
@@ -251,11 +278,13 @@ async def get_resource_impl(request: GetResourceRequest, workflow_store: dict | 
         # Add security analysis if requested
         if request.analyze_security and workflow_store is not None:
             # Import here to avoid circular imports
-            from awslabs.ccapi_mcp_server.impl.tools.session_management import check_environment_variables_impl, get_aws_session_info_impl
-            from awslabs.ccapi_mcp_server.impl.tools.infrastructure_generation import generate_infrastructure_code_impl
             from awslabs.ccapi_mcp_server.impl.tools.explanation import explain_impl
             from awslabs.ccapi_mcp_server.impl.tools.security_scanning import run_checkov_impl
-            
+            from awslabs.ccapi_mcp_server.impl.tools.session_management import (
+                check_environment_variables_impl,
+                get_aws_session_info_impl,
+            )
+
             env_token = None
             creds_token = None
             gen_token = None
@@ -267,36 +296,55 @@ async def get_resource_impl(request: GetResourceRequest, workflow_store: dict | 
                 env_token = env_check['environment_token']
                 session_info = await get_aws_session_info_impl(env_token, workflow_store)
                 creds_token = session_info['credentials_token']
-                
+
                 # Use existing security analysis workflow
-                from awslabs.ccapi_mcp_server.models.models import GenerateInfrastructureCodeRequest
-                from awslabs.ccapi_mcp_server.impl.tools.infrastructure_generation import generate_infrastructure_code_impl_wrapper
+                from awslabs.ccapi_mcp_server.impl.tools.infrastructure_generation import (
+                    generate_infrastructure_code_impl_wrapper,
+                )
+                from awslabs.ccapi_mcp_server.models.models import (
+                    GenerateInfrastructureCodeRequest,
+                )
+
                 gen_request = GenerateInfrastructureCodeRequest(
                     resource_type=request.resource_type,
                     properties=properties or {},
                     credentials_token=creds_token or '',
-                    region=request.region
+                    region=request.region,
                 )
-                generated_code = await generate_infrastructure_code_impl_wrapper(gen_request, workflow_store)
+                generated_code = await generate_infrastructure_code_impl_wrapper(
+                    gen_request, workflow_store
+                )
                 gen_token = generated_code['generated_code_token']
-                
+
                 from awslabs.ccapi_mcp_server.models.models import ExplainRequest
-                explain_request = ExplainRequest(generated_code_token=gen_token or '', content=None)
+
+                explain_request = ExplainRequest(
+                    generated_code_token=gen_token or '', content=None
+                )
                 explained = await explain_impl(explain_request, workflow_store)
                 explained_token = explained['explained_token']
-                
+
                 from awslabs.ccapi_mcp_server.models.models import RunCheckovRequest
+
                 checkov_request = RunCheckovRequest(explained_token=explained_token)
                 security_scan = await run_checkov_impl(checkov_request, workflow_store)
                 security_scan_token = security_scan.get('security_scan_token')
                 resource_info['security_analysis'] = security_scan
             except Exception as e:
-                resource_info['security_analysis'] = {'error': f'Security analysis failed: {str(e)}'}
+                resource_info['security_analysis'] = {
+                    'error': f'Security analysis failed: {str(e)}'
+                }
             finally:
                 # Clean up security analysis tokens that aren't auto-consumed
                 # gen_token is consumed by explain(), so only clean remaining tokens
                 if workflow_store is not None:
-                    cleanup_workflow_tokens(workflow_store, env_token or '', creds_token or '', explained_token or '', security_scan_token or '')
+                    cleanup_workflow_tokens(
+                        workflow_store,
+                        env_token or '',
+                        creds_token or '',
+                        explained_token or '',
+                        security_scan_token or '',
+                    )
 
         return resource_info
     except Exception as e:

@@ -17,7 +17,7 @@
 import datetime
 import uuid
 from awslabs.ccapi_mcp_server.errors import ClientError
-from awslabs.ccapi_mcp_server.impl.utils.validation import validate_workflow_token, ensure_string
+from awslabs.ccapi_mcp_server.impl.utils.validation import ensure_string
 from awslabs.ccapi_mcp_server.models.models import ExplainRequest
 from typing import Any
 
@@ -265,7 +265,9 @@ async def explain_impl(request: ExplainRequest, workflow_store: dict) -> dict:
             )
 
         # Use content if provided (LLM wants to explain the full response), otherwise use properties from token
-        explanation_content = request.content if has_content else workflow_data['data']['properties']
+        explanation_content = (
+            request.content if has_content else workflow_data['data']['properties']
+        )
 
         # Create explained token for infrastructure operations
         explained_token = f'explained_{uuid.uuid4()}'
@@ -300,7 +302,7 @@ async def explain_impl(request: ExplainRequest, workflow_store: dict) -> dict:
         ensure_string(request.context),
         ensure_string(request.operation, 'analyze'),
         ensure_string(request.format, 'detailed'),
-        ensure_string(request.user_intent)
+        ensure_string(request.user_intent),
     )
 
     # Force the LLM to see the response by making it very explicit

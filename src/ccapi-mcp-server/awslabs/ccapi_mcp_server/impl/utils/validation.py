@@ -17,7 +17,9 @@
 from awslabs.ccapi_mcp_server.errors import ClientError
 
 
-def validate_workflow_token(token: str, expected_type: str | None = None, workflow_store: dict | None = None) -> dict:
+def validate_workflow_token(
+    token: str, expected_type: str | None = None, workflow_store: dict | None = None
+) -> dict:
     """Validate any workflow token exists and optionally check its type."""
     if not token:
         raise ClientError(f'Invalid token: {token}')
@@ -25,11 +27,11 @@ def validate_workflow_token(token: str, expected_type: str | None = None, workfl
         raise ClientError('Workflow store is required')
     if token not in workflow_store:
         raise ClientError(f'Invalid token: {token}')
-    
+
     data = workflow_store[token]
     if expected_type and data.get('type') != expected_type:
         raise ClientError(f'Invalid token type: expected {expected_type}')
-    
+
     return data
 
 

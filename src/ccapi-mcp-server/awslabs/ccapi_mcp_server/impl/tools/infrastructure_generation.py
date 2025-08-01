@@ -18,11 +18,15 @@ import datetime
 import uuid
 from awslabs.ccapi_mcp_server.errors import ClientError
 from awslabs.ccapi_mcp_server.impl.utils.validation import validate_workflow_token
-from awslabs.ccapi_mcp_server.infrastructure_generator import generate_infrastructure_code as generate_infrastructure_code_impl
+from awslabs.ccapi_mcp_server.infrastructure_generator import (
+    generate_infrastructure_code as generate_infrastructure_code_impl,
+)
 from awslabs.ccapi_mcp_server.models.models import GenerateInfrastructureCodeRequest
 
 
-async def generate_infrastructure_code_impl_wrapper(request: GenerateInfrastructureCodeRequest, workflow_store: dict) -> dict:
+async def generate_infrastructure_code_impl_wrapper(
+    request: GenerateInfrastructureCodeRequest, workflow_store: dict
+) -> dict:
     """Generate infrastructure code before resource creation or update implementation."""
     # Validate credentials token
     cred_data = validate_workflow_token(request.credentials_token, 'credentials', workflow_store)

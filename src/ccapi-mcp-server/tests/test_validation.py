@@ -4,11 +4,14 @@
 """Tests for validation module."""
 
 import pytest
-from awslabs.ccapi_mcp_server.impl.utils.validation import (
-    validate_workflow_token, cleanup_workflow_tokens, validate_resource_type,
-    validate_identifier, ensure_region_string
-)
 from awslabs.ccapi_mcp_server.errors import ClientError
+from awslabs.ccapi_mcp_server.impl.utils.validation import (
+    cleanup_workflow_tokens,
+    ensure_region_string,
+    validate_identifier,
+    validate_resource_type,
+    validate_workflow_token,
+)
 from pydantic import Field
 
 
@@ -69,13 +72,8 @@ class TestValidation:
 
     def test_validate_workflow_token_valid(self):
         """Test validate_workflow_token with valid token."""
-        workflow_store = {
-            'test_token': {
-                'type': 'credentials',
-                'data': {'test': 'data'}
-            }
-        }
-        
+        workflow_store = {'test_token': {'type': 'credentials', 'data': {'test': 'data'}}}
+
         result = validate_workflow_token('test_token', 'credentials', workflow_store)
         assert result['type'] == 'credentials'
         assert result['data']['test'] == 'data'
@@ -87,13 +85,8 @@ class TestValidation:
 
     def test_validate_workflow_token_wrong_type(self):
         """Test validate_workflow_token with wrong type."""
-        workflow_store = {
-            'test_token': {
-                'type': 'wrong_type',
-                'data': {'test': 'data'}
-            }
-        }
-        
+        workflow_store = {'test_token': {'type': 'wrong_type', 'data': {'test': 'data'}}}
+
         with pytest.raises(ClientError):
             validate_workflow_token('test_token', 'credentials', workflow_store)
 
@@ -102,11 +95,11 @@ class TestValidation:
         workflow_store = {
             'token1': {'type': 'test', 'data': {}},
             'token2': {'type': 'test', 'data': {}},
-            'token3': {'type': 'test', 'data': {}}
+            'token3': {'type': 'test', 'data': {}},
         }
-        
+
         cleanup_workflow_tokens(workflow_store, 'token1', 'token2')
-        
+
         assert 'token1' not in workflow_store
         assert 'token2' not in workflow_store
         assert 'token3' in workflow_store
@@ -115,21 +108,19 @@ class TestValidation:
         """Test cleanup_workflow_tokens with None tokens."""
         workflow_store = {
             'token1': {'type': 'test', 'data': {}},
-            'token2': {'type': 'test', 'data': {}}
+            'token2': {'type': 'test', 'data': {}},
         }
-        
+
         cleanup_workflow_tokens(workflow_store, 'token1', '', 'token2')
-        
+
         assert 'token1' not in workflow_store
         assert 'token2' not in workflow_store
 
     def test_cleanup_workflow_tokens_missing_tokens(self):
         """Test cleanup_workflow_tokens with missing tokens."""
-        workflow_store = {
-            'token1': {'type': 'test', 'data': {}}
-        }
-        
+        workflow_store = {'token1': {'type': 'test', 'data': {}}}
+
         # Should not raise exception
         cleanup_workflow_tokens(workflow_store, 'token1', 'missing_token')
-        
+
         assert 'token1' not in workflow_store

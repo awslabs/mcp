@@ -5,10 +5,11 @@
 
 import pytest
 from awslabs.ccapi_mcp_server.impl.tools.security_scanning import (
-    run_security_analysis, run_checkov_impl
+    run_checkov_impl,
+    run_security_analysis,
 )
 from awslabs.ccapi_mcp_server.models.models import RunCheckovRequest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestSecurityScanning:
@@ -28,7 +29,7 @@ class TestSecurityScanning:
         """Test run_security_analysis with various properties."""
         properties = {
             'BucketName': 'test-bucket',
-            'Tags': [{'Key': 'Environment', 'Value': 'test'}]
+            'Tags': [{'Key': 'Environment', 'Value': 'test'}],
         }
         result = await run_security_analysis('AWS::S3::Bucket', properties)
         assert result['passed'] is True
@@ -40,19 +41,19 @@ class TestSecurityScanning:
         mock_check.return_value = {
             'installed': False,
             'needs_user_action': True,
-            'message': 'Checkov not installed'
+            'message': 'Checkov not installed',
         }
-        
+
         workflow_store = {
             'test_token': {
                 'type': 'explained_properties',
                 'data': {
                     'cloudformation_template': '{}',
-                    'properties': {'Type': 'AWS::S3::Bucket'}
-                }
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
             }
         }
-        
+
         request = RunCheckovRequest(explained_token='test_token')
         result = await run_checkov_impl(request, workflow_store)
         assert result['passed'] is False
@@ -67,23 +68,23 @@ class TestSecurityScanning:
         mock_check.return_value = {'installed': True, 'needs_user_action': False}
         mock_run.return_value = MagicMock(
             returncode=0,
-            stdout='{"results": {"passed_checks": [{"id": "CKV_1"}], "failed_checks": []}, "summary": {"passed": 1, "failed": 0}}'
+            stdout='{"results": {"passed_checks": [{"id": "CKV_1"}], "failed_checks": []}, "summary": {"passed": 1, "failed": 0}}',
         )
-        
+
         mock_file = MagicMock()
         mock_file.name = '/tmp/test.json'
         mock_temp.return_value.__enter__.return_value = mock_file
-        
+
         workflow_store = {
             'test_token': {
                 'type': 'explained_properties',
                 'data': {
                     'cloudformation_template': '{}',
-                    'properties': {'Type': 'AWS::S3::Bucket'}
-                }
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
             }
         }
-        
+
         request = RunCheckovRequest(explained_token='test_token')
         result = await run_checkov_impl(request, workflow_store)
         assert 'security_scan_token' in result
@@ -97,23 +98,23 @@ class TestSecurityScanning:
         mock_check.return_value = {'installed': True, 'needs_user_action': False}
         mock_run.return_value = MagicMock(
             returncode=1,
-            stdout='{"results": {"passed_checks": [], "failed_checks": [{"id": "CKV_1"}]}, "summary": {"passed": 0, "failed": 1}}'
+            stdout='{"results": {"passed_checks": [], "failed_checks": [{"id": "CKV_1"}]}, "summary": {"passed": 0, "failed": 1}}',
         )
-        
+
         mock_file = MagicMock()
         mock_file.name = '/tmp/test.json'
         mock_temp.return_value.__enter__.return_value = mock_file
-        
+
         workflow_store = {
             'test_token': {
                 'type': 'explained_properties',
                 'data': {
                     'cloudformation_template': '{}',
-                    'properties': {'Type': 'AWS::S3::Bucket'}
-                }
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
             }
         }
-        
+
         request = RunCheckovRequest(explained_token='test_token')
         result = await run_checkov_impl(request, workflow_store)
         assert 'security_scan_token' in result
@@ -126,21 +127,21 @@ class TestSecurityScanning:
         """Test run_checkov_impl with JSON decode error."""
         mock_check.return_value = {'installed': True, 'needs_user_action': False}
         mock_run.return_value = MagicMock(returncode=1, stdout='invalid json')
-        
+
         mock_file = MagicMock()
         mock_file.name = '/tmp/test.json'
         mock_temp.return_value.__enter__.return_value = mock_file
-        
+
         workflow_store = {
             'test_token': {
                 'type': 'explained_properties',
                 'data': {
                     'cloudformation_template': '{}',
-                    'properties': {'Type': 'AWS::S3::Bucket'}
-                }
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
             }
         }
-        
+
         request = RunCheckovRequest(explained_token='test_token')
         result = await run_checkov_impl(request, workflow_store)
         assert result['passed'] is False
@@ -154,21 +155,21 @@ class TestSecurityScanning:
         """Test run_checkov_impl with empty stdout."""
         mock_check.return_value = {'installed': True, 'needs_user_action': False}
         mock_run.return_value = MagicMock(returncode=0, stdout='')
-        
+
         mock_file = MagicMock()
         mock_file.name = '/tmp/test.json'
         mock_temp.return_value.__enter__.return_value = mock_file
-        
+
         workflow_store = {
             'test_token': {
                 'type': 'explained_properties',
                 'data': {
                     'cloudformation_template': '{}',
-                    'properties': {'Type': 'AWS::S3::Bucket'}
-                }
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
             }
         }
-        
+
         request = RunCheckovRequest(explained_token='test_token')
         result = await run_checkov_impl(request, workflow_store)
         assert 'scan_status' in result
@@ -180,17 +181,17 @@ class TestSecurityScanning:
         """Test run_checkov_impl with subprocess error."""
         mock_check.return_value = {'installed': True, 'needs_user_action': False}
         mock_run.side_effect = Exception('Subprocess error')
-        
+
         workflow_store = {
             'test_token': {
                 'type': 'explained_properties',
                 'data': {
                     'cloudformation_template': '{}',
-                    'properties': {'Type': 'AWS::S3::Bucket'}
-                }
+                    'properties': {'Type': 'AWS::S3::Bucket'},
+                },
             }
         }
-        
+
         request = RunCheckovRequest(explained_token='test_token')
         result = await run_checkov_impl(request, workflow_store)
         assert result['passed'] is False
