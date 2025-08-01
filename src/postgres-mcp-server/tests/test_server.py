@@ -20,6 +20,7 @@ import json
 import pytest
 import sys
 import uuid
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.server import (
     DBConnectionSingleton,
     client_error_code_key,
@@ -29,7 +30,8 @@ from awslabs.postgres_mcp_server.server import (
     unexpected_error_key,
     write_query_prohibited_key,
 )
-from conftest import DummyCtx, Mock_DBConnection, MockException
+from conftest import DummyCtx, Mock_DBConnection, Mock_PsycopgPoolConnection, MockException
+from unittest.mock import AsyncMock
 
 
 SAFE_READONLY_QUERIES = [
@@ -673,8 +675,8 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
             'server.py',
             '--resource_arn',
             'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
-            '--secret_arn',
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',  # pragma: allowlist secret
             '--database',
             'postgres',
             '--region',
@@ -713,7 +715,7 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
             'server.py',
             '--resource_arn',
             'invalid',
-            '--secret_arn',
+            '--secret_arn',  # pragma: allowlist secret
             'invalid',
             '--database',
             'postgres',
@@ -730,6 +732,179 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     with pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 1
+
+
+@pytest.mark.asyncio
+async def test_run_query_with_psycopg_connection():
+    """Test that run_query works correctly with a psycopg connection."""
+    mock_db_connection = Mock_PsycopgPoolConnection(
+        host='localhost',
+        port=5432,
+        database='test_db',
+        readonly=True,
+        secret_arn='test_secret_arn',  # pragma: allowlist secret
+        region='us-east-1',
+        is_test=True,
+    )
+
+    sql_text = 'SELECT * FROM example_table'
+    ctx = DummyCtx()
+
+    tool_response = await run_query(sql_text, ctx, mock_db_connection)
+
+    # validate tool_response
+    assert (
+        isinstance(tool_response, (list, tuple))
+        and len(tool_response) == 1
+        and isinstance(tool_response[0], dict)
+    )
+    column_records = tool_response[0]
+    assert 'column1' in column_records
+    assert 'column2' in column_records
+
+
+def test_main_with_psycopg_parameters(monkeypatch, capsys):
+    """Test main function with valid psycopg command line parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--hostname',
+            'localhost',
+            '--port',
+            '5432',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',  # pragma: allowlist secret
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    # The key fix: patch the PsycopgPoolConnection.__init__ to set is_test=True
+    original_init = PsycopgPoolConnection.__init__
+
+    def patched_init(
+        self,
+        host,
+        port,
+        database,
+        readonly,
+        secret_arn,
+        region,
+        min_size=1,
+        max_size=10,
+        is_test=False,
+    ):
+        # Call the original __init__ but force is_test=True
+        original_init(
+            self,
+            host,
+            port,
+            database,
+            readonly,
+            secret_arn,
+            region,
+            min_size,
+            max_size,
+            is_test=True,
+        )
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.__init__',
+        patched_init,
+    )
+
+    # Create a mock connection that can be used with async with
+    mock_conn = AsyncMock()
+    mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_conn.__aexit__ = AsyncMock(return_value=None)
+    mock_conn.transaction = AsyncMock()
+    mock_conn.transaction.__aenter__ = AsyncMock(return_value=mock_conn.transaction)
+    mock_conn.transaction.__aexit__ = AsyncMock(return_value=None)
+    mock_conn.execute = AsyncMock()
+
+    # Create a mock cursor
+    cursor_mock = AsyncMock()
+    cursor_mock.__aenter__ = AsyncMock(return_value=cursor_mock)
+    cursor_mock.__aexit__ = AsyncMock(return_value=None)
+    cursor_mock.execute = AsyncMock()
+    cursor_mock.fetchall = AsyncMock(return_value=[])
+    cursor_mock.description = None
+    mock_conn.cursor = AsyncMock(return_value=cursor_mock)
+
+    # Patch _get_connection to return our mock connection
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection._get_connection',
+        AsyncMock(return_value=mock_conn),
+    )
+
+    # Also patch the initialize_pool method to prevent actual connection attempts
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.initialize_pool',
+        AsyncMock(return_value=None),
+    )
+
+    # And patch check_connection_health to return a successful result
+    # Create an event loop and set it as the current event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # Now create the Future with the loop
+    future = asyncio.Future()
+    future.set_result(True)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.check_connection_health',
+        lambda self: future,
+    )
+
+    # Patch execute_query to return a successful result
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.execute_query',
+        AsyncMock(
+            return_value={
+                'columnMetadata': [{'name': 'column1'}],
+                'records': [[{'stringValue': '1'}]],
+            }
+        ),
+    )
+
+    # This test of main() will now succeed in parsing parameters and creating a connection object
+    main()
+
+
+def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
+    """Test main function with invalid psycopg command line parameters."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--hostname',
+            'invalid',
+            '--port',
+            'invalid',  # Invalid port
+            '--secret_arn',  # pragma: allowlist secret
+            'invalid',
+            '--database',
+            'postgres',
+            '--region',
+            'invalid',
+            '--readonly',
+            'True',
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    # This test of main() will fail due to invalid port
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == 2  # argparse exits with code 2 for invalid arguments
 
 
 if __name__ == '__main__':
