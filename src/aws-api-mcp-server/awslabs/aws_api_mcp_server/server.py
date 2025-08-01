@@ -127,6 +127,7 @@ async def suggest_aws_commands(
     ctx: Context,
 ) -> dict[str, Any] | AwsApiMcpServerErrorResponse:
     """Suggest AWS CLI commands based on the provided query."""
+    logger.info('Suggesting AWS commands for query: {}', query)
     if not query.strip():
         error_message = 'Empty query provided'
         await ctx.error(error_message)
@@ -190,6 +191,7 @@ async def call_aws(
     ] = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
+    logger.info('Executing AWS CLI command: {}', cli_command)
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
@@ -231,7 +233,7 @@ async def call_aws(
 
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
-                execute_awscli_customization(cli_command)
+                execute_awscli_customization(cli_command, ir.command)
             )
             if isinstance(response, AwsApiMcpServerErrorResponse):
                 await ctx.error(response.detail)
