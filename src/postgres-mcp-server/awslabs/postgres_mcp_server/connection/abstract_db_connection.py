@@ -40,9 +40,7 @@ class AbstractDBConnection(ABC):
 
     @abstractmethod
     async def execute_query(
-        self,
-        sql: str,
-        parameters: Optional[List[Dict[str, Any]]] = None
+        self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Execute a SQL query.
 

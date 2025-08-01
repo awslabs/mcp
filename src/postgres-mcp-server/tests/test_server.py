@@ -675,8 +675,8 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
             'server.py',
             '--resource_arn',
             'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
-            '--secret_arn', # pragma: allowlist secret
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123', # pragma: allowlist secret
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',  # pragma: allowlist secret
             '--database',
             'postgres',
             '--region',
@@ -715,7 +715,7 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
             'server.py',
             '--resource_arn',
             'invalid',
-            '--secret_arn', # pragma: allowlist secret
+            '--secret_arn',  # pragma: allowlist secret
             'invalid',
             '--database',
             'postgres',
@@ -738,13 +738,13 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
 async def test_run_query_with_psycopg_connection():
     """Test that run_query works correctly with a psycopg connection."""
     mock_db_connection = Mock_PsycopgPoolConnection(
-        host="localhost",
+        host='localhost',
         port=5432,
-        database="test_db",
+        database='test_db',
         readonly=True,
-        secret_arn="test_secret_arn", # pragma: allowlist secret
-        region="us-east-1",
-        is_test=True
+        secret_arn='test_secret_arn',  # pragma: allowlist secret
+        region='us-east-1',
+        is_test=True,
     )
 
     sql_text = 'SELECT * FROM example_table'
@@ -759,8 +759,8 @@ async def test_run_query_with_psycopg_connection():
         and isinstance(tool_response[0], dict)
     )
     column_records = tool_response[0]
-    assert "column1" in column_records
-    assert "column2" in column_records
+    assert 'column1' in column_records
+    assert 'column2' in column_records
 
 
 def test_main_with_psycopg_parameters(monkeypatch, capsys):
@@ -774,8 +774,8 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             'localhost',
             '--port',
             '5432',
-            '--secret_arn', # pragma: allowlist secret
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123', # pragma: allowlist secret
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',  # pragma: allowlist secret
             '--database',
             'postgres',
             '--region',
@@ -788,11 +788,37 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
 
     # The key fix: patch the PsycopgPoolConnection.__init__ to set is_test=True
     original_init = PsycopgPoolConnection.__init__
-    def patched_init(self, host, port, database, readonly, secret_arn, region, min_size=1, max_size=10, is_test=False):
-        # Call the original __init__ but force is_test=True
-        original_init(self, host, port, database, readonly, secret_arn, region, min_size, max_size, is_test=True)
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.__init__', patched_init)
+    def patched_init(
+        self,
+        host,
+        port,
+        database,
+        readonly,
+        secret_arn,
+        region,
+        min_size=1,
+        max_size=10,
+        is_test=False,
+    ):
+        # Call the original __init__ but force is_test=True
+        original_init(
+            self,
+            host,
+            port,
+            database,
+            readonly,
+            secret_arn,
+            region,
+            min_size,
+            max_size,
+            is_test=True,
+        )
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.__init__',
+        patched_init,
+    )
 
     # Create a mock connection that can be used with async with
     mock_conn = AsyncMock()
@@ -815,13 +841,13 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     # Patch _get_connection to return our mock connection
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection._get_connection',
-        AsyncMock(return_value=mock_conn)
+        AsyncMock(return_value=mock_conn),
     )
 
     # Also patch the initialize_pool method to prevent actual connection attempts
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.initialize_pool',
-        AsyncMock(return_value=None)
+        AsyncMock(return_value=None),
     )
 
     # And patch check_connection_health to return a successful result
@@ -834,16 +860,18 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     future.set_result(True)
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.check_connection_health',
-        lambda self: future
+        lambda self: future,
     )
 
     # Patch execute_query to return a successful result
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.PsycopgPoolConnection.execute_query',
-        AsyncMock(return_value={
-            "columnMetadata": [{"name": "column1"}],
-            "records": [[{"stringValue": "1"}]]
-        })
+        AsyncMock(
+            return_value={
+                'columnMetadata': [{'name': 'column1'}],
+                'records': [[{'stringValue': '1'}]],
+            }
+        ),
     )
 
     # This test of main() will now succeed in parsing parameters and creating a connection object
@@ -861,7 +889,7 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
             'invalid',
             '--port',
             'invalid',  # Invalid port
-            '--secret_arn', # pragma: allowlist secret
+            '--secret_arn',  # pragma: allowlist secret
             'invalid',
             '--database',
             'postgres',

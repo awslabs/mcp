@@ -31,7 +31,7 @@ class RDSDataAPIConnection(AbstractDBConnection):
         database: str,
         region: str,
         readonly: bool,
-        is_test: bool = False
+        is_test: bool = False,
     ):
         """Initialize a new DB connection.
 
@@ -51,9 +51,7 @@ class RDSDataAPIConnection(AbstractDBConnection):
             self.data_client = boto3.client('rds-data', region_name=region)
 
     async def execute_query(
-        self,
-        sql: str,
-        parameters: Optional[List[Dict[str, Any]]] = None
+        self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Execute a SQL query using RDS Data API.
 
@@ -65,9 +63,7 @@ class RDSDataAPIConnection(AbstractDBConnection):
             Dict containing query results with column metadata and records
         """
         if self.readonly_query:
-            return await asyncio.to_thread(
-                self._execute_readonly_query, sql, parameters
-            )
+            return await asyncio.to_thread(self._execute_readonly_query, sql, parameters)
         else:
             execute_params = {
                 'resourceArn': self.cluster_arn,
@@ -80,14 +76,10 @@ class RDSDataAPIConnection(AbstractDBConnection):
             if parameters:
                 execute_params['parameters'] = parameters
 
-            return await asyncio.to_thread(
-                self.data_client.execute_statement, **execute_params
-            )
+            return await asyncio.to_thread(self.data_client.execute_statement, **execute_params)
 
     def _execute_readonly_query(
-        self,
-        query: str,
-        parameters: Optional[List[Dict[str, Any]]] = None
+        self, query: str, parameters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Execute a query under readonly transaction.
 
@@ -158,8 +150,8 @@ class RDSDataAPIConnection(AbstractDBConnection):
             bool: True if the connection is healthy, False otherwise
         """
         try:
-            result = await self.execute_query("SELECT 1")
-            return len(result.get("records", [])) > 0
+            result = await self.execute_query('SELECT 1')
+            return len(result.get('records', [])) > 0
         except Exception as e:
-            logger.error(f"RDS Data API connection health check failed: {str(e)}")
+            logger.error(f'RDS Data API connection health check failed: {str(e)}')
             return False

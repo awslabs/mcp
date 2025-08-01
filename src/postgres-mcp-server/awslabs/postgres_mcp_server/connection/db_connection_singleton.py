@@ -24,13 +24,15 @@ class DBConnectionSingleton:
 
     _instance = None
 
-    def __init__(self,
-                 resource_arn: str,
-                 secret_arn: str,
-                 database: str,
-                 region: str,
-                 readonly: bool = True,
-                 is_test: bool = False):
+    def __init__(
+        self,
+        resource_arn: str,
+        secret_arn: str,
+        database: str,
+        region: str,
+        readonly: bool = True,
+        is_test: bool = False,
+    ):
         """Initialize a new DB connection singleton for RDS Data API.
 
         Args:
@@ -53,17 +55,19 @@ class DBConnectionSingleton:
             database=database,
             region=region,
             readonly=readonly,
-            is_test=is_test
+            is_test=is_test,
         )
 
     @classmethod
-    def initialize(cls,
-                  resource_arn: str,
-                  secret_arn: str,
-                  database: str,
-                  region: str,
-                  readonly: bool = True,
-                  is_test: bool = False):
+    def initialize(
+        cls,
+        resource_arn: str,
+        secret_arn: str,
+        database: str,
+        region: str,
+        readonly: bool = True,
+        is_test: bool = False,
+    ):
         """Initialize the singleton instance if it doesn't exist.
 
         Args:
@@ -81,7 +85,7 @@ class DBConnectionSingleton:
                 database=database,
                 region=region,
                 readonly=readonly,
-                is_test=is_test
+                is_test=is_test,
             )
 
     @classmethod
@@ -110,4 +114,4 @@ class DBConnectionSingleton:
                     # If we're in a sync context, run the coroutine to completion
                     loop.run_until_complete(cls._instance._db_connection.close())
             except Exception as e:
-                logger.error(f"Error during connection cleanup: {str(e)}")
+                logger.error(f'Error during connection cleanup: {str(e)}')

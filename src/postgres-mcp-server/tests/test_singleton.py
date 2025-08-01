@@ -27,17 +27,19 @@ class TestDBConnectionSingleton:
         DBConnectionSingleton._instance = None
 
         # Setup mock
-        with patch('awslabs.postgres_mcp_server.connection.db_connection_singleton.RDSDataAPIConnection') as mock_rds_connection:
+        with patch(
+            'awslabs.postgres_mcp_server.connection.db_connection_singleton.RDSDataAPIConnection'
+        ) as mock_rds_connection:
             mock_conn = MagicMock()
             mock_rds_connection.return_value = mock_conn
 
             # Initialize singleton
             DBConnectionSingleton.initialize(
-                resource_arn="test_resource_arn",
-                secret_arn="test_secret_arn", # pragma: allowlist secret
-                database="test_db",
-                region="us-east-1",
-                readonly=True
+                resource_arn='test_resource_arn',
+                secret_arn='test_secret_arn',  # pragma: allowlist secret
+                database='test_db',
+                region='us-east-1',
+                readonly=True,
             )
 
             # Get the singleton instance
@@ -46,10 +48,10 @@ class TestDBConnectionSingleton:
             # Verify RDSDataAPIConnection was created
             mock_rds_connection.assert_called_once()
             args, kwargs = mock_rds_connection.call_args
-            assert kwargs['cluster_arn'] == "test_resource_arn"
-            assert kwargs['secret_arn'] == "test_secret_arn" # pragma: allowlist secret
-            assert kwargs['database'] == "test_db"
-            assert kwargs['region'] == "us-east-1"
+            assert kwargs['cluster_arn'] == 'test_resource_arn'
+            assert kwargs['secret_arn'] == 'test_secret_arn'  # pragma: allowlist secret
+            assert kwargs['database'] == 'test_db'
+            assert kwargs['region'] == 'us-east-1'
             assert kwargs['readonly'] is True
             assert instance.db_connection == mock_conn
 
@@ -61,13 +63,13 @@ class TestDBConnectionSingleton:
         # Test missing resource_arn
         with pytest.raises(ValueError) as excinfo:
             DBConnectionSingleton.initialize(
-                resource_arn="",
-                secret_arn="test_secret_arn", # pragma: allowlist secret
-                database="test_db",
-                region="us-east-1",
-                readonly=True
+                resource_arn='',
+                secret_arn='test_secret_arn',  # pragma: allowlist secret
+                database='test_db',
+                region='us-east-1',
+                readonly=True,
             )
-        assert "Missing required connection parameters" in str(excinfo.value)
+        assert 'Missing required connection parameters' in str(excinfo.value)
 
     def test_singleton_get_without_initialization(self):
         """Test that get() raises an error if the singleton is not initialized."""
@@ -77,7 +79,7 @@ class TestDBConnectionSingleton:
         # Test get() without initialization
         with pytest.raises(RuntimeError) as excinfo:
             DBConnectionSingleton.get()
-        assert "DBConnectionSingleton is not initialized" in str(excinfo.value)
+        assert 'DBConnectionSingleton is not initialized' in str(excinfo.value)
 
     def test_singleton_cleanup(self):
         """Test that cleanup() correctly closes the connection."""
@@ -85,18 +87,20 @@ class TestDBConnectionSingleton:
         DBConnectionSingleton._instance = None
 
         # Setup mock
-        with patch('awslabs.postgres_mcp_server.connection.rds_api_connection.RDSDataAPIConnection') as mock_rds_connection:
+        with patch(
+            'awslabs.postgres_mcp_server.connection.rds_api_connection.RDSDataAPIConnection'
+        ) as mock_rds_connection:
             mock_conn = MagicMock()
             mock_rds_connection.return_value = mock_conn
 
             # Initialize singleton
             DBConnectionSingleton.initialize(
-                resource_arn="test_resource_arn",
-                secret_arn="test_secret_arn", # pragma: allowlist secret
-                database="test_db",
-                region="us-east-1",
+                resource_arn='test_resource_arn',
+                secret_arn='test_secret_arn',  # pragma: allowlist secret
+                database='test_db',
+                region='us-east-1',
                 readonly=True,
-                is_test=True
+                is_test=True,
             )
 
             # Mock asyncio.get_event_loop() and loop.is_running()

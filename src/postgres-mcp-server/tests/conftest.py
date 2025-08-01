@@ -193,7 +193,9 @@ class Mock_DBConnection:
         """
         return self.readonly
 
-    async def execute_query(self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None) -> dict:
+    async def execute_query(
+        self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
+    ) -> dict:
         """Execute a SQL query.
 
         Args:
@@ -227,10 +229,14 @@ class Mock_DBConnection:
             tx_id = self.data_client.begin_transaction()['transactionId']
 
             # Set transaction to read-only
-            self.data_client.execute_statement(sql='SET TRANSACTION READ ONLY', transactionId=tx_id)
+            self.data_client.execute_statement(
+                sql='SET TRANSACTION READ ONLY', transactionId=tx_id
+            )
 
             # Execute the query
-            result = self.data_client.execute_statement(sql=sql, parameters=parameters, transactionId=tx_id)
+            result = self.data_client.execute_statement(
+                sql=sql, parameters=parameters, transactionId=tx_id
+            )
 
             # Commit the transaction
             self.data_client.commit_transaction(transactionId=tx_id)
@@ -265,10 +271,19 @@ def mock_DBConnection():
 
 # Mock classes for psycopg testing
 
+
 class MockConnectionPool:
     """Mock implementation of psycopg_pool.AsyncConnectionPool for testing purposes."""
 
-    def __init__(self, conninfo=None, min_size=1, max_size=10, timeout=15.0, max_idle=60.0, reconnect_timeout=5.0):
+    def __init__(
+        self,
+        conninfo=None,
+        min_size=1,
+        max_size=10,
+        timeout=15.0,
+        max_idle=60.0,
+        reconnect_timeout=5.0,
+    ):
         """Initialize the mock connection pool.
 
         Args:
@@ -325,6 +340,7 @@ class MockConnectionPool:
         Returns:
             ConnectionContext: A context manager for a connection
         """
+
         # Mock async context manager for connection
         class ConnectionContext:
             def __init__(self, pool):
@@ -354,6 +370,7 @@ class MockConnection:
         Returns:
             TransactionContext: A context manager for a transaction
         """
+
         # Mock context manager for transaction
         class TransactionContext:
             def __enter__(self):
@@ -370,10 +387,11 @@ class MockConnection:
         Returns:
             CursorContext: A context manager for a cursor
         """
+
         # Mock context manager for cursor
         class CursorContext:
             def __init__(self):
-                self.description = [("column1",), ("column2",)]
+                self.description = [('column1',), ('column2',)]
                 self.rowcount = 0
 
             def __enter__(self):
@@ -401,7 +419,7 @@ class MockConnection:
                 Returns:
                     list: List of rows
                 """
-                return [("value1", "value2")]
+                return [('value1', 'value2')]
 
         return CursorContext()
 
@@ -419,6 +437,7 @@ class MockAsyncConnection:
         Returns:
             AsyncTransactionContext: An async context manager for a transaction
         """
+
         # Mock async context manager for transaction
         class AsyncTransactionContext:
             async def __aenter__(self):
@@ -439,9 +458,10 @@ class MockAsyncConnection:
         Returns:
             AsyncCursorResult: A mock cursor result
         """
+
         class AsyncCursorResult:
             def __init__(self):
-                self.description = [("column1",), ("column2",)]
+                self.description = [('column1',), ('column2',)]
                 self.rowcount = 1
 
             async def fetchall(self):
@@ -450,7 +470,7 @@ class MockAsyncConnection:
                 Returns:
                     list: List of rows
                 """
-                return [("value1", "value2")]
+                return [('value1', 'value2')]
 
         return AsyncCursorResult()
 
@@ -458,7 +478,18 @@ class MockAsyncConnection:
 class Mock_PsycopgPoolConnection:
     """Mock implementation of PsycopgPoolConnection for testing purposes."""
 
-    def __init__(self, host, port, database, readonly, secret_arn, region, min_size=1, max_size=10, is_test=False):
+    def __init__(
+        self,
+        host,
+        port,
+        database,
+        readonly,
+        secret_arn,
+        region,
+        min_size=1,
+        max_size=10,
+        is_test=False,
+    ):
         """Initialize the mock PsycopgPoolConnection.
 
         Args:
@@ -476,18 +507,18 @@ class Mock_PsycopgPoolConnection:
         self.port = port
         self.database = database
         self.readonly = readonly
-        self.secret_arn = secret_arn # pragma: allowlist secret
+        self.secret_arn = secret_arn  # pragma: allowlist secret
         self.region = region
         self.min_size = min_size
         self.max_size = max_size
         self.is_test = is_test
         self.pool = MockConnectionPool(
-            conninfo=f"host={host} port={port} dbname={database} user=test_user password=test_password",
+            conninfo=f'host={host} port={port} dbname={database} user=test_user password=test_password',
             min_size=min_size,
             max_size=max_size,
             timeout=15.0,
             max_idle=60.0,
-            reconnect_timeout=5.0
+            reconnect_timeout=5.0,
         )
 
     @property
@@ -499,7 +530,9 @@ class Mock_PsycopgPoolConnection:
         """
         return self.readonly
 
-    async def execute_query(self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    async def execute_query(
+        self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
         """Execute a SQL query.
 
         Args:
@@ -511,13 +544,8 @@ class Mock_PsycopgPoolConnection:
         """
         # Mock response similar to RDS Data API format
         return {
-            "columnMetadata": [
-                {"name": "column1"},
-                {"name": "column2"}
-            ],
-            "records": [
-                [{"stringValue": "value1"}, {"stringValue": "value2"}]
-            ]
+            'columnMetadata': [{'name': 'column1'}, {'name': 'column2'}],
+            'records': [[{'stringValue': 'value1'}, {'stringValue': 'value2'}]],
         }
 
     async def close(self):
@@ -544,10 +572,10 @@ class Mock_PsycopgPoolConnection:
             dict: Pool statistics
         """
         return {
-            "size": self.pool.size,
-            "min_size": self.pool.min_size,
-            "max_size": self.pool.max_size,
-            "idle": self.pool.idle
+            'size': self.pool.size,
+            'min_size': self.pool.min_size,
+            'max_size': self.pool.max_size,
+            'idle': self.pool.idle,
         }
 
 
@@ -559,11 +587,11 @@ def mock_PsycopgPoolConnection():
         Mock_PsycopgPoolConnection: A mock PsycopgPoolConnection
     """
     return Mock_PsycopgPoolConnection(
-        host="localhost",
+        host='localhost',
         port=5432,
-        database="test_db",
+        database='test_db',
         readonly=True,
-        secret_arn="test_secret_arn", # pragma: allowlist secret
-        region="us-east-1",
-        is_test=True
+        secret_arn='test_secret_arn',  # pragma: allowlist secret
+        region='us-east-1',
+        is_test=True,
     )

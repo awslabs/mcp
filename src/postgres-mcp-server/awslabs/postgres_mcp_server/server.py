@@ -117,12 +117,12 @@ async def run_query(
             db_connection = DBConnectionSingleton.get().db_connection
         except RuntimeError:
             # If the singleton is not initialized, this might be a direct connection
-            logger.error("No database connection available")
-            await ctx.error("No database connection available")
+            logger.error('No database connection available')
+            await ctx.error('No database connection available')
             return [{'error': 'No database connection available'}]
 
     if db_connection is None:
-        raise AssertionError("db_connection should never be None")
+        raise AssertionError('db_connection should never be None')
 
     if db_connection.readonly_query:
         matches = detect_mutating_keywords(sql)
@@ -201,8 +201,6 @@ async def get_table_schema(
     return await run_query(sql=sql, ctx=ctx, query_parameters=params)
 
 
-
-
 def main():
     """Main entry point for the MCP server application."""
     global client_error_code_key
@@ -213,58 +211,34 @@ def main():
     )
 
     # Connection method 1: RDS Data API
-    parser.add_argument(
-        '--resource_arn',
-        help='ARN of the RDS cluster (for RDS Data API)'
-    )
+    parser.add_argument('--resource_arn', help='ARN of the RDS cluster (for RDS Data API)')
 
     # Connection method 2: Psycopg Direct Connection
-    parser.add_argument(
-        '--hostname',
-        help='Database hostname (for direct PostgreSQL connection)'
-    )
-    parser.add_argument(
-        '--port',
-        type=int,
-        default=5432,
-        help='Database port (default: 5432)'
-    )
+    parser.add_argument('--hostname', help='Database hostname (for direct PostgreSQL connection)')
+    parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
 
     # Common parameters
     parser.add_argument(
         '--secret_arn',
         required=True,
-        help='ARN of the Secrets Manager secret for database credentials'
+        help='ARN of the Secrets Manager secret for database credentials',
     )
-    parser.add_argument(
-        '--database',
-        required=True,
-        help='Database name'
-    )
-    parser.add_argument(
-        '--region',
-        required=True,
-        help='AWS region'
-    )
-    parser.add_argument(
-        '--readonly',
-        required=True,
-        help='Enforce readonly SQL statements'
-    )
+    parser.add_argument('--database', required=True, help='Database name')
+    parser.add_argument('--region', required=True, help='AWS region')
+    parser.add_argument('--readonly', required=True, help='Enforce readonly SQL statements')
 
     args = parser.parse_args()
 
     # Validate connection parameters
     if not args.resource_arn and not args.hostname:
         parser.error(
-            "Either --resource_arn (for RDS Data API) or "
-            "--hostname (for direct PostgreSQL) must be provided"
+            'Either --resource_arn (for RDS Data API) or '
+            '--hostname (for direct PostgreSQL) must be provided'
         )
 
     if args.resource_arn and args.hostname:
         parser.error(
-            "Cannot specify both --resource_arn and --hostname. "
-            "Choose one connection method."
+            'Cannot specify both --resource_arn and --hostname. Choose one connection method.'
         )
 
     # Convert args to dict for easier handling
@@ -274,10 +248,7 @@ def main():
     connection_params['readonly'] = args.readonly.lower() == 'true'
 
     # Log connection information
-    connection_target = (
-        args.resource_arn if args.resource_arn
-        else f"{args.hostname}:{args.port}"
-    )
+    connection_target = args.resource_arn if args.resource_arn else f'{args.hostname}:{args.port}'
 
     if args.resource_arn:
         logger.info(
@@ -301,7 +272,7 @@ def main():
                     secret_arn=args.secret_arn,
                     database=args.database,
                     region=args.region,
-                    readonly=connection_params['readonly']
+                    readonly=connection_params['readonly'],
                 )
 
                 # Get the connection from the singleton
@@ -320,7 +291,7 @@ def main():
                     database=args.database,
                     readonly=connection_params['readonly'],
                     secret_arn=args.secret_arn,
-                    region=args.region
+                    region=args.region,
                 )
             except Exception as e:
                 logger.exception(f'Failed to create PostgreSQL connection: {str(e)}')

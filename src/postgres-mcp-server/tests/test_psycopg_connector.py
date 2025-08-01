@@ -34,13 +34,13 @@ class TestPsycopgConnector:
 
         # Create connection
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
-            is_test=True
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
+            is_test=True,
         )
 
         # Manually set the pool attribute since is_test=True skips pool initialization
@@ -70,13 +70,13 @@ class TestPsycopgConnector:
 
         # Create connection with readonly=True
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
-            is_test=True
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
+            is_test=True,
         )
 
         # Manually set the pool attribute since is_test=True skips pool initialization
@@ -93,27 +93,26 @@ class TestPsycopgConnector:
     @pytest.mark.asyncio
     async def test_psycopg_connection_execute_query(self, mock_PsycopgPoolConnection):
         """Test that execute_query correctly executes SQL queries."""
-        result = await mock_PsycopgPoolConnection.execute_query("SELECT 1")
+        result = await mock_PsycopgPoolConnection.execute_query('SELECT 1')
 
         # Verify result format matches expected format
-        assert "columnMetadata" in result
-        assert "records" in result
-        assert len(result["columnMetadata"]) > 0
-        assert len(result["records"]) > 0
-
+        assert 'columnMetadata' in result
+        assert 'records' in result
+        assert len(result['columnMetadata']) > 0
+        assert len(result['records']) > 0
 
     @pytest.mark.asyncio
     async def test_psycopg_pool_stats(self, mock_PsycopgPoolConnection):
         """Test that get_pool_stats returns accurate statistics."""
         stats = mock_PsycopgPoolConnection.get_pool_stats()
 
-        assert "size" in stats
-        assert "min_size" in stats
-        assert "max_size" in stats
-        assert "idle" in stats
+        assert 'size' in stats
+        assert 'min_size' in stats
+        assert 'max_size' in stats
+        assert 'idle' in stats
 
-        assert stats["min_size"] == mock_PsycopgPoolConnection.min_size
-        assert stats["max_size"] == mock_PsycopgPoolConnection.max_size
+        assert stats['min_size'] == mock_PsycopgPoolConnection.min_size
+        assert stats['max_size'] == mock_PsycopgPoolConnection.max_size
 
     @pytest.mark.asyncio
     @patch('psycopg_pool.AsyncConnectionPool')
@@ -121,18 +120,18 @@ class TestPsycopgConnector:
         """Test behavior when a connection times out."""
         # Setup mock to simulate timeout
         mock_pool = AsyncMock()
-        mock_pool.open.side_effect = TimeoutError("Connection timeout")
+        mock_pool.open.side_effect = TimeoutError('Connection timeout')
         mock_connection_pool.return_value = mock_pool
 
         # Create connection
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
-            is_test=True
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
+            is_test=True,
         )
 
         # Manually set the pool attribute and simulate a timeout
@@ -143,7 +142,7 @@ class TestPsycopgConnector:
             await conn.pool.open(wait=True, timeout=15.0)
 
         # Verify error message contains timeout information
-        assert "timeout" in str(excinfo.value).lower() or "timed out" in str(excinfo.value).lower()
+        assert 'timeout' in str(excinfo.value).lower() or 'timed out' in str(excinfo.value).lower()
 
     @pytest.mark.asyncio
     @patch('psycopg_pool.AsyncConnectionPool')
@@ -157,14 +156,14 @@ class TestPsycopgConnector:
 
         # Create connection
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
             min_size=5,
-            is_test=True
+            is_test=True,
         )
 
         # Manually set the pool attribute since is_test=True skips pool initialization
@@ -185,14 +184,14 @@ class TestPsycopgConnector:
 
         # Create connection
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
             max_size=10,
-            is_test=True
+            is_test=True,
         )
 
         # Manually set the pool attribute since is_test=True skips pool initialization
@@ -237,15 +236,15 @@ class TestPsycopgConnector:
 
         # Create connection
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
             min_size=1,
             max_size=10,
-            is_test=True
+            is_test=True,
         )
 
         # Manually set the pool attribute since is_test=True skips pool initialization
@@ -285,7 +284,9 @@ class TestPsycopgConnector:
                 self.pool = pool
                 with connection_count_lock:
                     connection_count['value'] += 1
-                    connection_count['max'] = max(connection_count['max'], connection_count['value'])
+                    connection_count['max'] = max(
+                        connection_count['max'], connection_count['value']
+                    )
 
             def __enter__(self):
                 return MagicMock()
@@ -301,15 +302,15 @@ class TestPsycopgConnector:
 
         # Create connection
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
             min_size=1,
             max_size=5,
-            is_test=True
+            is_test=True,
         )
 
         # Manually set the pool attribute since is_test=True skips pool initialization
@@ -350,7 +351,7 @@ class TestPsycopgConnector:
                 stats['attempts'] += 1
                 if stats['attempts'] > mock_pool.max_size:
                     stats['timeouts'] += 1
-                    raise TimeoutError("Connection timeout")
+                    raise TimeoutError('Connection timeout')
 
             # Mock context manager for connection
             class ConnectionContext:
@@ -367,15 +368,15 @@ class TestPsycopgConnector:
 
         # Create connection
         conn = PsycopgPoolConnection(
-            host="localhost",
+            host='localhost',
             port=5432,
-            database="test_db",
+            database='test_db',
             readonly=True,
-            secret_arn="test_secret_arn", # pragma: allowlist secret
-            region="us-east-1",
+            secret_arn='test_secret_arn',  # pragma: allowlist secret
+            region='us-east-1',
             min_size=1,
             max_size=3,
-            is_test=True
+            is_test=True,
         )
 
         # Manually set the pool attribute since is_test=True skips pool initialization
