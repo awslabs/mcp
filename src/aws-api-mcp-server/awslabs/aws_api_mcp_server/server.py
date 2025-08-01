@@ -39,6 +39,7 @@ from .core.common.models import (
 )
 from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
+from awslabs.aws_api_mcp_server.core.common.helpers import validate_aws_region
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -277,11 +278,6 @@ def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
 
-    if not WORKING_DIRECTORY:
-        error_message = 'AWS_API_MCP_WORKING_DIR environment variable is not defined.\n'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
     if not os.path.isabs(WORKING_DIRECTORY):
         error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.\n'
         logger.error(error_message)
@@ -296,6 +292,7 @@ def main():
         logger.error(error_message)
         raise ValueError(error_message)
 
+    validate_aws_region(DEFAULT_REGION)
     logger.info('AWS_REGION: {}', DEFAULT_REGION)
 
     try:
