@@ -1335,34 +1335,6 @@ class TestK8sProxySupport:
             mock_config = mock_k8s_modules['config']
             assert mock_config.proxy == 'http://proxy.example.com:8080'
 
-    def test_proxy_configuration_with_auth(self, mock_k8s_modules):
-        """Test that proxy authentication is correctly configured."""
-        # Set up environment variables with authentication
-        test_env = {
-            'HTTPS_PROXY': 'http://test:creds@proxy.example.com:8080',  # pragma: allowlist secret
-        }
-
-        with patch.dict(os.environ, test_env, clear=False):
-            # Create test data
-            endpoint = 'https://test-cluster.eks.amazonaws.com'
-            token = 'test-token'
-            ca_data = base64.b64encode(b'test-ca-cert').decode()
-
-            # Create K8sApis instance
-            K8sApis(endpoint, token, ca_data)
-
-            # Verify proxy was configured with authentication
-            mock_config = mock_k8s_modules['config']
-            assert (
-                mock_config.proxy
-                == 'http://test:creds@proxy.example.com:8080'  # pragma: allowlist secret
-            )
-            assert hasattr(mock_config, 'proxy_headers')
-
-            # Verify the authorization header is correctly encoded
-            expected_auth = base64.b64encode(b'test:creds').decode()
-            assert mock_config.proxy_headers['Proxy-Authorization'] == f'Basic {expected_auth}'
-
     def test_proxy_configuration_http_fallback(self, mock_k8s_modules):
         """Test that HTTP proxy is used when HTTPS proxy is not available."""
         # Set up environment variables with only HTTP proxy

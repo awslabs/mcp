@@ -17,7 +17,6 @@
 import base64
 import os
 import tempfile
-import urllib.parse
 from awslabs.eks_mcp_server import __version__
 from awslabs.eks_mcp_server.models import Operation
 from loguru import logger
@@ -105,17 +104,6 @@ class K8sApis:
 
         logger.debug(f'Configuring proxy: {proxy_url}')
         config.proxy = proxy_url
-
-        # Parse proxy URL for authentication if present
-        parsed = urllib.parse.urlparse(proxy_url)
-        if parsed.username and parsed.password:
-            credentials = base64.b64encode(
-                f'{parsed.username}:{parsed.password}'.encode()
-            ).decode()
-            config.proxy_headers = {'Proxy-Authorization': f'Basic {credentials}'}
-            logger.debug('Proxy authentication configured')
-
-        logger.debug(f'Proxy configured: {config.proxy}')
 
     def _patch_resource(
         self,
