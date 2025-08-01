@@ -23,7 +23,7 @@ purposes only and are not meant for production use cases.
 import os
 import re
 import sys
-from awslabs.finch_mcp_server.consts import LOG_FILE, SERVER_NAME
+from awslabs.finch_mcp_server.consts import SERVER_NAME
 
 # Import Pydantic models for input validation
 from awslabs.finch_mcp_server.models import Result
@@ -46,11 +46,97 @@ from awslabs.finch_mcp_server.utils.vm import (
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
+from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 
 
-# Configure loguru logger
+def get_default_log_path():
+    """Get platform-appropriate persistent log directory."""
+    if os.name == 'nt':  # Windows
+        app_data = os.environ.get('LOCALAPPDATA')
+        if not app_data:
+            return None  # No suitable location found
+        log_dir = os.path.join(app_data, 'finch-mcp-server')
+    else:  # Unix/Linux/macOS
+        # Use ~/.finch/finch-mcp-server/ for persistent logs
+        if 'HOME' in os.environ:
+            log_dir = os.path.join(Path.home(), '.finch', 'finch-mcp-server')
+        else:
+            return None  # No suitable location found
+
+    # Create directory if it doesn't exist (including parent directories)
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+        log_file_path = os.path.join(log_dir, 'finch_mcp_server.log')
+        return log_file_path
+    except (OSError, PermissionError):
+        # Return None if we can't create the directory
+        return None
+
+
+def configure_logging(server_name: str = 'finch-mcp-server'):
+    """Configure logging based on environment variables and command line arguments.
+
+    Args:
+        server_name: Name to bind to the logger for identification
+
+    Returns:
+        The configured logger instance
+
+    """
+    logger.remove()
+
+    # Configure logging destinations
+    log_level = os.environ.get('FASTMCP_LOG_LEVEL', 'INFO')
+    file_logging_disabled = os.environ.get('FINCH_DISABLE_FILE_LOGGING', '').lower() in (
+        'true',
+        '1',
+        'yes',
+    )
+    custom_log_file = os.environ.get('FINCH_MCP_LOG_FILE')  # User-specified log file location
+
+    # Always log to stderr (MCP standard)
+    logger.add(
+        sys.stderr,
+        level=log_level,
+        format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}',
+        filter=sensitive_data_filter,
+    )
+
+    # File logging (default to app data directory unless disabled or custom location specified)
+    if not file_logging_disabled:
+        log_file = custom_log_file or get_default_log_path()
+
+        if log_file:
+            try:
+                logger.add(
+                    log_file,
+                    level=log_level,
+                    format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}',
+                    filter=sensitive_data_filter,
+                    rotation='10 MB',
+                    retention='7 days',
+                    compression='gz',
+                )
+                # Log initialization message to ensure file gets created
+                logger.info('File logging initialized successfully')
+            except (OSError, PermissionError) as e:
+                # If we can't write to the log file, warn but continue with stderr only
+                logger.warning(
+                    f'Could not create log file at {log_file}: {e}. Logging to stderr only.'
+                )
+        else:
+            # No suitable location found for log file
+            logger.warning(
+                'Could not find suitable location for log file. Logging to stderr only.'
+            )
+
+    # Re-bind logger with server name
+    bound_logger = logger.bind(name=server_name)
+    return bound_logger
+
+
 def sensitive_data_filter(record):
     """Filter that redacts sensitive information from log messages.
 
@@ -133,27 +219,9 @@ def sensitive_data_filter(record):
     return True
 
 
-# Remove all default handlers then add our own
+# Initialize basic stderr-only logging until we parse arguments
 logger.remove()
-
-log_level = os.environ.get('FASTMCP_LOG_LEVEL', 'INFO').upper()
-logger.add(
-    LOG_FILE,
-    rotation='10 MB',
-    retention=7,
-    level=log_level,
-    format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}',
-    filter=sensitive_data_filter,
-)
-
-# Add a handler for stderr
-logger.add(
-    sys.stderr,
-    level=log_level,
-    format='{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}',
-    filter=sensitive_data_filter,
-)
-
+logger.add(sys.stderr, level='INFO', filter=sensitive_data_filter)
 logger = logger.bind(name=SERVER_NAME)
 
 # Initialize the MCP server
@@ -438,11 +506,20 @@ def main(enable_aws_resource_write: bool = False):
     set_enable_aws_resource_write(enable_aws_resource_write)
 
     logger.info('Starting Finch MCP server')
-    logger.info(f'Logs will be written to: {LOG_FILE}')
+
+    # Log where logs are going
+    log_file = os.environ.get('FINCH_MCP_LOG_FILE')
+    if log_file:
+        logger.info(f'Logging to stderr and file: {log_file}')
+    elif os.environ.get('FINCH_DISABLE_FILE_LOGGING'):
+        logger.warning('Logging to stderr only')
+    else:
+        logger.info('Logging to stderr and default logging file')
+
     mcp.run(transport='stdio')
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     import argparse
 
     parser = argparse.ArgumentParser(description='Run the Finch MCP server')
@@ -451,6 +528,18 @@ if __name__ == '__main__':
         action='store_true',
         help='Enable AWS resource creation and modification (disabled by default)',
     )
+    parser.add_argument(
+        '--disable-file-logging',
+        action='store_true',
+        help='Disable file logging entirely (stderr only, follows MCP standard)',
+    )
     args = parser.parse_args()
+
+    # Set disable file logging from command line if provided
+    if args.disable_file_logging:
+        os.environ['FINCH_DISABLE_FILE_LOGGING'] = 'true'
+
+    # Configure logging after parsing arguments
+    configure_logging()
 
     main(enable_aws_resource_write=args.enable_aws_resource_write)

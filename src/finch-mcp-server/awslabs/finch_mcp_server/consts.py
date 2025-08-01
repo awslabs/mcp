@@ -24,8 +24,6 @@ import sys
 # Server name
 SERVER_NAME = 'finch_mcp_server'
 
-# Log file name
-LOG_FILE = 'finch_server.log'
 
 # VM states
 VM_STATE_RUNNING = 'running'
