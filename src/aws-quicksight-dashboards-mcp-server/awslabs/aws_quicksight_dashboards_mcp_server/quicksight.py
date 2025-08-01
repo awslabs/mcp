@@ -4,7 +4,7 @@ import time
 
 import boto3
 
-session = boto3.Session(profile_name="mcpGit")
+session = boto3.Session() #Add profile name here 
 
 # Get correct client endpoint
 client = session.client(
