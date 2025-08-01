@@ -22,6 +22,7 @@ from awslabs.redshift_mcp_server.consts import (
     REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
+    ColumnMatch,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -36,6 +37,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    find_columns,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -78,6 +80,10 @@ This tool queries the SVV_ALL_TABLES system view to discover available tables.
 ### list_columns
 Lists all columns in a specified table within a Redshift schema.
 This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
+
+### find_column
+Find tables containing columns with specific name patterns.
+This tool searches across all schemas and tables to find columns matching a pattern.
 
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
@@ -521,6 +527,85 @@ async def list_columns_tool(
         )
         raise
 
+
+@mcp.tool(name='find_column')
+async def find_column_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to search for columns. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database_name: str = Field(
+        ...,
+        description='The database name to search for columns. Must be a valid database name from the list_databases tool.',
+    ),
+    pattern: str = Field(
+        ..., description='The column name pattern to search for. Supports SQL LIKE pattern matching (e.g., name). Note: Do not include % wildcards as they will be added automatically. Some LLMs may add their own wildcards, resulting in double wildcards in the query.'
+    ),
+) -> list[ColumnMatch]:
+    """Find tables containing columns with specific name patterns.
+
+    This tool searches across all schemas and tables in a specified database to find columns
+    that match a given name pattern. It's useful for discovering where specific data elements
+    are stored across a large database.
+
+    ## Usage Requirements
+
+    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
+    - The cluster must be available and accessible.
+    - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
+    - The user must have access to the database to query system views.
+
+    ## Parameters
+
+    - cluster_identifier: The unique identifier of the Redshift cluster to query.
+                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
+    - database_name: The database name to search for columns.
+                    IMPORTANT: Use a valid database name from the list_databases tool.
+    - pattern: The column name pattern to search for. Supports SQL LIKE pattern matching (e.g., %name%).
+               For example, '%id' will find all columns ending with 'id'.
+
+    ## Response Structure
+
+    Returns a list of dictionaries with the following structure:
+
+    - table_schema: The schema name where the column was found.
+    - table_name: The name of the table containing the column.
+    - column_name: The name of the matching column.
+    - data_type: The data type of the column.
+
+    ## Usage Tips
+
+    1. First use list_clusters to get valid cluster identifiers.
+    2. Then use list_databases to get valid database names for the cluster.
+    3. Use wildcards (%) to broaden your search, e.g., '%address%' to find all columns containing 'address'.
+    4. Use the results to identify tables for further exploration with list_columns or execute_query.
+
+    ## Interpretation Best Practices
+
+    1. Look for patterns in schema and table names to identify related data.
+    2. Consider data types when determining if a column contains the data you're looking for.
+    3. Use the schema, table, and column information to construct targeted queries.
+    """
+    try:
+        logger.info(f'Searching for columns matching pattern "{pattern}" in database {database_name} on cluster {cluster_identifier}')
+        
+        # Use the find_columns function from redshift.py
+        columns_data = await find_columns(cluster_identifier, database_name, pattern)
+        
+        # Convert to ColumnMatch models
+        columns_found = []
+        for column_data in columns_data:
+            column_match = ColumnMatch(**column_data)
+            columns_found.append(column_match)
+        
+        logger.info(f'Found {len(columns_found)} columns matching pattern "{pattern}" in database {database_name}')
+        return columns_found
+
+    except Exception as e:
+        logger.error(f'Error finding columns matching pattern "{pattern}" in database {database_name}: {str(e)}')
+        await ctx.error(f'Failed to find columns matching pattern "{pattern}" in database {database_name}: {str(e)}')
+        raise
 
 @mcp.tool(name='execute_query')
 async def execute_query_tool(
