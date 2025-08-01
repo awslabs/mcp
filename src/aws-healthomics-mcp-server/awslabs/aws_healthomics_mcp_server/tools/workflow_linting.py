@@ -1,482 +1,780 @@
-"""Workflow linting tools for the AWS HealthOmics MCP server."""
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Workflow linting tools for WDL and CWL workflow definitions."""
 
 import asyncio
 import json
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
 
-from ..utils.aws_utils import get_omics_client
 
-
-class LinterToolManager:
-    """Manages multiple linting tools across different languages."""
+class WorkflowLinter:
+    """Lints WDL and CWL workflow definitions using appropriate linting tools."""
     
     def __init__(self):
-        self.available_linters = {}
-        self._discover_linters()
+        self.supported_formats = ['wdl', 'cwl']
     
-    def _discover_linters(self):
-        """Discover available linting tools."""
-        # Check for Java-based linter-rules-for-nextflow
-        if self._check_java_linter():
-            self.available_linters['nextflow_java'] = JavaNextflowLinter()
+    async def lint_workflow_bundle(
+        self,
+        workflow_files: Dict[str, str],
+        workflow_format: str,
+        main_workflow_file: str
+    ) -> Dict[str, Any]:
+        """
+        Lint a multi-file workflow bundle and return findings.
         
-        # Check for Rust-based sprocket
-        if self._check_rust_sprocket():
-            self.available_linters['sprocket'] = SprocketLinter()
-        
-        # Check for other linters
-        if shutil.which('nextflow'):
-            self.available_linters['nextflow_native'] = NextflowNativeLinter()
-    
-    def _check_java_linter(self) -> bool:
-        """Check if Java linter is available."""
-        # Check for JAR file or if it's in classpath
-        java_linter_paths = [
-            Path("~/.healthomics-tools/linter-rules-for-nextflow.jar").expanduser(),
-            Path("/usr/local/lib/linter-rules-for-nextflow.jar"),
-            Path("./tools/linter-rules-for-nextflow.jar")
-        ]
-        
-        for path in java_linter_paths:
-            if path.exists():
-                return True
-        
-        # Check if Java is available for potential installation
-        return shutil.which('java') is not None
-    
-    def _check_rust_sprocket(self) -> bool:
-        """Check if sprocket is available."""
-        return shutil.which('sprocket') is not None
-    
-    def get_available_linters(self) -> List[str]:
-        """Get list of available linter names."""
-        return list(self.available_linters.keys())
-    
-    async def lint_workflow(self, workflow_content: str, workflow_type: str, 
-                           linter_name: Optional[str] = None) -> Dict[str, Any]:
-        """Lint workflow using specified or best available linter."""
-        if not self.available_linters:
+        Args:
+            workflow_files: Dictionary mapping file paths to their content
+            workflow_format: The workflow format ('wdl' or 'cwl')
+            main_workflow_file: Path to the main workflow file within the bundle
+            
+        Returns:
+            Dictionary containing lint results and findings
+        """
+        if workflow_format.lower() not in self.supported_formats:
             return {
-                "status": "error",
-                "message": "No linting tools available. Please install linter-rules-for-nextflow or sprocket."
+                'status': 'error',
+                'message': f'Unsupported workflow format: {workflow_format}. Supported formats: {self.supported_formats}'
             }
-        
-        # Choose linter
-        if linter_name and linter_name in self.available_linters:
-            linter = self.available_linters[linter_name]
-        else:
-            # Auto-select best linter for workflow type
-            linter = self._select_best_linter(workflow_type)
-        
-        if not linter:
-            return {
-                "status": "error",
-                "message": f"No suitable linter found for workflow type: {workflow_type}"
-            }
-        
-        return await linter.lint(workflow_content, workflow_type)
-    
-    def _select_best_linter(self, workflow_type: str):
-        """Select the best linter for the given workflow type."""
-        if workflow_type.upper() == "NEXTFLOW":
-            # Prefer Java linter for Nextflow, fallback to sprocket
-            return (self.available_linters.get('nextflow_java') or 
-                   self.available_linters.get('sprocket') or
-                   self.available_linters.get('nextflow_native'))
-        elif workflow_type.upper() in ["WDL", "CWL"]:
-            # Sprocket might handle multiple workflow types
-            return self.available_linters.get('sprocket')
-        
-        # Default to first available
-        return next(iter(self.available_linters.values()), None)
-
-
-class JavaNextflowLinter:
-    """Java-based Nextflow linter wrapper."""
-    
-    def __init__(self, jar_path: Optional[Path] = None):
-        self.jar_path = jar_path or self._find_jar_path()
-        self.java_executable = shutil.which('java') or 'java'
-    
-    def _find_jar_path(self) -> Optional[Path]:
-        """Find the linter JAR file."""
-        search_paths = [
-            Path("~/.healthomics-tools/linter-rules-for-nextflow.jar").expanduser(),
-            Path("/usr/local/lib/linter-rules-for-nextflow.jar"),
-            Path("./tools/linter-rules-for-nextflow.jar")
-        ]
-        
-        for path in search_paths:
-            if path.exists():
-                return path
-        return None
-    
-    async def lint(self, workflow_content: str, workflow_type: str) -> Dict[str, Any]:
-        """Lint workflow using Java linter."""
-        if not self.jar_path or not self.jar_path.exists():
-            return {
-                "status": "error",
-                "message": "Java linter JAR not found. Please install linter-rules-for-nextflow."
-            }
-        
-        # Create temporary file for workflow
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.nf', delete=False) as tmp_file:
-            tmp_file.write(workflow_content)
-            tmp_path = Path(tmp_file.name)
         
         try:
-            # Execute Java linter
-            cmd = [
-                self.java_executable,
-                '-jar', str(self.jar_path),
-                '--format', 'json',
-                str(tmp_path)
-            ]
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                # Parse JSON output
-                try:
-                    result = json.loads(stdout.decode())
-                    return {
-                        "status": "success",
-                        "linter": "java_nextflow_linter",
-                        "issues": result.get("issues", []),
-                        "summary": result.get("summary", {}),
-                        "raw_output": result
-                    }
-                except json.JSONDecodeError:
-                    return {
-                        "status": "success",
-                        "linter": "java_nextflow_linter",
-                        "issues": [],
-                        "summary": {"message": "No issues found"},
-                        "raw_output": stdout.decode()
-                    }
-            else:
-                return {
-                    "status": "error",
-                    "linter": "java_nextflow_linter",
-                    "message": f"Linter failed with exit code {process.returncode}",
-                    "error_output": stderr.decode()
-                }
-        
-        finally:
-            # Clean up temporary file
-            tmp_path.unlink(missing_ok=True)
-
-
-class SprocketLinter:
-    """Rust-based sprocket linter wrapper."""
-    
-    def __init__(self):
-        self.sprocket_executable = shutil.which('sprocket')
-    
-    async def lint(self, workflow_content: str, workflow_type: str) -> Dict[str, Any]:
-        """Lint workflow using sprocket."""
-        if not self.sprocket_executable:
+            if workflow_format.lower() == 'wdl':
+                return await self._lint_wdl_bundle(workflow_files, main_workflow_file)
+            elif workflow_format.lower() == 'cwl':
+                return await self._lint_cwl_bundle(workflow_files, main_workflow_file)
+        except Exception as e:
+            logger.error(f'Error linting {workflow_format} workflow bundle: {str(e)}')
             return {
-                "status": "error",
-                "message": "Sprocket not found. Please install sprocket: cargo install sprocket"
+                'status': 'error',
+                'message': f'Failed to lint {workflow_format} workflow bundle: {str(e)}'
             }
+
+    async def lint_workflow(
+        self,
+        workflow_content: str,
+        workflow_format: str,
+        filename: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Lint a workflow definition and return findings.
         
-        # Create temporary file for workflow
-        suffix_map = {
-            "NEXTFLOW": ".nf",
-            "WDL": ".wdl",
-            "CWL": ".cwl"
-        }
-        suffix = suffix_map.get(workflow_type.upper(), ".txt")
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, delete=False) as tmp_file:
-            tmp_file.write(workflow_content)
-            tmp_path = Path(tmp_file.name)
+        Args:
+            workflow_content: The workflow definition content
+            workflow_format: The workflow format ('wdl' or 'cwl')
+            filename: Optional filename for context
+            
+        Returns:
+            Dictionary containing lint results and findings
+        """
+        if workflow_format.lower() not in self.supported_formats:
+            return {
+                'status': 'error',
+                'message': f'Unsupported workflow format: {workflow_format}. Supported formats: {self.supported_formats}'
+            }
         
         try:
-            # Execute sprocket
-            cmd = [
-                self.sprocket_executable,
-                'lint',
-                '--format', 'json',
-                str(tmp_path)
-            ]
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                try:
-                    result = json.loads(stdout.decode())
-                    return {
-                        "status": "success",
-                        "linter": "sprocket",
-                        "issues": result.get("diagnostics", []),
-                        "summary": {
-                            "total_issues": len(result.get("diagnostics", [])),
-                            "errors": len([d for d in result.get("diagnostics", []) if d.get("severity") == "error"]),
-                            "warnings": len([d for d in result.get("diagnostics", []) if d.get("severity") == "warning"])
-                        },
-                        "raw_output": result
-                    }
-                except json.JSONDecodeError:
-                    return {
-                        "status": "success",
-                        "linter": "sprocket",
-                        "issues": [],
-                        "summary": {"message": "No issues found"},
-                        "raw_output": stdout.decode()
-                    }
-            else:
-                return {
-                    "status": "error",
-                    "linter": "sprocket",
-                    "message": f"Sprocket failed with exit code {process.returncode}",
-                    "error_output": stderr.decode()
-                }
-        
-        finally:
-            # Clean up temporary file
-            tmp_path.unlink(missing_ok=True)
-
-
-class NextflowNativeLinter:
-    """Native Nextflow linter using nextflow config validation."""
-    
-    def __init__(self):
-        self.nextflow_executable = shutil.which('nextflow')
-    
-    async def lint(self, workflow_content: str, workflow_type: str) -> Dict[str, Any]:
-        """Lint workflow using native Nextflow validation."""
-        if not self.nextflow_executable:
+            if workflow_format.lower() == 'wdl':
+                return await self._lint_wdl(workflow_content, filename)
+            elif workflow_format.lower() == 'cwl':
+                return await self._lint_cwl(workflow_content, filename)
+        except Exception as e:
+            logger.error(f'Error linting {workflow_format} workflow: {str(e)}')
             return {
-                "status": "error",
-                "message": "Nextflow not found in PATH"
+                'status': 'error',
+                'message': f'Failed to lint {workflow_format} workflow: {str(e)}'
             }
-        
-        if workflow_type.upper() != "NEXTFLOW":
-            return {
-                "status": "error",
-                "message": "Native Nextflow linter only supports Nextflow workflows"
-            }
-        
-        # Create temporary directory for workflow
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            workflow_file = tmp_path / "main.nf"
-            workflow_file.write_text(workflow_content)
+    
+    async def _lint_wdl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
+        """Lint WDL workflow using miniwdl."""
+        try:
+            import WDL
+            import WDL.CLI
             
-            # Try to validate the workflow
-            cmd = [
-                self.nextflow_executable,
-                'config',
-                str(workflow_file),
-                '-check-syntax'
-            ]
+            # Create temporary file for the WDL content
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.wdl', delete=False) as tmp_file:
+                tmp_file.write(content)
+                tmp_path = Path(tmp_file.name)
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(tmp_path)
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode == 0:
-                return {
-                    "status": "success",
-                    "linter": "nextflow_native",
-                    "issues": [],
-                    "summary": {"message": "Workflow syntax is valid"},
-                    "raw_output": stdout.decode()
-                }
-            else:
-                # Parse error output for issues
-                error_text = stderr.decode()
-                issues = self._parse_nextflow_errors(error_text)
+            try:
+                # Parse and validate the WDL document
+                doc = WDL.load(str(tmp_path))
+                
+                # Run basic validation
+                findings = []
+                warnings = []
+                
+                # Check for common issues
+                if hasattr(doc, 'workflow') and doc.workflow:
+                    workflow = doc.workflow
+                    
+                    # Check for missing inputs
+                    if not workflow.available_inputs:
+                        warnings.append({
+                            'type': 'warning',
+                            'message': 'Workflow has no inputs defined',
+                            'location': 'workflow'
+                        })
+                    
+                    # Check for missing outputs
+                    if not workflow.outputs:
+                        warnings.append({
+                            'type': 'warning', 
+                            'message': 'Workflow has no outputs defined',
+                            'location': 'workflow'
+                        })
+                
+                # Check for tasks
+                if hasattr(doc, 'tasks') and doc.tasks:
+                    for task in doc.tasks:
+                        # Check for missing runtime requirements
+                        if not task.runtime:
+                            warnings.append({
+                                'type': 'warning',
+                                'message': f'Task "{task.name}" has no runtime requirements defined',
+                                'location': f'task.{task.name}'
+                            })
                 
                 return {
-                    "status": "warning" if issues else "error",
-                    "linter": "nextflow_native",
-                    "issues": issues,
-                    "summary": {
-                        "total_issues": len(issues),
-                        "message": "Syntax validation failed"
+                    'status': 'success',
+                    'format': 'wdl',
+                    'filename': filename or tmp_path.name,
+                    'valid': True,
+                    'findings': findings,
+                    'warnings': warnings,
+                    'summary': {
+                        'total_issues': len(findings) + len(warnings),
+                        'errors': len(findings),
+                        'warnings': len(warnings)
                     },
-                    "error_output": error_text
+                    'linter': 'miniwdl'
                 }
+                
+            except WDL.Error.ValidationError as e:
+                # Handle WDL validation errors
+                findings = []
+                for error in e.errors if hasattr(e, 'errors') else [e]:
+                    findings.append({
+                        'type': 'error',
+                        'message': str(error),
+                        'location': getattr(error, 'pos', {}).get('filename', 'unknown') if hasattr(error, 'pos') else 'unknown',
+                        'line': getattr(error, 'pos', {}).get('line', None) if hasattr(error, 'pos') else None,
+                        'column': getattr(error, 'pos', {}).get('column', None) if hasattr(error, 'pos') else None
+                    })
+                
+                return {
+                    'status': 'validation_failed',
+                    'format': 'wdl',
+                    'filename': filename or tmp_path.name,
+                    'valid': False,
+                    'findings': findings,
+                    'warnings': [],
+                    'summary': {
+                        'total_issues': len(findings),
+                        'errors': len(findings),
+                        'warnings': 0
+                    },
+                    'linter': 'miniwdl'
+                }
+                
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'format': 'wdl',
+                    'filename': filename or tmp_path.name,
+                    'message': f'Failed to parse WDL: {str(e)}',
+                    'linter': 'miniwdl'
+                }
+                
+            finally:
+                # Clean up temporary file
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f'Error in WDL linting: {str(e)}')
+            return {
+                'status': 'error',
+                'format': 'wdl',
+                'message': f'WDL linting failed: {str(e)}'
+            }
     
-    def _parse_nextflow_errors(self, error_text: str) -> List[Dict[str, Any]]:
-        """Parse Nextflow error output into structured issues."""
-        issues = []
-        lines = error_text.split('\n')
-        
-        for line in lines:
-            if 'ERROR' in line or 'WARNING' in line:
-                issues.append({
-                    "severity": "error" if "ERROR" in line else "warning",
-                    "message": line.strip(),
-                    "line": None,  # Nextflow doesn't always provide line numbers
-                    "column": None
-                })
-        
-        return issues
+    async def _lint_cwl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
+        """Lint CWL workflow using cwltool."""
+        try:
+            import cwltool.main
+            import cwltool.load_tool
+            from cwltool.context import LoadingContext
+            from cwltool.resolver import tool_resolver
+            
+            # Create temporary file for the CWL content
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cwl', delete=False) as tmp_file:
+                tmp_file.write(content)
+                tmp_path = Path(tmp_file.name)
+            
+            try:
+                # Set up loading context
+                loading_context = LoadingContext()
+                loading_context.strict = True  # Enable strict validation
+                
+                # Load and validate the CWL document
+                tool = cwltool.load_tool.load_tool(str(tmp_path), loading_context)
+                
+                findings = []
+                warnings = []
+                
+                # Basic validation checks
+                if hasattr(tool, 'tool') and tool.tool:
+                    cwl_tool = tool.tool
+                    
+                    # Check for required fields
+                    if 'inputs' not in cwl_tool or not cwl_tool['inputs']:
+                        warnings.append({
+                            'type': 'warning',
+                            'message': 'Workflow has no inputs defined',
+                            'location': 'workflow'
+                        })
+                    
+                    if 'outputs' not in cwl_tool or not cwl_tool['outputs']:
+                        warnings.append({
+                            'type': 'warning',
+                            'message': 'Workflow has no outputs defined', 
+                            'location': 'workflow'
+                        })
+                    
+                    # Check for steps in workflow
+                    if cwl_tool.get('class') == 'Workflow':
+                        if 'steps' not in cwl_tool or not cwl_tool['steps']:
+                            warnings.append({
+                                'type': 'warning',
+                                'message': 'Workflow has no steps defined',
+                                'location': 'workflow'
+                            })
+                        else:
+                            # Check each step
+                            for step_name, step in cwl_tool['steps'].items():
+                                if 'run' not in step:
+                                    findings.append({
+                                        'type': 'error',
+                                        'message': f'Step "{step_name}" is missing required "run" field',
+                                        'location': f'steps.{step_name}'
+                                    })
+                
+                return {
+                    'status': 'success',
+                    'format': 'cwl',
+                    'filename': filename or tmp_path.name,
+                    'valid': True,
+                    'findings': findings,
+                    'warnings': warnings,
+                    'summary': {
+                        'total_issues': len(findings) + len(warnings),
+                        'errors': len(findings),
+                        'warnings': len(warnings)
+                    },
+                    'linter': 'cwltool'
+                }
+                
+            except Exception as e:
+                # Handle CWL validation errors
+                error_msg = str(e)
+                findings = [{
+                    'type': 'error',
+                    'message': error_msg,
+                    'location': 'document'
+                }]
+                
+                return {
+                    'status': 'validation_failed',
+                    'format': 'cwl',
+                    'filename': filename or tmp_path.name,
+                    'valid': False,
+                    'findings': findings,
+                    'warnings': [],
+                    'summary': {
+                        'total_issues': len(findings),
+                        'errors': len(findings),
+                        'warnings': 0
+                    },
+                    'linter': 'cwltool'
+                }
+                
+            finally:
+                # Clean up temporary file
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f'Error in CWL linting: {str(e)}')
+            return {
+                'status': 'error',
+                'format': 'cwl',
+                'message': f'CWL linting failed: {str(e)}'
+            }
+
+    async def _lint_wdl_bundle(self, workflow_files: Dict[str, str], main_workflow_file: str) -> Dict[str, Any]:
+        """Lint WDL workflow bundle using miniwdl."""
+        try:
+            import WDL
+            import WDL.CLI
+            
+            # Create temporary directory structure
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = Path(tmp_dir)
+                
+                # Write all files to temporary directory maintaining structure
+                for file_path, content in workflow_files.items():
+                    full_path = tmp_path / file_path
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_path.write_text(content)
+                
+                main_file_path = tmp_path / main_workflow_file
+                
+                if not main_file_path.exists():
+                    return {
+                        'status': 'error',
+                        'format': 'wdl',
+                        'message': f'Main workflow file "{main_workflow_file}" not found in provided files'
+                    }
+                
+                try:
+                    # Parse and validate the WDL document with imports
+                    doc = WDL.load(str(main_file_path))
+                    
+                    # Run basic validation
+                    findings = []
+                    warnings = []
+                    
+                    # Check for common issues in main workflow
+                    if hasattr(doc, 'workflow') and doc.workflow:
+                        workflow = doc.workflow
+                        
+                        # Check for missing inputs
+                        if not workflow.available_inputs:
+                            warnings.append({
+                                'type': 'warning',
+                                'message': 'Workflow has no inputs defined',
+                                'location': 'workflow',
+                                'file': main_workflow_file
+                            })
+                        
+                        # Check for missing outputs
+                        if not workflow.outputs:
+                            warnings.append({
+                                'type': 'warning', 
+                                'message': 'Workflow has no outputs defined',
+                                'location': 'workflow',
+                                'file': main_workflow_file
+                            })
+                    
+                    # Check for tasks across all files
+                    all_tasks = []
+                    if hasattr(doc, 'tasks'):
+                        all_tasks.extend(doc.tasks)
+                    
+                    # Check imported documents for tasks
+                    for imported_doc in getattr(doc, 'imports', []):
+                        if hasattr(imported_doc, 'tasks'):
+                            all_tasks.extend(imported_doc.tasks)
+                    
+                    for task in all_tasks:
+                        # Check for missing runtime requirements
+                        if not task.runtime:
+                            warnings.append({
+                                'type': 'warning',
+                                'message': f'Task "{task.name}" has no runtime requirements defined',
+                                'location': f'task.{task.name}',
+                                'file': getattr(task, 'pos', {}).get('filename', 'unknown') if hasattr(task, 'pos') else 'unknown'
+                            })
+                    
+                    return {
+                        'status': 'success',
+                        'format': 'wdl',
+                        'main_file': main_workflow_file,
+                        'files_processed': list(workflow_files.keys()),
+                        'valid': True,
+                        'findings': findings,
+                        'warnings': warnings,
+                        'summary': {
+                            'total_issues': len(findings) + len(warnings),
+                            'errors': len(findings),
+                            'warnings': len(warnings),
+                            'files_count': len(workflow_files)
+                        },
+                        'linter': 'miniwdl'
+                    }
+                    
+                except WDL.Error.ValidationError as e:
+                    # Handle WDL validation errors
+                    findings = []
+                    for error in e.errors if hasattr(e, 'errors') else [e]:
+                        error_file = getattr(error, 'pos', {}).get('filename', 'unknown') if hasattr(error, 'pos') else 'unknown'
+                        # Convert absolute path back to relative path
+                        if error_file.startswith(str(tmp_path)):
+                            error_file = str(Path(error_file).relative_to(tmp_path))
+                        
+                        findings.append({
+                            'type': 'error',
+                            'message': str(error),
+                            'location': error_file,
+                            'file': error_file,
+                            'line': getattr(error, 'pos', {}).get('line', None) if hasattr(error, 'pos') else None,
+                            'column': getattr(error, 'pos', {}).get('column', None) if hasattr(error, 'pos') else None
+                        })
+                    
+                    return {
+                        'status': 'validation_failed',
+                        'format': 'wdl',
+                        'main_file': main_workflow_file,
+                        'files_processed': list(workflow_files.keys()),
+                        'valid': False,
+                        'findings': findings,
+                        'warnings': [],
+                        'summary': {
+                            'total_issues': len(findings),
+                            'errors': len(findings),
+                            'warnings': 0,
+                            'files_count': len(workflow_files)
+                        },
+                        'linter': 'miniwdl'
+                    }
+                    
+                except Exception as e:
+                    return {
+                        'status': 'error',
+                        'format': 'wdl',
+                        'main_file': main_workflow_file,
+                        'message': f'Failed to parse WDL bundle: {str(e)}',
+                        'linter': 'miniwdl'
+                    }
+                    
+        except Exception as e:
+            logger.error(f'Error in WDL bundle linting: {str(e)}')
+            return {
+                'status': 'error',
+                'format': 'wdl',
+                'message': f'WDL bundle linting failed: {str(e)}'
+            }
+
+    async def _lint_cwl_bundle(self, workflow_files: Dict[str, str], main_workflow_file: str) -> Dict[str, Any]:
+        """Lint CWL workflow bundle using cwltool."""
+        try:
+            import cwltool.main
+            import cwltool.load_tool
+            from cwltool.context import LoadingContext
+            from cwltool.resolver import tool_resolver
+            
+            # Create temporary directory structure
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                tmp_path = Path(tmp_dir)
+                
+                # Write all files to temporary directory maintaining structure
+                for file_path, content in workflow_files.items():
+                    full_path = tmp_path / file_path
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    full_path.write_text(content)
+                
+                main_file_path = tmp_path / main_workflow_file
+                
+                if not main_file_path.exists():
+                    return {
+                        'status': 'error',
+                        'format': 'cwl',
+                        'message': f'Main workflow file "{main_workflow_file}" not found in provided files'
+                    }
+                
+                try:
+                    # Set up loading context
+                    loading_context = LoadingContext()
+                    loading_context.strict = True  # Enable strict validation
+                    
+                    # Load and validate the CWL document
+                    tool = cwltool.load_tool.load_tool(str(main_file_path), loading_context)
+                    
+                    findings = []
+                    warnings = []
+                    
+                    # Basic validation checks
+                    if hasattr(tool, 'tool') and tool.tool:
+                        cwl_tool = tool.tool
+                        
+                        # Check for required fields
+                        if 'inputs' not in cwl_tool or not cwl_tool['inputs']:
+                            warnings.append({
+                                'type': 'warning',
+                                'message': 'Workflow has no inputs defined',
+                                'location': 'workflow',
+                                'file': main_workflow_file
+                            })
+                        
+                        if 'outputs' not in cwl_tool or not cwl_tool['outputs']:
+                            warnings.append({
+                                'type': 'warning',
+                                'message': 'Workflow has no outputs defined', 
+                                'location': 'workflow',
+                                'file': main_workflow_file
+                            })
+                        
+                        # Check for steps in workflow
+                        if cwl_tool.get('class') == 'Workflow':
+                            if 'steps' not in cwl_tool or not cwl_tool['steps']:
+                                warnings.append({
+                                    'type': 'warning',
+                                    'message': 'Workflow has no steps defined',
+                                    'location': 'workflow',
+                                    'file': main_workflow_file
+                                })
+                            else:
+                                # Check each step
+                                for step_name, step in cwl_tool['steps'].items():
+                                    if 'run' not in step:
+                                        findings.append({
+                                            'type': 'error',
+                                            'message': f'Step "{step_name}" is missing required "run" field',
+                                            'location': f'steps.{step_name}',
+                                            'file': main_workflow_file
+                                        })
+                    
+                    return {
+                        'status': 'success',
+                        'format': 'cwl',
+                        'main_file': main_workflow_file,
+                        'files_processed': list(workflow_files.keys()),
+                        'valid': True,
+                        'findings': findings,
+                        'warnings': warnings,
+                        'summary': {
+                            'total_issues': len(findings) + len(warnings),
+                            'errors': len(findings),
+                            'warnings': len(warnings),
+                            'files_count': len(workflow_files)
+                        },
+                        'linter': 'cwltool'
+                    }
+                    
+                except Exception as e:
+                    # Handle CWL validation errors
+                    error_msg = str(e)
+                    findings = [{
+                        'type': 'error',
+                        'message': error_msg,
+                        'location': 'document',
+                        'file': main_workflow_file
+                    }]
+                    
+                    return {
+                        'status': 'validation_failed',
+                        'format': 'cwl',
+                        'main_file': main_workflow_file,
+                        'files_processed': list(workflow_files.keys()),
+                        'valid': False,
+                        'findings': findings,
+                        'warnings': [],
+                        'summary': {
+                            'total_issues': len(findings),
+                            'errors': len(findings),
+                            'warnings': 0,
+                            'files_count': len(workflow_files)
+                        },
+                        'linter': 'cwltool'
+                    }
+                    
+        except Exception as e:
+            logger.error(f'Error in CWL bundle linting: {str(e)}')
+            return {
+                'status': 'error',
+                'format': 'cwl',
+                'message': f'CWL bundle linting failed: {str(e)}'
+            }
 
 
-# Global linter manager instance
-linter_manager = LinterToolManager()
+# Global linter instance
+workflow_linter = WorkflowLinter()
 
 
 async def lint_workflow_definition(
     ctx: Context,
     workflow_content: str = Field(description="The workflow definition content to lint"),
-    workflow_type: str = Field(description="Type of workflow (NEXTFLOW, WDL, CWL)"),
-    linter_name: Optional[str] = Field(default=None, description="Specific linter to use (optional)")
+    workflow_format: str = Field(description="The workflow format: 'wdl' or 'cwl'"),
+    filename: Optional[str] = Field(default=None, description="Optional filename for context")
 ) -> Dict[str, Any]:
     """
-    Lint a workflow definition using available linting tools.
+    Lint WDL or CWL workflow definitions and return validation findings.
     
-    This tool validates workflow syntax and identifies potential issues using
-    multiple linting engines including Java-based linter-rules-for-nextflow
-    and Rust-based sprocket.
+    This tool validates workflow definitions using appropriate linting tools:
+    - WDL workflows: Uses miniwdl package for parsing and validation
+    - CWL workflows: Uses cwltool package for parsing and validation
+    
+    The tool checks for:
+    - Syntax errors and parsing issues
+    - Missing required fields (inputs, outputs, steps)
+    - Runtime requirements for tasks
+    - Common workflow structure issues
     
     Args:
         ctx: MCP context for error reporting
         workflow_content: The workflow definition content to lint
-        workflow_type: Type of workflow (NEXTFLOW, WDL, CWL)
-        linter_name: Specific linter to use (optional, auto-selects if not provided)
+        workflow_format: The workflow format ('wdl' or 'cwl')
+        filename: Optional filename for context in error messages
     
     Returns:
-        Dictionary containing linting results with issues, summary, and recommendations
+        Dictionary containing:
+        - status: 'success', 'validation_failed', or 'error'
+        - format: The workflow format that was linted
+        - valid: Boolean indicating if the workflow is valid
+        - findings: List of errors found during linting
+        - warnings: List of warnings found during linting
+        - summary: Summary statistics of issues found
+        - linter: Name of the linting tool used
     """
     try:
-        logger.info(f"Linting {workflow_type} workflow using {linter_name or 'auto-selected'} linter")
+        logger.info(f"Linting {workflow_format} workflow definition")
         
-        result = await linter_manager.lint_workflow(
+        result = await workflow_linter.lint_workflow(
             workflow_content=workflow_content,
-            workflow_type=workflow_type,
-            linter_name=linter_name
+            workflow_format=workflow_format,
+            filename=filename
         )
-        
-        # Add available linters info
-        result["available_linters"] = linter_manager.get_available_linters()
-        
-        # Add recommendations based on issues found
-        if result.get("status") == "success" and result.get("issues"):
-            result["recommendations"] = _generate_recommendations(result["issues"])
         
         return result
         
     except Exception as e:
-        logger.error(f"Error during workflow linting: {str(e)}")
+        error_message = f"Error during workflow linting: {str(e)}"
+        logger.error(error_message)
+        await ctx.error(error_message)
         return {
-            "status": "error",
-            "message": f"Linting failed: {str(e)}",
-            "available_linters": linter_manager.get_available_linters()
+            'status': 'error',
+            'message': f'Workflow linting failed: {str(e)}'
         }
 
 
-async def get_available_linters(ctx: Context) -> Dict[str, Any]:
+async def check_linting_dependencies(ctx: Context) -> Dict[str, Any]:
     """
-    Get information about available workflow linting tools.
+    Check workflow linting dependencies and their versions.
+    
+    This tool reports the status and versions of workflow linting dependencies:
+    - miniwdl: For WDL workflow linting
+    - cwltool: For CWL workflow linting
     
     Returns:
-        Dictionary containing available linters and their capabilities
+        Dictionary containing dependency status and version information
     """
     try:
-        available = linter_manager.get_available_linters()
+        import WDL
+        import cwltool
         
-        linter_info = {}
-        for linter_name in available:
-            linter = linter_manager.available_linters[linter_name]
-            linter_info[linter_name] = {
-                "type": type(linter).__name__,
-                "supports": _get_linter_capabilities(linter_name),
-                "description": _get_linter_description(linter_name)
+        dependencies = {
+            'miniwdl': {
+                'available': True,
+                'version': getattr(WDL, '__version__', 'unknown'),
+                'purpose': 'WDL workflow linting',
+                'documentation': 'https://miniwdl.readthedocs.io/'
+            },
+            'cwltool': {
+                'available': True,
+                'version': getattr(cwltool, '__version__', 'unknown'),
+                'purpose': 'CWL workflow linting',
+                'documentation': 'https://github.com/common-workflow-language/cwltool'
             }
+        }
         
         return {
-            "status": "success",
-            "available_linters": linter_info,
-            "total_count": len(available),
-            "installation_help": _get_installation_help()
+            'status': 'success',
+            'dependencies': dependencies,
+            'summary': {
+                'total': 2,
+                'available': 2,
+                'missing': 0,
+                'all_available': True
+            }
         }
         
     except Exception as e:
-        logger.error(f"Error getting available linters: {str(e)}")
+        logger.error(f"Error checking linting dependencies: {str(e)}")
+        
         return {
-            "status": "error",
-            "message": f"Failed to get linter information: {str(e)}"
+            'status': 'error',
+            'message': f'Failed to check linting dependencies: {str(e)}'
         }
 
 
-def _generate_recommendations(issues: List[Dict[str, Any]]) -> List[str]:
-    """Generate recommendations based on linting issues."""
-    recommendations = []
+async def lint_workflow_bundle(
+    ctx: Context,
+    workflow_files: Dict[str, str] = Field(description="Dictionary mapping file paths to their content"),
+    workflow_format: str = Field(description="The workflow format: 'wdl' or 'cwl'"),
+    main_workflow_file: str = Field(description="Path to the main workflow file within the bundle")
+) -> Dict[str, Any]:
+    """
+    Lint multi-file WDL or CWL workflow bundles and return validation findings.
     
-    error_count = len([i for i in issues if i.get("severity") == "error"])
-    warning_count = len([i for i in issues if i.get("severity") == "warning"])
+    This tool validates multi-file workflow bundles using appropriate linting tools:
+    - WDL workflows: Uses miniwdl package for parsing and validation with import support
+    - CWL workflows: Uses cwltool package for parsing and validation with dependency resolution
     
-    if error_count > 0:
-        recommendations.append(f"Fix {error_count} syntax error(s) before running the workflow")
+    The tool creates a temporary directory structure that preserves the relative file paths,
+    allowing proper resolution of imports and dependencies between workflow files.
     
-    if warning_count > 0:
-        recommendations.append(f"Consider addressing {warning_count} warning(s) to improve workflow quality")
+    The tool checks for:
+    - Syntax errors and parsing issues across all files
+    - Missing required fields (inputs, outputs, steps)
+    - Import/dependency resolution
+    - Runtime requirements for tasks
+    - Common workflow structure issues
     
-    # Add specific recommendations based on common issues
-    issue_messages = [i.get("message", "").lower() for i in issues]
+    Args:
+        ctx: MCP context for error reporting
+        workflow_files: Dictionary mapping relative file paths to their content
+        workflow_format: The workflow format ('wdl' or 'cwl')
+        main_workflow_file: Path to the main workflow file within the bundle
     
-    if any("deprecated" in msg for msg in issue_messages):
-        recommendations.append("Update deprecated syntax to use current workflow language features")
-    
-    if any("unused" in msg for msg in issue_messages):
-        recommendations.append("Remove unused variables or processes to clean up the workflow")
-    
-    return recommendations
-
-
-def _get_linter_capabilities(linter_name: str) -> List[str]:
-    """Get capabilities of a specific linter."""
-    capabilities = {
-        "nextflow_java": ["NEXTFLOW"],
-        "sprocket": ["NEXTFLOW", "WDL", "CWL"],
-        "nextflow_native": ["NEXTFLOW"]
-    }
-    return capabilities.get(linter_name, [])
-
-
-def _get_linter_description(linter_name: str) -> str:
-    """Get description of a specific linter."""
-    descriptions = {
-        "nextflow_java": "Java-based comprehensive Nextflow linter with advanced rule checking",
-        "sprocket": "Rust-based fast linter supporting multiple workflow languages",
-        "nextflow_native": "Native Nextflow syntax validation using nextflow config"
-    }
-    return descriptions.get(linter_name, "Unknown linter")
-
-
-def _get_installation_help() -> Dict[str, str]:
-    """Get installation help for missing linters."""
-    return {
-        "java_linter": "Download linter-rules-for-nextflow JAR and place in ~/.healthomics-tools/",
-        "sprocket": "Install with: cargo install sprocket",
-        "nextflow": "Install Nextflow from https://www.nextflow.io/docs/latest/getstarted.html"
-    }
+    Returns:
+        Dictionary containing:
+        - status: 'success', 'validation_failed', or 'error'
+        - format: The workflow format that was linted
+        - main_file: The main workflow file that was processed
+        - files_processed: List of all files that were processed
+        - valid: Boolean indicating if the workflow bundle is valid
+        - findings: List of errors found during linting
+        - warnings: List of warnings found during linting
+        - summary: Summary statistics including file count and issues found
+        - linter: Name of the linting tool used
+    """
+    try:
+        logger.info(f"Linting {workflow_format} workflow bundle with {len(workflow_files)} files")
+        
+        result = await workflow_linter.lint_workflow_bundle(
+            workflow_files=workflow_files,
+            workflow_format=workflow_format,
+            main_workflow_file=main_workflow_file
+        )
+        
+        return result
+        
+    except Exception as e:
+        error_message = f"Error during workflow bundle linting: {str(e)}"
+        logger.error(error_message)
+        await ctx.error(error_message)
+        return {
+            'status': 'error',
+            'message': f'Workflow bundle linting failed: {str(e)}'
+        }
