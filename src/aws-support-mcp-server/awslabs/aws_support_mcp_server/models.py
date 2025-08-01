@@ -68,7 +68,7 @@ class Communication(BaseModel):
     """A communication in a support case."""
 
     body: str = Field(
-        ..., description='The text of the communication', min_length=1, max_length=8000
+        ..., description='The text of the communication', min_length=0, max_length=8000
     )
     case_id: Optional[str] = Field(None, description='The ID of the support case', alias='caseId')
     submitted_by: Optional[str] = Field(
