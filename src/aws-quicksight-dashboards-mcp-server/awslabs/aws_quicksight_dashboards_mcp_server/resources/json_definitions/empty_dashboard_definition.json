@@ -1,0 +1,50 @@
+{
+    "DataSetIdentifierDeclarations": [
+        {
+            "Identifier": "",
+            "DataSetArn": ""
+        }
+    ],
+    "Sheets": [
+        {
+            "SheetId": "1-sheet-1",
+            "Name": "Sheet 1",
+            "Visuals": [],
+            "Layouts": [
+                {
+                    "Configuration": {
+                        "GridLayout": {
+                            "Elements": [],
+                            "CanvasSizeOptions": {
+                                "ScreenCanvasSizeOptions": {
+                                    "ResizeOption": "FIXED",
+                                    "OptimizedViewPortWidth": "1600px"
+                                }
+                            }
+                        }
+                    }
+                }
+            ],
+            "ContentType": "INTERACTIVE"
+        }
+    ],
+    "CalculatedFields": [],
+    "ParameterDeclarations": [],
+    "FilterGroups": [],
+    "AnalysisDefaults": {
+        "DefaultNewSheetConfiguration": {
+            "InteractiveLayoutConfiguration": {
+                "Grid": {
+                    "CanvasSizeOptions": {
+                        "ScreenCanvasSizeOptions": {
+                            "ResizeOption": "FIXED",
+                            "OptimizedViewPortWidth": "1600px"
+                        }
+                    }
+                }
+            },
+            "SheetContentType": "INTERACTIVE"
+        }
+    },
+    "Options": {"WeekStart": "SUNDAY"}
+}

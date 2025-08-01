@@ -1,0 +1,13 @@
+[project]
+name = "aws-quicksight-dashboards-mcp-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.39.7",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.11.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+]

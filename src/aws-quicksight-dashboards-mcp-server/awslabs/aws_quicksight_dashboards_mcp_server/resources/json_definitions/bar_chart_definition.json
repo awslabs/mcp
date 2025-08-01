@@ -1,0 +1,32 @@
+{
+    "BarChartVisual": {
+        "VisualId": "",
+        "Title": {"Visibility": "VISIBLE"},
+        "Subtitle": {"Visibility": "VISIBLE"},
+        "ChartConfiguration": {
+            "FieldWells": {
+                "BarChartAggregatedFieldWells": {"Category": [], "Values": [], "Colors": []}
+            },
+            "SortConfiguration": {
+                "CategorySort": [],
+                "CategoryItemsLimit": {"OtherCategories": "INCLUDE"},
+                "ColorItemsLimit": {"OtherCategories": "INCLUDE"},
+                "SmallMultiplesLimitConfiguration": {"OtherCategories": "INCLUDE"}
+            },
+            "Orientation": "VERTICAL",
+            "BarsArrangement": "CLUSTERED",
+            "DataLabels": {"Visibility": "HIDDEN", "Overlap": "DISABLE_OVERLAP"},
+            "Tooltip": {
+                "TooltipVisibility": "VISIBLE",
+                "SelectedTooltipType": "DETAILED",
+                "FieldBasedTooltip": {
+                    "AggregationVisibility": "HIDDEN",
+                    "TooltipTitleType": "PRIMARY_VALUE",
+                    "TooltipFields": []
+                }
+            }
+        },
+        "Actions": [],
+        "ColumnHierarchies": []
+    }
+}
