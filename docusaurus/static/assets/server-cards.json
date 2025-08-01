@@ -695,6 +695,23 @@
       ]
     },
     {
+      "category": "Data & Analytics",
+      "description": "Create dashboards in QuickSight using natural language",
+      "icon": "\ud83d\udcca",
+      "id": "aws-quicksight-dashboards-mcp-server",
+      "name": "AWS QuickSight Dashboards MCP Server",
+      "source_path": "src/aws-quicksight-dashboards-mcp-server/",
+      "subcategory": "Content Processing & Generation",
+      "tags": [
+        "data-analytics",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Developer Tools & Support",
       "description": "Semantic code search and repository analysis",
       "icon": "\ud83d\udee0\ufe0f",
