@@ -14,62 +14,36 @@
 
 
 def handle_aws_api_error(e: Exception) -> Exception:
-    """Handle common AWS API errors and return standardized error responses.
+    """Handle AWS API errors using boto3's built-in exception information.
+
+    Leverages boto3's structured error handling as documented at:
+    https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
 
     Args:
         e: The exception that was raised
-        resource_type: Optional resource type related to the error
-        identifier: Optional resource identifier related to the error
 
     Returns:
-        Standardized error response dictionary
+        Standardized ClientError with AWS error details
     """
-    print('performing error mapping for an AWS exception')
-    error_message = str(e)
-    error_type = 'UnknownError'
+    # Import boto3 exceptions for proper type checking
+    from botocore.exceptions import ClientError as BotocoreClientError
+    from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 
-    # Extract error type from AWS exceptions if possible
-    if hasattr(e, 'response') and 'Error' in getattr(e, 'response', {}):
-        error_type = e.response['Error'].get('Code', 'UnknownError')  # pyright: ignore[reportAttributeAccessIssue]
-
-    # Handle common AWS error patterns
-    if 'AccessDenied' in error_message or error_type == 'AccessDeniedException':
-        return ClientError('Access denied. Please check your AWS credentials and permissions.')
-    elif 'IncompleteSignature' in error_message:
+    # Handle boto3's structured exceptions directly
+    if isinstance(e, BotocoreClientError):
+        # boto3 ClientError already has structured error information
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        return ClientError(f'AWS API Error ({error_code}): {error_message}')
+    elif isinstance(e, NoCredentialsError):
+        return ClientError('AWS credentials not found. Please configure your AWS credentials.')
+    elif isinstance(e, PartialCredentialsError):
         return ClientError(
-            'Incomplete signature. The request signature does not conform to AWS standards.'
+            'Incomplete AWS credentials. Please check your AWS credential configuration.'
         )
-    elif 'InvalidAction' in error_message:
-        return ClientError(
-            'Invalid action. The action or operation requested is invalid. Verify that the action is typed correctly.'
-        )
-    elif 'InvalidClientTokenId' in error_message:
-        return ClientError(
-            'Invalid client token id. The X.509 certificate or AWS access key ID provided does not exist in our records.'
-        )
-    elif 'NotAuthorized' in error_message:
-        return ClientError('Not authorized. You do not have permission to perform this action.')
-    elif 'ValidationException' in error_message or error_type == 'ValidationException':
-        return ClientError('Validation error. Please check your input parameters.')
-    elif 'ResourceNotFoundException' in error_message or error_type == 'ResourceNotFoundException':
-        return ClientError('Resource was not found')
-    elif (
-        'UnsupportedActionException' in error_message or error_type == 'UnsupportedActionException'
-    ):
-        return ClientError('This action is not supported for this resource type.')
-    elif 'InvalidPatchException' in error_message:
-        return ClientError(
-            'The patch document provided contains errors or is not RFC 6902 compliant.'
-        )
-    elif 'ThrottlingException' in error_message or error_type == 'ThrottlingException':
-        return ClientError('Request was throttled. Please reduce your request rate.')
-    elif 'InternalFailure' in error_message or error_type == 'InternalFailure':
-        return ServerError('Internal failure. The server failed to process the request.')
-    elif 'ServiceUnavailable' in error_message or error_type == 'ServiceUnavailable':
-        return ServerError('Service unavailable. The server failed to process the request.')
     else:
-        # Generic error handling - we might shift to this for everything eventually since it gives more context to the LLM, will have to test
-        return ClientError(f'An error occurred: {error_message}')
+        # Fallback for other exceptions
+        return ClientError(f'An error occurred: {str(e)}')
 
 
 class ClientError(Exception):
@@ -86,9 +60,8 @@ class ClientError(Exception):
 class ServerError(Exception):
     """An error that indicates that there was an issue processing the request."""
 
-    def __init__(self, log):
-        """Call super."""
-        # Call the base class constructor with the parameters it needs
-        super().__init__('An internal error occurred while processing your request')
-        print(log)
+    def __init__(self, message: str):
+        """Initialize ServerError with message."""
+        super().__init__(message)
         self.type = 'server'
+        self.message = message

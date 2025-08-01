@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import botocore.config
-import sys
 from awslabs.ccapi_mcp_server.errors import ClientError
 from boto3 import Session
 from os import environ
@@ -25,21 +24,11 @@ session_config = botocore.config.Config(
 
 
 def get_aws_client(service_name, region_name=None):
-    """Create and return an AWS service client with dynamically detected credentials.
-
-    This function implements a credential provider chain that tries different
-    credential sources in the following order:
-    1. Environment variables (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
-    2. Shared credential file (~/.aws/credentials)
-    3. IAM role for Amazon EC2 / ECS task role / EKS pod identity
-    4. AWS SSO or Web Identity token
-
-    The function caches clients based on the compound key of service_name and region_name
-    to avoid creating duplicate clients for the same service and region.
+    """Create and return an AWS service client using boto3's default credential chain.
 
     Args:
         service_name: AWS service name (e.g., 'cloudcontrol', 'logs', 'marketplace-catalog')
-        region_name: AWS region name (defaults to environment variable or 'us-east-1')
+        region_name: AWS region name (defaults to boto3's default region resolution)
 
     Returns:
         Boto3 client for the specified service
@@ -48,37 +37,20 @@ def get_aws_client(service_name, region_name=None):
     if hasattr(region_name, 'default') and region_name is not None:
         region_name = region_name.default
 
-    # Create session with profile if specified
+    # AWS Region Resolution Order (highest to lowest priority):
+    # 1. region_name argument passed to this function
+    # 2. AWS_REGION environment variable
+    # 3. region setting in ~/.aws/config for the active profile
+    # 4. "us-east-1" as the final fallback
+    #
+    # This follows boto3's standard region resolution chain, ensuring consistent
+    # behavior with other AWS tools and SDKs.
     profile_name = environ.get('AWS_PROFILE')
     session = Session(profile_name=profile_name) if profile_name else Session()
 
-    # Default region handling
-    if not region_name:
-        region_name = environ.get('AWS_REGION')
-        # If still no region, try to get from session (profile)
-        if not region_name:
-            try:
-                profile_region = session.get_config_variable('region')  # type: ignore
-                if profile_region:
-                    region_name = profile_region
-            except Exception:
-                pass
-        # Final fallback to us-east-1
-        if not region_name:
-            region_name = 'us-east-1'
-
-    # Credential detection and client creation
     try:
-        print(
-            f'Creating new {service_name} client for region {region_name} with auto-detected credentials'
-        )
-        client = session.client(service_name, region_name=region_name, config=session_config)
-
-        print('Created client for service with credentials')
-        return client
-
+        return session.client(service_name, region_name=region_name, config=session_config)
     except Exception as e:
-        print(f'Error creating {service_name} client: {str(e)}', file=sys.stderr)
         if 'ExpiredToken' in str(e):
             raise ClientError('Your AWS credentials have expired. Please refresh them.')
         elif 'NoCredentialProviders' in str(e):

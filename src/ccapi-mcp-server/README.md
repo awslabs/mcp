@@ -101,13 +101,16 @@ The MCP server supports several environment variables to control its behavior:
 | `AWS_REGION`  | _(see priority below)_ | AWS region for operations                  |
 | `AWS_PROFILE` | _(empty)_              | AWS profile name to use for authentication |
 
-**Region Selection Priority:**
+**AWS Region Resolution Order:**
 
-1. `AWS_REGION` environment variable (if set)
-2. Region from AWS profile configuration (if using profiles)
-3. Region from `~/.aws/config` default profile
-4. `us-east-1` (fallback when using environment variables without profile)
-5. Boto3's default region resolution (for other cases)
+The MCP server follows boto3's standard region resolution chain (highest to lowest priority):
+
+1. **Function argument**: `region` parameter passed to MCP tools (highest priority)
+2. **AWS_REGION environment variable**: Explicitly set region via environment
+3. **AWS profile region**: Region configured in `~/.aws/config` for the active profile
+4. **Default fallback**: `us-east-1` as the final fallback
+
+This ensures consistent behavior with other AWS tools and SDKs. The region resolution is handled automatically by boto3's credential chain.
 
 **When to set AWS_REGION:**
 

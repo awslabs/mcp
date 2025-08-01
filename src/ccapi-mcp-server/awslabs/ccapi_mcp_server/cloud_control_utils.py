@@ -18,6 +18,8 @@ from typing import Any, Dict
 
 def add_default_tags(properties: Dict, schema: Dict) -> Dict:
     """Add default tags to resource properties. Always tries to add tags - let AWS reject if unsupported."""
+    # Return empty dict when properties is None or empty dict {}
+    # This prevents processing invalid/missing resource properties
     if not properties:
         return {}
 

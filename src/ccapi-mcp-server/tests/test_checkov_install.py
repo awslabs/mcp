@@ -1,7 +1,7 @@
 """Tests for Checkov availability check."""
 
 import subprocess
-from awslabs.ccapi_mcp_server.server import _check_checkov_installed
+from awslabs.ccapi_mcp_server.impl.tools.security_scanning import _check_checkov_installed
 from unittest.mock import MagicMock, patch
 
 
