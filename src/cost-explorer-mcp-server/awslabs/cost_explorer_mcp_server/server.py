@@ -71,7 +71,7 @@ SERVER_INSTRUCTIONS = """
 """
 
 # Create FastMCP server with instructions
-app = FastMCP(title='Cost Explorer MCP Server', instructions=SERVER_INSTRUCTIONS)
+app = FastMCP(name='Cost Explorer MCP Server', instructions=SERVER_INSTRUCTIONS)
 
 # Register all tools with the app
 app.tool('get_today_date')(get_today_date)
