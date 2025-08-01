@@ -44,14 +44,33 @@ logger.debug(f'CloudWatch AppSignals MCP Server initialized with log level: {log
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 logger.debug(f'Using AWS region: {AWS_REGION}')
 
-# Initialize AWS clients with logging
-try:
+
+# Initialize AWS clients
+def _initialize_aws_clients():
+    """Initialize AWS clients with proper configuration."""
     config = Config(user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}')
-    logs_client = boto3.client('logs', region_name=AWS_REGION, config=config)
-    appsignals_client = boto3.client('application-signals', region_name=AWS_REGION, config=config)
-    cloudwatch_client = boto3.client('cloudwatch', region_name=AWS_REGION, config=config)
-    xray_client = boto3.client('xray', region_name=AWS_REGION, config=config)
+
+    # Check for AWS_PROFILE environment variable
+    if aws_profile := os.environ.get('AWS_PROFILE'):
+        logger.debug(f'Using AWS profile: {aws_profile}')
+        session = boto3.Session(profile_name=aws_profile, region_name=AWS_REGION)
+        logs = session.client('logs', config=config)
+        appsignals = session.client('application-signals', config=config)
+        cloudwatch = session.client('cloudwatch', config=config)
+        xray = session.client('xray', config=config)
+    else:
+        logs = boto3.client('logs', region_name=AWS_REGION, config=config)
+        appsignals = boto3.client('application-signals', region_name=AWS_REGION, config=config)
+        cloudwatch = boto3.client('cloudwatch', region_name=AWS_REGION, config=config)
+        xray = boto3.client('xray', region_name=AWS_REGION, config=config)
+
     logger.debug('AWS clients initialized successfully')
+    return logs, appsignals, cloudwatch, xray
+
+
+# Initialize clients at module level
+try:
+    logs_client, appsignals_client, cloudwatch_client, xray_client = _initialize_aws_clients()
 except Exception as e:
     logger.error(f'Failed to initialize AWS clients: {str(e)}')
     raise
