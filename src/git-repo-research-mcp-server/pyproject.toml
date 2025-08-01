@@ -17,6 +17,9 @@ dependencies = [
     "langchain_community>=0.3.20",
     "requests>=2.32.0",
     "h11>=0.16.0",
+    "fastapi>=0.116.1",
+    "greenlet==3.2.3",
+    "fastmcp>=2.10.5",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -140,3 +143,6 @@ filterwarnings = [
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.uv.entrypoints]
+gitrepo = "awslabs.git_repo_research_mcp_server.server:main"

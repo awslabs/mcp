@@ -42,7 +42,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
 from dotenv import load_dotenv
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Dict, Optional
 
@@ -50,6 +50,14 @@ from typing import Any, Dict, Optional
 # Configure loguru
 logger.remove()
 logger.add(sys.stderr, level=os.getenv(ENV_LOG_LEVEL, 'INFO'))
+
+load_dotenv()  # load .env values into os.environ
+DEFAULT_PORT = 8054
+DEFAULT_HOST = "0.0.0.0"
+
+transport = os.getenv("TRANSPORT", "streamable-http")
+host = os.getenv("HOST", DEFAULT_HOST)
+port = int(os.getenv("PROMETHEUS_PORT", DEFAULT_PORT))
 
 
 class ConfigManager:
@@ -476,11 +484,11 @@ async def get_workspace_details(
 @mcp.tool(name='ExecuteQuery')
 async def execute_query(
     ctx: Context,
+    query: str = Field(..., description='The PromQL query to execute'),
     workspace_id: Optional[str] = Field(
         None,
         description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
     ),
-    query: str = Field(..., description='The PromQL query to execute'),
     time: Optional[str] = Field(
         None, description='Optional timestamp for query evaluation (RFC3339 or Unix timestamp)'
     ),
@@ -562,15 +570,15 @@ async def execute_query(
 @mcp.tool(name='ExecuteRangeQuery')
 async def execute_range_query(
     ctx: Context,
-    workspace_id: Optional[str] = Field(
-        None,
-        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
-    ),
     query: str = Field(..., description='The PromQL query to execute'),
     start: str = Field(..., description='Start timestamp (RFC3339 or Unix timestamp)'),
     end: str = Field(..., description='End timestamp (RFC3339 or Unix timestamp)'),
     step: str = Field(
         ..., description="Query resolution step width (duration format, e.g. '15s', '1m', '1h')"
+    ),
+    workspace_id: Optional[str] = Field(
+        None,
+        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
     ),
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
     profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
@@ -1094,9 +1102,12 @@ def main():
     logger.info('Starting server...')
 
     # Run with stdio transport
-    try:
-        logger.info('Starting with stdio transport...')
-        mcp.run(transport='stdio')
+    try:  
+        if transport == "stdio":
+            logger.info('Starting with stdio transport...')
+            mcp.run(transport=transport)
+        elif transport == "streamable-http" or transport == "http":
+            mcp.run(transport=transport, host=host, port=port)
     except Exception as e:
         logger.error(f'Error starting server with stdio transport: {e}')
         sys.exit(1)
