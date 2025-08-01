@@ -56,7 +56,7 @@ class KnowledgeBase:
         # Load the RAG model in background to avoid doing it at runtime when the tools are invoked
         if self.rag is not None:
             rag = self.rag
-            logger.info('Starting background process to load embedding model.')
+            logger.info('Starting background process to load embedding model')
             threading.Thread(target=lambda: rag.model, daemon=True).start()
 
     def get_suggestions(self, query: str, **kwargs):

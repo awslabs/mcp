@@ -56,7 +56,7 @@ class DenseRetriever:
     def model(self):
         """Return the sentence transformer model."""
         if self._model is None:
-            logger.info('Loading embedding model..')
+            logger.info('Loading embedding model...')
             from sentence_transformers import SentenceTransformer
 
             models_dir = get_server_directory() / 'models' / self.model_name
