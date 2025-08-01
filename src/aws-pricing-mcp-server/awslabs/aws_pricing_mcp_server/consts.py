@@ -25,6 +25,7 @@ MCP_SERVER_NAME = 'awslabs.aws-pricing-mcp-server'
 # Environment parameters
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 AWS_PROFILE = os.environ.get('AWS_PROFILE')
+PRICING_ENDPOINT = os.environ.get('PRICING_ENDPOINT')
 LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'WARNING')
 
 # Supported AWS Pricing API regions
