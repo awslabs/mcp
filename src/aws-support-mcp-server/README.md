@@ -38,7 +38,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "awslabs_support_mcp_server": {
          "command": "uvx",
          "args": [
-            "-m", "awslabs.aws-support-mcp-server@latest",
+            "awslabs.aws-support-mcp-server@latest",
             "--debug",
             "--log-file",
             "./logs/mcp_support_server.log"
