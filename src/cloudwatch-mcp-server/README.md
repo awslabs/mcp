@@ -16,6 +16,8 @@ Metric Definition Analyzer - Provides comprehensive descriptions of what metrics
 
 Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch metrics, including thresholds, evaluation periods, and other alarm settings.
 
+Dashboard Configuration Retrieval - Retrieves CloudWatch dashboard configurations and content, allowing AI agents to understand dashboard layouts, widgets, and their configurations for troubleshooting and analysis purposes.
+
 ## Prerequisites
 1. An AWS account with [CloudWatch Telemetry](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html)
 2. This MCP server can only be run locally on the same host as your LLM client.
@@ -41,11 +43,15 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 * `get_logs_insight_query_results` - Retrieves the results of an executed CloudWatch insights query using the query ID. It is used after `execute_log_insights_query` has been called
 * `cancel_logs_insight_query` - Cancels in progress CloudWatch logs insights query
 
+### Tools for CloudWatch Dashboards
+* `get_dashboard` - Retrieves CloudWatch dashboard configuration and content, including widget layouts and their configurations
+
 ### Required IAM Permissions
 * `cloudwatch:DescribeAlarms`
 * `cloudwatch:DescribeAlarmHistory`
 * `cloudwatch:GetMetricData`
 * `cloudwatch:ListMetrics`
+* `cloudwatch:GetDashboard`
 
 * `logs:DescribeLogGroups`
 * `logs:DescribeQueryDefinitions`
