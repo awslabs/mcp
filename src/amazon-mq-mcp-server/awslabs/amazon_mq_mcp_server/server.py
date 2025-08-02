@@ -23,34 +23,67 @@ from typing import Any, Dict, List
 
 # override create_broker tool to tag resources
 def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, _: str):
-    """Create a ActiveMQ or RabbitMQ broker on AmazonMQ."""
+    """Override broker creation behaviour."""
 
     @mcp.tool()
     def create_broker(
+        region: str,
         broker_name: str,
         engine_type: str,
-        engine_version: str,
-        host_instance_type: str,
         deployment_mode: str,
-        publicly_accessible: bool,
-        auto_minor_version_upgrade: bool,
-        users: List[Dict[str, str]],
-        region: str = 'us-east-1',
+        users: List[Dict[str, str]] = [
+            {
+                'ConsoleAccess': True,
+                'Password': 'temp-password',  # pragma: allowlist secret
+                'Username': 'temp-user',
+            }
+        ],
+        engine_version: str = None,
+        publicly_accessible: bool = True,
+        host_instance_type: str = 'mq.m5.xlarge',
     ):
-        """Create a ActiveMQ or RabbitMQ broker on AmazonMQ."""
+        """Create a ActiveMQ or RabbitMQ broker on AmazonMQ.
+
+        Args:
+            region: AWS region code (e.g., 'us-east-1', 'eu-west-1').
+            broker_name: The name given to the broker.
+            engine_type: The engine type of the broker. Possible values: "RABBITMQ" and "ACTIVEMQ".
+            deployment_mode: The broker deployment mode. Possible values for ACTIVEMQ engine type: SINGLE_INSTANCE, ACTIVE_STANDBY_MULTI_AZ and possible values for RABBITMQ engine type: SINGLE_INSTANCE, CLUSTER_MULTI_AZ.
+            users: The list of broker users (persons or applications) who can access queues and topics. For Amazon MQ for RabbitMQ brokers, one and only one administrative user is accepted and created when a broker is first provisioned. All subsequent broker users are created by making RabbitMQ API calls directly to brokers or via the RabbitMQ web console.
+            It has the following structure:
+            [
+                {
+                    "ConsoleAccess": true|false,
+                    "Groups": ["string", ...],
+                    "Password": str,
+                    "Username": str,
+                    "ReplicationUser": true|false
+                }
+                ...
+            ]
+            engine_version: The broker engine version. Defaults to the latest available version for the specified broker engine type. It should also be unspecified to use the latest version.
+            publicly_accessible: Enables connections from applications outside of the VPC that hosts the broker's subnets. Default to True for publicly accessible broker.
+            host_instance_type: The broker instance type. Default to production-ready instance type "mq.m5.xlarge".
+
+        Returns:
+            Response from API
+
+        """
         create_params = {
             'BrokerName': broker_name,
             'EngineType': engine_type,
-            'EngineVersion': engine_version,
             'HostInstanceType': host_instance_type,
             'DeploymentMode': deployment_mode,
             'PubliclyAccessible': publicly_accessible,
-            'AutoMinorVersionUpgrade': auto_minor_version_upgrade,
+            'AutoMinorVersionUpgrade': True,
             'Users': users,
             'Tags': {
                 'mcp_server_version': MCP_SERVER_VERSION,
             },
         }
+        if engine_version is not None:
+            create_params['EngineVersion'] = engine_version
+
         mq_client = mq_client_getter(region)
         response = mq_client.create_broker(**create_params)
         return response
@@ -91,7 +124,7 @@ def allow_mutative_action_only_on_tagged_resource(
         broker_info = mq_client.describe_broker(BrokerId=broker_id)
         tags = broker_info.get('Tags')
         if 'mcp_server_version' not in tags:
-            return False, 'mutating a resource without the mcp_server_version tag is not allowed'
+            return False, 'mutating a resource that was not created by AI is forbidden'
         return True, ''
     except Exception as e:
         return False, str(e)
