@@ -22,6 +22,7 @@ from awslabs.finch_mcp_server.server import (
     finch_build_container_image,
     finch_create_ecr_repo,
     finch_push_image,
+    main,
     sensitive_data_filter,
     set_enable_aws_resource_write,
 )
@@ -869,28 +870,25 @@ class TestMainFunctionLogging:
     @patch.dict(os.environ, {'FINCH_MCP_LOG_FILE': '/custom/test.log'})
     @patch('awslabs.finch_mcp_server.server.logger')
     @patch('awslabs.finch_mcp_server.server.mcp')
+    @patch('sys.argv', ['finch-mcp-server'])
     def test_main_logs_custom_file_path(self, mock_mcp, mock_logger):
         """Test main function logs custom file path correctly."""
-        from awslabs.finch_mcp_server.server import main
-
         main()
         mock_logger.info.assert_any_call('Logging to stderr and file: /custom/test.log')
 
     @patch.dict(os.environ, {'FINCH_DISABLE_FILE_LOGGING': 'true'})
     @patch('awslabs.finch_mcp_server.server.logger')
     @patch('awslabs.finch_mcp_server.server.mcp')
+    @patch('sys.argv', ['finch-mcp-server'])
     def test_main_logs_stderr_only(self, mock_mcp, mock_logger):
         """Test main function logs stderr-only mode correctly."""
-        from awslabs.finch_mcp_server.server import main
-
         main()
         mock_logger.warning.assert_any_call('Logging to stderr only')
 
     @patch('awslabs.finch_mcp_server.server.logger')
     @patch('awslabs.finch_mcp_server.server.mcp')
+    @patch('sys.argv', ['finch-mcp-server'])
     def test_main_logs_default_logging(self, mock_mcp, mock_logger):
         """Test main function logs default logging mode correctly."""
-        from awslabs.finch_mcp_server.server import main
-
         main()
         mock_logger.info.assert_any_call('Logging to stderr and default logging file')
