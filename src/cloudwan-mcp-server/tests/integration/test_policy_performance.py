@@ -30,6 +30,18 @@ from awslabs.cloudwan_mcp_server.server import (
     get_core_network_change_set, analyze_segment_routes
 )
 
+# Edge region configurations for performance testing
+EDGE_REGIONS = [
+    "us-east", "us-west", "eu-west", "eu-central", "ap-southeast", "ap-northeast", 
+    "ap-south", "ca-central", "sa-east", "af-south", "me-south", "ap-east", 
+    "eu-north", "eu-south", "us-gov-east", "us-gov-west", "cn-north", 
+    "cn-northwest", "ap-southeast", "ap-northeast", "eu-west", "us-west", 
+    "us-east", "ap-south", "ca-central"
+]
+
+# AWS region names with numbers for testing
+AWS_REGIONS = ["us-east-1", "us-west-2", "eu-west-1"]
+
 
 class TestLargePolicyDocumentParsing:
     """Test parsing performance with 10MB+ policy documents."""
@@ -56,7 +68,7 @@ class TestLargePolicyDocumentParsing:
             for az_idx in range(8):  # 8 AZs per region
                 for instance_idx in range(5):  # 5 instances per AZ
                     edge_location = {
-                        'location': f'{["us-east", "us-west", "eu-west", "eu-central", "ap-southeast", "ap-northeast", "ap-south", "ca-central", "sa-east", "af-south", "me-south", "ap-east", "eu-north", "eu-south", "us-gov-east", "us-gov-west", "cn-north", "cn-northwest", "ap-southeast", "ap-northeast", "eu-west", "us-west", "us-east", "ap-south", "ca-central"][region_idx]}-{az_idx + 1}',
+                        'location': f'{EDGE_REGIONS[region_idx]}-{az_idx + 1}',
                         'asn': 64512 + (region_idx * 1000) + (az_idx * 100) + instance_idx,
                         'inside-cidr-blocks': [f'169.254.{region_idx}.{az_idx * 32 + instance_idx * 4}/30'],
                         'tags': {
@@ -84,7 +96,7 @@ class TestLargePolicyDocumentParsing:
                 ],
                 'deny-filter': [f'192.168.{segment_idx % 256}.0/24'] if segment_idx % 7 == 0 else [],
                 'edge-locations': [
-                    f'{["us-east", "us-west", "eu-west"][segment_idx % 3]}-{(segment_idx % 8) + 1}'
+                    f'{EDGE_REGIONS[segment_idx % 3]}-{(segment_idx % 8) + 1}'
                 ],
                 'tags': {
                     'SegmentId': f'seg-{segment_idx:06d}',
@@ -155,7 +167,7 @@ class TestLargePolicyDocumentParsing:
                     },
                     {
                         'type': 'region',
-                        'value': f'{["us-east-1", "us-west-2", "eu-west-1"][policy_idx % 3]}',
+                        'value': f'{AWS_REGIONS[policy_idx % 3]}',
                         'operator': 'equals'
                     }
                 ],

@@ -23,6 +23,8 @@ from typing import Dict, Any, List, Optional, Union
 from unittest.mock import Mock
 from botocore.exceptions import ClientError
 import pytest
+import random
+import string
 
 
 class SecurityError(Exception):
@@ -427,8 +429,6 @@ class AWSErrorCatalog:
     @classmethod
     def _generate_safe_id(cls) -> str:
         """Generate safe test request ID without system information exposure."""
-        import random
-        import string
         return ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
     
     @classmethod

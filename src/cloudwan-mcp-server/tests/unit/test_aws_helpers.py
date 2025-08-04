@@ -25,6 +25,9 @@ from awslabs.cloudwan_mcp_server.server import (
     get_aws_client, handle_aws_error, _create_client
 )
 
+# Cache capacity constant to match server configuration (@lru_cache(maxsize=10))
+CACHE_CAPACITY = 10
+
 
 class TestGetAWSClient:
     """Test get_aws_client utility function following AWS Labs patterns."""
