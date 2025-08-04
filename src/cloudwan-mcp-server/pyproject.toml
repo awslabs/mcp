@@ -7,6 +7,7 @@ version = "0.0.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for CloudWAN network analysis and troubleshooting"
 readme = "README.md"
 requires-python = ">=3.11"
+keywords = ["aws", "cloudwan", "networking", "mcp", "model-context-protocol", "network-analysis", "troubleshooting", "transit-gateway", "vpc", "awslabs"]
 dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.6.0",
@@ -23,6 +24,9 @@ authors = [
     {name = "NetDevAutomate", email="NetDevAutomate@users.noreply.github.com"},
 ]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
@@ -30,6 +34,10 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Systems Administration",
 ]
 
 [project.urls]

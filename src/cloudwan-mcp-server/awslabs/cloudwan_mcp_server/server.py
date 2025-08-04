@@ -15,6 +15,7 @@
 import json
 import os
 import sys
+import threading
 from datetime import datetime
 from typing import Dict, List, Optional, TypedDict
 from functools import lru_cache
@@ -24,7 +25,34 @@ import loguru
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import FastMCP
-from .config_manager import config_persistence
+from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    from .config_manager import config_persistence
+except ImportError:
+    # Fallback for missing config_manager
+    config_persistence = None
+
+
+class AWSConfig(BaseSettings):
+    """Secure AWS configuration using pydantic-settings for environment variable validation."""
+    
+    default_region: str = "us-east-1"
+    profile: Optional[str] = None
+    
+    model_config = SettingsConfigDict(
+        env_prefix='AWS_',
+        env_file='.env',
+        env_file_encoding='utf-8',
+        case_sensitive=False,
+        extra='ignore'
+    )
+
+
+# Global secure config instance
+aws_config = AWSConfig()
+
+# Thread safety for client caching
+_client_lock = threading.Lock()
 
 
 class ContentItem(TypedDict):
@@ -89,12 +117,12 @@ def _create_client(service: str, region: str, profile: Optional[str] = None) -> 
 
 def get_aws_client(service: str, region: Optional[str] = None) -> boto3.client:
     """Get AWS client with caching and standard configuration."""
-    region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-    profile = os.getenv("AWS_PROFILE")
-    cache_key = f"{service}:{region}:{profile or 'default'}"
-
-    # Use the thread-safe LRU cache
-    return _create_client(service, region, profile)
+    region = region or aws_config.default_region
+    profile = aws_config.profile
+    
+    # Thread-safe client creation with lock
+    with _client_lock:
+        return _create_client(service, region, profile)
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -110,21 +138,129 @@ def safe_json_dumps(obj, **kwargs):
     return json.dumps(obj, cls=DateTimeEncoder, **kwargs)
 
 
+def sanitize_error_message(message: str) -> str:
+    """Remove sensitive information from error messages."""
+    import re
+    # Comprehensive patterns for credential and sensitive data sanitization
+    patterns = [
+        # IP addresses
+        (r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', '[IP_REDACTED]'),
+        # AWS ARNs (including S3 ARNs without account numbers)
+        (r'arn:aws:[a-z0-9-]+:[a-z0-9-]*:\d{12}:[^"\s]+', '[ARN_REDACTED]'),
+        (r'arn:aws:[a-z0-9-]+:[a-z0-9-]*::[^"\s]+', '[ARN_REDACTED]'),
+        # UUIDs and similar identifiers
+        (r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', '[UUID_REDACTED]'),
+        # AWS Access Keys (various formats)
+        (r'AccessKey[a-zA-Z]*\s*[:=]\s*[A-Z0-9]{16,32}', '[ACCESS_KEY_REDACTED]'),
+        (r'AKIA[0-9A-Z]{16}', '[ACCESS_KEY_REDACTED]'),
+        # AWS Secret Keys (more specific pattern to avoid false positives)
+        (r'SecretKey[a-zA-Z]*\s*[:=]\s*[A-Za-z0-9+/]{40}', '[SECRET_KEY_REDACTED]'),
+        (r'secret[_\s]*[:=]\s*[A-Za-z0-9+/]{40}', 'secret=[SECRET_KEY_REDACTED]'),
+        # AWS Session Tokens
+        (r'SessionToken[a-zA-Z]*\s*[:=]\s*[A-Za-z0-9+/=]{100,}', '[SESSION_TOKEN_REDACTED]'),
+        # Environment variable values
+        (r'AWS_[A-Z_]+\s*[:=]\s*[^\s"\']+', 'AWS_[VARIABLE_REDACTED]'),
+        # File paths containing credentials
+        (r'/[^\s]*\.aws[^\s]*credentials[^\s]*', '[CREDENTIAL_PATH_REDACTED]'),
+        (r'~/\.aws[^\s]*', '[AWS_CONFIG_PATH_REDACTED]'),
+        # Profile names and regions in context that might reveal infrastructure
+        (r'Profile\s+[a-zA-Z0-9-]+', 'Profile [PROFILE_REDACTED]'),
+        (r'profile[_\s]*[:=]\s*[a-zA-Z0-9-]+', 'profile=[PROFILE_REDACTED]'),
+        (r'region[_\s]*[:=]\s*[a-zA-Z0-9-]+', 'region=[REGION_REDACTED]'),
+        # Account numbers
+        (r'\b\d{12}\b', '[ACCOUNT_REDACTED]'),
+        # Generic credentials patterns
+        (r'(password|pwd|secret|key|token)\s*[:=]\s*[^\s"\']+', r'\1=[CREDENTIAL_REDACTED]'),
+    ]
+    
+    sanitized = message
+    for pattern, replacement in patterns:
+        sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
+    
+    return sanitized
+
+
+def secure_environment_update(key: str, value: str) -> bool:
+    """Securely update environment variable with validation and logging protection.
+    
+    Args:
+        key: Environment variable key
+        value: Environment variable value
+        
+    Returns:
+        True if update successful, False otherwise
+    """
+    import re
+    
+    # Validate key format
+    if not re.match(r'^[A-Z_][A-Z0-9_]*$', key):
+        logger.warning(f"Invalid environment variable key format: {sanitize_error_message(key)}")
+        return False
+    
+    # Validate AWS-specific keys
+    if key in ['AWS_PROFILE', 'AWS_DEFAULT_REGION']:
+        if key == 'AWS_PROFILE' and not re.match(r'^[a-zA-Z0-9-_]+$', value):
+            logger.warning("Invalid AWS profile format - rejected")
+            return False
+        elif key == 'AWS_DEFAULT_REGION' and not re.match(r'^[a-z0-9\-]+$', value):
+            logger.warning("Invalid AWS region format - rejected")
+            return False
+    
+    try:
+        # Update environment variable
+        os.environ[key] = value
+        
+        # Log update without exposing values
+        if key in ['AWS_PROFILE', 'AWS_DEFAULT_REGION']:
+            logger.info(f"Environment variable {key} updated successfully")
+        else:
+            logger.info(f"Environment variable {sanitize_error_message(key)} updated")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to update environment variable {sanitize_error_message(key)}: {sanitize_error_message(str(e))}")
+        return False
+
+def get_error_status_code(error: Exception) -> int:
+    """Map exceptions to appropriate HTTP status codes."""
+    if isinstance(error, ClientError):
+        aws_code = error.response.get('Error', {}).get('Code', '')
+        if aws_code in ['AccessDenied', 'UnauthorizedOperation']:
+            return 403
+        elif aws_code in ['InvalidParameter', 'ValidationException']:
+            return 400
+        elif aws_code in ['ResourceNotFound', 'NoSuchResource']:
+            return 404
+        else:
+            return 500
+    elif isinstance(error, ValueError):
+        return 400
+    else:
+        return 500
+
 def handle_aws_error(e: Exception, operation: str) -> str:
-    """Handle AWS errors with standard JSON response format."""
+    """Handle AWS errors with secure, standardized JSON response format."""
+    status_code = get_error_status_code(e)
+    
     if isinstance(e, ClientError):
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', str(e))
+        raw_message = e.response.get('Error', {}).get('Message', str(e))
+        sanitized_message = sanitize_error_message(raw_message)
+        
         return safe_json_dumps({
             "success": False,
-            "error": f"{operation} failed: {error_message}",
-            "error_code": error_code
+            "error": f"{operation} failed: {sanitized_message}",
+            "error_code": error_code,
+            "http_status_code": status_code
         }, indent=2)
     else:
-        # Generic exceptions don't include error_code (per existing test expectations)
+        # Generic exceptions with sanitization
+        sanitized_message = sanitize_error_message(str(e))
         return safe_json_dumps({
             "success": False,
-            "error": f"{operation} failed: {str(e)}"
+            "error": f"{operation} failed: {sanitized_message}",
+            "http_status_code": status_code
         }, indent=2)
 
 
@@ -132,7 +268,7 @@ def handle_aws_error(e: Exception, operation: str) -> str:
 async def trace_network_path(source_ip: str, destination_ip: str, region: Optional[str] = None) -> str:
     """Trace network paths between IPs."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         
         # Basic IP validation
         import ipaddress
@@ -164,7 +300,7 @@ async def trace_network_path(source_ip: str, destination_ip: str, region: Option
 async def list_core_networks(region: Optional[str] = None) -> str:
     """List CloudWAN core networks."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         client = get_aws_client("networkmanager", region)
         
         response = client.list_core_networks()
@@ -195,7 +331,7 @@ async def list_core_networks(region: Optional[str] = None) -> str:
 async def get_global_networks(region: Optional[str] = None) -> str:
     """Discover global networks."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         client = get_aws_client("networkmanager", region)
         
         response = client.describe_global_networks()
@@ -218,7 +354,7 @@ async def get_global_networks(region: Optional[str] = None) -> str:
 async def discover_vpcs(region: Optional[str] = None) -> str:
     """Discover VPCs."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         client = get_aws_client("ec2", region)
         
         response = client.describe_vpcs()
@@ -241,7 +377,7 @@ async def discover_vpcs(region: Optional[str] = None) -> str:
 async def discover_ip_details(ip_address: str, region: Optional[str] = None) -> str:
     """IP details discovery."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         
         # Basic IP validation
         import ipaddress
@@ -308,7 +444,7 @@ async def validate_ip_cidr(operation: str, ip: Optional[str] = None, cidr: Optio
 async def list_network_function_groups(region: Optional[str] = None) -> str:
     """List and discover Network Function Groups."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         
         # Note: This is a simulated response as NFG APIs may vary
         result = {
@@ -340,7 +476,7 @@ async def list_network_function_groups(region: Optional[str] = None) -> str:
 async def analyze_network_function_group(group_name: str, region: Optional[str] = None) -> str:
     """Analyze Network Function Group details and policies."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         
         result = {
             "success": True,
@@ -410,7 +546,7 @@ async def validate_cloudwan_policy(policy_document: Dict) -> str:
 async def manage_tgw_routes(operation: str, route_table_id: str, destination_cidr: str, region: Optional[str] = None) -> str:
     """Manage Transit Gateway routes - list, create, delete, blackhole."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         
         # Validate CIDR
         import ipaddress
@@ -439,7 +575,7 @@ async def manage_tgw_routes(operation: str, route_table_id: str, destination_cid
 async def analyze_tgw_routes(route_table_id: str, region: Optional[str] = None) -> str:
     """Comprehensive Transit Gateway route analysis - overlaps, blackholes, cross-region."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         client = get_aws_client("ec2", region)  # Corrected client creation
 
         response = client.search_transit_gateway_routes(
@@ -476,7 +612,7 @@ async def analyze_tgw_routes(route_table_id: str, region: Optional[str] = None) 
 async def analyze_tgw_peers(peer_id: str, region: Optional[str] = None) -> str:
     """Transit Gateway peering analysis and troubleshooting."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         client = get_aws_client("ec2", region)  # Added region parameter
         
         # Get TGW peering attachment details
@@ -518,7 +654,7 @@ async def analyze_tgw_peers(peer_id: str, region: Optional[str] = None) -> str:
 async def analyze_segment_routes(core_network_id: str, segment_name: str, region: Optional[str] = None) -> str:
     """CloudWAN segment routing analysis and optimization."""
     try:
-        region = region or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        region = region or aws_config.default_region
         client = get_aws_client("networkmanager", region)  # Corrected client creation
         
         # Get core network segments
@@ -647,8 +783,8 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
         global _client_cache
         
         if operation == "get_current":
-            current_profile = os.getenv("AWS_PROFILE", "default")
-            current_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+            current_profile = aws_config.profile or "default"
+            current_region = aws_config.default_region
             
             # Test current configuration
             try:
@@ -691,10 +827,14 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                 identity = sts_client.get_caller_identity()
                 
                 # Set environment variable for future operations
-                os.environ["AWS_PROFILE"] = profile
+                if not secure_environment_update("AWS_PROFILE", profile):
+                    return safe_json_dumps({
+                        "success": False,
+                        "error": "Failed to update AWS_PROFILE environment variable securely"
+                    }, indent=2)
                 
                 # Save configuration persistently
-                current_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+                current_region = aws_config.default_region
                 config_saved = config_persistence.save_current_config(
                     profile, 
                     current_region,
@@ -702,7 +842,8 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                 )
                 
                 # Clear client cache to force reload with new profile
-                _create_client.cache_clear()
+                with _client_lock:
+                    _create_client.cache_clear()
                 
                 result = {
                     "success": True,
@@ -745,7 +886,7 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
             
             # Test region availability
             try:
-                current_profile = os.getenv("AWS_PROFILE")
+                current_profile = aws_config.profile
                 if current_profile:
                     session = boto3.Session(profile_name=current_profile, region_name=region)
                 else:
@@ -764,10 +905,14 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                     }, indent=2)
                 
                 # Set environment variable for future operations
-                os.environ["AWS_DEFAULT_REGION"] = region
+                if not secure_environment_update("AWS_DEFAULT_REGION", region):
+                    return safe_json_dumps({
+                        "success": False,
+                        "error": "Failed to update AWS_DEFAULT_REGION environment variable securely"
+                    }, indent=2)
                 
                 # Save configuration persistently
-                current_profile = os.getenv("AWS_PROFILE", "default")
+                current_profile = aws_config.profile or "default"
                 config_saved = config_persistence.save_current_config(
                     current_profile,
                     region,
@@ -775,7 +920,8 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                 )
                 
                 # Clear client cache to force reload with new region
-                _create_client.cache_clear()
+                with _client_lock:
+                    _create_client.cache_clear()
                 
                 result = {
                     "success": True,
@@ -819,9 +965,18 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                         "error": f"Region '{region}' is not available with profile '{profile}'"
                     }, indent=2)
                 
-                # Set both environment variables
-                os.environ["AWS_PROFILE"] = profile
-                os.environ["AWS_DEFAULT_REGION"] = region
+                # Set both environment variables securely
+                if not secure_environment_update("AWS_PROFILE", profile):
+                    return safe_json_dumps({
+                        "success": False,
+                        "error": "Failed to update AWS_PROFILE environment variable securely"
+                    }, indent=2)
+                
+                if not secure_environment_update("AWS_DEFAULT_REGION", region):
+                    return safe_json_dumps({
+                        "success": False,
+                        "error": "Failed to update AWS_DEFAULT_REGION environment variable securely"
+                    }, indent=2)
                 
                 # Save configuration persistently
                 config_saved = config_persistence.save_current_config(
@@ -835,7 +990,8 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                 )
                 
                 # Clear client cache
-                _create_client.cache_clear()
+                with _client_lock:
+                    _create_client.cache_clear()
                 
                 result = {
                     "success": True,
@@ -859,8 +1015,8 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                 }
         
         elif operation == "validate_config":
-            current_profile = os.getenv("AWS_PROFILE", "default")
-            current_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+            current_profile = aws_config.profile or "default"
+            current_region = aws_config.default_region
             
             validation_results = {}
             
@@ -923,7 +1079,8 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
         
         elif operation == "clear_cache":
             # Clear the LRU cache
-            _create_client.cache_clear()
+            with _client_lock:
+                _create_client.cache_clear()
             
             result = {
                 "success": True,
@@ -956,7 +1113,8 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                     saved_config['aws_profile'], 
                     saved_config['aws_region']
                 )
-                _client_cache.clear()
+                with _client_lock:
+                    _create_client.cache_clear()
                 
                 result = {
                     "success": restored,
@@ -972,9 +1130,11 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                 }
         
         else:
-            result = {
+            return safe_json_dumps({
                 "success": False,
                 "error": f"Unknown operation: {operation}",
+                "error_code": "InvalidOperation",
+                "http_status_code": 400,
                 "supported_operations": [
                     "get_current",
                     "set_profile", 
@@ -986,7 +1146,7 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                     "validate_persistence",
                     "restore_last_config"
                 ]
-            }
+            }, indent=2)
         
         return safe_json_dumps(result, indent=2)
         
@@ -999,12 +1159,12 @@ def main() -> None:
     logger.info("Starting AWS CloudWAN MCP Server...")
     
     # Validate environment
-    region = os.getenv("AWS_DEFAULT_REGION")
+    region = aws_config.default_region
     if not region:
         logger.error("AWS_DEFAULT_REGION environment variable is required")
         sys.exit(1)
     
-    profile = os.getenv("AWS_PROFILE", "default")
+    profile = aws_config.profile or "default"
     logger.info(f"AWS Region: {region}")
     logger.info(f"AWS Profile: {profile}")
     

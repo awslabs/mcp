@@ -146,6 +146,17 @@ class ConfigPersistenceManager:
             True if restored successfully, False otherwise
         """
         try:
+            # Validate and set environment variables securely
+            import re
+            
+            # Validate profile format
+            if not re.match(r'^[a-zA-Z0-9-_]+$', profile):
+                return False
+            
+            # Validate region format  
+            if not re.match(r'^[a-z0-9\-]+$', region):
+                return False
+            
             # Update environment variables
             os.environ["AWS_PROFILE"] = profile
             os.environ["AWS_DEFAULT_REGION"] = region
@@ -265,10 +276,16 @@ class ConfigPersistenceManager:
             if current_config is None:
                 return False
             
+            # Sanitize sensitive data before export
+            sanitized_config = self._sanitize_config_for_export(current_config)
+            sanitized_history = [self._sanitize_config_for_export(entry) 
+                               for entry in self.get_config_history(20)]
+            
             export_data = {
                 "export_timestamp": datetime.now(UTC).isoformat(),
-                "current_config": current_config,
-                "config_history": self.get_config_history(20)
+                "current_config": sanitized_config,
+                "config_history": sanitized_history,
+                "note": "Sensitive data has been sanitized for security"
             }
             
             with open(export_path, 'w') as f:
@@ -301,6 +318,43 @@ class ConfigPersistenceManager:
             return False
         except Exception:
             return False
+    
+    def _sanitize_config_for_export(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize configuration data by removing or masking sensitive information.
+        
+        Args:
+            config_data: Raw configuration data
+            
+        Returns:
+            Sanitized configuration data safe for export
+        """
+        if not isinstance(config_data, dict):
+            return config_data
+            
+        sanitized = config_data.copy()
+        
+        # Remove or mask sensitive keys in metadata
+        if 'metadata' in sanitized and isinstance(sanitized['metadata'], dict):
+            metadata = sanitized['metadata'].copy()
+            
+            # Remove identity information that might contain account numbers
+            if 'identity' in metadata:
+                if isinstance(metadata['identity'], dict):
+                    metadata['identity'] = {
+                        k: '[SANITIZED]' if k in ['account', 'user_id', 'arn'] else v
+                        for k, v in metadata['identity'].items()
+                    }
+                else:
+                    metadata['identity'] = '[SANITIZED]'
+            
+            # Sanitize any other potentially sensitive metadata
+            for key in ['credentials', 'access_key', 'secret_key', 'session_token']:
+                if key in metadata:
+                    metadata[key] = '[SANITIZED]'
+            
+            sanitized['metadata'] = metadata
+        
+        return sanitized
 
 
 # Global instance for use across the application

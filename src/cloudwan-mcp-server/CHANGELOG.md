@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Production Ready**: Docker support, health checks, and monitoring capabilities
 
 ### Technical
-- Python 3.10+ support
+- Python 3.11+ support
 - AWS SDK (boto3) integration
 - MCP protocol compliance
 - Comprehensive error handling

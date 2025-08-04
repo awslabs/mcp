@@ -1,6 +1,6 @@
 """AWS Labs CloudWAN MCP Server Package."""
 
-__version__ = "1.0.0"
+__version__ = "0.0.0"
 __author__ = "AWS Labs"
 __description__ = "MCP server for AWS CloudWAN network analysis and troubleshooting"
 
