@@ -73,12 +73,18 @@ class TemporalCredentials:
     
     def cleanup(self) -> None:
         """Securely cleanup credential data from memory."""
-        # Overwrite sensitive data with random values
-        self.access_key = 'x' * len(self.access_key)
-        self.secret_key = 'x' * len(self.secret_key)  
-        self.session_token = 'x' * len(self.session_token)
+        # Overwrite sensitive data with cryptographically secure random values
+        self.access_key = self._random_string(len(self.access_key))
+        self.secret_key = self._random_string(len(self.secret_key))
+        self.session_token = self._random_string(len(self.session_token))
 
-
+    @staticmethod
+    def _random_string(length: int) -> str:
+        # Generate a random string of the given length using secure random bytes
+        # Use base64 encoding and truncate to the required length
+        raw = secrets.token_bytes(length)
+        encoded = base64.urlsafe_b64encode(raw).decode('utf-8')
+        return encoded[:length]
 class SecurityError(Exception):
     """Raised when security boundary violations are detected."""
     pass
