@@ -56,7 +56,7 @@ class TestLargePolicyDocumentParsing:
             for az_idx in range(8):  # 8 AZs per region
                 for instance_idx in range(5):  # 5 instances per AZ
                     edge_location = {
-                        'location': f'{["us-east", "us-west", "eu-west", "eu-central", "ap-southeast", "ap-northeast", "ap-south", "ca-central", "sa-east", "af-south", "me-south", "ap-east", "eu-north", "eu-south", "us-gov-east", "us-gov-west", "cn-north", "cn-northwest", "ap-southeast", "ap-northeast", "eu-west", "us-west", "us-east", "ap-south", "ca-central"][region_idx]}-{az_idx + 1}',
+                        'location': f'{EDGE_REGIONS[region_idx]}-{az_idx + 1}',
                         'asn': 64512 + (region_idx * 1000) + (az_idx * 100) + instance_idx,
                         'inside-cidr-blocks': [f'169.254.{region_idx}.{az_idx * 32 + instance_idx * 4}/30'],
                         'tags': {
