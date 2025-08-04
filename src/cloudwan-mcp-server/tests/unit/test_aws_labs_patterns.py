@@ -124,7 +124,6 @@ class TestAWSLabsPatterns:
             assert 'error' in result
             assert 'AccessDenied' in result['error'] or 'Access denied' in result['error']
             
-        import asyncio
         asyncio.run(test_error_handling())
 
     @pytest.mark.unit
