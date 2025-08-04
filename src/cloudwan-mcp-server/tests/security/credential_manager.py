@@ -80,11 +80,8 @@ class TemporalCredentials:
 
     @staticmethod
     def _random_string(length: int) -> str:
-        # Generate a random string of the given length using secure random bytes
-        # Use base64 encoding and truncate to the required length
-        raw = secrets.token_bytes(length)
-        encoded = base64.urlsafe_b64encode(raw).decode('utf-8')
-        return encoded[:length]
+        # Generate a random URL-safe string of the given length using secrets.token_urlsafe
+        return secrets.token_urlsafe(length)[:length]
 class SecurityError(Exception):
     """Raised when security boundary violations are detected."""
     pass
