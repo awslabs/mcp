@@ -1,7 +1,17 @@
 [project]
-name = "mcp-server"
+name = "chaosmesh-mcp-server"
 version = "0.1.0"
-description = "Add your description here"
+description = "Chaos Mesh MCP Server for fault injection in Kubernetes clusters"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["chaos-mesh>=1.2.13", "kubernetes>=32.0.1", "mcp[cli]>=1.7.1"]
+
+[project.scripts]
+chaosmesh-mcp = "server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["server.py", "fault_inject.py", "kube.py", "services.json", "rbac-config.yaml"]
