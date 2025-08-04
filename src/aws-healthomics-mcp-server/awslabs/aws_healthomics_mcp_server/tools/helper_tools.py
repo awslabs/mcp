@@ -19,7 +19,7 @@ import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_zip_file,
     encode_to_base64,
-    get_aws_session,
+    get_ssm_client,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -87,9 +87,8 @@ async def get_supported_regions(
         of regions where HealthOmics is available
     """
     try:
-        # Create a boto3 SSM client
-        session = get_aws_session()
-        ssm_client = session.client('ssm')
+        # Get centralized SSM client
+        ssm_client = get_ssm_client()
 
         # Get the parameters from the SSM parameter store
         response = ssm_client.get_parameters_by_path(

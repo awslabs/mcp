@@ -263,6 +263,7 @@ class TestProtectSQL:
             'rollback  ; -- slc \n SELECT 1',
             'ROLLBACK TRANSACTION;/* mlc /* /* mlc */ mlc */ */SELECT 1',
             ';; \t\r\n; rollback -- slc\n  /* mlc -- mlc \n */  work;-- slc \n SELECT 1',
+            'SELECT 1; COMMIT;',
         ):
             with pytest.raises(
                 Exception,

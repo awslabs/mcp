@@ -14,6 +14,9 @@
 
 """Constants for the DataProcessing MCP Server."""
 
+# Environment Variables
+CUSTOM_TAGS_ENV_VAR = 'CUSTOM_TAGS'
+
 # Dataprocessing Stack Management Operations
 MCP_MANAGED_TAG_KEY = 'ManagedBy'
 MCP_MANAGED_TAG_VALUE = 'DataprocessingMcpServer'
@@ -22,3 +25,9 @@ MCP_CREATION_TIME_TAG_KEY = 'CreatedAt'
 
 # Default tags to be applied to all resources
 DEFAULT_RESOURCE_TAGS = {MCP_MANAGED_TAG_KEY: MCP_MANAGED_TAG_VALUE}
+
+# EMR Resource Types
+EMR_CLUSTER_RESOURCE_TYPE = 'EMRCluster'
+EMR_INSTANCE_FLEET_RESOURCE_TYPE = 'EMRInstanceFleet'
+EMR_INSTANCE_GROUP_RESOURCE_TYPE = 'EMRInstanceGroup'
+EMR_STEPS_RESOURCE_TYPE = 'EMRSteps'
