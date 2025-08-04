@@ -176,6 +176,7 @@ Work with databases, caching systems, and data processing workflows.
 Accelerate development with code analysis, documentation, and testing utilities.
 
 - **[AWS IAM MCP Server](src/iam-mcp-server/)** - Comprehensive IAM user, role, group, and policy management with security best practices
+- **[AWS FIS MCP Server](src/aws-fis-mcp-server/)** - AWS Fault Injection Simulator for chaos engineering and resilience testing
 - **[Git Repo Research MCP Server](src/git-repo-research-mcp-server/)** - Semantic code search and repository analysis
 - **[Code Documentation Generation MCP Server](src/code-doc-gen-mcp-server/)** - Automated documentation from code analysis
 - **[AWS Diagram MCP Server](src/aws-diagram-mcp-server/)** - Generate architecture diagrams and technical illustrations
@@ -245,6 +246,7 @@ Interact with AWS HealthAI services.
 
 ##### Testing & Data
 
+- **[AWS FIS MCP Server](src/aws-fis-mcp-server/)** - Chaos engineering and resilience testing with AWS Fault Injection Simulator
 - **[Synthetic Data MCP Server](src/syntheticdata-mcp-server/)** - Generate realistic test data for your applications
 
 ##### Lifesciences Workflow Development
