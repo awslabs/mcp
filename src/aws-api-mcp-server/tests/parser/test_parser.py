@@ -630,5 +630,10 @@ def test_valid_expand_user_home_directory():
 def test_invalid_expand_user_home_directory():
     """Test that tilde is not replaced."""
     result = parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
-    print(result)
     assert any(param.startswith('~') for param in result.parameters['--paths'])
+
+
+def test_profile():
+    """Test that the profile is correctly extracted."""
+    result = parse(cli_command='aws s3api list-buckets --profile test-profile')
+    assert result.profile == 'test-profile'

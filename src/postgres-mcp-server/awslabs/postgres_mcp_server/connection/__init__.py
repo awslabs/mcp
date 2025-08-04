@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file is part of the awslabs namespace.
-# It is intentionally minimal to support PEP 420 namespace packages.
+"""aws.postgres-mcp-server.connection"""
 
-__version__ = '0.0.6'
+from awslabs.postgres_mcp_server.connection.db_connection_singleton import DBConnectionSingleton
+from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection

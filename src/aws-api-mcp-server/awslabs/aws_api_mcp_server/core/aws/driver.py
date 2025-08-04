@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import boto3
 import botocore.exceptions
 from ..common.errors import (
     CliParsingError,
@@ -19,10 +20,30 @@ from ..common.errors import (
     MissingContextError,
 )
 from ..common.helpers import as_json
-from ..common.models import InterpretedProgram, IRTranslation
+from ..common.models import Credentials, InterpretedProgram, IRTranslation
 from ..parser.interpretation import interpret
 from ..parser.parser import parse
 from .regions import GLOBAL_SERVICE_REGIONS
+from awslabs.aws_api_mcp_server.core.common.config import AWS_API_MCP_PROFILE_NAME
+from botocore.exceptions import NoCredentialsError
+
+
+def get_local_credentials(profile: str | None = None) -> Credentials:
+    """Get the local credentials for AWS profile."""
+    if profile is not None:
+        session = boto3.Session(profile_name=profile)
+    else:
+        session = boto3.Session()
+    aws_creds = session.get_credentials()
+
+    if aws_creds is None:
+        raise NoCredentialsError()
+
+    return Credentials(
+        access_key_id=aws_creds.access_key,
+        secret_access_key=aws_creds.secret_key,
+        session_token=aws_creds.token,
+    )
 
 
 def translate_cli_to_ir(cli_command: str) -> IRTranslation:
@@ -58,9 +79,6 @@ def translate_cli_to_ir(cli_command: str) -> IRTranslation:
 
 def interpret_command(
     cli_command: str,
-    access_key_id: str,
-    secret_access_key: str,
-    session_token: str | None,
     default_region: str,
     max_results: int | None = None,
 ) -> InterpretedProgram:
@@ -84,12 +102,16 @@ def interpret_command(
     ):
         region = GLOBAL_SERVICE_REGIONS[translation.command.command_metadata.service_sdk_name]
 
+    credentials = get_local_credentials(
+        profile=translation.command.profile or AWS_API_MCP_PROFILE_NAME
+    )
+
     try:
         response = interpret(
             translation.command,
-            access_key_id=access_key_id,
-            secret_access_key=secret_access_key,
-            session_token=session_token,
+            access_key_id=credentials.access_key_id,
+            secret_access_key=credentials.secret_access_key,
+            session_token=credentials.session_token,
             region=region,
             client_side_filter=translation.command.client_side_filter,
             max_results=max_results,
