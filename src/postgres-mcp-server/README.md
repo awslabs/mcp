@@ -120,6 +120,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
 
 #### Option 2: Using Direct PostgreSQL (psycopg) Connection (for Aurora Postgres and RDS Postgres)
 
+```
 {
   "mcpServers": {
     "awslabs.postgres-mcp-server": {
@@ -141,6 +142,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
     }
   }
 }
+```
 
 Note: The `--port` parameter is optional and defaults to 5432 (the standard PostgreSQL port). You only need to specify it if your PostgreSQL instance uses a non-standard port.
 
