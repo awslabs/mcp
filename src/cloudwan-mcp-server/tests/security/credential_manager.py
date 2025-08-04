@@ -214,8 +214,7 @@ class CredentialManager:
     
     def _generate_secure_suffix(self, length: int = 16) -> str:
         """Generate cryptographically secure random suffix."""
-        random_bytes = secrets.token_bytes(length)
-        return hashlib.sha256(random_bytes).hexdigest()[:length].upper()
+        return secrets.token_hex(length).upper()
     
     def cleanup_expired_credentials(self) -> int:
         """
