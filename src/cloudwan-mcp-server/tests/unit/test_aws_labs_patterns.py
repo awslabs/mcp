@@ -118,14 +118,10 @@ class TestAWSLabsPatterns:
         mock_get_client.return_value = mock_client
         
         # Test error handling - should return error response, not raise
-        async def test_error_handling():
-            result = await list_core_networks()
-            assert result['success'] is False
-            assert 'error' in result
-            assert 'AccessDenied' in result['error'] or 'Access denied' in result['error']
-            
-        import asyncio
-        asyncio.run(test_error_handling())
+        result = await list_core_networks()
+        assert result['success'] is False
+        assert 'error' in result
+        assert 'AccessDenied' in result['error'] or 'Access denied' in result['error']
 
     @pytest.mark.unit
     def test_logging_patterns(self):

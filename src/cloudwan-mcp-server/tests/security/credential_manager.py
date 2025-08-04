@@ -73,12 +73,15 @@ class TemporalCredentials:
     
     def cleanup(self) -> None:
         """Securely cleanup credential data from memory."""
-        # Overwrite sensitive data with random values
-        self.access_key = 'x' * len(self.access_key)
-        self.secret_key = 'x' * len(self.secret_key)  
-        self.session_token = 'x' * len(self.session_token)
+        # Overwrite sensitive data with cryptographically secure random values
+        self.access_key = self._random_string(len(self.access_key))
+        self.secret_key = self._random_string(len(self.secret_key))
+        self.session_token = self._random_string(len(self.session_token))
 
-
+    @staticmethod
+    def _random_string(length: int) -> str:
+        # Generate a random URL-safe string of the given length using secrets.token_urlsafe
+        return secrets.token_urlsafe(length)[:length]
 class SecurityError(Exception):
     """Raised when security boundary violations are detected."""
     pass
@@ -208,8 +211,7 @@ class CredentialManager:
     
     def _generate_secure_suffix(self, length: int = 16) -> str:
         """Generate cryptographically secure random suffix."""
-        random_bytes = secrets.token_bytes(length)
-        return hashlib.sha256(random_bytes).hexdigest()[:length].upper()
+        return secrets.token_hex(length).upper()
     
     def cleanup_expired_credentials(self) -> int:
         """
