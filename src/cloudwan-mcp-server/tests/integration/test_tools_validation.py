@@ -7,13 +7,17 @@ This validates the tool signatures and ensures AWS Labs FastMCP compliance.
 import ast
 import sys
 from pathlib import Path
+import importlib.util
 
 def validate_tools():
     """Validate all 16 CloudWAN tools are correctly implemented."""
     
-    # Use robust path resolution for server file
-    project_root = Path(__file__).resolve().parents[3]
-    server_file = project_root / "awslabs" / "cloudwan_mcp_server" / "server.py"
+    # Use importlib to robustly locate the server.py file
+    spec = importlib.util.find_spec("awslabs.cloudwan_mcp_server.server")
+    if spec is None or not spec.origin:
+        print("ERROR: Could not locate awslabs.cloudwan_mcp_server.server module")
+        return False
+    server_file = Path(spec.origin)
     
     if not server_file.exists():
         print(f"ERROR: Server file not found at {server_file}")
