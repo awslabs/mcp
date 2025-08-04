@@ -93,7 +93,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
 ### Add or update your LLM client's config with following:
 
 #### Option 1: Using RDS Data API Connection (for Aurora Postgres)
-<pre><code>
+
 ```json
 {
   "mcpServers": {
@@ -119,7 +119,8 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
 ```
 
 #### Option 2: Using Direct PostgreSQL (psycopg) Connection (for Aurora Postgres and RDS Postgres)
-<pre><code>
+
+```
 {
   "mcpServers": {
     "awslabs.postgres-mcp-server": {
@@ -141,7 +142,7 @@ Note: The `--port` parameter is optional and defaults to 5432 (the standard Post
     }
   }
 }
-</code></pre>
+```
 
 Note: The `--port` parameter is optional and defaults to 5432 (the standard PostgreSQL port). You only need to specify it if your PostgreSQL instance uses a non-standard port.
 
