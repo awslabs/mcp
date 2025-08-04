@@ -16,7 +16,6 @@
 
 import json
 import pytest
-import asyncio
 import time
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
