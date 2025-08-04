@@ -100,7 +100,7 @@ class TestEKSResiliencyHandlerInit:
             '_check_liveness_probe', '_check_readiness_probe', '_check_pod_disruption_budget',
             '_check_metrics_server', '_check_horizontal_pod_autoscaler', '_check_custom_metrics',
             '_check_vertical_pod_autoscaler', '_check_prestop_hooks', '_check_service_mesh',
-            '_check_monitoring', '_check_centralized_logging', '_check_distributed_tracing',
+            '_check_monitoring', '_check_centralized_logging',
             '_check_c1', '_check_c2', '_check_c4', '_check_c6', '_check_c7', '_check_d2',
             '_check_d6', '_check_d11', '_check_namespace_resource_quotas', '_check_namespace_limit_ranges',
             '_check_d14', '_check_coredns_configuration'
@@ -855,38 +855,7 @@ class TestEKSResiliencyHandlerChecksA:
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) > 0
 
-    def test_check_distributed_tracing(self, mock_mcp, mock_client_cache, mock_k8s_api):
-        """Test _check_distributed_tracing method."""
-        # Initialize the EKS resiliency handler
-        handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
-        # Mock no tracing CRDs
-        mock_k8s_api.api_client.call_api.side_effect = Exception("CRD not found")
-        mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
-        # Call the _check_distributed_tracing method
-        result = handler._check_distributed_tracing(mock_k8s_api)
-        
-        # Verify that the result is correct
-        assert result["check_name"] == "Use distributed tracing"
-        assert result["compliant"] is False
-        assert len(result["impacted_resources"]) == 0
-        
-        # Mock Jaeger CRDs found
-        def mock_api_call(resource_path, method, **kwargs):
-            if 'jaegertracing.io' in resource_path:
-                return ({"kind": "APIResourceList"}, 200, {})
-            raise Exception("CRD not found")
-        
-        mock_k8s_api.api_client.call_api.side_effect = mock_api_call
-        
-        # Call the _check_distributed_tracing method
-        result = handler._check_distributed_tracing(mock_k8s_api)
-        
-        # Verify that the result is correct
-        assert result["check_name"] == "Use distributed tracing"
-        assert result["compliant"] is True
-        assert len(result["impacted_resources"]) > 0
+
 
 
 class TestEKSResiliencyHandlerChecksC:

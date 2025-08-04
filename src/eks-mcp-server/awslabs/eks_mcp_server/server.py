@@ -71,16 +71,29 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 5. Search troubleshooting guide: `search_eks_troubleshoot_guide(query='pod pending')`
 
 ### Checking Cluster Resiliency
-1. Run full resiliency checks: check_eks_resiliency(cluster_name='my-cluster')
-2. For a specific namespace: check_eks_resiliency(cluster_name='my-cluster', namespace='my-namespace')
-3. Return all check results in a JSON object with a top-level array named results.
-    1. If output is truncated, include "is_truncated": true.
-    2. If any errors are encountered during checks, include them explicitly in the output under a key named "errors".
-4. Ensure all checks are executed, and no check is skipped.
-5. Group the results by Severity level before displaying to users
+The EKS Resiliency Checker evaluates clusters against 28 critical best practices across three categories:
+- **Application Related (A1-A14)**: Workload resilience, health probes, autoscaling, monitoring
+- **Control Plane Related (C1-C5)**: Logging, authentication, endpoint security, large cluster optimizations  
+- **Data Plane Related (D1-D7)**: Node autoscaling, AZ distribution, resource governance, CoreDNS
+
+**Usage:**
+1. Run full resiliency checks: `check_eks_resiliency(cluster_name='my-cluster')`
+
+**Output Requirements:**
+3. Return all check results in a JSON object with a top-level array named "results"
+4. Each check result must include: check_id, check_name, compliant (boolean), impacted_resources, details, remediation
+5. If output is truncated, include "is_truncated": true
+6. If any errors are encountered during checks, include them explicitly under a key named "errors"
+7. Ensure all 28 checks are executed, and no check is skipped
+8. Group the results by compliance status and severity level before displaying to users
+
+**Interpretation:**
+- PASS: Check meets best practice requirements
+- FAIL: Check identifies issues requiring remediation
+- Focus on FAIL results for immediate action items
+- Use impacted_resources to target specific remediation efforts
 
 ## Best Practices
-
 - Use descriptive names for resources to make them easier to identify and manage.
 - Apply proper labels and annotations to Kubernetes resources for better organization.
 - Use namespaces to isolate resources and avoid naming conflicts.
@@ -89,7 +102,9 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 - Follow the principle of least privilege when creating IAM policies.
 - Use the search_eks_troubleshoot_guide tool when encountering common EKS issues.
 - Always verify API versions with list_api_versions before creating resources.
-- Run resiliency checks with check_eks_resiliency to identify potential availability issues.
+- Run comprehensive resiliency checks with check_eks_resiliency to evaluate 28 critical best practices and identify potential availability issues.
+- Prioritize remediation of FAIL results from resiliency checks.
+- Review all 28 resiliency check results systematically to ensure comprehensive cluster health assessment.
 """
 
 SERVER_DEPENDENCIES = [

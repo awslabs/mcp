@@ -41,39 +41,44 @@ class EKSResiliencyHandler:
         ),
     ) -> ResiliencyCheckResponse:
         """Check EKS cluster for resiliency best practices.
-        
+    
         This tool runs a comprehensive set of resiliency checks against your EKS cluster
         to identify potential issues that could impact application availability and
         provides remediation guidance.
         
-        Checks include:
+        Checks included:
+        Application Related Checks
         - A1: Singleton pods without controller management
         - A2: Deployments with only one replica
         - A3: Multi-replica deployments without pod anti-affinity
-        - A4: Kubernetes Metrics Server
-        - A5: Horizontal Pod Autoscaler (HPA)
-        - A6: Custom metrics scaling
-        - A7: Vertical Pod Autoscaler (VPA)
-        - A8: Deployments without liveness probes
-        - A9: Deployments without readiness probes
-        - A10: PreStop hooks for graceful termination
-        - A11: Critical workloads without Pod Disruption Budgets
+        - A4: Deployments without liveness probes
+        - A5: Deployments without readiness probes
+        - A6: Workloads without Pod Disruption Budgets
+        - A7: Kubernetes Metrics Server
+        - A8: Horizontal Pod Autoscaler (HPA)
+        - A9: Custom metrics scaling
+        - A10: Vertical Pod Autoscaler (VPA)
+        - A11: PreStop hooks for graceful termination
         - A12: Service mesh usage
         - A13: Application monitoring
         - A14: Centralized logging
-        - A15: Distributed tracing
-        - C1: Monitor Control Plane Metrics
+
+        
+        ControlPlane Related Checks
+        - C1: Monitor Control Plane Logs
         - C2: Cluster Authentication
-        - C4: Running large clusters
-        - C6: EKS Control Plane Endpoint Access Control
-        - C7: Avoid catch-all admission webhooks
-        - D2: Use Kubernetes Cluster Autoscaler or Karpenter
-        - D6: Worker nodes spread across multiple AZs
-        - D11: Configure Resource Requests/Limits
-        - D12: Namespace ResourceQuotas
-        - D13: Namespace LimitRanges
-        - D14: Monitor CoreDNS metrics
-        - D15: CoreDNS Configuration
+        - C3: Running large clusters
+        - C4: EKS Control Plane Endpoint Access Control
+        - C5: Avoid catch-all admission webhooks
+        
+        DataPlane Related Checks
+        - D1: Use Kubernetes Cluster Autoscaler or Karpenter
+        - D2: Worker nodes spread across multiple AZs
+        - D3: Configure Resource Requests/Limits
+        - D4: Namespace ResourceQuotas
+        - D5: Namespace LimitRanges
+        - D6: Monitor CoreDNS metrics
+        - D7: CoreDNS Configuration
         """
         try:
             logger.info(f"Starting resiliency check for cluster: {cluster_name}")
@@ -104,7 +109,8 @@ class EKSResiliencyHandler:
             check_results = []
             all_compliant = True
             
-            # Check 1: Singleton Pods
+            # Application Related Checks
+            # Check A1: Singleton pods without controller management
             try:
                 logger.info("Running singleton pods check")
                 singleton_result = self._check_singleton_pods(client, namespace)
@@ -115,6 +121,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in singleton pods check: {str(e)}")
                 check_results.append({
+                    "check_id": "A1",
                     "check_name": "Avoid running singleton Pods",
                     "compliant": False,
                     "impacted_resources": [],
@@ -123,7 +130,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 2: Multiple Replicas
+            # Check A2: Deployments with only one replica
             try:
                 logger.info("Running multiple replicas check")
                 replicas_result = self._check_multiple_replicas(client, namespace)
@@ -134,6 +141,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in multiple replicas check: {str(e)}")
                 check_results.append({
+                    "check_id": "A2",
                     "check_name": "Run multiple replicas",
                     "compliant": False,
                     "impacted_resources": [],
@@ -142,7 +150,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 3: Pod Anti-Affinity
+            # Check A3: Multi-replica deployments without pod anti-affinity
             try:
                 logger.info("Running pod anti-affinity check")
                 anti_affinity_result = self._check_pod_anti_affinity(client, namespace)
@@ -153,6 +161,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in pod anti-affinity check: {str(e)}")
                 check_results.append({
+                    "check_id": "A3",
                     "check_name": "Use pod anti-affinity",
                     "compliant": False,
                     "impacted_resources": [],
@@ -161,7 +170,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 11: Liveness Probes
+            # Check A4: Deployments without liveness probes
             try:
                 logger.info("Running liveness probe check")
                 liveness_result = self._check_liveness_probe(client, namespace)
@@ -172,6 +181,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in liveness probe check: {str(e)}")
                 check_results.append({
+                    "check_id": "A4",
                     "check_name": "Use liveness probes",
                     "compliant": False,
                     "impacted_resources": [],
@@ -180,7 +190,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 13: Readiness Probes
+            # Check A5: Deployments without readiness probes
             try:
                 logger.info("Running readiness probe check")
                 readiness_result = self._check_readiness_probe(client, namespace)
@@ -191,6 +201,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in readiness probe check: {str(e)}")
                 check_results.append({
+                    "check_id": "A5",
                     "check_name": "Use readiness probes",
                     "compliant": False,
                     "impacted_resources": [],
@@ -199,7 +210,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 15: Pod Disruption Budgets
+            # Check A6: Critical workloads without Pod Disruption Budgets
             try:
                 logger.info("Running pod disruption budget check")
                 pdb_result = self._check_pod_disruption_budget(client, namespace)
@@ -210,6 +221,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in pod disruption budget check: {str(e)}")
                 check_results.append({
+                    "check_id": "A6",
                     "check_name": "Use Pod Disruption Budgets",
                     "compliant": False,
                     "impacted_resources": [],
@@ -218,7 +230,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 4: Metrics Server
+            # Check A7: Kubernetes Metrics Server
             try:
                 logger.info("Running metrics server check")
                 metrics_server_result = self._check_metrics_server(client, namespace)
@@ -229,6 +241,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in metrics server check: {str(e)}")
                 check_results.append({
+                    "check_id": "A7",
                     "check_name": "Run Kubernetes Metrics Server",
                     "compliant": False,
                     "impacted_resources": [],
@@ -237,7 +250,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 5: Horizontal Pod Autoscaler
+            # Check A8: Horizontal Pod Autoscaler (HPA)
             try:
                 logger.info("Running HPA check")
                 hpa_result = self._check_horizontal_pod_autoscaler(client, namespace)
@@ -248,6 +261,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in HPA check: {str(e)}")
                 check_results.append({
+                    "check_id": "A8",
                     "check_name": "Use Horizontal Pod Autoscaler",
                     "compliant": False,
                     "impacted_resources": [],
@@ -256,7 +270,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 6: Custom Metrics Scaling
+            # Check A9: Custom metrics scaling
             try:
                 logger.info("Running custom metrics check")
                 custom_metrics_result = self._check_custom_metrics(client, namespace)
@@ -267,6 +281,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in custom metrics check: {str(e)}")
                 check_results.append({
+                    "check_id": "A9",
                     "check_name": "Use custom metrics scaling",
                     "compliant": False,
                     "impacted_resources": [],
@@ -275,7 +290,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 7: Vertical Pod Autoscaler
+            # Check A10: Vertical Pod Autoscaler (VPA)
             try:
                 logger.info("Running VPA check")
                 vpa_result = self._check_vertical_pod_autoscaler(client, namespace)
@@ -286,6 +301,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in VPA check: {str(e)}")
                 check_results.append({
+                    "check_id": "A10",
                     "check_name": "Use Vertical Pod Autoscaler",
                     "compliant": False,
                     "impacted_resources": [],
@@ -294,7 +310,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 14: PreStop Hooks
+            # Check A11: PreStop hooks for graceful termination
             try:
                 logger.info("Running preStop hooks check")
                 prestop_result = self._check_prestop_hooks(client, namespace)
@@ -305,6 +321,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in preStop hooks check: {str(e)}")
                 check_results.append({
+                    "check_id": "A11",
                     "check_name": "Use preStop hooks",
                     "compliant": False,
                     "impacted_resources": [],
@@ -313,7 +330,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 17: Service Mesh
+            # Check A12: Service mesh usage
             try:
                 logger.info("Running service mesh check")
                 service_mesh_result = self._check_service_mesh(client, namespace)
@@ -324,6 +341,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in service mesh check: {str(e)}")
                 check_results.append({
+                    "check_id": "A12",
                     "check_name": "Use a Service Mesh",
                     "compliant": False,
                     "impacted_resources": [],
@@ -332,7 +350,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 18: Monitoring
+            # Check A13: Application monitoring
             try:
                 logger.info("Running monitoring check")
                 monitoring_result = self._check_monitoring(client, namespace)
@@ -343,6 +361,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in monitoring check: {str(e)}")
                 check_results.append({
+                    "check_id": "A13",
                     "check_name": "Monitor your applications",
                     "compliant": False,
                     "impacted_resources": [],
@@ -351,7 +370,7 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 20: Centralized Logging
+            # Check A14: Centralized logging
             try:
                 logger.info("Running centralized logging check")
                 logging_result = self._check_centralized_logging(client, namespace)
@@ -362,6 +381,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in centralized logging check: {str(e)}")
                 check_results.append({
+                    "check_id": "A14",
                     "check_name": "Use centralized logging",
                     "compliant": False,
                     "impacted_resources": [],
@@ -370,26 +390,10 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
             
-            # Check 21: Distributed Tracing
-            try:
-                logger.info("Running distributed tracing check")
-                tracing_result = self._check_distributed_tracing(client, namespace)
-                check_results.append(tracing_result)
-                if not tracing_result['compliant']:
-                    all_compliant = False
-                logger.info(f"Distributed tracing check completed: {tracing_result['compliant']}")
-            except Exception as e:
-                logger.error(f"Error in distributed tracing check: {str(e)}")
-                check_results.append({
-                    "check_name": "Use distributed tracing",
-                    "compliant": False,
-                    "impacted_resources": [],
-                    "details": f"Check failed with error: {str(e)}",
-                    "remediation": ""
-                })
-                all_compliant = False
-                
-            # Check C1: Monitor Control Plane Metrics
+
+    
+            # ControlPlane Related Checks
+            # Check C1: Monitor Control Plane Logs
             try:
                 logger.info("Running control plane metrics check")
                 c1_result = self._check_c1(client, cluster_name, namespace)
@@ -400,7 +404,8 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in control plane metrics check: {str(e)}")
                 check_results.append({
-                    "check_name": "Monitor Control Plane Metrics",
+                    "check_id": "C1",
+                    "check_name": "Monitor Control Plane Logs",
                     "compliant": False,
                     "impacted_resources": [],
                     "details": f"Check failed with error: {str(e)}",
@@ -419,6 +424,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error in cluster authentication check: {str(e)}")
                 check_results.append({
+                    "check_id": "C2",
                     "check_name": "Cluster Authentication",
                     "compliant": False,
                     "impacted_resources": [],
@@ -427,17 +433,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check C4: Running large clusters
+            # Check C3: Running large clusters
             try:
                 logger.info("Running large clusters check")
-                c4_result = self._check_c4(client, cluster_name, namespace)
-                check_results.append(c4_result)
-                if not c4_result['compliant']:
+                c3_result = self._check_c3(client, cluster_name, namespace)
+                check_results.append(c3_result)
+                if not c3_result['compliant']:
                     all_compliant = False
-                logger.info(f"Large clusters check completed: {c4_result['compliant']}")
+                logger.info(f"Large clusters check completed: {c3_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in large clusters check: {str(e)}")
                 check_results.append({
+                    "check_id": "C3",
                     "check_name": "Running large clusters",
                     "compliant": False,
                     "impacted_resources": [],
@@ -446,17 +453,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check C6: EKS Control Plane Endpoint Access Control
+            # Check C4: EKS Control Plane Endpoint Access Control
             try:
                 logger.info("Running control plane endpoint access check")
-                c6_result = self._check_c6(client, cluster_name, namespace)
-                check_results.append(c6_result)
-                if not c6_result['compliant']:
+                c4_result = self._check_c4(client, cluster_name, namespace)
+                check_results.append(c4_result)
+                if not c4_result['compliant']:
                     all_compliant = False
-                logger.info(f"Control plane endpoint access check completed: {c6_result['compliant']}")
+                logger.info(f"Control plane endpoint access check completed: {c4_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in control plane endpoint access check: {str(e)}")
                 check_results.append({
+                    "check_id": "C4",
                     "check_name": "EKS Control Plane Endpoint Access Control",
                     "compliant": False,
                     "impacted_resources": [],
@@ -465,17 +473,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check C7: Avoid catch-all admission webhooks
+            # Check C5: Avoid catch-all admission webhooks
             try:
                 logger.info("Running admission webhooks check")
-                c7_result = self._check_c7(client, cluster_name, namespace)
-                check_results.append(c7_result)
-                if not c7_result['compliant']:
+                c5_result = self._check_c5(client, cluster_name, namespace)
+                check_results.append(c5_result)
+                if not c5_result['compliant']:
                     all_compliant = False
-                logger.info(f"Admission webhooks check completed: {c7_result['compliant']}")
+                logger.info(f"Admission webhooks check completed: {c5_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in admission webhooks check: {str(e)}")
                 check_results.append({
+                    "check_id": "C5",
                     "check_name": "Avoid catch-all admission webhooks",
                     "compliant": False,
                     "impacted_resources": [],
@@ -484,17 +493,19 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check D2: Use Kubernetes Cluster Autoscaler or Karpenter
+            # DataPlane Related Checks
+            # Check D1: Use Kubernetes Cluster Autoscaler or Karpenter
             try:
                 logger.info("Running node autoscaling check")
-                d2_result = self._check_d2(client, cluster_name, namespace)
-                check_results.append(d2_result)
-                if not d2_result['compliant']:
+                d1_result = self._check_d1(client, cluster_name, namespace)
+                check_results.append(d1_result)
+                if not d1_result['compliant']:
                     all_compliant = False
-                logger.info(f"Node autoscaling check completed: {d2_result['compliant']}")
+                logger.info(f"Node autoscaling check completed: {d1_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in node autoscaling check: {str(e)}")
                 check_results.append({
+                    "check_id": "D1",
                     "check_name": "Use Kubernetes Cluster Autoscaler or Karpenter",
                     "compliant": False,
                     "impacted_resources": [],
@@ -503,17 +514,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check D6: Worker nodes spread across multiple AZs
+            # Check D2: Worker nodes spread across multiple AZs
             try:
                 logger.info("Running AZ distribution check")
-                d6_result = self._check_d6(client, cluster_name, namespace)
-                check_results.append(d6_result)
-                if not d6_result['compliant']:
+                d2_result = self._check_d2(client, cluster_name, namespace)
+                check_results.append(d2_result)
+                if not d2_result['compliant']:
                     all_compliant = False
-                logger.info(f"AZ distribution check completed: {d6_result['compliant']}")
+                logger.info(f"AZ distribution check completed: {d2_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in AZ distribution check: {str(e)}")
                 check_results.append({
+                    "check_id": "D2",
                     "check_name": "Worker nodes spread across multiple AZs",
                     "compliant": False,
                     "impacted_resources": [],
@@ -522,17 +534,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check D11: Configure Resource Requests/Limits
+            # Check D3: Configure Resource Requests/Limits
             try:
                 logger.info("Running resource requests/limits check")
-                d11_result = self._check_d11(client, cluster_name, namespace)
-                check_results.append(d11_result)
-                if not d11_result['compliant']:
+                d3_result = self._check_d3(client, cluster_name, namespace)
+                check_results.append(d3_result)
+                if not d3_result['compliant']:
                     all_compliant = False
-                logger.info(f"Resource requests/limits check completed: {d11_result['compliant']}")
+                logger.info(f"Resource requests/limits check completed: {d3_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in resource requests/limits check: {str(e)}")
                 check_results.append({
+                    "check_id": "D3",
                     "check_name": "Configure Resource Requests/Limits",
                     "compliant": False,
                     "impacted_resources": [],
@@ -541,17 +554,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check D12: Namespace ResourceQuotas
+            # Check D4: Namespace ResourceQuotas
             try:
                 logger.info("Running namespace resource quotas check")
-                d12_result = self._check_namespace_resource_quotas(client, cluster_name, namespace)
-                check_results.append(d12_result)
-                if not d12_result['compliant']:
+                d4_result = self._check_d4(client, cluster_name, namespace)
+                check_results.append(d4_result)
+                if not d4_result['compliant']:
                     all_compliant = False
-                logger.info(f"Namespace resource quotas check completed: {d12_result['compliant']}")
+                logger.info(f"Namespace resource quotas check completed: {d4_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in namespace resource quotas check: {str(e)}")
                 check_results.append({
+                    "check_id": "D4",
                     "check_name": "Namespace ResourceQuotas",
                     "compliant": False,
                     "impacted_resources": [],
@@ -560,17 +574,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check D13: Namespace LimitRanges
+            # Check D5: Namespace LimitRanges
             try:
                 logger.info("Running namespace limit ranges check")
-                d13_result = self._check_namespace_limit_ranges(client, cluster_name, namespace)
-                check_results.append(d13_result)
-                if not d13_result['compliant']:
+                d5_result = self._check_d5(client, cluster_name, namespace)
+                check_results.append(d5_result)
+                if not d5_result['compliant']:
                     all_compliant = False
-                logger.info(f"Namespace limit ranges check completed: {d13_result['compliant']}")
+                logger.info(f"Namespace limit ranges check completed: {d5_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in namespace limit ranges check: {str(e)}")
                 check_results.append({
+                    "check_id": "D5",
                     "check_name": "Namespace LimitRanges",
                     "compliant": False,
                     "impacted_resources": [],
@@ -579,17 +594,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check D14: Monitor CoreDNS metrics
+            # Check D6: Monitor CoreDNS metrics
             try:
                 logger.info("Running CoreDNS metrics check")
-                d14_result = self._check_d14(client, cluster_name, namespace)
-                check_results.append(d14_result)
-                if not d14_result['compliant']:
+                d6_result = self._check_d6(client, cluster_name, namespace)
+                check_results.append(d6_result)
+                if not d6_result['compliant']:
                     all_compliant = False
-                logger.info(f"CoreDNS metrics check completed: {d14_result['compliant']}")
+                logger.info(f"CoreDNS metrics check completed: {d6_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in CoreDNS metrics check: {str(e)}")
                 check_results.append({
+                    "check_id": "D6",
                     "check_name": "Monitor CoreDNS metrics",
                     "compliant": False,
                     "impacted_resources": [],
@@ -598,17 +614,18 @@ class EKSResiliencyHandler:
                 })
                 all_compliant = False
                 
-            # Check D15: CoreDNS Configuration
+            # Check D7: CoreDNS Configuration
             try:
                 logger.info("Running CoreDNS configuration check")
-                d15_result = self._check_coredns_configuration(client, cluster_name, namespace)
-                check_results.append(d15_result)
-                if not d15_result['compliant']:
+                d7_result = self._check_d7(client, cluster_name, namespace)
+                check_results.append(d7_result)
+                if not d7_result['compliant']:
                     all_compliant = False
-                logger.info(f"CoreDNS configuration check completed: {d15_result['compliant']}")
+                logger.info(f"CoreDNS configuration check completed: {d7_result['compliant']}")
             except Exception as e:
                 logger.error(f"Error in CoreDNS configuration check: {str(e)}")
                 check_results.append({
+                    "check_id": "D7",
                     "check_name": "CoreDNS Configuration",
                     "compliant": False,
                     "impacted_resources": [],
@@ -694,11 +711,118 @@ class EKSResiliencyHandler:
             
             return response
     
+    def _check_singleton_pods(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Check A1: Singleton pods without controller management."""
+        singleton_pods = []
+        try:
+            logger.info(f"Starting singleton pods check, namespace: {namespace if namespace else 'all'}")
+            
+            # Prepare kwargs for filtering
+            kwargs = {}
+            if namespace:
+                kwargs['namespace'] = namespace
+                logger.info(f"Checking pods in namespace: {namespace}")
+            else:
+                logger.info("Checking pods across all namespaces")
+            
+            # Use the K8sApis list_resources method
+            logger.info("Calling list_resources to get pods")
+            pods_response = k8s_api.list_resources(
+                kind="Pod", 
+                api_version="v1",
+                **kwargs
+            )
+            
+            # Log the number of pods found
+            pod_count = len(pods_response.items) if hasattr(pods_response, 'items') else 0
+            logger.info(f"Retrieved {pod_count} pods")
+            
+            # Process the response
+            for pod in pods_response.items:
+                try:
+                    pod_dict = pod.to_dict() if hasattr(pod, 'to_dict') else pod
+                    
+                    # Check if pod has owner references
+                    metadata = pod_dict.get('metadata', {})
+                    owner_refs = metadata.get('ownerReferences', [])
+                    
+                    # Make sure we get the namespace from the pod metadata
+                    pod_namespace = metadata.get('namespace')
+                    if not pod_namespace:
+                        logger.warning(f"Pod missing namespace information, using 'default'")
+                        pod_namespace = 'default'
+                        
+                    name = metadata.get('name', 'unknown')
+                    
+                    logger.debug(f"Checking pod {pod_namespace}/{name}")
+                    
+                    if not owner_refs:
+                        logger.info(f"Found singleton pod: {pod_namespace}/{name}")
+                        singleton_pods.append(f"{pod_namespace}/{name}")
+                except Exception as pod_error:
+                    logger.error(f"Error processing pod: {str(pod_error)}")
+            
+            is_compliant = len(singleton_pods) == 0
+            details = f"Found {len(singleton_pods)} singleton pods not managed by controllers"
+            logger.info(details)
+            
+            remediation = """Convert singleton pods to Deployments, StatefulSets, or other controllers:
+1. Create a Deployment/StatefulSet manifest with the same pod spec
+2. Apply the new controller resource
+3. Delete the standalone pod once the controller-managed pod is running
 
-    
+Example:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      # Copy your pod spec here
+```"""
+            
+            # Prepare a more detailed message that includes namespace information
+            scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
+            detailed_message = f"Found {len(singleton_pods)} singleton pods not managed by controllers {scope_info}"
+            
+            return {
+                "check_id": "A1",
+                "check_name": "Avoid running singleton Pods",
+                "compliant": is_compliant,
+                "impacted_resources": singleton_pods,
+                "details": detailed_message,
+                "remediation": remediation if not is_compliant else ""
+            }
+            
+        except Exception as e:
+            logger.error(f"Error checking singleton pods: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Include namespace information in error message
+            scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
+            error_message = f"API error while checking singleton pods {scope_info}: {str(e)}"
+            
+            return {
+                "check_id": "A1",
+                "check_name": "Avoid running singleton Pods",
+                "compliant": False,
+                "impacted_resources": [],
+                "details": error_message,
+                "remediation": ""
+            }
+
     def _check_multiple_replicas(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A2: Run multiple replicas for high availability."""
-        single_replica_deployments = []
+        """Check A2: Deployments and StatefulSets with only one replica."""
+        single_replica_workloads = []
         try:
             logger.info(f"Starting multiple replicas check, namespace: {namespace if namespace else 'all'}")
             
@@ -706,11 +830,11 @@ class EKSResiliencyHandler:
             kwargs = {}
             if namespace:
                 kwargs['namespace'] = namespace
-                logger.info(f"Checking deployments in namespace: {namespace}")
+                logger.info(f"Checking workloads in namespace: {namespace}")
             else:
-                logger.info("Checking deployments across all namespaces")
+                logger.info("Checking workloads across all namespaces")
             
-            # Use the K8sApis list_resources method to get deployments
+            # Check Deployments
             logger.info("Calling list_resources to get deployments")
             deployments_response = k8s_api.list_resources(
                 kind="Deployment", 
@@ -722,7 +846,7 @@ class EKSResiliencyHandler:
             deployment_count = len(deployments_response.items) if hasattr(deployments_response, 'items') else 0
             logger.info(f"Retrieved {deployment_count} deployments")
             
-            # Process the response
+            # Process deployments
             for deployment in deployments_response.items:
                 try:
                     deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
@@ -740,41 +864,89 @@ class EKSResiliencyHandler:
                     
                     if replicas == 1:
                         logger.info(f"Found single replica deployment: {deploy_namespace}/{name}")
-                        single_replica_deployments.append(f"{deploy_namespace}/{name}")
+                        single_replica_workloads.append(f"Deployment {deploy_namespace}/{name}")
                 except Exception as deploy_error:
                     logger.error(f"Error processing deployment: {str(deploy_error)}")
             
-            is_compliant = len(single_replica_deployments) == 0
+            # Check StatefulSets
+            logger.info("Calling list_resources to get statefulsets")
+            try:
+                statefulsets_response = k8s_api.list_resources(
+                    kind="StatefulSet", 
+                    api_version="apps/v1",
+                    **kwargs
+                )
+                
+                # Log the number of statefulsets found
+                statefulset_count = len(statefulsets_response.items) if hasattr(statefulsets_response, 'items') else 0
+                logger.info(f"Retrieved {statefulset_count} statefulsets")
+                
+                # Process statefulsets
+                for statefulset in statefulsets_response.items:
+                    try:
+                        statefulset_dict = statefulset.to_dict() if hasattr(statefulset, 'to_dict') else statefulset
+                        
+                        # Get statefulset metadata
+                        metadata = statefulset_dict.get('metadata', {})
+                        sts_namespace = metadata.get('namespace', 'default')
+                        name = metadata.get('name', 'unknown')
+                        
+                        # Check replicas
+                        spec = statefulset_dict.get('spec', {})
+                        replicas = spec.get('replicas', 0)
+                        
+                        logger.debug(f"Checking statefulset {sts_namespace}/{name} with {replicas} replicas")
+                        
+                        if replicas == 1:
+                            logger.info(f"Found single replica statefulset: {sts_namespace}/{name}")
+                            single_replica_workloads.append(f"StatefulSet {sts_namespace}/{name}")
+                    except Exception as sts_error:
+                        logger.error(f"Error processing statefulset: {str(sts_error)}")
+            except Exception as sts_list_error:
+                logger.warning(f"Error listing statefulsets: {str(sts_list_error)}")
+            
+            is_compliant = len(single_replica_workloads) == 0
             
             # Prepare a more detailed message that includes namespace information
             scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
-            detailed_message = f"Found {len(single_replica_deployments)} deployments with only 1 replica {scope_info}"
+            detailed_message = f"Found {len(single_replica_workloads)} workloads (Deployments/StatefulSets) with only 1 replica {scope_info}"
             logger.info(detailed_message)
             
-            remediation = """
-            Increase the number of replicas for your deployments:
-            
-            ```yaml
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: my-app
-            spec:
-              replicas: 2  # Increase this to at least 2 for high availability
-              # ... rest of deployment spec
-            ```
-            
-            You can also use the kubectl scale command:
-            ```
-            kubectl scale deployment/my-deployment --replicas=2
-            ```
-            """
+            remediation = """Increase the number of replicas for your deployments and statefulsets:
+
+For Deployments:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 2  # Increase this to at least 2 for high availability
+  # ... rest of deployment spec
+```
+
+For StatefulSets:
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: my-app
+spec:
+  replicas: 2  # Increase this to at least 2 for high availability
+  # ... rest of statefulset spec
+```
+
+You can also use the kubectl scale command:
+```
+kubectl scale deployment/my-deployment --replicas=2
+kubectl scale statefulset/my-statefulset --replicas=2
+```"""
             
             return {
-                "check_id": "2",
+                "check_id": "A2",
                 "check_name": "Run multiple replicas",
                 "compliant": is_compliant,
-                "impacted_resources": single_replica_deployments,
+                "impacted_resources": single_replica_workloads,
                 "details": detailed_message,
                 "remediation": remediation if not is_compliant else ""
             }
@@ -786,19 +958,19 @@ class EKSResiliencyHandler:
             
             # Include namespace information in error message
             scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
-            error_message = f"API error while checking deployments for multiple replicas {scope_info}: {str(e)}"
+            error_message = f"API error while checking workloads for multiple replicas {scope_info}: {str(e)}"
             
             return {
-                "check_id": "2",
+                "check_id": "A2",
                 "check_name": "Run multiple replicas",
                 "compliant": False,
                 "impacted_resources": [],
                 "details": error_message,
                 "remediation": ""
             }
-    
+
     def _check_pod_anti_affinity(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A3: Schedule replicas across nodes using pod anti-affinity."""
+        """Check A3: Multi-replica deployments without pod anti-affinity."""
         deployments_without_anti_affinity = []
         try:
             logger.info(f"Starting pod anti-affinity check, namespace: {namespace if namespace else 'all'}")
@@ -864,35 +1036,33 @@ class EKSResiliencyHandler:
             detailed_message = f"Found {len(deployments_without_anti_affinity)} multi-replica deployments without pod anti-affinity {scope_info}"
             logger.info(detailed_message)
             
-            remediation = """
-            Add pod anti-affinity to your deployments to ensure pods are scheduled on different nodes:
-            
-            ```yaml
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: my-app
-            spec:
-              replicas: 2
-              template:
-                spec:
-                  affinity:
-                    podAntiAffinity:
-                      preferredDuringSchedulingIgnoredDuringExecution:
-                      - weight: 100
-                        podAffinityTerm:
-                          labelSelector:
-                            matchExpressions:
-                            - key: app
-                              operator: In
-                              values:
-                              - my-app
-                          topologyKey: "kubernetes.io/hostname"
-            ```
-            """
+            remediation = """Add pod anti-affinity to your deployments to ensure pods are scheduled on different nodes:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - my-app
+              topologyKey: "kubernetes.io/hostname"
+```"""
             
             return {
-                "check_id": "3",
+                "check_id": "A3",
                 "check_name": "Use pod anti-affinity",
                 "compliant": is_compliant,
                 "impacted_resources": deployments_without_anti_affinity,
@@ -910,7 +1080,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking deployments for pod anti-affinity {scope_info}: {str(e)}"
             
             return {
-                "check_id": "3",
+                "check_id": "A3",
                 "check_name": "Use pod anti-affinity",
                 "compliant": False,
                 "impacted_resources": [],
@@ -919,7 +1089,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_liveness_probe(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A11: Use Liveness Probe to remove unhealthy pods."""
+        """Check A4: Deployments without liveness probes."""
         workloads_without_liveness = []
         try:
             logger.info(f"Starting liveness probe check, namespace: {namespace if namespace else 'all'}")
@@ -1068,30 +1238,28 @@ class EKSResiliencyHandler:
             detailed_message = f"Found {len(workloads_without_liveness)} workloads without liveness probes {scope_info}"
             logger.info(detailed_message)
             
-            remediation = """
-            Add liveness probes to your workloads to detect and restart unhealthy containers:
-            
-            ```yaml
-            apiVersion: apps/v1
-            kind: Deployment  # or StatefulSet, DaemonSet
-            metadata:
-              name: my-app
-            spec:
-              template:
-                spec:
-                  containers:
-                  - name: my-container
-                    livenessProbe:
-                      httpGet:
-                        path: /health
-                        port: 8080
-                      initialDelaySeconds: 30
-                      periodSeconds: 10
-            ```
-            """
+            remediation = """Add liveness probes to your workloads to detect and restart unhealthy containers:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment  # or StatefulSet, DaemonSet
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: my-container
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+```"""
             
             return {
-                "check_id": "11",
+                "check_id": "A4",
                 "check_name": "Use liveness probes",
                 "compliant": is_compliant,
                 "impacted_resources": workloads_without_liveness,
@@ -1109,7 +1277,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking deployments for liveness probes {scope_info}: {str(e)}"
             
             return {
-                "check_id": "11",
+                "check_id": "A4",
                 "check_name": "Use liveness probes",
                 "compliant": False,
                 "impacted_resources": [],
@@ -1118,7 +1286,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_readiness_probe(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A13: Use Readiness Probe to detect partial unavailability."""
+        """Check A5: Deployments without readiness probes."""
         workloads_without_readiness = []
         try:
             logger.info(f"Starting readiness probe check, namespace: {namespace if namespace else 'all'}")
@@ -1267,31 +1435,29 @@ class EKSResiliencyHandler:
             detailed_message = f"Found {len(workloads_without_readiness)} workloads without readiness probes {scope_info}"
             logger.info(detailed_message)
             
-            remediation = """
-            Add readiness probes to your workloads to prevent traffic to pods that are not ready:
-            
-            ```yaml
-            apiVersion: apps/v1
-            kind: Deployment  # or StatefulSet, DaemonSet
-            metadata:
-              name: my-app
-            spec:
-              template:
-                spec:
-                  containers:
-                  - name: my-container
-                    readinessProbe:
-                      httpGet:
-                        path: /ready
-                        port: 8080
-                      initialDelaySeconds: 5
-                      periodSeconds: 5
-            ```
-            """
+            remediation = """Add readiness probes to your workloads to prevent traffic to pods that are not ready:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment  # or StatefulSet, DaemonSet
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: my-container
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+```"""
             
             # Return all impacted resources
             return {
-                "check_id": "13",
+                "check_id": "A5",
                 "check_name": "Use readiness probes",
                 "compliant": is_compliant,
                 "impacted_resources": workloads_without_readiness,
@@ -1309,7 +1475,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking deployments for readiness probes {scope_info}: {str(e)}"
             
             return {
-                "check_id": "13",
+                "check_id": "A5",
                 "check_name": "Use readiness probes",
                 "compliant": False,
                 "impacted_resources": [],
@@ -1318,7 +1484,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_pod_disruption_budget(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A15: Protect critical workload with Pod Disruption Budgets."""
+        """Check A6: Workloads without Pod Disruption Budgets."""
         workloads_without_pdb = []
         pdbs_found = False
         try:
@@ -1474,24 +1640,22 @@ class EKSResiliencyHandler:
             detailed_message = "; ".join(details)
             logger.info(detailed_message)
             
-            remediation = """
-            Add Pod Disruption Budgets (PDBs) to protect your critical workloads during voluntary disruptions:
-            
-            ```yaml
-            apiVersion: policy/v1
-            kind: PodDisruptionBudget
-            metadata:
-              name: my-app-pdb
-            spec:
-              minAvailable: 1  # or use maxUnavailable: 1
-              selector:
-                matchLabels:
-                  app: my-app  # Must match your deployment/statefulset selector
-            ```
-            """
+            remediation = """Add Pod Disruption Budgets (PDBs) to protect your critical workloads during voluntary disruptions:
+
+```yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: my-app-pdb
+spec:
+  minAvailable: 1  # or use maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: my-app  # Must match your deployment/statefulset selector
+```"""
             
             return {
-                "check_id": "15",
+                "check_id": "A6",
                 "check_name": "Use Pod Disruption Budgets",
                 "compliant": is_compliant,
                 "impacted_resources": workloads_without_pdb,
@@ -1509,134 +1673,16 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking Pod Disruption Budgets {scope_info}: {str(e)}"
             
             return {
-                "check_id": "15",
+                "check_id": "A6",
                 "check_name": "Use Pod Disruption Budgets",
                 "compliant": False,
                 "impacted_resources": [],
                 "details": error_message,
                 "remediation": ""
-            }
-    
-    def _check_singleton_pods(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A1: Avoid running singleton Pods."""
-        singleton_pods = []
-        try:
-            logger.info(f"Starting singleton pods check, namespace: {namespace if namespace else 'all'}")
-            
-            # Prepare kwargs for filtering
-            kwargs = {}
-            if namespace:
-                kwargs['namespace'] = namespace
-                logger.info(f"Checking pods in namespace: {namespace}")
-            else:
-                logger.info("Checking pods across all namespaces")
-            
-            # Use the K8sApis list_resources method
-            logger.info("Calling list_resources to get pods")
-            pods_response = k8s_api.list_resources(
-                kind="Pod", 
-                api_version="v1",
-                **kwargs
-            )
-            
-            # Log the number of pods found
-            pod_count = len(pods_response.items) if hasattr(pods_response, 'items') else 0
-            logger.info(f"Retrieved {pod_count} pods")
-            
-            # Process the response
-            for pod in pods_response.items:
-                try:
-                    pod_dict = pod.to_dict() if hasattr(pod, 'to_dict') else pod
-                    
-                    # Check if pod has owner references
-                    metadata = pod_dict.get('metadata', {})
-                    owner_refs = metadata.get('ownerReferences', [])
-                    
-                    # Make sure we get the namespace from the pod metadata
-                    pod_namespace = metadata.get('namespace')
-                    if not pod_namespace:
-                        logger.warning(f"Pod missing namespace information, using 'default'")
-                        pod_namespace = 'default'
-                        
-                    name = metadata.get('name', 'unknown')
-                    
-                    logger.debug(f"Checking pod {pod_namespace}/{name}")
-                    
-                    if not owner_refs:
-                        logger.info(f"Found singleton pod: {pod_namespace}/{name}")
-                        singleton_pods.append(f"{pod_namespace}/{name}")
-                except Exception as pod_error:
-                    logger.error(f"Error processing pod: {str(pod_error)}")
-            
-            is_compliant = len(singleton_pods) == 0
-            details = f"Found {len(singleton_pods)} singleton pods not managed by controllers"
-            logger.info(details)
-            
-            remediation = """
-            Convert singleton pods to Deployments, StatefulSets, or other controllers:
-            1. Create a Deployment/StatefulSet manifest with the same pod spec
-            2. Apply the new controller resource
-            3. Delete the standalone pod once the controller-managed pod is running
-            
-            Example:
-            ```yaml
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: my-app
-            spec:
-              replicas: 1
-              selector:
-                matchLabels:
-                  app: my-app
-              template:
-                metadata:
-                  labels:
-                    app: my-app
-                spec:
-                  # Copy your pod spec here
-            ```
-            """
-            
-            # Prepare a more detailed message that includes namespace information
-            scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
-            detailed_message = f"Found {len(singleton_pods)} singleton pods not managed by controllers {scope_info}"
-            
-            return {
-                "check_id": "1",
-                "check_name": "Avoid running singleton Pods",
-                "compliant": is_compliant,
-                "impacted_resources": singleton_pods,
-                "details": detailed_message,
-                "remediation": remediation if not is_compliant else ""
-            }
-            
-        except Exception as e:
-            logger.error(f"Error checking singleton pods: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            # Include namespace information in error message
-            scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
-            error_message = f"API error while checking singleton pods {scope_info}: {str(e)}"
-            
-            return {
-                "check_id": "1",
-                "check_name": "Avoid running singleton Pods",
-                "compliant": False,
-                "impacted_resources": [],
-                "details": error_message,
-                "remediation": ""
-            }
-    
-    # Future check methods will be added here as private methods
-    # def _check_pod_disruption_budgets(self, k8s_api, namespace=None):
-    #     ...
-    
-    # def _check_resource_requests(self, k8s_api, namespace=None):
-    #     ...
+            }    
     
     def _check_metrics_server(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A4: Run Kubernetes Metrics Server."""
+        """Check A7: Kubernetes Metrics Server."""
         try:
             logger.info("Starting metrics server check")
             metrics_server_exists = False
@@ -1726,7 +1772,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "4",
+                "check_id": "A7",
                 "check_name": "Run Kubernetes Metrics Server",
                 "compliant": is_compliant,
                 "impacted_resources": [],
@@ -1742,7 +1788,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking for metrics server: {str(e)}"
             
             return {
-                "check_id": "4",
+                "check_id": "A7",
                 "check_name": "Run Kubernetes Metrics Server",
                 "compliant": False,
                 "impacted_resources": [],
@@ -1751,7 +1797,8 @@ class EKSResiliencyHandler:
             }
     
     def _check_horizontal_pod_autoscaler(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A5: Scaling applications using HPA based on standard cpu/memory metrics."""
+        """Check A8: Horizontal Pod Autoscaler (HPA) - identifies workloads without HPAs."""
+        workloads_without_hpa = []
         try:
             logger.info(f"Starting HPA check, namespace: {namespace if namespace else 'all'}")
             
@@ -1759,14 +1806,90 @@ class EKSResiliencyHandler:
             kwargs = {}
             if namespace:
                 kwargs['namespace'] = namespace
-                logger.info(f"Checking HPAs in namespace: {namespace}")
+                logger.info(f"Checking workloads in namespace: {namespace}")
             else:
-                logger.info("Checking HPAs across all namespaces")
+                logger.info("Checking workloads across all namespaces")
             
-            hpas_exist = False
-            hpa_resources = []
+            # Step 1: Collect target workloads (Deployments and StatefulSets with replicas > 1)
+            target_workloads = []
+            
+            # Get Deployments
+            logger.info("Collecting Deployments for HPA analysis")
+            try:
+                deployments_response = k8s_api.list_resources(
+                    kind="Deployment", 
+                    api_version="apps/v1",
+                    **kwargs
+                )
+                
+                for deployment in deployments_response.items:
+                    try:
+                        deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
+                        metadata = deployment_dict.get('metadata', {})
+                        deploy_namespace = metadata.get('namespace', 'default')
+                        name = metadata.get('name', 'unknown')
+                        
+                        # Skip system namespaces
+                        if deploy_namespace in ['kube-system', 'kube-public', 'kube-node-lease']:
+                            continue
+                        
+                        # Check replicas - only consider workloads with multiple replicas
+                        spec = deployment_dict.get('spec', {})
+                        replicas = spec.get('replicas', 0)
+                        
+                        if replicas > 1:
+                            target_workloads.append({
+                                'name': name,
+                                'namespace': deploy_namespace,
+                                'kind': 'Deployment'
+                            })
+                            logger.debug(f"Found target deployment: {deploy_namespace}/{name} ({replicas} replicas)")
+                    except Exception as deploy_error:
+                        logger.error(f"Error processing deployment: {str(deploy_error)}")
+            except Exception as e:
+                logger.error(f"Error listing deployments: {str(e)}")
+            
+            # Get StatefulSets
+            logger.info("Collecting StatefulSets for HPA analysis")
+            try:
+                statefulsets_response = k8s_api.list_resources(
+                    kind="StatefulSet", 
+                    api_version="apps/v1",
+                    **kwargs
+                )
+                
+                for statefulset in statefulsets_response.items:
+                    try:
+                        statefulset_dict = statefulset.to_dict() if hasattr(statefulset, 'to_dict') else statefulset
+                        metadata = statefulset_dict.get('metadata', {})
+                        ss_namespace = metadata.get('namespace', 'default')
+                        name = metadata.get('name', 'unknown')
+                        
+                        # Skip system namespaces
+                        if ss_namespace in ['kube-system', 'kube-public', 'kube-node-lease']:
+                            continue
+                        
+                        # Check replicas - only consider workloads with multiple replicas
+                        spec = statefulset_dict.get('spec', {})
+                        replicas = spec.get('replicas', 0)
+                        
+                        if replicas > 1:
+                            target_workloads.append({
+                                'name': name,
+                                'namespace': ss_namespace,
+                                'kind': 'StatefulSet'
+                            })
+                            logger.debug(f"Found target statefulset: {ss_namespace}/{name} ({replicas} replicas)")
+                    except Exception as ss_error:
+                        logger.error(f"Error processing statefulset: {str(ss_error)}")
+            except Exception as e:
+                logger.error(f"Error listing statefulsets: {str(e)}")
+            
+            # Step 2: Collect existing HPA targets
+            hpa_protected_workloads = set()
             
             # Try v2 API first
+            logger.info("Collecting existing HPAs (v2 API)")
             try:
                 hpas_response = k8s_api.list_resources(
                     kind="HorizontalPodAutoscaler", 
@@ -1777,20 +1900,28 @@ class EKSResiliencyHandler:
                 hpa_count = len(hpas_response.items) if hasattr(hpas_response, 'items') else 0
                 logger.info(f"Found {hpa_count} HPAs with v2 API")
                 
-                if hpa_count > 0:
-                    hpas_exist = True
-                    
-                    # Process HPAs
-                    for hpa in hpas_response.items:
+                for hpa in hpas_response.items:
+                    try:
                         hpa_dict = hpa.to_dict() if hasattr(hpa, 'to_dict') else hpa
                         metadata = hpa_dict.get('metadata', {})
                         hpa_namespace = metadata.get('namespace', 'default')
-                        name = metadata.get('name', 'unknown')
-                        hpa_resources.append(f"{hpa_namespace}/{name}")
+                        
+                        # Get scale target reference
+                        spec = hpa_dict.get('spec', {})
+                        scale_target_ref = spec.get('scaleTargetRef', {})
+                        target_kind = scale_target_ref.get('kind', '')
+                        target_name = scale_target_ref.get('name', '')
+                        
+                        if target_kind in ['Deployment', 'StatefulSet'] and target_name:
+                            hpa_protected_workloads.add(f"{hpa_namespace}/{target_name}")
+                            logger.debug(f"Found HPA protecting: {hpa_namespace}/{target_name} ({target_kind})")
+                    except Exception as hpa_error:
+                        logger.error(f"Error processing HPA: {str(hpa_error)}")
             except Exception as v2_error:
                 logger.info(f"Error accessing autoscaling/v2 API: {str(v2_error)}")
                 
                 # Try v1 API if v2 fails
+                logger.info("Trying v1 API for HPAs")
                 try:
                     hpas_response = k8s_api.list_resources(
                         kind="HorizontalPodAutoscaler", 
@@ -1801,68 +1932,89 @@ class EKSResiliencyHandler:
                     hpa_count = len(hpas_response.items) if hasattr(hpas_response, 'items') else 0
                     logger.info(f"Found {hpa_count} HPAs with v1 API")
                     
-                    if hpa_count > 0:
-                        hpas_exist = True
-                        
-                        # Process HPAs
-                        for hpa in hpas_response.items:
+                    for hpa in hpas_response.items:
+                        try:
                             hpa_dict = hpa.to_dict() if hasattr(hpa, 'to_dict') else hpa
                             metadata = hpa_dict.get('metadata', {})
                             hpa_namespace = metadata.get('namespace', 'default')
-                            name = metadata.get('name', 'unknown')
-                            hpa_resources.append(f"{hpa_namespace}/{name}")
+                            
+                            # Get scale target reference
+                            spec = hpa_dict.get('spec', {})
+                            scale_target_ref = spec.get('scaleTargetRef', {})
+                            target_kind = scale_target_ref.get('kind', '')
+                            target_name = scale_target_ref.get('name', '')
+                            
+                            if target_kind in ['Deployment', 'StatefulSet'] and target_name:
+                                hpa_protected_workloads.add(f"{hpa_namespace}/{target_name}")
+                                logger.debug(f"Found HPA protecting: {hpa_namespace}/{target_name} ({target_kind})")
+                        except Exception as hpa_error:
+                            logger.error(f"Error processing HPA: {str(hpa_error)}")
                 except Exception as v1_error:
                     logger.info(f"Error accessing autoscaling/v1 API: {str(v1_error)}")
             
-            is_compliant = hpas_exist
+            # Step 3: Find workloads without HPAs
+            for workload in target_workloads:
+                workload_key = f"{workload['namespace']}/{workload['name']}"
+                if workload_key not in hpa_protected_workloads:
+                    workloads_without_hpa.append(f"{workload['namespace']}/{workload['name']} ({workload['kind']})")
+                    logger.debug(f"Found workload without HPA: {workload_key}")
             
-            # Prepare a more detailed message that includes namespace information
+            # Step 4: Determine compliance and prepare response
+            is_compliant = len(workloads_without_hpa) == 0 and len(target_workloads) > 0
+            
+            # Prepare detailed message
             scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
-            detailed_message = f"Found {len(hpa_resources)} HPAs {scope_info}" if hpas_exist else f"No HPAs found {scope_info}"
+            
+            if len(target_workloads) == 0:
+                detailed_message = f"No multi-replica workloads found {scope_info} that require HPAs"
+            elif len(workloads_without_hpa) == 0:
+                detailed_message = f"All {len(target_workloads)} multi-replica workloads have HPAs {scope_info}"
+            else:
+                detailed_message = f"Found {len(workloads_without_hpa)} workloads without HPAs out of {len(target_workloads)} multi-replica workloads {scope_info}"
+            
             logger.info(detailed_message)
             
-            remediation = """
-            Configure Horizontal Pod Autoscalers (HPAs) for your deployments:
-            
-            ```yaml
-            apiVersion: autoscaling/v2
-            kind: HorizontalPodAutoscaler
-            metadata:
-              name: my-app-hpa
-            spec:
-              scaleTargetRef:
-                apiVersion: apps/v1
-                kind: Deployment
-                name: my-app
-              minReplicas: 2
-              maxReplicas: 10
-              metrics:
-              - type: Resource
-                resource:
-                  name: cpu
-                  target:
-                    type: Utilization
-                    averageUtilization: 80
-              - type: Resource
-                resource:
-                  name: memory
-                  target:
-                    type: Utilization
-                    averageUtilization: 80
-            ```
-            
-            Or using kubectl:
-            
-            ```bash
-            kubectl autoscale deployment my-app --cpu-percent=80 --min=2 --max=10
-            ```
-            """
+            remediation = """Configure Horizontal Pod Autoscalers (HPAs) for your multi-replica workloads:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+  namespace: my-namespace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment  # or StatefulSet
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+Or using kubectl:
+```bash
+kubectl autoscale deployment my-app --cpu-percent=80 --min=2 --max=10 -n my-namespace
+kubectl autoscale statefulset my-statefulset --cpu-percent=80 --min=2 --max=10 -n my-namespace
+```"""
             
             return {
-                "check_id": "5",
+                "check_id": "A8",
                 "check_name": "Use Horizontal Pod Autoscaler",
                 "compliant": is_compliant,
-                "impacted_resources": hpa_resources,
+                "impacted_resources": workloads_without_hpa,
                 "details": detailed_message,
                 "remediation": remediation if not is_compliant else ""
             }
@@ -1874,10 +2026,10 @@ class EKSResiliencyHandler:
             
             # Include namespace information in error message
             scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
-            error_message = f"API error while checking for HPAs {scope_info}: {str(e)}"
+            error_message = f"API error while checking workloads for HPAs {scope_info}: {str(e)}"
             
             return {
-                "check_id": "5",
+                "check_id": "A8",
                 "check_name": "Use Horizontal Pod Autoscaler",
                 "compliant": False,
                 "impacted_resources": [],
@@ -1886,7 +2038,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_custom_metrics(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A6: Scaling applications using HPA based on custom or external metrics."""
+        """Check A9: Custom metrics scaling."""
         try:
             logger.info("Starting custom metrics check")
             
@@ -2082,30 +2234,30 @@ class EKSResiliencyHandler:
             
             3. Configure an HPA with custom metrics:
             ```yaml
-            apiVersion: autoscaling/v2
-            kind: HorizontalPodAutoscaler
-            metadata:
-              name: my-app-hpa
-            spec:
-              scaleTargetRef:
-                apiVersion: apps/v1
-                kind: Deployment
-                name: my-app
-              minReplicas: 2
-              maxReplicas: 10
-              metrics:
-              - type: Pods
-                pods:
-                  metric:
-                    name: custom_metric
-                  target:
-                    type: AverageValue
-                    averageValue: 100
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Pods
+    pods:
+      metric:
+        name: custom_metric
+      target:
+        type: AverageValue
+        averageValue: 100
             ```
             """
             
             return {
-                "check_id": "6",
+                "check_id": "A9",
                 "check_name": "Use custom metrics scaling",
                 "compliant": is_compliant,
                 "impacted_resources": custom_hpas,
@@ -2121,7 +2273,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking for custom metrics scaling: {str(e)}"
             
             return {
-                "check_id": "6",
+                "check_id": "A9",
                 "check_name": "Use custom metrics scaling",
                 "compliant": False,
                 "impacted_resources": [],
@@ -2130,7 +2282,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_vertical_pod_autoscaler(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A7: Scaling applications using VPA (Vertical Pod Autoscaler)."""
+        """Check A10: Vertical Pod Autoscaler (VPA)."""
         try:
             logger.info(f"Starting VPA check, namespace: {namespace if namespace else 'all'}")
             
@@ -2313,86 +2465,171 @@ class EKSResiliencyHandler:
                 if deployment not in vpa_target_refs:
                     deployments_without_vpa.append(deployment)
             
-            # Determine compliance based on findings
-            vpa_infrastructure_exists = len(vpa_components) > 0 and vpa_crd_exists
-            all_deployments_have_vpa = len(deployments_without_vpa) == 0 and len(all_deployments) > 0
+            # Determine VPA installation and usage status
+            vpa_fully_installed = len(vpa_components) > 0 and vpa_crd_exists
+            vpa_in_use = len(vpa_resources) > 0
             
-            # For this check, we'll consider it compliant if the VPA infrastructure exists
-            # Requiring all deployments to have VPA would be too strict
-            is_compliant = vpa_infrastructure_exists
-            
-            # Prepare detailed message
-            details = []
-            if vpa_components:
-                details.append(f"Found VPA components: {', '.join(vpa_components)}")
-            if vpa_crd_exists:
-                details.append("VPA CRD is installed")
-            if vpa_resources:
-                details.append(f"Found {len(vpa_resources)} VPA resources")
-            if goldilocks_exists:
-                details.append("Goldilocks (VPA UI) is installed")
-            if not vpa_infrastructure_exists:
-                details.append("VPA infrastructure is not fully deployed")
-            if len(deployments_without_vpa) > 0 and len(all_deployments) > 0:
-                details.append(f"{len(deployments_without_vpa)} of {len(all_deployments)} deployments do not have VPA configured")
-            elif len(all_deployments) > 0:
-                details.append("All deployments have VPA configured")
-            if not details:
-                details.append("No VPA components or resources found")
-            
-            # Prepare a more detailed message that includes namespace information
+            # Prepare scope information
             scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
-            detailed_message = f"VPA check {scope_info}: {'; '.join(details)}"
-            logger.info(detailed_message)
             
-            remediation = """
-            Install the Vertical Pod Autoscaler:
+            # Scenario 1: VPA not properly installed
+            if not vpa_fully_installed:
+                details = []
+                if not vpa_crd_exists:
+                    details.append("VPA CRD is not installed")
+                if len(vpa_components) == 0:
+                    details.append("VPA controller components are not deployed")
+                if goldilocks_exists:
+                    details.append("Goldilocks (VPA UI) is installed but VPA infrastructure is missing")
+                
+                detailed_message = f"VPA check {scope_info}: {'; '.join(details) if details else 'VPA infrastructure not found'}"
+                logger.info(detailed_message)
+                
+                remediation = """
+Install the Vertical Pod Autoscaler infrastructure:
+
+```bash
+# Option 1: Official installation script
+git clone https://github.com/kubernetes/autoscaler.git
+cd autoscaler/vertical-pod-autoscaler/
+./hack/vpa-up.sh
+```
+
+```bash
+# Option 2: Helm installation
+helm repo add fairwinds-stable https://charts.fairwinds.com/stable
+helm install vpa fairwinds-stable/vpa --namespace vpa --create-namespace
+```
+
+After installation, create VPA resources for your deployments."""
+                
+                return {
+                    "check_id": "A10",
+                    "check_name": "Use Vertical Pod Autoscaler",
+                    "compliant": False,
+                    "impacted_resources": [],
+                    "details": detailed_message,
+                    "remediation": remediation
+                }
             
-            ```bash
-            git clone https://github.com/kubernetes/autoscaler.git
-            cd autoscaler/vertical-pod-autoscaler/
-            ./hack/vpa-up.sh
-            ```
+            # Scenario 2: VPA installed but not used
+            elif not vpa_in_use:
+                details = []
+                if vpa_components:
+                    details.append(f"VPA components are running: {', '.join(vpa_components)}")
+                if vpa_crd_exists:
+                    details.append("VPA CRD is installed")
+                if goldilocks_exists:
+                    details.append("Goldilocks (VPA UI) is available")
+                details.append("No VPA objects configured")
+                if len(all_deployments) > 0:
+                    details.append(f"{len(all_deployments)} deployments could benefit from VPA")
+                
+                detailed_message = f"VPA check {scope_info}: {'; '.join(details)}"
+                logger.info(detailed_message)
+                
+                # Show deployments that could use VPA
+                if len(all_deployments) > 10:
+                    impacted_resources = all_deployments[:10] + [f"... and {len(all_deployments) - 10} more deployments"]
+                else:
+                    impacted_resources = all_deployments
+                
+                remediation = """
+VPA infrastructure is ready! Create VPA resources for your deployments:
+
+```yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: my-app-vpa
+  namespace: my-namespace
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: my-app
+  updatePolicy:
+    updateMode: "Off"  # Start with recommendations only
+```
+
+Recommended approach:
+1. Start with `updateMode: "Off"` to see recommendations
+2. Review the recommendations for a few days
+3. Change to `updateMode: "Auto"` for automatic resource updates
+
+Consider installing Goldilocks for better VPA visualization:
+```bash
+helm repo add fairwinds-stable https://charts.fairwinds.com/stable
+helm install goldilocks fairwinds-stable/goldilocks --namespace goldilocks --create-namespace
+```"""
+                
+                return {
+                    "check_id": "A10",
+                    "check_name": "Use Vertical Pod Autoscaler",
+                    "compliant": False,
+                    "impacted_resources": impacted_resources,
+                    "details": detailed_message,
+                    "remediation": remediation
+                }
             
-            Or with Helm:
-            
-            ```bash
-            helm repo add fairwinds-stable https://charts.fairwinds.com/stable
-            helm install vpa fairwinds-stable/vpa --namespace vpa --create-namespace
-            ```
-            
-            Then create VPA resources for your deployments:
-            
-            ```yaml
-            apiVersion: autoscaling.k8s.io/v1
-            kind: VerticalPodAutoscaler
-            metadata:
-              name: my-app-vpa
-            spec:
-              targetRef:
-                apiVersion: apps/v1
-                kind: Deployment
-                name: my-app
-              updatePolicy:
-                updateMode: "Auto"  # or "Off" for recommendations only
-            ```
-            
-            Consider installing Goldilocks for VPA recommendations:
-            
-            ```bash
-            helm repo add fairwinds-stable https://charts.fairwinds.com/stable
-            helm install goldilocks fairwinds-stable/goldilocks --namespace goldilocks --create-namespace
-            ```
-            """
-            
-            return {
-                "check_id": "7",
-                "check_name": "Use Vertical Pod Autoscaler",
-                "compliant": is_compliant,
-                "impacted_resources": vpa_resources if vpa_resources else deployments_without_vpa[:5],  # Limit to 5 to avoid too large response
-                "details": detailed_message,
-                "remediation": remediation if not is_compliant else ""
-            }
+            # Scenario 3: VPA installed and in use
+            else:
+                is_compliant = len(deployments_without_vpa) == 0 and len(all_deployments) > 0
+                
+                details = []
+                if vpa_components:
+                    details.append(f"VPA components are running: {', '.join(vpa_components)}")
+                if vpa_crd_exists:
+                    details.append("VPA CRD is installed")
+                details.append(f"Found {len(vpa_resources)} VPA resources")
+                if goldilocks_exists:
+                    details.append("Goldilocks (VPA UI) is available")
+                
+                if len(all_deployments) == 0:
+                    details.append("No deployments found")
+                elif len(deployments_without_vpa) == 0:
+                    details.append("All deployments have VPA configured")
+                else:
+                    details.append(f"{len(deployments_without_vpa)} of {len(all_deployments)} deployments still need VPA configuration")
+                
+                detailed_message = f"VPA check {scope_info}: {'; '.join(details)}"
+                logger.info(detailed_message)
+                
+                # Show deployments that still need VPA
+                if len(deployments_without_vpa) > 10:
+                    impacted_resources = deployments_without_vpa[:10] + [f"... and {len(deployments_without_vpa) - 10} more deployments"]
+                else:
+                    impacted_resources = deployments_without_vpa
+                
+                remediation = """
+Add VPA resources for the remaining deployments:
+
+```yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: <deployment-name>-vpa
+  namespace: <deployment-namespace>
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: <deployment-name>
+  updatePolicy:
+    updateMode: "Off"  # Start with recommendations only
+```
+
+For each deployment listed in impacted_resources, create a corresponding VPA resource.
+Start with `updateMode: "Off"` to review recommendations before enabling automatic updates."""
+                
+                return {
+                    "check_id": "A10",
+                    "check_name": "Use Vertical Pod Autoscaler",
+                    "compliant": is_compliant,
+                    "impacted_resources": impacted_resources,
+                    "details": detailed_message,
+                    "remediation": remediation if not is_compliant else ""
+                }
             
         except Exception as e:
             logger.error(f"Error checking for VPA: {str(e)}")
@@ -2404,7 +2641,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking for VPA {scope_info}: {str(e)}"
             
             return {
-                "check_id": "7",
+                "check_id": "A10",
                 "check_name": "Use Vertical Pod Autoscaler",
                 "compliant": False,
                 "impacted_resources": [],
@@ -2413,7 +2650,11 @@ class EKSResiliencyHandler:
             }
     
     def _check_prestop_hooks(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A14: Use preStop Container Hook to have enough time for a busy application pod to be terminated gracefully."""
+        """Check A11: PreStop hooks for graceful termination.
+        
+        Note: DaemonSets are excluded from this check as they typically run system-level
+        services that don't require graceful termination and can slow down node maintenance.
+        """
         try:
             logger.info(f"Starting preStop hooks check, namespace: {namespace if namespace else 'all'}")
             
@@ -2427,7 +2668,6 @@ class EKSResiliencyHandler:
             
             deployments_without_prestop = []
             statefulsets_without_prestop = []
-            daemonsets_without_prestop = []
             
             # Check deployments
             try:
@@ -2491,43 +2731,14 @@ class EKSResiliencyHandler:
             except Exception as ss_error:
                 logger.error(f"Error checking statefulsets for preStop hooks: {str(ss_error)}")
             
-            # Check daemonsets
-            try:
-                daemonsets_response = k8s_api.list_resources(
-                    kind="DaemonSet", 
-                    api_version="apps/v1",
-                    **kwargs
-                )
-                
-                for daemonset in daemonsets_response.items:
-                    daemonset_dict = daemonset.to_dict() if hasattr(daemonset, 'to_dict') else daemonset
-                    metadata = daemonset_dict.get('metadata', {})
-                    ds_namespace = metadata.get('namespace', 'default')
-                    name = metadata.get('name', 'unknown')
-                    
-                    # Check containers for preStop hooks
-                    template_spec = daemonset_dict.get('spec', {}).get('template', {}).get('spec', {})
-                    containers = template_spec.get('containers', [])
-                    
-                    has_prestop_hook = True
-                    for container in containers:
-                        lifecycle = container.get('lifecycle', {})
-                        if not lifecycle or not lifecycle.get('preStop'):
-                            has_prestop_hook = False
-                            break
-                    
-                    if not has_prestop_hook:
-                        logger.info(f"Found daemonset without preStop hooks: {ds_namespace}/{name}")
-                        daemonsets_without_prestop.append(f"{ds_namespace}/{name}")
-            except Exception as ds_error:
-                logger.error(f"Error checking daemonsets for preStop hooks: {str(ds_error)}")
+            # Note: DaemonSets are intentionally excluded from this check as they typically
+            # run system-level services (logging agents, monitoring agents, etc.) that:
+            # 1. Don't handle user traffic requiring graceful termination
+            # 2. Are designed to be resilient to immediate termination
+            # 3. Can slow down node maintenance operations if they have preStop hooks
             
-            # Combine all resources without preStop hooks
-            all_resources_without_prestop = (
-                deployments_without_prestop + 
-                statefulsets_without_prestop + 
-                daemonsets_without_prestop
-            )
+            # Combine resources without preStop hooks (excluding DaemonSets)
+            all_resources_without_prestop = deployments_without_prestop + statefulsets_without_prestop
             
             is_compliant = len(all_resources_without_prestop) == 0
             
@@ -2537,10 +2748,11 @@ class EKSResiliencyHandler:
                 details.append(f"Found {len(deployments_without_prestop)} deployments without preStop hooks")
             if statefulsets_without_prestop:
                 details.append(f"Found {len(statefulsets_without_prestop)} statefulsets without preStop hooks")
-            if daemonsets_without_prestop:
-                details.append(f"Found {len(daemonsets_without_prestop)} daemonsets without preStop hooks")
             if not details:
-                details.append("All workloads have preStop hooks configured")
+                details.append("All application workloads have preStop hooks configured")
+            
+            # Add note about DaemonSets being excluded
+            details.append("DaemonSets are excluded as they typically don't require preStop hooks")
             
             # Prepare a more detailed message that includes namespace information
             scope_info = f"in namespace '{namespace}'" if namespace else "across all namespaces"
@@ -2548,39 +2760,42 @@ class EKSResiliencyHandler:
             logger.info(detailed_message)
             
             remediation = """
-            Add preStop hooks to your containers for graceful termination:
+            Add preStop hooks to your application workloads (Deployments and StatefulSets) for graceful termination:
             
             ```yaml
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: my-app
-            spec:
-              template:
-                spec:
-                  containers:
-                  - name: my-container
-                    lifecycle:
-                      preStop:
-                        exec:
-                          command: ["sh", "-c", "sleep 10"]  # Give time for connections to drain
+apiVersion: apps/v1
+kind: Deployment  # or StatefulSet
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: my-container
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sh", "-c", "sleep 10"]  # Give time for connections to drain
             ```
             
             For web servers, consider a more sophisticated preStop hook:
             
             ```yaml
-            lifecycle:
-              preStop:
-                exec:
-                  command: [
-                    "sh", "-c",
-                    "sleep 5 && /usr/local/bin/nginx -s quit"
-                  ]
+lifecycle:
+  preStop:
+    exec:
+      command: [
+        "sh", "-c",
+        "sleep 5 && /usr/local/bin/nginx -s quit"
+      ]
             ```
+            
+            Note: DaemonSets are excluded from this check as they typically run system-level
+            services that don't require graceful termination and can slow down node operations.
             """
             
             return {
-                "check_id": "14",
+                "check_id": "A11",
                 "check_name": "Use preStop hooks",
                 "compliant": is_compliant,
                 "impacted_resources": all_resources_without_prestop[:10],  # Limit to 10 to avoid too large response
@@ -2598,7 +2813,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking for preStop hooks {scope_info}: {str(e)}"
             
             return {
-                "check_id": "14",
+                "check_id": "A11",
                 "check_name": "Use preStop hooks",
                 "compliant": False,
                 "impacted_resources": [],
@@ -2607,7 +2822,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_service_mesh(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A17: Use a Service Mesh."""
+        """Check A12: Service mesh usage."""
         try:
             logger.info("Starting service mesh check")
             
@@ -2882,18 +3097,10 @@ class EKSResiliencyHandler:
             export PATH=$PATH:$HOME/.linkerd2/bin
             linkerd install | kubectl apply -f -
             ```
-            
-            3. AWS App Mesh:
-            ```bash
-            helm repo add eks https://aws.github.io/eks-charts
-            helm install appmesh-controller eks/appmesh-controller \
-              --namespace appmesh-system \
-              --create-namespace
-            ```
             """
             
             return {
-                "check_id": "17",
+                "check_id": "A12",
                 "check_name": "Use a Service Mesh",
                 "compliant": service_mesh_in_use,
                 "impacted_resources": service_mesh_components,
@@ -2909,7 +3116,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking for service mesh: {str(e)}"
             
             return {
-                "check_id": "17",
+                "check_id": "A12",
                 "check_name": "Use a Service Mesh",
                 "compliant": False,
                 "impacted_resources": [],
@@ -2918,7 +3125,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_monitoring(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A18: Monitor your applications."""
+        """Check A13: Application monitoring."""
         try:
             logger.info("Starting monitoring check")
             
@@ -3255,7 +3462,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "18",
+                "check_id": "A13",
                 "check_name": "Monitor your applications",
                 "compliant": monitoring_in_use,
                 "impacted_resources": monitoring_components,
@@ -3271,7 +3478,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking for monitoring solutions: {str(e)}"
             
             return {
-                "check_id": "18",
+                "check_id": "A13",
                 "check_name": "Monitor your applications",
                 "compliant": False,
                 "impacted_resources": [],
@@ -3280,7 +3487,7 @@ class EKSResiliencyHandler:
             }
     
     def _check_centralized_logging(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A20: Use centralized logging tools to collect and persist logs."""
+        """Check A14: Centralized logging."""
         try:
             logger.info("Starting centralized logging check")
             
@@ -3543,7 +3750,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "20",
+                "check_id": "A14",
                 "check_name": "Use centralized logging",
                 "compliant": logging_in_use,
                 "impacted_resources": logging_components,
@@ -3559,7 +3766,7 @@ class EKSResiliencyHandler:
             error_message = f"API error while checking for logging solutions: {str(e)}"
             
             return {
-                "check_id": "20",
+                "check_id": "A14",
                 "check_name": "Use centralized logging",
                 "compliant": False,
                 "impacted_resources": [],
@@ -3567,307 +3774,7 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
     
-    def _check_distributed_tracing(self, k8s_api, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check A21: Use a distributed tracing system to identify bottlenecks."""
-        try:
-            logger.info("Starting distributed tracing check")
-            
-            tracing_components = []
-            
-            # Check for Jaeger
-            jaeger_found = False
-            
-            # Check for jaeger namespace
-            try:
-                namespaces_response = k8s_api.list_resources(
-                    kind="Namespace", 
-                    api_version="v1"
-                )
-                
-                for ns in namespaces_response.items:
-                    ns_dict = ns.to_dict() if hasattr(ns, 'to_dict') else ns
-                    metadata = ns_dict.get('metadata', {})
-                    name = metadata.get('name', '').lower()
-                    
-                    if name in ['jaeger', 'tracing']:
-                        logger.info(f"Found Jaeger namespace: {name}")
-                        jaeger_found = True
-                        tracing_components.append(f"Namespace: {name}")
-                        break
-            except Exception:
-                pass
-            
-            # Check for jaeger operator CRDs
-            if not jaeger_found:
-                try:
-                    api_client = k8s_api.api_client
-                    api_response = api_client.call_api(
-                        '/apis/jaegertracing.io/v1', 
-                        'GET',
-                        auth_settings=['BearerToken'], 
-                        response_type='object'
-                    )
-                    
-                    if api_response and api_response[0]:
-                        logger.info("Jaeger CRDs found")
-                        jaeger_found = True
-                        tracing_components.append("Jaeger CRDs")
-                except Exception:
-                    pass
-            
-            # Check for jaeger deployments
-            if not jaeger_found:
-                try:
-                    deployments_response = k8s_api.list_resources(
-                        kind="Deployment", 
-                        api_version="apps/v1"
-                    )
-                    
-                    for deployment in deployments_response.items:
-                        deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
-                        metadata = deployment_dict.get('metadata', {})
-                        name = metadata.get('name', '').lower()
-                        deploy_namespace = metadata.get('namespace', 'unknown')
-                        
-                        if 'jaeger' in name:
-                            logger.info(f"Found Jaeger deployment: {deploy_namespace}/{name}")
-                            jaeger_found = True
-                            tracing_components.append(f"Deployment: {deploy_namespace}/{name}")
-                            break
-                except Exception:
-                    pass
-            
-            # Check for AWS X-Ray
-            xray_found = False
-            
-            # Check for x-ray daemon daemonset
-            try:
-                daemonsets_response = k8s_api.list_resources(
-                    kind="DaemonSet", 
-                    api_version="apps/v1"
-                )
-                
-                for daemonset in daemonsets_response.items:
-                    daemonset_dict = daemonset.to_dict() if hasattr(daemonset, 'to_dict') else daemonset
-                    metadata = daemonset_dict.get('metadata', {})
-                    name = metadata.get('name', '').lower()
-                    ds_namespace = metadata.get('namespace', 'unknown')
-                    
-                    if 'xray' in name:
-                        logger.info(f"Found X-Ray daemon: {ds_namespace}/{name}")
-                        xray_found = True
-                        tracing_components.append(f"DaemonSet: {ds_namespace}/{name}")
-                        break
-            except Exception:
-                pass
-            
-            # Check for AWS Distro for OpenTelemetry (ADOT)
-            if not xray_found:
-                try:
-                    deployments_response = k8s_api.list_resources(
-                        kind="Deployment", 
-                        api_version="apps/v1"
-                    )
-                    
-                    for deployment in deployments_response.items:
-                        deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
-                        metadata = deployment_dict.get('metadata', {})
-                        name = metadata.get('name', '').lower()
-                        deploy_namespace = metadata.get('namespace', 'unknown')
-                        
-                        if ('adot' in name or 'opentelemetry' in name or 'otel' in name):
-                            logger.info(f"Found ADOT/OpenTelemetry: {deploy_namespace}/{name}")
-                            xray_found = True
-                            tracing_components.append(f"Deployment: {deploy_namespace}/{name}")
-                            break
-                except Exception:
-                    pass
-            
-            # Check for Zipkin
-            zipkin_found = False
-            
-            try:
-                deployments_response = k8s_api.list_resources(
-                    kind="Deployment", 
-                    api_version="apps/v1"
-                )
-                
-                for deployment in deployments_response.items:
-                    deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
-                    metadata = deployment_dict.get('metadata', {})
-                    name = metadata.get('name', '').lower()
-                    deploy_namespace = metadata.get('namespace', 'unknown')
-                    
-                    if 'zipkin' in name:
-                        logger.info(f"Found Zipkin: {deploy_namespace}/{name}")
-                        zipkin_found = True
-                        tracing_components.append(f"Deployment: {deploy_namespace}/{name}")
-                        break
-            except Exception:
-                pass
-            
-            # Check for OpenTelemetry
-            opentelemetry_found = False
-            
-            # Check for OpenTelemetry operator CRDs
-            try:
-                api_client = k8s_api.api_client
-                api_response = api_client.call_api(
-                    '/apis/opentelemetry.io/v1alpha1', 
-                    'GET',
-                    auth_settings=['BearerToken'], 
-                    response_type='object'
-                )
-                
-                if api_response and api_response[0]:
-                    logger.info("OpenTelemetry CRDs found")
-                    opentelemetry_found = True
-                    tracing_components.append("OpenTelemetry CRDs")
-            except Exception:
-                pass
-            
-            # Check for OpenTelemetry deployments
-            if not opentelemetry_found:
-                try:
-                    deployments_response = k8s_api.list_resources(
-                        kind="Deployment", 
-                        api_version="apps/v1"
-                    )
-                    
-                    for deployment in deployments_response.items:
-                        deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
-                        metadata = deployment_dict.get('metadata', {})
-                        name = metadata.get('name', '').lower()
-                        deploy_namespace = metadata.get('namespace', 'unknown')
-                        
-                        if ('opentelemetry' in name or 'otel' in name) and 'adot' not in name:  # Avoid double-counting ADOT
-                            logger.info(f"Found OpenTelemetry: {deploy_namespace}/{name}")
-                            opentelemetry_found = True
-                            tracing_components.append(f"Deployment: {deploy_namespace}/{name}")
-                            break
-                except Exception:
-                    pass
-            
-            # Check for Service Mesh with tracing enabled
-            service_mesh_with_tracing = False
-            
-            # Check for Istio with tracing
-            try:
-                deployments_response = k8s_api.list_resources(
-                    kind="Deployment", 
-                    api_version="apps/v1"
-                )
-                
-                for deployment in deployments_response.items:
-                    deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
-                    metadata = deployment_dict.get('metadata', {})
-                    name = metadata.get('name', '').lower()
-                    deploy_namespace = metadata.get('namespace', 'unknown')
-                    
-                    if ('istio' in name and ('jaeger' in name or 'tracing' in name)):
-                        logger.info(f"Found Istio with tracing: {deploy_namespace}/{name}")
-                        service_mesh_with_tracing = True
-                        tracing_components.append(f"Service Mesh Tracing: {deploy_namespace}/{name}")
-                        break
-            except Exception:
-                pass
-            
-            # Check for Linkerd with tracing
-            if not service_mesh_with_tracing:
-                try:
-                    deployments_response = k8s_api.list_resources(
-                        kind="Deployment", 
-                        api_version="apps/v1"
-                    )
-                    
-                    for deployment in deployments_response.items:
-                        deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
-                        metadata = deployment_dict.get('metadata', {})
-                        name = metadata.get('name', '').lower()
-                        deploy_namespace = metadata.get('namespace', 'unknown')
-                        
-                        if ('linkerd' in name and 'jaeger' in name):
-                            logger.info(f"Found Linkerd with tracing: {deploy_namespace}/{name}")
-                            service_mesh_with_tracing = True
-                            tracing_components.append(f"Service Mesh Tracing: {deploy_namespace}/{name}")
-                            break
-                except Exception:
-                    pass
-            
-            # Determine if distributed tracing is in use
-            tracing_in_use = (jaeger_found or xray_found or zipkin_found or 
-                             opentelemetry_found or service_mesh_with_tracing)
-            
-            # Prepare detailed message
-            details = []
-            if tracing_in_use:
-                if jaeger_found:
-                    details.append("Jaeger tracing detected")
-                if xray_found:
-                    details.append("AWS X-Ray tracing detected")
-                if zipkin_found:
-                    details.append("Zipkin tracing detected")
-                if opentelemetry_found:
-                    details.append("OpenTelemetry tracing detected")
-                if service_mesh_with_tracing:
-                    details.append("Service mesh with tracing detected")
-            else:
-                details.append("No distributed tracing solution detected in the cluster")
-            
-            detailed_message = "; ".join(details)
-            logger.info(detailed_message)
-            
-            remediation = """
-            Install a distributed tracing solution:
-            
-            1. Jaeger:
-            ```bash
-            kubectl create namespace observability
-            kubectl create -f https://github.com/jaegertracing/jaeger-operator/releases/download/v1.41.0/jaeger-operator.yaml -n observability
-            ```
-            
-            2. AWS X-Ray (for EKS):
-            ```bash
-            helm repo add eks https://aws.github.io/eks-charts
-            helm install xray-daemon eks/aws-xray-daemon --namespace observability --create-namespace
-            ```
-            
-            3. OpenTelemetry:
-            ```bash
-            kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
-            ```
-            
-            4. Enable tracing in Istio:
-            ```bash
-            istioctl install --set values.tracing.enabled=true
-            ```
-            """
-            
-            return {
-                "check_id": "21",
-                "check_name": "Use distributed tracing",
-                "compliant": tracing_in_use,
-                "impacted_resources": tracing_components,
-                "details": detailed_message,
-                "remediation": remediation if not tracing_in_use else ""
-            }
-            
-        except Exception as e:
-            logger.error(f"Error checking for distributed tracing: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            
-            error_message = f"API error while checking for distributed tracing: {str(e)}"
-            
-            return {
-                "check_id": "21",
-                "check_name": "Use distributed tracing",
-                "compliant": False,
-                "impacted_resources": [],
-                "details": error_message,
-                "remediation": ""
-            }
-            
+
     def _check_c1(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
         """Check C1: Monitor Control Plane Metrics."""
         try:
@@ -3939,41 +3846,6 @@ class EKSResiliencyHandler:
                     "details": f"Error checking control plane metrics: {str(e)}",
                     "remediation": ""
                 }
-            control_plane_logging_enabled = False
-            
-            for config in logging_config:
-                if config.get('enabled', False) and 'api' in config.get('types', []):
-                    control_plane_logging_enabled = True
-                    break
-            
-            # Prepare remediation guidance
-            remediation = """
-            Enable control plane logging for your EKS cluster:
-            
-            ```bash
-            aws eks update-cluster-config \\
-              --region <region> \\
-              --name <cluster-name> \\
-              --logging '{"clusterLogging":[{"types":["api","audit","authenticator","controllerManager","scheduler"],"enabled":true}]}'
-            ```
-            
-            Or using eksctl:
-            ```bash
-            eksctl utils update-cluster-logging \\
-              --enable-types api,audit,authenticator,controllerManager,scheduler \\
-              --region <region> \\
-              --cluster <cluster-name>
-            ```
-            """
-            
-            return {
-                "check_id": "C1",
-                "check_name": "Monitor Control Plane Metrics",
-                "compliant": control_plane_logging_enabled,
-                "impacted_resources": [cluster_name] if not control_plane_logging_enabled else [],
-                "details": "Control plane logging is enabled" if control_plane_logging_enabled else "Control plane logging is not enabled",
-                "remediation": remediation if not control_plane_logging_enabled else ""
-            }
             
         except Exception as e:
             logger.error(f"Error checking control plane metrics: {str(e)}")
@@ -4132,8 +4004,8 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
             
-    def _check_c4(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check C4: Running large clusters."""
+    def _check_c3(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Check C3: Running large clusters."""
         try:
             logger.info("Starting large cluster check")
             
@@ -4149,7 +4021,7 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Could not count services in the cluster: {str(e)}")
                 return {
-                    "check_id": "C4",
+                    "check_id": "C3",
                     "check_name": "Running large clusters",
                     "compliant": False,
                     "impacted_resources": [],
@@ -4160,7 +4032,7 @@ class EKSResiliencyHandler:
             # If less than 1000 services, the cluster is not considered "large"
             if service_count < 1000:
                 return {
-                    "check_id": "C4",
+                    "check_id": "C3",
                     "check_name": "Running large clusters",
                     "compliant": True,
                     "impacted_resources": [],
@@ -4268,7 +4140,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "C4",
+                "check_id": "C3",
                 "check_name": "Running large clusters",
                 "compliant": is_compliant,
                 "impacted_resources": [],
@@ -4284,7 +4156,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking large cluster optimizations: {str(e)}"
             
             return {
-                "check_id": "C4",
+                "check_id": "C3",
                 "check_name": "Running large clusters",
                 "compliant": False,
                 "impacted_resources": [],
@@ -4292,15 +4164,15 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
             
-    def _check_c6(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check C6: EKS Control Plane End point access control."""
+    def _check_c4(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Check C4: EKS Control Plane Endpoint Access Control."""
         try:
             logger.info(f"Starting control plane endpoint access check for cluster: {cluster_name}")
             
             # Cluster name is now passed as a parameter
             if not cluster_name:
                 return {
-                    "check_id": "C6",
+                    "check_id": "C4",
                     "check_name": "EKS Control Plane Endpoint Access Control",
                     "compliant": False,
                     "impacted_resources": [],
@@ -4355,7 +4227,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "C6",
+                "check_id": "C4",
                 "check_name": "EKS Control Plane Endpoint Access Control",
                 "compliant": is_compliant,
                 "impacted_resources": access_config,
@@ -4371,7 +4243,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking control plane endpoint access: {str(e)}"
             
             return {
-                "check_id": "C6",
+                "check_id": "C4",
                 "check_name": "EKS Control Plane Endpoint Access Control",
                 "compliant": False,
                 "impacted_resources": [],
@@ -4379,8 +4251,8 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
             
-    def _check_c7(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check C7: Avoid "catch-all" admission webhooks."""
+    def _check_c5(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Check C5: Avoid catch-all admission webhooks."""
         try:
             logger.info("Starting admission webhooks check")
             
@@ -4515,37 +4387,37 @@ class EKSResiliencyHandler:
             Update your webhook configurations to use more specific selectors:
             
             ```yaml
-            apiVersion: admissionregistration.k8s.io/v1
-            kind: MutatingWebhookConfiguration
-            metadata:
-              name: my-webhook
-            webhooks:
-            - name: my-webhook.example.com
-              # Add namespace selector
-              namespaceSelector:
-                matchExpressions:
-                - key: kubernetes.io/metadata.name
-                  operator: NotIn
-                  values: ["kube-system", "kube-public"]
-              
-              # Add object selector
-              objectSelector:
-                matchLabels:
-                  app: my-app
-              
-              # Specify rules more precisely
-              rules:
-              - apiGroups: ["apps"]
-                apiVersions: ["v1"]
-                resources: ["deployments"]
-                scope: "Namespaced"
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: my-webhook
+webhooks:
+- name: my-webhook.example.com
+  # Add namespace selector
+  namespaceSelector:
+    matchExpressions:
+    - key: kubernetes.io/metadata.name
+      operator: NotIn
+      values: ["kube-system", "kube-public"]
+  
+  # Add object selector
+  objectSelector:
+    matchLabels:
+      app: my-app
+  
+  # Specify rules more precisely
+  rules:
+  - apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments"]
+    scope: "Namespaced"
             ```
             
             This helps avoid performance issues and unexpected behavior in your cluster.
             """
             
             return {
-                "check_id": "C7",
+                "check_id": "C5",
                 "check_name": "Avoid catch-all admission webhooks",
                 "compliant": is_compliant,
                 "impacted_resources": catch_all_webhooks,
@@ -4561,7 +4433,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking admission webhooks: {str(e)}"
             
             return {
-                "check_id": "C7",
+                "check_id": "C5",
                 "check_name": "Avoid catch-all admission webhooks",
                 "compliant": False,
                 "impacted_resources": [],
@@ -4569,8 +4441,8 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
             
-    def _check_d2(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check D2: Use Kubernetes Cluster Autoscaler or Karpenter to scale nodes."""
+    def _check_d1(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Check D1: Use Kubernetes Cluster Autoscaler or Karpenter."""
         try:
             logger.info("Starting node autoscaling check")
             
@@ -4696,7 +4568,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "D2",
+                "check_id": "D1",
                 "check_name": "Use Kubernetes Cluster Autoscaler or Karpenter",
                 "compliant": is_compliant,
                 "impacted_resources": auto_scaling_components if is_compliant else [],
@@ -4712,7 +4584,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking for node autoscaling: {str(e)}"
             
             return {
-                "check_id": "D2",
+                "check_id": "D1",
                 "check_name": "Use Kubernetes Cluster Autoscaler or Karpenter",
                 "compliant": False,
                 "impacted_resources": [],
@@ -4720,8 +4592,8 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
     
-    def _check_d6(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check D6: Ensure worker nodes are spread across multiple AZs and roughly balanced."""
+    def _check_d2(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Check D2: Worker nodes spread across multiple AZs."""
         try:
             logger.info("Starting AZ distribution check")
             
@@ -4773,7 +4645,7 @@ class EKSResiliencyHandler:
                 """
                 
                 return {
-                    "check_id": "D6",
+                    "check_id": "D2",
                     "check_name": "Worker nodes spread across multiple AZs",
                     "compliant": False,
                     "impacted_resources": [],
@@ -4814,7 +4686,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "D6",
+                "check_id": "D2",
                 "check_name": "Worker nodes spread across multiple AZs",
                 "compliant": is_compliant,
                 "impacted_resources": [] if is_compliant else list(az_counts),
@@ -4830,7 +4702,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking AZ distribution: {str(e)}"
             
             return {
-                "check_id": "D6",
+                "check_id": "D2",
                 "check_name": "Worker nodes spread across multiple AZs",
                 "compliant": False,
                 "impacted_resources": [],
@@ -4838,41 +4710,75 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
     
-    def _check_d11(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
-        """Check D11: Configure and Size Resource Requests/Limits for all Workloads."""
+    def _check_d3(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+        """Check D3: Configure Resource Requests/Limits."""
         try:
             logger.info("Starting resource requests/limits check")
             
-            deployments_without_resources = []
+            workloads_without_resources = []
+            workloads_with_memory_mismatch = []
             
             # Prepare kwargs for filtering
             kwargs = {}
             if namespace:
                 kwargs['namespace'] = namespace
-                logger.info(f"Checking deployments in namespace: {namespace}")
+                logger.info(f"Checking workloads in namespace: {namespace}")
             else:
-                logger.info("Checking deployments across all namespaces")
+                logger.info("Checking workloads across all namespaces")
             
-            # Get all deployments
-            deployments = k8s_api.list_resources(
-                kind="Deployment",
-                api_version="apps/v1",
-                **kwargs
-            )
-            
-            # Check each deployment for resource requests and limits
-            for deployment in deployments.items:
-                deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
+            # Helper function to parse memory values to bytes for comparison
+            def parse_memory_to_bytes(memory_str):
+                """Convert memory string (e.g., '128Mi', '1Gi') to bytes for comparison."""
+                if not memory_str:
+                    return 0
                 
-                metadata = deployment_dict.get('metadata', {})
-                deploy_namespace = metadata.get('namespace', 'default')
+                memory_str = str(memory_str).strip()
+                
+                # Handle different units
+                multipliers = {
+                    'Ki': 1024,
+                    'Mi': 1024 ** 2,
+                    'Gi': 1024 ** 3,
+                    'Ti': 1024 ** 4,
+                    'k': 1000,
+                    'M': 1000 ** 2,
+                    'G': 1000 ** 3,
+                    'T': 1000 ** 4,
+                }
+                
+                # Extract number and unit
+                import re
+                match = re.match(r'^(\d+(?:\.\d+)?)\s*([A-Za-z]*)$', memory_str)
+                if not match:
+                    # If no unit, assume bytes
+                    try:
+                        return int(float(memory_str))
+                    except:
+                        return 0
+                
+                value, unit = match.groups()
+                try:
+                    value = float(value)
+                    if unit in multipliers:
+                        return int(value * multipliers[unit])
+                    else:
+                        # No unit or unknown unit, assume bytes
+                        return int(value)
+                except:
+                    return 0
+            
+            # Helper function to check resource configuration
+            def check_workload_resources(workload_dict, workload_type):
+                metadata = workload_dict.get('metadata', {})
+                workload_namespace = metadata.get('namespace', 'default')
                 name = metadata.get('name', 'unknown')
                 
                 # Get containers from pod template
-                containers = deployment_dict.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+                containers = workload_dict.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
                 
                 # Check if all containers have resource requests and limits
                 all_have_resources = True
+                has_memory_mismatch = False
                 
                 for container in containers:
                     resources = container.get('resources', {})
@@ -4889,46 +4795,123 @@ class EKSResiliencyHandler:
                     if 'cpu' not in requests or 'memory' not in requests or 'cpu' not in limits or 'memory' not in limits:
                         all_have_resources = False
                         break
+                    
+                    # Check if memory request equals memory limit
+                    memory_request = requests.get('memory', '')
+                    memory_limit = limits.get('memory', '')
+                    
+                    if memory_request and memory_limit:
+                        request_bytes = parse_memory_to_bytes(memory_request)
+                        limit_bytes = parse_memory_to_bytes(memory_limit)
+                        
+                        if request_bytes != limit_bytes and request_bytes > 0 and limit_bytes > 0:
+                            has_memory_mismatch = True
+                            logger.info(f"{workload_type} has memory request/limit mismatch: {workload_namespace}/{name} (request: {memory_request}, limit: {memory_limit})")
                 
                 if not all_have_resources:
-                    deployments_without_resources.append(f"{deploy_namespace}/{name}")
-                    logger.info(f"Deployment without proper resource requests/limits: {deploy_namespace}/{name}")
+                    workloads_without_resources.append(f"{workload_type}: {workload_namespace}/{name}")
+                    logger.info(f"{workload_type} without proper resource requests/limits: {workload_namespace}/{name}")
+                elif has_memory_mismatch:
+                    workloads_with_memory_mismatch.append(f"{workload_type}: {workload_namespace}/{name}")
+                    logger.info(f"{workload_type} with memory request/limit mismatch: {workload_namespace}/{name}")
             
-            is_compliant = len(deployments_without_resources) == 0
+            # Check Deployments
+            logger.info("Checking Deployments for resource requests/limits")
+            try:
+                deployments = k8s_api.list_resources(
+                    kind="Deployment",
+                    api_version="apps/v1",
+                    **kwargs
+                )
+                
+                for deployment in deployments.items:
+                    deployment_dict = deployment.to_dict() if hasattr(deployment, 'to_dict') else deployment
+                    check_workload_resources(deployment_dict, "Deployment")
+            except Exception as e:
+                logger.error(f"Error checking deployments: {str(e)}")
             
-            detailed_message = f"Found {len(deployments_without_resources)} deployments without proper resource requests/limits"
+            # Check StatefulSets
+            logger.info("Checking StatefulSets for resource requests/limits")
+            try:
+                statefulsets = k8s_api.list_resources(
+                    kind="StatefulSet",
+                    api_version="apps/v1",
+                    **kwargs
+                )
+                
+                for statefulset in statefulsets.items:
+                    statefulset_dict = statefulset.to_dict() if hasattr(statefulset, 'to_dict') else statefulset
+                    check_workload_resources(statefulset_dict, "StatefulSet")
+            except Exception as e:
+                logger.error(f"Error checking statefulsets: {str(e)}")
+            
+            # Combine all issues for compliance check
+            all_impacted_resources = workloads_without_resources + workloads_with_memory_mismatch
+            is_compliant = len(all_impacted_resources) == 0
+            
+            # Build detailed message with separated categories
+            details = []
+            if workloads_without_resources:
+                details.append(f"Missing resource specs: {len(workloads_without_resources)} workloads ({', '.join(workloads_without_resources)})")
+            if workloads_with_memory_mismatch:
+                details.append(f"Memory request/limit mismatch: {len(workloads_with_memory_mismatch)} workloads ({', '.join(workloads_with_memory_mismatch)})")
+            
+            if not details:
+                detailed_message = "All workloads (Deployments/StatefulSets) have proper resource configuration"
+            else:
+                detailed_message = "; ".join(details)
+            
             logger.info(f"Resource requests/limits check completed: {is_compliant}")
             
-            remediation = """
-            Configure resource requests and limits for all containers in your deployments:
+            # Create structured impacted resources with categories
+            structured_resources = {}
+            if workloads_without_resources:
+                structured_resources["missing_resource_specs"] = workloads_without_resources
+            if workloads_with_memory_mismatch:
+                structured_resources["memory_request_limit_mismatch"] = workloads_with_memory_mismatch
             
+            remediation = """
+            Configure resource requests and limits for all containers in your workloads:
+            
+            For missing resource specifications:
             ```yaml
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: my-app
-            spec:
-              template:
-                spec:
-                  containers:
-                  - name: my-container
-                    resources:
-                      requests:
-                        cpu: "100m"
-                        memory: "128Mi"
-                      limits:
-                        cpu: "500m"
-                        memory: "512Mi"
+apiVersion: apps/v1
+kind: Deployment  # or StatefulSet
+metadata:
+  name: my-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: my-container
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "128Mi"  # Same as request for Guaranteed QoS
+            ```
+            
+            For Guaranteed QoS (recommended for critical workloads), set memory requests equal to limits:
+            ```yaml
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "256Mi"  # Must match request for Guaranteed QoS
             ```
             
             Consider using the Vertical Pod Autoscaler in recommendation mode to determine appropriate values.
             """
             
             return {
-                "check_id": "D11",
+                "check_id": "D3",
                 "check_name": "Configure Resource Requests/Limits",
                 "compliant": is_compliant,
-                "impacted_resources": deployments_without_resources,
+                "impacted_resources": structured_resources if structured_resources else [],
                 "details": detailed_message,
                 "remediation": remediation if not is_compliant else ""
             }
@@ -4941,7 +4924,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking resource requests/limits: {str(e)}"
             
             return {
-                "check_id": "D11",
+                "check_id": "D3",
                 "check_name": "Configure Resource Requests/Limits",
                 "compliant": False,
                 "impacted_resources": [],
@@ -4949,7 +4932,7 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
     
-    def _check_d14(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+    def _check_d6(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
         """Check D14: Monitor CoreDNS metrics."""
         try:
             logger.info("Starting CoreDNS metrics check")
@@ -4981,7 +4964,7 @@ class EKSResiliencyHandler:
                 """
                 
                 return {
-                    "check_id": "D14",
+                    "check_id": "D6",
                     "check_name": "Monitor CoreDNS metrics",
                     "compliant": False,
                     "impacted_resources": [],
@@ -5087,41 +5070,41 @@ class EKSResiliencyHandler:
             
             1. Ensure CoreDNS metrics port is exposed (should be by default on EKS):
             ```yaml
-            apiVersion: apps/v1
-            kind: Deployment
-            metadata:
-              name: coredns
-              namespace: kube-system
-            spec:
-              template:
-                spec:
-                  containers:
-                  - name: coredns
-                    ports:
-                    - containerPort: 9153
-                      name: metrics
-                      protocol: TCP
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+      - name: coredns
+        ports:
+        - containerPort: 9153
+          name: metrics
+          protocol: TCP
             ```
             
             2. Create a ServiceMonitor for CoreDNS (if using Prometheus Operator):
             ```yaml
-            apiVersion: monitoring.coreos.com/v1
-            kind: ServiceMonitor
-            metadata:
-              name: coredns
-              namespace: monitoring
-            spec:
-              endpoints:
-              - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-                interval: 30s
-                port: metrics
-              jobLabel: k8s-app
-              namespaceSelector:
-                matchNames:
-                - kube-system
-              selector:
-                matchLabels:
-                  k8s-app: kube-dns
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: coredns
+  namespace: monitoring
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    port: metrics
+  jobLabel: k8s-app
+  namespaceSelector:
+    matchNames:
+    - kube-system
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
             ```
             
             3. Or add a scrape config to Prometheus (if not using Prometheus Operator):
@@ -5144,7 +5127,7 @@ class EKSResiliencyHandler:
             """
             
             return {
-                "check_id": "D14",
+                "check_id": "D6",
                 "check_name": "Monitor CoreDNS metrics",
                 "compliant": is_compliant,
                 "impacted_resources": [],
@@ -5160,7 +5143,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking CoreDNS metrics: {str(e)}"
             
             return {
-                "check_id": "D14",
+                "check_id": "D6",
                 "check_name": "Monitor CoreDNS metrics",
                 "compliant": False,
                 "impacted_resources": [],
@@ -5168,7 +5151,7 @@ class EKSResiliencyHandler:
                 "remediation": ""
             }
     
-    def _check_namespace_resource_quotas(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+    def _check_d4(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
         """Check if namespaces have ResourceQuotas configured."""
         try:
             logger.info("Starting namespace resource quotas check")
@@ -5185,7 +5168,7 @@ class EKSResiliencyHandler:
                     
                     if not hasattr(ns, 'items') or len(ns.items) == 0:
                         return {
-                            "check_id": "D12",
+                            "check_id": "D4",
                             "check_name": "Namespace ResourceQuotas",
                             "compliant": False,
                             "impacted_resources": [],
@@ -5203,7 +5186,7 @@ class EKSResiliencyHandler:
                     has_quota = hasattr(quotas, 'items') and len(quotas.items) > 0
                     
                     return {
-                        "check_id": "D12",
+                        "check_id": "D4",
                         "check_name": "Namespace ResourceQuotas",
                         "compliant": has_quota,
                         "impacted_resources": [] if has_quota else [namespace],
@@ -5213,7 +5196,7 @@ class EKSResiliencyHandler:
                 except Exception as e:
                     logger.error(f"Error checking ResourceQuota for namespace {namespace}: {str(e)}")
                     return {
-                        "check_id": "D12",
+                        "check_id": "D4",
                         "check_name": "Namespace ResourceQuotas",
                         "compliant": False,
                         "impacted_resources": [],
@@ -5240,24 +5223,33 @@ class EKSResiliencyHandler:
                 if ns:
                     quota_ns_set.add(ns)
             
-            # Find namespaces without ResourceQuotas, excluding kube-system and other system namespaces
-            system_namespaces = {'kube-system', 'kube-public', 'kube-node-lease', 'default'}
+            # Check only default namespace and user-created namespaces, excluding system namespaces
+            system_namespaces_to_ignore = {'kube-system', 'kube-public', 'kube-node-lease'}
+            target_namespaces = []
             missing = []
             
             for ns in namespaces.items:
                 ns_dict = ns.to_dict() if hasattr(ns, 'to_dict') else ns
                 ns_name = ns_dict.get('metadata', {}).get('name')
                 
-                if ns_name and ns_name not in quota_ns_set and ns_name not in system_namespaces:
-                    missing.append(ns_name)
+                # Include default namespace and any user-created namespaces
+                if ns_name and ns_name not in system_namespaces_to_ignore:
+                    target_namespaces.append(ns_name)
+                    if ns_name not in quota_ns_set:
+                        missing.append(ns_name)
             
             is_compliant = len(missing) == 0
             
-            detailed_message = "All namespaces have ResourceQuota" if is_compliant else f"Found {len(missing)} namespaces without ResourceQuota"
+            if len(target_namespaces) == 0:
+                detailed_message = "No target namespaces found (this should not happen as 'default' namespace should always exist)"
+            elif is_compliant:
+                detailed_message = f"All {len(target_namespaces)} target namespaces have ResourceQuota (including default namespace)"
+            else:
+                detailed_message = f"Found {len(missing)} of {len(target_namespaces)} target namespaces without ResourceQuota: {', '.join(missing)}"
             logger.info(f"Namespace resource quotas check completed: {is_compliant}")
             
             return {
-                "check_id": "D12",
+                "check_id": "D4",
                 "check_name": "Namespace ResourceQuotas",
                 "compliant": is_compliant,
                 "impacted_resources": missing,
@@ -5273,7 +5265,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking namespace resource quotas: {str(e)}"
             
             return {
-                "check_id": "D12",
+                "check_id": "D4",
                 "check_name": "Namespace ResourceQuotas",
                 "compliant": False,
                 "impacted_resources": [],
@@ -5309,7 +5301,7 @@ class EKSResiliencyHandler:
         ```
         """
     
-    def _check_namespace_limit_ranges(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+    def _check_d5(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
         """Check if namespaces have LimitRanges configured."""
         try:
             logger.info("Starting namespace limit ranges check")
@@ -5326,7 +5318,7 @@ class EKSResiliencyHandler:
                     
                     if not hasattr(ns, 'items') or len(ns.items) == 0:
                         return {
-                            "check_id": "D13",
+                            "check_id": "D5",
                             "check_name": "Namespace LimitRanges",
                             "compliant": False,
                             "impacted_resources": [],
@@ -5344,7 +5336,7 @@ class EKSResiliencyHandler:
                     has_limit_range = hasattr(limit_ranges, 'items') and len(limit_ranges.items) > 0
                     
                     return {
-                        "check_id": "D13",
+                        "check_id": "D5",
                         "check_name": "Namespace LimitRanges",
                         "compliant": has_limit_range,
                         "impacted_resources": [] if has_limit_range else [namespace],
@@ -5354,7 +5346,7 @@ class EKSResiliencyHandler:
                 except Exception as e:
                     logger.error(f"Error checking LimitRange for namespace {namespace}: {str(e)}")
                     return {
-                        "check_id": "D13",
+                        "check_id": "D5",
                         "check_name": "Namespace LimitRanges",
                         "compliant": False,
                         "impacted_resources": [],
@@ -5381,24 +5373,33 @@ class EKSResiliencyHandler:
                 if ns:
                     limit_range_ns_set.add(ns)
             
-            # Find namespaces without LimitRanges, excluding kube-system and other system namespaces
-            system_namespaces = {'kube-system', 'kube-public', 'kube-node-lease', 'default'}
+            # Check only default namespace and user-created namespaces, excluding system namespaces
+            system_namespaces_to_ignore = {'kube-system', 'kube-public', 'kube-node-lease'}
+            target_namespaces = []
             missing = []
             
             for ns in namespaces.items:
                 ns_dict = ns.to_dict() if hasattr(ns, 'to_dict') else ns
                 ns_name = ns_dict.get('metadata', {}).get('name')
                 
-                if ns_name and ns_name not in limit_range_ns_set and ns_name not in system_namespaces:
-                    missing.append(ns_name)
+                # Include default namespace and any user-created namespaces
+                if ns_name and ns_name not in system_namespaces_to_ignore:
+                    target_namespaces.append(ns_name)
+                    if ns_name not in limit_range_ns_set:
+                        missing.append(ns_name)
             
             is_compliant = len(missing) == 0
             
-            detailed_message = "All namespaces have LimitRange" if is_compliant else f"Found {len(missing)} namespaces without LimitRange"
+            if len(target_namespaces) == 0:
+                detailed_message = "No target namespaces found (this should not happen as 'default' namespace should always exist)"
+            elif is_compliant:
+                detailed_message = f"All {len(target_namespaces)} target namespaces have LimitRange (including default namespace)"
+            else:
+                detailed_message = f"Found {len(missing)} of {len(target_namespaces)} target namespaces without LimitRange: {', '.join(missing)}"
             logger.info(f"Namespace limit ranges check completed: {is_compliant}")
             
             return {
-                "check_id": "D13",
+                "check_id": "D5",
                 "check_name": "Namespace LimitRanges",
                 "compliant": is_compliant,
                 "impacted_resources": missing,
@@ -5414,7 +5415,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking namespace limit ranges: {str(e)}"
             
             return {
-                "check_id": "D13",
+                "check_id": "D5",
                 "check_name": "Namespace LimitRanges",
                 "compliant": False,
                 "impacted_resources": [],
@@ -5456,7 +5457,7 @@ class EKSResiliencyHandler:
         ```
         """
     
-    def _check_coredns_configuration(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
+    def _check_d7(self, k8s_api, cluster_name: str, namespace: Optional[str] = None) -> Dict[str, Any]:
         """Check D15: Verify CoreDNS configuration and EKS managed addon status.
         
         For auto mode clusters (clusters with computeConfig.enabled=true), this check always passes.
@@ -5468,7 +5469,7 @@ class EKSResiliencyHandler:
             # Cluster name is now passed as a parameter
             if not cluster_name:
                 return {
-                    "check_id": "D15",
+                    "check_id": "D7",
                     "check_name": "CoreDNS Configuration",
                     "compliant": False,
                     "impacted_resources": [],
@@ -5596,7 +5597,7 @@ class EKSResiliencyHandler:
                     impacted_resources.append(f"{namespace}/{name}")
                 
                 return {
-                    "check_id": "D15",
+                    "check_id": "D7",
                     "check_name": "CoreDNS Configuration",
                     "compliant": is_compliant,
                     "impacted_resources": impacted_resources,
@@ -5606,149 +5607,13 @@ class EKSResiliencyHandler:
             except Exception as e:
                 logger.error(f"Error checking CoreDNS configuration: {str(e)}")
                 return {
-                    "check_id": "D15",
+                    "check_id": "D7",
                     "check_name": "CoreDNS Configuration",
                     "compliant": False,
                     "impacted_resources": [],
                     "details": f"Error checking CoreDNS configuration: {str(e)}",
                     "remediation": ""
                 }
-            
-            # Check if CoreDNS is deployed
-            coredns_found = False
-            coredns_deployment = None
-            
-            try:
-                deployments = k8s_api.list_resources(
-                    kind="Deployment",
-                    api_version="apps/v1",
-                    namespace="kube-system",
-                    label_selector="k8s-app=kube-dns"
-                )
-                
-                if hasattr(deployments, 'items') and len(deployments.items) > 0:
-                    coredns_found = True
-                    coredns_deployment = deployments.items[0]
-                    logger.info("Found CoreDNS deployment in kube-system namespace")
-            except Exception as e:
-                logger.warning(f"Error checking CoreDNS deployment: {str(e)}")
-            
-            # Check for NodeLocal DNSCache DaemonSet in kube-system namespace
-            node_local_dns_found = False
-            ds_name = None
-            
-            try:
-                daemonsets = k8s_api.list_resources(
-                    kind="DaemonSet",
-                    api_version="apps/v1",
-                    namespace="kube-system"
-                )
-                
-                for ds in daemonsets.items:
-                    ds_dict = ds.to_dict() if hasattr(ds, 'to_dict') else ds
-                    metadata = ds_dict.get('metadata', {})
-                    name = metadata.get('name', '').lower()
-                    
-                    if 'node-local-dns' in name or 'nodelocaldns' in name:
-                        node_local_dns_found = True
-                        ds_name = metadata.get('name')
-                        logger.info(f"Found NodeLocal DNSCache DaemonSet: kube-system/{ds_name}")
-                        break
-            except Exception as e:
-                logger.warning(f"Error checking NodeLocal DNSCache: {str(e)}")
-            
-            # Check if the cluster is an EKS auto mode cluster by checking computeConfig.enabled
-            is_auto_mode = False
-            compute_config = cluster_info['cluster'].get('computeConfig', {})
-            if compute_config and compute_config.get('enabled', False):
-                is_auto_mode = True
-                node_pools = compute_config.get('nodePools', [])
-                logger.info(f"Cluster {cluster_name} is an EKS auto mode cluster with node pools: {', '.join(node_pools)}")
-            
-            # Determine compliance based on findings
-            details = []
-            
-            if not coredns_found:
-                details.append("CoreDNS deployment not found")
-                is_compliant = False
-            else:
-                details.append("CoreDNS is deployed")
-                
-                if has_managed_coredns:
-                    details.append("Using EKS managed addon for CoreDNS")
-                
-                if is_auto_mode:
-                    node_pools = cluster_info['cluster'].get('computeConfig', {}).get('nodePools', [])
-                    details.append(f"Cluster is running in EKS auto mode with node pools: {', '.join(node_pools)}")
-                    # For auto mode clusters, always pass the check
-                    is_compliant = True
-                else:
-                    # For non-auto mode clusters, check if CoreDNS is managed by EKS
-                    if has_managed_coredns:
-                        details.append("CoreDNS is managed by EKS Managed Add-on")
-                        is_compliant = True
-                    else:
-                        details.append("CoreDNS is not managed by EKS Managed Add-on")
-                        is_compliant = False
-            
-            detailed_message = "; ".join(details)
-            logger.info(f"CoreDNS configuration check completed: {is_compliant}")
-            
-            # Prepare remediation guidance based on findings
-            remediation = ""
-            if not is_compliant:
-                if not coredns_found:
-                    remediation = f"""
-                    CoreDNS is not deployed in your cluster. This is unusual for an EKS cluster.
-                    
-                    Enable CoreDNS as an EKS managed addon:
-                    ```bash
-                    aws eks update-addon \\
-                      --cluster-name {cluster_name} \\
-                      --addon-name coredns \\
-                      --resolve-conflicts OVERWRITE
-                    ```
-                    """
-                elif not is_auto_mode and not has_managed_coredns:
-                    remediation = f"""
-                    For non-auto mode clusters, it's recommended to use EKS managed addon for CoreDNS.
-                    This provides better integration, automatic updates, and improved security.
-                    
-                    Enable CoreDNS as an EKS managed addon:
-                    ```bash
-                    aws eks update-addon \\
-                      --cluster-name {cluster_name} \\
-                      --addon-name coredns \\
-                      --resolve-conflicts PRESERVE
-                    ```
-                    
-                    Benefits of using EKS managed addons:
-                    - Automatic updates to new versions
-                    - Security patches are automatically applied
-                    - Simplified management through AWS console or CLI
-                    - Better integration with EKS
-                    """
-            
-            # Prepare impacted resources list
-            impacted_resources = []
-            if coredns_found:
-                coredns_dict = coredns_deployment.to_dict() if hasattr(coredns_deployment, 'to_dict') else coredns_deployment
-                metadata = coredns_dict.get('metadata', {})
-                name = metadata.get('name')
-                namespace = metadata.get('namespace', 'kube-system')
-                impacted_resources.append(f"{namespace}/{name}")
-            
-            if node_local_dns_found and ds_name:
-                impacted_resources.append(f"kube-system/{ds_name}")
-            
-            return {
-                "check_id": "D15",
-                "check_name": "CoreDNS Configuration",
-                "compliant": is_compliant,
-                "impacted_resources": impacted_resources if is_compliant else [],
-                "details": detailed_message,
-                "remediation": remediation if not is_compliant else ""
-            }
             
         except Exception as e:
             logger.error(f"Error checking CoreDNS configuration: {str(e)}")
@@ -5758,7 +5623,7 @@ class EKSResiliencyHandler:
             error_message = f"Error checking CoreDNS configuration: {str(e)}"
             
             return {
-                "check_id": "D15",
+                "check_id": "D7",
                 "check_name": "CoreDNS Configuration",
                 "compliant": False,
                 "impacted_resources": [],
