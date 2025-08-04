@@ -28,8 +28,8 @@ import string
 import secrets
 
 
-class SecurityError(Exception):
-    """Raised when security boundary violations are detected."""
+class MockingSecurityError(Exception):
+    """Raised when mocking security boundary violations are detected."""
     pass
 
 
@@ -388,23 +388,36 @@ class AWSErrorCatalog:
         """Validate error generation respects security boundaries."""
         boundary = error_config.get('SecurityBoundary', 'UNKNOWN')
         
-        # Expanded security boundary validation beyond 'Admin' prefix
-        sensitive_operations = [
+        # Focused security boundary validation for truly sensitive operations
+        highly_sensitive_operations = [
             'Admin', 'Root', 'Super', 'Master', 'Privileged', 'System',
-            'Delete', 'Remove', 'Destroy', 'Terminate', 'Drop',
-            'Create', 'Add', 'Insert', 'Update', 'Modify', 'Change',
-            'Get', 'Describe', 'List', 'Put', 'Post'  # API operations that could expose data
+            'Delete', 'Remove', 'Destroy', 'Terminate', 'Drop'
         ]
         
-        # Check for sensitive operation patterns
-        is_sensitive = any(
+        # Operations that modify state or could affect security posture
+        state_changing_operations = [
+            'Create', 'Add', 'Insert', 'Update', 'Modify', 'Change', 'Put', 'Post'
+        ]
+        
+        # Check for highly sensitive operation patterns
+        is_highly_sensitive = any(
             operation.startswith(prefix) or prefix.lower() in operation.lower() 
-            for prefix in sensitive_operations
+            for prefix in highly_sensitive_operations
         )
         
+        # Check for state-changing operations (less restrictive)
+        is_state_changing = any(
+            operation.startswith(prefix) or prefix.lower() in operation.lower() 
+            for prefix in state_changing_operations
+        )
+        
+        # Apply different rules based on sensitivity level
+        is_sensitive = is_highly_sensitive or (boundary == 'AUTH_FAILURE' and is_state_changing)
+        
         # Prevent sensitive operation errors in authentication failure contexts
-        if boundary == 'AUTH_FAILURE' and is_sensitive:
-            raise SecurityError(f"Sensitive operation '{operation}' error simulation blocked for security")
+        # This helps avoid test scenarios that could inadvertently simulate real security issues
+        if is_sensitive:
+            raise MockingSecurityError(f"Sensitive operation '{operation}' error simulation blocked for security")
         
         # Additional boundary checks for different security contexts
         if boundary == 'SERVICE_ERROR':
@@ -417,7 +430,7 @@ class AWSErrorCatalog:
         if boundary == 'RESOURCE_ACCESS' and operation.lower().startswith('get'):
             # Validate that resource access errors don't leak existence information
             if 'exists' in error_config.get('Message', '').lower():
-                raise SecurityError(f"Resource enumeration via error messages blocked for operation '{operation}'")
+                raise MockingSecurityError(f"Resource enumeration via error messages blocked for operation '{operation}'")
         
         # Rate limiting boundary validation
         if boundary == 'RATE_LIMIT':

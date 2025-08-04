@@ -62,7 +62,7 @@ class TemporalCredentials:
     def to_env_dict(self) -> Dict[str, str]:
         """Convert to environment variable dictionary."""
         if self.is_expired():
-            raise SecurityError("Attempted to use expired test credentials")
+            raise CredentialSecurityError("Attempted to use expired test credentials")
         
         return {
             'AWS_ACCESS_KEY_ID': self.access_key,
@@ -86,8 +86,8 @@ class TemporalCredentials:
         random_bytes = secrets.token_bytes(bytes_needed)
         encoded = base64.urlsafe_b64encode(random_bytes).decode('ascii').rstrip('=')
         return encoded[:length]
-class SecurityError(Exception):
-    """Raised when security boundary violations are detected."""
+class CredentialSecurityError(Exception):
+    """Raised when credential security boundary violations are detected."""
     pass
 
 
