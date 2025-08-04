@@ -11,7 +11,9 @@ from pathlib import Path
 def validate_tools():
     """Validate all 16 CloudWAN tools are correctly implemented."""
     
-    server_file = Path(__file__).parent / "awslabs" / "cloudwan_mcp_server" / "server.py"
+    # Use robust path resolution for server file
+    project_root = Path(__file__).resolve().parents[3]
+    server_file = project_root / "awslabs" / "cloudwan_mcp_server" / "server.py"
     
     if not server_file.exists():
         print(f"ERROR: Server file not found at {server_file}")

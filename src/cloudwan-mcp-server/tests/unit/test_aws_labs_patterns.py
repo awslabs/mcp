@@ -16,7 +16,7 @@
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from awslabs.cloudwan_mcp_server.config_manager import config_persistence, AWSConfigManager
+from awslabs.cloudwan_mcp_server.config_manager import AWSConfigManager
 
 
 class TestAWSLabsPatterns:

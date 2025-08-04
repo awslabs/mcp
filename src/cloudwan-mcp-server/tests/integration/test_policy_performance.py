@@ -194,10 +194,10 @@ class TestLargePolicyDocumentParsing:
         assert 'overall_status' in parsed
         assert 'validation_results' in parsed
         
-        # Performance requirements for 10MB+ policy
+        # Performance requirements for 10MB+ policy (optimized for faster parsing)
         assert policy_size_mb >= 10.0, f"Policy size {policy_size_mb:.1f}MB, expected >= 10MB"
-        assert parsing_time < 120.0, f"10MB policy parsing took {parsing_time:.2f}s, expected < 120s"
-        assert memory_usage < 1000, f"Memory usage {memory_usage:.2f}MB, expected < 1000MB"
+        assert parsing_time < 30.0, f"10MB policy parsing took {parsing_time:.2f}s, expected < 30s (optimized from 120s)"
+        assert memory_usage < 500, f"Memory usage {memory_usage:.2f}MB, expected < 500MB (optimized from 1000MB)"
         
         # Validate policy structure was processed
         validation_results = parsed['validation_results']

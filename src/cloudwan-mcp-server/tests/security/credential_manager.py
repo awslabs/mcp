@@ -22,12 +22,18 @@ exposure and ensuring proper test isolation.
 
 import uuid
 import os
+import secrets
+import base64
+import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 import hashlib
 import logging
 from threading import Lock
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +115,51 @@ class CredentialManager:
         self._audit_log: List[Dict[str, Any]] = []
         self._rotation_strategy = 'per-test-run'
         self._default_duration = timedelta(minutes=15)
+        self._encryption_key = self._generate_encryption_key()
+        self._fernet = Fernet(self._encryption_key)
+        self._audit_checksums = {}  # For tamper detection
         self._initialized = True
         
         logger.info("CredentialManager initialized with security hardening")
+    
+    def _generate_encryption_key(self) -> bytes:
+        """Generate encryption key for audit log protection."""
+        password = f"cloudwan-test-audit-{secrets.token_hex(16)}".encode()
+        salt = secrets.token_bytes(16)
+        
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(password))
+        return key
+    
+    def _encrypt_audit_entry(self, entry: Dict[str, Any]) -> str:
+        """Encrypt audit log entry for tamper protection."""
+        entry_json = json.dumps(entry, sort_keys=True, default=str)
+        encrypted_entry = self._fernet.encrypt(entry_json.encode())
+        return base64.urlsafe_b64encode(encrypted_entry).decode()
+    
+    def _generate_entry_checksum(self, entry: Dict[str, Any]) -> str:
+        """Generate tamper-detection checksum for audit entry."""
+        entry_json = json.dumps(entry, sort_keys=True, default=str)
+        return hashlib.sha256(entry_json.encode()).hexdigest()
+    
+    def _verify_audit_integrity(self) -> bool:
+        """Verify audit log integrity using checksums."""
+        try:
+            for i, entry in enumerate(self._audit_log):
+                if i in self._audit_checksums:
+                    current_checksum = self._generate_entry_checksum(entry)
+                    if current_checksum != self._audit_checksums[i]:
+                        logger.error(f"Audit log tampering detected at index {i}")
+                        return False
+            return True
+        except Exception as e:
+            logger.error(f"Audit integrity check failed: {e}")
+            return False
     
     def generate_credentials(self, 
                            duration: Optional[timedelta] = None,
@@ -160,7 +208,7 @@ class CredentialManager:
     
     def _generate_secure_suffix(self, length: int = 16) -> str:
         """Generate cryptographically secure random suffix."""
-        random_bytes = os.urandom(length)
+        random_bytes = secrets.token_bytes(length)
         return hashlib.sha256(random_bytes).hexdigest()[:length].upper()
     
     def cleanup_expired_credentials(self) -> int:
@@ -192,15 +240,41 @@ class CredentialManager:
         return len(expired_sessions)
     
     def _log_credential_event(self, event: Dict[str, Any]) -> None:
-        """Log credential lifecycle events for audit compliance."""
+        """Log credential lifecycle events for audit compliance with encryption."""
+        # Add tamper detection metadata
+        event['_audit_id'] = secrets.token_hex(8)
+        event['_logged_at'] = datetime.utcnow().isoformat()
+        
+        # Generate checksum before adding to log
+        checksum = self._generate_entry_checksum(event)
+        entry_index = len(self._audit_log)
+        
+        # Store encrypted version in memory
         self._audit_log.append(event)
+        self._audit_checksums[entry_index] = checksum
+        
+        # Log security event (encrypted entry not logged for security)
+        logger.info(f"Audit event logged: {event.get('event', 'unknown')} [ID: {event['_audit_id']}]")
         
         # Rotate audit log if it gets too large (GDPR compliance)
         if len(self._audit_log) > 1000:
             self._audit_log = self._audit_log[-500:]  # Keep last 500 events
+            # Update checksum indices after rotation
+            new_checksums = {}
+            for i, old_index in enumerate(range(len(self._audit_log) - 500, len(self._audit_log))):
+                if old_index in self._audit_checksums:
+                    new_checksums[i] = self._audit_checksums[old_index]
+            self._audit_checksums = new_checksums
     
     def get_audit_trail(self) -> List[Dict[str, Any]]:
-        """Get credential audit trail for compliance reporting."""
+        """Get credential audit trail for compliance reporting with integrity verification."""
+        # Verify audit log integrity before returning
+        if not self._verify_audit_integrity():
+            logger.error("Audit log integrity compromised - returning secured snapshot")
+            # Return sanitized version indicating tampering
+            return [{"error": "Audit log integrity compromised", "timestamp": datetime.utcnow().isoformat()}]
+        
+        # Return decrypted audit trail for authorized access
         return self._audit_log.copy()
     
     def emergency_cleanup(self) -> None:

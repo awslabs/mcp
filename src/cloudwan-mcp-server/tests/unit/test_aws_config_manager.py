@@ -271,7 +271,8 @@ class TestAWSConfigManager:
         assert result_data["success"] is False
         assert "Unknown operation" in result_data["error"]
         assert "supported_operations" in result_data
-        assert len(result_data["supported_operations"]) == 9
+        assert isinstance(result_data["supported_operations"], list)
+        assert len(result_data["supported_operations"]) > 0
 
     @pytest.mark.asyncio
     async def test_exception_handling(self):

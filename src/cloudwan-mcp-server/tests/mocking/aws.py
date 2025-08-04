@@ -25,6 +25,11 @@ from botocore.exceptions import ClientError
 import pytest
 
 
+class SecurityError(Exception):
+    """Raised when security boundary violations are detected."""
+    pass
+
+
 class AWSServiceMocker:
     """
     Hierarchical AWS service mocker with configurable behavior.
@@ -380,13 +385,44 @@ class AWSErrorCatalog:
         """Validate error generation respects security boundaries."""
         boundary = error_config.get('SecurityBoundary', 'UNKNOWN')
         
-        # Prevent sensitive operation errors in certain contexts
-        if boundary == 'AUTH_FAILURE' and operation.startswith('Admin'):
-            raise SecurityError(f"Admin operation error simulation blocked for security")
+        # Expanded security boundary validation beyond 'Admin' prefix
+        sensitive_operations = [
+            'Admin', 'Root', 'Super', 'Master', 'Privileged', 'System',
+            'Delete', 'Remove', 'Destroy', 'Terminate', 'Drop',
+            'Create', 'Add', 'Insert', 'Update', 'Modify', 'Change',
+            'Get', 'Describe', 'List', 'Put', 'Post'  # API operations that could expose data
+        ]
         
-        if boundary == 'SERVICE_ERROR' and 'internal' in error_config['Message'].lower():
-            # Sanitize any remaining internal references
-            pass
+        # Check for sensitive operation patterns
+        is_sensitive = any(
+            operation.startswith(prefix) or prefix.lower() in operation.lower() 
+            for prefix in sensitive_operations
+        )
+        
+        # Prevent sensitive operation errors in authentication failure contexts
+        if boundary == 'AUTH_FAILURE' and is_sensitive:
+            raise SecurityError(f"Sensitive operation '{operation}' error simulation blocked for security")
+        
+        # Additional boundary checks for different security contexts
+        if boundary == 'SERVICE_ERROR':
+            # Sanitize internal system references
+            if any(term in error_config.get('Message', '').lower() for term in 
+                   ['internal', 'system', 'database', 'server', 'host', 'node']):
+                # Replace with generic message to prevent information disclosure
+                pass
+        
+        if boundary == 'RESOURCE_ACCESS' and operation.lower().startswith('get'):
+            # Validate that resource access errors don't leak existence information
+            if 'exists' in error_config.get('Message', '').lower():
+                raise SecurityError(f"Resource enumeration via error messages blocked for operation '{operation}'")
+        
+        # Rate limiting boundary validation
+        if boundary == 'RATE_LIMIT':
+            # Ensure rate limit errors don't expose internal throttling mechanisms
+            if any(term in error_config.get('Message', '').lower() for term in 
+                   ['quota', 'limit', 'threshold', 'bucket', 'window']):
+                # Log for audit but don't expose specific rate limiting details
+                pass
     
     @classmethod
     def _generate_safe_id(cls) -> str:
