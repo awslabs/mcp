@@ -74,8 +74,7 @@ use [`uvx`](https://docs.astral.sh/uv/guides/tools/) to directly run *awslabs.cl
         "awslabs.cloudwatch-appsignals-mcp-server@latest"
       ],
       "env": {
-        "AWS_ACCESS_KEY_ID": "[AWS Access Key ID]",
-        "AWS_SECRET_ACCESS_KEY": "[AWS Access Key]",
+        "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
         "AWS_REGION": "[AWS Region]",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -99,7 +98,11 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     "mcpServers": {
       "awslabs.cloudwatch-appsignals-mcp-server": {
         "command": "uvx",
-        "args": ["--from", "/absolute/path/to/cloudwatch-appsignals-mcp-server", "awslabs.cloudwatch-appsignals-mcp-server"]
+        "args": ["--from", "/absolute/path/to/cloudwatch-appsignals-mcp-server", "awslabs.cloudwatch-appsignals-mcp-server"],
+        "env": {
+          "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
+          "AWS_REGION": "[AWS Region]"
+        }
       }
     }
   }
@@ -114,7 +117,11 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     "mcpServers": {
       "awslabs.cloudwatch-appsignals-mcp-server": {
         "command": "uvx",
-        "args": ["awslabs.cloudwatch-appsignals-mcp-server@latest"]
+        "args": ["awslabs.cloudwatch-appsignals-mcp-server@latest"],
+        "env": {
+          "AWS_PROFILE": "[The AWS Profile Name to use for AWS access]",
+          "AWS_REGION": "[AWS Region]"
+        }
       }
     }
   }
@@ -137,9 +144,9 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
         "run",
         "-i",
         "--rm",
-        "-e", "AWS_ACCESS_KEY_ID=[your data]",
-        "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
-        "-e", "AWS_REGION=[your data]",
+        "-v", "${HOME}/.aws:/root/.aws:ro",
+        "-e", "AWS_PROFILE=[The AWS Profile Name to use for AWS access]",
+        "-e", "AWS_REGION=[AWS Region]",
         "awslabs/cloudwatch-appsignals-mcp-server:latest"
       ]
     }
@@ -262,19 +269,18 @@ The server requires the following AWS IAM permissions:
 
 ### Environment Variables
 
+- `AWS_PROFILE` - AWS profile name to use for authentication (defaults to `default` profile)
 - `AWS_REGION` - AWS region (defaults to us-east-1)
 - `MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL` - Logging level (defaults to INFO)
 
 ### AWS Credentials
 
-This server uses the standard AWS credential chain via boto3. It will automatically use credentials from:
-- Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, etc.)
-- AWS credentials file (`~/.aws/credentials`)
-- AWS config file (`~/.aws/config`)
-- IAM roles (when running on EC2, ECS, Lambda, etc.)
-- And other standard AWS credential providers
+This server uses AWS profiles for authentication. Set the `AWS_PROFILE` environment variable to use a specific profile from your `~/.aws/credentials` file.
 
-No additional credential configuration is needed beyond your standard AWS setup.
+The server will use the standard AWS credential chain via boto3, which includes:
+- AWS Profile specified by `AWS_PROFILE` environment variable
+- Default profile from AWS credentials file
+- IAM roles when running on EC2, ECS, Lambda, etc.
 
 ## Development
 

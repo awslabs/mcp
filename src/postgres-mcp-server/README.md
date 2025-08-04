@@ -28,6 +28,8 @@ An AWS Labs Model Context Protocol (MCP) server for Aurora Postgres
 
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
+### Option 1: Using RDS Data API Connection (for Aurora Postgres)
+
 ```json
 {
   "mcpServers": {
@@ -53,6 +55,35 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
+### Option 2: Using Direct PostgreSQL(psycopg) Connection (for Aurora Postgres and RDS Postgres)
+
+```json
+{
+  "mcpServers": {
+    "awslabs.postgres-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.postgres-mcp-server@latest",
+        "--hostname", "[your data]",
+        "--secret_arn", "[your data]",
+        "--database", "[your data]",
+        "--region", "[your data]",
+        "--readonly", "True"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+Note: The `--port` parameter is optional and defaults to 5432 (the standard PostgreSQL port). You only need to specify it if your PostgreSQL instance uses a non-standard port.
+
 ### Build and install docker image locally on the same host of your LLM client
 
 1. 'git clone https://github.com/awslabs/mcp.git'
@@ -61,6 +92,8 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 ### Add or update your LLM client's config with following:
 
+#### Option 1: Using RDS Data API Connection (for Aurora Postgres)
+<pre><code>
 ```json
 {
   "mcpServers": {
@@ -85,7 +118,44 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
+#### Option 2: Using Direct PostgreSQL (psycopg) Connection (for Aurora Postgres and RDS Postgres)
+<pre><code>
+{
+  "mcpServers": {
+    "awslabs.postgres-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e", "AWS_ACCESS_KEY_ID=[your data]",
+        "-e", "AWS_SECRET_ACCESS_KEY=[your data]",
+        "-e", "AWS_REGION=[your data]",
+        "awslabs/postgres-mcp-server:latest",
+        "--hostname", "[your data]",
+        "--secret_arn", "[your data]",
+        "--database", "[your data]",
+        "--region", "[your data]",
+        "--readonly", "True"
+      ]
+    }
+  }
+}
+</code></pre>
+
+Note: The `--port` parameter is optional and defaults to 5432 (the standard PostgreSQL port). You only need to specify it if your PostgreSQL instance uses a non-standard port.
+
 NOTE: By default, only read-only queries are allowed and it is controlled by --readonly parameter above. Set it to False if you also want to allow writable DML or DDL.
+
+## Connection Methods
+
+This MCP server supports two connection methods:
+
+1. **RDS Data API Connection** (using `--resource_arn`): Uses the AWS RDS Data API to connect to Aurora PostgreSQL. This method requires that your Aurora cluster has the Data API enabled.
+
+2. **Direct PostgreSQL Connection** (using `--hostname`): Uses psycopg to connect directly to any PostgreSQL database, including Aurora PostgreSQL, RDS PostgreSQL, or self-hosted PostgreSQL instances. This method provides better performance for frequent queries but requires direct network access to the database.
+
+Choose the connection method that best fits your environment and requirements.
 
 ### AWS Authentication
 
