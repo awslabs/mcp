@@ -103,8 +103,9 @@ class TestAWSLabsPatterns:
         assert validate_ip_address("999.999.999.999") is False
 
     @pytest.mark.unit
+    @pytest.mark.asyncio
     @patch('awslabs.cloudwan_mcp_server.utils.aws_config_manager.get_aws_client')
-    def test_aws_service_error_handling(self, mock_get_client):
+    async def test_aws_service_error_handling(self, mock_get_client):
         """Test AWS error handling patterns."""
         from awslabs.cloudwan_mcp_server.tools.core import list_core_networks
         from botocore.exceptions import ClientError

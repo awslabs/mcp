@@ -25,6 +25,7 @@ from botocore.exceptions import ClientError
 import pytest
 import random
 import string
+import secrets
 
 
 class SecurityError(Exception):
@@ -429,7 +430,8 @@ class AWSErrorCatalog:
     @classmethod
     def _generate_safe_id(cls) -> str:
         """Generate safe test request ID without system information exposure."""
-        return ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        charset = string.ascii_lowercase + string.digits
+        return ''.join(secrets.choice(charset) for _ in range(8))
     
     @classmethod
     def _log_error_generation(cls, error_name: str, operation: str, boundary: str) -> None:
