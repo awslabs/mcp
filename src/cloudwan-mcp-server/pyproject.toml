@@ -1,113 +1,142 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "awslabs.cloudwan-mcp-server"
-version = "1.0.0"
-description = "AWS CloudWAN MCP Server - Advanced network analysis and troubleshooting tools for AWS CloudWAN"
-authors = [
-    {name = "AWS Labs", email = "awslabs@amazon.com"}
-]
+
+# NOTE: "Patch"=9223372036854775807 bumps next release to zero.
+version = "0.0.0"
+
+description = "An AWS Labs Model Context Protocol (MCP) server for CloudWAN network analysis and troubleshooting"
 readme = "README.md"
-license = {text = "Apache-2.0"}
-license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11"
 dependencies = [
-    "boto3>=1.35.0",
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
     "loguru>=0.7.0",
-    "mcp[cli]>=1.11.0",
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.10.6",
+    "boto3>=1.35.0",
+    "pydantic-settings>=2.1.0",
     "networkx>=3.5",
-    "diagrams>=0.24.4",
-    "graphviz>=0.20.3",
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "NetDevAutomate", email="NetDevAutomate@users.noreply.github.com"},
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: System Administrators", 
-    "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: System :: Networking",
-    "Topic :: System :: Systems Administration",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Programming Language :: Python :: 3.13",
 ]
-[project.urls]
-homepage = "https://awslabs.github.io/cloudwan-mcp/"
-documentation = "https://awslabs.github.io/cloudwan-mcp/docs/"
-repository = "https://github.com/awslabs/cloudwan-mcp"
 
-[project.optional-dependencies]
-fastmcp = [
-    "fastmcp>=0.3.0",
-]
+[project.urls]
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/cloudwan-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/cloudwan-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/cloudwan-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-# AWS Labs standard entry points for uvx
-awslabs-cloudwan-mcp-server = "awslabs.cloudwan_mcp_server.__main__:main"
-cloudwan-mcp-server = "awslabs.cloudwan_mcp_server.__main__:main"
-
-[tool.hatch.build.targets.wheel]
-packages = ["awslabs"]
+"awslabs.cloudwan-mcp-server" = "awslabs.cloudwan_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
     "moto[ec2,networkmanager]>=4.2.0",
-    "ruff>=0.9.7",
-    "pyright>=1.1.398",
-    "pre-commit>=4.1.0",
-    "commitizen>=4.2.2",
     "psutil>=7.0.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.ruff]
-line-length = 88
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
 
 [tool.pyright]
 include = ["awslabs", "tests"]
-exclude = ["**/__pycache__", "**/.uv/**", "**/.venv/**", "tools/**"]
-
-[tool.pytest.ini_options]
-addopts = "--cov=awslabs --cov-report=term-missing"
-asyncio_mode = "auto"
-markers = [
-    "asyncio: marks tests as async tests",
-    "slow: marks tests as slow tests",
-    "slowtest: marks tests as performance/slow tests (alias for slow)", 
-    "unit: marks tests as unit tests",
-    "integration: marks tests as integration tests",
-    "security: marks tests for security-related tests",
-    "live: marks tests requiring live AWS credentials",
-    "aws_labs: marks tests following AWS Labs patterns",  # Added
-    "aws_labs_failures: categorize AWS Labs compliance failures",  # New category
-    "compliance: marks regulatory/compliance validation tests",
-    "performance: marks performance benchmarking tests",
-    "concurrent: marks concurrent operation tests",
-    "mock: marks tests using mocked AWS services",
-    "moto: marks tests using moto framework",
-    "fixture_validation: marks tests validating fixture integrity"  # Added validation
-]
-
-[tool.coverage.run]
-source = ["awslabs"]
-
-[tool.coverage.report]
-skip_covered = true
-show_missing = true
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.0.0"
+version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
     "awslabs/cloudwan_mcp_server/__init__.py:__version__"
 ]
-bump_message = "bump: version $current_version → $new_version"
+update_changelog_on_bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
+
+[tool.coverage.run]
+source = ["awslabs"]
