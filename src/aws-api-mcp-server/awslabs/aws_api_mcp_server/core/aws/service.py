@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import boto3
 import contextlib
 from ..aws.services import driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME
@@ -21,7 +20,6 @@ from ..common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Consent,
-    Credentials,
     InterpretationMetadata,
     InterpretationResponse,
     InterpretedProgram,
@@ -36,7 +34,6 @@ from ..metadata.read_only_operations_list import (
 )
 from ..parser.lexer import split_cli_command
 from .driver import interpret_command as _interpret_command
-from botocore.exceptions import NoCredentialsError
 from io import StringIO
 from loguru import logger
 from mcp.server.elicitation import AcceptedElicitation
@@ -44,24 +41,6 @@ from mcp.server.fastmcp import Context
 from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from typing import Any
-
-
-def get_local_credentials() -> Credentials:
-    """Get the local credentials for AWS profile."""
-    if AWS_API_MCP_PROFILE_NAME is not None:
-        session = boto3.Session(profile_name=AWS_API_MCP_PROFILE_NAME)
-    else:
-        session = boto3.Session()
-    aws_creds = session.get_credentials()
-
-    if aws_creds is None:
-        raise NoCredentialsError()
-
-    return Credentials(
-        access_key_id=aws_creds.access_key,
-        secret_access_key=aws_creds.secret_key,
-        session_token=aws_creds.token,
-    )
 
 
 async def request_consent(cli_command: str, ctx: Context):
@@ -145,16 +124,12 @@ def execute_awscli_customization(
 
 def interpret_command(
     cli_command: str,
-    credentials: Credentials,
     default_region: str,
     max_results: int | None = None,
 ) -> ProgramInterpretationResponse:
     """Interpret the given CLI command and return an interpretation response."""
     interpreted_program = _interpret_command(
         cli_command,
-        access_key_id=credentials.access_key_id,
-        secret_access_key=credentials.secret_access_key,
-        session_token=credentials.session_token,
         default_region=default_region,
         max_results=max_results,
     )
