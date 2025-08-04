@@ -419,7 +419,7 @@ class TestRateLimitingScenarios:
                 # Check if we've exceeded burst capacity
                 recent_requests = [t for t in request_timestamps if current_time - t <= 1.0]
                 
-                if len(recent_requests) > burst_capacity:
+                if len(recent_requests) >= burst_capacity:
                     raise ClientError(
                         {
                             'Error': {
