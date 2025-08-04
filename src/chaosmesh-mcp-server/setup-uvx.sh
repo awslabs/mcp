@@ -1,41 +1,41 @@
 #!/bin/bash
 
-# 简化的 uvx 环境设置脚本
+# Simplified uvx environment setup script / 简化的 uvx 环境设置脚本
 
 set -e
 
-echo "=== Setting up Chaos Mesh MCP for uvx ==="
+echo "=== Setting up Chaos Mesh MCP for uvx / 为 uvx 设置 Chaos Mesh MCP ==="
 
-# 获取脚本目录
+# Get script directory / 获取脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 运行原始设置脚本
-echo "Running EKS permissions setup..."
+# Run original setup script / 运行原始设置脚本
+echo "Running EKS permissions setup... / 运行 EKS 权限设置..."
 "$SCRIPT_DIR/setup-eks-permissions.sh"
 
-# 检查生成的 kubeconfig
+# Check generated kubeconfig / 检查生成的 kubeconfig
 KUBECONFIG_PATH="$SCRIPT_DIR/chaos-mesh-mcp-kubeconfig"
 if [ ! -f "$KUBECONFIG_PATH" ]; then
-    echo "ERROR: Kubeconfig not generated at $KUBECONFIG_PATH"
+    echo "ERROR: Kubeconfig not generated at $KUBECONFIG_PATH / 错误：未在 $KUBECONFIG_PATH 生成 Kubeconfig"
     exit 1
 fi
 
-echo "✓ Kubeconfig generated at $KUBECONFIG_PATH"
+echo "✓ Kubeconfig generated at $KUBECONFIG_PATH / ✓ Kubeconfig 已生成在 $KUBECONFIG_PATH"
 
-# 创建环境配置文件
+# Create environment configuration file / 创建环境配置文件
 ENV_FILE="$HOME/.aws/amazonq/chaosmesh-env"
 cat > "$ENV_FILE" << EOF
-# Chaos Mesh MCP Environment Configuration
+# Chaos Mesh MCP Environment Configuration / Chaos Mesh MCP 环境配置
 export KUBECONFIG="$KUBECONFIG_PATH"
 export AWS_REGION="${AWS_REGION:-us-east-2}"
 EOF
 
-echo "✓ Environment configuration saved to $ENV_FILE"
+echo "✓ Environment configuration saved to $ENV_FILE / ✓ 环境配置已保存到 $ENV_FILE"
 
 echo ""
-echo "=== Setup Complete ==="
+echo "=== Setup Complete / 设置完成 ==="
 echo ""
-echo "To use with uvx, update your mcp.json configuration:"
+echo "To use with uvx, update your mcp.json configuration: / 要与 uvx 一起使用，请更新您的 mcp.json 配置："
 echo ""
 echo '"chaosmesh-mcp": {'
 echo '  "command": "uvx",'
@@ -58,5 +58,5 @@ echo '  "disabled": false,'
 echo '  "transportType": "stdio"'
 echo '}'
 echo ""
-echo "Or source the environment file before running uvx:"
+echo "Or source the environment file before running uvx: / 或在运行 uvx 之前 source 环境文件："
 echo "source $ENV_FILE"

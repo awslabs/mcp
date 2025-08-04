@@ -1,198 +1,200 @@
-# Chaos Mesh MCP Setup Guide
+# Chaos Mesh MCP Setup Guide / Chaos Mesh MCP 设置指南
 
-This guide will help you set up the Chaos Mesh MCP server from scratch.
+This guide will help you set up the Chaos Mesh MCP server from scratch. / 本指南将帮助您从头开始设置 Chaos Mesh MCP 服务器。
 
-## Prerequisites
+## Prerequisites / 先决条件
 
-Before starting, ensure you have:
+Before starting, ensure you have: / 开始之前，请确保您具有：
 
 - Python 3.10+
-- kubectl configured for your EKS cluster
-- AWS CLI configured
-- Helm (for Chaos Mesh installation)
-- Access to an EKS cluster with appropriate permissions
+- kubectl configured for your EKS cluster / 为您的 EKS 集群配置的 kubectl
+- AWS CLI configured / 配置的 AWS CLI
+- Helm (for Chaos Mesh installation) / Helm（用于 Chaos Mesh 安装）
+- Access to an EKS cluster with appropriate permissions / 具有适当权限的 EKS 集群访问权限
 
-## Step-by-Step Setup
+## Step-by-Step Setup / 分步设置
 
-### 1. Install Dependencies
+### 1. Install Dependencies / 安装依赖项
 
 ```bash
-# Install dependencies
+# Install dependencies / 安装依赖项
 sudo yum install -y gcc gcc-c++ make git patch openssl-devel zlib-devel bzip2 bzip2-devel readline-devel sqlite sqlite-devel tk-devel libffi-devel xz-devel
 ```
 ```bash
-# Install pyenv
+# Install pyenv / 安装 pyenv
 curl https://pyenv.run | bash
 ```
 ```bash
-# Configure environment
+# Configure environment / 配置环境
 echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
 echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
 echo 'eval "$(pyenv init --path)"' >> ~/.bashrc
 echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 source ~/.bashrc
 
-# Install Python
+# Install Python / 安装 Python
 pyenv install 3.10.13
 pyenv global 3.10.13
 
-# Verify
+# Verify / 验证
 python --version
 
-# Install uv from Astral
+# Install uv from Astral / 从 Astral 安装 uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 ```bash
-# Install project dependencies
+# Install project dependencies / 安装项目依赖项
 uv sync
 ```
 ```bash
-# Setup ChaosMesh
+# Setup ChaosMesh / 设置 ChaosMesh
 helm repo add chaos-mesh https://charts.chaos-mesh.org
 kubectl create ns chaos-mesh
 helm install chaos-mesh chaos-mesh/chaos-mesh -n=chaos-mesh --version 2.6.7
 ```
-To quickly conduct experiments, run the following command to disable ChaosMesh's permission verification feature. In production environments, please enable this feature and complete verification. For details, refer to Managing User Permissions.
+To quickly conduct experiments, run the following command to disable ChaosMesh's permission verification feature. In production environments, please enable this feature and complete verification. For details, refer to Managing User Permissions. / 为了快速进行实验，运行以下命令禁用 ChaosMesh 的权限验证功能。在生产环境中，请启用此功能并完成验证。有关详细信息，请参阅管理用户权限。
 
 ```bash
-# Setup ChaosMesh
+# Setup ChaosMesh / 设置 ChaosMesh
 helm upgrade chaos-mesh chaos-mesh/chaos-mesh --namespace=chaos-mesh --version 2.6.7 --set dashboard.securityMode=false
 ```
 
-### 2. Clone and Navigate to Directory
+### 2. Clone and Navigate to Directory / 克隆并导航到目录
 
 ```bash
 git clone https://github.com/RadiumGu/Chaosmesh-MCP.git
 cd Chaosmesh-MCP
 ```
 
-### 3. Configure EKS Access
+### 3. Configure EKS Access / 配置 EKS 访问
 
-Make sure your kubectl is configured to access your EKS cluster:
+Make sure your kubectl is configured to access your EKS cluster: / 确保您的 kubectl 配置为访问您的 EKS 集群：
 
 ```bash
-# Update kubeconfig for your EKS cluster
+# Update kubeconfig for your EKS cluster / 为您的 EKS 集群更新 kubeconfig
 aws eks update-kubeconfig --region <your-region> --name <your-cluster-name>
 
-# Verify connection
+# Verify connection / 验证连接
 kubectl cluster-info
 ```
 
-### 4. Run Setup Script
+### 4. Run Setup Script / 运行设置脚本
 
-The setup script will:
-- Install Chaos Mesh (if not present)
-- Create necessary RBAC permissions
-- Generate a service account kubeconfig file
-- Verify the setup
+The setup script will: / 设置脚本将：
+- Install Chaos Mesh (if not present) / 安装 Chaos Mesh（如果不存在）
+- Create necessary RBAC permissions / 创建必要的 RBAC 权限
+- Generate a service account kubeconfig file / 生成服务账户 kubeconfig 文件
+- Verify the setup / 验证设置
 
 ```bash
-# Make the script executable
+# Make the script executable / 使脚本可执行
 chmod +x setup-eks-permissions.sh
 
-# Run the setup script
+# Run the setup script / 运行设置脚本
 ./setup-eks-permissions.sh
 ```
 
-**Important**: The setup script will create a file called `chaos-mesh-mcp-kubeconfig` in the current directory. This file contains sensitive authentication information and is automatically excluded from git via `.gitignore`.
+**Important / 重要**: The setup script will create a file called `chaos-mesh-mcp-kubeconfig` in the current directory. This file contains sensitive authentication information and is automatically excluded from git via `.gitignore`. / 设置脚本将在当前目录中创建一个名为 `chaos-mesh-mcp-kubeconfig` 的文件。此文件包含敏感的身份验证信息，并通过 `.gitignore` 自动从 git 中排除。
 
-### 5. Verify Setup
+### 5. Verify Setup / 验证设置
 
-After running the setup script, you should see:
+After running the setup script, you should see: / 运行设置脚本后，您应该看到：
 
 ```
-✓ Required tools are available
-✓ Connected to cluster: <your-cluster>
-✓ Chaos Mesh namespace exists
-✓ Found X running Chaos Mesh controllers
-✓ RBAC configuration applied
-✓ Pod read permissions OK
-✓ Chaos Mesh CRD permissions OK
-✓ Permissions verified successfully
-✓ Kubeconfig generated at ./chaos-mesh-mcp-kubeconfig
+✓ Required tools are available / 所需工具可用
+✓ Connected to cluster: <your-cluster> / 已连接到集群：<your-cluster>
+✓ Chaos Mesh namespace exists / Chaos Mesh 命名空间存在
+✓ Found X running Chaos Mesh controllers / 找到 X 个正在运行的 Chaos Mesh 控制器
+✓ RBAC configuration applied / RBAC 配置已应用
+✓ Pod read permissions OK / Pod 读取权限正常
+✓ Chaos Mesh CRD permissions OK / Chaos Mesh CRD 权限正常
+✓ Permissions verified successfully / 权限验证成功
+✓ Kubeconfig generated at ./chaos-mesh-mcp-kubeconfig / Kubeconfig 已生成在 ./chaos-mesh-mcp-kubeconfig
 ```
 
-### 6. Start the MCP Server
+### 6. Start the MCP Server / 启动 MCP 服务器
 
 ```bash
-# Start the server using the generated kubeconfig
+# Start the server using the generated kubeconfig / 使用生成的 kubeconfig 启动服务器
 export KUBECONFIG=/home/ec2-user/mcp-servers/Chaosmesh-MCP/chaos-mesh-mcp-kubeconfig
 uv run server.py
 ```
 
-### 7. Test the Setup
+### 7. Test the Setup / 测试设置
 
-You can test the setup by running a simple health check:
+You can test the setup by running a simple health check: / 您可以通过运行简单的健康检查来测试设置：
 
 ```bash
 # In another terminal, you can test the MCP tools
 # The server should be running and responding to MCP requests
+# 在另一个终端中，您可以测试 MCP 工具
+# 服务器应该正在运行并响应 MCP 请求
 ```
 
-## File Structure After Setup
+## File Structure After Setup / 设置后的文件结构
 
-After successful setup, your directory should contain:
+After successful setup, your directory should contain: / 成功设置后，您的目录应包含：
 
 ```
 Chaosmesh-MCP/
 ├── server.py
 ├── setup-eks-permissions.sh
 ├── rbac-config.yaml
-├── chaos-mesh-mcp-kubeconfig  # ← Generated by setup script
+├── chaos-mesh-mcp-kubeconfig  # ← Generated by setup script / 由设置脚本生成
 ├── README.md
 ├── SETUP.md
 └── ...
 ```
 
-## Troubleshooting
+## Troubleshooting / 故障排除
 
-### Missing kubeconfig File
+### Missing kubeconfig File / 缺少 kubeconfig 文件
 
-If you don't see the `chaos-mesh-mcp-kubeconfig` file after running the setup script:
+If you don't see the `chaos-mesh-mcp-kubeconfig` file after running the setup script: / 如果在运行设置脚本后没有看到 `chaos-mesh-mcp-kubeconfig` 文件：
 
-1. Check if the setup script completed successfully
-2. Look for any error messages in the script output
-3. Verify your EKS cluster access permissions
-4. Re-run the setup script: `./setup-eks-permissions.sh`
+1. Check if the setup script completed successfully / 检查设置脚本是否成功完成
+2. Look for any error messages in the script output / 在脚本输出中查找任何错误消息
+3. Verify your EKS cluster access permissions / 验证您的 EKS 集群访问权限
+4. Re-run the setup script / 重新运行设置脚本: `./setup-eks-permissions.sh`
 
-### Permission Issues
+### Permission Issues / 权限问题
 
-If you encounter permission errors:
+If you encounter permission errors: / 如果遇到权限错误：
 
-1. Ensure your AWS credentials have sufficient EKS permissions
-2. Check that kubectl can access your cluster
-3. Verify the RBAC configuration was applied correctly:
+1. Ensure your AWS credentials have sufficient EKS permissions / 确保您的 AWS 凭据具有足够的 EKS 权限
+2. Check that kubectl can access your cluster / 检查 kubectl 是否可以访问您的集群
+3. Verify the RBAC configuration was applied correctly / 验证 RBAC 配置是否正确应用：
    ```bash
    kubectl get serviceaccount chaos-mesh-mcp -n default
    kubectl get clusterrole chaos-mesh-mcp-role
    kubectl get clusterrolebinding chaos-mesh-mcp-binding
    ```
 
-### Chaos Mesh Installation Issues
+### Chaos Mesh Installation Issues / Chaos Mesh 安装问题
 
-If Chaos Mesh installation fails:
+If Chaos Mesh installation fails: / 如果 Chaos Mesh 安装失败：
 
-1. Check if Helm is properly installed
-2. Verify cluster has sufficient resources
-3. Check Chaos Mesh controller logs:
+1. Check if Helm is properly installed / 检查 Helm 是否正确安装
+2. Verify cluster has sufficient resources / 验证集群是否有足够的资源
+3. Check Chaos Mesh controller logs / 检查 Chaos Mesh 控制器日志：
    ```bash
    kubectl logs -n chaos-mesh -l app.kubernetes.io/name=chaos-mesh
    ```
 
-## Security Notes
+## Security Notes / 安全注意事项
 
-- The `chaos-mesh-mcp-kubeconfig` file contains sensitive authentication tokens
-- This file is automatically excluded from git via `.gitignore`
-- The service account has minimal required permissions for Chaos Mesh operations
-- Tokens are generated with a long expiration (1 year) but can be regenerated if needed
+- The `chaos-mesh-mcp-kubeconfig` file contains sensitive authentication tokens / `chaos-mesh-mcp-kubeconfig` 文件包含敏感的身份验证令牌
+- This file is automatically excluded from git via `.gitignore` / 此文件通过 `.gitignore` 自动从 git 中排除
+- The service account has minimal required permissions for Chaos Mesh operations / 服务账户具有 Chaos Mesh 操作所需的最小权限
+- Tokens are generated with a long expiration (1 year) but can be regenerated if needed / 令牌生成时具有较长的过期时间（1年），但如果需要可以重新生成
 
-## Regenerating Kubeconfig
+## Regenerating Kubeconfig / 重新生成 Kubeconfig
 
-If you need to regenerate the kubeconfig file:
+If you need to regenerate the kubeconfig file: / 如果您需要重新生成 kubeconfig 文件：
 
 ```bash
-# Simply re-run the setup script
+# Simply re-run the setup script / 只需重新运行设置脚本
 ./setup-eks-permissions.sh
 ```
 
-The script is idempotent and can be run multiple times safely.
+The script is idempotent and can be run multiple times safely. / 该脚本是幂等的，可以安全地多次运行。
