@@ -47,6 +47,7 @@ This workflow ensures that:
 ## Security Architecture
 
 The MCP server uses a token-based workflow system that ensures:
+
 - **Sequential validation**: Each step must be completed before the next
 - **Server-side enforcement**: Tokens are generated and validated server-side
 - **No bypass capability**: AI agents cannot skip security steps or fake credentials
@@ -184,7 +185,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "env": {
         "AWS_PROFILE": "your-named-profile",
         "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "enabled",
+        "SECURITY_SCANNING": "disabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -195,6 +196,27 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 ```
 
 _Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-west-2"` (or other desired AWS Region) to override._
+
+**Security Scanning Configuration (Highly recommended):**
+
+You may optionally enable Checkov security scanning on all infrastructure before creation/updates:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.ccapi-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.ccapi-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-named-profile",
+        "DEFAULT_TAGS": "enabled",
+        "SECURITY_SCANNING": "enabled",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
 
 **Alternative configurations:**
 
@@ -209,7 +231,7 @@ _Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-wes
       "env": {
         "AWS_PROFILE": "your-sso-profile",
         "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "enabled",
+        "SECURITY_SCANNING": "disabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -230,7 +252,7 @@ _Note: Run `aws sso login --profile your-sso-profile` before starting the MCP se
       "env": {
         "AWS_REGION": "us-west-2",
         "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "enabled",
+        "SECURITY_SCANNING": "disabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -239,27 +261,6 @@ _Note: Run `aws sso login --profile your-sso-profile` before starting the MCP se
 ```
 
 _Note: Ensure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are exported in your shell_
-
-**Security Scanning Configuration:**
-
-By default, the MCP server runs Checkov security scanning on all infrastructure before creation/updates. You can disable this for faster operations (not recommended):
-
-```json
-{
-  "mcpServers": {
-    "awslabs.ccapi-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.ccapi-mcp-server@latest"],
-      "env": {
-        "AWS_PROFILE": "your-named-profile",
-        "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "disabled",
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
 
 **Read-Only Mode (Security Feature):**
 
@@ -387,7 +388,8 @@ Explains any data in clear, human-readable format. For infrastructure operations
 Runs Checkov security and compliance scanner on server-stored CloudFormation template. Returns scan results for user review.
 
 **Security validation behavior depends on SECURITY_SCANNING environment variable**:
-- **When SECURITY_SCANNING=enabled (default)**: This tool is required, returns scan results for user review
+
+- **When SECURITY_SCANNING=enabled**: This tool is required, returns scan results for user review
 - **When SECURITY_SCANNING=disabled**: Shows warning, proceeds without security validation
 
 **Example**: `run_checkov(explained_token)` - Returns security scan results.
@@ -401,7 +403,7 @@ Runs Checkov security and compliance scanner on server-stored CloudFormation tem
 
 **Security Requirements**:
 
-- When SECURITY_SCANNING=enabled (default): Requires `security_scan_token` from `run_checkov()`
+- When SECURITY_SCANNING=enabled: Requires `security_scan_token` from `run_checkov()`
 - When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
 
 Creates an AWS resource using the AWS Cloud Control API with a declarative approach. Automatically adds default management tags for tracking and support.
@@ -422,7 +424,7 @@ Gets details of a specific AWS resource using the AWS Cloud Control API.
 
 **Security Requirements**:
 
-- When SECURITY_SCANNING=enabled (default): Requires `security_scan_token` from `run_checkov()`
+- When SECURITY_SCANNING=enabled: Requires `security_scan_token` from `run_checkov()`
 - When SECURITY_SCANNING=disabled: Shows security warning but proceeds without validation token
 
 Updates an AWS resource using the AWS Cloud Control API with RFC 6902 JSON Patch operations.
@@ -470,6 +472,7 @@ Creates CloudFormation templates from existing AWS resources using AWS CloudForm
 ### Token Workflow Summary
 
 **Example workflow for create/update operations:**
+
 1. `check_environment_variables()` → `environment_token`
 2. `get_aws_session_info(environment_token)` → `credentials_token`
 3. `generate_infrastructure_code(credentials_token)` → `generated_code_token`
