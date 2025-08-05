@@ -14,6 +14,7 @@
 
 """Unit tests following AWS Labs MCP server patterns."""
 
+import secrets
 import pytest
 from awslabs.cloudwan_mcp_server.config_manager import AWSConfigManager
 from unittest.mock import Mock, patch
@@ -87,7 +88,6 @@ class TestAWSLabsPatterns:
     def test_input_validation_patterns(self):
         """Test input validation follows AWS Labs patterns."""
         # Test valid inputs using dynamically generated IDs matching validation patterns
-        import secrets
         from awslabs.cloudwan_mcp_server.utils.validation import (
             validate_core_network_id,
             validate_global_network_id,
