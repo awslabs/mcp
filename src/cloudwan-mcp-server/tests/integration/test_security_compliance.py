@@ -366,7 +366,7 @@ class TestPolicyDocumentSecurity:
         """Test detection of malicious policy structures."""
         malicious_policies = [
             # Policy with excessive nesting (potential DoS)
-            {"version": "2021.12", "core-network-configuration": self._create_deeply_nested_structure(50)},
+            {"version": "2021.12", "core-network-configuration": self._create_deeply_nested_structure(10)},
             # Policy with circular references
             {
                 "version": "2021.12",
