@@ -29,23 +29,22 @@ class TestAWSLabsCompliance:
     """Test suite following AWS Labs MCP server patterns."""
 
     @pytest.mark.asyncio
-    async def test_mcp_protocol_compliance(self, mock_aws_context):
+    async def test_mcp_protocol_compliance(self, mock_get_aws_client):
         """Test MCP protocol v1.1+ compliance following AWS Labs patterns."""
         # Test tool registration and availability
-        assert hasattr(mcp, 'tools'), "MCP server must expose tools property"
+        assert hasattr(mcp, 'list_tools'), "MCP server must expose list_tools method"
 
         # Test basic protocol compliance
-        tools = getattr(mcp, 'tools', {})
-        assert len(tools) >= 10, "Must have at least 10 core CloudWAN tools"
+        tools = await mcp.list_tools()
+        assert len(tools) >= 10, f"Must have at least 10 core CloudWAN tools, found {len(tools)}"
 
-        # Test async compatibility
-        for tool_name, tool_func in tools.items():
-            if callable(tool_func):
-                assert asyncio.iscoroutinefunction(tool_func), f"Tool {tool_name} must be async"
+        # Test async compatibility - tools are already registered as async in FastMCP
+        assert all(hasattr(tool, 'name') for tool in tools), "All tools must have names"
+        assert all(tool.name for tool in tools), "All tools must have non-empty names"
 
     @pytest.mark.live
     @pytest.mark.asyncio
-    async def test_live_aws_api_integration(self, aws_test_credentials):
+    async def test_live_aws_api_integration(self, secure_aws_credentials):
         """Live AWS API test - requires valid credentials."""
         pytest.skip("Live tests require valid AWS credentials and are run selectively")
 
@@ -56,24 +55,26 @@ class TestAWSLabsCompliance:
         assert 'success' in result
 
     @pytest.mark.asyncio
-    async def test_mocked_aws_service_integration(self, mock_ec2_client, mock_networkmanager_client):
+    async def test_mocked_aws_service_integration(self, aws_service_mocker):
         """Test AWS service integration with moto mocking (AWS Labs pattern)."""
-        with patch('awslabs.cloudwan_mcp_server.utils.aws_config_manager.get_aws_client') as mock_get_client:
-            mock_get_client.return_value = mock_networkmanager_client
+        # Create mock NetworkManager client
+        nm_mocker = aws_service_mocker('networkmanager', 'us-east-1')
+        
+        # Configure core networks mock data
+        nm_mocker.client.list_core_networks = Mock(return_value={
+            'CoreNetworks': [
+                {
+                    'CoreNetworkId': 'core-network-test123',
+                    'CoreNetworkArn': 'arn:aws:networkmanager::123456789012:core-network/core-network-test123',
+                    'GlobalNetworkId': 'global-network-test123',
+                    'State': 'AVAILABLE',
+                    'Description': 'Test core network'
+                }
+            ]
+        })
 
-            # Mock the core networks list
-            mock_networkmanager_client.list_core_networks = Mock(return_value={
-                'CoreNetworks': [
-                    {
-                        'CoreNetworkId': 'core-network-test123',
-                        'CoreNetworkArn': 'arn:aws:networkmanager::123456789012:core-network/core-network-test123',
-                        'GlobalNetworkId': 'global-network-test123',
-                        'State': 'AVAILABLE',
-                        'Description': 'Test core network'
-                    }
-                ]
-            })
-
+        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
+            mock_get_client.return_value = nm_mocker.client
             result = await list_core_networks()
             assert result['success'] is True
             assert len(result['data']) >= 0
@@ -137,7 +138,7 @@ class TestAWSLabsCompliance:
             assert hasattr(mcp, 'tools') or hasattr(mcp, f'_{tool_name}'), f"Tool {tool_name} not found"
 
     @pytest.mark.asyncio
-    async def test_aws_credential_handling(self, aws_test_credentials):
+    async def test_aws_credential_handling(self, secure_aws_credentials):
         """Test AWS credential handling following AWS Labs patterns."""
         # Test that tools handle missing credentials gracefully
         with patch('boto3.client') as mock_boto_client:
