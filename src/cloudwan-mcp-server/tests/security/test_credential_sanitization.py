@@ -395,26 +395,24 @@ class TestEndToEndCredentialProtection:
 
         sanitized = sanitize_error_message(complex_message)
 
-        # Verify ALL sensitive patterns are sanitized
-        sensitive_patterns = [
-            "123456789012", "production-admin", "us-east-1",
-            "AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI", "AQoEXAMPLEH4aoAH0gNCAPy",
-            "arn:aws:iam::123456789012:role/PowerUser", "/home/user/.aws/credentials",
-            "550e8400-e29b-41d4-a716-446655440000", "192.168.1.100",
-            "super-secret-password-123"
-        ]
+        # Map each sensitive pattern to its expected marker
+        pattern_marker_map = {
+            "123456789012": "[ACCOUNT_REDACTED]",
+            "production-admin": "[CREDENTIAL_REDACTED]",
+            "us-east-1": "[CREDENTIAL_REDACTED]",
+            "AKIAIOSFODNN7EXAMPLE": "[CREDENTIAL_REDACTED]",
+            "wJalrXUtnFEMI": "[CREDENTIAL_REDACTED]",
+            "AQoEXAMPLEH4aoAH0gNCAPy": "[CREDENTIAL_REDACTED]",
+            "arn:aws:iam::123456789012:role/PowerUser": "[ARN_REDACTED]",
+            "/home/user/.aws/credentials": "[CREDENTIAL_PATH_REDACTED]",
+            "550e8400-e29b-41d4-a716-446655440000": "[UUID_REDACTED]",
+            "192.168.1.100": "[IP_REDACTED]",
+            "super-secret-password-123": "[CREDENTIAL_REDACTED]",
+        }
 
-        for pattern in sensitive_patterns:
+        for pattern, marker in pattern_marker_map.items():
             assert pattern not in sanitized, f"Pattern '{pattern}' was not sanitized"
-
-        # Verify key sanitization markers are present
-        required_markers = [
-            "[ACCOUNT_REDACTED]", "[ARN_REDACTED]", "[CREDENTIAL_PATH_REDACTED]",
-            "[UUID_REDACTED]", "[IP_REDACTED]", "[CREDENTIAL_REDACTED]"
-        ]
-
-        for marker in required_markers:
-            assert marker in sanitized, f"Sanitization marker '{marker}' is missing"
+            assert marker in sanitized, f"Sanitization marker '{marker}' is missing for pattern '{pattern}'"
 
 
 if __name__ == "__main__":
