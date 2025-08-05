@@ -53,9 +53,8 @@ from pydantic import Field
 from typing import Any, Dict, List, Literal, Union
 
 
-app = FastMCP(
-    name='dynamodb-server',
-    instructions="""The official MCP Server for interacting with AWS DynamoDB
+# Define server instructions and dependencies
+SERVER_INSTRUCTIONS = """The official MCP Server for interacting with AWS DynamoDB
 
 This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
 items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt
@@ -105,9 +104,25 @@ Common usage examples:
 Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design expertise.
 This tool provides systematic methodology for creating production-ready multi-table design with
 advanced optimizations, cost analysis, and integration patterns.
-""",
-    version='0.1.3',
-)
+"""
+
+SERVER_DEPENDENCIES = [
+    'boto3',
+    'botocore',
+    'pydantic',
+]
+
+
+def create_server():
+    """Create and configure the MCP server instance."""
+    return FastMCP(
+        'awslabs.dynamodb-mcp-server',
+        instructions=SERVER_INSTRUCTIONS,
+        dependencies=SERVER_DEPENDENCIES,
+    )
+
+
+app = create_server()
 
 
 def get_dynamodb_client(region_name: str | None):
