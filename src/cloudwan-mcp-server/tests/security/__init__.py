@@ -22,7 +22,7 @@ including credential management, audit logging, and security boundary enforcemen
 from .credential_manager import (
     CredentialManager, 
     TemporalCredentials, 
-    SecurityError,
+    CredentialSecurityError,
     get_secure_test_credentials,
     credential_manager
 )
@@ -30,7 +30,7 @@ from .credential_manager import (
 __all__ = [
     'CredentialManager',
     'TemporalCredentials', 
-    'SecurityError',
+    'CredentialSecurityError',
     'get_secure_test_credentials',
     'credential_manager'
 ]
