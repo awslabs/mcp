@@ -542,7 +542,15 @@ class TestCredentialHandlingSecurity:
             assert credential not in response_text, f"Credential {credential[:8]}*** found in response"
         
         # Additional checks for common credential exposure patterns
-        assert 'AWS_ACCESS_KEY_ID' not in response_text or parsed.get('current_configuration', {}).get('identity', {}).get('error') 
+        # If 'AWS_ACCESS_KEY_ID' appears in the response, it must only appear in the error field and not leak the actual credential value
+        if 'AWS_ACCESS_KEY_ID' in response_text:
+            error_field = parsed.get('current_configuration', {}).get('identity', {}).get('error', '')
+            # Ensure 'AWS_ACCESS_KEY_ID' only appears in the error field
+            assert 'AWS_ACCESS_KEY_ID' in error_field, "'AWS_ACCESS_KEY_ID' found outside of error field"
+            # Ensure the error field does not contain the actual credential value
+            assert all(cred not in error_field for cred in credential_patterns), "Credential value leaked in error field"
+        else:
+            assert 'AWS_ACCESS_KEY_ID' not in response_text
         assert 'AWS_SECRET_ACCESS_KEY' not in response_text
         assert 'AWS_SESSION_TOKEN' not in response_text
         
