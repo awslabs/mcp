@@ -224,9 +224,9 @@ class AWSServiceMocker:
                 return region_responses[region].get(method_name, {})
             return {}
 
-        # Apply region-aware behavior to all methods
-        for method in dir(self._client):
-            if not method.startswith('_') and hasattr(self._client, method):
+        # Apply region-aware behavior to all specified client methods
+        for method in self._client_methods:
+            if hasattr(self._client, method):
                 original_method = getattr(self._client, method)
                 if hasattr(original_method, 'return_value'):
                     setattr(self._client, method,
