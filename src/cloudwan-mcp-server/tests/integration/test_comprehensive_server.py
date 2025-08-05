@@ -32,13 +32,6 @@ from mcp.server.fastmcp import FastMCP
 from unittest.mock import Mock, patch
 
 
-@pytest.fixture
-def mock_aws_context():
-    """Mock AWS context for testing."""
-    with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
-        yield
-
-
 class TestComprehensiveServerInitialization:
     """Comprehensive server initialization and configuration tests."""
 
@@ -56,7 +49,8 @@ class TestComprehensiveServerInitialization:
         assert hasattr(mcp, 'tools') or hasattr(mcp, '_tools') or isinstance(mcp, FastMCP)
 
     @pytest.mark.integration
-    def test_all_core_tools_registered(self):
+    @pytest.mark.asyncio
+    async def test_all_core_tools_registered(self):
         """Test that all core CloudWAN tools are registered properly."""
         expected_core_tools = {
             'trace_network_path',
@@ -67,16 +61,13 @@ class TestComprehensiveServerInitialization:
             'get_core_network_policy'
         }
 
-        # Check tools are available in server module
-        from awslabs.cloudwan_mcp_server import server
-
-        registered_tools = set()
-        for tool_name in expected_core_tools:
-            if hasattr(server, tool_name):
-                registered_tools.add(tool_name)
+        # Get registered tool names from list_tools()
+        tools = await mcp.list_tools()
+        registered_tools = {tool.name for tool in tools}
 
         # Verify core tools are registered
-        assert len(registered_tools) >= 4, f"Expected at least 4 core tools, found {len(registered_tools)}"
+        assert len(registered_tools.intersection(expected_core_tools)) >= 4, \
+            f"Expected at least 4 core tools, found {len(registered_tools)}"
         assert 'list_core_networks' in registered_tools, "list_core_networks must be registered"
 
     @pytest.mark.integration

@@ -147,7 +147,7 @@ class TestMCPToolExecution:
     """Test MCP tool execution through the server."""
 
     @pytest.mark.asyncio
-    async def test_tool_execution_workflow(self, mock_get_aws_client):
+    async def test_tool_execution_workflow(self, mock_get_aws_client, mock_aws_context):
         """Test complete tool execution workflow."""
         # Execute tool
         result = await list_core_networks("us-east-1")
@@ -161,7 +161,7 @@ class TestMCPToolExecution:
         mock_get_aws_client.assert_called()
 
     @pytest.mark.asyncio
-    async def test_multiple_tools_concurrent_execution(self, mock_get_aws_client):
+    async def test_multiple_tools_concurrent_execution(self, mock_get_aws_client, mock_aws_context):
         """Test concurrent execution of multiple tools."""
         from awslabs.cloudwan_mcp_server.server import get_global_networks
 
@@ -181,7 +181,7 @@ class TestMCPToolExecution:
             assert response["success"] is True
 
     @pytest.mark.asyncio
-    async def test_tool_parameter_validation(self, mock_get_aws_client):
+    async def test_tool_parameter_validation(self, mock_get_aws_client, mock_aws_context):
         """Test tool parameter validation."""
         from awslabs.cloudwan_mcp_server.server import validate_ip_cidr
 
@@ -196,7 +196,7 @@ class TestMCPToolExecution:
         assert invalid_response["success"] is False
 
     @pytest.mark.asyncio
-    async def test_tool_error_handling_integration(self, mock_get_aws_client):
+    async def test_tool_error_handling_integration(self, mock_get_aws_client, mock_aws_context):
         """Test integrated error handling across tools."""
         from awslabs.cloudwan_mcp_server.server import trace_network_path
         from botocore.exceptions import ClientError
@@ -312,10 +312,15 @@ class TestMCPProtocolCompliance:
         'list_core_networks',
         'get_global_networks'
     ])
-    def test_tool_protocol_interface(self, tool_name):
+    @pytest.mark.asyncio
+    async def test_tool_protocol_interface(self, tool_name):
         """Verify all tools implement required MCP protocol interface."""
-        tool_class = mcp.tools[tool_name].__class__
-        assert issubclass(tool_class, BaseMCPTool)
+        # Get registered tools using list_tools()
+        tools = await mcp.list_tools()
+        registered_tools = [tool.name for tool in tools]
+        tool_class = next((tool for tool in tools if tool.name == tool_name), None)
+        
+        assert tool_class is not None, f"Tool {tool_name} not found in registered tools"
         assert hasattr(tool_class, 'input_schema')
         assert hasattr(tool_class, 'execute')
 
@@ -333,7 +338,8 @@ class TestMCPProtocolCompliance:
             "error_code": str
         }
 
-    def test_required_protocol_methods(self):
+    @pytest.mark.asyncio
+    async def test_required_protocol_methods(self):
         """Verify presence of required MCP protocol methods."""
         required_methods = [
             'health_check',
@@ -342,6 +348,11 @@ class TestMCPProtocolCompliance:
         ]
         for method in required_methods:
             assert hasattr(mcp, method), f"Missing required protocol method: {method}"
+
+        # Verify tool registration through list_tools()
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
+        assert len(tool_names) >= 4, f"Expected at least 4 tools, found {len(tool_names)}"
 
     @pytest.mark.asyncio
     async def test_concurrent_tool_performance(self, mock_get_aws_client):

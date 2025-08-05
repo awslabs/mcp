@@ -199,6 +199,13 @@ def credential_cleanup_manager():
         print(f"\n[SECURITY] Processed {len(audit_trail)} credential lifecycle events")
 
 
+@pytest.fixture(scope='session')
+def mock_aws_context():
+    """Provide AWS context for integration tests."""
+    with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
+        yield
+
+
 # Legacy fixture for backward compatibility
 @pytest.fixture(scope="function", name="mock_get_aws_client")
 def aws_client_mocker():

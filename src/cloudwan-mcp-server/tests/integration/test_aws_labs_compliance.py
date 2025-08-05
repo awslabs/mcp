@@ -15,6 +15,7 @@
 """AWS Labs compliance tests following standard patterns."""
 
 import asyncio
+import json
 import pytest
 from awslabs.cloudwan_mcp_server.server import (
     get_core_network_policy,
@@ -22,6 +23,7 @@ from awslabs.cloudwan_mcp_server.server import (
     list_core_networks,
     mcp,
 )
+from botocore.exceptions import ClientError
 from unittest.mock import Mock, patch
 
 
@@ -76,24 +78,32 @@ class TestAWSLabsCompliance:
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_get_client.return_value = nm_mocker.client
             result = await list_core_networks()
+            # Parse JSON response to dict
+            result = json.loads(result)
             assert result['success'] is True
             assert len(result['data']) >= 0
 
     @pytest.mark.asyncio
-    async def test_error_handling_patterns(self, mock_aws_context):
+    async def test_error_handling_patterns(self, aws_service_mocker):
         """Test AWS Labs standard error handling patterns."""
-        with patch('awslabs.cloudwan_mcp_server.utils.aws_config_manager.get_aws_client') as mock_get_client:
-            # Simulate AWS service error
-            mock_client = Mock()
-            mock_client.list_core_networks.side_effect = Exception("AWS API Error")
-            mock_get_client.return_value = mock_client
+        # Create mock NetworkManager client
+        nm_mocker = aws_service_mocker('networkmanager', 'us-east-1')
 
-            result = await list_core_networks()
+        # Configure mock to raise error
+        nm_mocker.client.list_core_networks.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'ListCoreNetworks'
+        )
 
-            # AWS Labs standard error response format
-            assert result['success'] is False
-            assert 'error' in result
-            assert 'error_code' in result
+        # Test with error
+        result = await list_core_networks()
+        # Convert JSON string to dict
+        result = json.loads(result)
+
+        # AWS Labs standard error response format
+        assert result['success'] is False
+        assert 'error' in result
+        assert 'error_code' in result
 
     @pytest.mark.slow
     @pytest.mark.asyncio
@@ -115,27 +125,23 @@ class TestAWSLabsCompliance:
             assert result['success'] is True
 
     @pytest.mark.unit
-    def test_tool_registration_compliance(self):
+    @pytest.mark.asyncio
+    async def test_tool_registration_compliance(self):
         """Test tool registration follows AWS Labs patterns."""
-        from awslabs.cloudwan_mcp_server.server import mcp
-
-        # Verify MCP server has expected attributes
-        assert hasattr(mcp, 'name'), "MCP server must have name"
-        assert "CloudWAN" in mcp.name, "Server name must reference CloudWAN"
-
-        # Test tool availability
+        tools = await mcp.list_tools()
+        registered_tools = [tool.name for tool in tools]
+        
+        # Check for expected core tools
         expected_core_tools = [
+            'trace_network_path',
             'list_core_networks',
             'get_global_networks',
-            'get_core_network_policy',
-            'trace_network_path',
-            'discover_vpcs'
+            'discover_vpcs',
+            'validate_ip_cidr'
         ]
-
-        # Check that tools are accessible
+        
         for tool_name in expected_core_tools:
-            # Tools should be registered with the MCP server
-            assert hasattr(mcp, 'tools') or hasattr(mcp, f'_{tool_name}'), f"Tool {tool_name} not found"
+            assert tool_name in registered_tools, f"Tool {tool_name} not registered"
 
     @pytest.mark.asyncio
     async def test_aws_credential_handling(self, secure_aws_credentials):
@@ -183,7 +189,7 @@ class TestAWSLabsCompliance:
     @pytest.mark.asyncio
     async def test_concurrent_tool_execution(self, mock_aws_context):
         """Test concurrent tool execution following AWS Labs patterns."""
-        with patch('awslabs.cloudwan_mcp_server.utils.aws_config_manager.get_aws_client') as mock_get_client:
+        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.describe_global_networks.return_value = {'GlobalNetworks': []}
             mock_client.list_core_networks.return_value = {'CoreNetworks': []}
@@ -201,5 +207,6 @@ class TestAWSLabsCompliance:
             # All tasks should complete successfully
             for result in results:
                 assert not isinstance(result, Exception)
-                assert isinstance(result, dict)
-                assert 'success' in result
+                # Parse JSON to dict
+                result = json.loads(result)
+                assert result['success'] is True

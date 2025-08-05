@@ -71,20 +71,16 @@ class ContentItem(TypedDict):
     text: str
 
 
-class McpResponse(TypedDict, total=False):
+class McpResponse(TypedDict):
     """A TypedDict representing an MCP server response.
-
-    This class defines the structure for responses returned by MCP server tools.
-    It supports optional fields through total=False, allowing responses to omit
-    the isError field when not needed.
 
     Attributes:
         content (List[ContentItem]): List of content items in the response
-        isError (bool, optional): Flag indicating if the response represents an error
+        isError (Optional[bool]): Flag indicating if the response represents an error
     """
 
     content: List[ContentItem]
-    isError: bool
+    isError: Optional[bool]
 
 
 # Set up logging
@@ -261,6 +257,7 @@ def handle_aws_error(e: Exception, operation: str) -> str:
         return safe_json_dumps({
             "success": False,
             "error": f"{operation} failed: {sanitized_message}",
+            "error_code": "UnknownError",
             "http_status_code": status_code
         }, indent=2)
 
