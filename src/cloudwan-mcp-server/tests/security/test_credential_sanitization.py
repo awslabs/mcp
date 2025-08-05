@@ -367,23 +367,7 @@ class TestEndToEndCredentialProtection:
     def test_comprehensive_sanitization_patterns(self) -> None:
         """Test comprehensive sanitization across all known patterns."""
         # Real-world-like error message with multiple sensitive patterns
-        complex_message = """
-        AWS operation failed with the following details:
-        - Account: 123456789012
-        - Profile: production-admin
-        - Region: us-east-1
-        - Access Key: AKIAIOSFODNN7EXAMPLE
-        - Secret: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-        - Session Token: AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE
-        - ARN: arn:aws:iam::123456789012:role/PowerUser
-        - Config Path: /home/user/.aws/credentials
-        - UUID: 550e8400-e29b-41d4-a716-446655440000
-        - IP: 192.168.1.100
-        - Password: super-secret-password-123
-        """
-
-        sanitized = sanitize_error_message(complex_message)
-
+        sanitized = sanitize_error_message(COMPLEX_MESSAGE)
         # Map each sensitive pattern to its expected marker
         pattern_marker_map = {
             "123456789012": "[ACCOUNT_REDACTED]",
