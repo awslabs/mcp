@@ -359,5 +359,5 @@ class TestAWSConfigManager:
             result_data = json.loads(result)
 
             assert result_data["success"] is False
-            assert "Unexpected error" in result_data["error"]  # noqa: S101
+            assert "Unexpected error" in result_data["error"], f'"Unexpected error" not found in error: {result_data["error"]}'
             assert result_data["error_code"] == "UnknownError"
