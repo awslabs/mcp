@@ -374,10 +374,8 @@ class AWSErrorCatalog:
         return ClientError(error_response, operation)
 
     @classmethod
-    def _validate_security_boundary(cls, error_config: Dict[str, Any], operation: str) -> None:
-        """Validate error generation respects security boundaries."""
-        boundary = error_config.get('SecurityBoundary', 'UNKNOWN')
-
+    def _validate_operation_security(cls, operation: str, boundary: str) -> None:
+        """Helper to validate operation and boundary for security."""
         # Explicit validation for boundary parameter - default to secure behavior for unexpected values
         if boundary is None or not isinstance(boundary, str):
             boundary = 'RESTRICTED'  # Default to most restrictive security boundary
