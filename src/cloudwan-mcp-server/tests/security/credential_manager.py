@@ -292,6 +292,7 @@ class CredentialManager:
                 del self._audit_checksums[k]
             # Shift remaining keys
             self._audit_checksums = {k - num_removed: v for k, v in self._audit_checksums.items()}
+
     def get_audit_trail(self) -> List[Dict[str, Any]]:
         """Get credential audit trail for compliance reporting with integrity verification."""
         # Verify audit log integrity before returning

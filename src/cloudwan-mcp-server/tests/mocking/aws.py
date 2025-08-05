@@ -47,6 +47,11 @@ class AWSServiceMocker:
         self.service_name = service_name
         self.region = region
         self._client = Mock()
+        # Define common client methods for regional behavior configuration
+        self._client_methods = [
+            'list_core_networks', 'describe_global_networks', 'get_core_network_policy',
+            'get_core_network_change_set', 'get_core_network_change_events', 'describe_vpcs'
+        ]
         self._configure_base_behavior()
 
     def _configure_base_behavior(self) -> None:
