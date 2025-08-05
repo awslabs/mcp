@@ -95,14 +95,15 @@ class TemporalCredentials:
         Calculate the minimum number of random bytes needed to produce a base64-encoded string
         of at least `char_length` characters (using urlsafe base64 encoding, without padding).
 
-        Each group of 3 bytes becomes 4 base64 characters. To get at least `char_length` characters,
-        we solve for bytes: ceil(char_length * 3 / 4).
+        Each group of BASE64_BYTES_PER_CHUNK bytes becomes BASE64_CHARS_PER_CHUNK base64 characters.
+        To get at least `char_length` characters, we solve for bytes: ceil(char_length * BASE64_BYTES_PER_CHUNK / BASE64_CHARS_PER_CHUNK).
         """
-        # Each 3 bytes of input become 4 base64 characters. To get at least `char_length` characters,
-        # we need to solve for bytes: ceil(char_length * 3 / 4). The formula below achieves this.
-        BASE64_BYTES_PER_CHAR = 3 / 4  # 3 bytes -> 4 chars, so each char needs 0.75 bytes
-        # The +3 and //4 ensures we round up (ceiling division)
-        return (char_length * 3 + 3) // 4
+        # Each BASE64_BYTES_PER_CHUNK bytes of input become BASE64_CHARS_PER_CHUNK base64 characters.
+        # To get at least `char_length` characters, we need to solve for bytes: ceil(char_length * BASE64_BYTES_PER_CHUNK / BASE64_CHARS_PER_CHUNK).
+        BASE64_BYTES_PER_CHUNK = 3  # 3 bytes -> 4 chars in base64 encoding
+        BASE64_CHARS_PER_CHUNK = 4  # 4 chars per 3 bytes in base64 encoding
+        # The +(BASE64_CHARS_PER_CHUNK-1) and //BASE64_CHARS_PER_CHUNK ensures we round up (ceiling division)
+        return (char_length * BASE64_BYTES_PER_CHUNK + (BASE64_CHARS_PER_CHUNK - 1)) // BASE64_CHARS_PER_CHUNK
 class CredentialSecurityError(Exception):
     """Raised when credential security boundary violations are detected."""
     pass
