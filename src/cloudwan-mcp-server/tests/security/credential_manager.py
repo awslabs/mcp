@@ -92,9 +92,9 @@ class TemporalCredentials:
         Returns:
             ASCII-safe random string of exact specified length
         """
-        if length < 0:
-            raise ValueError("length must be non-negative")
-        if length == 0:
+        if length <= 0:
+            if length < 0:
+                raise ValueError("length must be non-negative")
             return ""
 
         # Generate sufficient random bytes to produce at least 'length' base64 characters
