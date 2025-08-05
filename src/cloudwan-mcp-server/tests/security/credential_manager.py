@@ -95,7 +95,7 @@ class TemporalCredentials:
             return ""
         
         # Generate sufficient random bytes to produce at least 'length' base64 characters
-        # We use a more conservative approach to ensure we always have enough characters
+        # This calculation uses the standard base64 encoding ratio to determine the minimum number of bytes needed
         bytes_needed = ((length * 3) + 3) // 4  # Ceiling division for base64 ratio
         random_bytes = secrets.token_bytes(bytes_needed)
         
