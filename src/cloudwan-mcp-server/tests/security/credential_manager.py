@@ -79,11 +79,15 @@ class TemporalCredentials:
     @staticmethod
     def _random_string(length: int) -> str:
         """Generate a random string of exact length using base64-encoded random bytes."""
-        # Calculate bytes needed to ensure at least 'length' characters after encoding
-        bytes_needed = (length * 4 + 2) // 3
-        random_bytes = secrets.token_bytes(bytes_needed)
-        encoded = base64.urlsafe_b64encode(random_bytes).decode('ascii').rstrip('=')
-        return encoded[:length]
+        # Keep generating random bytes until we have enough base64 characters
+        result = ""
+        while len(result) < length:
+            # Calculate bytes needed to likely exceed the remaining length
+            bytes_needed = ((length - len(result)) * 4 + 2) // 3
+            random_bytes = secrets.token_bytes(bytes_needed)
+            encoded = base64.urlsafe_b64encode(random_bytes).decode('ascii').rstrip('=')
+            result += encoded
+        return result[:length]
 class CredentialSecurityError(Exception):
     """Raised when credential security boundary violations are detected."""
     pass
