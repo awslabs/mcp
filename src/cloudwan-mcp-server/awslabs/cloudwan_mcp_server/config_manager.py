@@ -21,7 +21,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
-import boto3  # Added missing import
+import boto3
 
 
 class AWSConfigManager:
@@ -521,8 +521,8 @@ async def validate_current_config(config):
         identity = await sts.get_caller_identity()
 
         # Validate region
-        region_client = session.client('ec2', region_name=config['aws_region'])
-        await region_client.describe_regions()
+        ec2_client = session.client('ec2', region_name=config['aws_region'])
+        await ec2_client.describe_regions()
 
         # Add networkmanager validation
         nm_client = session.client('networkmanager')

@@ -104,6 +104,13 @@ class TemporalCredentials:
         BASE64_CHARS_PER_CHUNK = 4  # 4 chars per 3 bytes in base64 encoding
         # The +(BASE64_CHARS_PER_CHUNK-1) and //BASE64_CHARS_PER_CHUNK ensures we round up (ceiling division)
         return (char_length * BASE64_BYTES_PER_CHUNK + (BASE64_CHARS_PER_CHUNK - 1)) // BASE64_CHARS_PER_CHUNK
+
+
+class CredentialSecurityError(Exception):
+    """Raised when credential security boundary violations are detected."""
+    pass
+
+
 class CredentialManager:
     """Enterprise-grade credential management for test environments.
     

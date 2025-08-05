@@ -41,7 +41,7 @@ class TestAWSConfigManager:
     CACHE_CAPACITY = 10  # Required for LRU cache tests
 
     @pytest.fixture(autouse=True)
-    def reset_environment():
+    def reset_environment(self):
         """Reset environment after each test."""
         _setup_test_environment()
         yield
