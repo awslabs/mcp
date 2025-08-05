@@ -81,7 +81,7 @@ class TestAWSLabsCompliance:
             # Parse JSON response to dict
             result = json.loads(result)
             assert result['success'] is True
-            assert len(result['data']) >= 0
+            assert len(result['core_networks']) >= 0
 
     @pytest.mark.asyncio
     async def test_error_handling_patterns(self, aws_service_mocker):
