@@ -98,6 +98,9 @@ class TemporalCredentials:
         Each group of 3 bytes becomes 4 base64 characters. To get at least `char_length` characters,
         we solve for bytes: ceil(char_length * 3 / 4).
         """
+        # Each 3 bytes of input become 4 base64 characters. To get at least `char_length` characters,
+        # we need to solve for bytes: ceil(char_length * 3 / 4). The formula below achieves this.
+        BASE64_BYTES_PER_CHAR = 3 / 4  # 3 bytes -> 4 chars, so each char needs 0.75 bytes
         # The +3 and //4 ensures we round up (ceiling division)
         return (char_length * 3 + 3) // 4
 class CredentialSecurityError(Exception):
