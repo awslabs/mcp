@@ -435,11 +435,10 @@ class TestRateLimitingScenarios:
                 # Remove timestamps older than 1 second (sliding window for burst capacity algorithm)
                 # This implements a token bucket rate limiter where we track requests in the last 1-second window
                 # to enforce burst capacity limits while allowing sustained rate calculations
-                # Use bisect to efficiently remove all timestamps older than 1 second
+                # Remove all timestamps older than 1 second using popleft for efficiency
                 cutoff = current_time - 1.0
-                idx = bisect.bisect_left(request_timestamps, cutoff)
-                if idx > 0:
-                    del request_timestamps[:idx]
+                while request_timestamps and request_timestamps[0] < cutoff:
+                    request_timestamps.popleft()
 
                 if len(request_timestamps) >= burst_capacity:
                     raise ClientError(
