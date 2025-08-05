@@ -14,7 +14,7 @@
 
 import contextlib
 from ..aws.services import driver
-from ..common.config import AWS_API_MCP_PROFILE_NAME
+from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
 from ..common.errors import AwsApiMcpError, Failure
 from ..common.models import (
     AwsApiMcpServerErrorResponse,
@@ -34,6 +34,8 @@ from ..metadata.read_only_operations_list import (
 )
 from ..parser.lexer import split_cli_command
 from .driver import interpret_command as _interpret_command
+from awslabs.aws_api_mcp_server.core.common.command import IRCommand
+from awslabs.aws_api_mcp_server.core.common.helpers import operation_timer
 from io import StringIO
 from loguru import logger
 from mcp.server.elicitation import AcceptedElicitation
@@ -92,7 +94,7 @@ def validate(ir: IRTranslation) -> ProgramValidationResponse:
 
 
 def execute_awscli_customization(
-    cli_command: str,
+    cli_command: str, ir_command: IRCommand
 ) -> AwsCliAliasResponse | AwsApiMcpServerErrorResponse:
     """Execute the given AWS CLI command."""
     args = split_cli_command(cli_command)[1:]
@@ -109,7 +111,12 @@ def execute_awscli_customization(
             contextlib.redirect_stdout(stdout_capture),
             contextlib.redirect_stderr(stderr_capture),
         ):
-            driver.main(args)
+            with operation_timer(
+                ir_command.service_name,
+                ir_command.operation_name,
+                ir_command.region or DEFAULT_REGION,
+            ):
+                driver.main(args)
 
         stdout_output = stdout_capture.getvalue()
         stderr_output = stderr_capture.getvalue()
