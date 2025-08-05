@@ -402,27 +402,15 @@ class TestRateLimitingScenarios:
     @pytest.mark.asyncio
     async def test_rate_limiting_with_burst_capacity(self) -> None:
         """Test rate limiting behavior with burst capacity scenarios."""
-        request_timestamps = deque()
         burst_capacity = 10
         sustained_rate = 2  # requests per second
+        rate_limiter = TokenBucketRateLimiter(burst_capacity, sustained_rate)
 
         def burst_capacity_mock(service, region=None):
             mock_client = Mock()
 
             def rate_limited_call(**kwargs):
-                current_time = time.time()
-                request_timestamps.append(current_time)
-
-                # Implements a token bucket rate limiting algorithm with burst capacity and sustained rate:
-                # - Allows up to `burst_capacity` requests in any 1-second window (burst capacity).
-                # - Enforces a sustained rate of `sustained_rate` requests per second over time.
-                # We track timestamps of recent requests in a sliding 1-second window, removing all timestamps older than 1 second
-                # (using popleft for efficiency) to enforce these limits.
-                cutoff = current_time - 1.0
-                while request_timestamps and request_timestamps[0] < cutoff:
-                    request_timestamps.popleft()
-
-                if len(request_timestamps) >= burst_capacity:
+                if not rate_limiter.allow_request():
                     raise ClientError(
                         {
                             "Error": {
