@@ -534,6 +534,31 @@ class TestCredentialHandlingSecurity:
             response_text = json.dumps(parsed)
 
             self._assert_no_credential_leakage(credential_patterns, response_text, parsed)
+
+    def _assert_no_credential_leakage(self, credential_patterns, response_text, parsed):
+        """Assert that no credentials are exposed in the response."""
+        for credential in credential_patterns:
+            # Check that credentials don't appear in the response text
+            assert credential not in response_text, f"Credential {credential[:8]}*** found in response"
+        
+        # Additional checks for common credential exposure patterns
+        assert 'AWS_ACCESS_KEY_ID' not in response_text or parsed.get('current_configuration', {}).get('identity', {}).get('error') 
+        assert 'AWS_SECRET_ACCESS_KEY' not in response_text
+        assert 'AWS_SESSION_TOKEN' not in response_text
+        
+        # Ensure sensitive environment variables are not exposed
+        sensitive_env_vars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN']
+        for env_var in sensitive_env_vars:
+            # Should not contain actual credential values, only sanitized references
+            if env_var in response_text:
+                # If environment variable name is mentioned, ensure no actual values follow
+                import re
+                pattern = rf'{env_var}["\']?\s*[:=]\s*["\']?([A-Za-z0-9/+=]+)'
+                matches = re.findall(pattern, response_text)
+                for match in matches:
+                    # Should not contain actual credential-like strings
+                    assert len(match) < 10 or match in ['[REDACTED]', '[HIDDEN]', '***'], f"Potential credential exposure: {match[:8]}***"
+
     @pytest.mark.integration
     @pytest.mark.security
     @pytest.mark.asyncio

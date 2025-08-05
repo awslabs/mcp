@@ -14,6 +14,7 @@
 
 """Pagination and rate limiting scenario tests following AWS Labs patterns."""
 
+import bisect
 import json
 import pytest
 import time
