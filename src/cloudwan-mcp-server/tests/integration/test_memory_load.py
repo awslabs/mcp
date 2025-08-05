@@ -110,7 +110,7 @@ class TestMemoryUsageMonitoring:
                 # Check for memory leaks (growth beyond reasonable bounds)
                 if len(memory_samples) > 10:
                     recent_avg = sum(memory_samples[-10:]) / 10
-                    if recent_avg > 1000:  # 1GB growth is concerning
+                    if recent_avg > self.MEMORY_LEAK_THRESHOLD_MB:  # 1GB growth is concerning
                         pytest.fail(f"Potential memory leak: {recent_avg:.1f}MB average growth")
 
         # Calculate memory statistics
