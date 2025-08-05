@@ -30,6 +30,10 @@ from awslabs.cloudwan_mcp_server.server import (
     get_core_network_change_set, analyze_segment_routes
 )
 
+# Test timeout constants for maintainability and consistency
+POLICY_PARSING_TIMEOUT = 30.0  # Default timeout for policy parsing operations
+REGEX_DOS_TIMEOUT = 30  # Timeout for regex DOS prevention tests
+
 # Edge region configurations for performance testing
 EDGE_REGIONS = [
     "us-east", "us-west", "eu-west", "eu-central", "ap-southeast", "ap-northeast", 
@@ -207,7 +211,7 @@ class TestLargePolicyDocumentParsing:
         assert 'validation_results' in parsed
         
         # Performance requirements for 10MB+ policy (timeout configurable via env)
-        parsing_timeout = float(os.getenv('POLICY_PARSING_TIMEOUT', '30.0'))
+        parsing_timeout = float(os.getenv('POLICY_PARSING_TIMEOUT', str(POLICY_PARSING_TIMEOUT)))
         assert policy_size_mb >= 10.0, f"Policy size {policy_size_mb:.1f}MB, expected >= 10MB"
         assert parsing_time < parsing_timeout, f"10MB policy parsing took {parsing_time:.2f}s, expected < {parsing_timeout:.0f}s"
         assert memory_usage < 500, f"Memory usage {memory_usage:.2f}MB, expected < 500MB (optimized from 1000MB)"
@@ -380,7 +384,6 @@ class TestRegexPerformanceAndDOS:
         }
         
         start_time = time.time()
-        timeout_seconds = 30  # Set reasonable timeout
         
         result = await validate_cloudwan_policy(regex_dos_policy)
         
@@ -391,7 +394,7 @@ class TestRegexPerformanceAndDOS:
         assert parsed['success'] is True
         
         # Should complete within reasonable time (regex DOS prevention)
-        assert execution_time < timeout_seconds, f"Regex validation took {execution_time:.2f}s, possible DOS"
+        assert execution_time < REGEX_DOS_TIMEOUT, f"Regex validation took {execution_time:.2f}s, possible DOS"
 
     @pytest.mark.integration
     @pytest.mark.asyncio

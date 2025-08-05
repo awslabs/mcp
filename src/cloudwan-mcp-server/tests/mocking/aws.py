@@ -388,6 +388,15 @@ class AWSErrorCatalog:
         """Validate error generation respects security boundaries."""
         boundary = error_config.get('SecurityBoundary', 'UNKNOWN')
         
+        # Explicit validation for boundary parameter - default to secure behavior for unexpected values
+        if boundary is None or not isinstance(boundary, str):
+            boundary = 'RESTRICTED'  # Default to most restrictive security boundary
+        
+        # Normalize boundary to known values, default to secure behavior
+        valid_boundaries = {'AUTH_FAILURE', 'SERVICE_ERROR', 'RESOURCE_ACCESS', 'RATE_LIMIT', 'UNKNOWN', 'RESTRICTED'}
+        if boundary not in valid_boundaries:
+            boundary = 'RESTRICTED'  # Default to most restrictive
+        
         # Focused security boundary validation for truly sensitive operations
         highly_sensitive_operations = [
             'Admin', 'Root', 'Super', 'Master', 'Privileged', 'System',
@@ -410,6 +419,10 @@ class AWSErrorCatalog:
             operation.startswith(prefix) or prefix.lower() in operation.lower() 
             for prefix in state_changing_operations
         )
+        
+        # Handle RESTRICTED boundary - block all operations by default for unknown/invalid boundaries
+        if boundary == 'RESTRICTED':
+            raise MockingSecurityError(f"Operation '{operation}' blocked due to restrictive security boundary")
         
         # Apply different rules based on sensitivity level
         is_sensitive = is_highly_sensitive or (boundary == 'AUTH_FAILURE' and is_state_changing)

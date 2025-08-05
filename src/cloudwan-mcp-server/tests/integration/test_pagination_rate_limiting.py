@@ -17,6 +17,7 @@
 import json
 import pytest
 import time
+from collections import deque
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
 from botocore.exceptions import ClientError
@@ -420,7 +421,7 @@ class TestRateLimitingScenarios:
     @pytest.mark.asyncio
     async def test_rate_limiting_with_burst_capacity(self):
         """Test rate limiting behavior with burst capacity scenarios."""
-        request_timestamps = []
+        request_timestamps = deque()
         burst_capacity = 10
         sustained_rate = 2  # requests per second
         
@@ -431,10 +432,11 @@ class TestRateLimitingScenarios:
                 current_time = time.time()
                 request_timestamps.append(current_time)
                 
-                # Check if we've exceeded burst capacity
-                recent_requests = [t for t in request_timestamps if current_time - t <= 1.0]
+                # Remove timestamps older than 1 second
+                while request_timestamps and current_time - request_timestamps[0] > 1.0:
+                    request_timestamps.popleft()
                 
-                if len(recent_requests) >= burst_capacity:
+                if len(request_timestamps) >= burst_capacity:
                     raise ClientError(
                         {
                             'Error': {

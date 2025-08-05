@@ -546,10 +546,15 @@ class TestCredentialHandlingSecurity:
                 # Additional verification: ensure no partial credential leakage
                 for credential in credential_patterns:
                     # Check that even partial credential values aren't present
-                    if len(credential) > 8:
-                        credential_parts = [credential[i:i+8] for i in range(0, len(credential)-7, 4)]
+                    chunk_size = 8
+                    step = 4
+                    if len(credential) >= chunk_size:
+                        credential_parts = [credential[i:i+chunk_size] for i in range(0, len(credential)-chunk_size+1, step)]
                         for part in credential_parts:
                             assert part not in response_text, f"Partial credential leaked: {part}"
+                    else:
+                        # For short credentials, check the full credential as a "part"
+                        assert credential not in response_text, f"Partial credential leaked: {credential}"
 
     @pytest.mark.integration
     @pytest.mark.security

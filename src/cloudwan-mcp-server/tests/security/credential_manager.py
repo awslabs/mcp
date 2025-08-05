@@ -82,7 +82,7 @@ class TemporalCredentials:
     def _random_string(length: int) -> str:
         """Generate a random string of exact length using base64-encoded random bytes."""
         # Calculate bytes needed to ensure at least 'length' characters after encoding
-        bytes_needed = ((length * 3) + 3) // 4
+        bytes_needed = (length * 4 + 2) // 3
         random_bytes = secrets.token_bytes(bytes_needed)
         encoded = base64.urlsafe_b64encode(random_bytes).decode('ascii').rstrip('=')
         return encoded[:length]
@@ -102,6 +102,10 @@ class CredentialManager:
     - Memory security cleanup
     - GDPR-compliant data handling
     """
+    
+    # Configurable audit log management constants
+    AUDIT_LOG_ROTATION_THRESHOLD = 1000
+    AUDIT_LOG_RETENTION_COUNT = 500
     
     _instance = None
     _lock = Lock()
@@ -263,11 +267,11 @@ class CredentialManager:
         logger.info(f"Audit event logged: {event.get('event', 'unknown')} [ID: {event['_audit_id']}]")
         
         # Rotate audit log if it gets too large (GDPR compliance)
-        if len(self._audit_log) > 1000:
-            self._audit_log = self._audit_log[-500:]  # Keep last 500 events
+        if len(self._audit_log) > self.AUDIT_LOG_ROTATION_THRESHOLD:
+            self._audit_log = self._audit_log[-self.AUDIT_LOG_RETENTION_COUNT:]  # Keep last N events
             # Update checksum indices after rotation
             new_checksums = {}
-            for i, old_index in enumerate(range(len(self._audit_log) - 500, len(self._audit_log))):
+            for i, old_index in enumerate(range(len(self._audit_log) - self.AUDIT_LOG_RETENTION_COUNT, len(self._audit_log))):
                 if old_index in self._audit_checksums:
                     new_checksums[i] = self._audit_checksums[old_index]
             self._audit_checksums = new_checksums
