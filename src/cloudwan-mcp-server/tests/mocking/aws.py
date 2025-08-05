@@ -400,10 +400,13 @@ class AWSErrorCatalog:
         state_changing_operations = ["Create", "Add", "Insert", "Update", "Modify", "Change", "Put", "Post"]
 
         # Check for highly sensitive operation patterns
-        any(
+        if any(
             operation.startswith(prefix) or prefix.lower() in operation.lower()
             for prefix in highly_sensitive_operations
-        )
+        ):
+            raise MockingSecurityError(
+                f"Operation '{operation}' is considered highly sensitive and is not allowed in this context."
+            )
 
         # Check for state-changing operations (less restrictive)
         any(operation.startswith(prefix) or prefix.lower() in operation.lower() for prefix in state_changing_operations)
