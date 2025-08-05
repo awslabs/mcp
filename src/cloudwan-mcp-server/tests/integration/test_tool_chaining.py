@@ -47,12 +47,9 @@ class TestToolChaining:
         )
         analyze_data = json.loads(analyze_result)
 
-        assert all([
-            list_data["success"],
-            policy_data["success"],
-            analyze_data["success"]
-        ])
-
+        assert list_data["success"]
+        assert policy_data["success"]
+        assert analyze_data["success"]
     @pytest.mark.asyncio
     async def test_path_tracing_workflow(self, mock_aws_client):
         """Test complete path tracing workflow."""
