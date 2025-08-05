@@ -101,7 +101,14 @@ class TemporalCredentials:
         # Each BASE64_BYTES_PER_CHUNK bytes of input become BASE64_CHARS_PER_CHUNK base64 characters.
         BASE64_BYTES_PER_CHUNK = 3  # 3 bytes -> 4 chars in base64 encoding
         BASE64_CHARS_PER_CHUNK = 4  # 4 chars per 3 bytes in base64 encoding
-        # The +(BASE64_CHARS_PER_CHUNK-1) and //BASE64_CHARS_PER_CHUNK ensures we round up (ceiling division)
+        # To ensure we have enough random bytes to generate at least `char_length` base64 characters,
+        # we need to solve for the minimum number of bytes such that:
+        #     ceil(bytes * BASE64_CHARS_PER_CHUNK / BASE64_BYTES_PER_CHUNK) >= char_length
+        # Rearranging, we get:
+        #     bytes >= ceil(char_length * BASE64_BYTES_PER_CHUNK / BASE64_CHARS_PER_CHUNK)
+        # The formula below achieves this ceiling division by adding (BASE64_CHARS_PER_CHUNK - 1)
+        # before performing integer division, which is a common trick to simulate math.ceil for integers:
+        #     ceil(a / b) == (a + b - 1) // b
         return (char_length * BASE64_BYTES_PER_CHUNK + (BASE64_CHARS_PER_CHUNK - 1)) // BASE64_CHARS_PER_CHUNK
 
 
