@@ -560,11 +560,6 @@ class TestCredentialHandlingSecurity:
                         f"Potential credential exposure: {match[:8]}***"
                     )
 
-    def _assert_no_credential_leakage(self, credential_patterns, response_text, parsed) -> None:
-        """Assert that no credentials are exposed in the response."""
-        self._assert_credential_not_in_text(credential_patterns, response_text)
-        self._assert_no_credential_in_error_field(credential_patterns, response_text, parsed)
-        self._assert_env_var_not_leaked(response_text)
 
     @pytest.mark.integration
     @pytest.mark.security
