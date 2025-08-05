@@ -12,20 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Hierarchical AWS service mocking framework for CloudWAN MCP Server tests.
+"""Hierarchical AWS service mocking framework for CloudWAN MCP Server tests.
 
 This module provides a comprehensive mocking infrastructure for AWS services,
 enabling consistent and maintainable test fixtures across the entire test suite.
 """
 
-from typing import Dict, Any, List, Optional, Union
-from unittest.mock import Mock
-from botocore.exceptions import ClientError
-import pytest
-import random
-import string
 import secrets
+import string
+from botocore.exceptions import ClientError
+from typing import Any, Dict, List
+from unittest.mock import Mock
 
 
 class MockingSecurityError(Exception):
@@ -34,16 +31,14 @@ class MockingSecurityError(Exception):
 
 
 class AWSServiceMocker:
-    """
-    Hierarchical AWS service mocker with configurable behavior.
+    """Hierarchical AWS service mocker with configurable behavior.
     
     This class provides a structured approach to mocking AWS service clients
     with realistic responses and error scenarios.
     """
-    
+
     def __init__(self, service_name: str, region: str = "us-east-1"):
-        """
-        Initialize AWS service mocker.
+        """Initialize AWS service mocker.
         
         Args:
             service_name: AWS service name (e.g., 'networkmanager', 'ec2')
@@ -53,7 +48,7 @@ class AWSServiceMocker:
         self.region = region
         self._client = Mock()
         self._configure_base_behavior()
-    
+
     def _configure_base_behavior(self) -> None:
         """Configure base service behavior based on service type."""
         if self.service_name == "networkmanager":
@@ -63,7 +58,7 @@ class AWSServiceMocker:
         else:
             # Generic service configuration
             self._configure_generic_service()
-    
+
     def _configure_networkmanager(self) -> None:
         """Configure NetworkManager service mock responses."""
         # Core Networks
@@ -78,7 +73,7 @@ class AWSServiceMocker:
                 }
             ]
         }
-        
+
         # Global Networks
         self._client.describe_global_networks.return_value = {
             "GlobalNetworks": [
@@ -90,7 +85,7 @@ class AWSServiceMocker:
                 }
             ]
         }
-        
+
         # Core Network Policy
         self._client.get_core_network_policy.return_value = {
             "CoreNetworkPolicy": {
@@ -109,7 +104,7 @@ class AWSServiceMocker:
                 "CreatedAt": "2023-01-01T00:00:00Z"
             }
         }
-        
+
         # Change Set
         self._client.get_core_network_change_set.return_value = {
             "CoreNetworkChanges": [
@@ -120,7 +115,7 @@ class AWSServiceMocker:
                 }
             ]
         }
-        
+
         # Change Events
         self._client.get_core_network_change_events.return_value = {
             "CoreNetworkChangeEvents": [
@@ -131,7 +126,7 @@ class AWSServiceMocker:
                 }
             ]
         }
-    
+
     def _configure_ec2(self) -> None:
         """Configure EC2 service mock responses."""
         self._client.describe_vpcs.return_value = {
@@ -145,15 +140,14 @@ class AWSServiceMocker:
                 }
             ]
         }
-    
+
     def _configure_generic_service(self) -> None:
         """Configure generic service responses."""
         # Default empty responses for unknown services
         pass
-    
+
     def configure_core_networks(self, networks: List[Dict[str, Any]]) -> 'AWSServiceMocker':
-        """
-        Configure core network responses.
+        """Configure core network responses.
         
         Args:
             networks: List of core network configurations
@@ -163,10 +157,9 @@ class AWSServiceMocker:
         """
         self._client.list_core_networks.return_value = {"CoreNetworks": networks}
         return self
-    
+
     def configure_error(self, error_code: str, message: str = None, operation: str = None) -> 'AWSServiceMocker':
-        """
-        Configure service to return specific error.
+        """Configure service to return specific error.
         
         Args:
             error_code: AWS error code (e.g., 'AccessDenied')
@@ -178,7 +171,7 @@ class AWSServiceMocker:
         """
         if message is None:
             message = f"Test error message for {error_code}"
-        
+
         error_response = {
             'Error': {
                 'Code': error_code,
@@ -189,21 +182,21 @@ class AWSServiceMocker:
                 'HTTPStatusCode': self._get_http_status_for_error(error_code)
             }
         }
-        
+
         client_error = ClientError(error_response, operation or 'TestOperation')
-        
+
         # Configure all methods to raise this error
         if operation:
             getattr(self._client, operation).side_effect = client_error
         else:
             # Configure common operations
-            for method in ['list_core_networks', 'describe_global_networks', 
+            for method in ['list_core_networks', 'describe_global_networks',
                           'get_core_network_policy', 'describe_vpcs']:
                 if hasattr(self._client, method):
                     getattr(self._client, method).side_effect = client_error
-        
+
         return self
-    
+
     def _get_http_status_for_error(self, error_code: str) -> int:
         """Map AWS error codes to HTTP status codes."""
         error_mapping = {
@@ -215,10 +208,9 @@ class AWSServiceMocker:
             'ServiceUnavailable': 503
         }
         return error_mapping.get(error_code, 400)
-    
+
     def configure_regional_behavior(self, region_responses: Dict[str, Any]) -> 'AWSServiceMocker':
-        """
-        Configure region-specific responses.
+        """Configure region-specific responses.
         
         Args:
             region_responses: Mapping of regions to response configurations
@@ -231,17 +223,17 @@ class AWSServiceMocker:
             if region in region_responses:
                 return region_responses[region].get(method_name, {})
             return {}
-        
+
         # Apply region-aware behavior to all methods
         for method in dir(self._client):
             if not method.startswith('_') and hasattr(self._client, method):
                 original_method = getattr(self._client, method)
                 if hasattr(original_method, 'return_value'):
-                    setattr(self._client, method, 
+                    setattr(self._client, method,
                            Mock(side_effect=lambda *a, **k: region_aware_response(method, *a, **k)))
-        
+
         return self
-    
+
     @property
     def client(self) -> Mock:
         """Get the configured mock client."""
@@ -249,8 +241,7 @@ class AWSServiceMocker:
 
 
 class AWSErrorCatalog:
-    """
-    Security-hardened AWS error catalog for comprehensive testing.
+    """Security-hardened AWS error catalog for comprehensive testing.
     
     Features:
     - Information disclosure prevention
@@ -258,7 +249,7 @@ class AWSErrorCatalog:
     - Audit trail logging
     - Sanitized error messages
     """
-    
+
     # Security-hardened error messages (no system internals exposed)
     SAFE_MESSAGES = {
         'AccessDenied': 'Authorization failed for requested operation',
@@ -270,7 +261,7 @@ class AWSErrorCatalog:
         'NetworkingError': 'Network connectivity issue detected',
         'TimeoutException': 'Request timeout - operation did not complete in time'
     }
-    
+
     # Standard AWS error codes and scenarios with security boundaries
     COMMON_ERRORS = {
         'access_denied': {
@@ -281,7 +272,7 @@ class AWSErrorCatalog:
             'SanitizedDetails': 'IAM permission validation failed'
         },
         'resource_not_found': {
-            'Code': 'ResourceNotFoundException', 
+            'Code': 'ResourceNotFoundException',
             'Message': 'Requested resource could not be located',
             'HTTPStatusCode': 404,
             'SecurityBoundary': 'RESOURCE_ACCESS',
@@ -316,7 +307,7 @@ class AWSErrorCatalog:
             'SanitizedDetails': 'Service health check failure detected'
         }
     }
-    
+
     # NetworkManager specific errors
     NETWORKMANAGER_ERRORS = {
         'core_network_not_found': {
@@ -325,7 +316,7 @@ class AWSErrorCatalog:
             'HTTPStatusCode': 404
         },
         'global_network_not_found': {
-            'Code': 'GlobalNetworkNotFoundException', 
+            'Code': 'GlobalNetworkNotFoundException',
             'Message': 'The specified global network was not found',
             'HTTPStatusCode': 404
         },
@@ -335,11 +326,10 @@ class AWSErrorCatalog:
             'HTTPStatusCode': 404
         }
     }
-    
+
     @classmethod
     def get_error(cls, error_name: str, operation: str = 'TestOperation') -> ClientError:
-        """
-        Get a security-hardened ClientError for testing.
+        """Get a security-hardened ClientError for testing.
         
         Args:
             error_name: Name of error from catalog
@@ -349,7 +339,7 @@ class AWSErrorCatalog:
             Configured ClientError instance with security boundaries
         """
         error_config = None
-        
+
         # Check common errors first
         if error_name in cls.COMMON_ERRORS:
             error_config = cls.COMMON_ERRORS[error_name]
@@ -357,16 +347,16 @@ class AWSErrorCatalog:
             error_config = cls.NETWORKMANAGER_ERRORS[error_name]
         else:
             raise ValueError(f"Unknown error type: {error_name}")
-        
+
         # Security boundary enforcement
         cls._validate_security_boundary(error_config, operation)
-        
+
         # Use sanitized message to prevent information disclosure
         sanitized_message = cls.SAFE_MESSAGES.get(
-            error_config['Code'], 
+            error_config['Code'],
             error_config['Message']
         )
-        
+
         error_response = {
             'Error': {
                 'Code': error_config['Code'],
@@ -377,88 +367,88 @@ class AWSErrorCatalog:
                 'HTTPStatusCode': error_config['HTTPStatusCode']
             }
         }
-        
+
         # Log for audit trail (internal only)
         cls._log_error_generation(error_name, operation, error_config.get('SecurityBoundary'))
-        
+
         return ClientError(error_response, operation)
-    
+
     @classmethod
     def _validate_security_boundary(cls, error_config: Dict[str, Any], operation: str) -> None:
         """Validate error generation respects security boundaries."""
         boundary = error_config.get('SecurityBoundary', 'UNKNOWN')
-        
+
         # Explicit validation for boundary parameter - default to secure behavior for unexpected values
         if boundary is None or not isinstance(boundary, str):
             boundary = 'RESTRICTED'  # Default to most restrictive security boundary
-        
+
         # Normalize boundary to known values, default to secure behavior
         valid_boundaries = {'AUTH_FAILURE', 'SERVICE_ERROR', 'RESOURCE_ACCESS', 'RATE_LIMIT', 'UNKNOWN', 'RESTRICTED'}
         if boundary not in valid_boundaries:
             boundary = 'RESTRICTED'  # Default to most restrictive
-        
+
         # Focused security boundary validation for truly sensitive operations
         highly_sensitive_operations = [
             'Admin', 'Root', 'Super', 'Master', 'Privileged', 'System',
             'Delete', 'Remove', 'Destroy', 'Terminate', 'Drop'
         ]
-        
+
         # Operations that modify state or could affect security posture
         state_changing_operations = [
             'Create', 'Add', 'Insert', 'Update', 'Modify', 'Change', 'Put', 'Post'
         ]
-        
+
         # Check for highly sensitive operation patterns
         is_highly_sensitive = any(
-            operation.startswith(prefix) or prefix.lower() in operation.lower() 
+            operation.startswith(prefix) or prefix.lower() in operation.lower()
             for prefix in highly_sensitive_operations
         )
-        
+
         # Check for state-changing operations (less restrictive)
         is_state_changing = any(
-            operation.startswith(prefix) or prefix.lower() in operation.lower() 
+            operation.startswith(prefix) or prefix.lower() in operation.lower()
             for prefix in state_changing_operations
         )
-        
+
         # Handle RESTRICTED boundary - block all operations by default for unknown/invalid boundaries
         if boundary == 'RESTRICTED':
             raise MockingSecurityError(f"Operation '{operation}' blocked due to restrictive security boundary")
-        
+
         # Apply different rules based on sensitivity level
         is_sensitive = is_highly_sensitive or (boundary == 'AUTH_FAILURE' and is_state_changing)
-        
+
         # Prevent sensitive operation errors in authentication failure contexts
         # This helps avoid test scenarios that could inadvertently simulate real security issues
         if is_sensitive:
             raise MockingSecurityError(f"Sensitive operation '{operation}' error simulation blocked for security")
-        
+
         # Additional boundary checks for different security contexts
         if boundary == 'SERVICE_ERROR':
             # Sanitize internal system references
-            if any(term in error_config.get('Message', '').lower() for term in 
+            if any(term in error_config.get('Message', '').lower() for term in
                    ['internal', 'system', 'database', 'server', 'host', 'node']):
                 # Replace with generic message to prevent information disclosure
                 pass
-        
+
         if boundary == 'RESOURCE_ACCESS' and operation.lower().startswith('get'):
             # Validate that resource access errors don't leak existence information
             if 'exists' in error_config.get('Message', '').lower():
                 raise MockingSecurityError(f"Resource enumeration via error messages blocked for operation '{operation}'")
-        
+
         # Rate limiting boundary validation
         if boundary == 'RATE_LIMIT':
             # Ensure rate limit errors don't expose internal throttling mechanisms
-            if any(term in error_config.get('Message', '').lower() for term in 
+            if any(term in error_config.get('Message', '').lower() for term in
                    ['quota', 'limit', 'threshold', 'bucket', 'window']):
                 # Log for audit but don't expose specific rate limiting details
                 pass
-    
+
     @classmethod
     def _generate_safe_id(cls) -> str:
         """Generate safe test request ID without system information exposure."""
         charset = string.ascii_lowercase + string.digits
         return ''.join(secrets.choice(charset) for _ in range(8))
-    
+
     @classmethod
     def _log_error_generation(cls, error_name: str, operation: str, boundary: str) -> None:
         """Log error generation for audit trail (security compliance)."""

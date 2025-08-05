@@ -16,16 +16,17 @@
 
 import json
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch, MagicMock
-from moto import mock_aws
-import boto3
-from botocore.exceptions import ClientError
-
 from awslabs.cloudwan_mcp_server.server import (
-    get_aws_client, list_core_networks, get_global_networks, 
-    discover_vpcs, analyze_tgw_routes, get_core_network_policy
+    analyze_tgw_routes,
+    discover_vpcs,
+    get_aws_client,
+    get_core_network_policy,
+    get_global_networks,
+    list_core_networks,
 )
+from botocore.exceptions import ClientError
+from datetime import datetime, timezone
+from unittest.mock import Mock, patch
 
 
 class TestNetworkManagerServiceMocking:
@@ -68,22 +69,22 @@ class TestNetworkManagerServiceMocking:
                 'NextToken': None
             }
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks(region='us-east-1')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 2
             assert len(parsed['core_networks']) == 2
-            
+
             # Verify detailed network attributes
             prod_network = next(
-                (n for n in parsed['core_networks'] if n['State'] == 'AVAILABLE'), 
+                (n for n in parsed['core_networks'] if n['State'] == 'AVAILABLE'),
                 None
             )
             assert prod_network is not None
             assert prod_network['Description'] == 'Production CloudWAN Core Network'
-            
+
             # Verify API call parameters
             mock_client.list_core_networks.assert_called_once()
 
@@ -108,14 +109,14 @@ class TestNetworkManagerServiceMocking:
                 'NextToken': None
             }
             mock_get_client.return_value = mock_client
-            
+
             result = await get_global_networks(region='us-east-1')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 1
             assert parsed['global_networks'][0]['State'] == 'AVAILABLE'
-            
+
             # Verify service and region parameters
             mock_get_client.assert_called_with('networkmanager', 'us-east-1')
 
@@ -133,7 +134,7 @@ class TestNetworkManagerServiceMocking:
                         'asn': 64512
                     },
                     {
-                        'location': 'us-west-2', 
+                        'location': 'us-west-2',
                         'asn': 64513
                     },
                     {
@@ -164,7 +165,7 @@ class TestNetworkManagerServiceMocking:
                 }
             ]
         }
-        
+
         mock_policy_response = {
             'CoreNetworkPolicy': {
                 'PolicyVersionId': '3',
@@ -180,17 +181,17 @@ class TestNetworkManagerServiceMocking:
             mock_client = Mock()
             mock_client.get_core_network_policy.return_value = mock_policy_response
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy(
                 'core-network-01234567890abcdef',
                 alias='LIVE'
             )
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['policy_version_id'] == '3'
             assert parsed['alias'] == 'LIVE'
-            
+
             # Verify policy document structure
             policy_doc = json.loads(parsed['policy_document'])
             assert policy_doc['version'] == '2021.12'
@@ -241,9 +242,9 @@ class TestNetworkManagerServiceMocking:
                     scenario['operation']
                 )
                 mock_get_client.return_value = mock_client
-                
+
                 result = await list_core_networks()
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is False
                 assert scenario['error_code'] == parsed['error_code']
@@ -292,7 +293,7 @@ class TestEC2ServiceMocking:
                 'CidrBlockAssociationSet': [
                     {
                         'AssociationId': 'vpc-cidr-assoc-87654321',
-                        'CidrBlock': '172.16.0.0/12', 
+                        'CidrBlock': '172.16.0.0/12',
                         'CidrBlockState': {'State': 'associated'}
                     },
                     {
@@ -311,14 +312,14 @@ class TestEC2ServiceMocking:
                 'NextToken': None
             }
             mock_get_client.return_value = mock_client
-            
+
             result = await discover_vpcs(region='us-west-2')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 2
             assert parsed['region'] == 'us-west-2'
-            
+
             # Verify VPC details
             prod_vpc = next(
                 (v for v in parsed['vpcs'] if v.get('Tags', [{}])[0].get('Value') == 'Production VPC'),
@@ -375,20 +376,20 @@ class TestEC2ServiceMocking:
                 'AdditionalRoutesAvailable': False
             }
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_routes('tgw-rtb-01234567890abcdef')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['analysis']['total_routes'] == 3
             assert parsed['analysis']['active_routes'] == 2
             assert parsed['analysis']['blackholed_routes'] == 1
-            
+
             # Verify route details are preserved
             route_details = parsed['analysis']['route_details']
             active_routes = [r for r in route_details if r['State'] == 'active']
             assert len(active_routes) == 2
-            
+
             blackhole_routes = [r for r in route_details if r['State'] == 'blackhole']
             assert len(blackhole_routes) == 1
             assert blackhole_routes[0]['DestinationCidrBlock'] == '192.168.0.0/16'
@@ -427,22 +428,22 @@ class TestEC2ServiceMocking:
                 'TransitGatewayPeeringAttachments': [mock_peering_attachment]
             }
             mock_get_client.return_value = mock_client
-            
+
             # Import the function that we need to test
             from awslabs.cloudwan_mcp_server.server import analyze_tgw_peers
-            
+
             result = await analyze_tgw_peers('tgw-attach-01234567890abcdef')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['peer_analysis']['state'] == 'available'
             assert parsed['peer_analysis']['status'] == 'available'
-            
+
             # Verify requester and accepter info
             requester_info = parsed['peer_analysis']['requester_tgw_info']
             assert requester_info['Region'] == 'us-east-1'
             assert requester_info['TransitGatewayId'] == 'tgw-01234567890abcdef'
-            
+
             accepter_info = parsed['peer_analysis']['accepter_tgw_info']
             assert accepter_info['Region'] == 'us-west-2'
             assert accepter_info['TransitGatewayId'] == 'tgw-fedcba0987654321'
@@ -464,7 +465,7 @@ class TestEC2ServiceMocking:
             },
             {
                 'RegionName': 'eu-west-1',
-                'Endpoint': 'ec2.eu-west-1.amazonaws.com', 
+                'Endpoint': 'ec2.eu-west-1.amazonaws.com',
                 'OptInStatus': 'opt-in-not-required'
             },
             {
@@ -480,12 +481,12 @@ class TestEC2ServiceMocking:
             mock_client.describe_regions.return_value = {'Regions': mock_regions}
             mock_session.client.return_value = mock_client
             mock_session_class.return_value = mock_session
-            
+
             # Test region validation through aws_config_manager
             from awslabs.cloudwan_mcp_server.server import aws_config_manager
-            
+
             result = await aws_config_manager('set_region', region='eu-west-1')
-            
+
             parsed = json.loads(result)
             # Should succeed because eu-west-1 is in the mocked regions list
             assert parsed['success'] is True
@@ -507,7 +508,7 @@ class TestIntegratedServiceMocking:
                 'State': 'AVAILABLE'
             }
         ]
-        
+
         # Mock EC2 VPCs
         mock_vpcs = [
             {
@@ -520,23 +521,23 @@ class TestIntegratedServiceMocking:
         def mock_client_factory(service, region=None):
             """Factory function to return appropriate mocked client."""
             mock_client = Mock()
-            
+
             if service == 'networkmanager':
                 mock_client.list_core_networks.return_value = {'CoreNetworks': mock_core_networks}
             elif service == 'ec2':
                 mock_client.describe_vpcs.return_value = {'Vpcs': mock_vpcs}
-                
+
             return mock_client
 
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=mock_client_factory):
             # Test both operations in sequence
             core_networks_result = await list_core_networks()
             vpcs_result = await discover_vpcs()
-            
+
             # Verify both operations succeeded
             core_parsed = json.loads(core_networks_result)
             vpcs_parsed = json.loads(vpcs_result)
-            
+
             assert core_parsed['success'] is True
             assert vpcs_parsed['success'] is True
             assert core_parsed['total_count'] == 1
@@ -549,7 +550,7 @@ class TestIntegratedServiceMocking:
             # Test different services get different clients
             mock_nm_client = Mock()
             mock_ec2_client = Mock()
-            
+
             def client_side_effect(service, **kwargs):
                 if service == 'networkmanager':
                     return mock_nm_client
@@ -557,17 +558,17 @@ class TestIntegratedServiceMocking:
                     return mock_ec2_client
                 else:
                     return Mock()
-                    
+
             mock_boto_client.side_effect = client_side_effect
-            
+
             # Test client retrieval
             nm_client = get_aws_client('networkmanager', region='us-east-1')
             ec2_client = get_aws_client('ec2', region='us-east-1')
-            
+
             assert nm_client == mock_nm_client
             assert ec2_client == mock_ec2_client
             assert nm_client != ec2_client
-            
+
             # Verify proper service calls
             assert mock_boto_client.call_count == 2
             calls = mock_boto_client.call_args_list
@@ -600,7 +601,7 @@ class TestIntegratedServiceMocking:
         for pattern in error_patterns:
             with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
                 mock_client = Mock()
-                
+
                 # Set up the appropriate method based on the service
                 if pattern['service'] == 'networkmanager':
                     mock_client.list_core_networks.side_effect = ClientError(
@@ -612,11 +613,11 @@ class TestIntegratedServiceMocking:
                         {'Error': {'Code': pattern['error_code'], 'Message': pattern['error_message']}},
                         pattern['operation']
                     )
-                    
+
                 mock_get_client.return_value = mock_client
-                
+
                 result = await pattern['function']()
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is False
                 assert pattern['error_code'] == parsed['error_code']

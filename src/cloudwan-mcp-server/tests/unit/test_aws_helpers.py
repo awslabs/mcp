@@ -14,16 +14,12 @@
 
 """AWS utility function tests following AWS Labs patterns."""
 
-import os
 import pytest
-import boto3
-from unittest.mock import Mock, patch, MagicMock
+from awslabs.cloudwan_mcp_server.server import _create_client, get_aws_client, handle_aws_error
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from unittest.mock import Mock, patch
 
-from awslabs.cloudwan_mcp_server.server import (
-    get_aws_client, handle_aws_error, _create_client
-)
 
 # Cache capacity constant to match server configuration (@lru_cache(maxsize=10))
 CACHE_CAPACITY = 10
@@ -41,13 +37,13 @@ class TestGetAWSClient:
         """Test get_aws_client with default region configuration."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
-        
+
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-west-2'}):
             result = get_aws_client('networkmanager')
-            
+
         assert result == mock_client
         mock_boto_client.assert_called_once()
-        
+
         # Verify config was created with correct region
         call_args = mock_boto_client.call_args
         assert call_args[0][0] == 'networkmanager'
@@ -60,12 +56,12 @@ class TestGetAWSClient:
         """Test get_aws_client with explicitly provided region."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
-        
+
         result = get_aws_client('ec2', region='eu-west-1')
-        
+
         assert result == mock_client
         mock_boto_client.assert_called_once()
-        
+
         call_args = mock_boto_client.call_args
         assert call_args[1]['region_name'] == 'eu-west-1'
 
@@ -77,17 +73,17 @@ class TestGetAWSClient:
         mock_client = Mock()
         mock_session.client.return_value = mock_client
         mock_session_class.return_value = mock_session
-        
+
         with patch.dict('os.environ', {
             'AWS_PROFILE': 'test-profile',
             'AWS_DEFAULT_REGION': 'us-east-1'
         }):
             result = get_aws_client('networkmanager')
-            
+
         assert result == mock_client
         mock_session_class.assert_called_once_with(profile_name='test-profile')
         mock_session.client.assert_called_once()
-        
+
         call_args = mock_session.client.call_args
         assert call_args[0][0] == 'networkmanager'
         assert isinstance(call_args[1]['config'], Config)
@@ -98,17 +94,17 @@ class TestGetAWSClient:
         """Test get_aws_client caches clients properly."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
-        
+
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
             # First call
             result1 = get_aws_client('networkmanager')
             # Second call with same parameters
             result2 = get_aws_client('networkmanager')
-            
+
         # Should return same cached client
         assert result1 == result2
         assert result1 == mock_client
-        
+
         # boto3.client should only be called once due to caching
         mock_boto_client.assert_called_once()
 
@@ -118,20 +114,20 @@ class TestGetAWSClient:
         """Test different AWS services are cached separately."""
         mock_nm_client = Mock()
         mock_ec2_client = Mock()
-        
+
         def client_side_effect(service, **kwargs):
             if service == 'networkmanager':
                 return mock_nm_client
             elif service == 'ec2':
                 return mock_ec2_client
             return Mock()
-            
+
         mock_boto_client.side_effect = client_side_effect
-        
+
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
             nm_client = get_aws_client('networkmanager')
             ec2_client = get_aws_client('ec2')
-            
+
         assert nm_client == mock_nm_client
         assert ec2_client == mock_ec2_client
         assert nm_client != ec2_client
@@ -143,13 +139,13 @@ class TestGetAWSClient:
         """Test get_aws_client creates Config with correct parameters."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
-        
+
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
             get_aws_client('networkmanager')
-            
+
         call_args = mock_boto_client.call_args
         config = call_args[1]['config']
-        
+
         assert isinstance(config, Config)
         # Verify config parameters (accessing private attributes for testing)
         assert config.region_name == 'us-east-1'
@@ -163,11 +159,11 @@ class TestGetAWSClient:
         """Test get_aws_client falls back to us-east-1 when no region specified."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
-        
+
         # Clear any AWS_DEFAULT_REGION
         with patch.dict('os.environ', {}, clear=True):
             result = get_aws_client('networkmanager')
-            
+
         assert result == mock_client
         call_args = mock_boto_client.call_args
         assert call_args[1]['region_name'] == 'us-east-1'
@@ -178,20 +174,20 @@ class TestGetAWSClient:
         """Test cache key generation includes service, region, and profile."""
         mock_client1 = Mock()
         mock_client2 = Mock()
-        
+
         call_count = 0
         def client_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             return mock_client1 if call_count == 1 else mock_client2
-            
+
         mock_boto_client.side_effect = client_side_effect
-        
+
         # Same service, different regions - should create separate clients
         with patch.dict('os.environ', {}, clear=True):
             client1 = get_aws_client('networkmanager', region='us-east-1')
             client2 = get_aws_client('networkmanager', region='us-west-2')
-            
+
         assert client1 != client2
         assert mock_boto_client.call_count == 2
 
@@ -218,13 +214,13 @@ class TestHandleAWSError:
             }
         }
         client_error = ClientError(error_response, 'ListCoreNetworks')
-        
+
         result = handle_aws_error(client_error, 'List Core Networks')
-        
+
         # Parse JSON response
         import json
         parsed = json.loads(result)
-        
+
         assert parsed['success'] is False
         assert 'List Core Networks failed:' in parsed['error']
         assert 'not authorized' in parsed['error']
@@ -235,12 +231,12 @@ class TestHandleAWSError:
         """Test handle_aws_error with ClientError missing error details."""
         error_response = {'Error': {}}
         client_error = ClientError(error_response, 'DescribeGlobalNetworks')
-        
+
         result = handle_aws_error(client_error, 'Describe Global Networks')
-        
+
         import json
         parsed = json.loads(result)
-        
+
         assert parsed['success'] is False
         assert 'Describe Global Networks failed:' in parsed['error']
         assert parsed['error_code'] == 'Unknown'
@@ -249,12 +245,12 @@ class TestHandleAWSError:
     def test_handle_generic_exception(self):
         """Test handle_aws_error with generic Exception."""
         generic_error = ValueError("Invalid parameter format")
-        
+
         result = handle_aws_error(generic_error, 'Validate Input')
-        
+
         import json
         parsed = json.loads(result)
-        
+
         assert parsed['success'] is False
         assert 'Validate Input failed:' in parsed['error']
         assert 'Invalid parameter format' in parsed['error']
@@ -271,13 +267,13 @@ class TestHandleAWSError:
             }
         }
         client_error = ClientError(error_response, 'GetCoreNetworkPolicy')
-        
+
         result = handle_aws_error(client_error, 'Get Policy')
-        
+
         # Verify it's valid JSON
         import json
         parsed = json.loads(result)
-        
+
         # Verify formatting with indent
         assert '\n' in result  # Should be indented
         assert '  "success": false' in result
@@ -288,18 +284,18 @@ class TestHandleAWSError:
         """Test handle_aws_error includes operation context in error message."""
         operations = [
             'List Core Networks',
-            'Describe VPCs', 
+            'Describe VPCs',
             'Validate Policy Document',
             'Trace Network Path'
         ]
-        
+
         for operation in operations:
             error = ValueError("Test error")
             result = handle_aws_error(error, operation)
-            
+
             import json
             parsed = json.loads(result)
-            
+
             assert operation in parsed['error']
             assert 'Test error' in parsed['error']
 
@@ -313,12 +309,12 @@ class TestHandleAWSError:
             }
         }
         client_error = ClientError(error_response, 'ValidateNetworkConfiguration')
-        
+
         result = handle_aws_error(client_error, 'Validate Network')
-        
+
         import json
         parsed = json.loads(result)
-        
+
         assert parsed['success'] is False
         assert '@#$%' in parsed['error']  # Special characters preserved
         assert parsed['error_code'] == 'ValidationException'
@@ -327,12 +323,12 @@ class TestHandleAWSError:
     def test_handle_aws_error_empty_operation(self):
         """Test handle_aws_error with empty operation string."""
         error = RuntimeError("Connection timeout")
-        
+
         result = handle_aws_error(error, '')
-        
+
         import json
         parsed = json.loads(result)
-        
+
         assert parsed['success'] is False
         assert ' failed: Connection timeout' in parsed['error']
         # Generic exceptions don't have error_code in current implementation
@@ -342,7 +338,7 @@ class TestHandleAWSError:
     def test_handle_aws_error_datetime_in_response(self):
         """Test handle_aws_error doesn't break with datetime-like strings."""
         from datetime import datetime
-        
+
         # Create error that might contain datetime info
         error_response = {
             'Error': {
@@ -351,12 +347,12 @@ class TestHandleAWSError:
             }
         }
         client_error = ClientError(error_response, 'ListCoreNetworks')
-        
+
         result = handle_aws_error(client_error, 'List Resources')
-        
+
         import json
         parsed = json.loads(result)  # Should not raise JSON decode error
-        
+
         assert parsed['success'] is False
         assert parsed['error_code'] == 'ThrottlingException'
         assert 'Request rate exceeded' in parsed['error']
@@ -380,26 +376,26 @@ class TestAWSClientCaching:
         """Test LRU cache eviction policy through _create_client function."""
         # Clear cache first
         _create_client.cache_clear()
-        
+
         # Test cache behavior by creating clients that should be cached
         with patch('boto3.client') as mock_boto_client:
             mock_client = Mock()
             mock_boto_client.return_value = mock_client
-            
+
             # Fill cache to near capacity by creating different client configurations
             with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
                 for i in range(CACHE_CAPACITY - 1):
                     # Create clients for different services to fill cache
                     service = f'service-{i}'
                     get_aws_client(service)
-            
+
             # Verify cache is being used
             initial_cache_info = _create_client.cache_info()
             assert initial_cache_info.currsize == CACHE_CAPACITY - 1
-            
+
             # Add one more to trigger potential eviction
             get_aws_client('new-service')
-            
+
             # Verify cache management
             final_cache_info = _create_client.cache_info()
             assert final_cache_info.currsize <= CACHE_CAPACITY
@@ -410,15 +406,15 @@ class TestAWSClientCaching:
         with patch('boto3.client') as mock_boto_client:
             mock_client = Mock()
             mock_boto_client.return_value = mock_client
-            
+
             # Add entries to cache
             with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
                 get_aws_client('networkmanager')
                 get_aws_client('ec2')
-                
+
             cache_info = _create_client.cache_info()
             assert cache_info.currsize >= 1
-            
+
             # Clear cache
             _create_client.cache_clear()
             cache_info = _create_client.cache_info()
@@ -431,11 +427,11 @@ class TestAWSClientCaching:
         with patch('boto3.client') as mock_boto_client:
             mock_client = Mock()
             mock_boto_client.return_value = mock_client
-            
+
             # Test basic cache operations don't raise exceptions
             with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
                 client = get_aws_client('networkmanager')
                 assert client == mock_client
-                
+
             cache_info = _create_client.cache_info()
             assert cache_info.currsize >= 0

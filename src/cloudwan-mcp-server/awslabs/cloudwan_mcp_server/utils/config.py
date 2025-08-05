@@ -15,7 +15,7 @@
 """Configuration utilities following AWS Labs patterns."""
 
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 def validate_configuration(config: Dict[str, Any]) -> bool:
@@ -29,26 +29,26 @@ def validate_configuration(config: Dict[str, Any]) -> bool:
     """
     if not isinstance(config, dict):
         return False
-    
+
     required_fields = ['aws_region']
-    
+
     # Check required fields
     for field in required_fields:
         if field not in config:
             return False
-    
+
     # Validate aws_region format
     aws_region = config.get('aws_region')
     if not aws_region or not isinstance(aws_region, str):
         return False
-    
+
     # Validate log_level if present
     log_level = config.get('log_level')
     if log_level:
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
         if log_level not in valid_levels:
             return False
-    
+
     return True
 
 

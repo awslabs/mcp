@@ -1,15 +1,31 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 """MCP protocol compliance tests."""
-import pytest
 import json
+import pytest
+from awslabs.cloudwan_mcp_server.server import (
+    get_global_networks,
+    list_core_networks,
+)
 from unittest.mock import Mock, patch
 
-from awslabs.cloudwan_mcp_server.server import (
-    trace_network_path, list_core_networks, get_global_networks
-)
 
 class TestMCPProtocol:
     """Test MCP protocol compliance using direct server function calls."""
-    
+
     @pytest.mark.asyncio
     async def test_protocol_tool_execution(self):
         """Test MCP tool execution compliance."""
@@ -22,7 +38,7 @@ class TestMCPProtocol:
                 ]
             }
             mock_get_client.return_value = mock_client
-            
+
             # Test core networks listing
             result = await list_core_networks()
             parsed = json.loads(result)
@@ -35,10 +51,10 @@ class TestMCPProtocol:
         """Test MCP error handling compliance."""
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_get_client.side_effect = Exception("Protocol test error")
-            
+
             result = await get_global_networks()
             parsed = json.loads(result)
-            
+
             # Verify AWS Labs compliant error format
             assert parsed["success"] is False
             assert "error" in parsed

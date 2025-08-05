@@ -14,12 +14,10 @@
 
 """Advanced test fixtures for AWS CloudWAN MCP Server testing following AWS Labs patterns."""
 
-import json
 import pytest
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Generator
 import random
-import string
+from datetime import datetime, timezone
+from typing import Any, Dict, List
 
 
 class NetworkTopologyFixtures:
@@ -41,12 +39,12 @@ class NetworkTopologyFixtures:
             'vpc_attachments': {},
             'peering_connections': []
         }
-        
+
         region_names = ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-1', 'ap-northeast-1'][:regions]
-        
+
         for i, region in enumerate(region_names):
             topology['regions'].append(region)
-            
+
             # Create core network per region
             core_network = {
                 'CoreNetworkId': f'core-network-{region}',
@@ -58,7 +56,7 @@ class NetworkTopologyFixtures:
                 'Segments': ['production', 'staging', 'development']
             }
             topology['core_networks'].append(core_network)
-            
+
             # Create hub TGW for region
             hub_tgw = {
                 'TransitGatewayId': f'tgw-hub-{region}',
@@ -69,7 +67,7 @@ class NetworkTopologyFixtures:
                 'RouteTableIds': [f'tgw-rtb-hub-{region}', f'tgw-rtb-spoke-{region}']
             }
             topology['transit_gateways'][region] = [hub_tgw]
-            
+
             # Create spoke VPCs and TGWs
             region_vpcs = []
             for spoke_idx in range(spokes_per_region):
@@ -86,9 +84,9 @@ class NetworkTopologyFixtures:
                     ]
                 }
                 region_vpcs.append(spoke_vpc)
-            
+
             topology['vpc_attachments'][region] = region_vpcs
-            
+
             # Create cross-region peering connections
             if i > 0:
                 # Peer with previous region (creating a chain)
@@ -109,7 +107,7 @@ class NetworkTopologyFixtures:
                     'Status': {'Code': 'available'}
                 }
                 topology['peering_connections'].append(peering)
-        
+
         return topology
 
     @staticmethod
@@ -128,12 +126,12 @@ class NetworkTopologyFixtures:
             'vpc_attachments': {},
             'peering_connections': []
         }
-        
+
         region_names = ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-1'][:regions]
-        
+
         for i, region in enumerate(region_names):
             topology['regions'].append(region)
-            
+
             # Create core network
             core_network = {
                 'CoreNetworkId': f'core-network-mesh-{region}',
@@ -144,7 +142,7 @@ class NetworkTopologyFixtures:
                 'Segments': ['shared', 'isolated', 'dmz']
             }
             topology['core_networks'].append(core_network)
-            
+
             # Create TGW
             tgw = {
                 'TransitGatewayId': f'tgw-mesh-{region}',
@@ -155,7 +153,7 @@ class NetworkTopologyFixtures:
                 'AssociationDefaultRouteTableId': f'tgw-rtb-assoc-{region}'
             }
             topology['transit_gateways'][region] = [tgw]
-            
+
             # Create VPCs with different patterns
             region_vpcs = []
             for vpc_idx in range(vpcs_per_region):
@@ -172,7 +170,7 @@ class NetworkTopologyFixtures:
                 }
                 region_vpcs.append(vpc)
             topology['vpc_attachments'][region] = region_vpcs
-        
+
         # Create full mesh peering connections
         for i, region1 in enumerate(region_names):
             for j, region2 in enumerate(region_names):
@@ -193,7 +191,7 @@ class NetworkTopologyFixtures:
                         'Status': {'Code': 'available'}
                     }
                     topology['peering_connections'].append(peering)
-        
+
         return topology
 
     @staticmethod
@@ -212,15 +210,15 @@ class NetworkTopologyFixtures:
             'core_networks': [],
             'routing_policies': []
         }
-        
+
         def create_hierarchical_node(level: int, parent_id: str = None, branch_idx: int = 0):
             if level > levels:
                 return None
-                
+
             node_id = f'level-{level}-branch-{branch_idx:03d}'
             if parent_id:
                 node_id = f'{parent_id}-{node_id}'
-            
+
             node = {
                 'node_id': node_id,
                 'level': level,
@@ -229,7 +227,7 @@ class NetworkTopologyFixtures:
                 'children': [],
                 'vpcs': []
             }
-            
+
             # Create core network for this node
             core_network = {
                 'CoreNetworkId': node['core_network_id'],
@@ -240,7 +238,7 @@ class NetworkTopologyFixtures:
                 'PolicyVersionId': str(level)
             }
             topology['core_networks'].append(core_network)
-            
+
             # Create VPCs for this level
             vpcs_at_level = max(1, 2 ** (levels - level))  # More VPCs at lower levels
             for vpc_idx in range(vpcs_at_level):
@@ -252,19 +250,19 @@ class NetworkTopologyFixtures:
                     'NodeId': node_id
                 }
                 node['vpcs'].append(vpc)
-            
+
             # Create child nodes
             if level < levels:
                 for child_idx in range(branches_per_level):
                     child = create_hierarchical_node(level + 1, node_id, child_idx)
                     if child:
                         node['children'].append(child)
-            
+
             return node
-        
+
         # Build hierarchy starting from root
         topology['hierarchy'] = create_hierarchical_node(1)
-        
+
         return topology
 
 
@@ -286,14 +284,14 @@ class PolicyFixtures:
             'segment-actions': [],
             'attachment-policies': []
         }
-        
+
         # Generate edge locations for major AWS regions
         aws_regions = [
             'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
             'eu-west-1', 'eu-west-2', 'eu-central-1',
             'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1'
         ]
-        
+
         for i, region in enumerate(aws_regions):
             edge_location = {
                 'location': region,
@@ -301,7 +299,7 @@ class PolicyFixtures:
                 'inside-cidr-blocks': [f'169.254.{i}.0/24']
             }
             policy['core-network-configuration']['edge-locations'].append(edge_location)
-        
+
         # Generate segments with enterprise patterns
         segment_types = [
             {'name': 'production', 'isolation': False, 'acceptance': False},
@@ -311,7 +309,7 @@ class PolicyFixtures:
             {'name': 'dmz', 'isolation': True, 'acceptance': True},
             {'name': 'management', 'isolation': True, 'acceptance': True}
         ]
-        
+
         for i in range(segments):
             base_segment = segment_types[i % len(segment_types)]
             segment = {
@@ -324,11 +322,11 @@ class PolicyFixtures:
                 'edge-locations': aws_regions[:(i % 5) + 1]  # Varying edge location coverage
             }
             policy['segments'].append(segment)
-        
+
         # Generate segment actions (sharing rules)
         for i in range(segments):
             segment_name = policy['segments'][i]['name']
-            
+
             # Create sharing rules based on segment type
             if 'production' in segment_name:
                 # Production segments share with shared-services
@@ -338,9 +336,9 @@ class PolicyFixtures:
                 shared_segments = [s['name'] for s in policy['segments'] if s['name'] != segment_name][:5]
             else:
                 # Other segments share within their type
-                shared_segments = [s['name'] for s in policy['segments'] 
+                shared_segments = [s['name'] for s in policy['segments']
                                  if s['name'] != segment_name and s['name'].split('-')[0] == segment_name.split('-')[0]][:3]
-            
+
             if shared_segments:
                 segment_action = {
                     'action': 'share',
@@ -349,7 +347,7 @@ class PolicyFixtures:
                     'mode': 'attachment-route'
                 }
                 policy['segment-actions'].append(segment_action)
-        
+
         # Generate attachment policies
         for i in range(rules):
             rule = {
@@ -381,7 +379,7 @@ class PolicyFixtures:
                 }
             }
             policy['attachment-policies'].append(rule)
-        
+
         return policy
 
     @staticmethod
@@ -473,7 +471,7 @@ class PolicyFixtures:
                 }
             ]
         }
-        
+
         return policy
 
 
@@ -484,10 +482,10 @@ class PerformanceTestDatasets:
     def generate_large_route_dataset(route_count: int = 100000) -> List[Dict[str, Any]]:
         """Generate large route dataset for performance testing."""
         routes = []
-        
+
         route_types = ['static', 'propagated', 'local']
         route_states = ['active', 'blackhole']
-        
+
         for i in range(route_count):
             route = {
                 'DestinationCidrBlock': f'{10 + (i // 65536)}.{(i // 256) % 256}.{i % 256}.0/32',
@@ -503,14 +501,14 @@ class PerformanceTestDatasets:
                 'RouteOrigin': 'CreateRoute' if route_types[i % len(route_types)] == 'static' else 'EnableVgwRoutePropagation'
             }
             routes.append(route)
-        
+
         return routes
 
     @staticmethod
     def generate_vpc_dataset(vpc_count: int = 10000) -> List[Dict[str, Any]]:
         """Generate large VPC dataset for performance testing."""
         vpcs = []
-        
+
         for i in range(vpc_count):
             vpc = {
                 'VpcId': f'vpc-{i:08d}abcdef{i%16:x}',
@@ -534,14 +532,14 @@ class PerformanceTestDatasets:
                 ]
             }
             vpcs.append(vpc)
-        
+
         return vpcs
 
     @staticmethod
     def generate_tgw_attachments_dataset(attachment_count: int = 50000) -> List[Dict[str, Any]]:
         """Generate large TGW attachments dataset."""
         attachments = []
-        
+
         for i in range(attachment_count):
             attachment = {
                 'TransitGatewayAttachmentId': f'tgw-attach-{i:08d}',
@@ -567,7 +565,7 @@ class PerformanceTestDatasets:
                 ]
             }
             attachments.append(attachment)
-        
+
         return attachments
 
 
@@ -584,9 +582,9 @@ class MultiRegionConfigurationFixtures:
             'disaster_recovery_region': 'us-west-2',
             'regions': {}
         }
-        
+
         all_regions = [config['primary_region']] + config['secondary_regions']
-        
+
         for i, region in enumerate(all_regions):
             region_config = {
                 'region_name': region,
@@ -620,7 +618,7 @@ class MultiRegionConfigurationFixtures:
                     }
                 ]
             }
-            
+
             # Generate VPCs per region
             vpcs_per_region = 5 if region == config['primary_region'] else 3
             for vpc_idx in range(vpcs_per_region):
@@ -637,9 +635,9 @@ class MultiRegionConfigurationFixtures:
                     ]
                 }
                 region_config['vpcs'].append(vpc)
-            
+
             config['regions'][region] = region_config
-        
+
         # Add cross-region connections
         config['cross_region_connections'] = []
         primary = config['primary_region']
@@ -653,7 +651,7 @@ class MultiRegionConfigurationFixtures:
                 'State': 'available'
             }
             config['cross_region_connections'].append(connection)
-        
+
         return config
 
     @staticmethod
@@ -668,7 +666,7 @@ class MultiRegionConfigurationFixtures:
                 'rpo': 900   # 15 minutes
             },
             'dr_site': {
-                'region': 'us-west-2', 
+                'region': 'us-west-2',
                 'availability_zones': ['us-west-2a', 'us-west-2b', 'us-west-2c'],
                 'rto': 600,  # 10 minutes
                 'rpo': 3600  # 1 hour
@@ -687,11 +685,11 @@ class MultiRegionConfigurationFixtures:
                 ]
             }
         }
-        
+
         # Generate resources for both sites
         for site_name, site_config in [('primary_site', config['primary_site']), ('dr_site', config['dr_site'])]:
             region = site_config['region']
-            
+
             # Core network resources
             site_config['resources'] = {
                 'core_networks': [
@@ -712,7 +710,7 @@ class MultiRegionConfigurationFixtures:
                 ],
                 'vpcs': []
             }
-            
+
             # Generate DR VPCs
             for i, az in enumerate(site_config['availability_zones']):
                 vpc = {
@@ -727,7 +725,7 @@ class MultiRegionConfigurationFixtures:
                     ]
                 }
                 site_config['resources']['vpcs'].append(vpc)
-        
+
         return config
 
 
@@ -739,7 +737,7 @@ def enterprise_hub_spoke_topology():
     return NetworkTopologyFixtures.generate_enterprise_hub_spoke_topology(regions=5, spokes_per_region=10)
 
 
-@pytest.fixture(scope="session") 
+@pytest.fixture(scope="session")
 def full_mesh_topology():
     """Fixture providing full mesh topology."""
     return NetworkTopologyFixtures.generate_mesh_topology(regions=4, vpcs_per_region=8)
@@ -792,7 +790,7 @@ def random_network_topology():
     """Fixture providing randomly generated network topology for each test."""
     topology_types = ['hub_spoke', 'mesh', 'hierarchical']
     topology_type = random.choice(topology_types)
-    
+
     if topology_type == 'hub_spoke':
         return NetworkTopologyFixtures.generate_enterprise_hub_spoke_topology(
             regions=random.randint(2, 6),

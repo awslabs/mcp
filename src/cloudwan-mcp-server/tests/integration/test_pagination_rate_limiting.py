@@ -17,16 +17,15 @@
 import json
 import pytest
 import time
+from awslabs.cloudwan_mcp_server.server import (
+    analyze_tgw_routes,
+    get_global_networks,
+    list_core_networks,
+)
+from botocore.exceptions import ClientError
 from collections import deque
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch, MagicMock
-from botocore.exceptions import ClientError
-
-from awslabs.cloudwan_mcp_server.server import (
-    list_core_networks, get_global_networks, discover_vpcs,
-    analyze_tgw_routes, get_core_network_change_set,
-    list_network_function_groups
-)
+from unittest.mock import Mock, patch
 
 
 class TestListCoreNetworksPagination:
@@ -46,7 +45,7 @@ class TestListCoreNetworksPagination:
                 'CreatedAt': datetime(2024, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
             } for i in range(500)
         ]
-        
+
         page_2_networks = [
             {
                 'CoreNetworkId': f'core-network-{i:05d}',
@@ -56,7 +55,7 @@ class TestListCoreNetworksPagination:
                 'CreatedAt': datetime(2024, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
             } for i in range(500, 1000)
         ]
-        
+
         page_3_networks = [
             {
                 'CoreNetworkId': f'core-network-{i:05d}',
@@ -66,16 +65,16 @@ class TestListCoreNetworksPagination:
                 'CreatedAt': datetime(2024, 1, 15, 10, 30, 45, tzinfo=timezone.utc)
             } for i in range(1000, 1200)
         ]
-        
+
         call_count = 0
         def pagination_mock(service, region=None):
             nonlocal call_count
             mock_client = Mock()
-            
+
             def list_core_networks_side_effect(**kwargs):
                 nonlocal call_count
                 call_count += 1
-                
+
                 if 'NextToken' not in kwargs:
                     # First page
                     return {
@@ -96,16 +95,16 @@ class TestListCoreNetworksPagination:
                     }
                 else:
                     return {'CoreNetworks': []}
-            
+
             mock_client.list_core_networks.side_effect = list_core_networks_side_effect
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=pagination_mock):
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
-            
+
             # Test should verify all pages are processed, not just first page
             # If implementation supports full pagination, should return all 1200 items
             # If only first page, verify pagination metadata is present
@@ -116,7 +115,7 @@ class TestListCoreNetworksPagination:
                     # Verify items from all three pages are present
                     core_network_ids = [net['CoreNetworkId'] for net in parsed['core_networks']]
                     assert 'core-network-00000' in core_network_ids  # First page
-                    assert 'core-network-00500' in core_network_ids  # Second page  
+                    assert 'core-network-00500' in core_network_ids  # Second page
                     assert 'core-network-01000' in core_network_ids  # Third page
                 else:
                     # First page only - should include pagination metadata
@@ -131,20 +130,20 @@ class TestListCoreNetworksPagination:
         """Test DescribeGlobalNetworks with NextToken cycling and validation."""
         token_sequence = ['token-1', 'token-2', 'token-3', None]
         call_count = 0
-        
+
         def token_cycling_mock(service, region=None):
             nonlocal call_count
             mock_client = Mock()
-            
+
             def describe_global_networks_side_effect(**kwargs):
                 nonlocal call_count
                 current_token = kwargs.get('NextToken')
                 call_count += 1
-                
+
                 # Validate token sequence
                 expected_token = token_sequence[call_count - 1] if call_count > 1 else None
                 assert current_token == expected_token, f"Unexpected token: {current_token}"
-                
+
                 networks = [
                     {
                         'GlobalNetworkId': f'global-network-page-{call_count}-{i}',
@@ -152,19 +151,19 @@ class TestListCoreNetworksPagination:
                         'Description': f'Network {i} on page {call_count}'
                     } for i in range(100)
                 ]
-                
+
                 response = {'GlobalNetworks': networks}
                 if call_count < len(token_sequence):
                     response['NextToken'] = token_sequence[call_count]
-                
+
                 return response
-            
+
             mock_client.describe_global_networks.side_effect = describe_global_networks_side_effect
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=token_cycling_mock):
             result = await get_global_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 100  # Current implementation returns first page
@@ -181,7 +180,7 @@ class TestListCoreNetworksPagination:
                 'Type': 'propagated'
             } for i in range(100)
         ]
-        
+
         routes_page_2 = [
             {
                 'DestinationCidrBlock': f'172.16.{i}.0/24',
@@ -189,16 +188,16 @@ class TestListCoreNetworksPagination:
                 'Type': 'static'
             } for i in range(100)
         ]
-        
+
         call_count = 0
         def route_pagination_mock(service, region=None):
             nonlocal call_count
             mock_client = Mock()
-            
+
             def search_routes_side_effect(**kwargs):
                 nonlocal call_count
                 call_count += 1
-                
+
                 if call_count == 1:
                     return {
                         'Routes': routes_page_1,
@@ -209,13 +208,13 @@ class TestListCoreNetworksPagination:
                         'Routes': routes_page_2,
                         'AdditionalRoutesAvailable': False
                     }
-            
+
             mock_client.search_transit_gateway_routes.side_effect = search_routes_side_effect
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=route_pagination_mock):
             result = await analyze_tgw_routes('tgw-rtb-123456789')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['analysis']['total_routes'] == 100  # Current implementation uses first page
@@ -226,11 +225,11 @@ class TestListCoreNetworksPagination:
     async def test_max_results_parameter_boundary_testing(self):
         """Test MaxResults parameter boundary conditions and validation."""
         max_results_scenarios = [1, 50, 100, 500, 1000]  # AWS typical limits
-        
+
         for max_results in max_results_scenarios:
             with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
                 mock_client = Mock()
-                
+
                 # Generate exact number of results as requested
                 networks = [
                     {
@@ -238,15 +237,15 @@ class TestListCoreNetworksPagination:
                         'State': 'AVAILABLE'
                     } for i in range(max_results)
                 ]
-                
+
                 mock_client.list_core_networks.return_value = {
                     'CoreNetworks': networks,
                     'NextToken': 'has-more' if max_results < 1000 else None
                 }
                 mock_get_client.return_value = mock_client
-                
+
                 result = await list_core_networks()
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is True
                 assert len(parsed['core_networks']) == max_results
@@ -263,7 +262,7 @@ class TestListCoreNetworksPagination:
             'base64-invalid-token',
             ''  # Empty token
         ]
-        
+
         for invalid_token in invalid_tokens:
             with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
                 mock_client = Mock()
@@ -278,9 +277,9 @@ class TestListCoreNetworksPagination:
                     'ListCoreNetworks'
                 )
                 mock_get_client.return_value = mock_client
-                
+
                 result = await list_core_networks()
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is False
                 assert parsed['error_code'] == 'InvalidNextToken'
@@ -316,9 +315,9 @@ class TestRateLimitingScenarios:
                 'ListCoreNetworks'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'TooManyRequestsException'
@@ -330,21 +329,21 @@ class TestRateLimitingScenarios:
         """Test adaptive retry strategy with exponential backoff simulation."""
         retry_count = 0
         retry_delays = []
-        
+
         def adaptive_retry_mock(service, region=None):
             nonlocal retry_count
             mock_client = Mock()
-            
+
             def list_with_retry(**kwargs):
                 nonlocal retry_count
                 retry_count += 1
                 start_time = time.time()
-                
+
                 if retry_count <= 3:
                     # Simulate increasing retry delays
                     delay = 2 ** retry_count  # Exponential: 2, 4, 8 seconds
                     retry_delays.append(delay)
-                    
+
                     raise ClientError(
                         {
                             'Error': {
@@ -358,13 +357,13 @@ class TestRateLimitingScenarios:
                 else:
                     # Fourth attempt succeeds
                     return {'CoreNetworks': [{'CoreNetworkId': 'core-network-retry-success'}]}
-            
+
             mock_client.list_core_networks.side_effect = list_with_retry
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=adaptive_retry_mock):
             result = await list_core_networks()
-            
+
             if retry_count <= 3:
                 # Current implementation doesn't retry, so first call fails
                 parsed = json.loads(result)
@@ -390,7 +389,7 @@ class TestRateLimitingScenarios:
                 'quota_value': 20
             }
         ]
-        
+
         for scenario in quota_scenarios:
             with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
                 mock_client = Mock()
@@ -409,9 +408,9 @@ class TestRateLimitingScenarios:
                     'ListCoreNetworks'
                 )
                 mock_get_client.return_value = mock_client
-                
+
                 result = await list_core_networks()
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is False
                 assert parsed['error_code'] == 'ServiceQuotaExceededException'
@@ -424,18 +423,18 @@ class TestRateLimitingScenarios:
         request_timestamps = deque()
         burst_capacity = 10
         sustained_rate = 2  # requests per second
-        
+
         def burst_capacity_mock(service, region=None):
             mock_client = Mock()
-            
+
             def rate_limited_call(**kwargs):
                 current_time = time.time()
                 request_timestamps.append(current_time)
-                
+
                 # Remove timestamps older than 1 second
                 while request_timestamps and current_time - request_timestamps[0] > 1.0:
                     request_timestamps.popleft()
-                
+
                 if len(request_timestamps) >= burst_capacity:
                     raise ClientError(
                         {
@@ -448,19 +447,19 @@ class TestRateLimitingScenarios:
                         },
                         'ListCoreNetworks'
                     )
-                
+
                 return {'CoreNetworks': []}
-            
+
             mock_client.list_core_networks.side_effect = rate_limited_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=burst_capacity_mock):
             # Make requests within burst capacity
             for i in range(burst_capacity):
                 result = await list_core_networks()
                 parsed = json.loads(result)
                 assert parsed['success'] is True
-            
+
             # Next request should trigger rate limiting
             result = await list_core_networks()
             parsed = json.loads(result)
@@ -477,15 +476,15 @@ class TestPaginationWithErrorHandling:
     async def test_mixed_success_error_pagination_flows(self):
         """Test pagination flows with mixed success and error responses."""
         call_count = 0
-        
+
         def mixed_response_mock(service, region=None):
             nonlocal call_count
             mock_client = Mock()
-            
+
             def mixed_pagination_call(**kwargs):
                 nonlocal call_count
                 call_count += 1
-                
+
                 if call_count == 1:
                     # First page succeeds
                     return {
@@ -515,13 +514,13 @@ class TestPaginationWithErrorHandling:
                         ]
                         # No NextToken = end of results
                     }
-            
+
             mock_client.list_core_networks.side_effect = mixed_pagination_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=mixed_response_mock):
             result = await list_core_networks()
-            
+
             # Current implementation only makes one call, so first page succeeds
             parsed = json.loads(result)
             assert parsed['success'] is True
@@ -533,14 +532,14 @@ class TestPaginationWithErrorHandling:
     async def test_pagination_with_concurrent_modifications(self):
         """Test pagination behavior when underlying data changes during iteration."""
         modification_detected = False
-        
+
         def concurrent_modification_mock(service, region=None):
             nonlocal modification_detected
             mock_client = Mock()
-            
+
             def concurrent_mod_call(**kwargs):
                 nonlocal modification_detected
-                
+
                 if 'NextToken' in kwargs and not modification_detected:
                     # Detect concurrent modification on second page
                     modification_detected = True
@@ -563,13 +562,13 @@ class TestPaginationWithErrorHandling:
                         ],
                         'NextToken': 'stable-token' if not modification_detected else None
                     }
-            
+
             mock_client.list_core_networks.side_effect = concurrent_mod_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=concurrent_modification_mock):
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True  # First page succeeds
             assert parsed['total_count'] == 100
@@ -579,14 +578,14 @@ class TestPaginationWithErrorHandling:
     async def test_pagination_cache_invalidation(self):
         """Test pagination cache invalidation scenarios."""
         cache_version = 1
-        
+
         def cache_invalidation_mock(service, region=None):
             nonlocal cache_version
             mock_client = Mock()
-            
+
             def cached_pagination_call(**kwargs):
                 nonlocal cache_version
-                
+
                 # Simulate cache invalidation every 3 calls
                 if 'NextToken' in kwargs:
                     cache_version += 1
@@ -602,7 +601,7 @@ class TestPaginationWithErrorHandling:
                             },
                             'ListCoreNetworks'
                         )
-                
+
                 return {
                     'CoreNetworks': [
                         {
@@ -612,13 +611,13 @@ class TestPaginationWithErrorHandling:
                     ],
                     'NextToken': f'token-v{cache_version}-next' if cache_version < 5 else None
                 }
-            
+
             mock_client.list_core_networks.side_effect = cached_pagination_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=cache_invalidation_mock):
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert len(parsed['core_networks']) == 50
@@ -637,13 +636,13 @@ class TestCrossRegionPaginationChallenges:
             'us-west-2': 'token-us-west-2-page2',
             'eu-west-1': 'token-eu-west-1-page2'
         }
-        
+
         def region_specific_mock(service, region):
             mock_client = Mock()
-            
+
             def region_pagination_call(**kwargs):
                 next_token = kwargs.get('NextToken')
-                
+
                 # Validate region-specific tokens
                 if next_token and region_tokens.get(region) != next_token:
                     raise ClientError(
@@ -656,7 +655,7 @@ class TestCrossRegionPaginationChallenges:
                         },
                         'ListCoreNetworks'
                     )
-                
+
                 networks = [
                     {
                         'CoreNetworkId': f'core-network-{region}-{i}',
@@ -664,23 +663,23 @@ class TestCrossRegionPaginationChallenges:
                         'Region': region
                     } for i in range(100)
                 ]
-                
+
                 response = {'CoreNetworks': networks}
                 if not next_token:  # First call for region
                     response['NextToken'] = region_tokens[region]
-                
+
                 return response
-            
+
             mock_client.list_core_networks.side_effect = region_pagination_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=region_specific_mock):
             # Test different regions
             regions = ['us-east-1', 'us-west-2', 'eu-west-1']
-            
+
             for region in regions:
                 result = await list_core_networks(region=region)
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is True
                 assert parsed['region'] == region
@@ -700,19 +699,19 @@ class TestCrossRegionPaginationChallenges:
                 'token': 'token-account-210987654321'
             }
         }
-        
+
         def multi_account_mock(service, region=None):
             mock_client = Mock()
-            
+
             def multi_account_call(**kwargs):
                 # Simulate cross-account access based on assumed role
                 current_account = '123456789012'  # Default account
-                
+
                 # Check if NextToken indicates different account
                 next_token = kwargs.get('NextToken')
                 if next_token and 'account-210987654321' in next_token:
                     current_account = '210987654321'
-                
+
                 account_info = account_data[current_account]
                 networks = [
                     {
@@ -721,19 +720,19 @@ class TestCrossRegionPaginationChallenges:
                         'OwnerId': current_account
                     } for network_id in account_info['networks']
                 ]
-                
+
                 response = {'CoreNetworks': networks[:100]}  # AWS page limit
                 if len(account_info['networks']) > 100:
                     response['NextToken'] = account_info['token']
-                
+
                 return response
-            
+
             mock_client.list_core_networks.side_effect = multi_account_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=multi_account_mock):
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 100
@@ -749,13 +748,13 @@ class TestPaginationPerformanceBenchmarks:
         """Test pagination performance with large page sizes."""
         page_sizes = [50, 100, 500, 1000]  # Different page sizes
         performance_metrics = {}
-        
+
         for page_size in page_sizes:
             start_time = time.time()
-            
+
             with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
                 mock_client = Mock()
-                
+
                 # Generate large dataset for the page
                 networks = [
                     {
@@ -768,23 +767,23 @@ class TestPaginationPerformanceBenchmarks:
                         ]
                     } for i in range(page_size)
                 ]
-                
+
                 mock_client.list_core_networks.return_value = {
                     'CoreNetworks': networks,
                     'NextToken': f'token-page-size-{page_size}'
                 }
                 mock_get_client.return_value = mock_client
-                
+
                 result = await list_core_networks()
-                
+
                 end_time = time.time()
                 execution_time = end_time - start_time
                 performance_metrics[page_size] = execution_time
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is True
                 assert len(parsed['core_networks']) == page_size
-        
+
         # Verify performance scales reasonably
         assert all(time_taken < 5.0 for time_taken in performance_metrics.values())
 
@@ -794,7 +793,7 @@ class TestPaginationPerformanceBenchmarks:
         """Test handling of partial success scenarios in pagination."""
         def partial_success_mock(service, region=None):
             mock_client = Mock()
-            
+
             def partial_success_call(**kwargs):
                 # Return partial results with warnings
                 networks = [
@@ -803,7 +802,7 @@ class TestPaginationPerformanceBenchmarks:
                         'State': 'AVAILABLE' if i % 2 == 0 else 'UPDATING'
                     } for i in range(50)
                 ]
-                
+
                 return {
                     'CoreNetworks': networks,
                     'PartialFailures': [
@@ -815,13 +814,13 @@ class TestPaginationPerformanceBenchmarks:
                     ],
                     'NextToken': 'partial-success-token'
                 }
-            
+
             mock_client.list_core_networks.side_effect = partial_success_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=partial_success_mock):
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 50
@@ -833,14 +832,14 @@ class TestPaginationPerformanceBenchmarks:
         """Test time-bound pagination token expiry scenarios."""
         token_creation_time = time.time()
         token_ttl = 300  # 5 minutes in seconds
-        
+
         def time_bound_token_mock(service, region=None):
             mock_client = Mock()
-            
+
             def time_bound_call(**kwargs):
                 current_time = time.time()
                 next_token = kwargs.get('NextToken')
-                
+
                 # Check if token has expired
                 if next_token and 'expired' not in next_token:
                     token_age = current_time - token_creation_time
@@ -857,7 +856,7 @@ class TestPaginationPerformanceBenchmarks:
                             },
                             'ListCoreNetworks'
                         )
-                
+
                 return {
                     'CoreNetworks': [
                         {'CoreNetworkId': f'core-network-time-{i}', 'State': 'AVAILABLE'}
@@ -866,13 +865,13 @@ class TestPaginationPerformanceBenchmarks:
                     'NextToken': f'time-token-{int(current_time)}',
                     'TokenExpiresAt': int(current_time + token_ttl)
                 }
-            
+
             mock_client.list_core_networks.side_effect = time_bound_call
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=time_bound_token_mock):
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert len(parsed['core_networks']) == 100

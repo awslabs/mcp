@@ -14,19 +14,21 @@
 
 """Error response simulation and edge case testing following AWS Labs patterns."""
 
+import asyncio
 import json
 import pytest
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch, MagicMock
-from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
-
 from awslabs.cloudwan_mcp_server.server import (
-    list_core_networks, get_global_networks, get_core_network_policy,
-    get_core_network_change_set, discover_vpcs, trace_network_path,
-    validate_ip_cidr, analyze_tgw_routes, analyze_tgw_peers,
-    validate_cloudwan_policy, manage_tgw_routes, analyze_segment_routes
+    analyze_tgw_peers,
+    analyze_tgw_routes,
+    discover_vpcs,
+    get_core_network_policy,
+    get_global_networks,
+    list_core_networks,
+    validate_cloudwan_policy,
+    validate_ip_cidr,
 )
+from botocore.exceptions import ClientError
+from unittest.mock import Mock, patch
 
 
 class TestThrottlingExceptionScenarios:
@@ -54,9 +56,9 @@ class TestThrottlingExceptionScenarios:
                 'ListCoreNetworks'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'ThrottlingException'
@@ -85,10 +87,10 @@ class TestThrottlingExceptionScenarios:
             # Test throttling across multiple services
             nm_result = await list_core_networks()
             vpc_result = await discover_vpcs()
-            
+
             nm_parsed = json.loads(nm_result)
             vpc_parsed = json.loads(vpc_result)
-            
+
             assert nm_parsed['success'] is False
             assert nm_parsed['error_code'] == 'ThrottlingException'
             assert vpc_parsed['success'] is False
@@ -117,9 +119,9 @@ class TestThrottlingExceptionScenarios:
                 'GetCoreNetworkPolicy'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy('core-network-123')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'ThrottlingException'
@@ -147,9 +149,9 @@ class TestResourceNotFoundScenarios:
                 'GetCoreNetworkPolicy'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy('core-network-nonexistent')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'ResourceNotFoundException'
@@ -172,9 +174,9 @@ class TestResourceNotFoundScenarios:
                 'DescribeGlobalNetworks'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await get_global_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'ResourceNotFoundException'
@@ -197,9 +199,9 @@ class TestResourceNotFoundScenarios:
                 'DescribeTransitGatewayPeeringAttachments'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_peers('tgw-attach-invalid')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'InvalidTransitGatewayAttachmentID.NotFound'
@@ -221,10 +223,10 @@ class TestInvalidParameterValueScenarios:
             'not-an-ip/16',        # Non-IP format
             '192.168.1.1/24/extra' # Extra components
         ]
-        
+
         for invalid_cidr in invalid_cidrs:
             result = await validate_ip_cidr('validate_cidr', cidr=invalid_cidr)
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert 'validate_ip_cidr failed:' in parsed['error']
@@ -247,9 +249,9 @@ class TestInvalidParameterValueScenarios:
                 'ListCoreNetworks'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks(region='invalid-region-1234')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'InvalidParameterValue'
@@ -267,10 +269,10 @@ class TestInvalidParameterValueScenarios:
             '192.168.01.001',      # Leading zeros
             '192.168.1.-1'         # Negative octet
         ]
-        
+
         for invalid_ip in invalid_ips:
             result = await validate_ip_cidr('validate_ip', ip=invalid_ip)
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert 'validate_ip_cidr failed:' in parsed['error']
@@ -297,9 +299,9 @@ class TestDependencyViolationScenarios:
                 'GetCoreNetworkPolicy'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy('core-network-123')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'DependencyViolation'
@@ -323,9 +325,9 @@ class TestDependencyViolationScenarios:
                 'SearchTransitGatewayRoutes'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_routes('tgw-rtb-123')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'DependencyViolation'
@@ -354,10 +356,10 @@ class TestInvalidPolicyDocumentScenarios:
                 }
             }
         ]
-        
+
         for policy in malformed_policies:
             result = await validate_cloudwan_policy(policy)
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True  # Function succeeds but validation fails
             assert parsed['overall_status'] == 'invalid'
@@ -385,9 +387,9 @@ class TestInvalidPolicyDocumentScenarios:
                 'GetCoreNetworkPolicy'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy('core-network-123')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'InvalidPolicyDocumentException'
@@ -415,9 +417,9 @@ class TestConcurrentModificationScenarios:
                 'GetCoreNetworkPolicy'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy('core-network-123')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'ConcurrentModificationException'
@@ -441,9 +443,9 @@ class TestConcurrentModificationScenarios:
                 'SearchTransitGatewayRoutes'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_routes('tgw-rtb-123')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'ConcurrentModificationException'
@@ -458,12 +460,12 @@ class TestCrossServiceErrorPropagation:
     async def test_networkmanager_to_ec2_error_propagation(self):
         """Test error propagation from NetworkManager to EC2 service calls."""
         call_count = 0
-        
+
         def progressive_failure(service, region=None):
             nonlocal call_count
             call_count += 1
             mock_client = Mock()
-            
+
             if service == 'networkmanager' and call_count == 1:
                 # First call succeeds
                 mock_client.list_core_networks.return_value = {'CoreNetworks': []}
@@ -478,15 +480,15 @@ class TestCrossServiceErrorPropagation:
                     },
                     'DescribeVpcs'
                 )
-            
+
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=progressive_failure):
             # First call should succeed
             nm_result = await list_core_networks()
             nm_parsed = json.loads(nm_result)
             assert nm_parsed['success'] is True
-            
+
             # Second call should fail with propagated error
             vpc_result = await discover_vpcs()
             vpc_parsed = json.loads(vpc_result)
@@ -507,7 +509,7 @@ class TestCrossServiceErrorPropagation:
             },
             'UnauthorizedOperation'
         )
-        
+
         def auth_failure_factory(service, region=None):
             mock_client = Mock()
             if service == 'networkmanager':
@@ -517,7 +519,7 @@ class TestCrossServiceErrorPropagation:
                 mock_client.describe_vpcs.side_effect = auth_error
                 mock_client.search_transit_gateway_routes.side_effect = auth_error
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=auth_failure_factory):
             # Test multiple operations fail with same auth error
             operations = [
@@ -526,9 +528,9 @@ class TestCrossServiceErrorPropagation:
                 discover_vpcs(),
                 analyze_tgw_routes('tgw-rtb-123')
             ]
-            
+
             results = await asyncio.gather(*operations, return_exceptions=True)
-            
+
             for result in results:
                 assert not isinstance(result, Exception)
                 parsed = json.loads(result)
@@ -545,12 +547,12 @@ class TestErrorRecoveryPatterns:
     async def test_retry_after_temporary_failure(self):
         """Test retry patterns after temporary service failures."""
         retry_count = 0
-        
+
         def temporary_failure_mock(service, region=None):
             nonlocal retry_count
             retry_count += 1
             mock_client = Mock()
-            
+
             if retry_count <= 2:
                 # First two calls fail
                 mock_client.list_core_networks.side_effect = ClientError(
@@ -568,19 +570,19 @@ class TestErrorRecoveryPatterns:
                 mock_client.list_core_networks.return_value = {
                     'CoreNetworks': [{'CoreNetworkId': 'core-network-recovery-test'}]
                 }
-            
+
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=temporary_failure_mock):
             # First two attempts should fail
             result1 = await list_core_networks()
             result2 = await list_core_networks()
             result3 = await list_core_networks()
-            
+
             parsed1 = json.loads(result1)
             parsed2 = json.loads(result2)
             parsed3 = json.loads(result3)
-            
+
             assert parsed1['success'] is False
             assert parsed2['success'] is False
             assert parsed3['success'] is True
@@ -591,12 +593,12 @@ class TestErrorRecoveryPatterns:
     async def test_circuit_breaker_pattern_simulation(self):
         """Test circuit breaker pattern for cascading failure prevention."""
         failure_count = 0
-        
+
         def circuit_breaker_mock(service, region=None):
             nonlocal failure_count
             failure_count += 1
             mock_client = Mock()
-            
+
             if failure_count <= 5:
                 # First 5 calls fail rapidly
                 mock_client.get_core_network_policy.side_effect = ClientError(
@@ -617,22 +619,22 @@ class TestErrorRecoveryPatterns:
                         'PolicyDocument': '{"version": "2021.12"}'
                     }
                 }
-            
+
             return mock_client
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=circuit_breaker_mock):
             results = []
-            
+
             # Simulate multiple rapid-fire requests
             for i in range(7):
                 result = await get_core_network_policy('core-network-123')
                 results.append(json.loads(result))
-            
+
             # First 5 should fail
             for i in range(5):
                 assert results[i]['success'] is False
                 assert results[i]['error_code'] == 'InternalFailure'
-            
+
             # Later calls should succeed after circuit breaker recovery
             assert results[6]['success'] is True
             assert results[6]['policy_version_id'] == '1'
@@ -662,7 +664,7 @@ class TestErrorResponseFormatValidation:
                 'operation': 'DescribeVpcs'
             }
         ]
-        
+
         for scenario in error_scenarios:
             with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
                 mock_client = Mock()
@@ -680,17 +682,17 @@ class TestErrorResponseFormatValidation:
                     },
                     scenario['operation']
                 )
-                
+
                 mock_client.list_core_networks.side_effect = error
                 mock_get_client.return_value = mock_client
-                
+
                 result = await list_core_networks()
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is False
                 assert parsed['error_code'] == scenario['error_code']
                 assert scenario['error_message'] in parsed['error']
-                
+
                 # Validate AWS Labs error response structure
                 required_fields = ['success', 'error', 'error_code']
                 for field in required_fields:
@@ -712,7 +714,7 @@ class TestErrorResponseFormatValidation:
                 'locale': 'ja-JP'
             }
         ]
-        
+
         for error_scenario in localized_errors:
             with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
                 mock_client = Mock()
@@ -731,9 +733,9 @@ class TestErrorResponseFormatValidation:
                     'ListCoreNetworks'
                 )
                 mock_get_client.return_value = mock_client
-                
+
                 result = await list_core_networks()
-                
+
                 parsed = json.loads(result)
                 assert parsed['success'] is False
                 assert parsed['error_code'] == error_scenario['error_code']

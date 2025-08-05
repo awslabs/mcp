@@ -1,8 +1,23 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 """Unit tests for validation tools."""
+import json
 import pytest
 from unittest.mock import Mock, patch
-import json
-import os
+
 
 @pytest.fixture
 def mock_ip_addresses():
@@ -37,21 +52,21 @@ def mock_get_aws_client():
     """Mock the get_aws_client function."""
     def _mock_client(service, region=None):
         return Mock()
-    
+
     with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=_mock_client) as mock:
         yield mock
 
 class TestValidationTools:
     """Test validation and utility tools."""
-    
+
     @pytest.mark.asyncio
     async def test_validate_ip_cidr_validate_ip(self, mock_get_aws_client):
         """Test IP validation functionality."""
         from awslabs.cloudwan_mcp_server.server import validate_ip_cidr
-        
+
         result = await validate_ip_cidr("validate_ip", ip="10.0.0.1")
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["operation"] == "validate_ip"
         assert response["ip_address"] == "10.0.0.1"
@@ -62,10 +77,10 @@ class TestValidationTools:
     async def test_validate_ip_cidr_validate_cidr(self, mock_get_aws_client):
         """Test CIDR validation functionality."""
         from awslabs.cloudwan_mcp_server.server import validate_ip_cidr
-        
+
         result = await validate_ip_cidr("validate_cidr", cidr="10.0.0.0/24")
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["operation"] == "validate_cidr"
         assert response["network"] == "10.0.0.0/24"
@@ -75,10 +90,10 @@ class TestValidationTools:
     async def test_validate_ip_cidr_invalid_operation(self, mock_get_aws_client):
         """Test invalid operation handling."""
         from awslabs.cloudwan_mcp_server.server import validate_ip_cidr
-        
+
         result = await validate_ip_cidr("invalid_operation")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "Invalid operation" in response["error"]
         assert "valid_operations" in response
@@ -87,17 +102,17 @@ class TestValidationTools:
     async def test_validate_cloudwan_policy(self, mock_get_aws_client):
         """Test CloudWAN policy validation."""
         from awslabs.cloudwan_mcp_server.server import validate_cloudwan_policy
-        
+
         test_policy = {
             "version": "2021.12",
             "core-network-configuration": {
                 "asn-ranges": ["64512-65534"]
             }
         }
-        
+
         result = await validate_cloudwan_policy(test_policy)
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["overall_status"] == "valid"
         assert response["policy_version"] == "2021.12"
@@ -106,11 +121,11 @@ class TestValidationTools:
     async def test_ip_validation_with_fixtures(self, mock_ip_addresses, mock_get_aws_client):
         """Test IP validation using fixture data."""
         from awslabs.cloudwan_mcp_server.server import validate_ip_cidr
-        
+
         for ip in mock_ip_addresses[:3]:  # Test first 3 IPs
             result = await validate_ip_cidr("validate_ip", ip=ip)
             response = json.loads(result)
-            
+
             assert response["success"] is True
             assert response["ip_address"] == ip
 
@@ -118,11 +133,11 @@ class TestValidationTools:
     async def test_cidr_validation_with_fixtures(self, mock_cidr_blocks, mock_get_aws_client):
         """Test CIDR validation using fixture data."""
         from awslabs.cloudwan_mcp_server.server import validate_ip_cidr
-        
+
         for cidr in mock_cidr_blocks[:3]:  # Test first 3 CIDRs
             result = await validate_ip_cidr("validate_cidr", cidr=cidr)
             response = json.loads(result)
-            
+
             assert response["success"] is True
             assert response["network"] == cidr
 

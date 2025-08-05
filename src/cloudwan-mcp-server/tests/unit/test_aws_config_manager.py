@@ -1,11 +1,25 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 """Unit tests for AWS configuration manager tool."""
 
+import json
 import os
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-import json
-
-from awslabs.cloudwan_mcp_server.server import aws_config_manager, _create_client, get_aws_client
+from awslabs.cloudwan_mcp_server.server import _create_client, aws_config_manager, get_aws_client
+from unittest.mock import Mock, patch
 
 
 class TestAWSConfigManager:
@@ -17,7 +31,7 @@ class TestAWSConfigManager:
         with patch('boto3.Session') as mock_session:
             mock_instance = Mock()
             mock_session.return_value = mock_instance
-            
+
             # Mock STS client
             mock_sts = Mock()
             mock_sts.get_caller_identity.return_value = {
@@ -25,7 +39,7 @@ class TestAWSConfigManager:
                 'UserId': 'test-user-id',
                 'Arn': 'arn:aws:iam::123456789012:user/test-user'
             }
-            
+
             # Mock EC2 client
             mock_ec2 = Mock()
             mock_ec2.describe_regions.return_value = {
@@ -35,12 +49,12 @@ class TestAWSConfigManager:
                     {'RegionName': 'eu-west-1'},
                 ]
             }
-            
+
             mock_instance.client.side_effect = lambda service, **kwargs: {
                 'sts': mock_sts,
                 'ec2': mock_ec2
             }.get(service, Mock())
-            
+
             yield mock_session
 
     @pytest.fixture
@@ -53,24 +67,24 @@ class TestAWSConfigManager:
                 'UserId': 'test-user-id',
                 'Arn': 'arn:aws:iam::123456789012:user/test-user'
             }
-            
+
             mock_ec2 = Mock()
             mock_ec2.describe_regions.return_value = {
                 'Regions': [{'RegionName': 'us-east-1'}, {'RegionName': 'us-west-2'}]
             }
-            
+
             mock_nm = Mock()
             mock_nm.describe_global_networks.return_value = {
                 'GlobalNetworks': [{'GlobalNetworkId': 'gn-123'}]
             }
-            
+
             def client_side_effect(service, region=None):
                 return {
                     'sts': mock_sts,
                     'ec2': mock_ec2,
                     'networkmanager': mock_nm
                 }.get(service, Mock())
-            
+
             mock_client.side_effect = client_side_effect
             yield mock_client
 
@@ -79,12 +93,12 @@ class TestAWSConfigManager:
         """Test getting current AWS configuration successfully."""
         # Clear cache for clean test
         _create_client.cache_clear()
-        
+
         with patch.dict(os.environ, {'AWS_PROFILE': 'test-profile', 'AWS_DEFAULT_REGION': 'us-west-2'}):
             result = await aws_config_manager("get_current")
-            
+
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is True
         assert result_data["operation"] == "get_current"
         assert result_data["current_configuration"]["aws_profile"] == "test-profile"
@@ -96,15 +110,15 @@ class TestAWSConfigManager:
     async def test_get_current_configuration_invalid(self):
         """Test getting current configuration with invalid credentials."""
         _create_client.cache_clear()
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_client:
             mock_client.side_effect = Exception("Invalid credentials")
-            
+
             with patch.dict(os.environ, {'AWS_PROFILE': 'invalid-profile'}):
                 result = await aws_config_manager("get_current")
-        
+
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is True
         assert result_data["current_configuration"]["configuration_valid"] is False
         assert "error" in result_data["current_configuration"]["identity"]
@@ -113,10 +127,10 @@ class TestAWSConfigManager:
     async def test_set_profile_success(self, mock_boto3_session):
         """Test setting AWS profile successfully."""
         _create_client.cache_clear()
-        
+
         result = await aws_config_manager("set_profile", profile="new-profile")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is True
         assert result_data["operation"] == "set_profile"
         assert result_data["new_profile"] == "new-profile"
@@ -129,7 +143,7 @@ class TestAWSConfigManager:
         """Test setting profile without providing profile name."""
         result = await aws_config_manager("set_profile")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is False
         assert "Profile name is required" in result_data["error"]
 
@@ -138,10 +152,10 @@ class TestAWSConfigManager:
         """Test setting invalid AWS profile."""
         with patch('boto3.Session') as mock_session:
             mock_session.side_effect = Exception("Profile not found")
-            
+
             result = await aws_config_manager("set_profile", profile="invalid-profile")
             result_data = json.loads(result)
-            
+
             assert result_data["success"] is False
             assert "Failed to validate profile" in result_data["error"]
             assert "suggestion" in result_data
@@ -150,10 +164,10 @@ class TestAWSConfigManager:
     async def test_set_region_success(self, mock_boto3_session):
         """Test setting AWS region successfully."""
         _create_client.cache_clear()
-        
+
         result = await aws_config_manager("set_region", region="eu-west-1")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is True
         assert result_data["operation"] == "set_region"
         assert result_data["new_region"] == "eu-west-1"
@@ -166,7 +180,7 @@ class TestAWSConfigManager:
         """Test setting region with invalid format."""
         result = await aws_config_manager("set_region", region="INVALID_REGION!")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is False
         assert "Invalid region format" in result_data["error"]
         assert "suggestion" in result_data
@@ -176,7 +190,7 @@ class TestAWSConfigManager:
         """Test setting region without providing region name."""
         result = await aws_config_manager("set_region")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is False
         assert "Region name is required" in result_data["error"]
 
@@ -184,10 +198,10 @@ class TestAWSConfigManager:
     async def test_set_both_success(self, mock_boto3_session):
         """Test setting both profile and region successfully."""
         _create_client.cache_clear()
-        
+
         result = await aws_config_manager("set_both", profile="test-profile", region="us-east-1")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is True
         assert result_data["operation"] == "set_both"
         assert result_data["new_profile"] == "test-profile"
@@ -201,7 +215,7 @@ class TestAWSConfigManager:
         """Test setting both with missing parameters."""
         result = await aws_config_manager("set_both", profile="test-profile")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is False
         assert "Both profile and region are required" in result_data["error"]
 
@@ -210,9 +224,9 @@ class TestAWSConfigManager:
         """Test validating configuration successfully."""
         with patch.dict(os.environ, {'AWS_PROFILE': 'test-profile', 'AWS_DEFAULT_REGION': 'us-east-1'}):
             result = await aws_config_manager("validate_config")
-        
+
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is True
         assert result_data["operation"] == "validate_config"
         assert result_data["overall_status"] == "valid"
@@ -233,12 +247,12 @@ class TestAWSConfigManager:
                     return mock_sts
                 else:
                     raise Exception("Service unavailable")
-            
+
             mock_client.side_effect = failing_client
-            
+
             result = await aws_config_manager("validate_config")
             result_data = json.loads(result)
-            
+
             assert result_data["success"] is True
             assert result_data["overall_status"] == "invalid"
             assert result_data["service_validations"]["sts"]["status"] == "success"
@@ -251,10 +265,10 @@ class TestAWSConfigManager:
         # Add items to cache by using the client functions
         get_aws_client("networkmanager", "us-east-1")
         get_aws_client("ec2", "us-west-2")
-        
+
         result = await aws_config_manager("clear_cache")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is True
         assert result_data["operation"] == "clear_cache"
         assert result_data["cache_entries_cleared"] == 2
@@ -267,7 +281,7 @@ class TestAWSConfigManager:
         """Test handling unknown operation."""
         result = await aws_config_manager("unknown_operation")
         result_data = json.loads(result)
-        
+
         assert result_data["success"] is False
         assert "Unknown operation" in result_data["error"]
         assert "supported_operations" in result_data
@@ -279,9 +293,9 @@ class TestAWSConfigManager:
         """Test general exception handling."""
         with patch('os.getenv') as mock_getenv:
             mock_getenv.side_effect = Exception("Unexpected error")
-            
+
             result = await aws_config_manager("get_current")
             result_data = json.loads(result)
-            
+
             assert "success" in result_data
             assert "error" in result_data

@@ -14,8 +14,8 @@
 
 """Input validation utilities following AWS Labs patterns."""
 
-import re
 import ipaddress
+import re
 from typing import Optional
 
 
@@ -30,7 +30,7 @@ def validate_core_network_id(network_id: Optional[str]) -> bool:
     """
     if not network_id:
         return False
-    
+
     # AWS Core Network ID pattern: core-network-[17 char hex]
     pattern = r'^core-network-[0-9a-f]{17}$'
     return bool(re.match(pattern, network_id))
@@ -47,7 +47,7 @@ def validate_global_network_id(network_id: Optional[str]) -> bool:
     """
     if not network_id:
         return False
-    
+
     # AWS Global Network ID pattern: global-network-[17 char hex]
     pattern = r'^global-network-[0-9a-f]{17}$'
     return bool(re.match(pattern, network_id))
@@ -64,7 +64,7 @@ def validate_ip_address(ip: Optional[str]) -> bool:
     """
     if not ip:
         return False
-    
+
     try:
         ipaddress.ip_address(ip)
         return True
@@ -83,7 +83,7 @@ def validate_cidr_block(cidr: Optional[str]) -> bool:
     """
     if not cidr:
         return False
-    
+
     try:
         ipaddress.ip_network(cidr, strict=False)
         return True
@@ -102,7 +102,7 @@ def validate_aws_region(region: Optional[str]) -> bool:
     """
     if not region:
         return False
-    
+
     # AWS region pattern: 2-3 letter prefix, dash, direction, dash, number
     pattern = r'^[a-z]{2,3}-[a-z]+-\d+$'
     return bool(re.match(pattern, region))

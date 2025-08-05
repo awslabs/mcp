@@ -16,13 +16,13 @@
 
 import json
 import pytest
-from datetime import datetime
-from typing import Dict, List
-from unittest.mock import Mock
-
 from awslabs.cloudwan_mcp_server.server import (
-    ContentItem, McpResponse, DateTimeEncoder, safe_json_dumps
+    ContentItem,
+    DateTimeEncoder,
+    McpResponse,
+    safe_json_dumps,
 )
+from datetime import datetime
 
 
 class TestContentItemModel:
@@ -32,7 +32,7 @@ class TestContentItemModel:
     def test_content_item_valid_creation(self):
         """Test valid ContentItem creation with required fields."""
         content_item = ContentItem(type="text", text="Test content")
-        
+
         assert content_item['type'] == "text"
         assert content_item['text'] == "Test content"
         assert len(content_item) == 2
@@ -41,7 +41,7 @@ class TestContentItemModel:
     def test_content_item_types(self):
         """Test ContentItem with different valid types."""
         valid_types = ["text", "error", "warning", "info", "json"]
-        
+
         for content_type in valid_types:
             content_item = ContentItem(type=content_type, text=f"Content for {content_type}")
             assert content_item['type'] == content_type
@@ -59,7 +59,7 @@ class TestContentItemModel:
         """Test ContentItem with JSON string text."""
         json_text = json.dumps({"key": "value", "number": 42})
         content_item = ContentItem(type="json", text=json_text)
-        
+
         assert content_item['type'] == "json"
         assert content_item['text'] == json_text
         # Verify text is valid JSON
@@ -73,7 +73,7 @@ class TestContentItemModel:
         multiline_text = """This is line 1
 This is line 2
 This is line 3 with special chars: !@#$%^&*()"""
-        
+
         content_item = ContentItem(type="text", text=multiline_text)
         assert content_item['type'] == "text"
         assert content_item['text'] == multiline_text
@@ -88,7 +88,7 @@ class TestMcpResponseModel:
         """Test McpResponse with required content field."""
         content = [ContentItem(type="text", text="Response content")]
         response = McpResponse(content=content)
-        
+
         assert 'content' in response
         assert len(response['content']) == 1
         assert response['content'][0]['type'] == "text"
@@ -99,7 +99,7 @@ class TestMcpResponseModel:
         """Test McpResponse with optional isError field."""
         content = [ContentItem(type="error", text="Error occurred")]
         response = McpResponse(content=content, isError=True)
-        
+
         assert response['content'][0]['type'] == "error"
         assert response['isError'] is True
 
@@ -108,7 +108,7 @@ class TestMcpResponseModel:
         """Test McpResponse without optional isError field (total=False)."""
         content = [ContentItem(type="text", text="Success response")]
         response = McpResponse(content=content)
-        
+
         # isError should not be present when not specified
         assert 'content' in response
         assert 'isError' not in response or response.get('isError') is False
@@ -122,7 +122,7 @@ class TestMcpResponseModel:
             ContentItem(type="warning", text="Warning message")
         ]
         response = McpResponse(content=content)
-        
+
         assert len(response['content']) == 3
         assert response['content'][0]['type'] == "text"
         assert response['content'][1]['type'] == "json"
@@ -143,7 +143,7 @@ class TestMcpResponseModel:
             ContentItem(type="text", text="Additional error details")
         ]
         response = McpResponse(content=error_content, isError=True)
-        
+
         assert response['isError'] is True
         assert len(response['content']) == 2
         assert response['content'][0]['type'] == "error"
@@ -157,7 +157,7 @@ class TestDateTimeEncoder:
         """Test DateTimeEncoder handles datetime objects correctly."""
         encoder = DateTimeEncoder()
         test_datetime = datetime(2024, 1, 15, 10, 30, 45)
-        
+
         result = encoder.default(test_datetime)
         assert result == "2024-01-15T10:30:45"
         assert isinstance(result, str)
@@ -167,7 +167,7 @@ class TestDateTimeEncoder:
         """Test DateTimeEncoder handles datetime with microseconds."""
         encoder = DateTimeEncoder()
         test_datetime = datetime(2024, 1, 15, 10, 30, 45, 123456)
-        
+
         result = encoder.default(test_datetime)
         assert result == "2024-01-15T10:30:45.123456"
         assert isinstance(result, str)
@@ -176,7 +176,7 @@ class TestDateTimeEncoder:
     def test_non_datetime_objects(self):
         """Test DateTimeEncoder passes non-datetime objects to parent."""
         encoder = DateTimeEncoder()
-        
+
         # Should raise TypeError for unsupported types
         with pytest.raises(TypeError):
             encoder.default(object())
@@ -189,10 +189,10 @@ class TestDateTimeEncoder:
             "message": "Test message",
             "count": 42
         }
-        
+
         result = json.dumps(test_data, cls=DateTimeEncoder)
         parsed = json.loads(result)
-        
+
         assert parsed['timestamp'] == "2024-01-15T10:30:45"
         assert parsed['message'] == "Test message"
         assert parsed['count'] == 42
@@ -209,10 +209,10 @@ class TestSafeJsonDumps:
             "name": "Test Resource",
             "active": True
         }
-        
+
         result = safe_json_dumps(test_data)
         parsed = json.loads(result)
-        
+
         assert parsed['created_at'] == "2024-01-15T10:30:45"
         assert parsed['name'] == "Test Resource"
         assert parsed['active'] is True
@@ -221,9 +221,9 @@ class TestSafeJsonDumps:
     def test_safe_json_dumps_with_indent(self):
         """Test safe_json_dumps with formatting options."""
         test_data = {"key": "value", "timestamp": datetime(2024, 1, 15, 10, 30, 45)}
-        
+
         result = safe_json_dumps(test_data, indent=2)
-        
+
         # Verify formatting
         assert '\n' in result
         assert '  "key": "value"' in result
@@ -240,17 +240,17 @@ class TestSafeJsonDumps:
                     "segments": ["prod", "dev"]
                 },
                 {
-                    "id": "core-network-456", 
+                    "id": "core-network-456",
                     "created_at": datetime(2024, 1, 16, 11, 45, 30),
                     "segments": ["staging"]
                 }
             ],
             "total_count": 2
         }
-        
+
         result = safe_json_dumps(test_data)
         parsed = json.loads(result)
-        
+
         assert len(parsed['core_networks']) == 2
         assert parsed['core_networks'][0]['created_at'] == "2024-01-15T10:30:45"
         assert parsed['core_networks'][1]['created_at'] == "2024-01-16T11:45:30"
@@ -265,10 +265,10 @@ class TestSafeJsonDumps:
             "null_value": None,
             "timestamp": datetime(2024, 1, 15, 10, 30, 45)
         }
-        
+
         result = safe_json_dumps(test_data)
         parsed = json.loads(result)
-        
+
         assert parsed['empty_dict'] == {}
         assert parsed['empty_list'] == []
         assert parsed['null_value'] is None
@@ -286,16 +286,16 @@ class TestAWSLabsResponseFormats:
             "data": {"resource_id": "test-123", "status": "active"},
             "timestamp": datetime(2024, 1, 15, 10, 30, 45)
         }
-        
+
         json_result = safe_json_dumps(success_data, indent=2)
         parsed = json.loads(json_result)
-        
+
         assert parsed['success'] is True
         assert 'data' in parsed
         assert parsed['data']['resource_id'] == "test-123"
         assert parsed['timestamp'] == "2024-01-15T10:30:45"
 
-    @pytest.mark.unit  
+    @pytest.mark.unit
     def test_error_response_format(self):
         """Test standard AWS Labs error response format."""
         error_data = {
@@ -304,10 +304,10 @@ class TestAWSLabsResponseFormats:
             "error_code": "ResourceNotFound",
             "timestamp": datetime(2024, 1, 15, 10, 30, 45)
         }
-        
+
         json_result = safe_json_dumps(error_data, indent=2)
         parsed = json.loads(json_result)
-        
+
         assert parsed['success'] is False
         assert parsed['error'] == "Resource not found"
         assert parsed['error_code'] == "ResourceNotFound"
@@ -326,18 +326,18 @@ class TestAWSLabsResponseFormats:
                 }
             ]
         }
-        
+
         # Convert to JSON string for ContentItem
         json_content = safe_json_dumps(aws_data, indent=2)
-        
+
         # Create MCP response
         content_item = ContentItem(type="json", text=json_content)
         mcp_response = McpResponse(content=[content_item])
-        
+
         # Verify structure
         assert len(mcp_response['content']) == 1
         assert mcp_response['content'][0]['type'] == "json"
-        
+
         # Verify JSON content can be parsed
         parsed_content = json.loads(mcp_response['content'][0]['text'])
         assert len(parsed_content['CoreNetworks']) == 1
@@ -352,7 +352,7 @@ class TestAWSLabsResponseFormats:
             "PolicyDocument format is invalid",
             "Invalid CIDR block format"
         ]
-        
+
         error_response = {
             "success": False,
             "error": "Validation failed",
@@ -360,10 +360,10 @@ class TestAWSLabsResponseFormats:
             "validation_errors": validation_errors,
             "timestamp": datetime(2024, 1, 15, 10, 30, 45)
         }
-        
+
         json_result = safe_json_dumps(error_response, indent=2)
         parsed = json.loads(json_result)
-        
+
         assert parsed['success'] is False
         assert parsed['error_code'] == "ValidationError"
         assert len(parsed['validation_errors']) == 3

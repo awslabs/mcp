@@ -16,12 +16,15 @@
 
 import json
 import pytest
-from unittest.mock import patch, Mock
-from botocore.exceptions import ClientError
-
 from awslabs.cloudwan_mcp_server.server import (
-    get_aws_client, handle_aws_error, list_core_networks, get_global_networks, _create_client
+    _create_client,
+    get_aws_client,
+    get_global_networks,
+    handle_aws_error,
+    list_core_networks,
 )
+from botocore.exceptions import ClientError
+from unittest.mock import Mock, patch
 
 
 class TestAWSClientManagement:
@@ -30,14 +33,14 @@ class TestAWSClientManagement:
     def test_get_aws_client_default_region(self):
         """Test AWS client creation with default region."""
         _create_client.cache_clear()  # Clear cache to force client creation
-        
+
         # Clear AWS_PROFILE to avoid session creation
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-west-2', 'AWS_PROFILE': ''}, clear=True):
             with patch('boto3.client') as mock_client:
                 mock_client.return_value = Mock()
-                
+
                 client = get_aws_client("networkmanager")
-                
+
                 mock_client.assert_called_once()
                 call_args = mock_client.call_args
                 assert call_args[0][0] == "networkmanager"
@@ -46,13 +49,13 @@ class TestAWSClientManagement:
     def test_get_aws_client_explicit_region(self):
         """Test AWS client creation with explicit region."""
         _create_client.cache_clear()  # Clear cache to force client creation
-        
+
         with patch.dict('os.environ', {'AWS_PROFILE': ''}, clear=True):
             with patch('boto3.client') as mock_client:
                 mock_client.return_value = Mock()
-                
+
                 client = get_aws_client("ec2", "eu-central-1")
-                
+
                 mock_client.assert_called_once()
                 call_args = mock_client.call_args
                 assert call_args[0][0] == "ec2"
@@ -61,32 +64,32 @@ class TestAWSClientManagement:
     def test_get_aws_client_with_profile(self):
         """Test AWS client creation with AWS profile."""
         _create_client.cache_clear()  # Clear cache to force client creation
-        
+
         with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
             with patch('boto3.Session') as mock_session:
                 mock_session_instance = Mock()
                 mock_session.return_value = mock_session_instance
                 mock_session_instance.client.return_value = Mock()
-                
+
                 client = get_aws_client("networkmanager", "us-east-1")
-                
+
                 mock_session.assert_called_once_with(profile_name="test-profile")
                 mock_session_instance.client.assert_called_once()
 
     def test_get_aws_client_caching(self):
         """Test AWS client caching functionality."""
         _create_client.cache_clear()  # Clear cache to start clean
-        
+
         with patch.dict('os.environ', {'AWS_PROFILE': ''}, clear=True):
             with patch('boto3.client') as mock_client:
                 mock_client.return_value = Mock()
-                
+
                 # First call should create client
                 client1 = get_aws_client("networkmanager", "us-east-1")
-                
+
                 # Second call should return cached client
                 client2 = get_aws_client("networkmanager", "us-east-1")
-                
+
                 # Should only call boto3.client once due to caching
                 mock_client.assert_called_once()
                 assert client1 is client2
@@ -94,17 +97,17 @@ class TestAWSClientManagement:
     def test_get_aws_client_different_services_cached_separately(self):
         """Test that different services are cached separately."""
         _create_client.cache_clear()  # Clear cache to start clean
-        
+
         with patch.dict('os.environ', {'AWS_PROFILE': ''}, clear=True):
             with patch('boto3.client') as mock_client:
                 # Return different mock objects for different calls
                 mock_client1 = Mock()
                 mock_client2 = Mock()
                 mock_client.side_effect = [mock_client1, mock_client2]
-                
+
                 client1 = get_aws_client("networkmanager", "us-east-1")
                 client2 = get_aws_client("ec2", "us-east-1")
-                
+
                 # Should call boto3.client twice for different services
                 assert mock_client.call_count == 2
                 assert client1 is not client2
@@ -114,13 +117,13 @@ class TestAWSClientManagement:
     def test_get_aws_client_fallback_region(self):
         """Test AWS client with fallback region."""
         _create_client.cache_clear()  # Clear cache to start clean
-        
+
         with patch.dict('os.environ', {}, clear=True):
             with patch('boto3.client') as mock_client:
                 mock_client.return_value = Mock()
-                
+
                 client = get_aws_client("networkmanager")
-                
+
                 call_args = mock_client.call_args
                 assert call_args[1]["config"].region_name == "us-east-1"  # Default fallback
 
@@ -137,10 +140,10 @@ class TestErrorHandling:
             }
         }
         client_error = ClientError(error_response, 'TestOperation')
-        
+
         result = handle_aws_error(client_error, "test_operation")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "test_operation failed" in response["error"]
         assert "User is not authorized to perform this action" in response["error"]
@@ -149,10 +152,10 @@ class TestErrorHandling:
     def test_handle_aws_error_generic_exception(self):
         """Test handling of generic exception."""
         generic_error = ValueError("Test error message")
-        
+
         result = handle_aws_error(generic_error, "test_operation")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "test_operation failed" in response["error"]
         assert "Test error message" in response["error"]
@@ -166,10 +169,10 @@ class TestErrorHandling:
             }
         }
         client_error = ClientError(error_response, 'TestOperation')
-        
+
         result = handle_aws_error(client_error, "test_operation")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert response["error_code"] == "Unknown"
 
@@ -177,10 +180,10 @@ class TestErrorHandling:
         """Test handling of ClientError with malformed response."""
         error_response = {}  # Missing Error key
         client_error = ClientError(error_response, 'TestOperation')
-        
+
         result = handle_aws_error(client_error, "test_operation")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "test_operation failed" in response["error"]
 
@@ -199,7 +202,7 @@ class TestResponseFormats:
         error = ValueError("Test error")
         result = handle_aws_error(error, "test_operation")
         response = json.loads(result)
-        
+
         # Check required fields
         assert "success" in response
         assert "error" in response
@@ -209,12 +212,12 @@ class TestResponseFormats:
     def test_json_serialization(self):
         """Test that responses are valid JSON."""
         error = ClientError(
-            {'Error': {'Code': 'TestError', 'Message': 'Test message'}}, 
+            {'Error': {'Code': 'TestError', 'Message': 'Test message'}},
             'TestOperation'
         )
-        
+
         result = handle_aws_error(error, "test_operation")
-        
+
         # Should not raise exception
         parsed = json.loads(result)
         assert isinstance(parsed, dict)
@@ -222,10 +225,10 @@ class TestResponseFormats:
     def test_unicode_handling_in_errors(self):
         """Test that unicode characters in errors are handled properly."""
         error = ValueError("Test error with unicode: 测试")
-        
+
         result = handle_aws_error(error, "test_operation")
         response = json.loads(result)
-        
+
         assert "测试" in response["error"]
         assert response["success"] is False
 
@@ -272,12 +275,12 @@ def expected_error_format():
 async def test_list_core_networks_success(self, mock_get_aws_client):
     result = await list_core_networks("us-east-1")
     response = json.loads(result)
-    
+
     assert response["success"] is True
     assert response["region"] == "us-east-1"
     assert response["total_count"] == 1
     assert len(response["core_networks"]) == 1
-    
+
     # Verify core network details
     core_network = response["core_networks"][0]
     assert core_network["CoreNetworkId"] == "core-network-1234567890abcdef0"
@@ -289,10 +292,10 @@ async def test_list_core_networks_empty_response(self, mock_get_aws_client):
     mock_client = Mock()
     mock_client.list_core_networks.return_value = {"CoreNetworks": []}
     mock_get_aws_client.return_value = mock_client
-    
+
     result = await list_core_networks("us-west-2")
     response = json.loads(result)
-    
+
     assert response["success"] is True
     assert response["region"] == "us-west-2"
     assert response["message"] == "No CloudWAN core networks found in the specified region."
@@ -310,10 +313,10 @@ async def test_list_core_networks_client_error(self, mock_get_aws_client):
     mock_get_aws_client.return_value.list_core_networks.side_effect = ClientError(
         error_response, 'ListCoreNetworks'
     )
-    
+
     result = await list_core_networks("us-east-1")
     response = json.loads(result)
-    
+
     assert response["success"] is False
     assert "list_core_networks failed" in response["error"]
     assert response["error_code"] == "AccessDenied"
@@ -327,10 +330,10 @@ async def test_get_global_networks_error(self, mock_get_aws_client):
         "DescribeGlobalNetworks"
     )
     mock_get_aws_client.return_value = mock_client
-    
+
     result = await get_global_networks("us-east-1")
     response = json.loads(result)
-    
+
     assert response["success"] is False
     assert "get_global_networks failed" in response["error"]
     assert response["error_code"] == "AccessDenied"
@@ -342,14 +345,14 @@ class TestEnvironmentHandling:
     def test_aws_region_precedence(self):
         """Test AWS region precedence: parameter > env var > default."""
         _create_client.cache_clear()  # Clear cache to start clean
-        
+
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'env-region', 'AWS_PROFILE': ''}, clear=True):
             with patch('boto3.client') as mock_client:
                 mock_client.return_value = Mock()
-                
+
                 # Explicit region should override env var
                 get_aws_client("networkmanager", "explicit-region")
-                
+
                 # Verify the call was made correctly
                 assert mock_client.call_count == 1
                 call_args = mock_client.call_args
@@ -361,9 +364,9 @@ class TestEnvironmentHandling:
         with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
             with patch('boto3.Session') as mock_session:
                 mock_session.return_value.client.return_value = Mock()
-                
+
                 get_aws_client("networkmanager")
-                
+
                 mock_session.assert_called_once_with(profile_name="test-profile")
 
     def test_missing_environment_variables(self):
@@ -371,9 +374,9 @@ class TestEnvironmentHandling:
         with patch.dict('os.environ', {}, clear=True):
             with patch('boto3.client') as mock_client:
                 mock_client.return_value = Mock()
-                
+
                 client = get_aws_client("networkmanager")
-                
+
                 # Should use fallback values
                 call_args = mock_client.call_args
                 assert call_args[1]["config"].region_name == "us-east-1"

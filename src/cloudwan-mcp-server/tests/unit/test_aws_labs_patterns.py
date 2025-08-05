@@ -15,8 +15,8 @@
 """Unit tests following AWS Labs MCP server patterns."""
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
 from awslabs.cloudwan_mcp_server.config_manager import AWSConfigManager
+from unittest.mock import Mock, patch
 
 
 class TestAWSLabsPatterns:
@@ -26,32 +26,32 @@ class TestAWSLabsPatterns:
     def test_aws_config_manager_initialization(self):
         """Test AWS config manager follows AWS Labs patterns."""
         config_manager = AWSConfigManager()
-        
+
         # AWS Labs standard: config manager should have region and profile handling
         assert hasattr(config_manager, 'region')
         assert hasattr(config_manager, 'profile')
-        
+
     @pytest.mark.unit
     @patch('boto3.client')
     def test_aws_client_creation_patterns(self, mock_boto_client):
         """Test AWS client creation following AWS Labs patterns."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
-        
+
         config_manager = AWSConfigManager()
         client = config_manager.get_aws_client('networkmanager')
-        
+
         # Verify boto3 client was called with proper service
         mock_boto_client.assert_called_once_with('networkmanager', region_name=config_manager.region)
         assert client == mock_client
 
-    @pytest.mark.unit  
+    @pytest.mark.unit
     def test_error_response_format_compliance(self):
         """Test error responses follow AWS Labs format standards."""
         from awslabs.cloudwan_mcp_server.utils.response_formatter import format_error_response
-        
+
         error_response = format_error_response("Test error", "TEST_ERROR")
-        
+
         # AWS Labs standard error format
         assert error_response['success'] is False
         assert 'error' in error_response
@@ -61,12 +61,12 @@ class TestAWSLabsPatterns:
 
     @pytest.mark.unit
     def test_success_response_format_compliance(self):
-        """Test success responses follow AWS Labs format standards.""" 
+        """Test success responses follow AWS Labs format standards."""
         from awslabs.cloudwan_mcp_server.utils.response_formatter import format_success_response
-        
+
         test_data = {"key": "value"}
         success_response = format_success_response(test_data)
-        
+
         # AWS Labs standard success format
         assert success_response['success'] is True
         assert 'data' in success_response
@@ -77,32 +77,31 @@ class TestAWSLabsPatterns:
     async def test_tool_base_class_compliance(self):
         """Test base tool class follows AWS Labs patterns."""
         from awslabs.cloudwan_mcp_server.tools.base import BaseMCPTool
-        
+
         # Test abstract base class behavior
         assert hasattr(BaseMCPTool, 'execute')
-        assert hasattr(BaseMCPTool, 'validate_input') 
+        assert hasattr(BaseMCPTool, 'validate_input')
         assert hasattr(BaseMCPTool, 'format_response')
 
     @pytest.mark.unit
     def test_input_validation_patterns(self):
         """Test input validation follows AWS Labs patterns."""
-        from awslabs.cloudwan_mcp_server.utils.validation import (
-            validate_core_network_id, 
-            validate_global_network_id,
-            validate_ip_address
-        )
-        
         # Test valid inputs using dynamically generated IDs matching validation patterns
         import secrets
+        from awslabs.cloudwan_mcp_server.utils.validation import (
+            validate_core_network_id,
+            validate_global_network_id,
+            validate_ip_address,
+        )
         # Generate exactly 17 hex characters as required by validation pattern
         hex_suffix = secrets.token_hex(9)[:17]  # 9 bytes gives 18 hex chars, take first 17
         valid_core_id = f"core-network-{hex_suffix}"
-        valid_global_id = f"global-network-{hex_suffix}" 
-        
+        valid_global_id = f"global-network-{hex_suffix}"
+
         assert validate_core_network_id(valid_core_id) is True
-        assert validate_global_network_id(valid_global_id) is True  
+        assert validate_global_network_id(valid_global_id) is True
         assert validate_ip_address("10.0.0.1") is True
-        
+
         # Test invalid inputs
         assert validate_core_network_id("invalid-id") is False
         assert validate_global_network_id("") is False
@@ -115,7 +114,7 @@ class TestAWSLabsPatterns:
         """Test AWS error handling patterns."""
         from awslabs.cloudwan_mcp_server.tools.core import list_core_networks
         from botocore.exceptions import ClientError
-        
+
         # Mock AWS client that raises service error
         mock_client = Mock()
         mock_client.list_core_networks.side_effect = ClientError(
@@ -123,7 +122,7 @@ class TestAWSLabsPatterns:
             "ListCoreNetworks"
         )
         mock_get_client.return_value = mock_client
-        
+
         # Test error handling - should return error response, not raise
         result = await list_core_networks()
         assert result['success'] is False
@@ -132,11 +131,11 @@ class TestAWSLabsPatterns:
 
     @pytest.mark.unit
     def test_logging_patterns(self):
-        """Test logging follows AWS Labs patterns.""" 
+        """Test logging follows AWS Labs patterns."""
         from awslabs.cloudwan_mcp_server.utils.logger import get_logger
-        
+
         logger = get_logger(__name__)
-        
+
         # AWS Labs standard: loguru-based logging
         assert hasattr(logger, 'info')
         assert hasattr(logger, 'error')
@@ -146,14 +145,14 @@ class TestAWSLabsPatterns:
     @pytest.mark.unit
     @pytest.mark.parametrize("tool_name,expected_result", [
         ("list_core_networks", True),
-        ("get_global_networks", True), 
+        ("get_global_networks", True),
         ("trace_network_path", True),
         ("nonexistent_tool", False)
     ])
     def test_tool_availability_parametrized(self, tool_name, expected_result):
         """Test tool availability using parametrized testing (AWS Labs pattern)."""
         from awslabs.cloudwan_mcp_server import server
-        
+
         has_tool = hasattr(server, tool_name)
         assert has_tool == expected_result
 
@@ -161,25 +160,25 @@ class TestAWSLabsPatterns:
     def test_configuration_validation(self):
         """Test configuration validation follows AWS Labs patterns."""
         from awslabs.cloudwan_mcp_server.utils.config import validate_configuration
-        
+
         valid_config = {
             'aws_region': 'us-east-1',
             'log_level': 'INFO'
         }
-        
+
         invalid_config = {
             'log_level': 'INVALID'  # Missing required aws_region
         }
-        
+
         assert validate_configuration(valid_config) is True
         assert validate_configuration(invalid_config) is False
 
-    @pytest.mark.unit 
+    @pytest.mark.unit
     @patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'})
     def test_environment_variable_handling(self):
         """Test environment variable handling follows AWS Labs patterns."""
         from awslabs.cloudwan_mcp_server.utils.config import get_aws_region
-        
+
         region = get_aws_region()
         assert region == 'us-east-1'
 
@@ -187,8 +186,8 @@ class TestAWSLabsPatterns:
     def test_resource_cleanup_patterns(self):
         """Test resource cleanup follows AWS Labs patterns."""
         from awslabs.cloudwan_mcp_server.utils.aws_config_manager import AWSConfigManager
-        
+
         config_manager = AWSConfigManager()
-        
+
         # Test that cleanup method exists (AWS Labs pattern for resource management)
         assert hasattr(config_manager, 'cleanup') or hasattr(config_manager, '__del__')

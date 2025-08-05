@@ -1,16 +1,31 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 """Configuration persistence and management for CloudWAN MCP Server."""
 
 import json
 import os
-from datetime import datetime, UTC
-from pathlib import Path
-from typing import Dict, Optional, Any
 import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 class AWSConfigManager:
     """AWS configuration manager following AWS Labs patterns."""
-    
+
     def __init__(self, profile: Optional[str] = None, region: Optional[str] = None):
         """Initialize AWS configuration manager.
         
@@ -21,7 +36,7 @@ class AWSConfigManager:
         self.profile = profile or os.environ.get('AWS_PROFILE', 'default')
         self.region = region or os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
         self._client_cache = {}
-    
+
     def get_aws_client(self, service_name: str, region: Optional[str] = None):
         """Get AWS client for specified service.
         
@@ -33,23 +48,23 @@ class AWSConfigManager:
             Boto3 client instance
         """
         import boto3
-        
+
         effective_region = region or self.region
         cache_key = f"{service_name}:{effective_region}:{self.profile}"
-        
+
         if cache_key not in self._client_cache:
             if self.profile and self.profile != 'default':
                 session = boto3.Session(profile_name=self.profile)
                 self._client_cache[cache_key] = session.client(service_name, region_name=effective_region)
             else:
                 self._client_cache[cache_key] = boto3.client(service_name, region_name=effective_region)
-        
+
         return self._client_cache[cache_key]
-    
+
     def cleanup(self):
         """Cleanup resources."""
         self._client_cache.clear()
-    
+
     def __del__(self):
         """Destructor to cleanup resources."""
         self.cleanup()
@@ -57,7 +72,7 @@ class AWSConfigManager:
 
 class ConfigPersistenceManager:
     """Manages configuration persistence for AWS settings."""
-    
+
     def __init__(self, config_dir: Optional[Path] = None):
         """Initialize configuration manager.
         
@@ -67,12 +82,12 @@ class ConfigPersistenceManager:
         if config_dir is None:
             # Use a subdirectory in the system temp directory
             config_dir = Path(tempfile.gettempdir()) / "cloudwan_mcp" / "config"
-        
+
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.config_file = self.config_dir / "aws_config.json"
         self.history_file = self.config_dir / "config_history.json"
-        
+
     def save_current_config(self, profile: str, region: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """Save current AWS configuration.
         
@@ -91,18 +106,18 @@ class ConfigPersistenceManager:
                 "last_updated": datetime.now(UTC).isoformat(),
                 "metadata": metadata or {}
             }
-            
+
             with open(self.config_file, 'w') as f:
                 json.dump(config_data, f, indent=2)
-            
+
             # Also save to history
             self._save_to_history(config_data)
-            
+
             return True
-            
+
         except Exception:
             return False
-    
+
     def load_current_config(self) -> Optional[Dict[str, Any]]:
         """Load current AWS configuration.
         
@@ -116,7 +131,7 @@ class ConfigPersistenceManager:
             return None
         except Exception:
             return None
-    
+
     def get_config_history(self, limit: int = 10) -> list:
         """Get configuration change history.
         
@@ -134,7 +149,7 @@ class ConfigPersistenceManager:
             return []
         except Exception:
             return []
-    
+
     def restore_config(self, profile: str, region: str) -> bool:
         """Restore AWS configuration and update environment.
         
@@ -148,28 +163,28 @@ class ConfigPersistenceManager:
         try:
             # Validate and set environment variables securely
             import re
-            
+
             # Validate profile format
             if not re.match(r'^[a-zA-Z0-9-_]+$', profile):
                 return False
-            
-            # Validate region format  
+
+            # Validate region format
             if not re.match(r'^[a-z0-9\-]+$', region):
                 return False
-            
+
             # Update environment variables
             os.environ["AWS_PROFILE"] = profile
             os.environ["AWS_DEFAULT_REGION"] = region
-            
+
             # Save the restored configuration
             return self.save_current_config(
-                profile, 
-                region, 
+                profile,
+                region,
                 metadata={"restored": True, "restored_at": datetime.now(UTC).isoformat()}
             )
         except Exception:
             return False
-    
+
     def validate_config_file(self) -> Dict[str, Any]:
         """Validate configuration file integrity.
         
@@ -184,13 +199,13 @@ class ConfigPersistenceManager:
             "history_entries": 0,
             "errors": []
         }
-        
+
         try:
             if result["config_file_exists"]:
                 with open(self.config_file, 'r') as f:
                     config = json.load(f)
                     result["config_file_readable"] = True
-                    
+
                     # Validate required fields
                     required_fields = ["aws_profile", "aws_region", "last_updated"]
                     if all(field in config for field in required_fields):
@@ -198,12 +213,12 @@ class ConfigPersistenceManager:
                     else:
                         missing_fields = [f for f in required_fields if f not in config]
                         result["errors"].append(f"Missing required fields: {missing_fields}")
-        
+
         except json.JSONDecodeError as e:
             result["errors"].append(f"Invalid JSON in config file: {str(e)}")
         except Exception as e:
             result["errors"].append(f"Error reading config file: {str(e)}")
-        
+
         try:
             if result["history_file_exists"]:
                 with open(self.history_file, 'r') as f:
@@ -211,9 +226,9 @@ class ConfigPersistenceManager:
                     result["history_entries"] = len(history.get('entries', []))
         except Exception as e:
             result["errors"].append(f"Error reading history file: {str(e)}")
-        
+
         return result
-    
+
     def clear_config(self) -> bool:
         """Clear all configuration files.
         
@@ -223,14 +238,14 @@ class ConfigPersistenceManager:
         try:
             if self.config_file.exists():
                 self.config_file.unlink()
-            
+
             if self.history_file.exists():
                 self.history_file.unlink()
-            
+
             return True
         except Exception:
             return False
-    
+
     def _save_to_history(self, config_data: Dict[str, Any]) -> None:
         """Save configuration change to history file.
         
@@ -239,29 +254,29 @@ class ConfigPersistenceManager:
         """
         try:
             history = {"entries": []}
-            
+
             # Load existing history
             if self.history_file.exists():
                 with open(self.history_file, 'r') as f:
                     history = json.load(f)
-            
+
             # Add new entry
             history_entry = config_data.copy()
             history_entry["change_id"] = len(history.get('entries', [])) + 1
             history.setdefault('entries', []).append(history_entry)
-            
+
             # Keep only last 50 entries
             if len(history['entries']) > 50:
                 history['entries'] = history['entries'][-50:]
-            
+
             # Save back to file
             with open(self.history_file, 'w') as f:
                 json.dump(history, f, indent=2)
-                
+
         except Exception:
             # Don't fail the main operation if history save fails
             pass
-    
+
     def export_config(self, export_path: Path) -> bool:
         """Export current configuration to a file.
         
@@ -275,26 +290,26 @@ class ConfigPersistenceManager:
             current_config = self.load_current_config()
             if current_config is None:
                 return False
-            
+
             # Sanitize sensitive data before export
             sanitized_config = self._sanitize_config_for_export(current_config)
-            sanitized_history = [self._sanitize_config_for_export(entry) 
+            sanitized_history = [self._sanitize_config_for_export(entry)
                                for entry in self.get_config_history(20)]
-            
+
             export_data = {
                 "export_timestamp": datetime.now(UTC).isoformat(),
                 "current_config": sanitized_config,
                 "config_history": sanitized_history,
                 "note": "Sensitive data has been sanitized for security"
             }
-            
+
             with open(export_path, 'w') as f:
                 json.dump(export_data, f, indent=2)
-            
+
             return True
         except Exception:
             return False
-    
+
     def import_config(self, import_path: Path) -> bool:
         """Import configuration from a file.
         
@@ -307,18 +322,18 @@ class ConfigPersistenceManager:
         try:
             with open(import_path, 'r') as f:
                 import_data = json.load(f)
-            
+
             current_config = import_data.get('current_config')
             if current_config and 'aws_profile' in current_config and 'aws_region' in current_config:
                 return self.restore_config(
                     current_config['aws_profile'],
                     current_config['aws_region']
                 )
-            
+
             return False
         except Exception:
             return False
-    
+
     def _sanitize_config_for_export(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Sanitize configuration data by removing or masking sensitive information.
         
@@ -330,13 +345,13 @@ class ConfigPersistenceManager:
         """
         if not isinstance(config_data, dict):
             return config_data
-            
+
         sanitized = config_data.copy()
-        
+
         # Remove or mask sensitive keys in metadata
         if 'metadata' in sanitized and isinstance(sanitized['metadata'], dict):
             metadata = sanitized['metadata'].copy()
-            
+
             # Remove identity information that might contain account numbers
             if 'identity' in metadata:
                 if isinstance(metadata['identity'], dict):
@@ -346,14 +361,14 @@ class ConfigPersistenceManager:
                     }
                 else:
                     metadata['identity'] = '[SANITIZED]'
-            
+
             # Sanitize any other potentially sensitive metadata
             for key in ['credentials', 'access_key', 'secret_key', 'session_token']:
                 if key in metadata:
                     metadata[key] = '[SANITIZED]'
-            
+
             sanitized['metadata'] = metadata
-        
+
         return sanitized
 
 

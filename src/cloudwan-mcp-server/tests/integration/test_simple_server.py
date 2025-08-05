@@ -1,6 +1,20 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 #!/usr/bin/env python3
-"""
-Simplified CloudWAN MCP Server for Claude Code compatibility testing.
+"""Simplified CloudWAN MCP Server for Claude Code compatibility testing.
 
 This is a minimal version based on the working core-mcp-server pattern.
 """
@@ -8,9 +22,7 @@ This is a minimal version based on the working core-mcp-server pattern.
 import sys
 from mcp.server.fastmcp import FastMCP
 from typing import List, TypedDict
-import asyncio
-import boto3
-import json
+
 
 class ContentItem(TypedDict):
     type: str
@@ -38,47 +50,47 @@ async def get_global_networks() -> str:
         # Simple implementation for testing
         import boto3
         import os
-        
+
         # Get AWS session
         profile = os.getenv('AWS_PROFILE')
         region = os.getenv('AWS_DEFAULT_REGION', 'us-west-2')
-        
+
         if profile:
             session = boto3.Session(profile_name=profile)
         else:
             session = boto3.Session()
-            
+
         client = session.client('networkmanager', region_name=region)
-        
+
         # Get global networks
         response = client.describe_global_networks()
         global_networks = response.get('GlobalNetworks', [])
-        
+
         if not global_networks:
             return "No CloudWAN Global Networks found in your account."
-        
+
         result = f"Found {len(global_networks)} CloudWAN Global Network(s):\n\n"
-        
+
         for i, gn in enumerate(global_networks, 1):
             result += f"{i}. Global Network ID: {gn.get('GlobalNetworkId', 'N/A')}\n"
             result += f"   State: {gn.get('State', 'N/A')}\n"
             result += f"   Description: {gn.get('Description', 'No description')}\n"
             result += f"   Created: {gn.get('CreatedAt', 'N/A')}\n"
-            
+
             # Tags
             tags = gn.get('Tags', [])
             if tags:
                 tag_str = ', '.join([f"{t.get('Key')}={t.get('Value')}" for t in tags[:3]])
                 result += f"   Tags: {tag_str}\n"
-            
+
             result += "\n"
-        
+
         return result
-        
+
     except Exception as e:
         return f"Error retrieving global networks: {str(e)}"
 
-@mcp.tool(name='list_core_networks') 
+@mcp.tool(name='list_core_networks')
 async def list_core_networks() -> str:
     """List AWS CloudWAN Core Networks.
     
@@ -87,44 +99,44 @@ async def list_core_networks() -> str:
     try:
         import boto3
         import os
-        
+
         # Get AWS session
         profile = os.getenv('AWS_PROFILE')
         region = os.getenv('AWS_DEFAULT_REGION', 'us-west-2')
-        
+
         if profile:
             session = boto3.Session(profile_name=profile)
         else:
             session = boto3.Session()
-            
+
         client = session.client('networkmanager', region_name=region)
-        
+
         # Get core networks
         response = client.describe_core_networks()
         core_networks = response.get('CoreNetworks', [])
-        
+
         if not core_networks:
             return "No CloudWAN Core Networks found in your account."
-        
+
         result = f"Found {len(core_networks)} CloudWAN Core Network(s):\n\n"
-        
+
         for i, cn in enumerate(core_networks, 1):
             result += f"{i}. Core Network ID: {cn.get('CoreNetworkId', 'N/A')}\n"
             result += f"   State: {cn.get('State', 'N/A')}\n"
             result += f"   Global Network: {cn.get('GlobalNetworkId', 'N/A')}\n"
             result += f"   Policy Version: {cn.get('PolicyVersionId', 'N/A')}\n"
             result += f"   Created: {cn.get('CreatedAt', 'N/A')}\n"
-            
+
             # Tags
             tags = cn.get('Tags', [])
             if tags:
                 tag_str = ', '.join([f"{t.get('Key')}={t.get('Value')}" for t in tags[:3]])
                 result += f"   Tags: {tag_str}\n"
-            
+
             result += "\n"
-        
+
         return result
-        
+
     except Exception as e:
         return f"Error retrieving core networks: {str(e)}"
 

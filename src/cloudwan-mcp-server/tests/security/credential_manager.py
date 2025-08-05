@@ -12,36 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Secure credential management for CloudWAN MCP Server tests.
+"""Secure credential management for CloudWAN MCP Server tests.
 
 This module provides enterprise-grade credential security for test environments,
 addressing SOC 2 and GDPR compliance requirements while preventing credential
 exposure and ensuring proper test isolation.
 """
 
-import uuid
-import os
-import secrets
 import base64
-import json
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
 import hashlib
+import json
 import logging
-from threading import Lock
+import secrets
+import uuid
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from threading import Lock
+from typing import Any, Dict, List, Optional
+
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TemporalCredentials:
-    """
-    Temporal test credentials with automatic expiration and rotation.
+    """Temporal test credentials with automatic expiration and rotation.
     
     Implements security best practices for test credential lifecycle:
     - UUID-based credential generation
@@ -54,23 +52,23 @@ class TemporalCredentials:
     session_token: str
     expires_at: datetime
     test_session_id: str
-    
+
     def is_expired(self) -> bool:
         """Check if credentials have expired."""
         return datetime.utcnow() > self.expires_at
-    
+
     def to_env_dict(self) -> Dict[str, str]:
         """Convert to environment variable dictionary."""
         if self.is_expired():
             raise CredentialSecurityError("Attempted to use expired test credentials")
-        
+
         return {
             'AWS_ACCESS_KEY_ID': self.access_key,
             'AWS_SECRET_ACCESS_KEY': self.secret_key,
             'AWS_SESSION_TOKEN': self.session_token,
             'AWS_TEST_SESSION_ID': self.test_session_id
         }
-    
+
     def cleanup(self) -> None:
         """Securely cleanup credential data from memory."""
         # Overwrite sensitive data with cryptographically secure random values
@@ -92,8 +90,7 @@ class CredentialSecurityError(Exception):
 
 
 class CredentialManager:
-    """
-    Enterprise-grade credential management for test environments.
+    """Enterprise-grade credential management for test environments.
     
     Features:
     - SOC 2 Type II compliance
@@ -102,14 +99,14 @@ class CredentialManager:
     - Memory security cleanup
     - GDPR-compliant data handling
     """
-    
+
     # Configurable audit log management constants
     AUDIT_LOG_ROTATION_THRESHOLD = 1000
     AUDIT_LOG_RETENTION_COUNT = 500
-    
+
     _instance = None
     _lock = Lock()
-    
+
     def __new__(cls):
         """Singleton pattern for credential manager."""
         with cls._lock:
@@ -117,11 +114,11 @@ class CredentialManager:
                 cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
-        
+
         self._active_credentials: Dict[str, TemporalCredentials] = {}
         self._audit_log: List[Dict[str, Any]] = []
         self._rotation_strategy = 'per-test-run'
@@ -130,14 +127,14 @@ class CredentialManager:
         self._fernet = Fernet(self._encryption_key)
         self._audit_checksums = {}  # For tamper detection
         self._initialized = True
-        
+
         logger.info("CredentialManager initialized with security hardening")
-    
+
     def _generate_encryption_key(self) -> bytes:
         """Generate encryption key for audit log protection."""
         password = f"cloudwan-test-audit-{secrets.token_hex(16)}".encode()
         salt = secrets.token_bytes(16)
-        
+
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -146,18 +143,18 @@ class CredentialManager:
         )
         key = base64.urlsafe_b64encode(kdf.derive(password))
         return key
-    
+
     def _encrypt_audit_entry(self, entry: Dict[str, Any]) -> str:
         """Encrypt audit log entry for tamper protection."""
         entry_json = json.dumps(entry, sort_keys=True, default=str)
         encrypted_entry = self._fernet.encrypt(entry_json.encode())
         return base64.urlsafe_b64encode(encrypted_entry).decode()
-    
+
     def _generate_entry_checksum(self, entry: Dict[str, Any]) -> str:
         """Generate tamper-detection checksum for audit entry."""
         entry_json = json.dumps(entry, sort_keys=True, default=str)
         return hashlib.sha256(entry_json.encode()).hexdigest()
-    
+
     def _verify_audit_integrity(self) -> bool:
         """Verify audit log integrity using checksums."""
         try:
@@ -171,12 +168,11 @@ class CredentialManager:
         except Exception as e:
             logger.error(f"Audit integrity check failed: {e}")
             return False
-    
-    def generate_credentials(self, 
+
+    def generate_credentials(self,
                            duration: Optional[timedelta] = None,
                            test_context: str = "default") -> TemporalCredentials:
-        """
-        Generate secure temporal credentials for test execution.
+        """Generate secure temporal credentials for test execution.
         
         Args:
             duration: Credential validity duration (default: 15 minutes)
@@ -187,14 +183,14 @@ class CredentialManager:
         """
         duration = duration or self._default_duration
         test_session_id = str(uuid.uuid4())
-        
+
         # Generate cryptographically secure test credentials
         access_key = f"AKIA{self._generate_secure_suffix()}"
         secret_key = f"test-secret-{self._generate_secure_suffix(40)}"
         session_token = f"test-session-{self._generate_secure_suffix(32)}"
-        
+
         expires_at = datetime.utcnow() + duration
-        
+
         credentials = TemporalCredentials(
             access_key=access_key,
             secret_key=secret_key,
@@ -202,10 +198,10 @@ class CredentialManager:
             expires_at=expires_at,
             test_session_id=test_session_id
         )
-        
+
         # Store for lifecycle management
         self._active_credentials[test_session_id] = credentials
-        
+
         # Audit logging for compliance
         self._log_credential_event({
             'event': 'credential_generated',
@@ -214,27 +210,26 @@ class CredentialManager:
             'expires_at': expires_at.isoformat(),
             'timestamp': datetime.utcnow().isoformat()
         })
-        
+
         return credentials
-    
+
     def _generate_secure_suffix(self, length: int = 16) -> str:
         """Generate cryptographically secure random suffix."""
         return secrets.token_hex(length).upper()
-    
+
     def cleanup_expired_credentials(self) -> int:
-        """
-        Cleanup expired credentials from memory.
+        """Cleanup expired credentials from memory.
         
         Returns:
             int: Number of credentials cleaned up
         """
         expired_sessions = []
-        
+
         for session_id, credentials in self._active_credentials.items():
             if credentials.is_expired():
                 expired_sessions.append(session_id)
                 credentials.cleanup()
-        
+
         # Remove from active tracking
         for session_id in expired_sessions:
             del self._active_credentials[session_id]
@@ -243,29 +238,29 @@ class CredentialManager:
                 'session_id': session_id,
                 'timestamp': datetime.utcnow().isoformat()
             })
-        
+
         if expired_sessions:
             logger.info(f"Cleaned up {len(expired_sessions)} expired credential sets")
-        
+
         return len(expired_sessions)
-    
+
     def _log_credential_event(self, event: Dict[str, Any]) -> None:
         """Log credential lifecycle events for audit compliance with encryption."""
         # Add tamper detection metadata
         event['_audit_id'] = secrets.token_hex(8)
         event['_logged_at'] = datetime.utcnow().isoformat()
-        
+
         # Generate checksum before adding to log
         checksum = self._generate_entry_checksum(event)
         entry_index = len(self._audit_log)
-        
+
         # Store encrypted version in memory
         self._audit_log.append(event)
         self._audit_checksums[entry_index] = checksum
-        
+
         # Log security event (encrypted entry not logged for security)
         logger.info(f"Audit event logged: {event.get('event', 'unknown')} [ID: {event['_audit_id']}]")
-        
+
         # Rotate audit log if it gets too large (GDPR compliance)
         if len(self._audit_log) > self.AUDIT_LOG_ROTATION_THRESHOLD:
             self._audit_log = self._audit_log[-self.AUDIT_LOG_RETENTION_COUNT:]  # Keep last N events
@@ -275,7 +270,7 @@ class CredentialManager:
                 if old_index in self._audit_checksums:
                     new_checksums[i] = self._audit_checksums[old_index]
             self._audit_checksums = new_checksums
-    
+
     def get_audit_trail(self) -> List[Dict[str, Any]]:
         """Get credential audit trail for compliance reporting with integrity verification."""
         # Verify audit log integrity before returning
@@ -283,14 +278,14 @@ class CredentialManager:
             logger.error("Audit log integrity compromised - returning secured snapshot")
             # Return sanitized version indicating tampering
             return [{"error": "Audit log integrity compromised", "timestamp": datetime.utcnow().isoformat()}]
-        
+
         # Return decrypted audit trail for authorized access
         return self._audit_log.copy()
-    
+
     def emergency_cleanup(self) -> None:
         """Emergency cleanup of all credentials (security incident response)."""
         logger.warning("Emergency credential cleanup initiated")
-        
+
         for session_id, credentials in self._active_credentials.items():
             credentials.cleanup()
             self._log_credential_event({
@@ -298,7 +293,7 @@ class CredentialManager:
                 'session_id': session_id,
                 'timestamp': datetime.utcnow().isoformat()
             })
-        
+
         self._active_credentials.clear()
 
 
@@ -307,8 +302,7 @@ credential_manager = CredentialManager()
 
 
 def get_secure_test_credentials(test_context: str = "pytest") -> TemporalCredentials:
-    """
-    Get secure test credentials with automatic lifecycle management.
+    """Get secure test credentials with automatic lifecycle management.
     
     Args:
         test_context: Context identifier for audit trail
@@ -318,5 +312,5 @@ def get_secure_test_credentials(test_context: str = "pytest") -> TemporalCredent
     """
     # Cleanup expired credentials before generating new ones
     credential_manager.cleanup_expired_credentials()
-    
+
     return credential_manager.generate_credentials(test_context=test_context)

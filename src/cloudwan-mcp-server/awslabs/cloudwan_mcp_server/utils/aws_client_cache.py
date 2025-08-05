@@ -1,10 +1,25 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+import boto3
+import logging
 import threading
 import time
-from typing import Dict, Any, Optional
-from functools import wraps
-import boto3
 from botocore.client import BaseClient
-import logging
+from typing import Any, Dict, Optional
+
 
 class ThreadSafeAWSClientCache:
     def __init__(
@@ -13,8 +28,7 @@ class ThreadSafeAWSClientCache:
         max_age: float = 3600.0,  # 1 hour default expiry
         prune_interval: float = 300.0  # Prune every 5 minutes
     ):
-        """
-        Thread-safe AWS client cache with configurable size and expiry.
+        """Thread-safe AWS client cache with configurable size and expiry.
         
         Args:
             max_size: Maximum number of cached clients
@@ -41,7 +55,7 @@ class ThreadSafeAWSClientCache:
     def _prune_cache(self) -> None:
         """Remove expired or excess cache entries."""
         current_time = time.time()
-        
+
         with self._lock:
             # Remove expired entries
             self._cache = {
@@ -49,7 +63,7 @@ class ThreadSafeAWSClientCache:
                 in self._cache.items()
                 if current_time - entry['timestamp'] < self._max_age
             }
-            
+
             # Remove excess entries if over max size
             if len(self._cache) > self._max_size:
                 sorted_entries = sorted(
@@ -58,7 +72,7 @@ class ThreadSafeAWSClientCache:
                 )
                 for key, _ in sorted_entries[:len(self._cache) - self._max_size]:
                     del self._cache[key]
-            
+
             self._last_prune = current_time
 
     def get_client(
@@ -67,8 +81,7 @@ class ThreadSafeAWSClientCache:
         region: Optional[str] = None,
         profile: Optional[str] = None
     ) -> BaseClient:
-        """
-        Thread-safe method to retrieve or create AWS client.
+        """Thread-safe method to retrieve or create AWS client.
         
         Args:
             service: AWS service name (e.g. 's3', 'ec2')
@@ -91,29 +104,29 @@ class ThreadSafeAWSClientCache:
                 cached_entry = self._cache[cache_key]
                 if current_time - cached_entry['timestamp'] < self._max_age:
                     return cached_entry['client']
-            
+
             # Create new client
             try:
                 session_kwargs = {}
                 if profile:
                     session_kwargs['profile_name'] = profile
-                
+
                 session = boto3.Session(**session_kwargs)
                 client_kwargs = {'service_name': service}
-                
+
                 if region:
                     client_kwargs['region_name'] = region
-                
+
                 new_client = session.client(**client_kwargs)
-                
+
                 # Store in cache
                 self._cache[cache_key] = {
                     'client': new_client,
                     'timestamp': current_time
                 }
-                
+
                 return new_client
-            
+
             except Exception as e:
                 self.logger.error(f"Failed to create AWS client: {e}")
                 raise

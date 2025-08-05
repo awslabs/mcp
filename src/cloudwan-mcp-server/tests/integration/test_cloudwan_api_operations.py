@@ -16,18 +16,24 @@
 
 import json
 import pytest
-from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
-from botocore.exceptions import ClientError
-
 from awslabs.cloudwan_mcp_server.server import (
-    list_core_networks, get_global_networks, get_core_network_policy,
-    get_core_network_change_set, get_core_network_change_events,
-    discover_vpcs, trace_network_path, validate_ip_cidr,
-    analyze_tgw_routes, analyze_tgw_peers, analyze_segment_routes,
-    manage_tgw_routes, list_network_function_groups, analyze_network_function_group,
-    validate_cloudwan_policy
+    analyze_network_function_group,
+    analyze_segment_routes,
+    analyze_tgw_peers,
+    analyze_tgw_routes,
+    discover_vpcs,
+    get_core_network_policy,
+    get_global_networks,
+    list_core_networks,
+    list_network_function_groups,
+    manage_tgw_routes,
+    trace_network_path,
+    validate_cloudwan_policy,
+    validate_ip_cidr,
 )
+from botocore.exceptions import ClientError
+from datetime import datetime
+from unittest.mock import Mock, patch
 
 
 class TestListCoreNetworksOperation:
@@ -41,9 +47,9 @@ class TestListCoreNetworksOperation:
             mock_client = Mock()
             mock_client.list_core_networks.return_value = {'CoreNetworks': []}
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks()
-            
+
             assert isinstance(result, str)
             parsed = json.loads(result)
             assert parsed['success'] is True
@@ -66,20 +72,20 @@ class TestListCoreNetworksOperation:
             },
             {
                 'CoreNetworkId': 'core-network-fedcba0987654321',
-                'GlobalNetworkId': 'global-network-fedcba0987654321', 
+                'GlobalNetworkId': 'global-network-fedcba0987654321',
                 'State': 'AVAILABLE',
                 'CreatedAt': datetime(2024, 1, 16, 11, 45, 30),
                 'Description': 'Development core network'
             }
         ]
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.list_core_networks.return_value = {'CoreNetworks': sample_networks}
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks(region='us-west-2')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 2
@@ -98,9 +104,9 @@ class TestListCoreNetworksOperation:
                 'ListCoreNetworks'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert 'User not authorized' in parsed['error']
@@ -122,14 +128,14 @@ class TestGetGlobalNetworksOperation:
                 'Description': 'Main global network'
             }
         ]
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.describe_global_networks.return_value = {'GlobalNetworks': sample_networks}
             mock_get_client.return_value = mock_client
-            
+
             result = await get_global_networks(region='eu-west-1')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 1
@@ -144,9 +150,9 @@ class TestGetGlobalNetworksOperation:
             mock_client = Mock()
             mock_client.describe_global_networks.return_value = {'GlobalNetworks': []}
             mock_get_client.return_value = mock_client
-            
+
             result = await get_global_networks()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 0
@@ -172,14 +178,14 @@ class TestGetCoreNetworkPolicyOperation:
             'Description': 'Production network policy',
             'CreatedAt': datetime(2024, 1, 15, 10, 30, 45)
         }
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.get_core_network_policy.return_value = {'CoreNetworkPolicy': sample_policy}
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy('core-network-123', alias='LIVE')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['core_network_id'] == 'core-network-123'
@@ -202,9 +208,9 @@ class TestGetCoreNetworkPolicyOperation:
                 'GetCoreNetworkPolicy'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await get_core_network_policy('invalid-network')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert 'Core network not found' in parsed['error']
@@ -232,14 +238,14 @@ class TestDiscoverVPCsOperation:
                 'Tags': [{'Key': 'Name', 'Value': 'Development VPC'}]
             }
         ]
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.describe_vpcs.return_value = {'Vpcs': sample_vpcs}
             mock_get_client.return_value = mock_client
-            
+
             result = await discover_vpcs(region='us-east-1')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 2
@@ -255,9 +261,9 @@ class TestDiscoverVPCsOperation:
             mock_client = Mock()
             mock_client.describe_vpcs.return_value = {'Vpcs': []}
             mock_get_client.return_value = mock_client
-            
+
             result = await discover_vpcs()
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['total_count'] == 0
@@ -272,7 +278,7 @@ class TestTraceNetworkPathOperation:
     async def test_trace_network_path_success(self):
         """Test trace_network_path with valid IPs."""
         result = await trace_network_path('10.0.1.100', '172.16.1.200', region='us-west-2')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['source_ip'] == '10.0.1.100'
@@ -286,7 +292,7 @@ class TestTraceNetworkPathOperation:
     async def test_trace_network_path_invalid_ip(self):
         """Test trace_network_path with invalid IP address."""
         result = await trace_network_path('invalid-ip', '10.0.1.1')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is False
         assert 'trace_network_path failed:' in parsed['error']
@@ -296,7 +302,7 @@ class TestTraceNetworkPathOperation:
     async def test_trace_network_path_ipv6(self):
         """Test trace_network_path with IPv6 addresses."""
         result = await trace_network_path('2001:db8::1', '2001:db8::2')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['source_ip'] == '2001:db8::1'
@@ -311,7 +317,7 @@ class TestValidateIPCIDROperation:
     async def test_validate_ip_cidr_valid_ip(self):
         """Test validate_ip_cidr with valid IP validation."""
         result = await validate_ip_cidr('validate_ip', ip='192.168.1.100')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['operation'] == 'validate_ip'
@@ -324,7 +330,7 @@ class TestValidateIPCIDROperation:
     async def test_validate_ip_cidr_valid_cidr(self):
         """Test validate_ip_cidr with valid CIDR validation."""
         result = await validate_ip_cidr('validate_cidr', cidr='10.0.0.0/24')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['operation'] == 'validate_cidr'
@@ -338,7 +344,7 @@ class TestValidateIPCIDROperation:
     async def test_validate_ip_cidr_invalid_operation(self):
         """Test validate_ip_cidr with invalid operation."""
         result = await validate_ip_cidr('invalid_operation')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is False
         assert 'Invalid operation or missing parameters' in parsed['error']
@@ -349,7 +355,7 @@ class TestValidateIPCIDROperation:
     async def test_validate_ip_cidr_invalid_cidr(self):
         """Test validate_ip_cidr with invalid CIDR."""
         result = await validate_ip_cidr('validate_cidr', cidr='invalid/cidr')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is False
         assert 'validate_ip_cidr failed:' in parsed['error']
@@ -374,14 +380,14 @@ class TestAnalyzeTGWRoutesOperation:
                 'Type': 'static'
             }
         ]
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.search_transit_gateway_routes.return_value = {'Routes': sample_routes}
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_routes('tgw-rtb-123456789')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['route_table_id'] == 'tgw-rtb-123456789'
@@ -400,9 +406,9 @@ class TestAnalyzeTGWRoutesOperation:
                 'SearchTransitGatewayRoutes'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_routes('tgw-rtb-invalid')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'UnauthorizedOperation'
@@ -424,16 +430,16 @@ class TestAnalyzeTGWPeersOperation:
             'RequesterTgwInfo': {'TransitGatewayId': 'tgw-123456789'},
             'Tags': []
         }
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.describe_transit_gateway_peering_attachments.return_value = {
                 'TransitGatewayPeeringAttachments': [sample_attachment]
             }
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_peers('tgw-attach-123456789')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['peer_id'] == 'tgw-attach-123456789'
@@ -450,9 +456,9 @@ class TestAnalyzeTGWPeersOperation:
                 'TransitGatewayPeeringAttachments': []
             }
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_tgw_peers('invalid-peer-id')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert 'No peering attachment found' in parsed['error']
@@ -475,9 +481,9 @@ class TestValidateCloudWANPolicyOperation:
                 ]
             }
         }
-        
+
         result = await validate_cloudwan_policy(valid_policy)
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['overall_status'] == 'valid'
@@ -492,17 +498,17 @@ class TestValidateCloudWANPolicyOperation:
             'version': '2021.12'
             # Missing 'core-network-configuration'
         }
-        
+
         result = await validate_cloudwan_policy(invalid_policy)
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True  # Function succeeds but validation fails
         assert parsed['overall_status'] == 'invalid'
-        
+
         # Check that missing field is reported
         validation_results = parsed['validation_results']
         missing_core_config = next(
-            (r for r in validation_results if r['field'] == 'core-network-configuration'), 
+            (r for r in validation_results if r['field'] == 'core-network-configuration'),
             None
         )
         assert missing_core_config is not None
@@ -513,7 +519,7 @@ class TestValidateCloudWANPolicyOperation:
     async def test_validate_cloudwan_policy_empty(self):
         """Test validate_cloudwan_policy with empty policy document."""
         result = await validate_cloudwan_policy({})
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['overall_status'] == 'invalid'
@@ -528,12 +534,12 @@ class TestManageTGWRoutesOperation:
     async def test_manage_tgw_routes_create(self):
         """Test manage_tgw_routes with route creation."""
         result = await manage_tgw_routes(
-            'create', 
-            'tgw-rtb-123456789', 
+            'create',
+            'tgw-rtb-123456789',
             '10.0.0.0/16',
             region='us-east-1'
         )
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['operation'] == 'create'
@@ -550,7 +556,7 @@ class TestManageTGWRoutesOperation:
             'tgw-rtb-123456789',
             'invalid-cidr'
         )
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is False
         assert 'manage_tgw_routes failed:' in parsed['error']
@@ -561,10 +567,10 @@ class TestManageTGWRoutesOperation:
         """Test manage_tgw_routes with blackhole operation."""
         result = await manage_tgw_routes(
             'blackhole',
-            'tgw-rtb-123456789', 
+            'tgw-rtb-123456789',
             '192.168.0.0/24'
         )
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['operation'] == 'blackhole'
@@ -589,14 +595,14 @@ class TestAnalyzeSegmentRoutesOperation:
                 })
             }
         }
-        
+
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
             mock_client.get_core_network_policy.return_value = sample_policy
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_segment_routes('core-network-123', 'production')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is True
             assert parsed['core_network_id'] == 'core-network-123'
@@ -616,9 +622,9 @@ class TestAnalyzeSegmentRoutesOperation:
                 'GetCoreNetworkPolicy'
             )
             mock_get_client.return_value = mock_client
-            
+
             result = await analyze_segment_routes('invalid-network', 'production')
-            
+
             parsed = json.loads(result)
             assert parsed['success'] is False
             assert parsed['error_code'] == 'ResourceNotFoundException'
@@ -632,13 +638,13 @@ class TestListNetworkFunctionGroupsOperation:
     async def test_list_network_function_groups_success(self):
         """Test list_network_function_groups with successful response."""
         result = await list_network_function_groups(region='ap-southeast-1')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['region'] == 'ap-southeast-1'
         assert 'network_function_groups' in parsed
         assert isinstance(parsed['network_function_groups'], list)
-        
+
         # Check simulated data structure
         if parsed['network_function_groups']:
             nfg = parsed['network_function_groups'][0]
@@ -651,7 +657,7 @@ class TestListNetworkFunctionGroupsOperation:
     async def test_analyze_network_function_group_success(self):
         """Test analyze_network_function_group with successful analysis."""
         result = await analyze_network_function_group('production-nfg', region='us-east-1')
-        
+
         parsed = json.loads(result)
         assert parsed['success'] is True
         assert parsed['group_name'] == 'production-nfg'

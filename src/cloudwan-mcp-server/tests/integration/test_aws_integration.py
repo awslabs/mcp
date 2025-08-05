@@ -16,15 +16,13 @@
 
 import json
 import pytest
-from unittest.mock import patch, Mock
-from moto import mock_aws
-from botocore.exceptions import ClientError
-
 from awslabs.cloudwan_mcp_server.server import (
-    list_core_networks,
     discover_vpcs,
-    analyze_tgw_routes
+    list_core_networks,
 )
+from botocore.exceptions import ClientError
+from moto import mock_aws
+from unittest.mock import Mock, patch
 
 
 class TestAWSServiceIntegration:
@@ -35,20 +33,20 @@ class TestAWSServiceIntegration:
         """Test VPC discovery with moto EC2 mocking."""
         with mock_aws():
             import boto3
-            
+
             # Create test VPC using moto
             ec2 = boto3.client("ec2", region_name="us-east-1")
             vpc = ec2.create_vpc(CidrBlock="10.0.0.0/16")
             vpc_id = vpc["Vpc"]["VpcId"]
-            
+
             # Clear any existing cached clients
             from awslabs.cloudwan_mcp_server.server import _client_cache
             _client_cache.clear()
-            
+
             # Test VPC discovery
             result = await discover_vpcs("us-east-1")
             response = json.loads(result)
-            
+
             assert response["success"] is True
             assert response["total_count"] >= 1  # At least our created VPC
             assert len(response["vpcs"]) >= 1
@@ -56,29 +54,29 @@ class TestAWSServiceIntegration:
             vpc_ids = [vpc["VpcId"] for vpc in response["vpcs"]]
             assert vpc_id in vpc_ids
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_multiple_vpcs_discovery(self):
         """Test discovery of multiple VPCs."""
         with mock_aws():
             import boto3
-            
+
             ec2 = boto3.client("ec2", region_name="us-west-2")
-            
+
             # Create multiple VPCs
             vpc1 = ec2.create_vpc(CidrBlock="10.0.0.0/16")
-            vpc2 = ec2.create_vpc(CidrBlock="172.16.0.0/16") 
+            vpc2 = ec2.create_vpc(CidrBlock="172.16.0.0/16")
             vpc3 = ec2.create_vpc(CidrBlock="192.168.0.0/16")
-            
+
             from awslabs.cloudwan_mcp_server.server import _client_cache
             _client_cache.clear()
-            
+
             result = await discover_vpcs("us-west-2")
             response = json.loads(result)
-            
+
             assert response["success"] is True
             assert response["total_count"] >= 3  # At least our 3 created VPCs
             assert len(response["vpcs"]) >= 3
-            
+
             # Check that our VPCs are present
             vpc_ids = {vpc["VpcId"] for vpc in response["vpcs"]}
             expected_ids = {vpc1["Vpc"]["VpcId"], vpc2["Vpc"]["VpcId"], vpc3["Vpc"]["VpcId"]}
@@ -98,10 +96,10 @@ class TestAWSServiceIntegration:
             mock_client.return_value.list_core_networks.side_effect = ClientError(
                 error_response, 'ListCoreNetworks'
             )
-            
+
             result = await list_core_networks("us-east-1")
             response = json.loads(result)
-            
+
             assert response["success"] is False
             assert response["error_code"] == "UnauthorizedOperation"
             assert "You are not authorized" in response["error"]
@@ -120,10 +118,10 @@ class TestAWSServiceIntegration:
             mock_client.return_value.describe_vpcs.side_effect = ClientError(
                 error_response, 'DescribeVpcs'
             )
-            
+
             result = await discover_vpcs("us-east-1")
             response = json.loads(result)
-            
+
             assert response["success"] is False
             assert response["error_code"] == "ServiceUnavailable"
 
@@ -134,10 +132,10 @@ class TestAWSServiceIntegration:
             # Setup different responses for different regions
             east_client = Mock()
             west_client = Mock()
-            
+
             east_client.list_core_networks.return_value = {"CoreNetworks": [{"CoreNetworkId": "east-network"}]}
             west_client.list_core_networks.return_value = {"CoreNetworks": [{"CoreNetworkId": "west-network"}]}
-            
+
             def get_client_side_effect(service, region):
                 if region == "us-east-1":
                     return east_client
@@ -145,16 +143,16 @@ class TestAWSServiceIntegration:
                     return west_client
                 else:
                     return Mock()
-            
+
             mock_get_client.side_effect = get_client_side_effect
-            
+
             # Test both regions
             east_result = await list_core_networks("us-east-1")
             west_result = await list_core_networks("us-west-2")
-            
+
             east_response = json.loads(east_result)
             west_response = json.loads(west_result)
-            
+
             # Verify different clients were called
             assert east_response["core_networks"][0]["CoreNetworkId"] == "east-network"
             assert west_response["core_networks"][0]["CoreNetworkId"] == "west-network"
@@ -172,14 +170,14 @@ class TestAWSCredentialsHandling:
             mock_client = Mock()
             mock_client.list_core_networks.return_value = {"CoreNetworks": []}
             mock_session_instance.client.return_value = mock_client
-            
+
             with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile'}):
                 from awslabs.cloudwan_mcp_server.server import _client_cache
                 _client_cache.clear()  # Clear cache to force new client creation
-                
+
                 result = await list_core_networks("us-east-1")
                 response = json.loads(result)
-                
+
                 # Verify session was created with correct profile
                 mock_session.assert_called_with(profile_name="test-profile")
                 assert response["success"] is True
@@ -191,14 +189,14 @@ class TestAWSCredentialsHandling:
             mock_client = Mock()
             mock_client.list_core_networks.return_value = {"CoreNetworks": []}
             mock_client_func.return_value = mock_client
-            
+
             with patch.dict('os.environ', {}, clear=True):
                 from awslabs.cloudwan_mcp_server.server import _client_cache
                 _client_cache.clear()
-                
+
                 result = await list_core_networks("us-east-1")
                 response = json.loads(result)
-                
+
                 # Verify direct boto3.client was called (no profile)
                 mock_client_func.assert_called()
                 assert response["success"] is True
@@ -208,14 +206,14 @@ class TestAWSCredentialsHandling:
         """Test handling of invalid AWS profile."""
         with patch('boto3.Session') as mock_session:
             mock_session.side_effect = Exception("Profile not found")
-            
+
             with patch.dict('os.environ', {'AWS_PROFILE': 'invalid-profile'}):
                 from awslabs.cloudwan_mcp_server.server import _client_cache
                 _client_cache.clear()
-                
+
                 result = await list_core_networks("us-east-1")
                 response = json.loads(result)
-                
+
                 assert response["success"] is False
                 assert "Profile not found" in response["error"]
 
@@ -225,21 +223,21 @@ class TestAWSConfigurationIntegration:
 
     def test_boto3_config_parameters(self):
         """Test that boto3 clients are configured with correct parameters."""
-        from awslabs.cloudwan_mcp_server.server import get_aws_client, _client_cache
+        from awslabs.cloudwan_mcp_server.server import _client_cache, get_aws_client
         _client_cache.clear()  # Clear cache to force client creation
-        
+
         with patch.dict('os.environ', {'AWS_PROFILE': ''}, clear=True):
             with patch('boto3.client') as mock_client:
                 mock_client.return_value = Mock()
-                
+
                 client = get_aws_client("networkmanager", "eu-central-1")
-                
+
                 # Verify boto3.client was called with correct config
                 assert mock_client.called
                 call_args = mock_client.call_args
                 assert call_args is not None
                 config = call_args[1]["config"]
-                
+
                 assert config.region_name == "eu-central-1"
                 assert config.retries["max_attempts"] == 3
                 assert config.retries["mode"] == "adaptive"
@@ -250,7 +248,7 @@ class TestAWSConfigurationIntegration:
         """Test connection retry behavior with transient errors."""
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             mock_client = Mock()
-            
+
             # Simulate transient network error that succeeds on retry
             error_response = {
                 'Error': {
@@ -263,10 +261,10 @@ class TestAWSConfigurationIntegration:
                 {"CoreNetworks": [{"CoreNetworkId": "success"}]}
             ]
             mock_get_client.return_value = mock_client
-            
+
             result = await list_core_networks("us-east-1")
             response = json.loads(result)
-            
+
             # First call should fail, but error handling should work
             assert response["success"] is False
             assert response["error_code"] == "RequestTimeout"
@@ -277,7 +275,7 @@ class TestAWSConfigurationIntegration:
         with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
             # Track calls per region
             region_calls = {}
-            
+
             def track_calls(service, region):
                 if region not in region_calls:
                     region_calls[region] = Mock()
@@ -285,17 +283,17 @@ class TestAWSConfigurationIntegration:
                         "Vpcs": [{"VpcId": f"vpc-{region}", "Region": region}]
                     }
                 return region_calls[region]
-            
+
             mock_get_client.side_effect = track_calls
-            
+
             # Call tools for different regions
             regions = ["us-east-1", "us-west-2", "eu-west-1"]
             results = []
-            
+
             for region in regions:
                 result = await discover_vpcs(region)
                 results.append((region, json.loads(result)))
-            
+
             # Verify each region got its own client and response
             assert len(region_calls) == 3
             for region, response in results:
@@ -312,30 +310,30 @@ class TestToolIntegration:
         """Test workflow that chains multiple tools together."""
         # Simulate a workflow: list core networks -> get policy -> analyze changes
         from awslabs.cloudwan_mcp_server.server import (
-            list_core_networks,
+            get_core_network_change_set,
             get_core_network_policy,
-            get_core_network_change_set
+            list_core_networks,
         )
-        
+
         # Step 1: List core networks
         networks_result = await list_core_networks("us-east-1")
         networks_response = json.loads(networks_result)
         assert networks_response["success"] is True
-        
+
         core_network_id = networks_response["core_networks"][0]["CoreNetworkId"]
-        
+
         # Step 2: Get policy for first network
         policy_result = await get_core_network_policy(core_network_id)
         policy_response = json.loads(policy_result)
         assert policy_response["success"] is True
-        
+
         policy_version_id = str(policy_response["policy_version_id"])
-        
+
         # Step 3: Get change set for policy
         changes_result = await get_core_network_change_set(core_network_id, policy_version_id)
         changes_response = json.loads(changes_result)
         assert changes_response["success"] is True
-        
+
         # Verify data flows correctly between tools
         assert changes_response["core_network_id"] == core_network_id
         assert changes_response["policy_version_id"] == policy_version_id
@@ -345,7 +343,7 @@ class TestToolIntegration:
         """Test that errors propagate correctly in tool workflows."""
         from awslabs.cloudwan_mcp_server.server import get_core_network_policy
         from botocore.exceptions import ClientError
-        
+
         # Mock error in policy retrieval
         error_response = {
             'Error': {
@@ -356,10 +354,10 @@ class TestToolIntegration:
         mock_get_aws_client.return_value.get_core_network_policy.side_effect = ClientError(
             error_response, 'GetCoreNetworkPolicy'
         )
-        
+
         result = await get_core_network_policy("invalid-network-id")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert response["error_code"] == "ResourceNotFoundException"
         assert "Core network not found" in response["error"]

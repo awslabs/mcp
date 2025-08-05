@@ -14,17 +14,15 @@
 
 """Base classes for MCP tools following AWS Labs patterns."""
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
-from pydantic import BaseModel, ValidationError
-
-from ..utils.response_formatter import format_error_response, format_success_response
 from ..utils.logger import get_logger
+from ..utils.response_formatter import format_error_response, format_success_response
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional
 
 
 class BaseMCPTool(ABC):
     """Base class for all MCP tools following AWS Labs patterns."""
-    
+
     def __init__(self, name: str, description: str):
         """Initialize base MCP tool.
         
@@ -35,7 +33,7 @@ class BaseMCPTool(ABC):
         self.name = name
         self.description = description
         self.logger = get_logger(f"{__name__}.{name}")
-    
+
     @abstractmethod
     async def execute(self, **kwargs) -> Dict[str, Any]:
         """Execute the tool operation.
@@ -47,7 +45,7 @@ class BaseMCPTool(ABC):
             Tool execution result
         """
         pass
-    
+
     def validate_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate input parameters.
         
@@ -63,8 +61,8 @@ class BaseMCPTool(ABC):
         except Exception as e:
             self.logger.error(f"Input validation failed: {e}")
             return False
-    
-    def format_response(self, data: Any = None, error: Optional[str] = None, 
+
+    def format_response(self, data: Any = None, error: Optional[str] = None,
                        error_code: Optional[str] = None) -> Dict[str, Any]:
         """Format tool response following AWS Labs standards.
         
@@ -80,7 +78,7 @@ class BaseMCPTool(ABC):
             return format_error_response(error, error_code or "ToolError")
         else:
             return format_success_response(data)
-    
+
     async def safe_execute(self, **kwargs) -> Dict[str, Any]:
         """Safely execute tool with error handling.
         
@@ -97,11 +95,11 @@ class BaseMCPTool(ABC):
                     error=f"Invalid input parameters for {self.name}",
                     error_code="ValidationError"
                 )
-            
+
             # Execute tool
             result = await self.execute(**kwargs)
             return result
-            
+
         except Exception as e:
             self.logger.error(f"Tool {self.name} execution failed: {e}")
             return self.format_response(
@@ -112,7 +110,7 @@ class BaseMCPTool(ABC):
 
 class AWSBaseTool(BaseMCPTool):
     """Base class for AWS-specific MCP tools."""
-    
+
     def __init__(self, name: str, description: str, service_name: str = ""):
         """Initialize AWS-specific tool.
         
@@ -123,7 +121,7 @@ class AWSBaseTool(BaseMCPTool):
         """
         super().__init__(name, description)
         self.service_name = service_name
-    
+
     def validate_aws_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate AWS-specific input parameters.
         
@@ -137,5 +135,5 @@ class AWSBaseTool(BaseMCPTool):
         region = input_data.get('region')
         if region and not isinstance(region, str):
             return False
-        
+
         return super().validate_input(input_data)

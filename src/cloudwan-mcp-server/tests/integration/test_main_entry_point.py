@@ -15,13 +15,12 @@
 """Main entry point tests following AWS Labs patterns."""
 
 import os
-import sys
 import pytest
 import subprocess
-from unittest.mock import Mock, patch, MagicMock
-
-from awslabs.cloudwan_mcp_server.server import main
+import sys
 from awslabs.cloudwan_mcp_server.__main__ import main as module_main
+from awslabs.cloudwan_mcp_server.server import main
+from unittest.mock import Mock, patch
 
 
 class TestMainEntryPoint:
@@ -42,7 +41,7 @@ class TestMainEntryPoint:
             except Exception as e:
                 pytest.fail(f"main() raised unexpected exception: {e}")
 
-    @pytest.mark.integration 
+    @pytest.mark.integration
     @patch('awslabs.cloudwan_mcp_server.server.mcp.run')
     def test_main_function_with_aws_profile(self, mock_mcp_run):
         """Test main function with AWS profile configuration."""
@@ -87,13 +86,13 @@ class TestMainEntryPoint:
 
     @pytest.mark.integration
     def test_main_function_signal_handling(self):
-        """Test main function handles signals appropriately.""" 
+        """Test main function handles signals appropriately."""
         # This test verifies main() can be interrupted gracefully
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
             with patch('awslabs.cloudwan_mcp_server.server.mcp.run') as mock_run:
                 # Simulate KeyboardInterrupt during run
                 mock_run.side_effect = KeyboardInterrupt("Test interrupt")
-                
+
                 try:
                     main()
                 except KeyboardInterrupt:
@@ -108,13 +107,13 @@ class TestMainEntryPoint:
     def test_main_function_server_initialization(self, mock_mcp):
         """Test main function with server initialization."""
         mock_mcp.run = Mock()
-        
+
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
             try:
                 main()
             except SystemExit:
                 pass
-            
+
         # Verify server attributes are accessible
         assert hasattr(mock_mcp, 'run')
 
@@ -123,11 +122,11 @@ class TestMainEntryPoint:
         """Test main function handles import errors gracefully."""
         # Test that main can be imported and called
         from awslabs.cloudwan_mcp_server.server import main as imported_main
-        
+
         assert callable(imported_main)
         assert imported_main == main
 
-    @pytest.mark.integration 
+    @pytest.mark.integration
     def test_main_function_logging_configuration(self):
         """Test main function with logging configuration."""
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
@@ -136,7 +135,7 @@ class TestMainEntryPoint:
                     main()
                 except SystemExit:
                     pass
-                
+
                 # Verify logging is configured (logger should exist)
                 from awslabs.cloudwan_mcp_server.server import logger
                 assert logger is not None
@@ -151,7 +150,7 @@ class TestMainEntryPoint:
                     main()
                 except SystemExit:
                     pass
-                    
+
                 # Second call should not raise exceptions
                 try:
                     main()
@@ -167,7 +166,7 @@ class TestMainEntryPoint:
             with patch('awslabs.cloudwan_mcp_server.server.mcp.run') as mock_run:
                 # Simulate exception during run to test cleanup
                 mock_run.side_effect = RuntimeError("Test error")
-                
+
                 try:
                     main()
                 except RuntimeError:
@@ -186,7 +185,7 @@ class TestModuleMainEntryPoint:
         """Test __main__.py imports main function correctly."""
         from awslabs.cloudwan_mcp_server.__main__ import main as module_main_import
         from awslabs.cloudwan_mcp_server.server import main as server_main
-        
+
         # Should be the same function
         assert module_main_import == server_main
         assert callable(module_main_import)
@@ -197,7 +196,7 @@ class TestModuleMainEntryPoint:
         # Import and verify the module sets up main correctly
         from awslabs.cloudwan_mcp_server import __main__
         from awslabs.cloudwan_mcp_server.server import main as server_main
-        
+
         # The module should have main function available
         assert hasattr(__main__, 'main')
         # Should be the same function (imported from server)
@@ -208,14 +207,14 @@ class TestModuleMainEntryPoint:
         """Test module can be executed as python -m awslabs.cloudwan_mcp_server."""
         # This test verifies the module structure is correct for -m execution
         # We don't actually execute it to avoid side effects
-        
+
         # Verify __main__.py exists and has correct structure
         import awslabs.cloudwan_mcp_server.__main__ as main_module
-        
+
         # Should have main function
         assert hasattr(main_module, 'main')
         assert callable(main_module.main)
-        
+
         # Should be set up for execution
         import inspect
         source = inspect.getsource(main_module)
@@ -228,13 +227,13 @@ class TestModuleMainEntryPoint:
         # Read the __main__.py file to verify structure
         import awslabs.cloudwan_mcp_server.__main__ as main_module
         import inspect
-        
+
         source = inspect.getsource(main_module)
-        
+
         # Verify proper structure for module execution
         assert 'if __name__ == "__main__":' in source
         assert 'main()' in source
-        
+
         # Verify main is imported from server
         assert 'from .server import main' in source
 
@@ -247,10 +246,10 @@ class TestCommandLineExecution:
     def test_module_execution_help(self):
         """Test module execution shows help/version information."""
         # Test that the module can be executed (dry run)
-        cmd = [sys.executable, '-c', 
+        cmd = [sys.executable, '-c',
                'import awslabs.cloudwan_mcp_server.__main__; '
                'print("Module import successful")']
-        
+
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             # Should not fail to import
@@ -266,10 +265,10 @@ class TestCommandLineExecution:
         """Test entry points are configured correctly in pyproject.toml."""
         # This would typically read pyproject.toml and verify entry points
         # For this test, we verify the functions exist and are callable
-        
+
         from awslabs.cloudwan_mcp_server.__main__ import main
         from awslabs.cloudwan_mcp_server.server import main as server_main
-        
+
         assert main == server_main
         assert callable(main)
 
@@ -281,11 +280,11 @@ class TestCommandLineExecution:
         import awslabs.cloudwan_mcp_server
         import awslabs.cloudwan_mcp_server.__main__
         import awslabs.cloudwan_mcp_server.server
-        
+
         # Verify all modules loaded successfully
         assert hasattr(awslabs.cloudwan_mcp_server, '__main__')
         assert hasattr(awslabs.cloudwan_mcp_server, 'server')
-        
+
         # Verify main function is accessible
         main_func = awslabs.cloudwan_mcp_server.__main__.main
         server_func = awslabs.cloudwan_mcp_server.server.main
@@ -303,7 +302,7 @@ class TestCommandLineExecution:
                     module_main()
                 except SystemExit:
                     pass
-                
+
                 # Environment should be accessible within main
                 assert os.environ.get('AWS_DEFAULT_REGION') == 'eu-west-1'
                 assert os.environ.get('AWS_PROFILE') == 'test-profile'
@@ -317,8 +316,8 @@ class TestMainFunctionEdgeCases:
         """Test main function behavior with minimal environment."""
         # Clear all AWS-related environment variables
         aws_vars = [k for k in os.environ if k.startswith('AWS_')]
-        
-        with patch.dict('os.environ', {k: '' for k in aws_vars}, clear=False):
+
+        with patch.dict('os.environ', dict.fromkeys(aws_vars, ''), clear=False):
             with patch('awslabs.cloudwan_mcp_server.server.mcp.run') as mock_run:
                 try:
                     main()
@@ -337,10 +336,10 @@ class TestMainFunctionEdgeCases:
                 SystemExit(0),
                 SystemExit(1),
             ]
-            
+
             for exception in exceptions_to_test:
                 mock_run.side_effect = exception
-                
+
                 with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
                     try:
                         main()

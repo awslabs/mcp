@@ -13,10 +13,11 @@
 # limitations under the License.
 
 """Unit tests for Transit Gateway tools."""
-import pytest
-from unittest.mock import Mock, patch
 import json
+import pytest
 from botocore.exceptions import ClientError
+from unittest.mock import Mock, patch
+
 
 @pytest.fixture
 def mock_tgw_route_table():
@@ -80,7 +81,7 @@ def mock_get_aws_client():
     """Mock the get_aws_client function with EC2 responses for TGW."""
     def _mock_client(service, region=None):
         client = Mock()
-        
+
         if service == "ec2":
             # Mock search transit gateway routes
             client.search_transit_gateway_routes.return_value = {
@@ -99,7 +100,7 @@ def mock_get_aws_client():
                     }
                 ]
             }
-            
+
             # Mock TGW peering attachments
             client.describe_transit_gateway_peering_attachments.return_value = {
                 "TransitGatewayPeeringAttachments": [
@@ -122,16 +123,16 @@ def mock_get_aws_client():
                     }
                 ]
             }
-            
+
         return client
-    
+
     with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=_mock_client) as mock:
         yield mock
 
 from awslabs.cloudwan_mcp_server.server import (
-    manage_tgw_routes,
+    analyze_tgw_peers,
     analyze_tgw_routes,
-    analyze_tgw_peers
+    manage_tgw_routes,
 )
 
 
@@ -148,7 +149,7 @@ class TestTransitGatewayRoutes:
             "us-east-1"
         )
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["operation"] == "create"
         assert response["route_table_id"] == "tgw-rtb-1234567890abcdef0"
@@ -161,11 +162,11 @@ class TestTransitGatewayRoutes:
         """Test TGW route deletion."""
         result = await manage_tgw_routes(
             "delete",
-            "tgw-rtb-1234567890abcdef0", 
+            "tgw-rtb-1234567890abcdef0",
             "192.168.0.0/16"
         )
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["operation"] == "delete"
         assert "Route operation 'delete' completed successfully" in response["result"]["message"]
@@ -179,7 +180,7 @@ class TestTransitGatewayRoutes:
             "172.16.0.0/12"
         )
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["operation"] == "blackhole"
 
@@ -192,7 +193,7 @@ class TestTransitGatewayRoutes:
             "invalid-cidr"
         )
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "manage_tgw_routes failed" in response["error"]
 
@@ -201,24 +202,24 @@ class TestTransitGatewayRoutes:
         """Test successful TGW route analysis."""
         result = await analyze_tgw_routes("tgw-rtb-1234567890abcdef0", "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["route_table_id"] == "tgw-rtb-1234567890abcdef0"
         assert response["region"] == "us-east-1"
-        
+
         analysis = response["analysis"]
         assert analysis["total_routes"] == 2
         assert analysis["active_routes"] == 1
         assert analysis["blackholed_routes"] == 1
         assert "route_details" in analysis
-        
+
         # Verify route details
         routes = analysis["route_details"]
         assert len(routes) == 2
-        
+
         active_route = next(r for r in routes if r["State"] == "active")
         assert active_route["DestinationCidrBlock"] == "10.0.0.0/16"
-        
+
         blackhole_route = next(r for r in routes if r["State"] == "blackhole")
         assert blackhole_route["DestinationCidrBlock"] == "192.168.1.0/24"
 
@@ -226,10 +227,10 @@ class TestTransitGatewayRoutes:
     async def test_analyze_tgw_routes_empty(self, mock_get_aws_client):
         """Test TGW route analysis with no routes."""
         mock_get_aws_client.return_value.search_transit_gateway_routes.return_value = {"Routes": []}
-        
+
         result = await analyze_tgw_routes("tgw-rtb-empty123456789", "us-west-1")
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["analysis"]["total_routes"] == 0
         assert response["analysis"]["active_routes"] == 0
@@ -247,10 +248,10 @@ class TestTransitGatewayRoutes:
         mock_get_aws_client.return_value.search_transit_gateway_routes.side_effect = ClientError(
             error_response, 'SearchTransitGatewayRoutes'
         )
-        
+
         result = await analyze_tgw_routes("tgw-rtb-invalid", "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "analyze_tgw_routes failed" in response["error"]
         assert response["error_code"] == "InvalidRouteTableID.NotFound"
@@ -258,10 +259,10 @@ class TestTransitGatewayRoutes:
     @pytest.mark.asyncio
     async def test_analyze_tgw_routes(self, mock_get_aws_client):
         route_table_id = "tgw-rtb-1234567890abcdef0"
-        
+
         result = await analyze_tgw_routes(route_table_id)
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["route_table_id"] == route_table_id
         assert response["region"] == "us-east-1"
@@ -279,21 +280,21 @@ class TestTransitGatewayPeers:
         peer_id = "tgw-attach-peer-1234567890abcdef0"
         result = await analyze_tgw_peers(peer_id, "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["peer_id"] == peer_id
         assert response["region"] == "us-east-1"
-        
+
         analysis = response["peer_analysis"]
         assert analysis["state"] == "available"
         assert analysis["status"] == "available"
-        
+
         # Verify requester TGW info
         requester_info = analysis["requester_tgw_info"]
         assert requester_info["TransitGatewayId"] == "tgw-1234567890abcdef0"
         assert requester_info["OwnerId"] == "123456789012"
         assert requester_info["Region"] == "us-east-1"
-        
+
         # Verify accepter TGW info
         accepter_info = analysis["accepter_tgw_info"]
         assert accepter_info["TransitGatewayId"] == "tgw-abcdef1234567890"
@@ -306,10 +307,10 @@ class TestTransitGatewayPeers:
         mock_get_aws_client.return_value.describe_transit_gateway_peering_attachments.return_value = {
             "TransitGatewayPeeringAttachments": []
         }
-        
+
         result = await analyze_tgw_peers("tgw-attach-peer-nonexistent", "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "No peering attachment found with ID" in response["error"]
 
@@ -325,10 +326,10 @@ class TestTransitGatewayPeers:
         mock_get_aws_client.return_value.describe_transit_gateway_peering_attachments.side_effect = ClientError(
             error_response, 'DescribeTransitGatewayPeeringAttachments'
         )
-        
+
         result = await analyze_tgw_peers("invalid-id", "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "analyze_tgw_peers failed" in response["error"]
         assert response["error_code"] == "InvalidTransitGatewayAttachmentID.NotFound"
@@ -339,17 +340,17 @@ class TestTransitGatewayPeers:
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'eu-west-1'}):
             result = await analyze_tgw_peers("tgw-attach-peer-1234567890abcdef0")
             response = json.loads(result)
-            
+
             assert response["success"] is True
             assert response["region"] == "eu-west-1"
 
     @pytest.mark.asyncio
     async def test_analyze_tgw_peers(self, mock_get_aws_client):
         peer_id = "tgw-attach-1234567890abcdef0"
-        
+
         result = await analyze_tgw_peers(peer_id)
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["peer_id"] == peer_id
         assert response["region"] == "us-east-1"
@@ -360,17 +361,17 @@ class TestTransitGatewayPeers:
 
 class TestTGWTools:
     """Test Transit Gateway analysis tools."""
-    
+
     @pytest.mark.asyncio
     async def test_analyze_tgw_routes(self, mock_get_aws_client):
         """Test TGW route analysis tool."""
         from awslabs.cloudwan_mcp_server.server import analyze_tgw_routes
-        
+
         route_table_id = "tgw-rtb-1234567890abcdef0"
-        
+
         result = await analyze_tgw_routes(route_table_id, "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["route_table_id"] == route_table_id
         assert response["region"] == "us-east-1"
@@ -383,12 +384,12 @@ class TestTGWTools:
     async def test_analyze_tgw_peers(self, mock_get_aws_client):
         """Test TGW peering analysis tool."""
         from awslabs.cloudwan_mcp_server.server import analyze_tgw_peers
-        
+
         peer_id = "tgw-attach-peer-1234567890abcdef0"
-        
+
         result = await analyze_tgw_peers(peer_id, "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["peer_id"] == peer_id
         assert response["region"] == "us-east-1"
@@ -400,7 +401,7 @@ class TestTGWTools:
     async def test_manage_tgw_routes(self, mock_get_aws_client):
         """Test TGW route management tool."""
         from awslabs.cloudwan_mcp_server.server import manage_tgw_routes
-        
+
         result = await manage_tgw_routes(
             "create",
             "tgw-rtb-1234567890abcdef0",
@@ -408,7 +409,7 @@ class TestTGWTools:
             "us-east-1"
         )
         response = json.loads(result)
-        
+
         assert response["success"] is True
         assert response["operation"] == "create"
         assert response["destination_cidr"] == "10.2.0.0/16"
@@ -418,7 +419,7 @@ class TestTGWTools:
         """Test TGW tools error handling."""
         from awslabs.cloudwan_mcp_server.server import analyze_tgw_routes
         from botocore.exceptions import ClientError
-        
+
         # Mock client error
         mock_client = Mock()
         mock_client.search_transit_gateway_routes.side_effect = ClientError(
@@ -426,10 +427,10 @@ class TestTGWTools:
             "SearchTransitGatewayRoutes"
         )
         mock_get_aws_client.return_value = mock_client
-        
+
         result = await analyze_tgw_routes("invalid-route-table-id", "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "analyze_tgw_routes failed" in response["error"]
         assert response["error_code"] == "InvalidRouteTableID.NotFound"
@@ -438,16 +439,16 @@ class TestTGWTools:
     async def test_tgw_peers_not_found(self, mock_get_aws_client):
         """Test TGW peers analysis when peer not found."""
         from awslabs.cloudwan_mcp_server.server import analyze_tgw_peers
-        
+
         # Mock empty response
         mock_client = Mock()
         mock_client.describe_transit_gateway_peering_attachments.return_value = {
             "TransitGatewayPeeringAttachments": []
         }
         mock_get_aws_client.return_value = mock_client
-        
+
         result = await analyze_tgw_peers("nonexistent-peer-id", "us-east-1")
         response = json.loads(result)
-        
+
         assert response["success"] is False
         assert "No peering attachment found" in response["error"]

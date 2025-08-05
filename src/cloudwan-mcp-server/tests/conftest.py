@@ -1,18 +1,35 @@
-# pytest fixtures for AWS client mocking
-import pytest
-import os
-from typing import Dict, Any, Optional
-from unittest.mock import Mock, patch
-from botocore.exceptions import ClientError
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-from .mocking.aws import AWSServiceMocker, AWSErrorCatalog, create_service_mocker, create_error_fixture
-from .security.credential_manager import get_secure_test_credentials, credential_manager
+
+# pytest fixtures for AWS client mocking
+import os
+import pytest
+from .mocking.aws import (
+    AWSErrorCatalog,
+    AWSServiceMocker,
+    create_service_mocker,
+)
+from .security.credential_manager import credential_manager, get_secure_test_credentials
+from botocore.exceptions import ClientError
+from typing import Optional
+from unittest.mock import Mock, patch
 
 
 @pytest.fixture(scope="function", name="mock_get_aws_client_fixture")
 def aws_client_mocker():
-    """
-    Mock the get_aws_client function with hierarchical service mocking.
+    """Mock the get_aws_client function with hierarchical service mocking.
     
     This fixture provides intelligent AWS service client mocking with:
     - Service-specific response configurations
@@ -31,12 +48,12 @@ def aws_client_mocker():
         """Create or retrieve cached service client mock."""
         region = region or os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
         key = (service, region)
-        
+
         if key not in clients:
             # Use hierarchical mocker for realistic service behavior
             service_mocker = AWSServiceMocker(service, region)
             clients[key] = service_mocker.client
-        
+
         return clients[key]
 
     with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=_mock_client) as mock:
@@ -53,8 +70,7 @@ def aws_client_mocker():
 
 @pytest.fixture(scope="function")
 def aws_error_catalog() -> AWSErrorCatalog:
-    """
-    Centralized AWS error catalog for comprehensive error scenario testing.
+    """Centralized AWS error catalog for comprehensive error scenario testing.
     
     Provides access to standardized AWS error responses including:
     - Common AWS errors (AccessDenied, ThrottlingException, etc.)
@@ -71,8 +87,7 @@ def aws_error_catalog() -> AWSErrorCatalog:
 
 @pytest.fixture(scope="function")
 def mock_boto_error() -> ClientError:
-    """
-    Mock boto3 ClientError for comprehensive error handling tests.
+    """Mock boto3 ClientError for comprehensive error handling tests.
     
     Provides a realistic ClientError instance that matches AWS API error
     response structure, including proper error codes, messages, and metadata.
@@ -92,14 +107,13 @@ def mock_boto_error() -> ClientError:
             'HTTPStatusCode': 404
         }
     }
-    
+
     return ClientError(error_response, 'TestOperation')
 
 
 @pytest.fixture(scope="function")
 def aws_service_mocker():
-    """
-    Factory fixture for creating AWS service mockers on demand.
+    """Factory fixture for creating AWS service mockers on demand.
     
     Provides a flexible way to create service-specific mockers with
     custom configurations during test execution.
@@ -114,8 +128,7 @@ def aws_service_mocker():
 
 @pytest.fixture(scope="function")
 def regional_aws_client():
-    """
-    Regional AWS client mock with environment-aware region selection.
+    """Regional AWS client mock with environment-aware region selection.
     
     Automatically detects region from environment variables or test markers,
     enabling region-specific testing scenarios.
@@ -133,16 +146,15 @@ def regional_aws_client():
             region = region_marker.args[0]
         else:
             region = os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
-        
+
         return create_service_mocker('networkmanager', region)
-    
+
     return _get_regional_client
 
 
 @pytest.fixture(scope="function", autouse=True)
 def secure_aws_credentials(request):
-    """
-    Automatic secure credential setup for all tests.
+    """Automatic secure credential setup for all tests.
     
     Provides enterprise-grade credential security with:
     - UUID-based credential generation  
@@ -152,24 +164,24 @@ def secure_aws_credentials(request):
     """
     test_name = request.node.name
     credentials = get_secure_test_credentials(test_context=f"pytest-{test_name}")
-    
+
     # Set secure environment variables
     original_env = {}
     env_vars = credentials.to_env_dict()
-    
+
     for key, value in env_vars.items():
         original_env[key] = os.environ.get(key)
         os.environ[key] = value
-    
+
     yield credentials
-    
+
     # Cleanup: restore original environment and cleanup credentials
     for key in env_vars.keys():
         if original_env[key] is not None:
             os.environ[key] = original_env[key]
         else:
             os.environ.pop(key, None)
-    
+
     credentials.cleanup()
 
 
@@ -177,10 +189,10 @@ def secure_aws_credentials(request):
 def credential_cleanup_manager():
     """Session-level credential cleanup for security compliance."""
     yield
-    
+
     # Emergency cleanup on test session end
     credential_manager.emergency_cleanup()
-    
+
     # Log audit trail for compliance
     audit_trail = credential_manager.get_audit_trail()
     if audit_trail:
