@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-#!/usr/bin/env python3
 """Test script to validate all 16 CloudWAN tools are correctly implemented.
 This validates the tool signatures and ensures AWS Labs FastMCP compliance.
 """
