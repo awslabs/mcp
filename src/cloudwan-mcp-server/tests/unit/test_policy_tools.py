@@ -14,10 +14,12 @@
 
 
 """Unit tests for CloudWAN policy tools."""
+
 import json
+from unittest.mock import Mock, patch
+
 import pytest
 from botocore.exceptions import ClientError
-from unittest.mock import Mock, patch
 
 
 @pytest.fixture
@@ -28,26 +30,14 @@ def mock_policy_document():
         "core-network-configuration": {
             "vpn-ecmp-support": False,
             "asn-ranges": ["64512-65534"],
-            "edge-locations": [
-                {
-                    "location": "us-east-1",
-                    "asn": 64512
-                }
-            ]
+            "edge-locations": [{"location": "us-east-1", "asn": 64512}],
         },
         "segments": [
-            {
-                "name": "production",
-                "require-attachment-acceptance": False,
-                "isolate-attachments": False
-            },
-            {
-                "name": "development",
-                "require-attachment-acceptance": True,
-                "isolate-attachments": True
-            }
-        ]
+            {"name": "production", "require-attachment-acceptance": False, "isolate-attachments": False},
+            {"name": "development", "require-attachment-acceptance": True, "isolate-attachments": True},
+        ],
     }
+
 
 @pytest.fixture
 def mock_aws_client():
@@ -55,9 +45,11 @@ def mock_aws_client():
     client = Mock()
     return client
 
+
 @pytest.fixture
 def mock_get_aws_client():
     """Mock the get_aws_client function with NetworkManager responses."""
+
     def _mock_client(service, region=None):
         client = Mock()
 
@@ -68,51 +60,39 @@ def mock_get_aws_client():
                     "PolicyVersionId": 1,
                     "PolicyDocument": {
                         "version": "2021.12",
-                        "core-network-configuration": {
-                            "vpn-ecmp-support": False,
-                            "asn-ranges": ["64512-65534"]
-                        },
-                        "segments": [
-                            {"name": "production", "require-attachment-acceptance": False}
-                        ]
+                        "core-network-configuration": {"vpn-ecmp-support": False, "asn-ranges": ["64512-65534"]},
+                        "segments": [{"name": "production", "require-attachment-acceptance": False}],
                     },
                     "Description": "Test policy",
-                    "CreatedAt": "2023-01-01T00:00:00Z"
+                    "CreatedAt": "2023-01-01T00:00:00Z",
                 }
             }
 
             # Mock change set response
             client.get_core_network_change_set.return_value = {
                 "CoreNetworkChanges": [
-                    {
-                        "Type": "SEGMENT_MAPPING_CREATE",
-                        "Action": "CREATE",
-                        "Identifier": "segment-mapping-1"
-                    }
+                    {"Type": "SEGMENT_MAPPING_CREATE", "Action": "CREATE", "Identifier": "segment-mapping-1"}
                 ]
             }
 
             # Mock change events response
             client.get_core_network_change_events.return_value = {
                 "CoreNetworkChangeEvents": [
-                    {
-                        "Type": "POLICY_VERSION_CREATED",
-                        "Status": "COMPLETED",
-                        "EventTime": "2023-01-01T00:00:00Z"
-                    }
+                    {"Type": "POLICY_VERSION_CREATED", "Status": "COMPLETED", "EventTime": "2023-01-01T00:00:00Z"}
                 ]
             }
 
         return client
 
-    with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=_mock_client) as mock:
+    with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=_mock_client) as mock:
         yield mock
+
 
 class TestPolicyTools:
     """Test CloudWAN policy management tools."""
 
     @pytest.mark.asyncio
-    async def test_get_core_network_policy_default_alias(self, mock_get_aws_client):
+    async def test_get_core_network_policy_default_alias(self, mock_get_aws_client) -> None:
         """Test core network policy retrieval with default alias."""
         from awslabs.cloudwan_mcp_server.server import get_core_network_policy
 
@@ -127,7 +107,7 @@ class TestPolicyTools:
         assert response["policy_version_id"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_core_network_change_set_success(self, mock_get_aws_client):
+    async def test_get_core_network_change_set_success(self, mock_get_aws_client) -> None:
         """Test successful change set retrieval."""
         from awslabs.cloudwan_mcp_server.server import get_core_network_change_set
 
@@ -144,7 +124,7 @@ class TestPolicyTools:
         assert len(response["change_sets"]) == 1
 
     @pytest.mark.asyncio
-    async def test_get_core_network_change_events_success(self, mock_get_aws_client):
+    async def test_get_core_network_change_events_success(self, mock_get_aws_client) -> None:
         """Test successful change events retrieval."""
         from awslabs.cloudwan_mcp_server.server import get_core_network_change_events
 
@@ -160,7 +140,7 @@ class TestPolicyTools:
         assert "change_events" in response
 
     @pytest.mark.asyncio
-    async def test_validate_cloudwan_policy_with_fixture(self, mock_policy_document, mock_get_aws_client):
+    async def test_validate_cloudwan_policy_with_fixture(self, mock_policy_document, mock_get_aws_client) -> None:
         """Test policy validation with fixture data."""
         from awslabs.cloudwan_mcp_server.server import validate_cloudwan_policy
 
@@ -172,16 +152,15 @@ class TestPolicyTools:
         assert response["policy_version"] == "2021.12"
 
     @pytest.mark.asyncio
-    async def test_policy_error_handling(self):
+    async def test_policy_error_handling(self) -> None:
         """Test policy tools error handling."""
         from awslabs.cloudwan_mcp_server.server import get_core_network_policy
 
         # Mock client error - create new patch to override fixture
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client") as mock_get_client:
             mock_client = Mock()
             mock_client.get_core_network_policy.side_effect = ClientError(
-                {"Error": {"Code": "ResourceNotFound", "Message": "Core network not found"}},
-                "GetCoreNetworkPolicy"
+                {"Error": {"Code": "ResourceNotFound", "Message": "Core network not found"}}, "GetCoreNetworkPolicy"
             )
             mock_get_client.return_value = mock_client
 

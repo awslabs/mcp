@@ -16,9 +16,14 @@
 
 import asyncio
 import json
-import pytest
 import threading
 import time
+from datetime import UTC, datetime
+from unittest.mock import Mock, patch
+
+import pytest
+from botocore.exceptions import ClientError
+
 from awslabs.cloudwan_mcp_server.server import (
     analyze_tgw_routes,
     discover_vpcs,
@@ -27,9 +32,6 @@ from awslabs.cloudwan_mcp_server.server import (
     list_core_networks,
     validate_ip_cidr,
 )
-from botocore.exceptions import ClientError
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch
 
 
 class TestHighConcurrencyAPIRequests:
@@ -38,7 +40,7 @@ class TestHighConcurrencyAPIRequests:
     @pytest.mark.integration
     @pytest.mark.slow
     @pytest.mark.asyncio
-    async def test_1000_concurrent_list_core_networks(self):
+    async def test_1000_concurrent_list_core_networks(self) -> None:
         """Test 1000+ concurrent list_core_networks requests."""
         concurrent_requests = 1000
         request_counter = 0
@@ -61,13 +63,13 @@ class TestHighConcurrencyAPIRequests:
 
                 # Return mock core networks
                 return {
-                    'CoreNetworks': [
+                    "CoreNetworks": [
                         {
-                            'CoreNetworkId': f'core-network-concurrent-{current_request:06d}',
-                            'GlobalNetworkId': f'global-network-{current_request:06d}',
-                            'State': 'AVAILABLE',
-                            'Description': f'Concurrent test network {current_request}',
-                            'CreatedAt': datetime.now(timezone.utc)
+                            "CoreNetworkId": f"core-network-concurrent-{current_request:06d}",
+                            "GlobalNetworkId": f"global-network-{current_request:06d}",
+                            "State": "AVAILABLE",
+                            "Description": f"Concurrent test network {current_request}",
+                            "CreatedAt": datetime.now(UTC),
                         }
                     ]
                 }
@@ -75,39 +77,39 @@ class TestHighConcurrencyAPIRequests:
             mock_client.list_core_networks.side_effect = concurrent_list_networks
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=mock_client_factory):
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=mock_client_factory):
             # Create concurrent tasks
             start_time = time.time()
 
             async def single_request(request_id):
                 request_start = time.time()
                 try:
-                    result = await list_core_networks(region=f'us-east-{(request_id % 2) + 1}')
+                    result = await list_core_networks(region=f"us-east-{(request_id % 2) + 1}")
                     request_end = time.time()
                     response_time = request_end - request_start
 
                     parsed = json.loads(result)
-                    if parsed['success']:
+                    if parsed["success"]:
                         return {
-                            'request_id': request_id,
-                            'success': True,
-                            'response_time': response_time,
-                            'total_count': parsed['total_count']
+                            "request_id": request_id,
+                            "success": True,
+                            "response_time": response_time,
+                            "total_count": parsed["total_count"],
                         }
                     else:
                         return {
-                            'request_id': request_id,
-                            'success': False,
-                            'response_time': response_time,
-                            'error': parsed.get('error', 'Unknown error')
+                            "request_id": request_id,
+                            "success": False,
+                            "response_time": response_time,
+                            "error": parsed.get("error", "Unknown error"),
                         }
                 except Exception as e:
                     request_end = time.time()
                     return {
-                        'request_id': request_id,
-                        'success': False,
-                        'response_time': request_end - request_start,
-                        'error': str(e)
+                        "request_id": request_id,
+                        "success": False,
+                        "response_time": request_end - request_start,
+                        "error": str(e),
                     }
 
             # Execute concurrent requests
@@ -120,8 +122,8 @@ class TestHighConcurrencyAPIRequests:
             # Analyze results
             for result in results:
                 if isinstance(result, dict):
-                    response_times.append(result['response_time'])
-                    if result['success']:
+                    response_times.append(result["response_time"])
+                    if result["success"]:
                         successful_requests += 1
                     else:
                         failed_requests += 1
@@ -141,71 +143,71 @@ class TestHighConcurrencyAPIRequests:
             assert max_response_time < 2.0, f"Max response time {max_response_time:.3f}s too high"
 
             requests_per_second = concurrent_requests / total_execution_time
-            print(f"Concurrent performance: {requests_per_second:.1f} req/s, "
-                  f"avg {avg_response_time:.3f}s, max {max_response_time:.3f}s")
+            print(
+                f"Concurrent performance: {requests_per_second:.1f} req/s, "
+                f"avg {avg_response_time:.3f}s, max {max_response_time:.3f}s"
+            )
 
     @pytest.mark.integration
     @pytest.mark.slow
     @pytest.mark.asyncio
-    async def test_mixed_operation_concurrent_requests(self):
+    async def test_mixed_operation_concurrent_requests(self) -> None:
         """Test concurrent requests across different operation types."""
         operations_per_type = 100
         operation_results = {
-            'list_core_networks': [],
-            'get_global_networks': [],
-            'discover_vpcs': [],
-            'validate_ip_cidr': []
+            "list_core_networks": [],
+            "get_global_networks": [],
+            "discover_vpcs": [],
+            "validate_ip_cidr": [],
         }
 
         def mock_client_factory(service, region=None):
             mock_client = Mock()
 
             # Mock responses for different services
-            if service == 'networkmanager':
+            if service == "networkmanager":
                 mock_client.list_core_networks.return_value = {
-                    'CoreNetworks': [{'CoreNetworkId': 'core-network-mixed-test'}]
+                    "CoreNetworks": [{"CoreNetworkId": "core-network-mixed-test"}]
                 }
                 mock_client.describe_global_networks.return_value = {
-                    'GlobalNetworks': [{'GlobalNetworkId': 'global-network-mixed-test'}]
+                    "GlobalNetworks": [{"GlobalNetworkId": "global-network-mixed-test"}]
                 }
-            elif service == 'ec2':
-                mock_client.describe_vpcs.return_value = {
-                    'Vpcs': [{'VpcId': 'vpc-mixed-test', 'State': 'available'}]
-                }
+            elif service == "ec2":
+                mock_client.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-mixed-test", "State": "available"}]}
 
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=mock_client_factory):
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=mock_client_factory):
 
             async def concurrent_operation(op_type, request_id):
                 start_time = time.time()
                 try:
-                    if op_type == 'list_core_networks':
+                    if op_type == "list_core_networks":
                         result = await list_core_networks()
-                    elif op_type == 'get_global_networks':
+                    elif op_type == "get_global_networks":
                         result = await get_global_networks()
-                    elif op_type == 'discover_vpcs':
+                    elif op_type == "discover_vpcs":
                         result = await discover_vpcs()
-                    elif op_type == 'validate_ip_cidr':
-                        result = await validate_ip_cidr('validate_ip', ip=f'10.0.{request_id % 256}.1')
+                    elif op_type == "validate_ip_cidr":
+                        result = await validate_ip_cidr("validate_ip", ip=f"10.0.{request_id % 256}.1")
 
                     end_time = time.time()
                     parsed = json.loads(result)
 
                     return {
-                        'operation': op_type,
-                        'request_id': request_id,
-                        'success': parsed['success'],
-                        'response_time': end_time - start_time
+                        "operation": op_type,
+                        "request_id": request_id,
+                        "success": parsed["success"],
+                        "response_time": end_time - start_time,
                     }
                 except Exception as e:
                     end_time = time.time()
                     return {
-                        'operation': op_type,
-                        'request_id': request_id,
-                        'success': False,
-                        'response_time': end_time - start_time,
-                        'error': str(e)
+                        "operation": op_type,
+                        "request_id": request_id,
+                        "success": False,
+                        "response_time": end_time - start_time,
+                        "error": str(e),
                     }
 
             # Create mixed concurrent tasks
@@ -225,15 +227,17 @@ class TestHighConcurrencyAPIRequests:
             # Organize results by operation type
             for result in results:
                 if isinstance(result, dict):
-                    op_type = result['operation']
+                    op_type = result["operation"]
                     operation_results[op_type].append(result)
 
             # Analyze results per operation type
             for op_type, results_list in operation_results.items():
-                successful = sum(1 for r in results_list if r['success'])
-                avg_time = sum(r['response_time'] for r in results_list) / len(results_list)
+                successful = sum(1 for r in results_list if r["success"])
+                avg_time = sum(r["response_time"] for r in results_list) / len(results_list)
 
-                assert successful >= operations_per_type * 0.95, f"{op_type}: only {successful}/{operations_per_type} successful"
+                assert successful >= operations_per_type * 0.95, (
+                    f"{op_type}: only {successful}/{operations_per_type} successful"
+                )
                 assert avg_time < 1.0, f"{op_type}: average response time {avg_time:.3f}s too high"
 
             # Overall performance
@@ -242,7 +246,7 @@ class TestHighConcurrencyAPIRequests:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_connection_pool_exhaustion_scenarios(self):
+    async def test_connection_pool_exhaustion_scenarios(self) -> None:
         """Test behavior under connection pool exhaustion."""
         max_connections = 50  # Simulate limited connection pool
         active_connections = 0
@@ -261,8 +265,8 @@ class TestHighConcurrencyAPIRequests:
                     time.sleep(0.01)  # Wait for connection to be available
                     if time.time() - wait_start > 5.0:  # 5s timeout
                         raise ClientError(
-                            {'Error': {'Code': 'ConnectionPoolTimeout', 'Message': 'Connection pool exhausted'}},
-                            'Operation'
+                            {"Error": {"Code": "ConnectionPoolTimeout", "Message": "Connection pool exhausted"}},
+                            "Operation",
                         )
 
                 wait_time = time.time() - wait_start
@@ -276,7 +280,7 @@ class TestHighConcurrencyAPIRequests:
                     processing_time = 0.05 + (active_connections * 0.001)  # Longer with more connections
                     time.sleep(processing_time)
 
-                    return {'CoreNetworks': [{'CoreNetworkId': 'conn-pool-test'}]}
+                    return {"CoreNetworks": [{"CoreNetworkId": "conn-pool-test"}]}
                 finally:
                     # Release connection
                     active_connections -= 1
@@ -284,8 +288,7 @@ class TestHighConcurrencyAPIRequests:
             mock_client.list_core_networks.side_effect = connection_limited_operation
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=mock_client_with_connection_limit):
-
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=mock_client_with_connection_limit):
             # Test with requests exceeding connection pool
             high_concurrency = 200  # More than max_connections
 
@@ -293,9 +296,9 @@ class TestHighConcurrencyAPIRequests:
                 try:
                     result = await list_core_networks()
                     parsed = json.loads(result)
-                    return {'success': parsed['success'], 'request_id': request_id}
+                    return {"success": parsed["success"], "request_id": request_id}
                 except Exception as e:
-                    return {'success': False, 'request_id': request_id, 'error': str(e)}
+                    return {"success": False, "request_id": request_id, "error": str(e)}
 
             tasks = [pool_limited_request(i) for i in range(high_concurrency)]
 
@@ -304,10 +307,12 @@ class TestHighConcurrencyAPIRequests:
             end_time = time.time()
 
             execution_time = end_time - start_time
-            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get("success", False))
 
             # Should handle connection pool limits gracefully
-            assert successful_requests >= high_concurrency * 0.8, f"Connection pool handling: {successful_requests}/{high_concurrency}"
+            assert successful_requests >= high_concurrency * 0.8, (
+                f"Connection pool handling: {successful_requests}/{high_concurrency}"
+            )
             assert execution_time < 120.0, f"Connection pool test took {execution_time:.2f}s"
 
             # Analyze connection wait times
@@ -325,7 +330,7 @@ class TestThreadStarvationScenarios:
     @pytest.mark.integration
     @pytest.mark.slow
     @pytest.mark.asyncio
-    async def test_thread_pool_saturation(self):
+    async def test_thread_pool_saturation(self) -> None:
         """Test behavior when thread pool becomes saturated."""
         max_threads = 20  # Limited thread pool
         active_threads = 0
@@ -358,11 +363,11 @@ class TestThreadStarvationScenarios:
                     time.sleep(work_duration)
 
                     return {
-                        'Routes': [
+                        "Routes": [
                             {
-                                'DestinationCidrBlock': f'10.{active_threads}.0.0/16',
-                                'State': 'active',
-                                'ThreadId': thread_id
+                                "DestinationCidrBlock": f"10.{active_threads}.0.0/16",
+                                "State": "active",
+                                "ThreadId": thread_id,
                             }
                         ]
                     }
@@ -372,26 +377,21 @@ class TestThreadStarvationScenarios:
             mock_client.search_transit_gateway_routes.side_effect = thread_limited_operation
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=thread_limited_mock):
-
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=thread_limited_mock):
             # Test with more requests than available threads
             concurrent_requests = 100
 
             async def thread_limited_request(request_id):
                 try:
-                    result = await analyze_tgw_routes(f'tgw-rtb-thread-test-{request_id:03d}')
+                    result = await analyze_tgw_routes(f"tgw-rtb-thread-test-{request_id:03d}")
                     parsed = json.loads(result)
                     return {
-                        'success': parsed['success'],
-                        'request_id': request_id,
-                        'total_routes': parsed.get('analysis', {}).get('total_routes', 0)
+                        "success": parsed["success"],
+                        "request_id": request_id,
+                        "total_routes": parsed.get("analysis", {}).get("total_routes", 0),
                     }
                 except Exception as e:
-                    return {
-                        'success': False,
-                        'request_id': request_id,
-                        'error': str(e)
-                    }
+                    return {"success": False, "request_id": request_id, "error": str(e)}
 
             tasks = [thread_limited_request(i) for i in range(concurrent_requests)]
 
@@ -400,10 +400,12 @@ class TestThreadStarvationScenarios:
             end_time = time.time()
 
             execution_time = end_time - start_time
-            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get("success", False))
 
             # Thread pool should handle saturation gracefully
-            assert successful_requests >= concurrent_requests * 0.9, f"Thread saturation: {successful_requests}/{concurrent_requests}"
+            assert successful_requests >= concurrent_requests * 0.9, (
+                f"Thread saturation: {successful_requests}/{concurrent_requests}"
+            )
             assert execution_time < 180.0, f"Thread saturation test took {execution_time:.2f}s"
 
             # Analyze thread queue behavior
@@ -416,17 +418,15 @@ class TestThreadStarvationScenarios:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_async_task_cancellation_handling(self):
+    async def test_async_task_cancellation_handling(self) -> None:
         """Robust test for async task cancellation handling."""
         cancellation_scenarios = []
         completed_tasks = 0
 
         # Original function reference
-        from awslabs.cloudwan_mcp_server.server import analyze_tgw_routes
-        original_analyze_tgw_routes = analyze_tgw_routes
 
         # Create cancellation-aware wrapper
-        async def cancellation_aware_analyze_tgw_routes(route_table_id: str, region = None):
+        async def cancellation_aware_analyze_tgw_routes(route_table_id: str, region=None):
             """Cancellation-aware wrapper for analyze_tgw_routes with explicit cancellation points."""
             nonlocal completed_tasks
 
@@ -443,6 +443,7 @@ class TestThreadStarvationScenarios:
 
                 # Return successful result
                 import json
+
                 result = {
                     "success": True,
                     "route_table_id": route_table_id,
@@ -455,31 +456,27 @@ class TestThreadStarvationScenarios:
                             {
                                 "DestinationCidrBlock": f"10.{completed_tasks}.0.0/16",
                                 "State": "active",
-                                "Type": "static"
+                                "Type": "static",
                             }
-                        ]
-                    }
+                        ],
+                    },
                 }
                 return json.dumps(result, indent=2, default=str)
 
             except asyncio.CancelledError:
                 # Task was cancelled - record this scenario
-                cancellation_scenarios.append({
-                    'operation_id': route_table_id,
-                    'cancelled_at': time.time(),
-                    'cleanup_completed': True
-                })
+                cancellation_scenarios.append(
+                    {"operation_id": route_table_id, "cancelled_at": time.time(), "cleanup_completed": True}
+                )
                 # Re-raise to maintain proper asyncio cancellation behavior
                 raise
 
         # Patch the function to use our cancellation-aware version
-        with patch('awslabs.cloudwan_mcp_server.server.analyze_tgw_routes', cancellation_aware_analyze_tgw_routes):
+        with patch("awslabs.cloudwan_mcp_server.server.analyze_tgw_routes", cancellation_aware_analyze_tgw_routes):
             # Create long-running tasks
             tasks = []
             for i in range(20):
-                task = asyncio.create_task(
-                    cancellation_aware_analyze_tgw_routes(f'tgw-rtb-cancel-test-{i:02d}')
-                )
+                task = asyncio.create_task(cancellation_aware_analyze_tgw_routes(f"tgw-rtb-cancel-test-{i:02d}"))
                 tasks.append(task)
 
             # Wait briefly to ensure tasks are running
@@ -496,25 +493,23 @@ class TestThreadStarvationScenarios:
 
                 # Count successful completions vs cancellations
                 successful_completions = sum(
-                    1 for r in results
-                    if isinstance(r, str) and json.loads(r).get('success', False)
+                    1 for r in results if isinstance(r, str) and json.loads(r).get("success", False)
                 )
 
-                cancelled_exceptions = sum(
-                    1 for r in results
-                    if isinstance(r, asyncio.CancelledError)
-                )
+                cancelled_exceptions = sum(1 for r in results if isinstance(r, asyncio.CancelledError))
 
                 # Verify cancellation scenarios
-                assert len(cancellation_scenarios) == 10, f"Expected 10 cancellation scenarios, got {len(cancellation_scenarios)}"
+                assert len(cancellation_scenarios) == 10, (
+                    f"Expected 10 cancellation scenarios, got {len(cancellation_scenarios)}"
+                )
                 assert cancelled_exceptions == 10, f"Expected 10 CancelledError exceptions, got {cancelled_exceptions}"
                 assert successful_completions >= 8, f"Too few task completions: {successful_completions}"
 
                 # Check that all cancellation scenarios have proper metadata
                 for scenario in cancellation_scenarios:
-                    assert 'operation_id' in scenario
-                    assert 'cancelled_at' in scenario
-                    assert scenario['cleanup_completed'] == True
+                    assert "operation_id" in scenario
+                    assert "cancelled_at" in scenario
+                    assert scenario["cleanup_completed"]
 
             except Exception as e:
                 pytest.fail(f"Unexpected error in task cancellation test: {e}")
@@ -530,7 +525,7 @@ class TestThreadStarvationScenarios:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_resource_contention_patterns(self):
+    async def test_resource_contention_patterns(self) -> None:
         """Test resource contention between concurrent operations."""
         shared_resource_locks = {}
         resource_wait_times = []
@@ -543,7 +538,7 @@ class TestThreadStarvationScenarios:
             def contended_operation(**kwargs):
                 nonlocal successful_acquisitions, failed_acquisitions
 
-                resource_id = kwargs.get('CoreNetworkId', 'default-resource')
+                resource_id = kwargs.get("CoreNetworkId", "default-resource")
 
                 # Simulate resource locking
                 lock_start = time.time()
@@ -554,8 +549,8 @@ class TestThreadStarvationScenarios:
                     if time.time() - lock_start > max_wait:
                         failed_acquisitions += 1
                         raise ClientError(
-                            {'Error': {'Code': 'ResourceContention', 'Message': f'Resource {resource_id} locked'}},
-                            'GetCoreNetworkPolicy'
+                            {"Error": {"Code": "ResourceContention", "Message": f"Resource {resource_id} locked"}},
+                            "GetCoreNetworkPolicy",
                         )
 
                 wait_time = time.time() - lock_start
@@ -571,13 +566,15 @@ class TestThreadStarvationScenarios:
                     time.sleep(processing_time)
 
                     return {
-                        'CoreNetworkPolicy': {
-                            'PolicyVersionId': '1',
-                            'PolicyDocument': json.dumps({
-                                'version': '2021.12',
-                                'resource-id': resource_id,
-                                'processed-by': shared_resource_locks[resource_id]
-                            })
+                        "CoreNetworkPolicy": {
+                            "PolicyVersionId": "1",
+                            "PolicyDocument": json.dumps(
+                                {
+                                    "version": "2021.12",
+                                    "resource-id": resource_id,
+                                    "processed-by": shared_resource_locks[resource_id],
+                                }
+                            ),
                         }
                     }
                 finally:
@@ -588,28 +585,18 @@ class TestThreadStarvationScenarios:
             mock_client.get_core_network_policy.side_effect = contended_operation
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=resource_contention_mock):
-
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=resource_contention_mock):
             # Create contention scenario - multiple requests for same resources
-            resource_ids = [f'core-network-resource-{i:02d}' for i in range(5)]  # 5 resources
+            resource_ids = [f"core-network-resource-{i:02d}" for i in range(5)]  # 5 resources
             requests_per_resource = 10  # 10 requests per resource = 50 total
 
             async def contended_request(resource_id, request_num):
                 try:
                     result = await get_core_network_policy(resource_id)
                     parsed = json.loads(result)
-                    return {
-                        'success': parsed['success'],
-                        'resource_id': resource_id,
-                        'request_num': request_num
-                    }
+                    return {"success": parsed["success"], "resource_id": resource_id, "request_num": request_num}
                 except Exception as e:
-                    return {
-                        'success': False,
-                        'resource_id': resource_id,
-                        'request_num': request_num,
-                        'error': str(e)
-                    }
+                    return {"success": False, "resource_id": resource_id, "request_num": request_num, "error": str(e)}
 
             # Create all contended requests
             all_tasks = []
@@ -623,11 +610,13 @@ class TestThreadStarvationScenarios:
             end_time = time.time()
 
             execution_time = end_time - start_time
-            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get("success", False))
 
             # Resource contention should be handled gracefully
             total_requests = len(all_tasks)
-            assert successful_requests >= total_requests * 0.9, f"Resource contention: {successful_requests}/{total_requests}"
+            assert successful_requests >= total_requests * 0.9, (
+                f"Resource contention: {successful_requests}/{total_requests}"
+            )
             assert execution_time < 120.0, f"Resource contention test took {execution_time:.2f}s"
 
             # Analyze resource wait patterns
@@ -638,8 +627,9 @@ class TestThreadStarvationScenarios:
                 assert avg_wait < 1.0, f"Average resource wait {avg_wait:.3f}s"
                 assert max_wait < 5.0, f"Max resource wait {max_wait:.3f}s"
 
-            print(f"Resource contention: {successful_acquisitions} successful, "
-                  f"{failed_acquisitions} failed acquisitions")
+            print(
+                f"Resource contention: {successful_acquisitions} successful, {failed_acquisitions} failed acquisitions"
+            )
 
 
 class TestAtomicOperationValidation:
@@ -647,7 +637,7 @@ class TestAtomicOperationValidation:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_atomic_policy_operations(self):
+    async def test_atomic_policy_operations(self) -> None:
         """Test atomic policy update operations."""
         policy_version_counter = 0
         concurrent_updates = []
@@ -672,62 +662,57 @@ class TestAtomicOperationValidation:
                     update_conflicts += 1
                     raise ClientError(
                         {
-                            'Error': {
-                                'Code': 'OptimisticLockException',
-                                'Message': f'Policy version changed from {current_version} to {policy_version_counter}',
-                                'ExpectedVersion': str(current_version),
-                                'ActualVersion': str(policy_version_counter)
+                            "Error": {
+                                "Code": "OptimisticLockException",
+                                "Message": f"Policy version changed from {current_version} to {policy_version_counter}",
+                                "ExpectedVersion": str(current_version),
+                                "ActualVersion": str(policy_version_counter),
                             }
                         },
-                        'UpdateCoreNetworkPolicy'
+                        "UpdateCoreNetworkPolicy",
                     )
 
                 # Simulate successful atomic update
                 policy_version_counter += 1
                 successful_updates += 1
 
-                concurrent_updates.append({
-                    'timestamp': operation_start,
-                    'old_version': current_version,
-                    'new_version': policy_version_counter,
-                    'thread_id': threading.current_thread().ident
-                })
+                concurrent_updates.append(
+                    {
+                        "timestamp": operation_start,
+                        "old_version": current_version,
+                        "new_version": policy_version_counter,
+                        "thread_id": threading.current_thread().ident,
+                    }
+                )
 
                 return {
-                    'CoreNetworkPolicy': {
-                        'PolicyVersionId': str(policy_version_counter),
-                        'PolicyDocument': json.dumps({
-                            'version': '2021.12',
-                            'update-timestamp': operation_start,
-                            'atomic-operation': True
-                        }),
-                        'ChangeSetState': 'READY_TO_EXECUTE'
+                    "CoreNetworkPolicy": {
+                        "PolicyVersionId": str(policy_version_counter),
+                        "PolicyDocument": json.dumps(
+                            {"version": "2021.12", "update-timestamp": operation_start, "atomic-operation": True}
+                        ),
+                        "ChangeSetState": "READY_TO_EXECUTE",
                     }
                 }
 
             mock_client.get_core_network_policy.side_effect = atomic_update_operation
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=atomic_policy_mock):
-
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=atomic_policy_mock):
             # Test concurrent atomic operations
             concurrent_operations = 50
 
             async def atomic_operation_request(request_id):
                 try:
-                    result = await get_core_network_policy(f'core-network-atomic-{request_id:03d}')
+                    result = await get_core_network_policy(f"core-network-atomic-{request_id:03d}")
                     parsed = json.loads(result)
                     return {
-                        'success': parsed['success'],
-                        'request_id': request_id,
-                        'policy_version': parsed.get('policy_version_id', 'unknown')
+                        "success": parsed["success"],
+                        "request_id": request_id,
+                        "policy_version": parsed.get("policy_version_id", "unknown"),
                     }
                 except Exception as e:
-                    return {
-                        'success': False,
-                        'request_id': request_id,
-                        'error': str(e)
-                    }
+                    return {"success": False, "request_id": request_id, "error": str(e)}
 
             tasks = [atomic_operation_request(i) for i in range(concurrent_operations)]
 
@@ -736,16 +721,18 @@ class TestAtomicOperationValidation:
             end_time = time.time()
 
             execution_time = end_time - start_time
-            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get("success", False))
 
             # Atomic operations should maintain consistency
             assert successful_updates > 0, "No successful atomic updates"
-            assert successful_requests >= concurrent_operations * 0.8, f"Atomic operations: {successful_requests}/{concurrent_operations}"
+            assert successful_requests >= concurrent_operations * 0.8, (
+                f"Atomic operations: {successful_requests}/{concurrent_operations}"
+            )
             assert execution_time < 60.0, f"Atomic operations took {execution_time:.2f}s"
 
             # Verify no version conflicts in successful updates
             if concurrent_updates:
-                versions = [update['new_version'] for update in concurrent_updates]
+                versions = [update["new_version"] for update in concurrent_updates]
                 assert len(set(versions)) == len(versions), "Version collision detected in atomic updates"
                 assert max(versions) == len(concurrent_updates), "Version sequence not maintained"
 
@@ -753,7 +740,7 @@ class TestAtomicOperationValidation:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_token_race_conditions(self):
+    async def test_session_token_race_conditions(self) -> None:
         """Test session token handling under race conditions."""
         session_tokens = {}
         token_refresh_count = 0
@@ -766,7 +753,7 @@ class TestAtomicOperationValidation:
             def token_aware_operation(**kwargs):
                 nonlocal token_refresh_count, token_conflicts
 
-                client_id = kwargs.get('ClientId', 'default-client')
+                client_id = kwargs.get("ClientId", "default-client")
 
                 # Simulate token expiry and refresh logic
                 current_time = time.time()
@@ -774,16 +761,16 @@ class TestAtomicOperationValidation:
                 if client_id not in session_tokens:
                     # Initial token creation
                     session_tokens[client_id] = {
-                        'token': f'token-{client_id}-{token_refresh_count:06d}',
-                        'expires_at': current_time + 3600,  # 1 hour
-                        'created_at': current_time
+                        "token": f"token-{client_id}-{token_refresh_count:06d}",
+                        "expires_at": current_time + 3600,  # 1 hour
+                        "created_at": current_time,
                     }
                     token_refresh_count += 1
 
                 token_info = session_tokens[client_id]
 
                 # Check for token expiry (simulate short expiry for testing)
-                if current_time > token_info['expires_at'] - 3500:  # Refresh 100s before expiry
+                if current_time > token_info["expires_at"] - 3500:  # Refresh 100s before expiry
                     # Token refresh race condition window
                     time.sleep(0.01)
 
@@ -791,9 +778,9 @@ class TestAtomicOperationValidation:
                     if session_tokens[client_id] == token_info:
                         # We won the race - refresh token
                         session_tokens[client_id] = {
-                            'token': f'token-{client_id}-{token_refresh_count:06d}',
-                            'expires_at': current_time + 3600,
-                            'created_at': current_time
+                            "token": f"token-{client_id}-{token_refresh_count:06d}",
+                            "expires_at": current_time + 3600,
+                            "created_at": current_time,
                         }
                         token_refresh_count += 1
                     else:
@@ -801,10 +788,10 @@ class TestAtomicOperationValidation:
                         token_conflicts += 1
 
                 return {
-                    'CoreNetworks': [
+                    "CoreNetworks": [
                         {
-                            'CoreNetworkId': f'core-network-token-{client_id}',
-                            'SessionToken': session_tokens[client_id]['token']
+                            "CoreNetworkId": f"core-network-token-{client_id}",
+                            "SessionToken": session_tokens[client_id]["token"],
                         }
                     ]
                 }
@@ -812,8 +799,7 @@ class TestAtomicOperationValidation:
             mock_client.list_core_networks.side_effect = token_aware_operation
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=session_token_mock):
-
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=session_token_mock):
             # Test concurrent requests with shared session tokens
             clients_count = 10
             requests_per_client = 20
@@ -821,26 +807,17 @@ class TestAtomicOperationValidation:
             async def session_token_request(client_id, request_num):
                 try:
                     # Add client identifier to trigger session token logic
-                    result = await list_core_networks(region='us-east-1')
+                    result = await list_core_networks(region="us-east-1")
                     parsed = json.loads(result)
-                    return {
-                        'success': parsed['success'],
-                        'client_id': client_id,
-                        'request_num': request_num
-                    }
+                    return {"success": parsed["success"], "client_id": client_id, "request_num": request_num}
                 except Exception as e:
-                    return {
-                        'success': False,
-                        'client_id': client_id,
-                        'request_num': request_num,
-                        'error': str(e)
-                    }
+                    return {"success": False, "client_id": client_id, "request_num": request_num, "error": str(e)}
 
             # Create concurrent requests from multiple clients
             all_tasks = []
             for client_id in range(clients_count):
                 for req_num in range(requests_per_client):
-                    task = session_token_request(f'client-{client_id:02d}', req_num)
+                    task = session_token_request(f"client-{client_id:02d}", req_num)
                     all_tasks.append(task)
 
             start_time = time.time()
@@ -848,19 +825,23 @@ class TestAtomicOperationValidation:
             end_time = time.time()
 
             execution_time = end_time - start_time
-            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get("success", False))
             total_requests = len(all_tasks)
 
             # Session token handling should be robust
-            assert successful_requests >= total_requests * 0.95, f"Session token handling: {successful_requests}/{total_requests}"
+            assert successful_requests >= total_requests * 0.95, (
+                f"Session token handling: {successful_requests}/{total_requests}"
+            )
             assert execution_time < 90.0, f"Session token test took {execution_time:.2f}s"
 
             # Token management should be efficient
             assert token_refresh_count <= clients_count * 2, f"Too many token refreshes: {token_refresh_count}"
             assert token_conflicts <= total_requests * 0.1, f"Too many token conflicts: {token_conflicts}"
 
-            print(f"Session tokens: {len(session_tokens)} clients, "
-                  f"{token_refresh_count} refreshes, {token_conflicts} conflicts")
+            print(
+                f"Session tokens: {len(session_tokens)} clients, "
+                f"{token_refresh_count} refreshes, {token_conflicts} conflicts"
+            )
 
 
 class TestIdempotencyTokenHandling:
@@ -868,7 +849,7 @@ class TestIdempotencyTokenHandling:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_idempotent_operation_deduplication(self):
+    async def test_idempotent_operation_deduplication(self) -> None:
         """Test idempotent operation deduplication."""
         processed_operations = {}
         duplicate_operations = 0
@@ -888,7 +869,7 @@ class TestIdempotencyTokenHandling:
                 if idempotency_key in processed_operations:
                     # Duplicate operation - return cached result
                     duplicate_operations += 1
-                    return processed_operations[idempotency_key]['result']
+                    return processed_operations[idempotency_key]["result"]
                 else:
                     # New operation - process and cache
                     unique_operations += 1
@@ -897,30 +878,26 @@ class TestIdempotencyTokenHandling:
                     time.sleep(0.02)  # 20ms processing time
 
                     result = {
-                        'Routes': [
+                        "Routes": [
                             {
-                                'DestinationCidrBlock': f'10.{unique_operations}.0.0/16',
-                                'State': 'active',
-                                'IdempotencyKey': str(idempotency_key),
-                                'ProcessedAt': time.time()
+                                "DestinationCidrBlock": f"10.{unique_operations}.0.0/16",
+                                "State": "active",
+                                "IdempotencyKey": str(idempotency_key),
+                                "ProcessedAt": time.time(),
                             }
                         ]
                     }
 
-                    processed_operations[idempotency_key] = {
-                        'result': result,
-                        'first_processed': time.time()
-                    }
+                    processed_operations[idempotency_key] = {"result": result, "first_processed": time.time()}
 
                     return result
 
             mock_client.search_transit_gateway_routes.side_effect = idempotent_operation
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=idempotent_mock):
-
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=idempotent_mock):
             # Test idempotent operations with intentional duplicates
-            route_table_ids = [f'tgw-rtb-idem-{i:02d}' for i in range(10)]  # 10 unique route tables
+            route_table_ids = [f"tgw-rtb-idem-{i:02d}" for i in range(10)]  # 10 unique route tables
             duplicate_factor = 5  # Each request repeated 5 times
 
             async def idempotent_request(route_table_id, attempt_num):
@@ -928,17 +905,17 @@ class TestIdempotencyTokenHandling:
                     result = await analyze_tgw_routes(route_table_id)
                     parsed = json.loads(result)
                     return {
-                        'success': parsed['success'],
-                        'route_table_id': route_table_id,
-                        'attempt_num': attempt_num,
-                        'total_routes': parsed.get('analysis', {}).get('total_routes', 0)
+                        "success": parsed["success"],
+                        "route_table_id": route_table_id,
+                        "attempt_num": attempt_num,
+                        "total_routes": parsed.get("analysis", {}).get("total_routes", 0),
                     }
                 except Exception as e:
                     return {
-                        'success': False,
-                        'route_table_id': route_table_id,
-                        'attempt_num': attempt_num,
-                        'error': str(e)
+                        "success": False,
+                        "route_table_id": route_table_id,
+                        "attempt_num": attempt_num,
+                        "error": str(e),
                     }
 
             # Create requests with duplicates
@@ -953,13 +930,19 @@ class TestIdempotencyTokenHandling:
             end_time = time.time()
 
             execution_time = end_time - start_time
-            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get("success", False))
             total_requests = len(all_tasks)
 
             # Idempotency should work correctly
-            assert successful_requests == total_requests, f"Idempotent operations: {successful_requests}/{total_requests}"
-            assert unique_operations == len(route_table_ids), f"Expected {len(route_table_ids)} unique operations, got {unique_operations}"
-            assert duplicate_operations == total_requests - unique_operations, f"Expected {total_requests - unique_operations} duplicates, got {duplicate_operations}"
+            assert successful_requests == total_requests, (
+                f"Idempotent operations: {successful_requests}/{total_requests}"
+            )
+            assert unique_operations == len(route_table_ids), (
+                f"Expected {len(route_table_ids)} unique operations, got {unique_operations}"
+            )
+            assert duplicate_operations == total_requests - unique_operations, (
+                f"Expected {total_requests - unique_operations} duplicates, got {duplicate_operations}"
+            )
 
             # Duplicates should be processed faster (cached results)
             expected_max_time = unique_operations * 0.02 + 10  # Processing time + overhead
@@ -969,7 +952,7 @@ class TestIdempotencyTokenHandling:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_bulk_operation_rollback_patterns(self):
+    async def test_bulk_operation_rollback_patterns(self) -> None:
         """Test bulk operation rollback patterns."""
         operation_log = []
         rollback_operations = []
@@ -983,82 +966,76 @@ class TestIdempotencyTokenHandling:
             def bulk_operation(**kwargs):
                 nonlocal successful_batches, failed_batches
 
-                batch_id = kwargs.get('BatchId', f'batch-{len(operation_log):04d}')
-                operations = kwargs.get('Operations', [])
+                batch_id = kwargs.get("BatchId", f"batch-{len(operation_log):04d}")
+                operations = kwargs.get("Operations", [])
 
                 operation_results = []
                 rollback_needed = False
 
                 # Process operations in batch
                 for i, operation in enumerate(operations):
-                    op_id = f'{batch_id}-op-{i:03d}'
+                    op_id = f"{batch_id}-op-{i:03d}"
 
                     try:
                         # Simulate operation processing with potential failure
-                        if 'fail' in operation.get('type', '').lower() or i % 7 == 6:  # Fail every 7th operation
+                        if "fail" in operation.get("type", "").lower() or i % 7 == 6:  # Fail every 7th operation
                             raise ClientError(
-                                {'Error': {'Code': 'ValidationException', 'Message': f'Operation {op_id} failed'}},
-                                'BulkOperation'
+                                {"Error": {"Code": "ValidationException", "Message": f"Operation {op_id} failed"}},
+                                "BulkOperation",
                             )
 
                         # Successful operation
                         operation_result = {
-                            'OperationId': op_id,
-                            'Status': 'SUCCESS',
-                            'Result': f'Processed {operation.get("data", "unknown")}'
+                            "OperationId": op_id,
+                            "Status": "SUCCESS",
+                            "Result": f"Processed {operation.get('data', 'unknown')}",
                         }
                         operation_results.append(operation_result)
-                        operation_log.append({
-                            'batch_id': batch_id,
-                            'operation_id': op_id,
-                            'status': 'success',
-                            'timestamp': time.time()
-                        })
+                        operation_log.append(
+                            {"batch_id": batch_id, "operation_id": op_id, "status": "success", "timestamp": time.time()}
+                        )
 
                     except ClientError as e:
                         # Operation failed - need rollback
                         rollback_needed = True
-                        operation_results.append({
-                            'OperationId': op_id,
-                            'Status': 'FAILED',
-                            'Error': str(e)
-                        })
+                        operation_results.append({"OperationId": op_id, "Status": "FAILED", "Error": str(e)})
                         break  # Stop processing on first failure
 
                 if rollback_needed:
                     # Perform rollback of successful operations in this batch
                     rollback_ops = [
-                        log for log in operation_log
-                        if log['batch_id'] == batch_id and log['status'] == 'success'
+                        log for log in operation_log if log["batch_id"] == batch_id and log["status"] == "success"
                     ]
 
                     for rollback_op in rollback_ops:
-                        rollback_operations.append({
-                            'original_operation': rollback_op['operation_id'],
-                            'rollback_timestamp': time.time(),
-                            'batch_id': batch_id
-                        })
+                        rollback_operations.append(
+                            {
+                                "original_operation": rollback_op["operation_id"],
+                                "rollback_timestamp": time.time(),
+                                "batch_id": batch_id,
+                            }
+                        )
                         # Mark as rolled back
-                        rollback_op['status'] = 'rolled_back'
+                        rollback_op["status"] = "rolled_back"
 
                     failed_batches += 1
                     raise ClientError(
-                        {'Error': {'Code': 'BatchOperationFailed', 'Message': f'Batch {batch_id} failed, rollback completed'}},
-                        'BulkOperation'
+                        {
+                            "Error": {
+                                "Code": "BatchOperationFailed",
+                                "Message": f"Batch {batch_id} failed, rollback completed",
+                            }
+                        },
+                        "BulkOperation",
                     )
                 else:
                     successful_batches += 1
-                    return {
-                        'BatchId': batch_id,
-                        'Status': 'SUCCESS',
-                        'Operations': operation_results
-                    }
+                    return {"BatchId": batch_id, "Status": "SUCCESS", "Operations": operation_results}
 
             mock_client.bulk_create_routes = bulk_operation
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=bulk_rollback_mock):
-
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client", side_effect=bulk_rollback_mock):
             # Test bulk operations with rollback scenarios
             batch_count = 20
             operations_per_batch = 10
@@ -1068,8 +1045,8 @@ class TestIdempotencyTokenHandling:
                     # Simulate bulk route creation (using tgw route analysis as proxy)
                     operations = [
                         {
-                            'type': 'create_route' if i % 7 != 6 else 'fail_route',  # Every 7th fails
-                            'data': f'route-{batch_num:02d}-{i:02d}'
+                            "type": "create_route" if i % 7 != 6 else "fail_route",  # Every 7th fails
+                            "data": f"route-{batch_num:02d}-{i:02d}",
                         }
                         for i in range(operations_per_batch)
                     ]
@@ -1077,25 +1054,16 @@ class TestIdempotencyTokenHandling:
                     # Simulate bulk operation success/failure based on batch number
                     if batch_num % 7 == 6:  # Every 7th batch fails
                         return {
-                            'success': False,
-                            'batch_num': batch_num,
-                            'error': f'Bulk operation batch {batch_num} failed',
-                            'rollback_required': True
+                            "success": False,
+                            "batch_num": batch_num,
+                            "error": f"Bulk operation batch {batch_num} failed",
+                            "rollback_required": True,
                         }
                     else:
-                        return {
-                            'success': True,
-                            'batch_num': batch_num,
-                            'operations': len(operations)
-                        }
+                        return {"success": True, "batch_num": batch_num, "operations": len(operations)}
 
                 except Exception as e:
-                    return {
-                        'success': False,
-                        'batch_num': batch_num,
-                        'error': str(e),
-                        'rollback_required': True
-                    }
+                    return {"success": False, "batch_num": batch_num, "error": str(e), "rollback_required": True}
 
             tasks = [bulk_operation_request(i) for i in range(batch_count)]
 
@@ -1104,28 +1072,30 @@ class TestIdempotencyTokenHandling:
             end_time = time.time()
 
             execution_time = end_time - start_time
-            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+            successful_requests = sum(1 for r in results if isinstance(r, dict) and r.get("success", False))
 
             # Bulk operations with rollback should handle failures gracefully
             assert successful_requests >= batch_count * 0.7, f"Bulk operations: {successful_requests}/{batch_count}"
             assert execution_time < 120.0, f"Bulk rollback test took {execution_time:.2f}s"
 
             # Verify rollback operations occurred
-            total_operations = len(operation_log)
-            rolled_back_operations = sum(1 for log in operation_log if log['status'] == 'rolled_back')
+            len(operation_log)
+            rolled_back_operations = sum(1 for log in operation_log if log["status"] == "rolled_back")
 
-            assert len(rollback_operations) == rolled_back_operations, f"Rollback count mismatch: {len(rollback_operations)} vs {rolled_back_operations}"
+            assert len(rollback_operations) == rolled_back_operations, (
+                f"Rollback count mismatch: {len(rollback_operations)} vs {rolled_back_operations}"
+            )
 
             if rollback_operations:
                 avg_rollback_time = sum(
-                    rb['rollback_timestamp'] - next(
-                        log['timestamp'] for log in operation_log
-                        if log['operation_id'] == rb['original_operation']
-                    )
+                    rb["rollback_timestamp"]
+                    - next(log["timestamp"] for log in operation_log if log["operation_id"] == rb["original_operation"])
                     for rb in rollback_operations
                 ) / len(rollback_operations)
 
                 assert avg_rollback_time < 1.0, f"Average rollback time {avg_rollback_time:.3f}s too high"
 
-            print(f"Bulk operations: {successful_batches} successful batches, "
-                  f"{failed_batches} failed batches, {len(rollback_operations)} rollbacks")
+            print(
+                f"Bulk operations: {successful_batches} successful batches, "
+                f"{failed_batches} failed batches, {len(rollback_operations)} rollbacks"
+            )

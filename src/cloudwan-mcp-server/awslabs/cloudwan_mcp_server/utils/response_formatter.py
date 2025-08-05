@@ -15,48 +15,41 @@
 """Response formatting utilities following AWS Labs patterns."""
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 
-def format_error_response(error: str, error_code: str) -> Dict[str, Any]:
+def format_error_response(error: str, error_code: str) -> dict[str, Any]:
     """Format error response following AWS Labs standards.
-    
+
     Args:
         error: Error message
         error_code: Error code for categorization
-        
+
     Returns:
         Standardized error response dictionary
     """
-    return {
-        "success": False,
-        "error": error,
-        "error_code": error_code
-    }
+    return {"success": False, "error": error, "error_code": error_code}
 
 
-def format_success_response(data: Any) -> Dict[str, Any]:
+def format_success_response(data: Any) -> dict[str, Any]:
     """Format success response following AWS Labs standards.
-    
+
     Args:
         data: Response data
-        
+
     Returns:
         Standardized success response dictionary
     """
-    return {
-        "success": True,
-        "data": data
-    }
+    return {"success": True, "data": data}
 
 
 def safe_json_dumps(data: Any, **kwargs) -> str:
     """Safely serialize data to JSON string.
-    
+
     Args:
         data: Data to serialize
         **kwargs: Additional arguments for json.dumps
-        
+
     Returns:
         JSON string representation
     """

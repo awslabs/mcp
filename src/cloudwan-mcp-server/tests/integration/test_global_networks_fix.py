@@ -26,12 +26,12 @@ import asyncio
 import logging
 import sys
 
-
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def test_global_networks_response_model():
+
+async def test_global_networks_response_model() -> bool | None:
     """Test the GlobalNetworksResponse model can be instantiated correctly."""
     print("🔍 Testing GlobalNetworksResponse model instantiation...")
 
@@ -51,7 +51,7 @@ async def test_global_networks_response_model():
         # Test 2: With data - total_count should auto-calculate from global_networks length
         response_with_data = GlobalNetworksResponse(
             global_networks=[],  # Empty list = total_count should be 0
-            regions_searched=["us-west-2", "us-east-1"]
+            regions_searched=["us-west-2", "us-east-1"],
         )
         # The model_validator will set total_count based on global_networks length
         assert response_with_data.total_count == 0  # 0 because global_networks is empty
@@ -62,7 +62,7 @@ async def test_global_networks_response_model():
             global_network_id="gn-123456789abcdef01",
             global_network_arn="arn:aws:networkmanager::123456789012:global-network/gn-123456789abcdef01",
             description="Test network",
-            state="AVAILABLE"
+            state="AVAILABLE",
         )
         response_auto = GlobalNetworksResponse(global_networks=[network_info])
         # The __init__ method should auto-set total_count to 1
@@ -75,7 +75,8 @@ async def test_global_networks_response_model():
         print(f"❌ Model instantiation failed: {e}")
         return False
 
-async def test_tool_parameter_handling():
+
+async def test_tool_parameter_handling() -> bool | None:
     """Test that the tool can handle empty parameters properly."""
     print("\\n🔍 Testing tool parameter handling...")
 
@@ -122,10 +123,12 @@ async def test_tool_parameter_handling():
     except Exception as e:
         print(f"❌ Tool parameter handling failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
-async def test_import_conflicts():
+
+async def test_import_conflicts() -> bool | None:
     """Test that there are no import conflicts between duplicate models."""
     print("\\n🔍 Testing import conflicts resolution...")
 
@@ -141,8 +144,8 @@ async def test_import_conflicts():
         print(f"Network import: {NetworkResponse}")
 
         # Test instantiation from both imports
-        response1 = ModelsResponse()
-        response2 = NetworkResponse()
+        ModelsResponse()
+        NetworkResponse()
 
         print("✅ Import conflicts resolved")
         return True
@@ -150,10 +153,12 @@ async def test_import_conflicts():
     except Exception as e:
         print(f"❌ Import conflict test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
-async def main():
+
+async def main() -> int:
     """Run all tests to validate the fixes."""
     print("🚀 Running CloudWAN MCP Server Fix Validation Tests\\n")
 
@@ -181,6 +186,7 @@ async def main():
         print("❌ Some tests failed. Please review the fixes.")
         return 1
 
+
 if __name__ == "__main__":
     try:
         exit_code = asyncio.run(main())
@@ -191,5 +197,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\\n💥 Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

@@ -29,7 +29,7 @@ import time
 from pathlib import Path
 
 
-async def test_mcp_server_direct():
+async def test_mcp_server_direct() -> bool:
     """Test MCP server directly via subprocess."""
     # Set up logging
     logging.basicConfig(level=logging.INFO)
@@ -41,11 +41,7 @@ async def test_mcp_server_direct():
 
     # Test environment setup
     env = os.environ.copy()
-    env.update({
-        "AWS_PROFILE": "default",
-        "AWS_DEFAULT_REGION": "us-west-2",
-        "CLOUDWAN_MCP_DEBUG": "true"
-    })
+    env.update({"AWS_PROFILE": "default", "AWS_DEFAULT_REGION": "us-west-2", "CLOUDWAN_MCP_DEBUG": "true"})
 
     # Test 1: Server startup
     logger.info("🧪 Test 1: Server Startup")
@@ -55,12 +51,7 @@ async def test_mcp_server_direct():
         # Start server process
         cmd = [sys.executable, "-m", "awslabs.cloudwan_mcp_server"]
         process = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True
         )
 
         # Send initialization request
@@ -71,8 +62,8 @@ async def test_mcp_server_direct():
             "params": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "test-client", "version": "1.0.0"}
-            }
+                "clientInfo": {"name": "test-client", "version": "1.0.0"},
+            },
         }
 
         # Send the request
@@ -104,21 +95,11 @@ async def test_mcp_server_direct():
     try:
         cmd = [sys.executable, "-m", "awslabs.cloudwan_mcp_server"]
         process = subprocess.Popen(
-            cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True
         )
 
         # Send list tools request
-        list_tools_request = {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "tools/list",
-            "params": {}
-        }
+        list_tools_request = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 
         process.stdin.write(json.dumps(list_tools_request) + "\n")
         process.stdin.flush()
@@ -152,7 +133,7 @@ async def test_mcp_server_direct():
             "awslabs.cloudwan_mcp_server.config",
             "awslabs.cloudwan_mcp_server.tools.dynamic_registry",
             "awslabs.cloudwan_mcp_server.tools.core.discovery",
-            "awslabs.cloudwan_mcp_server.tools.cloudwan.policy_management"
+            "awslabs.cloudwan_mcp_server.tools.cloudwan.policy_management",
         ]
 
         for module_name in test_imports:
@@ -190,7 +171,7 @@ async def test_mcp_server_direct():
             "analyze_network_function_group",
             "list_core_networks",
             "discover_vpcs",
-            "get_global_networks"
+            "get_global_networks",
         ]
 
         found_critical = []
@@ -228,7 +209,6 @@ async def test_mcp_server_direct():
     logger.info("\n🧪 Test 6: Policy Management Tools Check")
 
     try:
-
         logger.info("✅ Policy management tool classes imported successfully")
         logger.info("   ✓ GetCoreNetworkPolicyTool")
         logger.info("   ✓ GetCoreNetworkChangeSetTool")
@@ -254,6 +234,7 @@ async def test_mcp_server_direct():
                 AnalyzeNetworkFunctionGroupPoliciesTool,
                 ListNetworkFunctionGroupsTool,
             )
+
             logger.info("✅ NFG tool classes imported successfully")
             logger.info("   ✓ ListNetworkFunctionGroupsTool")
             logger.info("   ✓ AnalyzeNetworkFunctionGroupPoliciesTool")

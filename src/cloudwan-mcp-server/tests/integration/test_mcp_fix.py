@@ -20,10 +20,10 @@ import asyncio
 import os
 import sys
 
+sys.path.append(".")
 
-sys.path.append('.')
 
-async def test_mcp_server_fix():
+async def test_mcp_server_fix() -> None:
     """Test the MCP server fix to ensure tools return visible results"""
     os.environ["AWS_PROFILE"] = "taylaand+net-dev-Admin"
     os.environ["AWS_DEFAULT_REGION"] = "us-west-2"
@@ -48,10 +48,10 @@ async def test_mcp_server_fix():
             print("✅ Tool executed successfully!")
             print(f"Result type: {type(result)}")
 
-            if hasattr(result, 'content') and result.content:
+            if hasattr(result, "content") and result.content:
                 print("📊 Tool returned content:")
                 for item in result.content:
-                    if hasattr(item, 'text'):
+                    if hasattr(item, "text"):
                         print(f"Content: {item.text}")
                     else:
                         print(f"Content: {item}")
@@ -62,6 +62,7 @@ async def test_mcp_server_fix():
         except Exception as e:
             print(f"❌ Tool execution failed: {e}")
             import traceback
+
             traceback.print_exc()
 
         # Test another tool
@@ -70,10 +71,10 @@ async def test_mcp_server_fix():
             result = await server.server.call_tool("get_global_networks", {})
             print("✅ Tool executed successfully!")
 
-            if hasattr(result, 'content') and result.content:
+            if hasattr(result, "content") and result.content:
                 print("📊 Tool returned content:")
                 for item in result.content:
-                    if hasattr(item, 'text'):
+                    if hasattr(item, "text"):
                         print(f"Content: {item.text}")
             else:
                 print("❌ No content returned")
@@ -84,7 +85,9 @@ async def test_mcp_server_fix():
     except Exception as e:
         print(f"❌ Server initialization failed: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(test_mcp_server_fix())

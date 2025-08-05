@@ -15,15 +15,16 @@
 """Logger utilities following AWS Labs patterns."""
 
 import sys
+
 from loguru import logger as _logger
 
 
 def get_logger(name: str):
     """Get logger instance following AWS Labs patterns.
-    
+
     Args:
         name: Logger name (typically __name__)
-        
+
     Returns:
         Logger instance with standard AWS Labs configuration
     """
@@ -32,16 +33,16 @@ def get_logger(name: str):
     _logger.add(
         sys.stderr,
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level="INFO"
+        level="INFO",
     )
 
     # Return logger with context
     return _logger.bind(name=name)
 
 
-def configure_logging(level: str = "INFO"):
+def configure_logging(level: str = "INFO") -> None:
     """Configure global logging level.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR)
     """
@@ -49,5 +50,5 @@ def configure_logging(level: str = "INFO"):
     _logger.add(
         sys.stderr,
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level=level
+        level=level,
     )

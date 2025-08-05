@@ -16,4 +16,4 @@
 
 from .content import CLOUDWAN_UNDERSTANDING
 
-__all__ = ['CLOUDWAN_UNDERSTANDING']
+__all__ = ["CLOUDWAN_UNDERSTANDING"]

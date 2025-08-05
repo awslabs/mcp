@@ -14,17 +14,18 @@
 
 
 #!/usr/bin/env python3
-"""Test the CloudWAN MCP server directly via MCP protocol.
-"""
+"""Test the CloudWAN MCP server directly via MCP protocol."""
+
 import asyncio
 import json
 import os
 import sys
+
 from mcp import ClientSession, StdioServerParameters
 from mcp.client import stdio
 
 
-async def test_mcp_server():
+async def test_mcp_server() -> bool:
     """Test MCP server connection and tool usage."""
     print("🚀 Testing CloudWAN MCP Server via MCP protocol...")
 
@@ -38,7 +39,7 @@ async def test_mcp_server():
         env={
             **os.environ,
             "AWS_DEFAULT_REGION": "us-west-2",
-        }
+        },
     )
 
     try:
@@ -61,11 +62,11 @@ async def test_mcp_server():
                     print("✅ Tool executed successfully!")
                     print(f"📄 Content type: {type(result.content[0]) if result.content else 'None'}")
 
-                    if result.content and hasattr(result.content[0], 'text'):
+                    if result.content and hasattr(result.content[0], "text"):
                         # Parse the JSON content
                         response_data = json.loads(result.content[0].text)
                         print(f"🌐 Found {response_data.get('total_count', 0)} global networks")
-                        for network in response_data.get('global_networks', [])[:2]:
+                        for network in response_data.get("global_networks", [])[:2]:
                             print(f"  - {network['global_network_id']}: {network.get('description', 'No description')}")
                     else:
                         print(f"⚠️  Unexpected content format: {result.content}")
@@ -76,6 +77,7 @@ async def test_mcp_server():
     except Exception as e:
         print(f"❌ MCP connection failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

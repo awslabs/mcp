@@ -14,17 +14,16 @@
 
 
 #!/usr/bin/env python3
-"""Test CloudWAN MCP Tools directly
-"""
+"""Test CloudWAN MCP Tools directly"""
 
 import asyncio
 import os
 import sys
 
+sys.path.append(".")
 
-sys.path.append('.')
 
-async def test_mcp_tools():
+async def test_mcp_tools() -> None:
     """Test the MCP tools directly"""
     # Set correct environment
     os.environ["AWS_PROFILE"] = "taylaand+net-dev-Admin"
@@ -40,7 +39,7 @@ async def test_mcp_tools():
 
         # Initialize server
         config = CloudWANConfig()
-        aws_manager = AWSClientManager(config)
+        AWSClientManager(config)
         server = CloudWANMCPServer()
         await server.initialize()
 
@@ -61,7 +60,9 @@ async def test_mcp_tools():
     except Exception as e:
         print(f"❌ Error testing MCP tools: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(test_mcp_tools())

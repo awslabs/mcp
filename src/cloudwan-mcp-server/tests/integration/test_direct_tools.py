@@ -14,18 +14,17 @@
 
 
 #!/usr/bin/env python3
-"""Test CloudWAN MCP Tools directly using the tool registry
-"""
+"""Test CloudWAN MCP Tools directly using the tool registry"""
 
 import asyncio
 import json
 import os
 import sys
 
+sys.path.append(".")
 
-sys.path.append('.')
 
-async def test_direct_tools():
+async def test_direct_tools() -> None:
     """Test the MCP tools directly via tool registry"""
     # Set correct environment
     os.environ["AWS_PROFILE"] = "taylaand+net-dev-Admin"
@@ -55,15 +54,15 @@ async def test_direct_tools():
         result = await global_net_tool.execute({})
 
         # Extract text content from the result
-        if hasattr(result, 'content') and result.content:
+        if hasattr(result, "content") and result.content:
             response_text = result.content[0].text
             try:
                 response_data = json.loads(response_text)
                 print("✅ Global Networks Response:")
                 print(f"   - Total networks found: {response_data.get('total_count', 0)}")
                 print(f"   - Status: {response_data.get('status', 'unknown')}")
-                if response_data.get('global_networks'):
-                    for gn in response_data['global_networks']:
+                if response_data.get("global_networks"):
+                    for gn in response_data["global_networks"]:
                         print(f"   - Global Network: {gn.get('global_network_id', 'N/A')}")
                 else:
                     print("   - No global networks found (expected if CloudWAN not configured)")
@@ -79,15 +78,15 @@ async def test_direct_tools():
         result2 = await core_net_tool.execute({})
 
         # Extract text content from the result
-        if hasattr(result2, 'content') and result2.content:
+        if hasattr(result2, "content") and result2.content:
             response_text2 = result2.content[0].text
             try:
                 response_data2 = json.loads(response_text2)
                 print("✅ Core Networks Response:")
                 print(f"   - Total networks found: {response_data2.get('total_count', 0)}")
                 print(f"   - Status: {response_data2.get('status', 'unknown')}")
-                if response_data2.get('core_networks'):
-                    for cn in response_data2['core_networks']:
+                if response_data2.get("core_networks"):
+                    for cn in response_data2["core_networks"]:
                         print(f"   - Core Network: {cn.get('core_network_id', 'N/A')}")
                         print(f"     Segments: {len(cn.get('segments', []))}")
                 else:
@@ -102,7 +101,9 @@ async def test_direct_tools():
     except Exception as e:
         print(f"❌ Error testing MCP tools: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(test_direct_tools())

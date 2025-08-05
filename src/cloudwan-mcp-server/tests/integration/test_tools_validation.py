@@ -38,7 +38,7 @@ def validate_tools():
         return False
 
     # Read and parse the server file
-    with open(server_file, 'r') as f:
+    with open(server_file) as f:
         content = f.read()
 
     try:
@@ -64,7 +64,7 @@ def validate_tools():
         "analyze_segment_routes",
         "get_core_network_policy",
         "get_core_network_change_set",
-        "get_core_network_change_events"
+        "get_core_network_change_events",
     ]
 
     found_tools = []
@@ -82,12 +82,13 @@ def validate_tools():
         if isinstance(node, ast.FunctionDef):
             for decorator in node.decorator_list:
                 # Check for @mcp.tool() decorator
-                if (isinstance(decorator, ast.Call) and
-                    isinstance(decorator.func, ast.Attribute) and
-                    isinstance(decorator.func.value, ast.Name) and
-                    decorator.func.value.id == "mcp" and
-                    decorator.func.attr == "tool"):
-
+                if (
+                    isinstance(decorator, ast.Call)
+                    and isinstance(decorator.func, ast.Attribute)
+                    and isinstance(decorator.func.value, ast.Name)
+                    and decorator.func.value.id == "mcp"
+                    and decorator.func.attr == "tool"
+                ):
                     found_tools.append(node.name)
                     mcp_decorator_found = True
 
@@ -147,7 +148,7 @@ def validate_tools():
         "ClientError import": "from botocore.exceptions import ClientError" in content,
         "JSON error handling": "json.dumps" in content and "error" in content,
         "Direct client usage": "boto3.client" in content,
-        "Simple return strings": "-> str:" in content
+        "Simple return strings": "-> str:" in content,
     }
 
     print("\n🏗️ AWS Labs Compliance Patterns:")
@@ -171,7 +172,7 @@ def validate_tools():
         "Dynamic registry": "DynamicToolRegistry" in content,
         "Complex abstractions": "BaseMCPTool" in content,
         "Pydantic models": "from pydantic" in content,
-        "Tool factory": "ToolFactory" in content
+        "Tool factory": "ToolFactory" in content,
     }
 
     print("\n🚫 Complexity Anti-Patterns (should be absent):")
@@ -183,7 +184,7 @@ def validate_tools():
             success = False
 
     # Final validation
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     if success:
         print("🎉 VALIDATION PASSED: CloudWAN MCP Server is AWS Labs compliant!")
         print("✅ All 16 tools converted to simple FastMCP decorators")
@@ -194,6 +195,7 @@ def validate_tools():
         print("❌ VALIDATION FAILED: Issues found that need to be addressed")
 
     return success
+
 
 if __name__ == "__main__":
     success = validate_tools()

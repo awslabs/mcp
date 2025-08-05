@@ -14,14 +14,14 @@
 
 
 #!/usr/bin/env python3
-"""Test script to diagnose MCP response format issues
-"""
+"""Test script to diagnose MCP response format issues"""
 
 import json
+
 from mcp.types import CallToolResult, TextContent
 
 
-def test_basic_response():
+def test_basic_response() -> bool | None:
     """Test creating a basic MCP response"""
     try:
         # Create TextContent
@@ -41,20 +41,17 @@ def test_basic_response():
         print(f"Error: {e}")
         return False
 
-def test_global_networks_response():
+
+def test_global_networks_response() -> bool | None:
     """Test creating a global networks response like our tool does"""
     try:
         response_data = {
             "timestamp": "2025-01-01T00:00:00",
             "status": "success",
             "global_networks": [
-                {
-                    "global_network_id": "global-network-test123",
-                    "description": "Test Network",
-                    "state": "AVAILABLE"
-                }
+                {"global_network_id": "global-network-test123", "description": "Test Network", "state": "AVAILABLE"}
             ],
-            "total_count": 1
+            "total_count": 1,
         }
 
         # Create TextContent exactly like our tool
@@ -74,8 +71,10 @@ def test_global_networks_response():
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     print("Testing basic MCP response creation...")

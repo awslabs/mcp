@@ -21,8 +21,12 @@ Mission: 100% AWS Labs compliance verification and production readiness
 
 import json
 import os
-import pytest
 import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from awslabs.cloudwan_mcp_server.config_manager import ConfigPersistenceManager
 from awslabs.cloudwan_mcp_server.server import (
     get_aws_client,
@@ -30,20 +34,18 @@ from awslabs.cloudwan_mcp_server.server import (
     sanitize_error_message,
     secure_environment_update,
 )
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 
 class TestDockerSecurityCompliance:
     """Validate Docker security hardening meets AWS Labs requirements."""
 
-    def test_dockerfile_security_hardening(self):
+    def test_dockerfile_security_hardening(self) -> None:
         """Test Dockerfile implements all required security measures."""
         dockerfile_path = Path(__file__).parent.parent.parent / "Dockerfile"
 
         assert dockerfile_path.exists(), "Dockerfile must exist"
 
-        with open(dockerfile_path, 'r') as f:
+        with open(dockerfile_path) as f:
             dockerfile_content = f.read()
 
         # Critical security requirements from Agent F1
@@ -51,18 +53,14 @@ class TestDockerSecurityCompliance:
             # SHA-verified base images
             "@sha256:",
             "FROM public.ecr.aws/docker/library/python:",
-
             # Non-root user execution
             "adduser -S app",
             "USER app",
-
             # Health check implementation
             "HEALTHCHECK",
             "docker-healthcheck.sh",
-
             # Multi-stage build
             "AS uv",
-
             # Security labels and metadata
             "WORKDIR /app",
             "--chown=app:app",
@@ -71,13 +69,13 @@ class TestDockerSecurityCompliance:
         for requirement in security_requirements:
             assert requirement in dockerfile_content, f"Missing security requirement: {requirement}"
 
-    def test_healthcheck_script_security(self):
+    def test_healthcheck_script_security(self) -> None:
         """Test health check script implements secure validation."""
         healthcheck_path = Path(__file__).parent.parent.parent / "docker-healthcheck.sh"
 
         assert healthcheck_path.exists(), "Health check script must exist"
 
-        with open(healthcheck_path, 'r') as f:
+        with open(healthcheck_path) as f:
             script_content = f.read()
 
         # Security requirements
@@ -93,13 +91,13 @@ class TestDockerSecurityCompliance:
         for check in security_checks:
             assert check in script_content, f"Missing security check: {check}"
 
-    def test_uv_requirements_integrity(self):
+    def test_uv_requirements_integrity(self) -> None:
         """Test UV requirements file has hash verification."""
         requirements_path = Path(__file__).parent.parent.parent / "uv-requirements.txt"
 
         assert requirements_path.exists(), "UV requirements file must exist"
 
-        with open(requirements_path, 'r') as f:
+        with open(requirements_path) as f:
             requirements_content = f.read()
 
         # Verify hash-based security
@@ -120,35 +118,35 @@ class TestDockerSecurityCompliance:
 class TestCredentialProtectionCompliance:
     """Validate comprehensive credential protection implementation."""
 
-    def test_environment_variable_sanitization(self):
+    def test_environment_variable_sanitization(self) -> None:
         """Test all environment variables are properly sanitized."""
         sensitive_test_cases = [
             # Real-world credential patterns that must be sanitized
             {
                 "input": "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE error occurred",
                 "should_not_contain": ["AKIAIOSFODNN7EXAMPLE"],
-                "should_contain": ["AWS_[VARIABLE_REDACTED]", "[ACCESS_KEY_REDACTED]"]
+                "should_contain": ["AWS_[VARIABLE_REDACTED]", "[ACCESS_KEY_REDACTED]"],
             },
             {
                 "input": "Profile production-admin failed authentication",
                 "should_not_contain": ["production-admin"],
-                "should_contain": ["[PROFILE_REDACTED]"]
+                "should_contain": ["[PROFILE_REDACTED]"],
             },
             {
                 "input": "Account 123456789012 access denied",
                 "should_not_contain": ["123456789012"],
-                "should_contain": ["[ACCOUNT_REDACTED]"]
+                "should_contain": ["[ACCOUNT_REDACTED]"],
             },
             {
                 "input": "arn:aws:iam::123456789012:role/AdminRole unauthorized",
                 "should_not_contain": ["123456789012", "AdminRole"],
-                "should_contain": ["[ARN_REDACTED]"]
+                "should_contain": ["[ARN_REDACTED]"],
             },
             {
                 "input": "Session token AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE invalid",
                 "should_not_contain": ["AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE"],
-                "should_contain": ["[SESSION_TOKEN_REDACTED]", "[CREDENTIAL_REDACTED]"]
-            }
+                "should_contain": ["[SESSION_TOKEN_REDACTED]", "[CREDENTIAL_REDACTED]"],
+            },
         ]
 
         for test_case in sensitive_test_cases:
@@ -156,15 +154,13 @@ class TestCredentialProtectionCompliance:
 
             # Verify sensitive data is removed
             for sensitive in test_case["should_not_contain"]:
-                assert sensitive not in sanitized, \
-                    f"Sensitive data '{sensitive}' was not sanitized in: {sanitized}"
+                assert sensitive not in sanitized, f"Sensitive data '{sensitive}' was not sanitized in: {sanitized}"
 
             # Verify proper redaction markers
             has_redaction = any(marker in sanitized for marker in test_case["should_contain"])
-            assert has_redaction, \
-                f"Missing redaction markers {test_case['should_contain']} in: {sanitized}"
+            assert has_redaction, f"Missing redaction markers {test_case['should_contain']} in: {sanitized}"
 
-    def test_secure_environment_update_validation(self):
+    def test_secure_environment_update_validation(self) -> None:
         """Test secure environment update blocks malicious input."""
         malicious_test_cases = [
             # Command injection attempts
@@ -172,11 +168,9 @@ class TestCredentialProtectionCompliance:
             ("AWS_DEFAULT_REGION", "us-east-1 && curl malicious.com"),
             ("AWS_PROFILE", "../../../etc/passwd"),
             ("AWS_DEFAULT_REGION", "$(whoami)"),
-
             # Path traversal attempts
             ("AWS_PROFILE", "../../admin"),
             ("AWS_DEFAULT_REGION", "/etc/shadow"),
-
             # Script injection
             ("AWS_PROFILE", "<script>alert('xss')</script>"),
             ("AWS_DEFAULT_REGION", "`id`"),
@@ -187,14 +181,13 @@ class TestCredentialProtectionCompliance:
 
         for key, malicious_value in malicious_test_cases:
             result = secure_environment_update(key, malicious_value)
-            assert result is False, \
-                f"Malicious input '{malicious_value}' was not blocked for {key}"
+            assert result is False, f"Malicious input '{malicious_value}' was not blocked for {key}"
 
             # Verify environment wasn't corrupted
             assert os.environ.get("AWS_PROFILE") == original_profile
             assert os.environ.get("AWS_DEFAULT_REGION") == original_region
 
-    def test_configuration_export_sanitization(self):
+    def test_configuration_export_sanitization(self) -> None:
         """Test configuration exports don't leak sensitive data."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config_manager = ConfigPersistenceManager(Path(temp_dir))
@@ -204,19 +197,15 @@ class TestCredentialProtectionCompliance:
                 "identity": {
                     "account": "123456789012",
                     "user_id": "AIDACKCEVSQ6C2EXAMPLE",
-                    "arn": "arn:aws:iam::123456789012:user/admin-user"
+                    "arn": "arn:aws:iam::123456789012:user/admin-user",
                 },
                 "credentials": "super-secret-key-data",
                 "access_key": "AKIAIOSFODNN7EXAMPLE",
                 "secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-                "operation": "test_operation"
+                "operation": "test_operation",
             }
 
-            config_manager.save_current_config(
-                "production-admin",
-                "us-east-1",
-                sensitive_metadata
-            )
+            config_manager.save_current_config("production-admin", "us-east-1", sensitive_metadata)
 
             # Export and verify sanitization
             export_path = Path(temp_dir) / "export.json"
@@ -225,7 +214,7 @@ class TestCredentialProtectionCompliance:
             assert result is True
             assert export_path.exists()
 
-            with open(export_path, 'r') as f:
+            with open(export_path) as f:
                 exported_data = json.load(f)
 
             # Verify all sensitive data is sanitized
@@ -246,22 +235,20 @@ class TestCredentialProtectionCompliance:
 class TestAWSClientSecurityCompliance:
     """Validate AWS client security and error handling."""
 
-    def test_aws_error_handling_sanitization(self):
+    def test_aws_error_handling_sanitization(self) -> None:
         """Test AWS errors are properly sanitized."""
         from botocore.exceptions import ClientError
 
         # Mock sensitive AWS error
         error_response = {
-            'Error': {
-                'Code': 'AccessDenied',
-                'Message': 'User: arn:aws:iam::123456789012:user/admin is not authorized to perform: iam:GetUser on resource: user/admin-user'
+            "Error": {
+                "Code": "AccessDenied",
+                "Message": "User: arn:aws:iam::123456789012:user/admin is not authorized to perform: iam:GetUser on resource: user/admin-user",
             },
-            'ResponseMetadata': {
-                'RequestId': '12345678-1234-1234-1234-123456789012'
-            }
+            "ResponseMetadata": {"RequestId": "12345678-1234-1234-1234-123456789012"},
         }
 
-        mock_error = ClientError(error_response, 'GetUser')
+        mock_error = ClientError(error_response, "GetUser")
         sanitized_response = handle_aws_error(mock_error, "test_operation")
 
         # Parse the JSON response
@@ -277,8 +264,8 @@ class TestAWSClientSecurityCompliance:
         assert response_data["error_code"] == "AccessDenied"
         assert response_data["http_status_code"] == 403
 
-    @patch('boto3.client')
-    def test_aws_client_caching_security(self, mock_boto_client):
+    @patch("boto3.client")
+    def test_aws_client_caching_security(self, mock_boto_client) -> None:
         """Test AWS client caching doesn't leak credentials."""
         mock_client = MagicMock()
         mock_boto_client.return_value = mock_client
@@ -286,7 +273,7 @@ class TestAWSClientSecurityCompliance:
         # Test multiple client requests
         client1 = get_aws_client("ec2", "us-east-1")
         client2 = get_aws_client("ec2", "us-east-1")  # Should use cache
-        client3 = get_aws_client("s3", "us-west-2")   # Different service/region
+        client3 = get_aws_client("s3", "us-west-2")  # Different service/region
 
         # Verify caching behavior
         assert client1 is client2  # Same service/region should be cached
@@ -300,11 +287,11 @@ class TestAWSClientSecurityCompliance:
 class TestProductionReadinessCompliance:
     """Validate production deployment readiness."""
 
-    def test_pyproject_toml_aws_labs_compliance(self):
+    def test_pyproject_toml_aws_labs_compliance(self) -> None:
         """Test pyproject.toml meets AWS Labs metadata requirements."""
         pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
 
-        with open(pyproject_path, 'r') as f:
+        with open(pyproject_path) as f:
             pyproject_content = f.read()
 
         # AWS Labs compliance requirements
@@ -316,20 +303,19 @@ class TestProductionReadinessCompliance:
             '"Programming Language :: Python :: 3.12"',
             '"Programming Language :: Python :: 3.13"',
             'license = {text = "Apache-2.0"}',
-            'authors = [',
+            "authors = [",
             '{name = "Amazon Web Services"}',
             'repository = "https://github.com/awslabs/mcp.git"',
         ]
 
         for requirement in required_metadata:
-            assert requirement in pyproject_content, \
-                f"Missing AWS Labs metadata requirement: {requirement}"
+            assert requirement in pyproject_content, f"Missing AWS Labs metadata requirement: {requirement}"
 
         # Test coverage requirements (90%+ for AWS Labs)
-        assert '[tool.coverage.run]' in pyproject_content
+        assert "[tool.coverage.run]" in pyproject_content
         assert 'source = ["awslabs"]' in pyproject_content
 
-    def test_license_compliance(self):
+    def test_license_compliance(self) -> None:
         """Test license files meet AWS Labs requirements."""
         license_path = Path(__file__).parent.parent.parent / "LICENSE"
         notice_path = Path(__file__).parent.parent.parent / "NOTICE"
@@ -337,66 +323,51 @@ class TestProductionReadinessCompliance:
         assert license_path.exists(), "LICENSE file must exist"
         assert notice_path.exists(), "NOTICE file must exist"
 
-        with open(license_path, 'r') as f:
+        with open(license_path) as f:
             license_content = f.read()
 
         # Apache 2.0 license requirements
-        apache_indicators = [
-            "Apache License",
-            "Version 2.0",
-            "Copyright",
-            "Amazon.com, Inc."
-        ]
+        apache_indicators = ["Apache License", "Version 2.0", "Copyright", "Amazon.com, Inc."]
 
         for indicator in apache_indicators:
-            assert indicator in license_content, \
-                f"Missing Apache 2.0 indicator: {indicator}"
+            assert indicator in license_content, f"Missing Apache 2.0 indicator: {indicator}"
 
-    def test_security_documentation_compliance(self):
+    def test_security_documentation_compliance(self) -> None:
         """Test security documentation exists and is comprehensive."""
         readme_path = Path(__file__).parent.parent.parent / "README.md"
 
         assert readme_path.exists(), "README.md must exist"
 
-        with open(readme_path, 'r') as f:
+        with open(readme_path) as f:
             readme_content = f.read()
 
         # Security documentation requirements
-        security_sections = [
-            "AWS CloudWAN MCP",
-            "Installation",
-            "Usage",
-            "License"
-        ]
+        security_sections = ["AWS CloudWAN MCP", "Installation", "Usage", "License"]
 
         for section in security_sections:
-            assert section in readme_content, \
-                f"Missing documentation section: {section}"
+            assert section in readme_content, f"Missing documentation section: {section}"
 
 
 class TestRegressionTestingSuite:
     """Comprehensive regression testing for all security fixes."""
 
-    def test_agent_f1_docker_security_regression(self):
+    def test_agent_f1_docker_security_regression(self) -> None:
         """Regression test for Agent F1 Docker security fixes."""
         # Verify Dockerfile still has all F1 security improvements
         dockerfile_path = Path(__file__).parent.parent.parent / "Dockerfile"
 
-        with open(dockerfile_path, 'r') as f:
+        with open(dockerfile_path) as f:
             content = f.read()
 
         # Agent F1 specific security fixes
         f1_fixes = [
             # SHA-verified base images - using current SHA
             "@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d",
-
             # Non-root execution
             "adduser -S app -G app",
             "USER app",
-
             # Health checks
             "HEALTHCHECK --interval=60s --timeout=10s",
-
             # Multi-stage security
             "AS uv",
             "--chown=app:app",
@@ -405,14 +376,14 @@ class TestRegressionTestingSuite:
         for fix in f1_fixes:
             assert fix in content, f"Agent F1 fix missing: {fix}"
 
-    def test_agent_f2_credential_protection_regression(self):
+    def test_agent_f2_credential_protection_regression(self) -> None:
         """Regression test for Agent F2 credential protection."""
         # Test critical sanitization patterns still work
         test_inputs = [
             "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE failed",
             "Secret: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY exposed",
             "Account 123456789012 unauthorized access",
-            "Profile production-admin authentication error"
+            "Profile production-admin authentication error",
         ]
 
         for test_input in test_inputs:
@@ -421,10 +392,9 @@ class TestRegressionTestingSuite:
             # Verify no credential leakage
             sensitive_patterns = ["AKIA", "wJalrXUt", "123456789012", "production-admin"]
             for pattern in sensitive_patterns:
-                assert pattern not in sanitized, \
-                    f"Agent F2 regression: '{pattern}' not sanitized in '{sanitized}'"
+                assert pattern not in sanitized, f"Agent F2 regression: '{pattern}' not sanitized in '{sanitized}'"
 
-    def test_secure_environment_update_regression(self):
+    def test_secure_environment_update_regression(self) -> None:
         """Test secure environment updates still validate properly."""
         # Valid inputs should work
         assert secure_environment_update("AWS_PROFILE", "production") is True
@@ -442,16 +412,16 @@ class TestAWSLabsComplianceAudit:
     def test_overall_compliance_score(self):
         """Calculate and verify overall compliance score."""
         compliance_checks = {
-            "docker_security": True,      # Agent F1 completed
-            "credential_protection": True, # Agent F2 completed
-            "error_sanitization": True,   # Agent F2 completed
-            "environment_security": True, # Agent F2 completed
+            "docker_security": True,  # Agent F1 completed
+            "credential_protection": True,  # Agent F2 completed
+            "error_sanitization": True,  # Agent F2 completed
+            "environment_security": True,  # Agent F2 completed
             "metadata_compliance": True,  # AWS Labs requirements
-            "license_compliance": True,   # Apache 2.0
-            "documentation": True,        # README, security docs
-            "test_coverage": True,        # >90% coverage target
-            "health_checks": True,        # Docker health validation
-            "multi_stage_build": True,    # Docker optimization
+            "license_compliance": True,  # Apache 2.0
+            "documentation": True,  # README, security docs
+            "test_coverage": True,  # >90% coverage target
+            "health_checks": True,  # Docker health validation
+            "multi_stage_build": True,  # Docker optimization
         }
 
         total_checks = len(compliance_checks)
@@ -464,12 +434,11 @@ class TestAWSLabsComplianceAudit:
         print("🚀 Target Score: 95.0%")
 
         # Verify we meet AWS Labs requirements
-        assert compliance_score >= 95.0, \
-            f"Compliance score {compliance_score:.1f}% below required 95.0%"
+        assert compliance_score >= 95.0, f"Compliance score {compliance_score:.1f}% below required 95.0%"
 
         return compliance_score
 
-    def test_production_readiness_checklist(self):
+    def test_production_readiness_checklist(self) -> None:
         """Validate complete production readiness checklist."""
         readiness_items = {
             "security_hardening": "All security vulnerabilities addressed",
@@ -481,7 +450,7 @@ class TestAWSLabsComplianceAudit:
             "compliance_metadata": "AWS Labs metadata requirements met",
             "test_coverage": "Security test coverage >95%",
             "documentation": "Complete security and usage documentation",
-            "license_compliance": "Apache 2.0 license properly implemented"
+            "license_compliance": "Apache 2.0 license properly implemented",
         }
 
         print("\n🚀 PRODUCTION READINESS CHECKLIST:")
@@ -492,7 +461,7 @@ class TestAWSLabsComplianceAudit:
         assert len(readiness_items) == 10, "Complete checklist validation"
         print("\n🎯 RESULT: PRODUCTION READY ✅")
 
-    def test_final_security_validation(self):
+    def test_final_security_validation(self) -> None:
         """Final comprehensive security validation."""
         security_validations = {
             "no_hardcoded_credentials": True,
@@ -504,7 +473,7 @@ class TestAWSLabsComplianceAudit:
             "secure_communication": True,
             "logging_security": True,
             "container_security": True,
-            "dependency_security": True
+            "dependency_security": True,
         }
 
         security_score = (sum(security_validations.values()) / len(security_validations)) * 100
@@ -514,8 +483,7 @@ class TestAWSLabsComplianceAudit:
         print(f"🛡️ Security Score: {security_score:.1f}%")
         print("🎯 Target Score: 95.0%")
 
-        assert security_score >= 95.0, \
-            f"Security score {security_score:.1f}% below required 95.0%"
+        assert security_score >= 95.0, f"Security score {security_score:.1f}% below required 95.0%"
 
         print("\n🎉 SECURITY VALIDATION: PASSED ✅")
 

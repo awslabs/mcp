@@ -40,13 +40,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TemporalCredentials:
     """Temporal test credentials with automatic expiration and rotation.
-    
+
     Implements security best practices for test credential lifecycle:
     - UUID-based credential generation
     - Automatic expiration
     - Audit trail logging
     - Memory cleanup on expiration
     """
+
     access_key: str
     secret_key: str
     session_token: str
@@ -66,7 +67,7 @@ class TemporalCredentials:
             "AWS_ACCESS_KEY_ID": self.access_key,
             "AWS_SECRET_ACCESS_KEY": self.secret_key,
             "AWS_SESSION_TOKEN": self.session_token,
-            "AWS_TEST_SESSION_ID": self.test_session_id
+            "AWS_TEST_SESSION_ID": self.test_session_id,
         }
 
     def cleanup(self) -> None:
@@ -79,53 +80,53 @@ class TemporalCredentials:
     @staticmethod
     def _random_string(length: int) -> str:
         """Generate a cryptographically secure random string of exact length.
-        
-        Uses base64url encoding of random bytes to ensure all characters are 
-        ASCII-safe and suitable for credential generation. This approach avoids 
-        any potential UTF-8 encoding issues by working exclusively with ASCII 
+
+        Uses base64url encoding of random bytes to ensure all characters are
+        ASCII-safe and suitable for credential generation. This approach avoids
+        any potential UTF-8 encoding issues by working exclusively with ASCII
         characters from the base64url alphabet.
-        
+
         Args:
             length: Desired length of the random string
-            
+
         Returns:
             ASCII-safe random string of exact specified length
         """
         if length <= 0:
             return ""
-        
+
         # Generate sufficient random bytes to produce at least 'length' base64 characters
         # This calculation uses the standard base64 encoding ratio to determine the minimum number of bytes needed
         bytes_needed = ((length * 3) + 3) // 4  # Ceiling division for base64 ratio
         random_bytes = secrets.token_bytes(bytes_needed)
-        
+
         # base64.urlsafe_b64encode produces only ASCII characters [A-Za-z0-9_-]
         # This eliminates any UTF-8 multi-byte character concerns
         encoded = base64.urlsafe_b64encode(random_bytes).decode("ascii")
-        
+
         # Remove padding characters and truncate to exact length
         # Since we're working with ASCII characters only, slicing is safe
         clean_encoded = encoded.rstrip("=")
-        
+
         # If we don't have enough characters, generate more
         while len(clean_encoded) < length:
             additional_bytes = secrets.token_bytes(4)  # Generate 4 more bytes
             additional_encoded = base64.urlsafe_b64encode(additional_bytes).decode("ascii").rstrip("=")
             clean_encoded += additional_encoded
-        
+
         # Return exactly the requested length - safe since all characters are single-byte ASCII
         return clean_encoded[:length]
 
 
-
 class CredentialSecurityError(Exception):
     """Raised when credential security boundary violations are detected."""
+
     pass
 
 
 class CredentialManager:
     """Enterprise-grade credential management for test environments.
-    
+
     Features:
     - SOC 2 Type II compliance
     - Credential rotation and expiration
@@ -203,15 +204,15 @@ class CredentialManager:
             logger.error(f"Audit integrity check failed: {e}")
             return False
 
-    def generate_credentials(self,
-                           duration: timedelta | None = None,
-                           test_context: str = "default") -> TemporalCredentials:
+    def generate_credentials(
+        self, duration: timedelta | None = None, test_context: str = "default"
+    ) -> TemporalCredentials:
         """Generate secure temporal credentials for test execution.
-        
+
         Args:
             duration: Credential validity duration (default: 15 minutes)
             test_context: Test context identifier for audit trail
-            
+
         Returns:
             TemporalCredentials: Secure test credentials with expiration
         """
@@ -230,20 +231,22 @@ class CredentialManager:
             secret_key=secret_key,
             session_token=session_token,
             expires_at=expires_at,
-            test_session_id=test_session_id
+            test_session_id=test_session_id,
         )
 
         # Store for lifecycle management
         self._active_credentials[test_session_id] = credentials
 
         # Audit logging for compliance
-        self._log_credential_event({
-            "event": "credential_generated",
-            "session_id": test_session_id,
-            "context": test_context,
-            "expires_at": expires_at.isoformat(),
-            "timestamp": datetime.now(UTC).isoformat()
-        })
+        self._log_credential_event(
+            {
+                "event": "credential_generated",
+                "session_id": test_session_id,
+                "context": test_context,
+                "expires_at": expires_at.isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         return credentials
 
@@ -253,7 +256,7 @@ class CredentialManager:
 
     def cleanup_expired_credentials(self) -> int:
         """Cleanup expired credentials from memory.
-        
+
         Returns:
             int: Number of credentials cleaned up
         """
@@ -267,11 +270,13 @@ class CredentialManager:
         # Remove from active tracking
         for session_id in expired_sessions:
             del self._active_credentials[session_id]
-            self._log_credential_event({
-                "event": "credential_expired_cleanup",
-                "session_id": session_id,
-                "timestamp": datetime.now(UTC).isoformat()
-            })
+            self._log_credential_event(
+                {
+                    "event": "credential_expired_cleanup",
+                    "session_id": session_id,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         if expired_sessions:
             logger.info(f"Cleaned up {len(expired_sessions)} expired credential sets")
@@ -298,7 +303,7 @@ class CredentialManager:
         # Rotate audit log if it gets too large (GDPR compliance)
         if len(self._audit_log) > self.AUDIT_LOG_ROTATION_THRESHOLD:
             num_removed = len(self._audit_log) - self.AUDIT_LOG_RETENTION_COUNT
-            self._audit_log = self._audit_log[-self.AUDIT_LOG_RETENTION_COUNT:]  # Keep last N events
+            self._audit_log = self._audit_log[-self.AUDIT_LOG_RETENTION_COUNT :]  # Keep last N events
             # Update checksum indices after rotation (shift keys down by num_removed)
             keys_to_remove = [k for k in self._audit_checksums if k < num_removed]
             for k in keys_to_remove:
@@ -323,11 +328,13 @@ class CredentialManager:
 
         for session_id, credentials in self._active_credentials.items():
             credentials.cleanup()
-            self._log_credential_event({
-                "event": "emergency_cleanup",
-                "session_id": session_id,
-                "timestamp": datetime.now(UTC).isoformat(),
-            })
+            self._log_credential_event(
+                {
+                    "event": "emergency_cleanup",
+                    "session_id": session_id,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         self._active_credentials.clear()
 
@@ -338,10 +345,10 @@ credential_manager = CredentialManager()
 
 def get_secure_test_credentials(test_context: str = "pytest") -> TemporalCredentials:
     """Get secure test credentials with automatic lifecycle management.
-    
+
     Args:
         test_context: Context identifier for audit trail
-        
+
     Returns:
         TemporalCredentials: Secure test credentials
     """

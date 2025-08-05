@@ -14,9 +14,11 @@
 
 
 """Performance and load testing for MCP server."""
+
 import json
-import pytest
 import time
+
+import pytest
 
 
 class TestServerPerformance:
@@ -24,7 +26,7 @@ class TestServerPerformance:
 
     @pytest.mark.stress
     @pytest.mark.asyncio
-    async def test_concurrent_tool_execution(self, mock_aws_client, performance_thresholds):
+    async def test_concurrent_tool_execution(self, mock_aws_client, performance_thresholds) -> None:
         """Test concurrent tool execution under load."""
         from awslabs.cloudwan_mcp_server.server import list_core_networks
 
@@ -37,15 +39,16 @@ class TestServerPerformance:
         assert all(json.loads(r)["success"] for r in results)
 
     @pytest.mark.asyncio
-    async def test_memory_usage(self, mock_aws_client, performance_thresholds):
+    async def test_memory_usage(self, mock_aws_client, performance_thresholds) -> None:
         """Test memory usage during tool execution."""
         import psutil
+
         from awslabs.cloudwan_mcp_server.server import analyze_segment_routes
 
         process = psutil.Process()
         start_mem = process.memory_info().rss / 1024 / 1024
 
-        result = await analyze_segment_routes("core-123", "prod")
+        await analyze_segment_routes("core-123", "prod")
         current_mem = process.memory_info().rss / 1024 / 1024
 
         assert current_mem - start_mem < performance_thresholds["max_memory_mb"]

