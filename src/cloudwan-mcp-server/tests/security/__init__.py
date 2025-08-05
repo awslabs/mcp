@@ -23,7 +23,6 @@ from .credential_manager import (
     CredentialManager,
     CredentialSecurityError,
     TemporalCredentials,
-    credential_manager,
     get_secure_test_credentials,
 )
 
