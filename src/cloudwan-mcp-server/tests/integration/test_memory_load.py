@@ -703,7 +703,8 @@ class TestMemoryFragmentation:
 
                 # Randomly delete some allocations to create holes
                 import random
-                random.shuffle(allocations)
+                seeded_random = random.Random(42)
+                seeded_random.shuffle(allocations)
                 allocations = allocations[:len(allocations)//2]  # Keep only half
 
                 allocation_patterns.append(allocations)
