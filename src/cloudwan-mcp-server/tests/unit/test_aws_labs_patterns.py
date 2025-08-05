@@ -14,6 +14,7 @@
 
 """Unit tests following AWS Labs MCP server patterns."""
 
+import re
 import secrets
 import pytest
 from awslabs.cloudwan_mcp_server.config_manager import AWSConfigManager
@@ -87,19 +88,27 @@ class TestAWSLabsPatterns:
     @pytest.mark.unit
     def test_input_validation_patterns(self):
         """Test input validation follows AWS Labs patterns."""
-        # Test valid inputs using dynamically generated IDs matching validation patterns
         from awslabs.cloudwan_mcp_server.utils.validation import (
             validate_core_network_id,
             validate_global_network_id,
             validate_ip_address,
         )
-        # Generate exactly 17 hex characters as required by validation pattern
-        hex_suffix = secrets.token_hex(9)[:17]  # 9 bytes gives 18 hex chars, take first 17
-        valid_core_id = f"core-network-{hex_suffix}"
-        valid_global_id = f"global-network-{hex_suffix}"
-
-        assert validate_core_network_id(valid_core_id) is True
-        assert validate_global_network_id(valid_global_id) is True
+        
+        # Use the same pattern as validate_core_network_id to generate a valid ID
+        core_network_id_pattern = r"^core-network-[0-9a-f]{17}$"
+        global_network_id_pattern = r"^global-network-[0-9a-f]{17}$"
+        
+        # Generate valid IDs that match the expected patterns
+        valid_core_network_id = "core-network-" + "a" * 17
+        valid_global_network_id = "global-network-" + "b" * 17
+        
+        # Verify our test IDs match the expected patterns
+        assert re.match(core_network_id_pattern, valid_core_network_id)
+        assert re.match(global_network_id_pattern, valid_global_network_id)
+        
+        # Test the actual validation functions
+        assert validate_core_network_id(valid_core_network_id) is True
+        assert validate_global_network_id(valid_global_network_id) is True
         assert validate_ip_address("10.0.0.1") is True
 
         # Test invalid inputs
