@@ -533,13 +533,23 @@ class TestCredentialHandlingSecurity:
             
             response_text = json.dumps(parsed)
             
-            # Credentials should not appear in response
-            for credential in credential_patterns:
-                assert credential not in response_text
+            # Credentials should not appear in response (explicit verification)
+            for i, credential in enumerate(credential_patterns):
+                assert credential not in response_text, f"Credential {i+1} leaked in response: {credential[:10]}..."
             
-            # Should show masked/redacted values
+            # Should show masked/redacted values instead of actual credentials
             if parsed['success']:
-                assert '*****' in response_text or '[REDACTED]' in response_text
+                # Verify masking patterns are present
+                has_masking = '*****' in response_text or '[REDACTED]' in response_text
+                assert has_masking, f"No credential masking found in response: {response_text[:200]}..."
+                
+                # Additional verification: ensure no partial credential leakage
+                for credential in credential_patterns:
+                    # Check that even partial credential values aren't present
+                    if len(credential) > 8:
+                        credential_parts = [credential[i:i+8] for i in range(0, len(credential)-7, 4)]
+                        for part in credential_parts:
+                            assert part not in response_text, f"Partial credential leaked: {part}"
 
     @pytest.mark.integration
     @pytest.mark.security
