@@ -423,8 +423,8 @@ class AWSErrorCatalog:
         # Additional boundary checks for different security contexts
         if boundary == 'SERVICE_ERROR':
             # Sanitize internal system references
-            if any(term in error_config.get('Message', '').lower() for term in
-                   ['internal', 'system', 'database', 'server', 'host', 'node']):
+            system_terms = ['internal', 'system', 'database', 'server', 'host', 'node']
+            if any(term in error_config.get('Message', '').lower() for term in system_terms):
                 # Replace with generic message to prevent information disclosure
                 pass
 
