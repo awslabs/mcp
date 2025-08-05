@@ -409,7 +409,6 @@ class AWSErrorCatalog:
             )
 
         # Check for state-changing operations (less restrictive)
-        any(operation.startswith(prefix) or prefix.lower() in operation.lower() for prefix in state_changing_operations)
 
         # Handle RESTRICTED boundary - block all operations by default for unknown/invalid boundaries
         # Apply different rules based on sensitivity level
