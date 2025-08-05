@@ -19,9 +19,10 @@ import os
 import sys
 import threading
 import ipaddress
+import re  # Added missing import
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from datetime import datetime
+from datetime import datetime as dt  # Corrected import
 from functools import lru_cache
 from mcp.server.fastmcp import FastMCP
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -126,7 +127,7 @@ def get_aws_client(service: str, region: Optional[str] = None) -> boto3.client:
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
     def default(self, obj):
-        if isinstance(obj, datetime):
+        if isinstance(obj, dt):
             return obj.isoformat()
         return super().default(obj)
 
@@ -138,7 +139,6 @@ def safe_json_dumps(obj, **kwargs):
 
 def sanitize_error_message(message: str) -> str:
     """Remove sensitive information from error messages."""
-    import re
     # Comprehensive patterns for credential and sensitive data sanitization
     patterns = [
         # IP addresses
@@ -253,7 +253,7 @@ def handle_aws_error(e: Exception, operation: str) -> str:
             "http_status_code": status_code
         }, indent=2)
     else:
-        # Generic exceptions with sanitization
+        # Generic exceptions with sanitization - ALWAYS include error_code
         sanitized_message = sanitize_error_message(str(e))
         return safe_json_dumps({
             "success": False,
@@ -472,7 +472,25 @@ async def analyze_network_function_group(group_name: str, region: Optional[str] 
     """Analyze Network Function Group details and policies."""
     try:
         region = region or aws_config.default_region
+        client = get_aws_client("networkmanager", region)
 
+        # Call AWS API to get network function group details
+        response = client.describe_network_manager_groups(
+            GroupNames=[group_name]
+        )
+        
+        groups = response.get("NetworkManagerGroups", [])
+        if not groups:
+            # Raise structured error for consistency with AWS patterns
+            error_response = {
+                'Error': {
+                    'Code': 'NotFoundException', 
+                    'Message': f'Network Function Group {group_name} not found'
+                }
+            }
+            raise ClientError(error_response, 'DescribeNetworkManagerGroups')
+
+        group = groups[0]
         result = {
             "success": True,
             "group_name": group_name,
@@ -544,7 +562,17 @@ async def manage_tgw_routes(operation: str, route_table_id: str, destination_cid
         region = region or aws_config.default_region
 
         # Validate CIDR
-        ipaddress.ip_network(destination_cidr, strict=False)
+        try:
+            ipaddress.ip_network(destination_cidr, strict=False)
+        except ValueError as e:
+            # REPOMARK:ADD: Structured error with error_code
+            error_response = {
+                'Error': {
+                    'Code': 'InvalidParameterValue',
+                    'Message': f'Invalid CIDR format: {destination_cidr}'
+                }
+            }
+            raise ClientError(error_response, 'ValidateCIDR') from e
 
         result = {
             "success": True,
@@ -617,10 +645,14 @@ async def analyze_tgw_peers(peer_id: str, region: Optional[str] = None) -> str:
         attachments = response.get("TransitGatewayPeeringAttachments", [])
 
         if not attachments:
-            return safe_json_dumps({
-                "success": False,
-                "error": f"No peering attachment found with ID: {peer_id}"
-            }, indent=2)
+            # REPOMARK:UPDATE: Raise structured error for error_code handling
+            error_response = {
+                'Error': {
+                    'Code': 'ResourceNotFound',
+                    'Message': f'No peering attachment found with ID: {peer_id}'
+                }
+            }
+            raise ClientError(error_response, 'DescribeTransitGatewayPeeringAttachments')
 
         attachment = attachments[0]
 
@@ -631,7 +663,7 @@ async def analyze_tgw_peers(peer_id: str, region: Optional[str] = None) -> str:
             "peer_analysis": {
                 "state": attachment.get("State"),
                 "status": attachment.get("Status", {}).get("Code"),
-                "creation_time": attachment.get("CreationTime").isoformat() if attachment.get("CreationTime") else None,
+                "creation_time": attachment.get("CreationTime").isoformat() if hasattr(attachment.get("CreationTime"), 'isoformat') else attachment.get("CreationTime"),
                 "accepter_tgw_info": attachment.get("AccepterTgwInfo", {}),
                 "requester_tgw_info": attachment.get("RequesterTgwInfo", {}),
                 "tags": attachment.get("Tags", [])
@@ -701,7 +733,7 @@ async def get_core_network_policy(core_network_id: str, alias: str = "LIVE") -> 
             "policy_version_id": policy.get("PolicyVersionId"),
             "policy_document": policy.get("PolicyDocument"),
             "description": policy.get("Description"),
-            "created_at": policy.get("CreatedAt").isoformat() if policy.get("CreatedAt") else None
+            "created_at": policy.get("CreatedAt").isoformat() if hasattr(policy.get("CreatedAt"), 'isoformat') else policy.get("CreatedAt")
         }
 
         return safe_json_dumps(result, indent=2)
@@ -1146,7 +1178,18 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
         return safe_json_dumps(result, indent=2)
 
     except Exception as e:
-        return handle_aws_error(e, "aws_config_manager")
+        # Enhanced generic exception handling
+        error_details = {
+            "success": False,
+            "operation": operation,
+            "error": f"Unexpected error during configuration management: {str(e)}",
+            "error_code": "UnknownError",
+            "http_status_code": 500,
+            "suggestion": "Review system configuration and AWS credentials"
+        }
+        
+        # Use safe_json_dumps for consistent serialization
+        return safe_json_dumps(error_details, indent=2)
 
 
 def main() -> None:

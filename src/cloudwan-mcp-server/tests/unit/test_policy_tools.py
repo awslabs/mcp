@@ -172,21 +172,22 @@ class TestPolicyTools:
         assert response["policy_version"] == "2021.12"
 
     @pytest.mark.asyncio
-    async def test_policy_error_handling(self, mock_get_aws_client):
+    async def test_policy_error_handling(self):
         """Test policy tools error handling."""
         from awslabs.cloudwan_mcp_server.server import get_core_network_policy
 
-        # Mock client error
-        mock_client = Mock()
-        mock_client.get_core_network_policy.side_effect = ClientError(
-            {"Error": {"Code": "ResourceNotFound", "Message": "Core network not found"}},
-            "GetCoreNetworkPolicy"
-        )
-        mock_get_aws_client.return_value = mock_client
+        # Mock client error - create new patch to override fixture
+        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock_get_client:
+            mock_client = Mock()
+            mock_client.get_core_network_policy.side_effect = ClientError(
+                {"Error": {"Code": "ResourceNotFound", "Message": "Core network not found"}},
+                "GetCoreNetworkPolicy"
+            )
+            mock_get_client.return_value = mock_client
 
-        result = await get_core_network_policy("nonexistent-core-network")
-        response = json.loads(result)
+            result = await get_core_network_policy("nonexistent-core-network")
+            response = json.loads(result)
 
-        assert response["success"] is False
-        assert "get_core_network_policy failed" in response["error"]
-        assert response["error_code"] == "ResourceNotFound"
+            assert response["success"] is False
+            assert "get_core_network_policy failed" in response["error"]
+            assert response["error_code"] == "ResourceNotFound"
