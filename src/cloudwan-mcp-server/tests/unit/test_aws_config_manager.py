@@ -341,8 +341,7 @@ class TestAWSConfigManager:
 
         assert result_data["success"] is False
         assert "Unknown operation" in result_data["error"]
-        assert "supported_operations" in result_data  # noqa: S101
-        assert isinstance(result_data["supported_operations"], list)
+        assert "supported_operations" in result_data and isinstance(result_data["supported_operations"], list)
         assert sorted(result_data["supported_operations"]) == [
             "clear_cache",
             "get_config_history",
