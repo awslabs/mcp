@@ -549,9 +549,10 @@ class TestCredentialHandlingSecurity:
                     chunk_size = 8
                     step = 4
                     if len(credential) >= chunk_size:
-                        credential_parts = [credential[i:i+chunk_size] for i in range(0, len(credential)-chunk_size+1, step)]
-                        for part in credential_parts:
-                            assert part not in response_text, f"Partial credential leaked: {part}"
+                        credential_parts = [re.escape(credential[i:i+chunk_size]) for i in range(0, len(credential)-chunk_size+1, step)]
+                        pattern = re.compile('|'.join(credential_parts))
+                        match = pattern.search(response_text)
+                        assert not match, f"Partial credential leaked: {match.group(0)}"
                     else:
                         # For short credentials, check the full credential as a "part"
                         assert credential not in response_text, f"Partial credential leaked: {credential}"
