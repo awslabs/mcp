@@ -99,7 +99,7 @@ class TemporalCredentials:
 
         # Generate sufficient random bytes to produce at least 'length' base64 characters
         # This calculation uses the standard base64 encoding ratio to determine the minimum number of bytes needed
-        bytes_needed = ((length * 3) + 3) // 4  # Ceiling division for base64 ratio
+        bytes_needed = math.ceil(length * 3 / 4)  # Ceiling division for base64 ratio
         random_bytes = secrets.token_bytes(bytes_needed)
 
         # base64.urlsafe_b64encode produces only ASCII characters [A-Za-z0-9_-]
