@@ -16,6 +16,7 @@
 
 import gc
 import json
+import logging
 import os
 import psutil
 import pytest
@@ -28,8 +29,15 @@ from unittest.mock import Mock, patch
 
 
 # Test timeout constants for maintainability and consistency (configurable via environment variables)
-POLICY_PARSING_TIMEOUT = float(os.getenv('POLICY_PARSING_TIMEOUT', '30.0'))  # Default timeout for policy parsing operations
-REGEX_DOS_TIMEOUT = int(os.getenv('REGEX_DOS_TIMEOUT', '30'))  # Timeout for regex DOS prevention tests
+try:
+    POLICY_PARSING_TIMEOUT = float(os.getenv('POLICY_PARSING_TIMEOUT', '30.0'))  # Default timeout for policy parsing operations
+except (ValueError, TypeError):
+    POLICY_PARSING_TIMEOUT = 30.0  # Fallback if env var is invalid
+    
+try:
+    REGEX_DOS_TIMEOUT = int(os.getenv('REGEX_DOS_TIMEOUT', '30'))  # Timeout for regex DOS prevention tests
+except (ValueError, TypeError):
+    REGEX_DOS_TIMEOUT = 30  # Fallback if env var is invalid
 
 # Edge region configurations for performance testing
 EDGE_REGIONS = [
@@ -208,7 +216,11 @@ class TestLargePolicyDocumentParsing:
         assert 'validation_results' in parsed
 
         # Performance requirements for 10MB+ policy (timeout configurable via env)
-        parsing_timeout = float(os.getenv('POLICY_PARSING_TIMEOUT', str(POLICY_PARSING_TIMEOUT)))
+        try:
+            parsing_timeout = float(os.getenv('POLICY_PARSING_TIMEOUT', str(POLICY_PARSING_TIMEOUT)))
+        except (ValueError, TypeError) as e:
+            logging.warning(f"Invalid POLICY_PARSING_TIMEOUT environment variable, using default: {e}")
+            parsing_timeout = POLICY_PARSING_TIMEOUT
         assert policy_size_mb >= 10.0, f"Policy size {policy_size_mb:.1f}MB, expected >= 10MB"
         assert parsing_time < parsing_timeout, f"10MB policy parsing took {parsing_time:.2f}s, expected < {parsing_timeout:.0f}s"
         assert memory_usage < 500, f"Memory usage {memory_usage:.2f}MB, expected < 500MB (optimized from 1000MB)"

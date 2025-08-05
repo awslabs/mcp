@@ -424,9 +424,10 @@ class AWSErrorCatalog:
         if boundary == 'SERVICE_ERROR':
             # Sanitize internal system references
             system_terms = ['internal', 'system', 'database', 'server', 'host', 'node']
-            if any(term in error_config.get('Message', '').lower() for term in system_terms):
+            message = error_config.get('Message', '')
+            if any(term in message.lower() for term in system_terms):
                 # Replace with generic message to prevent information disclosure
-                pass
+                error_config['Message'] = 'Service temporarily unavailable. Please retry your request.'
 
         if boundary == 'RESOURCE_ACCESS' and operation.lower().startswith('get'):
             # Validate that resource access errors don't leak existence information
@@ -436,10 +437,11 @@ class AWSErrorCatalog:
         # Rate limiting boundary validation
         if boundary == 'RATE_LIMIT':
             # Ensure rate limit errors don't expose internal throttling mechanisms
-            if any(term in error_config.get('Message', '').lower() for term in
+            message = error_config.get('Message', '')
+            if any(term in message.lower() for term in
                    ['quota', 'limit', 'threshold', 'bucket', 'window']):
-                # Log for audit but don't expose specific rate limiting details
-                pass
+                # Sanitize message to prevent internal throttling detail exposure
+                error_config['Message'] = 'Request rate exceeded. Please retry with exponential backoff.'
 
     @classmethod
     def _generate_safe_id(cls) -> str:

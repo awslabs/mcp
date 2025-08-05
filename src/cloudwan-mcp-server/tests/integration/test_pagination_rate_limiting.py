@@ -431,7 +431,9 @@ class TestRateLimitingScenarios:
                 current_time = time.time()
                 request_timestamps.append(current_time)
 
-                # Remove timestamps older than 1 second
+                # Remove timestamps older than 1 second (sliding window for burst capacity algorithm)
+                # This implements a token bucket rate limiter where we track requests in the last 1-second window
+                # to enforce burst capacity limits while allowing sustained rate calculations
                 while request_timestamps and current_time - request_timestamps[0] > 1.0:
                     request_timestamps.popleft()
 
