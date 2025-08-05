@@ -342,20 +342,31 @@ class CredentialManager:
         self._active_credentials.clear()
 
 
-# Global instance for test framework integration
-credential_manager = CredentialManager()
+# Factory function for test framework integration
+def create_credential_manager() -> CredentialManager:
+    """Create a new CredentialManager instance for test isolation."""
+    return CredentialManager()
 
 
-def get_secure_test_credentials(test_context: str = "pytest") -> TemporalCredentials:
+def get_secure_test_credentials(
+    test_context: str = "pytest",
+    manager: CredentialManager = None,
+) -> TemporalCredentials:
     """Get secure test credentials with automatic lifecycle management.
 
     Args:
         test_context: Context identifier for audit trail
+        manager: Optional CredentialManager instance (for test isolation)
 
     Returns:
         TemporalCredentials: Secure test credentials
     """
+    if manager is None:
+        # For backward compatibility, use a module-level singleton if needed
+        if not hasattr(get_secure_test_credentials, "_default_manager"):
+            get_secure_test_credentials._default_manager = CredentialManager()
+        manager = get_secure_test_credentials._default_manager
     # Cleanup expired credentials before generating new ones
-    credential_manager.cleanup_expired_credentials()
+    manager.cleanup_expired_credentials()
 
-    return credential_manager.generate_credentials(test_context=test_context)
+    return manager.generate_credentials(test_context=test_context)
