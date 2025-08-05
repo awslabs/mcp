@@ -32,7 +32,7 @@ class TestGetAWSClient:
         _create_client.cache_clear()  # Clear LRU cache
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_default_region(self, mock_boto_client):
         """Test get_aws_client with default region configuration."""
         mock_client = Mock()
@@ -51,7 +51,7 @@ class TestGetAWSClient:
         assert isinstance(call_args[1]['config'], Config)
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_explicit_region(self, mock_boto_client):
         """Test get_aws_client with explicitly provided region."""
         mock_client = Mock()
@@ -66,7 +66,7 @@ class TestGetAWSClient:
         assert call_args[1]['region_name'] == 'eu-west-1'
 
     @pytest.mark.unit
-    @patch('boto3.Session')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.Session')
     def test_get_aws_client_with_profile(self, mock_session_class):
         """Test get_aws_client with AWS profile configuration."""
         mock_session = Mock()
@@ -89,7 +89,7 @@ class TestGetAWSClient:
         assert isinstance(call_args[1]['config'], Config)
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_caching(self, mock_boto_client):
         """Test get_aws_client caches clients properly."""
         mock_client = Mock()
@@ -109,7 +109,7 @@ class TestGetAWSClient:
         mock_boto_client.assert_called_once()
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_different_services_cached_separately(self, mock_boto_client):
         """Test different AWS services are cached separately."""
         mock_nm_client = Mock()
@@ -134,7 +134,7 @@ class TestGetAWSClient:
         assert mock_boto_client.call_count == 2
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_config_parameters(self, mock_boto_client):
         """Test get_aws_client creates Config with correct parameters."""
         mock_client = Mock()
@@ -154,7 +154,7 @@ class TestGetAWSClient:
         assert config.max_pool_connections == 10
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_fallback_region(self, mock_boto_client):
         """Test get_aws_client falls back to us-east-1 when no region specified."""
         mock_client = Mock()
@@ -169,7 +169,7 @@ class TestGetAWSClient:
         assert call_args[1]['region_name'] == 'us-east-1'
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_cache_key_generation(self, mock_boto_client):
         """Test cache key generation includes service, region, and profile."""
         mock_client1 = Mock()
@@ -192,7 +192,7 @@ class TestGetAWSClient:
         assert mock_boto_client.call_count == 2
 
     @pytest.mark.unit
-    @patch('boto3.client')
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     def test_get_aws_client_exception_handling(self, mock_boto_client):
         """Test get_aws_client handles exceptions appropriately."""
         mock_boto_client.side_effect = Exception("No AWS credentials found")
@@ -365,73 +365,78 @@ class TestAWSClientCaching:
         """Clear client cache before each test."""
         _create_client.cache_clear()
 
-    def test_client_cache_isolation(self):
+    @pytest.mark.unit
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
+    def test_client_cache_isolation(self, mock_boto_client):
         """Test cache isolation between configurations."""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+        
         get_aws_client('networkmanager', 'us-east-1')
         cache_info = _create_client.cache_info()
         assert cache_info.currsize == 1
 
     @pytest.mark.asyncio
-    async def test_lru_cache_eviction(self):
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
+    async def test_lru_cache_eviction(self, mock_boto_client):
         """Test LRU cache eviction policy through _create_client function."""
         # Clear cache first
         _create_client.cache_clear()
 
         # Test cache behavior by creating clients that should be cached
-        with patch('boto3.client') as mock_boto_client:
-            mock_client = Mock()
-            mock_boto_client.return_value = mock_client
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
 
-            # Fill cache to near capacity by creating different client configurations
-            with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
-                for i in range(CACHE_CAPACITY - 1):
-                    # Create clients for different services to fill cache
-                    service = f'service-{i}'
-                    get_aws_client(service)
+        # Fill cache to near capacity by creating different client configurations
+        with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
+            for i in range(CACHE_CAPACITY - 1):
+                # Create clients for different services to fill cache
+                service = f'service-{i}'
+                get_aws_client(service)
 
-            # Verify cache is being used
-            initial_cache_info = _create_client.cache_info()
-            assert initial_cache_info.currsize == CACHE_CAPACITY - 1
+        # Verify cache is being used
+        initial_cache_info = _create_client.cache_info()
+        assert initial_cache_info.currsize == CACHE_CAPACITY - 1
 
-            # Add one more to trigger potential eviction
-            get_aws_client('new-service')
+        # Add one more to trigger potential eviction
+        get_aws_client('new-service')
 
-            # Verify cache management
-            final_cache_info = _create_client.cache_info()
-            assert final_cache_info.currsize <= CACHE_CAPACITY
+        # Verify cache management
+        final_cache_info = _create_client.cache_info()
+        assert final_cache_info.currsize == CACHE_CAPACITY
 
     @pytest.mark.unit
-    def test_client_cache_cleanup(self):
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
+    def test_client_cache_cleanup(self, mock_boto_client):
         """Test client cache can be cleared properly."""
-        with patch('boto3.client') as mock_boto_client:
-            mock_client = Mock()
-            mock_boto_client.return_value = mock_client
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
 
-            # Add entries to cache
-            with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
-                get_aws_client('networkmanager')
-                get_aws_client('ec2')
+        # Add entries to cache
+        with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
+            get_aws_client('networkmanager')
+            get_aws_client('ec2')
 
-            cache_info = _create_client.cache_info()
-            assert cache_info.currsize >= 1
+        cache_info = _create_client.cache_info()
+        assert cache_info.currsize >= 1
 
-            # Clear cache
-            _create_client.cache_clear()
-            cache_info = _create_client.cache_info()
-            assert cache_info.currsize == 0
+        # Clear cache
+        _create_client.cache_clear()
+        cache_info = _create_client.cache_info()
+        assert cache_info.currsize == 0
 
     @pytest.mark.unit
-    def test_client_cache_thread_safety_pattern(self):
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
+    def test_client_cache_thread_safety_pattern(self, mock_boto_client):
         """Test client cache follows thread-safe access patterns."""
         # This test verifies the LRU cache is thread-safe
-        with patch('boto3.client') as mock_boto_client:
-            mock_client = Mock()
-            mock_boto_client.return_value = mock_client
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
 
-            # Test basic cache operations don't raise exceptions
-            with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
-                client = get_aws_client('networkmanager')
-                assert client == mock_client
+        # Test basic cache operations don't raise exceptions
+        with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
+            client = get_aws_client('networkmanager')
+            assert client == mock_client
 
-            cache_info = _create_client.cache_info()
-            assert cache_info.currsize >= 0
+        cache_info = _create_client.cache_info()
+        assert cache_info.currsize >= 0

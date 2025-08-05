@@ -18,6 +18,7 @@ from ..utils.logger import get_logger
 from ..utils.response_formatter import format_error_response, format_success_response
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
+import boto3
 
 
 class BaseMCPTool(ABC):
@@ -137,3 +138,17 @@ class AWSBaseTool(BaseMCPTool):
             return False
 
         return super().validate_input(input_data)
+
+
+class BaseTool:
+    def __init__(self, client):
+        # Validate client type
+        if not hasattr(client, 'meta'):
+            raise ValueError("Invalid AWS client instance")
+        self.client = client
+
+class NetworkConnectivityTool(BaseTool):
+    def __init__(self, client):
+        super().__init__(client)
+        self.service_name = 'cloudwan'
+        self.max_retries = getattr(client.meta.config, 'retries', {}).get('max_attempts', 3)

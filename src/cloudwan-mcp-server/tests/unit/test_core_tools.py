@@ -31,6 +31,7 @@ from awslabs.cloudwan_mcp_server.server import (
     handle_aws_error,
     list_core_networks,
 )
+from awslabs.cloudwan_mcp_server.tools import base
 from botocore.exceptions import ClientError
 from typing import Any, Dict
 from unittest.mock import Mock, patch
@@ -139,6 +140,19 @@ def mock_boto_error():
 
     return ClientError(error_response, 'TestOperation')
 
+
+@pytest.mark.usefixtures("aws_session")
+def test_core_tools_import():
+    try:
+        from awslabs.cloudwan_mcp_server.tools import base
+        assert True
+    except ImportError:
+        pytest.fail("Core tools failed to import")
+
+def test_network_tool_initialization(aws_client):
+    tool = base.NetworkConnectivityTool(aws_client)
+    assert tool.service_name == 'cloudwan'
+    assert tool.max_retries == 3
 
 class TestCoreNetworking:
     """Test core networking tools."""

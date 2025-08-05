@@ -18,11 +18,32 @@
 import json
 import os
 import pytest
-from awslabs.cloudwan_mcp_server.server import _create_client, aws_config_manager, get_aws_client
+from awslabs.cloudwan_mcp_server.server import (
+    _create_client, aws_config_manager, get_aws_client
+)
 from unittest.mock import Mock, patch
 
 
+def _setup_test_environment(profile=None, region=None):
+    """Helper to manage test environment variables."""
+    os.environ.clear()
+    if profile:
+        os.environ['AWS_PROFILE'] = profile
+    if region:
+        os.environ['AWS_DEFAULT_REGION'] = region
+    os.environ.setdefault('AWS_PROFILE', 'default')
+    os.environ.setdefault('AWS_DEFAULT_REGION', 'us-east-1')
+
+
 class TestAWSConfigManager:
+    """Test cases for AWS configuration manager."""
+
+    @pytest.fixture(autouse=True)
+    def reset_environment():
+        """Reset environment after each test."""
+        _setup_test_environment()
+        yield
+        _create_client.cache_clear()
     """Test cases for AWS configuration manager."""
 
     @pytest.fixture
@@ -105,6 +126,8 @@ class TestAWSConfigManager:
         assert result_data["current_configuration"]["aws_region"] == "us-west-2"
         assert result_data["current_configuration"]["configuration_valid"] is True
         assert "identity" in result_data["current_configuration"]
+        assert "account" in result_data["current_configuration"]["identity"]
+        assert "user_id" in result_data["current_configuration"]["identity"]
 
     @pytest.mark.asyncio
     async def test_get_current_configuration_invalid(self):
@@ -119,7 +142,9 @@ class TestAWSConfigManager:
 
         result_data = json.loads(result)
 
-        assert result_data["success"] is True
+        assert "user_id" in result_data["current_configuration"]["identity"]
+
+        assert result_data["success"] is False
         assert result_data["current_configuration"]["configuration_valid"] is False
         assert "error" in result_data["current_configuration"]["identity"]
 
@@ -136,6 +161,8 @@ class TestAWSConfigManager:
         assert result_data["new_profile"] == "new-profile"
         assert result_data["profile_valid"] is True
         assert result_data["cache_cleared"] is True
+        assert "identity" in result_data
+        assert result_data["identity"]["account"] == "123456789012"
         assert os.environ.get("AWS_PROFILE") == "new-profile"
 
     @pytest.mark.asyncio
@@ -259,8 +286,10 @@ class TestAWSConfigManager:
             assert result_data["service_validations"]["ec2"]["status"] == "failed"
 
     @pytest.mark.asyncio
-    async def test_clear_cache_success(self):
+    async def test_clear_cache_success(self, mock_get_aws_client):
         """Test clearing AWS client cache."""
+        _create_client.cache_clear()
+
         # Add some mock entries to cache
         # Add items to cache by using the client functions
         get_aws_client("networkmanager", "us-east-1")
@@ -277,6 +306,27 @@ class TestAWSConfigManager:
         assert "message" in result_data
 
     @pytest.mark.asyncio
+    async def test_lru_cache_eviction(self, mock_boto_client):
+        """Test LRU cache eviction policy through _create_client function."""
+        _create_client.cache_clear()
+
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+
+        with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
+            for i in range(CACHE_CAPACITY - 1):
+                service = f'service-{i}'
+                get_aws_client(service)
+
+        initial_cache_info = _create_client.cache_info()
+        assert initial_cache_info.currsize == CACHE_CAPACITY - 1
+
+        get_aws_client('new-service')
+
+        final_cache_info = _create_client.cache_info()
+        assert final_cache_info.currsize == CACHE_CAPACITY
+
+    @pytest.mark.asyncio
     async def test_unknown_operation(self):
         """Test handling unknown operation."""
         result = await aws_config_manager("unknown_operation")
@@ -286,7 +336,10 @@ class TestAWSConfigManager:
         assert "Unknown operation" in result_data["error"]
         assert "supported_operations" in result_data
         assert isinstance(result_data["supported_operations"], list)
-        assert len(result_data["supported_operations"]) > 0
+        assert result_data["supported_operations"] == [
+            "get_current", "set_profile", "set_region",
+            "set_both", "validate_config", "clear_cache"
+        ]
 
     @pytest.mark.asyncio
     async def test_exception_handling(self):

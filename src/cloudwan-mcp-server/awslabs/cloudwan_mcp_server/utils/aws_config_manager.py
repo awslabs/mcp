@@ -17,5 +17,4 @@
 from ..config_manager import AWSConfigManager
 
 
-# Re-export for test compatibility
 __all__ = ['AWSConfigManager']

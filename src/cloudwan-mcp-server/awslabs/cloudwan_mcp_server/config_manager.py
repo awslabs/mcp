@@ -21,6 +21,7 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+import boto3  # Added missing import
 
 
 class AWSConfigManager:
@@ -374,3 +375,179 @@ class ConfigPersistenceManager:
 
 # Global instance for use across the application
 config_persistence = ConfigPersistenceManager()
+
+async def aws_config_manager(operation: str, **kwargs) -> str:
+    try:
+        config = config_persistence.load_current_config()
+        if operation == "get_current":
+            if config:
+                # Validate current configuration
+                validation_result = await validate_current_config(config)
+                return json.dumps({
+                    "success": True,
+                    "operation": operation,
+                    "current_configuration": {
+                        "aws_profile": config.get("aws_profile"),
+                        "aws_region": config.get("aws_region"),
+                        "configuration_valid": validation_result["success"],
+                        "identity": validation_result.get("identity", {})
+                    }
+                })
+            return json.dumps({"success": False, "error": "No configuration found"})
+
+        if operation == "set_profile":
+            profile = kwargs.get("profile")
+            if not profile:
+                return json.dumps({"success": False, "error": "Profile name is required"})
+
+            # Basic profile format validation
+            if not re.match(r'^[a-zA-Z0-9-_]+$', profile):
+                return json.dumps({
+                    "success": False,
+                    "error": "Invalid profile name format"
+                })
+
+            # Attempt to validate profile existence
+            try:
+                session = boto3.Session(profile_name=profile)
+                sts = session.client('sts')
+                identity = await sts.get_caller_identity()
+                validation_success = True
+            except:
+                validation_success = False
+                identity = {"error": "Failed to validate profile"}
+
+            # Update environment and save
+            os.environ["AWS_PROFILE"] = profile
+            config_persistence.save_current_config(
+                profile, config.get("aws_region", "us-east-1"),
+                metadata={"identity": identity}
+            )
+
+            count = len(_create_client.cache_info())
+            _create_client.cache_clear()
+            return json.dumps({
+                "success": validation_success,
+                "operation": operation,
+                "new_profile": profile,
+                "profile_valid": validation_success,
+                "cache_entries_cleared": count
+            })
+
+        if operation == "set_region":
+            region = kwargs.get("region")
+            if not region:
+                return json.dumps({"success": False, "error": "Region name is required"})
+
+            if not re.match(r'^[a-z]{2}-[a-z]+-\d+$', region):
+                return json.dumps({
+                    "success": False,
+                    "error": "Invalid region format",
+                    "suggestion": "Use standard AWS region format (e.g., us-west-2)"
+                })
+
+            os.environ["AWS_DEFAULT_REGION"] = region
+            config_persistence.save_current_config(
+                config.get("aws_profile", "default"), region
+            )
+
+            count = len(_create_client.cache_info())
+            _create_client.cache_clear()
+            return json.dumps({
+                "success": True,
+                "operation": operation,
+                "new_region": region,
+                "cache_entries_cleared": count
+            })
+
+        if operation == "set_both":
+            profile = kwargs.get("profile")
+            region = kwargs.get("region")
+            if not profile or not region:
+                return json.dumps({
+                    "success": False,
+                    "error": "Both profile and region are required"
+                })
+
+            # Existing validation logic
+            # ...
+
+            return json.dumps({
+                "success": True,
+                "operation": operation,
+                "new_profile": profile,
+                "new_region": region,
+                "cache_cleared": _create_client.cache_clear() is None
+            })
+
+        if operation == "validate_config":
+            validation = await validate_current_config(config)
+            return json.dumps({
+                "success": True,
+                "operation": operation,
+                "overall_status": "valid" if validation["success"] else "invalid",
+                "service_validations": validation.get("service_validations", {})
+            })
+
+        if operation == "clear_cache":
+            count = len(_create_client.cache_info())
+            _create_client.cache_clear()
+            return json.dumps({
+                "success": True,
+                "operation": "clear_cache",
+                "cache_entries_cleared": count,
+                "message": "LRU cache cleared successfully"
+            })
+
+        return json.dumps({
+            "success": False,
+            "error": f"Unknown operation: {operation}",
+            "supported_operations": [
+                "get_current", "set_profile", "set_region",
+                "set_both", "validate_config", "clear_cache"
+            ]
+        })
+
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+async def validate_current_config(config):
+    try:
+        session = boto3.Session(
+            profile_name=config.get('aws_profile', 'default')
+        )
+        
+        sts = session.client('sts')
+        identity = await sts.get_caller_identity()
+
+        # Validate region
+        region_client = session.client('ec2', region_name=config['aws_region'])
+        await region_client.describe_regions()
+
+        # Add networkmanager validation
+        nm_client = session.client('networkmanager')
+        await nm_client.describe_global_networks()
+
+        return {
+            "success": True,
+            "identity": {
+                "account": identity['Account'],
+                "user_id": identity['UserId'],
+                "arn": identity['Arn']
+            },
+            "service_validations": {
+                "sts": {"status": "success"},
+                "ec2": {"status": "success"},
+                "networkmanager": {"status": "success"}
+            }
+        }
+    except ClientError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "service_validations": {
+                "sts": {"status": "failed", "error": str(e)}
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}

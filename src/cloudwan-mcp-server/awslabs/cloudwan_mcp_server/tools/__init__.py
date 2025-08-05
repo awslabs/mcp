@@ -13,3 +13,9 @@
 # limitations under the License.
 
 """Tools package for AWS CloudWAN MCP Server."""
+
+from . import base
+
+__all__ = [
+    'base'
+]
