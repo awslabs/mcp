@@ -540,7 +540,8 @@ async def find_column_tool(
         description='The database name to search for columns. Must be a valid database name from the list_databases tool.',
     ),
     pattern: str = Field(
-        ..., description='The column name pattern to search for. Supports SQL LIKE pattern matching (e.g., name). Note: Do not include % wildcards as they will be added automatically. Some LLMs may add their own wildcards, resulting in double wildcards in the query.'
+        ...,
+        description='The column name pattern to search for. Supports SQL LIKE pattern matching (e.g., name). Note: Do not include % wildcards as they will be added automatically. Some LLMs may add their own wildcards, resulting in double wildcards in the query.',
     ),
 ) -> list[ColumnMatch]:
     """Find tables containing columns with specific name patterns.
@@ -588,24 +589,33 @@ async def find_column_tool(
     3. Use the schema, table, and column information to construct targeted queries.
     """
     try:
-        logger.info(f'Searching for columns matching pattern "{pattern}" in database {database_name} on cluster {cluster_identifier}')
-        
+        logger.info(
+            f'Searching for columns matching pattern "{pattern}" in database {database_name} on cluster {cluster_identifier}'
+        )
+
         # Use the find_columns function from redshift.py
         columns_data = await find_columns(cluster_identifier, database_name, pattern)
-        
+
         # Convert to ColumnMatch models
         columns_found = []
         for column_data in columns_data:
             column_match = ColumnMatch(**column_data)
             columns_found.append(column_match)
-        
-        logger.info(f'Found {len(columns_found)} columns matching pattern "{pattern}" in database {database_name}')
+
+        logger.info(
+            f'Found {len(columns_found)} columns matching pattern "{pattern}" in database {database_name}'
+        )
         return columns_found
 
     except Exception as e:
-        logger.error(f'Error finding columns matching pattern "{pattern}" in database {database_name}: {str(e)}')
-        await ctx.error(f'Failed to find columns matching pattern "{pattern}" in database {database_name}: {str(e)}')
+        logger.error(
+            f'Error finding columns matching pattern "{pattern}" in database {database_name}: {str(e)}'
+        )
+        await ctx.error(
+            f'Failed to find columns matching pattern "{pattern}" in database {database_name}: {str(e)}'
+        )
         raise
+
 
 @mcp.tool(name='execute_query')
 async def execute_query_tool(

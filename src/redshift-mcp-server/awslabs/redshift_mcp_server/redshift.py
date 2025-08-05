@@ -554,36 +554,45 @@ async def find_columns(cluster_identifier: str, database_name: str, pattern: str
         List of dictionaries with column information.
     """
     try:
-        logger.info(f'Searching for columns matching pattern "{pattern}" in database {database_name} on cluster {cluster_identifier}')
-        
+        logger.info(
+            f'Searching for columns matching pattern "{pattern}" in database {database_name} on cluster {cluster_identifier}'
+        )
+
         # SQL query to find columns matching the pattern
-        sql = SVV_COLUMNS_PATTERN_QUERY.format(quote_literal_string(f"%{pattern}%"))
-        logger.debug(f"Executing SQL query: {sql}")
-        
+        sql = SVV_COLUMNS_PATTERN_QUERY.format(quote_literal_string(f'%{pattern}%'))
+        logger.debug(f'Executing SQL query: {sql}')
+
         # Execute the query using the common function
         query_result = await execute_query(cluster_identifier, database_name, sql)
-        logger.debug(f"Got query_result with {query_result['row_count']} rows")
-        
+        logger.debug(f'Got query_result with {query_result["row_count"]} rows')
+
         # Convert the rows to dictionaries
         columns_found = []
         for row in query_result['rows']:
-            logger.debug(f"Processing column match: {row}")
+            logger.debug(f'Processing column match: {row}')
             column_info = {
                 'table_schema': row[0],
                 'table_name': row[1],
                 'column_name': row[2],
-                'data_type': row[3]
+                'data_type': row[3],
             }
-            logger.debug(f"Extracted column match info: {column_info}")
+            logger.debug(f'Extracted column match info: {column_info}')
             columns_found.append(column_info)
-        
-        logger.info(f"Found {len(columns_found)} columns matching pattern '{pattern}' in database {database_name}")
-        logger.debug(f"Matched columns: {[(c['table_schema'], c['table_name'], c['column_name']) for c in columns_found]}")
+
+        logger.info(
+            f"Found {len(columns_found)} columns matching pattern '{pattern}' in database {database_name}"
+        )
+        logger.debug(
+            f'Matched columns: {[(c["table_schema"], c["table_name"], c["column_name"]) for c in columns_found]}'
+        )
         return columns_found
 
     except Exception as e:
-        logger.error(f'Error finding columns matching pattern "{pattern}" in database {database_name}: {str(e)}')
+        logger.error(
+            f'Error finding columns matching pattern "{pattern}" in database {database_name}: {str(e)}'
+        )
         raise
+
 
 async def execute_query(cluster_identifier: str, database_name: str, sql: str) -> dict:
     """Execute a SQL query against a Redshift cluster using the Data API.
