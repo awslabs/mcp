@@ -111,7 +111,13 @@ async def test_command_line_args():
                                 # Verify that the handlers were initialized with correct parameters
                                 mock_cloudwatch_handler.assert_called_once_with(mock_server, False)
                                 mock_eks_stack_handler.assert_called_once_with(mock_server, True)
-                                mock_k8s_handler.assert_called_once_with(mock_server, True, False)
+                                # K8sHandler now takes 4 parameters including client_cache
+                                assert mock_k8s_handler.call_count == 1
+                                call_args = mock_k8s_handler.call_args[0]
+                                assert call_args[0] == mock_server  # mcp
+                                assert call_args[1] == True  # allow_write
+                                assert call_args[2] == False  # allow_sensitive_data_access
+                                # Fourth parameter is client_cache, we just verify it exists
                                 mock_iam_handler.assert_called_once_with(mock_server, True)
 
                                 # Verify that run was called
@@ -152,7 +158,13 @@ async def test_command_line_args():
                                 # Verify that the handlers were initialized with correct parameters
                                 mock_cloudwatch_handler.assert_called_once_with(mock_server, True)
                                 mock_eks_stack_handler.assert_called_once_with(mock_server, False)
-                                mock_k8s_handler.assert_called_once_with(mock_server, False, True)
+                                # K8sHandler now takes 4 parameters including client_cache
+                                assert mock_k8s_handler.call_count == 1
+                                call_args = mock_k8s_handler.call_args[0]
+                                assert call_args[0] == mock_server  # mcp
+                                assert call_args[1] == False  # allow_write
+                                assert call_args[2] == True  # allow_sensitive_data_access
+                                # Fourth parameter is client_cache, we just verify it exists
                                 mock_iam_handler.assert_called_once_with(mock_server, False)
 
                                 # Verify that run was called
@@ -193,7 +205,13 @@ async def test_command_line_args():
                                 # Verify that the handlers were initialized with both flags
                                 mock_cloudwatch_handler.assert_called_once_with(mock_server, True)
                                 mock_eks_stack_handler.assert_called_once_with(mock_server, True)
-                                mock_k8s_handler.assert_called_once_with(mock_server, True, True)
+                                # K8sHandler now takes 4 parameters including client_cache
+                                assert mock_k8s_handler.call_count == 1
+                                call_args = mock_k8s_handler.call_args[0]
+                                assert call_args[0] == mock_server  # mcp
+                                assert call_args[1] == True  # allow_write
+                                assert call_args[2] == True  # allow_sensitive_data_access
+                                # Fourth parameter is client_cache, we just verify it exists
                                 mock_iam_handler.assert_called_once_with(mock_server, True)
 
                                 # Verify that run was called
@@ -206,7 +224,9 @@ async def test_k8s_handler_initialization_default():
     mock_mcp = MagicMock()
 
     # Initialize the K8s handler with the mock MCP server (default allow_write=False, allow_sensitive_data_access=False)
-    K8sHandler(mock_mcp)
+    from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
+    client_cache = K8sClientCache()
+    K8sHandler(mock_mcp, client_cache=client_cache)
 
     # Verify that the tools were registered
     assert mock_mcp.tool.call_count == 7
@@ -232,7 +252,9 @@ async def test_k8s_handler_initialization_write_access_disabled():
     mock_mcp = MagicMock()
 
     # Initialize the K8s handler with the mock MCP server with allow_write=False
-    K8sHandler(mock_mcp, allow_write=False)
+    from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
+    client_cache = K8sClientCache()
+    K8sHandler(mock_mcp, allow_write=False, client_cache=client_cache)
 
     # Verify that all tools are registered
     assert mock_mcp.tool.call_count == 7
