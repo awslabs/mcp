@@ -227,7 +227,7 @@ class TestLargePolicyDocumentParsing:
         assert "validation_results" in parsed
 
         # Performance requirements for 10MB+ policy (timeout configurable via env)
-        parsing_timeout = get_policy_parsing_timeout()
+        parsing_timeout = POLICY_PARSING_TIMEOUT
         assert policy_size_mb >= 10.0, f"Policy size {policy_size_mb:.1f}MB, expected >= 10MB"
         assert parsing_time < parsing_timeout, (
             f"10MB policy parsing took {parsing_time:.2f}s, expected < {parsing_timeout:.0f}s"
