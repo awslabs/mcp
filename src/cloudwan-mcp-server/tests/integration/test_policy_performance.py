@@ -207,6 +207,7 @@ class TestLargePolicyDocumentParsing:
         assert 'validation_results' in parsed
         
         # Performance requirements for 10MB+ policy (timeout configurable via env)
+        parsing_timeout = float(os.getenv('POLICY_PARSING_TIMEOUT', '30.0'))
         assert policy_size_mb >= 10.0, f"Policy size {policy_size_mb:.1f}MB, expected >= 10MB"
         assert parsing_time < parsing_timeout, f"10MB policy parsing took {parsing_time:.2f}s, expected < {parsing_timeout:.0f}s"
         assert memory_usage < 500, f"Memory usage {memory_usage:.2f}MB, expected < 500MB (optimized from 1000MB)"

@@ -92,9 +92,15 @@ class TestAWSLabsPatterns:
             validate_ip_address
         )
         
-        # Test valid inputs
-        assert validate_core_network_id("core-network-1234567890abcdef0") is True
-        assert validate_global_network_id("global-network-1234567890abcdef0") is True  
+        # Test valid inputs using dynamically generated IDs matching validation patterns
+        import secrets
+        # Generate exactly 17 hex characters as required by validation pattern
+        hex_suffix = secrets.token_hex(9)[:17]  # 9 bytes gives 18 chars, take first 17
+        valid_core_id = f"core-network-{hex_suffix}"
+        valid_global_id = f"global-network-{hex_suffix}" 
+        
+        assert validate_core_network_id(valid_core_id) is True
+        assert validate_global_network_id(valid_global_id) is True  
         assert validate_ip_address("10.0.0.1") is True
         
         # Test invalid inputs
