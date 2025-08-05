@@ -78,38 +78,44 @@ class TemporalCredentials:
 
     @staticmethod
     def _random_string(length: int) -> str:
-        """Generate a random string of exact length using base64-encoded random bytes."""
-        # Keep generating random bytes until we have enough base64 characters
-        result = ""
-        while len(result) < length:
-            # Calculate the number of random bytes needed to produce at least the required number of base64 characters
-            bytes_needed = TemporalCredentials._base64_bytes_needed(length - len(result))
-            random_bytes = secrets.token_bytes(bytes_needed)
-            encoded = base64.urlsafe_b64encode(random_bytes).decode('ascii').rstrip('=')
-            result += encoded
-        return result[:length]
-
-    @staticmethod
-    def _base64_bytes_needed(char_length: int) -> int:
+        """Generate a cryptographically secure random string of exact length.
+        
+        Uses base64url encoding of random bytes to ensure all characters are 
+        ASCII-safe and suitable for credential generation. This approach avoids 
+        any potential UTF-8 encoding issues by working exclusively with ASCII 
+        characters from the base64url alphabet.
+        
+        Args:
+            length: Desired length of the random string
+            
+        Returns:
+            ASCII-safe random string of exact specified length
         """
-        Calculate the minimum number of random bytes needed to produce a base64-encoded string
-        of at least `char_length` characters (using urlsafe base64 encoding, without padding).
+        if length <= 0:
+            return ""
+        
+        # Generate sufficient random bytes to produce at least 'length' base64 characters
+        # We use a more conservative approach to ensure we always have enough characters
+        bytes_needed = ((length * 3) + 3) // 4  # Ceiling division for base64 ratio
+        random_bytes = secrets.token_bytes(bytes_needed)
+        
+        # base64.urlsafe_b64encode produces only ASCII characters [A-Za-z0-9_-]
+        # This eliminates any UTF-8 multi-byte character concerns
+        encoded = base64.urlsafe_b64encode(random_bytes).decode('ascii')
+        
+        # Remove padding characters and truncate to exact length
+        # Since we're working with ASCII characters only, slicing is safe
+        clean_encoded = encoded.rstrip('=')
+        
+        # If we don't have enough characters, generate more
+        while len(clean_encoded) < length:
+            additional_bytes = secrets.token_bytes(4)  # Generate 4 more bytes
+            additional_encoded = base64.urlsafe_b64encode(additional_bytes).decode('ascii').rstrip('=')
+            clean_encoded += additional_encoded
+        
+        # Return exactly the requested length - safe since all characters are single-byte ASCII
+        return clean_encoded[:length]
 
-        Each group of BASE64_BYTES_PER_CHUNK bytes becomes BASE64_CHARS_PER_CHUNK base64 characters.
-        To get at least `char_length` characters, we solve for bytes: ceil(char_length * BASE64_BYTES_PER_CHUNK / BASE64_CHARS_PER_CHUNK).
-        """
-        # Each BASE64_BYTES_PER_CHUNK bytes of input become BASE64_CHARS_PER_CHUNK base64 characters.
-        BASE64_BYTES_PER_CHUNK = 3  # 3 bytes -> 4 chars in base64 encoding
-        BASE64_CHARS_PER_CHUNK = 4  # 4 chars per 3 bytes in base64 encoding
-        # To ensure we have enough random bytes to generate at least `char_length` base64 characters,
-        # we need to solve for the minimum number of bytes such that:
-        #     ceil(bytes * BASE64_CHARS_PER_CHUNK / BASE64_BYTES_PER_CHUNK) >= char_length
-        # Rearranging, we get:
-        #     bytes >= ceil(char_length * BASE64_BYTES_PER_CHUNK / BASE64_CHARS_PER_CHUNK)
-        # The formula below achieves this ceiling division by adding (BASE64_CHARS_PER_CHUNK - 1)
-        # before performing integer division, which is a common trick to simulate math.ceil for integers:
-        #     ceil(a / b) == (a + b - 1) // b
-        return (char_length * BASE64_BYTES_PER_CHUNK + (BASE64_CHARS_PER_CHUNK - 1)) // BASE64_CHARS_PER_CHUNK
 
 
 class CredentialSecurityError(Exception):
