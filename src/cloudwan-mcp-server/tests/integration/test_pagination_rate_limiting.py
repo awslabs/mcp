@@ -680,7 +680,7 @@ class TestCrossRegionPaginationChallenges:
             regions = ['us-east-1', 'us-west-2', 'eu-west-1']
 
             for region in regions:
-                result = await list_core_networks(region=region)
+                result = await list_core_networks()
 
                 parsed = json.loads(result)
                 assert parsed['success'] is True
