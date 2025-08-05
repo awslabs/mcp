@@ -415,9 +415,6 @@ class AWSErrorCatalog:
         )
 
         # Handle RESTRICTED boundary - block all operations by default for unknown/invalid boundaries
-        if boundary == 'RESTRICTED':
-            raise MockingSecurityError(f"Operation '{operation}' blocked due to restrictive security boundary")
-
         # Apply different rules based on sensitivity level
         is_sensitive = is_highly_sensitive or (boundary == 'AUTH_FAILURE' and is_state_changing)
 
