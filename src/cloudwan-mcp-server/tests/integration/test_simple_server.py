@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-#!/usr/bin/env python3
 """Simplified CloudWAN MCP Server for Claude Code compatibility testing.
 
 This is a minimal version based on the working core-mcp-server pattern.
