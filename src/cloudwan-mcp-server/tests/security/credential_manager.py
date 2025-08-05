@@ -82,12 +82,24 @@ class TemporalCredentials:
         # Keep generating random bytes until we have enough base64 characters
         result = ""
         while len(result) < length:
-            # Calculate bytes needed to likely exceed the remaining length
-            bytes_needed = ((length - len(result)) * 4 + 2) // 3
+            # Calculate the number of random bytes needed to produce at least the required number of base64 characters
+            bytes_needed = TemporalCredentials._base64_bytes_needed(length - len(result))
             random_bytes = secrets.token_bytes(bytes_needed)
             encoded = base64.urlsafe_b64encode(random_bytes).decode('ascii').rstrip('=')
             result += encoded
         return result[:length]
+
+    @staticmethod
+    def _base64_bytes_needed(char_length: int) -> int:
+        """
+        Calculate the minimum number of random bytes needed to produce a base64-encoded string
+        of at least `char_length` characters (using urlsafe base64 encoding, without padding).
+
+        Each group of 3 bytes becomes 4 base64 characters. To get at least `char_length` characters,
+        we solve for bytes: ceil(char_length * 3 / 4).
+        """
+        # The +3 and //4 ensures we round up (ceiling division)
+        return (char_length * 3 + 3) // 4
 class CredentialSecurityError(Exception):
     """Raised when credential security boundary violations are detected."""
     pass
