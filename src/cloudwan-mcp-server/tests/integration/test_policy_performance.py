@@ -227,11 +227,7 @@ class TestLargePolicyDocumentParsing:
         assert "validation_results" in parsed
 
         # Performance requirements for 10MB+ policy (timeout configurable via env)
-        try:
-            parsing_timeout = float(os.getenv("POLICY_PARSING_TIMEOUT", str(POLICY_PARSING_TIMEOUT)))
-        except (ValueError, TypeError) as e:
-            logging.warning(f"Invalid POLICY_PARSING_TIMEOUT environment variable, using default: {e}")
-            parsing_timeout = POLICY_PARSING_TIMEOUT
+        parsing_timeout = get_policy_parsing_timeout()
         assert policy_size_mb >= 10.0, f"Policy size {policy_size_mb:.1f}MB, expected >= 10MB"
         assert parsing_time < parsing_timeout, (
             f"10MB policy parsing took {parsing_time:.2f}s, expected < {parsing_timeout:.0f}s"
