@@ -419,22 +419,21 @@ class AWSErrorCatalog:
         is_sensitive = is_highly_sensitive or (boundary == 'AUTH_FAILURE' and is_state_changing)
 
         # Additional boundary checks for different security contexts
+        # SERVICE_ERROR boundary: Sanitize internal system references
         if boundary == 'SERVICE_ERROR':
-            # Sanitize internal system references
             system_terms = ['internal', 'system', 'database', 'server', 'host', 'node']
             message = error_config.get('Message', '')
             if any(term in message.lower() for term in system_terms):
                 # Replace with generic message to prevent information disclosure
                 error_config['Message'] = 'Service temporarily unavailable. Please retry your request.'
 
+        # RESOURCE_ACCESS boundary: Validate that resource access errors don't leak existence information
         if boundary == 'RESOURCE_ACCESS' and operation.lower().startswith('get'):
-            # Validate that resource access errors don't leak existence information
             if 'exists' in error_config.get('Message', '').lower():
                 raise MockingSecurityError(f"Resource enumeration via error messages blocked for operation '{operation}'")
 
-        # Rate limiting boundary validation
+        # RATE_LIMIT boundary: Ensure rate limit errors don't expose internal throttling mechanisms
         if boundary == 'RATE_LIMIT':
-            # Ensure rate limit errors don't expose internal throttling mechanisms
             message = error_config.get('Message', '')
             if any(term in message.lower() for term in
                    ['quota', 'limit', 'threshold', 'bucket', 'window']):
