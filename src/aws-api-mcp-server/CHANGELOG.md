@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Improve tool logging (#1004)
 
+## [0.2.2] - 2025-08-05
+
+### Changed
+
+- Update README (#1020)
+
 ## [0.2.1] - 2025-08-01
 
 ### Added
