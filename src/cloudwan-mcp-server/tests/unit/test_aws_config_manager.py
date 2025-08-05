@@ -37,6 +37,8 @@ def _setup_test_environment(profile=None, region=None):
 
 class TestAWSConfigManager:
     """Test cases for AWS configuration manager."""
+    
+    CACHE_CAPACITY = 10  # Required for LRU cache tests
 
     @pytest.fixture(autouse=True)
     def reset_environment():
@@ -44,7 +46,6 @@ class TestAWSConfigManager:
         _setup_test_environment()
         yield
         _create_client.cache_clear()
-    """Test cases for AWS configuration manager."""
 
     @pytest.fixture
     def mock_boto3_session(self):
@@ -306,6 +307,7 @@ class TestAWSConfigManager:
         assert "message" in result_data
 
     @pytest.mark.asyncio
+    @patch('awslabs.cloudwan_mcp_server.server.boto3.client')
     async def test_lru_cache_eviction(self, mock_boto_client):
         """Test LRU cache eviction policy through _create_client function."""
         _create_client.cache_clear()
@@ -314,17 +316,17 @@ class TestAWSConfigManager:
         mock_boto_client.return_value = mock_client
 
         with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'us-east-1'}):
-            for i in range(CACHE_CAPACITY - 1):
+            for i in range(self.CACHE_CAPACITY - 1):
                 service = f'service-{i}'
                 get_aws_client(service)
 
         initial_cache_info = _create_client.cache_info()
-        assert initial_cache_info.currsize == CACHE_CAPACITY - 1
+        assert initial_cache_info.currsize == self.CACHE_CAPACITY - 1
 
         get_aws_client('new-service')
 
         final_cache_info = _create_client.cache_info()
-        assert final_cache_info.currsize == CACHE_CAPACITY
+        assert final_cache_info.currsize == self.CACHE_CAPACITY
 
     @pytest.mark.asyncio
     async def test_unknown_operation(self):
