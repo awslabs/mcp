@@ -185,7 +185,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "env": {
         "AWS_PROFILE": "your-named-profile",
         "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "disabled",
+        "SECURITY_SCANNING": "enabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -197,9 +197,9 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 _Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-west-2"` (or other desired AWS Region) to override._
 
-**Security Scanning Configuration (Highly recommended):**
+**Security Scanning Disabled:**
 
-You may optionally enable Checkov security scanning on all infrastructure before creation/updates:
+You have control on enabling/disabling Checkov security scanning on all infrastructure before creation/updates. The following configuration will disable security scanning:
 
 ```json
 {
@@ -210,7 +210,7 @@ You may optionally enable Checkov security scanning on all infrastructure before
       "env": {
         "AWS_PROFILE": "your-named-profile",
         "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "enabled",
+        "SECURITY_SCANNING": "disabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -231,7 +231,7 @@ You may optionally enable Checkov security scanning on all infrastructure before
       "env": {
         "AWS_PROFILE": "your-sso-profile",
         "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "disabled",
+        "SECURITY_SCANNING": "enabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -252,7 +252,7 @@ _Note: Run `aws sso login --profile your-sso-profile` before starting the MCP se
       "env": {
         "AWS_REGION": "us-west-2",
         "DEFAULT_TAGS": "enabled",
-        "SECURITY_SCANNING": "disabled",
+        "SECURITY_SCANNING": "enabled",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
