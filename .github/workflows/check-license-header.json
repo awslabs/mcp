@@ -8,12 +8,17 @@
       "**/*venv/**",
       "**/site-packages/**",
       ".github/**",
+      "docusaurus/**",
       "docs/**",
-      "**/*requirements.txt"
+      "**/*requirements.txt",
+      "**/*.pyc",
+      "**/trivy-results.sarif",
+      "**/py.typed",
+      "**/*.npz"
     ],
     "include": [
       "**/*.py",
-      "**/Dockerfile",
+      "**/*Dockerfile",
       "**/*.sh"
     ],
     "license": "./.github/workflows/check-license-header-hash.txt"
@@ -21,7 +26,6 @@
   {
     "include": [
       "**/*.md",
-      "mkdocs.yml",
       "**/LICENSE",
       "**/NOTICE",
       "**/uv.lock",
@@ -36,7 +40,19 @@
       ".venv/**",
       ".github/**",
       "docs/**",
-      "**/*requirements.txt"
+      "docusaurus/**",
+      "**/*requirements.txt",
+      "**/*.js",
+      "**/*.html",
+      "**/*.tsx",
+      "**/*.ts",
+      "**/*.css",
+      "**/*.module.css",
+      "**/yarn.lock",
+      "**/*.pyc",
+      "**/trivy-results.sarif",
+      "**/py.typed",
+      "**/*.npz"
     ]
   }
 ]

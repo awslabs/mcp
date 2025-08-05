@@ -52,6 +52,9 @@ outputs:
   version:
     description: 'The version uploaded'
     value: ${{ steps.get-version.outputs.version }}
+  artifact:
+    description: 'The artifact uploaded'
+    value: ${{ steps.upload-image.outputs.artifact-id }}
 
 runs:
   using: "composite"
@@ -147,6 +150,7 @@ runs:
         ALIAS: ${{ inputs.public-erc-registry-alias }}
         OWNER: ${{ github.repository_owner }}
       run: |
+        echo "DOCKER_METADATA_OUTPUT_JSON=$DOCKER_METADATA_OUTPUT_JSON"
         docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
           $(printf 'public.ecr.aws/'$ALIAS'/'$OWNER'/'$IMAGE'@sha256:%s ' *)
       shell: bash
