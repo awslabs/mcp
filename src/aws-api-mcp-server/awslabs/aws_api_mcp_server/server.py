@@ -133,7 +133,12 @@ async def suggest_aws_commands(
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
     try:
-        return knowledge_base.get_suggestions(query)
+        suggestions = knowledge_base.get_suggestions(query)
+        logger.info(
+            'Suggested commands: {}',
+            [suggestion.get('command') for suggestion in suggestions.get('suggestions', {})],
+        )
+        return suggestions
     except Exception as e:
         error_message = f'Error while suggesting commands: {str(e)}'
         await ctx.error(error_message)
