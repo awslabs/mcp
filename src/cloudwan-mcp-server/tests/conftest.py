@@ -200,20 +200,23 @@ def credential_cleanup_manager():
 
 
 # Legacy fixture for backward compatibility
-@pytest.fixture(scope="function")
-def mock_get_aws_client():
-    """Legacy fixture name for backward compatibility."""
+@pytest.fixture(scope="function", name="mock_get_aws_client")
+def aws_client_mocker():
+    """Mock AWS client with hierarchical service mocking."""
     clients = {}
 
-    def _get_client(service, region=None):
-        key = (service, region or "us-east-1")
+    def _mock_client(service: str, region: Optional[str] = None) -> Mock:
+        region = region or os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
+        key = (service, region)
+
         if key not in clients:
-            clients[key] = Mock()
+            service_mocker = AWSServiceMocker(service, region)
+            clients[key] = service_mocker.client
+
         return clients[key]
 
-    with patch('awslabs.cloudwan_mcp_server.server.get_aws_client') as mock:
-        mock.side_effect = _get_client
-        yield _get_client
+    with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=_mock_client) as mock:
+        yield mock
 
     # Clear LRU cache after tests
     try:

@@ -375,8 +375,8 @@ class TestMCPProtocolCompliance:
     def test_aws_client_caching_performance(self):
         """Test AWS client caching improves performance."""
         import time
-        from awslabs.cloudwan_mcp_server.server import _client_cache, get_aws_client
-        _client_cache.clear()  # Clear cache to ensure fresh state
+        from awslabs.cloudwan_mcp_server.server import _create_client, get_aws_client
+        _create_client.cache_clear()  # Clear cache to ensure fresh state
 
         with patch.dict('os.environ', {'AWS_PROFILE': ''}, clear=True):
             with patch('boto3.client') as mock_client:
