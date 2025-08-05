@@ -25,19 +25,12 @@ import pytest
 from awslabs.cloudwan_mcp_server.server import _create_client, aws_config_manager, get_aws_client
 
 
-def _setup_test_environment(profile: str | None = None, region: str | None = None) -> None:
-    """Helper to manage test environment variables."""
-    import os
-
-    os.environ.clear()
-    if profile:
-        os.environ["AWS_PROFILE"] = profile
-    if region:
-        os.environ["AWS_DEFAULT_REGION"] = region
-    os.environ.setdefault("AWS_PROFILE", "default")
-    os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
-
-
+def _setup_test_environment(profile: str | None = None, region: str | None = None) -> dict:
+    """Helper to generate AWS-related environment variables for tests."""
+    env = {}
+    env["AWS_PROFILE"] = profile if profile else "default"
+    env["AWS_DEFAULT_REGION"] = region if region else "us-east-1"
+    return env
 class TestAWSConfigManager:
     """Test cases for AWS configuration manager."""
 
