@@ -52,6 +52,7 @@ from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Union
 
+
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for interacting with AWS DynamoDB
 
@@ -111,6 +112,7 @@ SERVER_DEPENDENCIES = [
     'pydantic',
 ]
 
+
 def create_server():
     """Create and configure the MCP server instance."""
     return FastMCP(
@@ -118,6 +120,7 @@ def create_server():
         instructions=SERVER_INSTRUCTIONS,
         dependencies=SERVER_DEPENDENCIES,
     )
+
 
 app = create_server()
 
