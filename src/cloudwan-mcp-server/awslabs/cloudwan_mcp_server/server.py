@@ -18,6 +18,7 @@ import loguru
 import os
 import sys
 import threading
+import ipaddress
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from datetime import datetime
@@ -269,7 +270,6 @@ async def trace_network_path(source_ip: str, destination_ip: str, region: Option
         region = region or aws_config.default_region
 
         # Basic IP validation
-        import ipaddress
         ipaddress.ip_address(source_ip)
         ipaddress.ip_address(destination_ip)
 
@@ -378,7 +378,6 @@ async def discover_ip_details(ip_address: str, region: Optional[str] = None) -> 
         region = region or aws_config.default_region
 
         # Basic IP validation
-        import ipaddress
         ip_obj = ipaddress.ip_address(ip_address)
 
         result = {
@@ -401,8 +400,6 @@ async def discover_ip_details(ip_address: str, region: Optional[str] = None) -> 
 async def validate_ip_cidr(operation: str, ip: Optional[str] = None, cidr: Optional[str] = None) -> str:
     """Comprehensive IP/CIDR validation and networking utilities."""
     try:
-        import ipaddress
-
         if operation == "validate_ip" and ip:
             ip_obj = ipaddress.ip_address(ip)
             result = {
@@ -547,7 +544,6 @@ async def manage_tgw_routes(operation: str, route_table_id: str, destination_cid
         region = region or aws_config.default_region
 
         # Validate CIDR
-        import ipaddress
         ipaddress.ip_network(destination_cidr, strict=False)
 
         result = {
@@ -779,6 +775,7 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
     """
     try:
         global _client_cache
+        _client_cache = _create_client.cache_info()  # Initialize cache reference
 
         if operation == "get_current":
             current_profile = aws_config.profile or "default"

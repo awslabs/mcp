@@ -18,3 +18,7 @@ from ..config_manager import AWSConfigManager
 
 
 __all__ = ['AWSConfigManager']
+
+
+class AWSConfigManager:
+    """AWS configuration manager class."""
