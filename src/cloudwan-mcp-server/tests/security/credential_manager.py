@@ -279,14 +279,14 @@ class CredentialManager:
 
         # Rotate audit log if it gets too large (GDPR compliance)
         if len(self._audit_log) > self.AUDIT_LOG_ROTATION_THRESHOLD:
+            num_removed = len(self._audit_log) - self.AUDIT_LOG_RETENTION_COUNT
             self._audit_log = self._audit_log[-self.AUDIT_LOG_RETENTION_COUNT:]  # Keep last N events
-            # Update checksum indices after rotation
-            new_checksums = {}
-            for i, old_index in enumerate(range(len(self._audit_log) - self.AUDIT_LOG_RETENTION_COUNT, len(self._audit_log))):
-                if old_index in self._audit_checksums:
-                    new_checksums[i] = self._audit_checksums[old_index]
-            self._audit_checksums = new_checksums
-
+            # Update checksum indices after rotation (shift keys down by num_removed)
+            keys_to_remove = [k for k in self._audit_checksums if k < num_removed]
+            for k in keys_to_remove:
+                del self._audit_checksums[k]
+            # Shift remaining keys
+            self._audit_checksums = {k - num_removed: v for k, v in self._audit_checksums.items()}
     def get_audit_trail(self) -> List[Dict[str, Any]]:
         """Get credential audit trail for compliance reporting with integrity verification."""
         # Verify audit log integrity before returning
