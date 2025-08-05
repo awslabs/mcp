@@ -27,9 +27,9 @@ from awslabs.cloudwan_mcp_server.server import (
 from unittest.mock import Mock, patch
 
 
-# Test timeout constants for maintainability and consistency
-POLICY_PARSING_TIMEOUT = 30.0  # Default timeout for policy parsing operations
-REGEX_DOS_TIMEOUT = 30  # Timeout for regex DOS prevention tests
+# Test timeout constants for maintainability and consistency (configurable via environment variables)
+POLICY_PARSING_TIMEOUT = float(os.getenv('POLICY_PARSING_TIMEOUT', '30.0'))  # Default timeout for policy parsing operations
+REGEX_DOS_TIMEOUT = int(os.getenv('REGEX_DOS_TIMEOUT', '30'))  # Timeout for regex DOS prevention tests
 
 # Edge region configurations for performance testing
 EDGE_REGIONS = [
