@@ -416,11 +416,6 @@ class AWSErrorCatalog:
         # Apply different rules based on sensitivity level
         is_sensitive = is_highly_sensitive or (boundary == 'AUTH_FAILURE' and is_state_changing)
 
-        # Prevent sensitive operation errors in authentication failure contexts
-        # This helps avoid test scenarios that could inadvertently simulate real security issues
-        if is_sensitive:
-            raise MockingSecurityError(f"Sensitive operation '{operation}' error simulation blocked for security")
-
         # Additional boundary checks for different security contexts
         if boundary == 'SERVICE_ERROR':
             # Sanitize internal system references
