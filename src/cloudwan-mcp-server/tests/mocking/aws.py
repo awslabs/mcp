@@ -371,16 +371,7 @@ class AWSErrorCatalog:
     @classmethod
     def _validate_security_boundary(cls, error_config: dict, operation: str) -> None:
         """Helper to validate operation and security boundary for error_config."""
-        boundary = error_config.get("SecurityBoundary")
-        # Explicit validation for boundary parameter - default to secure behavior for unexpected values
-        if boundary is None or not isinstance(boundary, str):
-            boundary = "RESTRICTED"  # Default to most restrictive security boundary
-
-        # Normalize boundary to known values, default to secure behavior
-        valid_boundaries = {"AUTH_FAILURE", "SERVICE_ERROR", "RESOURCE_ACCESS", "RATE_LIMIT", "UNKNOWN", "RESTRICTED"}
-        if boundary not in valid_boundaries:
-            boundary = "RESTRICTED"  # Default to most restrictive
-
+        boundary = cls._normalize_security_boundary(error_config.get("SecurityBoundary"))
         # Focused security boundary validation for truly sensitive operations
         highly_sensitive_operations = [
             "Admin",
