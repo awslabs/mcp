@@ -15,6 +15,7 @@
 
 """Performance and load testing for MCP server."""
 
+import asyncio
 import json
 import time
 
