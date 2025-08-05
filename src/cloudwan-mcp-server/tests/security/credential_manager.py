@@ -99,7 +99,6 @@ class TemporalCredentials:
         To get at least `char_length` characters, we solve for bytes: ceil(char_length * BASE64_BYTES_PER_CHUNK / BASE64_CHARS_PER_CHUNK).
         """
         # Each BASE64_BYTES_PER_CHUNK bytes of input become BASE64_CHARS_PER_CHUNK base64 characters.
-        # To get at least `char_length` characters, we need to solve for bytes: ceil(char_length * BASE64_BYTES_PER_CHUNK / BASE64_CHARS_PER_CHUNK).
         BASE64_BYTES_PER_CHUNK = 3  # 3 bytes -> 4 chars in base64 encoding
         BASE64_CHARS_PER_CHUNK = 4  # 4 chars per 3 bytes in base64 encoding
         # The +(BASE64_CHARS_PER_CHUNK-1) and //BASE64_CHARS_PER_CHUNK ensures we round up (ceiling division)
