@@ -73,7 +73,7 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 ### Checking Cluster Resiliency
 The EKS Resiliency Checker evaluates clusters against 28 critical best practices across three categories:
 - **Application Related (A1-A14)**: Workload resilience, health probes, autoscaling, monitoring
-- **Control Plane Related (C1-C5)**: Logging, authentication, endpoint security, large cluster optimizations  
+- **Control Plane Related (C1-C5)**: Logging, authentication, endpoint security, large cluster optimizations
 - **Data Plane Related (D1-D7)**: Node autoscaling, AZ distribution, resource governance, CoreDNS
 
 **Usage:**
@@ -168,7 +168,7 @@ def main():
 
     # Create the MCP server instance
     mcp = create_server()
-    
+
     # Create client cache to be shared between handlers
     client_cache = K8sClientCache()
 

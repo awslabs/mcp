@@ -115,8 +115,8 @@ async def test_command_line_args():
                                 assert mock_k8s_handler.call_count == 1
                                 call_args = mock_k8s_handler.call_args[0]
                                 assert call_args[0] == mock_server  # mcp
-                                assert call_args[1] == True  # allow_write
-                                assert call_args[2] == False  # allow_sensitive_data_access
+                                assert call_args[1]  # allow_write
+                                assert not call_args[2]  # allow_sensitive_data_access
                                 # Fourth parameter is client_cache, we just verify it exists
                                 mock_iam_handler.assert_called_once_with(mock_server, True)
 
@@ -162,8 +162,8 @@ async def test_command_line_args():
                                 assert mock_k8s_handler.call_count == 1
                                 call_args = mock_k8s_handler.call_args[0]
                                 assert call_args[0] == mock_server  # mcp
-                                assert call_args[1] == False  # allow_write
-                                assert call_args[2] == True  # allow_sensitive_data_access
+                                assert not call_args[1]  # allow_write
+                                assert call_args[2]  # allow_sensitive_data_access
                                 # Fourth parameter is client_cache, we just verify it exists
                                 mock_iam_handler.assert_called_once_with(mock_server, False)
 
@@ -209,8 +209,8 @@ async def test_command_line_args():
                                 assert mock_k8s_handler.call_count == 1
                                 call_args = mock_k8s_handler.call_args[0]
                                 assert call_args[0] == mock_server  # mcp
-                                assert call_args[1] == True  # allow_write
-                                assert call_args[2] == True  # allow_sensitive_data_access
+                                assert call_args[1]  # allow_write
+                                assert call_args[2]  # allow_sensitive_data_access
                                 # Fourth parameter is client_cache, we just verify it exists
                                 mock_iam_handler.assert_called_once_with(mock_server, True)
 

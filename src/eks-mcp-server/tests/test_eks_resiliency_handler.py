@@ -15,11 +15,10 @@
 """Tests for the EKSResiliencyHandler class."""
 
 import pytest
-from contextlib import ExitStack
 from awslabs.eks_mcp_server.eks_resiliency_handler import EKSResiliencyHandler
 from awslabs.eks_mcp_server.models import ResiliencyCheckResponse
+from contextlib import ExitStack
 from mcp.server.fastmcp import Context
-from mcp.types import TextContent
 from unittest.mock import MagicMock, patch
 
 
@@ -93,7 +92,7 @@ class TestEKSResiliencyHandlerInit:
         """Test check_eks_resiliency with a successful connection."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock ALL check methods to return compliant results to ensure overall_compliant is True
         check_methods = [
             '_check_singleton_pods', '_check_multiple_replicas', '_check_pod_anti_affinity',
@@ -101,10 +100,10 @@ class TestEKSResiliencyHandlerInit:
             '_check_metrics_server', '_check_horizontal_pod_autoscaler', '_check_custom_metrics',
             '_check_vertical_pod_autoscaler', '_check_prestop_hooks', '_check_service_mesh',
             '_check_monitoring', '_check_centralized_logging',
-            '_check_c1', '_check_c2', '_check_c3', '_check_c4', '_check_c5', 
+            '_check_c1', '_check_c2', '_check_c3', '_check_c4', '_check_c5',
             '_check_d1', '_check_d2', '_check_d3', '_check_d4', '_check_d5', '_check_d6', '_check_d7'
         ]
-        
+
         patches = []
         for method_name in check_methods:
             patches.append(patch.object(handler, method_name, return_value={
@@ -114,11 +113,11 @@ class TestEKSResiliencyHandlerInit:
                 "details": "Mock compliant result",
                 "remediation": ""
             }))
-        
+
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
-            
+
             # Call the check_eks_resiliency method
             result = await handler.check_eks_resiliency(mock_context, cluster_name="test-cluster")
 
@@ -137,18 +136,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_singleton_pods method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no pods
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_singleton_pods method
         result = handler._check_singleton_pods(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Avoid running singleton Pods"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return some pods
         mock_pod1 = MagicMock()
         mock_pod1.to_dict.return_value = {
@@ -166,10 +165,10 @@ class TestEKSResiliencyHandlerChecksA:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_pod1, mock_pod2])
-        
+
         # Call the _check_singleton_pods method
         result = handler._check_singleton_pods(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Avoid running singleton Pods"
         assert result["compliant"] is False
@@ -180,18 +179,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_multiple_replicas method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no deployments
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_multiple_replicas method
         result = handler._check_multiple_replicas(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Run multiple replicas"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return some deployments and statefulsets
         mock_deployment = MagicMock()
         mock_deployment.to_dict.return_value = {
@@ -203,19 +202,19 @@ class TestEKSResiliencyHandlerChecksA:
                 "replicas": 1
             }
         }
-        
+
         def mock_list_resources(kind, **kwargs):
             if kind == "Deployment":
                 return MagicMock(items=[mock_deployment])
             elif kind == "StatefulSet":
                 return MagicMock(items=[])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_multiple_replicas method
         result = handler._check_multiple_replicas(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Run multiple replicas"
         assert result["compliant"] is False
@@ -226,18 +225,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_pod_anti_affinity method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no deployments
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_pod_anti_affinity method
         result = handler._check_pod_anti_affinity(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use pod anti-affinity"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return some deployments
         mock_deployment1 = MagicMock()
         mock_deployment1.to_dict.return_value = {
@@ -270,10 +269,10 @@ class TestEKSResiliencyHandlerChecksA:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_deployment1, mock_deployment2])
-        
+
         # Call the _check_pod_anti_affinity method
         result = handler._check_pod_anti_affinity(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use pod anti-affinity"
         assert result["compliant"] is False
@@ -284,18 +283,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_liveness_probe method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no workloads
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_liveness_probe method
         result = handler._check_liveness_probe(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use liveness probes"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return deployments with and without liveness probes
         mock_deployment1 = MagicMock()
         mock_deployment1.to_dict.return_value = {
@@ -339,7 +338,7 @@ class TestEKSResiliencyHandlerChecksA:
                 }
             }
         }
-        
+
         # Mock different calls to list_resources for different resource types
         def mock_list_resources(kind, **kwargs):
             if kind == "Deployment":
@@ -349,12 +348,12 @@ class TestEKSResiliencyHandlerChecksA:
             elif kind == "DaemonSet":
                 return MagicMock(items=[])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_liveness_probe method
         result = handler._check_liveness_probe(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use liveness probes"
         assert result["compliant"] is False
@@ -365,18 +364,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_readiness_probe method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no workloads
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_readiness_probe method
         result = handler._check_readiness_probe(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use readiness probes"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return deployments with and without readiness probes
         mock_deployment1 = MagicMock()
         mock_deployment1.to_dict.return_value = {
@@ -420,7 +419,7 @@ class TestEKSResiliencyHandlerChecksA:
                 }
             }
         }
-        
+
         # Mock different calls to list_resources for different resource types
         def mock_list_resources(kind, **kwargs):
             if kind == "Deployment":
@@ -430,12 +429,12 @@ class TestEKSResiliencyHandlerChecksA:
             elif kind == "DaemonSet":
                 return MagicMock(items=[])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_readiness_probe method
         result = handler._check_readiness_probe(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use readiness probes"
         assert result["compliant"] is False
@@ -446,18 +445,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_pod_disruption_budget method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no resources
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_pod_disruption_budget method
         result = handler._check_pod_disruption_budget(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Pod Disruption Budgets"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return deployments and PDBs
         mock_deployment = MagicMock()
         mock_deployment.to_dict.return_value = {
@@ -477,7 +476,7 @@ class TestEKSResiliencyHandlerChecksA:
                 }
             }
         }
-        
+
         mock_pdb = MagicMock()
         mock_pdb.to_dict.return_value = {
             "metadata": {
@@ -493,7 +492,7 @@ class TestEKSResiliencyHandlerChecksA:
                 "minAvailable": 2
             }
         }
-        
+
         # Mock different calls to list_resources
         def mock_list_resources(kind, **kwargs):
             if kind == "Deployment":
@@ -503,12 +502,12 @@ class TestEKSResiliencyHandlerChecksA:
             elif kind == "PodDisruptionBudget":
                 return MagicMock(items=[mock_pdb])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_pod_disruption_budget method
         result = handler._check_pod_disruption_budget(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Pod Disruption Budgets"
         assert result["compliant"] is True
@@ -518,10 +517,10 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_metrics_server method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock successful metrics API access and metrics server deployment
         mock_k8s_api.api_client.call_api.return_value = ({"kind": "APIResourceList"}, 200, {})
-        
+
         mock_deployment = MagicMock()
         mock_deployment.to_dict.return_value = {
             'metadata': {
@@ -530,22 +529,22 @@ class TestEKSResiliencyHandlerChecksA:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_deployment])
-        
+
         # Call the _check_metrics_server method
         result = handler._check_metrics_server(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Run Kubernetes Metrics Server"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock failed metrics API access
         mock_k8s_api.api_client.call_api.side_effect = Exception("Metrics API not available")
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_metrics_server method
         result = handler._check_metrics_server(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Run Kubernetes Metrics Server"
         assert result["compliant"] is False
@@ -555,18 +554,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_horizontal_pod_autoscaler method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no HPAs
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_horizontal_pod_autoscaler method
         result = handler._check_horizontal_pod_autoscaler(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Horizontal Pod Autoscaler"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return deployments with >1 replica and HPAs
         mock_deployment = MagicMock()
         mock_deployment.to_dict.return_value = {
@@ -578,7 +577,7 @@ class TestEKSResiliencyHandlerChecksA:
                 "replicas": 3
             }
         }
-        
+
         mock_hpa = MagicMock()
         mock_hpa.to_dict.return_value = {
             "metadata": {
@@ -592,7 +591,7 @@ class TestEKSResiliencyHandlerChecksA:
                 }
             }
         }
-        
+
         def mock_list_resources(kind, **kwargs):
             if kind == "Deployment":
                 return MagicMock(items=[mock_deployment])
@@ -601,12 +600,12 @@ class TestEKSResiliencyHandlerChecksA:
             elif kind == "HorizontalPodAutoscaler":
                 return MagicMock(items=[mock_hpa])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_horizontal_pod_autoscaler method
         result = handler._check_horizontal_pod_autoscaler(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Horizontal Pod Autoscaler"
         assert result["compliant"] is True
@@ -616,29 +615,29 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_custom_metrics method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock successful custom metrics API access for both custom and external metrics
         def mock_api_call(resource_path, method, **kwargs):
             if 'custom.metrics.k8s.io' in resource_path or 'external.metrics.k8s.io' in resource_path:
                 return ({"kind": "APIResourceList"}, 200, {})
             raise Exception("API not found")
-        
+
         mock_k8s_api.api_client.call_api.side_effect = mock_api_call
-        
+
         # Call the _check_custom_metrics method
         result = handler._check_custom_metrics(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use custom metrics scaling"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock failed custom metrics API access
         mock_k8s_api.api_client.call_api.side_effect = Exception("Custom metrics API not available")
-        
+
         # Call the _check_custom_metrics method
         result = handler._check_custom_metrics(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use custom metrics scaling"
         assert result["compliant"] is False
@@ -648,15 +647,15 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_vertical_pod_autoscaler method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock VPA CRD check and VPA components
         def mock_api_call(resource_path, method, **kwargs):
             if 'verticalpodautoscalers' in resource_path:
                 return ({"kind": "APIResourceList"}, 200, {})
             raise Exception("API not found")
-        
+
         mock_k8s_api.api_client.call_api.side_effect = mock_api_call
-        
+
         # Mock VPA components (recommender, updater, admission-controller)
         mock_vpa_deployment = MagicMock()
         mock_vpa_deployment.to_dict.return_value = {
@@ -665,29 +664,29 @@ class TestEKSResiliencyHandlerChecksA:
                 'namespace': 'kube-system'
             }
         }
-        
+
         def mock_list_resources(kind, **kwargs):
             if kind == "Deployment" and kwargs.get('namespace') == 'kube-system':
                 return MagicMock(items=[mock_vpa_deployment])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_vertical_pod_autoscaler method
         result = handler._check_vertical_pod_autoscaler(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Vertical Pod Autoscaler"
         assert result["compliant"] is False  # Changed to False as VPA objects are not configured
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock no VPA CRD
         mock_k8s_api.api_client.call_api.side_effect = Exception("VPA CRD not found")
         mock_k8s_api.list_resources.side_effect = lambda kind, **kwargs: MagicMock(items=[])
-        
+
         # Call the _check_vertical_pod_autoscaler method
         result = handler._check_vertical_pod_autoscaler(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Vertical Pod Autoscaler"
         assert result["compliant"] is False
@@ -697,18 +696,18 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_prestop_hooks method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no workloads
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_prestop_hooks method
         result = handler._check_prestop_hooks(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use preStop hooks"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return deployments with and without preStop hooks
         mock_deployment1 = MagicMock()
         mock_deployment1.to_dict.return_value = {
@@ -753,7 +752,7 @@ class TestEKSResiliencyHandlerChecksA:
                 }
             }
         }
-        
+
         # Mock different calls to list_resources for different resource types
         def mock_list_resources(kind, **kwargs):
             if kind == "Deployment":
@@ -763,12 +762,12 @@ class TestEKSResiliencyHandlerChecksA:
             elif kind == "DaemonSet":
                 return MagicMock(items=[])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_prestop_hooks method
         result = handler._check_prestop_hooks(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use preStop hooks"
         assert result["compliant"] is False
@@ -779,29 +778,29 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_service_mesh method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock no service mesh CRDs
         mock_k8s_api.api_client.call_api.side_effect = Exception("CRD not found")
-        
+
         # Call the _check_service_mesh method
         result = handler._check_service_mesh(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use a Service Mesh"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock Istio CRDs found
         def mock_api_call(resource_path, method, **kwargs):
             if 'istio.io' in resource_path:
                 return ({"kind": "APIResourceList"}, 200, {})
             raise Exception("CRD not found")
-        
+
         mock_k8s_api.api_client.call_api.side_effect = mock_api_call
-        
+
         # Call the _check_service_mesh method
         result = handler._check_service_mesh(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use a Service Mesh"
         assert result["compliant"] is True
@@ -811,30 +810,30 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_monitoring method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock no monitoring CRDs
         mock_k8s_api.api_client.call_api.side_effect = Exception("CRD not found")
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_monitoring method
         result = handler._check_monitoring(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Monitor your applications"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock Prometheus CRDs found
         def mock_api_call(resource_path, method, **kwargs):
             if 'monitoring.coreos.com' in resource_path:
                 return ({"kind": "APIResourceList"}, 200, {})
             raise Exception("CRD not found")
-        
+
         mock_k8s_api.api_client.call_api.side_effect = mock_api_call
-        
+
         # Call the _check_monitoring method
         result = handler._check_monitoring(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Monitor your applications"
         assert result["compliant"] is True
@@ -844,30 +843,30 @@ class TestEKSResiliencyHandlerChecksA:
         """Test _check_centralized_logging method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock no logging CRDs
         mock_k8s_api.api_client.call_api.side_effect = Exception("CRD not found")
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_centralized_logging method
         result = handler._check_centralized_logging(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use centralized logging"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock Elasticsearch CRDs found
         def mock_api_call(resource_path, method, **kwargs):
             if 'elasticsearch.k8s.elastic.co' in resource_path:
                 return ({"kind": "APIResourceList"}, 200, {})
             raise Exception("CRD not found")
-        
+
         mock_k8s_api.api_client.call_api.side_effect = mock_api_call
-        
+
         # Call the _check_centralized_logging method
         result = handler._check_centralized_logging(mock_k8s_api)
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use centralized logging"
         assert result["compliant"] is True
@@ -883,13 +882,13 @@ class TestEKSResiliencyHandlerChecksC:
         """Test _check_c1 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the AwsHelper.create_boto3_client method
         with patch('awslabs.eks_mcp_server.eks_resiliency_handler.AwsHelper.create_boto3_client') as mock_create_client:
             # Mock the EKS client
             mock_eks_client = MagicMock()
             mock_create_client.return_value = mock_eks_client
-            
+
             # Mock the describe_cluster method
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {
@@ -903,15 +902,15 @@ class TestEKSResiliencyHandlerChecksC:
                     }
                 }
             }
-            
+
             # Call the _check_c1 method
             result = handler._check_c1(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "Monitor Control Plane Metrics"
             assert result["compliant"] is True
             assert len(result["impacted_resources"]) == 0
-            
+
             # Mock the describe_cluster method to return no logging
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {
@@ -925,10 +924,10 @@ class TestEKSResiliencyHandlerChecksC:
                     }
                 }
             }
-            
+
             # Call the _check_c1 method
             result = handler._check_c1(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "Monitor Control Plane Metrics"
             assert result["compliant"] is False
@@ -939,13 +938,13 @@ class TestEKSResiliencyHandlerChecksC:
         """Test _check_c2 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the AwsHelper.create_boto3_client method
         with patch('awslabs.eks_mcp_server.eks_resiliency_handler.AwsHelper.create_boto3_client') as mock_create_client:
             # Mock the EKS client
             mock_eks_client = MagicMock()
             mock_create_client.return_value = mock_eks_client
-            
+
             # Mock the describe_cluster method
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {
@@ -954,7 +953,7 @@ class TestEKSResiliencyHandlerChecksC:
                     }
                 }
             }
-            
+
             # Mock the list_resources method to return aws-auth ConfigMap
             mock_aws_auth = MagicMock()
             mock_aws_auth.to_dict.return_value = {
@@ -968,26 +967,26 @@ class TestEKSResiliencyHandlerChecksC:
                 }
             }
             mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_aws_auth])
-            
+
             # Call the _check_c2 method
             result = handler._check_c2(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "Cluster Authentication"
             assert result["compliant"] is True
             assert len(result["impacted_resources"]) == 0
-            
+
             # Mock the describe_cluster method to return no access config
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {}
             }
-            
+
             # Mock the list_resources method to return no aws-auth ConfigMap
             mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-            
+
             # Call the _check_c2 method
             result = handler._check_c2(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "Cluster Authentication"
             assert result["compliant"] is False
@@ -997,13 +996,13 @@ class TestEKSResiliencyHandlerChecksC:
         """Test _check_c4 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the AwsHelper.create_boto3_client method
         with patch('awslabs.eks_mcp_server.eks_resiliency_handler.AwsHelper.create_boto3_client') as mock_create_client:
             # Mock the EKS client
             mock_eks_client = MagicMock()
             mock_create_client.return_value = mock_eks_client
-            
+
             # Mock the describe_cluster method with restricted public access
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {
@@ -1014,15 +1013,15 @@ class TestEKSResiliencyHandlerChecksC:
                     }
                 }
             }
-            
+
             # Call the _check_c4 method
             result = handler._check_c4(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "EKS Control Plane Endpoint Access Control"
             assert result["compliant"] is True
             assert len(result["impacted_resources"]) == 1
-            
+
             # Mock the describe_cluster method with unrestricted public access
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {
@@ -1033,10 +1032,10 @@ class TestEKSResiliencyHandlerChecksC:
                     }
                 }
             }
-            
+
             # Call the _check_c4 method
             result = handler._check_c4(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "EKS Control Plane Endpoint Access Control"
             assert result["compliant"] is False
@@ -1046,18 +1045,18 @@ class TestEKSResiliencyHandlerChecksC:
         """Test _check_c5 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no webhooks
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_c5 method
         result = handler._check_c5(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Avoid catch-all admission webhooks"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return a webhook with catch-all configuration
         mock_webhook = MagicMock()
         mock_webhook.to_dict.return_value = {
@@ -1078,10 +1077,10 @@ class TestEKSResiliencyHandlerChecksC:
             ]
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_webhook])
-        
+
         # Call the _check_c5 method
         result = handler._check_c5(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Avoid catch-all admission webhooks"
         assert result["compliant"] is False
@@ -1091,7 +1090,7 @@ class TestEKSResiliencyHandlerChecksC:
         """Test _check_c3 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return few services
         mock_service = MagicMock()
         mock_service.to_dict.return_value = {
@@ -1101,15 +1100,15 @@ class TestEKSResiliencyHandlerChecksC:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_service])
-        
+
         # Call the _check_c3 method
         result = handler._check_c3(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Running large clusters"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return many services (>1000)
         mock_services = [MagicMock() for _ in range(1001)]
         for i, service in enumerate(mock_services):
@@ -1120,10 +1119,10 @@ class TestEKSResiliencyHandlerChecksC:
                 }
             }
         mock_k8s_api.list_resources.return_value = MagicMock(items=mock_services)
-        
+
         # Call the _check_c3 method
         result = handler._check_c3(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Running large clusters"
         assert result["compliant"] is False
@@ -1138,21 +1137,21 @@ class TestEKSResiliencyHandlerChecksD:
         """Test _check_d1 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no autoscalers
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Mock the API client call_api method to simulate no Karpenter CRDs
         mock_k8s_api.api_client.call_api.side_effect = Exception("API not found")
-        
+
         # Call the _check_d1 method
         result = handler._check_d1(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Kubernetes Cluster Autoscaler or Karpenter"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return a cluster-autoscaler deployment
         mock_deployment = MagicMock()
         mock_deployment.to_dict.return_value = {
@@ -1162,10 +1161,10 @@ class TestEKSResiliencyHandlerChecksD:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_deployment])
-        
+
         # Call the _check_d1 method
         result = handler._check_d1(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Use Kubernetes Cluster Autoscaler or Karpenter"
         assert result["compliant"] is True
@@ -1176,18 +1175,18 @@ class TestEKSResiliencyHandlerChecksD:
         """Test _check_d2 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no nodes
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_d2 method
         result = handler._check_d2(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Worker nodes spread across multiple AZs"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return nodes in multiple AZs
         mock_node1 = MagicMock()
         mock_node1.to_dict.return_value = {
@@ -1217,10 +1216,10 @@ class TestEKSResiliencyHandlerChecksD:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_node1, mock_node2, mock_node3])
-        
+
         # Call the _check_d2 method
         result = handler._check_d2(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Worker nodes spread across multiple AZs"
         assert result["compliant"] is True
@@ -1230,18 +1229,18 @@ class TestEKSResiliencyHandlerChecksD:
         """Test _check_d3 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no deployments
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_d3 method
         result = handler._check_d3(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Configure Resource Requests/Limits"
         assert result["compliant"] is True
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return deployments with and without resource requests/limits
         mock_deployment1 = MagicMock()
         mock_deployment1.to_dict.return_value = {
@@ -1290,10 +1289,10 @@ class TestEKSResiliencyHandlerChecksD:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_deployment1, mock_deployment2])
-        
+
         # Call the _check_d3 method
         result = handler._check_d3(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Configure Resource Requests/Limits"
         assert result["compliant"] is False
@@ -1306,13 +1305,13 @@ class TestEKSResiliencyHandlerChecksD:
         """Test _check_d7 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the AwsHelper.create_boto3_client method
         with patch('awslabs.eks_mcp_server.eks_resiliency_handler.AwsHelper.create_boto3_client') as mock_create_client:
             # Mock the EKS client
             mock_eks_client = MagicMock()
             mock_create_client.return_value = mock_eks_client
-            
+
             # Mock the describe_cluster method for auto mode cluster
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {
@@ -1323,12 +1322,12 @@ class TestEKSResiliencyHandlerChecksD:
                     }
                 }
             }
-            
+
             # Mock the list_addons method
             mock_eks_client.list_addons.return_value = {
                 'addons': ['coredns']
             }
-            
+
             # Mock the list_resources method to return CoreDNS deployment
             mock_deployment = MagicMock()
             mock_deployment.to_dict.return_value = {
@@ -1338,15 +1337,15 @@ class TestEKSResiliencyHandlerChecksD:
                 }
             }
             mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_deployment])
-            
+
             # Call the _check_d7 method
             result = handler._check_d7(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "CoreDNS Configuration"
             assert result["compliant"] is True
             assert len(result["impacted_resources"]) > 0
-            
+
             # Mock the describe_cluster method for non-auto mode cluster without managed CoreDNS
             mock_eks_client.describe_cluster.return_value = {
                 'cluster': {
@@ -1356,15 +1355,15 @@ class TestEKSResiliencyHandlerChecksD:
                     }
                 }
             }
-            
+
             # Mock the list_addons method to return no CoreDNS
             mock_eks_client.list_addons.return_value = {
                 'addons': []
             }
-            
+
             # Call the _check_d7 method
             result = handler._check_d7(mock_k8s_api, "test-cluster")
-            
+
             # Verify that the result is correct
             assert result["check_name"] == "CoreDNS Configuration"
             assert result["compliant"] is False
@@ -1374,18 +1373,18 @@ class TestEKSResiliencyHandlerChecksD:
         """Test _check_d6 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return no CoreDNS deployment
         mock_k8s_api.list_resources.return_value = MagicMock(items=[])
-        
+
         # Call the _check_d6 method
         result = handler._check_d6(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Monitor CoreDNS metrics"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 0
-        
+
         # Mock the list_resources method to return CoreDNS deployment
         mock_deployment = MagicMock()
         mock_deployment.to_dict.return_value = {
@@ -1395,10 +1394,10 @@ class TestEKSResiliencyHandlerChecksD:
             }
         }
         mock_k8s_api.list_resources.return_value = MagicMock(items=[mock_deployment])
-        
+
         # Call the _check_d6 method
         result = handler._check_d6(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Monitor CoreDNS metrics"
         assert result["compliant"] is False  # Changed to False as the test shows CoreDNS metrics check failed
@@ -1408,7 +1407,7 @@ class TestEKSResiliencyHandlerChecksD:
         """Test _check_d4 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return namespaces without resource quotas
         mock_namespace = MagicMock()
         mock_namespace.to_dict.return_value = {
@@ -1416,25 +1415,25 @@ class TestEKSResiliencyHandlerChecksD:
                 'name': 'test-namespace'
             }
         }
-        
+
         def mock_list_resources(kind, **kwargs):
             if kind == "Namespace":
                 return MagicMock(items=[mock_namespace])
             elif kind == "ResourceQuota":
                 return MagicMock(items=[])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_d4 method
         result = handler._check_d4(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Namespace ResourceQuotas"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 1
         assert "test-namespace" in result["impacted_resources"]
-        
+
         # Mock the list_resources method to return namespaces with resource quotas
         mock_quota = MagicMock()
         mock_quota.to_dict.return_value = {
@@ -1443,19 +1442,19 @@ class TestEKSResiliencyHandlerChecksD:
                 'namespace': 'test-namespace'
             }
         }
-        
+
         def mock_list_resources_with_quota(kind, **kwargs):
             if kind == "Namespace":
                 return MagicMock(items=[mock_namespace])
             elif kind == "ResourceQuota":
                 return MagicMock(items=[mock_quota])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources_with_quota
-        
+
         # Call the _check_d4 method
         result = handler._check_d4(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Namespace ResourceQuotas"
         assert result["compliant"] is True
@@ -1465,7 +1464,7 @@ class TestEKSResiliencyHandlerChecksD:
         """Test _check_d5 method."""
         # Initialize the EKS resiliency handler
         handler = EKSResiliencyHandler(mock_mcp, mock_client_cache)
-        
+
         # Mock the list_resources method to return namespaces without limit ranges
         mock_namespace = MagicMock()
         mock_namespace.to_dict.return_value = {
@@ -1473,25 +1472,25 @@ class TestEKSResiliencyHandlerChecksD:
                 'name': 'test-namespace'
             }
         }
-        
+
         def mock_list_resources(kind, **kwargs):
             if kind == "Namespace":
                 return MagicMock(items=[mock_namespace])
             elif kind == "LimitRange":
                 return MagicMock(items=[])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources
-        
+
         # Call the _check_d5 method
         result = handler._check_d5(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Namespace LimitRanges"
         assert result["compliant"] is False
         assert len(result["impacted_resources"]) == 1
         assert "test-namespace" in result["impacted_resources"]
-        
+
         # Mock the list_resources method to return namespaces with limit ranges
         mock_limit_range = MagicMock()
         mock_limit_range.to_dict.return_value = {
@@ -1500,19 +1499,19 @@ class TestEKSResiliencyHandlerChecksD:
                 'namespace': 'test-namespace'
             }
         }
-        
+
         def mock_list_resources_with_limits(kind, **kwargs):
             if kind == "Namespace":
                 return MagicMock(items=[mock_namespace])
             elif kind == "LimitRange":
                 return MagicMock(items=[mock_limit_range])
             return MagicMock(items=[])
-        
+
         mock_k8s_api.list_resources.side_effect = mock_list_resources_with_limits
-        
+
         # Call the _check_d5 method
         result = handler._check_d5(mock_k8s_api, "test-cluster")
-        
+
         # Verify that the result is correct
         assert result["check_name"] == "Namespace LimitRanges"
         assert result["compliant"] is True

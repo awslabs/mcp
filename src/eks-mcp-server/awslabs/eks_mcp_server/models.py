@@ -291,7 +291,7 @@ class MetricsGuidanceResponse(CallToolResult):
 
 class ResiliencyCheckResponse(CallToolResult):
     """Response model for EKS resiliency checks."""
-    
+
     check_results: List[Dict[str, Any]] = Field(..., description='Results of individual checks')
     overall_compliant: bool = Field(..., description='Whether all checks passed')
     summary: str = Field(..., description='Summary of all check results')
