@@ -18,7 +18,7 @@ from awslabs.amazon_mq_mcp_server.aws_service_mcp_generator import (
 )
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 from mcp.server.fastmcp import FastMCP
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 # override create_broker tool to tag resources
@@ -31,13 +31,8 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
         broker_name: str,
         engine_type: str,
         deployment_mode: str,
-        users: List[Dict[str, Any]] = [
-            {
-                'ConsoleAccess': True,
-                'Password': 'temp-password',  # pragma: allowlist secret
-                'Username': 'temp-user',
-            }
-        ],
+        username: str,
+        password: str,
         engine_version: Optional[str] = None,
         publicly_accessible: bool = True,
         host_instance_type: str = 'mq.m5.xlarge',
@@ -50,18 +45,8 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
             broker_name: The name given to the broker.
             engine_type: The engine type of the broker. Possible values: "RABBITMQ" and "ACTIVEMQ".
             deployment_mode: The broker deployment mode. Possible values for ACTIVEMQ engine type: SINGLE_INSTANCE, ACTIVE_STANDBY_MULTI_AZ and possible values for RABBITMQ engine type: SINGLE_INSTANCE, CLUSTER_MULTI_AZ.
-            users: The list of broker users (persons or applications) who can access queues and topics. For Amazon MQ for RabbitMQ brokers, one and only one administrative user is accepted and created when a broker is first provisioned. All subsequent broker users are created by making RabbitMQ API calls directly to brokers or via the RabbitMQ web console.
-            It has the following structure:
-            [
-                {
-                    "ConsoleAccess": true|false,
-                    "Groups": ["string", ...],
-                    "Password": str,
-                    "Username": str,
-                    "ReplicationUser": true|false
-                }
-                ...
-            ]
+            username: The username to access the broker.
+            password: The password for the user.
             engine_version: The broker engine version. Defaults to the latest available version for the specified broker engine type. It should also be unspecified to use the latest version.
             publicly_accessible: Enables connections from applications outside of the VPC that hosts the broker's subnets. Default to True for publicly accessible broker.
             host_instance_type: The broker instance type. Default to production-ready instance type "mq.m5.xlarge".
@@ -78,7 +63,13 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
             'DeploymentMode': deployment_mode,
             'PubliclyAccessible': publicly_accessible,
             'AutoMinorVersionUpgrade': auto_minor_version_upgrade,
-            'Users': users,
+            'Users': [
+                {
+                    'ConsoleAccess': True,
+                    'Password': password,
+                    'Username': username,
+                }
+            ],
             'Tags': {
                 'mcp_server_version': MCP_SERVER_VERSION,
             },
