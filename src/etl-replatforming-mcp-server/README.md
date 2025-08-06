@@ -125,13 +125,13 @@ Set environment variables:
 
 ```bash
 export FASTMCP_LOG_LEVEL=INFO  # Optional: DEBUG, INFO, WARNING, ERROR
-export AWS_REGION=us-east-1    # Required: For Bedrock LLM calls
-export AWS_PROFILE=your-profile # Optional: AWS profile
+export AWS_REGION=us-east-1    # Optional: For Bedrock AI enhancement (defaults to us-east-1)
+export AWS_PROFILE=your-profile # Optional: For Bedrock AI enhancement
 ```
 
-### AWS Bedrock Setup (Required)
+### AWS Bedrock Setup (Optional - For AI Enhancement)
 
-**⚠️ IMPORTANT: This MCP server uses AWS Bedrock for AI-enhanced workflow parsing to fill gaps in incomplete workflows and reduce user prompts.**
+**💡 OPTIONAL: This MCP server can use AWS Bedrock for AI-enhanced workflow parsing to fill gaps in incomplete workflows and reduce user prompts. The server works without AWS credentials using deterministic parsing only.**
 
 **Setup Steps:**
 
@@ -141,14 +141,33 @@ export AWS_PROFILE=your-profile # Optional: AWS profile
    # Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output format (json)
    ```
 
-2. **IAM Permissions**: Attach `AmazonBedrockFullAccess` policy to your IAM user/role
+2. **IAM Permissions**: Create a custom policy with minimal required permissions:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "bedrock:InvokeModel",
+           "sts:GetCallerIdentity"
+         ],
+         "Resource": [
+           "arn:aws:bedrock:*::foundation-model/anthropic.claude-*",
+           "*"
+         ]
+       }
+     ]
+   }
+   ```
+   **Note**: If using a different model via `llm_config`, update the resource ARN accordingly (e.g., `anthropic.claude-3-*` for Claude 3.x models).
 
 3. **Bedrock Model Access**: Enable Claude model access in AWS Console
    - **⚠️ IMPORTANT**: Model access must be granted in the **same region** as your AWS_REGION environment variable
    - Go to **AWS Console → Amazon Bedrock → Model access**
    - **Ensure you're in the correct region** (top-right corner of AWS Console)
    - Click **Request model access**
-   - Select **Anthropic Claude 3 Sonnet** (`anthropic.claude-3-sonnet-20240229-v1:0`)
+   - Select **Anthropic Claude Sonnet 4** (`anthropic.claude-sonnet-4-20250514-v1:0`)
    - Submit request (usually approved instantly)
    - **Verify**: Model status should show "Access granted" in the same region
 
@@ -158,12 +177,12 @@ export AWS_PROFILE=your-profile # Optional: AWS profile
    aws bedrock list-foundation-models --region us-east-1
    
    # Test model access
-   aws bedrock get-foundation-model --model-identifier anthropic.claude-3-sonnet-20240229-v1:0 --region us-east-1
+   aws bedrock get-foundation-model --model-identifier anthropic.claude-sonnet-4-20250514-v1:0 --region us-east-1
    ```
 
 **⚠️ Without Bedrock Setup:**
 - Workflows will still parse but may remain incomplete
-- More user prompts will be required for missing information
+- FLEX documents will contain "?" placeholders for missing information
 - Conversion quality may be reduced
 - You'll see "Bedrock enhancement failed" warnings in logs
 
@@ -171,14 +190,11 @@ export AWS_PROFILE=your-profile # Optional: AWS profile
 
 Configure AI-enhanced parsing with custom Bedrock settings:
 
-### Supported Models
+### Model Configuration
 
-| Model | Model ID |
-|-------|----------|
-| Claude 3.5 Sonnet (Recommended) | `anthropic.claude-3-5-sonnet-20240620-v1:0` |
-| Claude 3 Sonnet | `anthropic.claude-3-sonnet-20240229-v1:0` |
-| Claude 3 Haiku | `anthropic.claude-3-haiku-20240307-v1:0` |
-| Claude 3 Opus | `anthropic.claude-3-opus-20240229-v1:0` |
+**Any AWS Bedrock foundation model can be used** by specifying the `model_id` in `llm_config`. The server defaults to **Claude Sonnet 4** (`anthropic.claude-sonnet-4-20250514-v1:0`).
+
+**Other models** (Amazon Titan, Cohere, Meta Llama, other Claude variants, etc.) are supported but performance may vary for ETL-specific tasks.
 
 ### Default Configuration
 
@@ -186,8 +202,8 @@ Configure AI-enhanced parsing with custom Bedrock settings:
 
 ```json
 {
-  "model_id": "anthropic.claude-3-sonnet-20240229-v1:0",
-  "max_tokens": 4000,
+  "model_id": "anthropic.claude-sonnet-4-20250514-v1:0",
+  "max_tokens": 50000,
   "temperature": 0.1,
   "top_p": 0.9,
   "region": "us-east-1"
@@ -208,7 +224,7 @@ Override any default values by providing `llm_config` parameter:
 ```json
 {
   "llm_config": {
-    "model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "model_id": "anthropic.claude-sonnet-4-20250514-v1:0",
     "temperature": 0.2,
     "max_tokens": 6000
   }
@@ -216,8 +232,8 @@ Override any default values by providing `llm_config` parameter:
 ```
 
 **Parameters:**
-- `model_id`: Choose from supported models above
-- `max_tokens`: Maximum response length (1-8000)
+- `model_id`: Any AWS Bedrock foundation model ID (see supported models above for recommendations)
+- `max_tokens`: Maximum response length for generated FLEX workflows. **Required by [AWS Bedrock API](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html)**. Range: 1-200000 (Claude Sonnet 4's limit), default: 50000
 - `temperature`: Creativity level (0.0-1.0, lower = more focused)
 - `top_p`: Response diversity (0.0-1.0)
 - `region`: AWS region for Bedrock service
@@ -301,22 +317,17 @@ The MCP tools support context files through the `context_file` parameter:
 
 **Business Logic Context:**
 ```text
-# Business Rules and Logic
+# Business Rules and Logic (Inference Context Only)
 
-## Data Processing Rules
-- Customer PII must be encrypted before S3 storage
-- Financial data requires dual approval workflow
-- Marketing data can be processed in parallel
+## Data Processing Patterns (From Source Code Only)
+- Specific extraction logic as defined in original workflow
+- Actual transformation operations from source tasks
+- Target destinations as specified in original pipeline
 
-## SLA Requirements
-- Daily customer reports: Complete by 6 AM EST
-- Real-time fraud detection: < 30 second latency
-- Weekly analytics: Complete by Monday 9 AM EST
-
-## Dependencies
-- Customer pipeline must complete before marketing pipeline
-- Financial data depends on external vendor API (available 1-5 AM UTC)
-- Inventory updates trigger downstream pricing calculations
+## Dependencies (From Source Code)
+- Customer pipeline dependencies as defined in original workflow
+- Data availability windows as specified in source
+- Processing order as defined in original orchestration
 ```
 
 #### Best Practices
@@ -326,9 +337,29 @@ The MCP tools support context files through the `context_file` parameter:
 - **Provide Context**: Explain infrastructure setup, data sources, and dependencies
 - **Update Regularly**: Keep context current with evolving standards
 
-## Getting Input Files
+## Usage
 
-Before using the conversion tools, you need to extract the workflow definitions from your source frameworks:
+**Natural Language Interface**: Simply describe what you want to do with directory paths or individual workflows.
+
+### Two Types of Usage
+
+#### 1. Directory-Based Tools (Batch Processing)
+**For migrating multiple workflow files at once**
+
+**Input**: Directory containing workflow files
+**Output**: Organized directories with converted files
+**Use when**: Processing dozens/hundreds of workflows, team migrations
+
+#### 2. Single Workflow Tools (Individual Processing) 
+**For converting individual workflows**
+
+**Input**: Workflow content directly (JSON/Python code)
+**Output**: Converted workflow content
+**Use when**: Testing conversions, working with content from UI, prototyping
+
+### Getting Input Files
+
+**For Directory-Based Tools**: Extract workflow definitions from your source frameworks:
 
 ### Step Functions
 **Export state machine definition:**
@@ -368,10 +399,6 @@ az datafactory pipeline show --factory-name "MyDataFactory" --resource-group "My
 # 3. Click "{}" (JSON view) in toolbar
 # 4. Copy the JSON definition
 ```
-
-## Usage
-
-**Natural Language Interface**: Simply describe what you want to do with directory paths or individual workflows.
 
 ### Directory-Based Tools (Batch Processing)
 
@@ -646,7 +673,7 @@ FLEX captures the essential elements of any ETL workflow:
 
 ### FLEX Core Concepts
 
-1. **Tasks**: Atomic units of work with enhanced types (SQL, Python, Copy, Notebook, etc.)
+1. **Tasks**: Atomic units of work with free-form type strings (use any string that describes the task)
 2. **Data Sources/Sinks**: Explicit source and destination configurations for data movement
 3. **Dependencies**: Define execution order and conditions
 4. **Schedule**: When and how often the workflow runs
@@ -674,20 +701,7 @@ FLEX captures the essential elements of any ETL workflow:
 - Specific questions with context and examples
 - Clear explanation of why each field is needed
 
-### Enhanced Task Types
 
-- **sql**: SQL queries and database operations
-- **python**: Python scripts and function calls
-- **bash**: Shell commands and scripts
-- **copy**: Data movement between systems (ADF Copy Activities)
-- **stored_procedure**: Database stored procedure execution
-- **notebook**: Jupyter/Databricks notebook execution
-- **container**: Docker/container-based execution
-- **pipeline**: Sub-pipeline or nested workflow execution
-- **http**: HTTP API calls
-- **email**: Email notifications
-- **file_transfer**: File operations
-- **sensor**: Data/file sensors
 
 ### FLEX Validation Rules
 
@@ -701,11 +715,10 @@ FLEX captures the essential elements of any ETL workflow:
 - **Schedule types**: `cron`, `rate`, `manual`, `event`
 
 **Task Validation:**
-- **Task types**: Must be valid enum values (sql, python, bash, etc.)
-- **Commands**: Must be appropriate for task type
-  - SQL tasks: Must contain SQL keywords (SELECT, INSERT, UPDATE, etc.)
-  - Python tasks: Valid Python code or function calls
-  - Bash tasks: Valid shell commands
+- **Task types**: Free-form strings (any descriptive string is valid)
+- **Commands**: Basic validation for specific types
+  - Tasks with type "sql": Must contain SQL keywords (SELECT, INSERT, UPDATE, etc.)
+  - Other types: No command validation
 - **Timeouts**: 1 to 86400 seconds (24 hours maximum)
 - **Retries**: 0 to 10 retries maximum
 - **Retry delay**: 0 to 3600 seconds (1 hour maximum)
@@ -724,46 +737,95 @@ FLEX is purpose-built for ETL orchestration migration, avoiding the complexity o
 
 ### Parallel Execution in FLEX
 
-FLEX represents parallel execution through **implicit parallelism** using task dependencies:
+FLEX represents parallel execution through **dependency-based parallelism**:
 
 ```json
 {
   "tasks": [
     {
+      "id": "extract_data",
+      "type": "sql",
+      "command": "CREATE TABLE staging.raw_data AS SELECT * FROM source",
+      "depends_on": []  // No dependencies = runs first
+    },
+    {
       "id": "process_customers",
       "type": "sql",
-      "command": "CREATE TABLE processed.customers AS ...",
-      "depends_on": []  // No dependencies = can run in parallel
+      "command": "CREATE TABLE processed.customers AS SELECT * FROM staging.raw_data WHERE type='customer'",
+      "depends_on": [{"task_id": "extract_data", "condition": "success"}]  // Runs after extract_data
     },
     {
       "id": "process_orders", 
       "type": "sql",
-      "command": "CREATE TABLE processed.orders AS ...",
-      "depends_on": []  // No dependencies = can run in parallel
+      "command": "CREATE TABLE processed.orders AS SELECT * FROM staging.raw_data WHERE type='order'",
+      "depends_on": [{"task_id": "extract_data", "condition": "success"}]  // Runs after extract_data (parallel with process_customers)
     },
     {
-      "id": "combine_results",
+      "id": "generate_report",
       "type": "sql",
-      "command": "CREATE TABLE summary AS ...",
+      "command": "CREATE TABLE reports.summary AS SELECT * FROM processed.customers JOIN processed.orders",
       "depends_on": [
         {"task_id": "process_customers", "condition": "success"},
         {"task_id": "process_orders", "condition": "success"}
-      ]  // Waits for parallel tasks to complete
+      ]  // Waits for both parallel tasks to complete
     }
   ]
 }
 ```
 
 **Key Principles:**
-- **Tasks with no dependencies** run in parallel at workflow start
-- **Tasks with identical dependencies** run in parallel after dependencies complete
-- **Framework generators** optimize parallel execution for target platform capabilities
-- **No explicit parallel constructs** needed - dependencies define execution flow
+- **Tasks with no dependencies** can execute immediately when workflow starts
+- **Tasks with same dependencies** can execute in parallel once dependencies are satisfied
+- **Framework generators** determine actual parallel execution based on target platform capabilities
+- **Dependencies define execution order** - parallelism emerges from dependency structure
 
 **Framework Mapping:**
-- **Airflow**: Independent tasks execute concurrently, task groups for organization
-- **Step Functions**: Reconstructed as `Parallel` states with branches
+- **Airflow**: Handles parallel execution correctly using task dependencies (`[A] >> B`, `[A] >> C`, `[B, C] >> D`)
+- **Step Functions**: Limited parallel support - complex patterns may require manual optimization
 - **Azure Data Factory**: Parallel activities with dependency chains
+
+### Complex Parallel Scenarios
+
+**A → (B,C) → D Pattern:**
+```json
+{
+  "tasks": [
+    {
+      "id": "A",
+      "depends_on": []  // Runs first (no dependencies)
+    },
+    {
+      "id": "B", 
+      "depends_on": [{"task_id": "A", "condition": "success"}]  // Runs after A
+    },
+    {
+      "id": "C",
+      "depends_on": [{"task_id": "A", "condition": "success"}]  // Runs after A (parallel with B)
+    },
+    {
+      "id": "D",
+      "depends_on": [
+        {"task_id": "B", "condition": "success"},
+        {"task_id": "C", "condition": "success"}
+      ]  // Runs after both B and C complete
+    }
+  ]
+}
+```
+
+**Execution Flow:**
+1. **extract_data** runs first (no dependencies)
+2. **process_customers** and **process_orders** run in parallel after extract_data completes (both depend only on extract_data)
+3. **generate_report** runs after both processing tasks complete (depends on both)
+
+**FLEX Limitations:**
+FLEX can represent most orchestration patterns, but complex scenarios requiring:
+- **Dynamic task generation** (tasks created at runtime)
+- **Complex conditional branching** with multiple conditions
+- **Loop constructs** (while/for loops)
+- **Advanced error handling** with custom retry logic per condition
+
+May require framework-specific implementations.
 
 ## FLEX Framework Mapping
 
@@ -792,7 +854,7 @@ FLEX acts as the connector between different orchestration frameworks. Here's ho
 |---------------|---------------------------|-------|
 | `name` | `stateMachineName` | State machine name |
 | `description` | `Comment` | State machine description |
-| `schedule` | EventBridge Rule | External scheduling |
+| `schedule` | EventBridge Rule | External scheduling via EventBridge |
 | `tasks[].id` | State name | Individual state identifier |
 | `tasks[].name` | State comment | Human readable description |
 | `tasks[].type` | `Resource` type | `sql`→Lambda/Batch, `python`→Lambda |
@@ -934,6 +996,22 @@ Finance,250000,Dan Miller
 | `"rate(1 hour)"` | `@hourly` | EventBridge: `rate(1 hour)` |
 | `"manual"` | `None` | Manual execution only |
 
+### Step Functions Scheduling
+
+**Step Functions does not have built-in scheduling** - it relies on external triggers:
+
+- **EventBridge Rules**: FLEX schedule expressions are converted to EventBridge rules that trigger the state machine
+- **Cron expressions**: `"0 9 * * *"` becomes EventBridge cron rule `cron(0 9 * * ? *)`
+- **Rate expressions**: `"rate(1 day)"` becomes EventBridge rate rule `rate(1 day)`
+- **Manual execution**: No EventBridge rule created
+- **Event-driven**: EventBridge rules based on S3, DynamoDB, or other AWS service events
+
+**Generated Step Functions include:**
+- State machine definition (workflow logic)
+- EventBridge rule configuration (scheduling)
+- IAM roles and permissions
+- Integration with other AWS services
+
 ### FLEX Validation Examples
 
 **Valid FLEX Workflow:**
@@ -1005,16 +1083,15 @@ The server supports optional **context files** that provide organizational stand
 - S3 buckets: s3://company-data-{raw|processed|archive}/
 - Lambda timeout: 900s, SQL timeout: 3600s
 
-## Business Rules
-- Daily ETL runs at 2 AM UTC
-- Customer PII must be encrypted
-- All production jobs retry 3 times
-- Email notifications: data-team@company.com
+## Business Rules (Organization-Specific Only)
+- Actual scheduling patterns from your existing workflows
+- Specific retry configurations from source code
+- Documented notification patterns from original pipelines
 
-## Common Patterns
-- Extract from source → Transform in Lambda → Load to Redshift
-- Use parameterized queries for date ranges
-- Parallel processing for independent data sources
+## Common Patterns (Specific Examples Only)
+- Actual data flow patterns from your existing workflows
+- Specific query templates used in your organization
+- Documented parallel processing configurations from source code
 ```
 
 ### Usage Examples

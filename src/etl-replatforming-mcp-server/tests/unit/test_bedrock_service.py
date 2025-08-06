@@ -29,7 +29,7 @@ class TestBedrockService:
         
         service = BedrockService()
         
-        assert service.config.model_id == LLMProvider.ANTHROPIC_CLAUDE_3_SONNET.value
+        assert service.config.model_id == LLMProvider.ANTHROPIC_CLAUDE_SONNET_4.value
         assert service.config.max_tokens == 4000
         assert service.config.temperature == 0.1
         # Verify both clients were created

@@ -122,7 +122,8 @@ class StepFunctionsGenerator:
                 if len(downstream_tasks) == 1:
                     state["Next"] = downstream_tasks[0]
                 else:
-                    # Multiple downstream tasks - use first one for simplicity
+                    # Multiple downstream tasks - create parallel execution
+                    # For now, just use the first task (Step Functions parallel is complex)
                     state["Next"] = downstream_tasks[0]
             else:
                 # No downstream tasks - this is an end state

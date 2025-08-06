@@ -68,6 +68,8 @@ When generating task types, use appropriate types for {target_framework}:
         
         return f"""You are an expert ETL workflow analyst. Analyze the following {source_framework} code and enhance the incomplete FLEX workflow.
 
+IMPORTANT: Only extract information that exists in the original source code. Do NOT add any business logic, security requirements, or organizational policies that are not explicitly present in the source.
+
 Original {source_framework} Code:
 ```
 {input_code[:2000]}
@@ -79,18 +81,24 @@ Incomplete FLEX Workflow:
 ```{target_context}
 
 Your task:
-1. Analyze the original code to extract missing information
-2. Fill in missing fields in the FLEX workflow
-3. Infer reasonable defaults for unclear elements
+1. Analyze the original code to extract missing information that exists in the source
+2. Fill in missing fields in the FLEX workflow based only on what's in the original code
+3. Infer reasonable technical defaults for unclear elements (timeouts, retries)
 4. Use appropriate task types for the target framework if specified
 5. Return ONLY a valid JSON object with the enhanced FLEX workflow
 
 Focus on:
-- Missing task commands/scripts
-- Incomplete schedule expressions
-- Missing task dependencies
+- Missing task commands/scripts from the original code
+- Incomplete schedule expressions from the original code
+- Missing task dependencies from the original code
 - Appropriate task types for target framework
-- Missing error handling
+- Missing error handling from the original code
+
+Do NOT add:
+- Business rules not in the original code
+- Security requirements not in the original code
+- Organizational policies not in the original code
+- Additional validation logic not in the original code
 
 Return the enhanced FLEX workflow as valid JSON:"""
 

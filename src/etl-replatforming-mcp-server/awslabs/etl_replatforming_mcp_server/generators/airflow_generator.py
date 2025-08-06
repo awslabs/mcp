@@ -119,6 +119,10 @@ class AirflowGenerator:
                     schedule = f"'{workflow.schedule.expression}'"
             elif workflow.schedule.type == "cron":
                 schedule = f"'{workflow.schedule.expression}'"
+            elif workflow.schedule.type == "manual":
+                schedule = "None"
+            elif workflow.schedule.type == "event":
+                schedule = "None"  # Event-driven, no schedule
         
         workflow_name = f"etl_{workflow.name}"
         return f"""dag = DAG(

@@ -6,18 +6,19 @@ from enum import Enum
 
 
 class LLMProvider(Enum):
+    ANTHROPIC_CLAUDE_SONNET_4 = "anthropic.claude-sonnet-4-20250514-v1:0"
+    ANTHROPIC_CLAUDE_3_5_SONNET = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     ANTHROPIC_CLAUDE_3_SONNET = "anthropic.claude-3-sonnet-20240229-v1:0"
     ANTHROPIC_CLAUDE_3_HAIKU = "anthropic.claude-3-haiku-20240307-v1:0"
     ANTHROPIC_CLAUDE_3_OPUS = "anthropic.claude-3-opus-20240229-v1:0"
-    ANTHROPIC_CLAUDE_3_5_SONNET = "anthropic.claude-3-5-sonnet-20240620-v1:0"
 
 
 @dataclass
 class LLMConfig:
     """Configuration for LLM model and parameters"""
     
-    model_id: str = LLMProvider.ANTHROPIC_CLAUDE_3_SONNET.value
-    max_tokens: int = 4000
+    model_id: str = LLMProvider.ANTHROPIC_CLAUDE_SONNET_4.value
+    max_tokens: int = 50000
     temperature: float = 0.1
     top_p: float = 0.9
     region: str = "us-east-1"
@@ -38,8 +39,8 @@ class LLMConfig:
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'LLMConfig':
         """Create LLMConfig from dictionary"""
         return cls(
-            model_id=config_dict.get('model_id', LLMProvider.ANTHROPIC_CLAUDE_3_SONNET.value),
-            max_tokens=config_dict.get('max_tokens', 4000),
+            model_id=config_dict.get('model_id', LLMProvider.ANTHROPIC_CLAUDE_SONNET_4.value),
+            max_tokens=config_dict.get('max_tokens', 50000),
             temperature=config_dict.get('temperature', 0.1),
             top_p=config_dict.get('top_p', 0.9),
             region=config_dict.get('region', 'us-east-1'),

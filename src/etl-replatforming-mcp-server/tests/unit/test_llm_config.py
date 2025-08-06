@@ -11,8 +11,8 @@ class TestLLMConfig:
         """Test default configuration values"""
         config = LLMConfig()
         
-        assert config.model_id == LLMProvider.ANTHROPIC_CLAUDE_3_SONNET.value
-        assert config.max_tokens == 4000
+        assert config.model_id == LLMProvider.ANTHROPIC_CLAUDE_SONNET_4.value
+        assert config.max_tokens == 50000
         assert config.temperature == 0.1
         assert config.top_p == 0.9
         assert config.region == "us-east-1"
@@ -41,8 +41,8 @@ class TestLLMConfig:
         config = LLMConfig.get_default_config()
         
         assert isinstance(config, LLMConfig)
-        assert config.model_id == LLMProvider.ANTHROPIC_CLAUDE_3_SONNET.value
-        assert config.max_tokens == 4000
+        assert config.model_id == LLMProvider.ANTHROPIC_CLAUDE_SONNET_4.value
+        assert config.max_tokens == 50000
         assert config.temperature == 0.1
         assert config.top_p == 0.9
         assert config.region == "us-east-1"
@@ -52,8 +52,8 @@ class TestLLMConfig:
         """Test from_dict with empty dictionary"""
         config = LLMConfig.from_dict({})
         
-        assert config.model_id == LLMProvider.ANTHROPIC_CLAUDE_3_SONNET.value
-        assert config.max_tokens == 4000
+        assert config.model_id == LLMProvider.ANTHROPIC_CLAUDE_SONNET_4.value
+        assert config.max_tokens == 50000
         assert config.temperature == 0.1
         assert config.top_p == 0.9
         assert config.region == "us-east-1"
@@ -68,7 +68,7 @@ class TestLLMConfig:
         config = LLMConfig.from_dict(config_dict)
         
         assert config.model_id == LLMProvider.ANTHROPIC_CLAUDE_3_HAIKU.value
-        assert config.max_tokens == 4000  # default
+        assert config.max_tokens == 50000  # default
         assert config.temperature == 0.3
         assert config.top_p == 0.9  # default
         assert config.region == "us-east-1"  # default
@@ -107,11 +107,12 @@ class TestLLMProvider:
     
     def test_enum_values(self):
         """Test all enum values are correct"""
+        assert LLMProvider.ANTHROPIC_CLAUDE_SONNET_4.value == "anthropic.claude-sonnet-4-20250514-v1:0"
+        assert LLMProvider.ANTHROPIC_CLAUDE_3_5_SONNET.value == "anthropic.claude-3-5-sonnet-20240620-v1:0"
         assert LLMProvider.ANTHROPIC_CLAUDE_3_SONNET.value == "anthropic.claude-3-sonnet-20240229-v1:0"
         assert LLMProvider.ANTHROPIC_CLAUDE_3_HAIKU.value == "anthropic.claude-3-haiku-20240307-v1:0"
         assert LLMProvider.ANTHROPIC_CLAUDE_3_OPUS.value == "anthropic.claude-3-opus-20240229-v1:0"
-        assert LLMProvider.ANTHROPIC_CLAUDE_3_5_SONNET.value == "anthropic.claude-3-5-sonnet-20240620-v1:0"
     
     def test_enum_count(self):
         """Test correct number of enum values"""
-        assert len(LLMProvider) == 4
+        assert len(LLMProvider) == 5
