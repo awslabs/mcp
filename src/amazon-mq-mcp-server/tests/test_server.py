@@ -78,7 +78,8 @@ class TestCreateBrokerOverride:
         deployment_mode = 'SINGLE_INSTANCE'
         publicly_accessible = False
         auto_minor_version_upgrade = True
-        users = [{'Username': 'tu', 'Password': 'tp'}]  # pragma: allowlist secret
+        username = 'tu'
+        password = 'tp'  # pragma: allowlist secret
         region = 'us-west-2'
 
         # Call the function
@@ -90,7 +91,8 @@ class TestCreateBrokerOverride:
             deployment_mode=deployment_mode,
             publicly_accessible=publicly_accessible,
             auto_minor_version_upgrade=auto_minor_version_upgrade,
-            users=users,
+            username=username,
+            password=password,
             region=region,
         )
 
@@ -106,7 +108,13 @@ class TestCreateBrokerOverride:
             DeploymentMode=deployment_mode,
             PubliclyAccessible=publicly_accessible,
             AutoMinorVersionUpgrade=auto_minor_version_upgrade,
-            Users=users,
+            Users=[
+                {
+                    'ConsoleAccess': True,
+                    'Password': password,
+                    'Username': username,
+                }
+            ],
             Tags={'mcp_server_version': MCP_SERVER_VERSION},
         )
 
