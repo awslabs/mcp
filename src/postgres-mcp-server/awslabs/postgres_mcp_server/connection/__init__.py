@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Cost Explorer MCP Server module.
+"""aws.postgres-mcp-server.connection"""
 
-This module provides MCP tools for analyzing AWS costs and usage data through the AWS Cost Explorer API.
-"""
-
-__version__ = '0.0.8'
+from awslabs.postgres_mcp_server.connection.db_connection_singleton import DBConnectionSingleton
+from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
