@@ -21,6 +21,7 @@ import os
 import sys
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, List
@@ -213,6 +214,12 @@ class AWSToolGenerator:
                 if 'ResponseMetadata' in response:
                     del response['ResponseMetadata']
                 return response
+            except ClientError as e:
+                error_response = e.response['Error']
+                return {
+                    'error': error_response['Message'],
+                    'code': error_response['Code']
+                }
             except Exception as e:
                 raise e
 

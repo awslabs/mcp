@@ -41,6 +41,7 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
         engine_version: str = None,
         publicly_accessible: bool = True,
         host_instance_type: str = 'mq.m5.xlarge',
+        auto_minor_version_upgrade: bool = True,
     ):
         """Create a ActiveMQ or RabbitMQ broker on AmazonMQ.
 
@@ -75,7 +76,7 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
             'HostInstanceType': host_instance_type,
             'DeploymentMode': deployment_mode,
             'PubliclyAccessible': publicly_accessible,
-            'AutoMinorVersionUpgrade': True,
+            'AutoMinorVersionUpgrade': auto_minor_version_upgrade,
             'Users': users,
             'Tags': {
                 'mcp_server_version': MCP_SERVER_VERSION,
@@ -124,7 +125,7 @@ def allow_mutative_action_only_on_tagged_resource(
         broker_info = mq_client.describe_broker(BrokerId=broker_id)
         tags = broker_info.get('Tags')
         if 'mcp_server_version' not in tags:
-            return False, 'mutating a resource that was not created by AI is forbidden'
+            return False, 'mutating a resource without the mcp_server_version tag is not allowed'
         return True, ''
     except Exception as e:
         return False, str(e)
