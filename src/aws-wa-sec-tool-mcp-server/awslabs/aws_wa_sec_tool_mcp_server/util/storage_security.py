@@ -59,31 +59,37 @@ async def check_storage_encryption(
         s3_client = session.client("s3", region_name=region)
         s3_results = await check_s3_buckets(region, s3_client, ctx, storage_resources)
         await _update_results(results, s3_results, "s3", include_unencrypted_only)
-    
+
     if "ebs" in services:
         ec2_client = session.client("ec2", region_name=region)
         ebs_results = await check_ebs_volumes(region, ec2_client, ctx, storage_resources)
         await _update_results(results, ebs_results, "ebs", include_unencrypted_only)
-    
+
     if "rds" in services:
         rds_client = session.client("rds", region_name=region)
         rds_results = await check_rds_instances(region, rds_client, ctx, storage_resources)
         await _update_results(results, rds_results, "rds", include_unencrypted_only)
-    
+
     if "dynamodb" in services:
         dynamodb_client = session.client("dynamodb", region_name=region)
-        dynamodb_results = await check_dynamodb_tables(region, dynamodb_client, ctx, storage_resources)
+        dynamodb_results = await check_dynamodb_tables(
+            region, dynamodb_client, ctx, storage_resources
+        )
         await _update_results(results, dynamodb_results, "dynamodb", include_unencrypted_only)
-    
+
     if "efs" in services:
         efs_client = session.client("efs", region_name=region)
         efs_results = await check_efs_filesystems(region, efs_client, ctx, storage_resources)
         await _update_results(results, efs_results, "efs", include_unencrypted_only)
-    
+
     if "elasticache" in services:
         elasticache_client = session.client("elasticache", region_name=region)
-        elasticache_results = await check_elasticache_clusters(region, elasticache_client, ctx, storage_resources)
-        await _update_results(results, elasticache_results, "elasticache", include_unencrypted_only)
+        elasticache_results = await check_elasticache_clusters(
+            region, elasticache_client, ctx, storage_resources
+        )
+        await _update_results(
+            results, elasticache_results, "elasticache", include_unencrypted_only
+        )
 
     # Generate overall recommendations based on findings
     results["recommendations"] = await generate_recommendations(results)
@@ -126,14 +132,16 @@ async def generate_recommendations(results: Dict[str, Any]) -> List[str]:
         if s3_results.get("non_compliant_resources", 0) > 0:
             recommendations.append("Enable default encryption for all S3 buckets")
             recommendations.append("Enable block public access settings at the account level")
-    
+
     # Check EBS recommendations
     if "ebs" in results.get("compliance_by_service", {}):
         ebs_results = results["compliance_by_service"]["ebs"]
         if ebs_results.get("non_compliant_resources", 0) > 0:
             recommendations.append("Enable default EBS encryption at the account level")
-            recommendations.append("Create encrypted snapshots of unencrypted volumes and restore to new encrypted volumes")
-    
+            recommendations.append(
+                "Create encrypted snapshots of unencrypted volumes and restore to new encrypted volumes"
+            )
+
     # Check RDS recommendations
     if "rds" in results.get("compliance_by_service", {}):
         rds_results = results["compliance_by_service"]["rds"]
@@ -141,20 +149,24 @@ async def generate_recommendations(results: Dict[str, Any]) -> List[str]:
             recommendations.append("Enable encryption for all RDS instances")
             recommendations.append("Configure SSL/TLS for database connections")
             recommendations.append("Enable default RDS encryption at the account level")
-    
+
     # Check DynamoDB recommendations
     if "dynamodb" in results.get("compliance_by_service", {}):
         dynamodb_results = results["compliance_by_service"]["dynamodb"]
         if dynamodb_results.get("non_compliant_resources", 0) > 0:
-            recommendations.append("Use customer-managed KMS keys for DynamoDB tables instead of AWS owned keys")
-    
+            recommendations.append(
+                "Use customer-managed KMS keys for DynamoDB tables instead of AWS owned keys"
+            )
+
     # Check EFS recommendations
     if "efs" in results.get("compliance_by_service", {}):
         efs_results = results["compliance_by_service"]["efs"]
         if efs_results.get("non_compliant_resources", 0) > 0:
-            recommendations.append("Create new encrypted EFS filesystems and migrate data from unencrypted ones")
+            recommendations.append(
+                "Create new encrypted EFS filesystems and migrate data from unencrypted ones"
+            )
             recommendations.append("Enable encryption by default for new EFS filesystems")
-    
+
     # Check ElastiCache recommendations
     if "elasticache" in results.get("compliance_by_service", {}):
         elasticache_results = results["compliance_by_service"]["elasticache"]
@@ -439,6 +451,7 @@ async def check_s3_buckets(
             "resource_details": [],
         }
 
+
 async def check_ebs_volumes(
     region: str, ec2_client: Any, ctx: Context, storage_resources: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -471,7 +484,7 @@ async def check_ebs_volumes(
             # Fall back to direct API call
             paginator = ec2_client.get_paginator("describe_volumes")
             page_iterator = paginator.paginate()
-            
+
             for page in page_iterator:
                 for volume in page.get("Volumes", []):
                     volumes.append(volume["VolumeId"])
@@ -482,11 +495,11 @@ async def check_ebs_volumes(
         # Check each volume in batches to avoid API limits
         batch_size = 100
         for i in range(0, len(volumes), batch_size):
-            batch = volumes[i:i + batch_size]
-            
+            batch = volumes[i : i + batch_size]
+
             try:
                 response = ec2_client.describe_volumes(VolumeIds=batch)
-                
+
                 for volume in response.get("Volumes", []):
                     volume_result = {
                         "id": volume["VolumeId"],
@@ -496,11 +509,11 @@ async def check_ebs_volumes(
                         "issues": [],
                         "checks": {},
                     }
-                    
+
                     # Check if volume is encrypted
                     is_encrypted = volume.get("Encrypted", False)
                     volume_result["checks"]["encrypted"] = is_encrypted
-                    
+
                     # Check KMS key if encrypted
                     if is_encrypted and "KmsKeyId" in volume:
                         volume_result["checks"]["kms_key_id"] = volume["KmsKeyId"]
@@ -509,15 +522,15 @@ async def check_ebs_volumes(
                         volume_result["checks"]["using_cmk"] = is_cmk
                     else:
                         volume_result["checks"]["using_cmk"] = False
-                    
+
                     # Mark as non-compliant if not encrypted
                     if not is_encrypted:
                         volume_result["compliant"] = False
                         volume_result["issues"].append("Volume is not encrypted")
-                    
+
                     # Generate remediation steps
                     volume_result["remediation"] = []
-                    
+
                     if not is_encrypted:
                         volume_result["remediation"].append(
                             "Create an encrypted snapshot of this volume and restore to a new encrypted volume"
@@ -529,15 +542,15 @@ async def check_ebs_volumes(
                         volume_result["remediation"].append(
                             "Consider using a customer-managed KMS key instead of AWS managed key"
                         )
-                    
+
                     # Update counts
                     if volume_result["compliant"]:
                         results["compliant_resources"] += 1
                     else:
                         results["non_compliant_resources"] += 1
-                    
+
                     results["resource_details"].append(volume_result)
-                    
+
             except Exception as e:
                 print(f"[DEBUG:StorageSecurity] Error checking batch of EBS volumes: {e}")
                 await ctx.warning(f"Error checking batch of EBS volumes: {e}")
@@ -588,7 +601,7 @@ async def check_rds_instances(
             # Fall back to direct API call
             paginator = rds_client.get_paginator("describe_db_instances")
             page_iterator = paginator.paginate()
-            
+
             for page in page_iterator:
                 for instance in page.get("DBInstances", []):
                     instances.append(instance["DBInstanceIdentifier"])
@@ -600,12 +613,12 @@ async def check_rds_instances(
         for db_id in instances:
             try:
                 response = rds_client.describe_db_instances(DBInstanceIdentifier=db_id)
-                
+
                 if not response.get("DBInstances"):
                     continue
-                
+
                 instance = response["DBInstances"][0]
-                
+
                 instance_result = {
                     "id": instance["DBInstanceIdentifier"],
                     "arn": instance.get("DBInstanceArn", f"arn:aws:rds:{region}::db:{db_id}"),
@@ -614,11 +627,11 @@ async def check_rds_instances(
                     "issues": [],
                     "checks": {},
                 }
-                
+
                 # Check if storage is encrypted
                 is_storage_encrypted = instance.get("StorageEncrypted", False)
                 instance_result["checks"]["storage_encrypted"] = is_storage_encrypted
-                
+
                 # Check KMS key if encrypted
                 if is_storage_encrypted and "KmsKeyId" in instance:
                     instance_result["checks"]["kms_key_id"] = instance["KmsKeyId"]
@@ -627,23 +640,22 @@ async def check_rds_instances(
                     instance_result["checks"]["using_cmk"] = is_cmk
                 else:
                     instance_result["checks"]["using_cmk"] = False
-                
+
                 # Check if SSL is enforced
                 parameter_groups = instance.get("DBParameterGroups", [])
-                ssl_enforced = False
-                
+
                 # This would require additional API calls to check parameter groups
                 # For now, we'll just note that it should be checked
                 instance_result["checks"]["ssl_check_needed"] = len(parameter_groups) > 0
-                
+
                 # Mark as non-compliant if not encrypted
                 if not is_storage_encrypted:
                     instance_result["compliant"] = False
                     instance_result["issues"].append("RDS instance storage is not encrypted")
-                
+
                 # Generate remediation steps
                 instance_result["remediation"] = []
-                
+
                 if not is_storage_encrypted:
                     instance_result["remediation"].append(
                         "Create an encrypted snapshot and restore to a new encrypted instance"
@@ -655,20 +667,20 @@ async def check_rds_instances(
                     instance_result["remediation"].append(
                         "Consider using a customer-managed KMS key instead of AWS managed key"
                     )
-                
+
                 if instance_result["checks"].get("ssl_check_needed", False):
                     instance_result["remediation"].append(
                         "Check and enforce SSL connections using parameter groups"
                     )
-                
+
                 # Update counts
                 if instance_result["compliant"]:
                     results["compliant_resources"] += 1
                 else:
                     results["non_compliant_resources"] += 1
-                
+
                 results["resource_details"].append(instance_result)
-                
+
             except Exception as e:
                 print(f"[DEBUG:StorageSecurity] Error checking RDS instance {db_id}: {e}")
                 await ctx.warning(f"Error checking RDS instance {db_id}: {e}")
@@ -719,7 +731,7 @@ async def check_dynamodb_tables(
             # Fall back to direct API call
             response = dynamodb_client.list_tables()
             tables = response.get("TableNames", [])
-            
+
             # Handle pagination if needed
             while "LastEvaluatedTableName" in response:
                 response = dynamodb_client.list_tables(
@@ -734,12 +746,12 @@ async def check_dynamodb_tables(
         for table_name in tables:
             try:
                 response = dynamodb_client.describe_table(TableName=table_name)
-                
+
                 if not response.get("Table"):
                     continue
-                
+
                 table = response["Table"]
-                
+
                 table_result = {
                     "name": table_name,
                     "arn": table.get("TableArn", f"arn:aws:dynamodb:{region}::table/{table_name}"),
@@ -748,47 +760,51 @@ async def check_dynamodb_tables(
                     "issues": [],
                     "checks": {},
                 }
-                
+
                 # Check SSE settings
                 try:
-                    sse_response = dynamodb_client.describe_table(
-                        TableName=table_name
-                    )
-                    
+                    sse_response = dynamodb_client.describe_table(TableName=table_name)
+
                     sse_description = sse_response.get("Table", {}).get("SSEDescription", {})
                     sse_status = sse_description.get("Status")
                     sse_type = sse_description.get("SSEType")
                     kms_key_id = sse_description.get("KMSMasterKeyArn")
-                    
+
                     # DynamoDB tables are encrypted by default with AWS owned keys
                     # But we want to check if they're using customer-managed keys
                     is_encrypted = sse_status == "ENABLED"
                     is_cmk = sse_type == "KMS" and kms_key_id is not None
-                    
+
                     table_result["checks"]["encrypted"] = is_encrypted
-                    table_result["checks"]["encryption_type"] = sse_type if is_encrypted else "NONE"
+                    table_result["checks"]["encryption_type"] = (
+                        sse_type if is_encrypted else "NONE"
+                    )
                     table_result["checks"]["using_cmk"] = is_cmk
-                    
+
                     if is_encrypted and is_cmk:
                         table_result["checks"]["kms_key_id"] = kms_key_id
-                    
+
                     # DynamoDB tables are always encrypted, but we prefer CMK over AWS owned keys
                     if not is_encrypted:
                         table_result["compliant"] = False
                         table_result["issues"].append("DynamoDB table is not encrypted")
                     elif not is_cmk:
                         # Still compliant but could be improved
-                        table_result["issues"].append("Using AWS owned keys instead of customer-managed keys")
-                    
+                        table_result["issues"].append(
+                            "Using AWS owned keys instead of customer-managed keys"
+                        )
+
                 except Exception as e:
-                    print(f"[DEBUG:StorageSecurity] Error checking SSE for table {table_name}: {e}")
+                    print(
+                        f"[DEBUG:StorageSecurity] Error checking SSE for table {table_name}: {e}"
+                    )
                     table_result["compliant"] = False
                     table_result["issues"].append("Error checking encryption settings")
                     table_result["checks"]["encrypted"] = False
-                
+
                 # Generate remediation steps
                 table_result["remediation"] = []
-                
+
                 if not table_result["checks"].get("encrypted", False):
                     table_result["remediation"].append(
                         "Enable server-side encryption for the DynamoDB table"
@@ -797,15 +813,15 @@ async def check_dynamodb_tables(
                     table_result["remediation"].append(
                         "Consider using a customer-managed KMS key instead of AWS owned keys"
                     )
-                
+
                 # Update counts
                 if table_result["compliant"]:
                     results["compliant_resources"] += 1
                 else:
                     results["non_compliant_resources"] += 1
-                
+
                 results["resource_details"].append(table_result)
-                
+
             except Exception as e:
                 print(f"[DEBUG:StorageSecurity] Error checking DynamoDB table {table_name}: {e}")
                 await ctx.warning(f"Error checking DynamoDB table {table_name}: {e}")
@@ -856,37 +872,41 @@ async def check_efs_filesystems(
             # Fall back to direct API call
             paginator = efs_client.get_paginator("describe_file_systems")
             page_iterator = paginator.paginate()
-            
+
             for page in page_iterator:
                 for fs in page.get("FileSystems", []):
                     filesystems.append(fs["FileSystemId"])
 
-        print(f"[DEBUG:StorageSecurity] Found {len(filesystems)} EFS filesystems in region {region}")
+        print(
+            f"[DEBUG:StorageSecurity] Found {len(filesystems)} EFS filesystems in region {region}"
+        )
         results["resources_checked"] = len(filesystems)
 
         # Check each EFS filesystem
         for fs_id in filesystems:
             try:
                 response = efs_client.describe_file_systems(FileSystemId=fs_id)
-                
+
                 if not response.get("FileSystems"):
                     continue
-                
+
                 fs = response["FileSystems"][0]
-                
+
                 fs_result = {
                     "id": fs["FileSystemId"],
-                    "arn": fs.get("FileSystemArn", f"arn:aws:elasticfilesystem:{region}::file-system/{fs_id}"),
+                    "arn": fs.get(
+                        "FileSystemArn", f"arn:aws:elasticfilesystem:{region}::file-system/{fs_id}"
+                    ),
                     "type": "efs",
                     "compliant": True,
                     "issues": [],
                     "checks": {},
                 }
-                
+
                 # Check if encrypted
                 is_encrypted = fs.get("Encrypted", False)
                 fs_result["checks"]["encrypted"] = is_encrypted
-                
+
                 # Check KMS key if encrypted
                 if is_encrypted and "KmsKeyId" in fs:
                     fs_result["checks"]["kms_key_id"] = fs["KmsKeyId"]
@@ -895,15 +915,15 @@ async def check_efs_filesystems(
                     fs_result["checks"]["using_cmk"] = is_cmk
                 else:
                     fs_result["checks"]["using_cmk"] = False
-                
+
                 # Mark as non-compliant if not encrypted
                 if not is_encrypted:
                     fs_result["compliant"] = False
                     fs_result["issues"].append("EFS filesystem is not encrypted")
-                
+
                 # Generate remediation steps
                 fs_result["remediation"] = []
-                
+
                 if not is_encrypted:
                     fs_result["remediation"].append(
                         "Create a new encrypted EFS filesystem and migrate data"
@@ -915,15 +935,15 @@ async def check_efs_filesystems(
                     fs_result["remediation"].append(
                         "Consider using a customer-managed KMS key instead of AWS managed key"
                     )
-                
+
                 # Update counts
                 if fs_result["compliant"]:
                     results["compliant_resources"] += 1
                 else:
                     results["non_compliant_resources"] += 1
-                
+
                 results["resource_details"].append(fs_result)
-                
+
             except Exception as e:
                 print(f"[DEBUG:StorageSecurity] Error checking EFS filesystem {fs_id}: {e}")
                 await ctx.warning(f"Error checking EFS filesystem {fs_id}: {e}")
@@ -974,27 +994,28 @@ async def check_elasticache_clusters(
             # Fall back to direct API call
             paginator = elasticache_client.get_paginator("describe_cache_clusters")
             page_iterator = paginator.paginate()
-            
+
             for page in page_iterator:
                 for cluster in page.get("CacheClusters", []):
                     clusters.append(cluster["CacheClusterId"])
 
-        print(f"[DEBUG:StorageSecurity] Found {len(clusters)} ElastiCache clusters in region {region}")
+        print(
+            f"[DEBUG:StorageSecurity] Found {len(clusters)} ElastiCache clusters in region {region}"
+        )
         results["resources_checked"] = len(clusters)
 
         # Check each ElastiCache cluster
         for cluster_id in clusters:
             try:
                 response = elasticache_client.describe_cache_clusters(
-                    CacheClusterId=cluster_id,
-                    ShowCacheNodeInfo=True
+                    CacheClusterId=cluster_id, ShowCacheNodeInfo=True
                 )
-                
+
                 if not response.get("CacheClusters"):
                     continue
-                
+
                 cluster = response["CacheClusters"][0]
-                
+
                 cluster_result = {
                     "id": cluster["CacheClusterId"],
                     "arn": f"arn:aws:elasticache:{region}::cluster:{cluster_id}",
@@ -1004,34 +1025,38 @@ async def check_elasticache_clusters(
                     "issues": [],
                     "checks": {},
                 }
-                
+
                 # Check if encryption is enabled
                 # For Redis, check at-rest and in-transit encryption
                 if cluster.get("Engine") == "redis":
                     # Check at-rest encryption
                     at_rest_encryption = cluster.get("AtRestEncryptionEnabled", False)
                     cluster_result["checks"]["at_rest_encryption"] = at_rest_encryption
-                    
+
                     # Check in-transit encryption
                     transit_encryption = cluster.get("TransitEncryptionEnabled", False)
                     cluster_result["checks"]["transit_encryption"] = transit_encryption
-                    
+
                     # Check auth token (password protection)
                     auth_token_enabled = cluster.get("AuthTokenEnabled", False)
                     cluster_result["checks"]["auth_token_enabled"] = auth_token_enabled
-                    
+
                     # Mark as non-compliant if either encryption is missing
                     if not at_rest_encryption:
                         cluster_result["compliant"] = False
-                        cluster_result["issues"].append("Redis cluster does not have at-rest encryption enabled")
-                    
+                        cluster_result["issues"].append(
+                            "Redis cluster does not have at-rest encryption enabled"
+                        )
+
                     if not transit_encryption:
                         cluster_result["compliant"] = False
-                        cluster_result["issues"].append("Redis cluster does not have in-transit encryption enabled")
-                    
+                        cluster_result["issues"].append(
+                            "Redis cluster does not have in-transit encryption enabled"
+                        )
+
                     # Generate remediation steps
                     cluster_result["remediation"] = []
-                    
+
                     if not at_rest_encryption or not transit_encryption:
                         cluster_result["remediation"].append(
                             "Create a new Redis replication group with encryption enabled"
@@ -1039,38 +1064,40 @@ async def check_elasticache_clusters(
                         cluster_result["remediation"].append(
                             "Note: Encryption cannot be enabled on existing Redis clusters"
                         )
-                    
+
                     if not auth_token_enabled:
                         cluster_result["remediation"].append(
                             "Enable AUTH token for Redis cluster authentication"
                         )
-                
+
                 # For Memcached, there's limited encryption support
                 elif cluster.get("Engine") == "memcached":
                     # Memcached doesn't support at-rest encryption
                     cluster_result["checks"]["at_rest_encryption"] = False
                     cluster_result["checks"]["transit_encryption"] = False
-                    
+
                     # Mark as non-compliant since Memcached doesn't support encryption
                     cluster_result["compliant"] = False
                     cluster_result["issues"].append("Memcached does not support encryption")
-                    
+
                     # Generate remediation steps
                     cluster_result["remediation"] = [
                         "Consider using Redis instead of Memcached for encryption support",
-                        "Ensure Memcached clusters are in private subnets with strict security groups"
+                        "Ensure Memcached clusters are in private subnets with strict security groups",
                     ]
-                
+
                 # Update counts
                 if cluster_result["compliant"]:
                     results["compliant_resources"] += 1
                 else:
                     results["non_compliant_resources"] += 1
-                
+
                 results["resource_details"].append(cluster_result)
-                
+
             except Exception as e:
-                print(f"[DEBUG:StorageSecurity] Error checking ElastiCache cluster {cluster_id}: {e}")
+                print(
+                    f"[DEBUG:StorageSecurity] Error checking ElastiCache cluster {cluster_id}: {e}"
+                )
                 await ctx.warning(f"Error checking ElastiCache cluster {cluster_id}: {e}")
 
         return results
