@@ -1,0 +1,23 @@
+{
+  "Comment": "Simple SQL data extraction pipeline",
+  "StartAt": "ExtractCustomers",
+  "States": {
+    "ExtractCustomers": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "SELECT customer_id, name, email, created_date FROM customers WHERE created_date >= CURRENT_DATE - INTERVAL '1 day'"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3
+        }
+      ],
+      "End": true
+    }
+  }
+}
