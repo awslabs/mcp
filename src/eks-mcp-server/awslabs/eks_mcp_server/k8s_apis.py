@@ -73,6 +73,9 @@ class K8sApis:
                     os.unlink(self._ca_cert_file_path)
                 raise e
 
+            # Configure HTTP proxy settings if environment variables are present
+            self._configure_proxy_settings(configuration)
+
             # Create base API client
             self.api_client = client.ApiClient(configuration)
 
@@ -85,6 +88,22 @@ class K8sApis:
         except ImportError:
             logger.error('kubernetes package not installed')
             raise
+
+    def _configure_proxy_settings(self, config):
+        """Configure proxy settings for Kubernetes client from environment variables."""
+        # Get proxy URL (HTTPS proxy takes precedence over HTTP proxy)
+        proxy_url = (
+            os.environ.get('HTTPS_PROXY')
+            or os.environ.get('https_proxy')
+            or os.environ.get('HTTP_PROXY')
+            or os.environ.get('http_proxy')
+        )
+
+        if not proxy_url:
+            return
+
+        logger.debug(f'Configuring proxy: {proxy_url}')
+        config.proxy = proxy_url
 
     def _patch_resource(
         self,
