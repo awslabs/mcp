@@ -585,21 +585,19 @@ class TestGetRunAnalysisData:
     """Test the _get_run_analysis_data function."""
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_omics_client')
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_run_manifest_logs_internal')
-    async def test_get_run_analysis_data_success(self, mock_get_logs, mock_get_session):
+    async def test_get_run_analysis_data_success(self, mock_get_logs, mock_get_omics_client):
         """Test getting run analysis data successfully."""
         # Arrange
         run_ids = ['run-123', 'run-456']
 
-        # Mock AWS session and client
-        mock_session = MagicMock()
-        mock_omics_client = MagicMock()
-        mock_session.client.return_value = mock_omics_client
-        mock_get_session.return_value = mock_session
+        # Mock omics client
+        mock_omics_client_instance = MagicMock()
+        mock_get_omics_client.return_value = mock_omics_client_instance
 
         # Mock get_run responses
-        mock_omics_client.get_run.side_effect = [
+        mock_omics_client_instance.get_run.side_effect = [
             {'uuid': 'uuid-123', 'name': 'run1', 'status': 'COMPLETED'},
             {'uuid': 'uuid-456', 'name': 'run2', 'status': 'COMPLETED'},
         ]
@@ -637,20 +635,18 @@ class TestGetRunAnalysisData:
         assert len(result['runs']) == 2
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_aws_session')
-    async def test_get_run_analysis_data_no_uuid(self, mock_get_session):
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_omics_client')
+    async def test_get_run_analysis_data_no_uuid(self, mock_get_omics_client):
         """Test getting run analysis data when run has no UUID."""
         # Arrange
         run_ids = ['run-123']
 
-        # Mock AWS session and client
-        mock_session = MagicMock()
-        mock_omics_client = MagicMock()
-        mock_session.client.return_value = mock_omics_client
-        mock_get_session.return_value = mock_session
+        # Mock omics client
+        mock_omics_client_instance = MagicMock()
+        mock_get_omics_client.return_value = mock_omics_client_instance
 
         # Mock get_run response without UUID
-        mock_omics_client.get_run.return_value = {'name': 'run1', 'status': 'COMPLETED'}
+        mock_omics_client_instance.get_run.return_value = {'name': 'run1', 'status': 'COMPLETED'}
 
         # Act
         result = await _get_run_analysis_data(run_ids)
@@ -661,14 +657,14 @@ class TestGetRunAnalysisData:
         assert len(result['runs']) == 0  # No runs processed due to missing UUID
 
     @pytest.mark.asyncio
-    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_aws_session')
-    async def test_get_run_analysis_data_exception_handling(self, mock_get_session):
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis.get_omics_client')
+    async def test_get_run_analysis_data_exception_handling(self, mock_get_omics_client):
         """Test getting run analysis data handles exceptions gracefully."""
         # Arrange
         run_ids = ['run-123']
 
-        # Mock AWS session to raise exception
-        mock_get_session.side_effect = Exception('AWS connection failed')
+        # Mock omics client to raise exception
+        mock_get_omics_client.side_effect = Exception('AWS connection failed')
 
         # Act
         result = await _get_run_analysis_data(run_ids)

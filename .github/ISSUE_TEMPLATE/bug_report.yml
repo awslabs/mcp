@@ -73,6 +73,7 @@ body:
       label: Server
       multiple: true
       options:
+        - aws-api-mcp-server
         - amazon-kendra-index-mcp-server
         - amazon-mq-mcp-server
         - amazon-neptune-mcp-server
@@ -81,12 +82,12 @@ body:
         - aws-diagram-mcp-server
         - aws-documentation-mcp-server
         - aws-location-mcp-server
+        - aws-pricing-mcp-server
         - bedrock-kb-retrieval-mcp-server
         - cdk-mcp-server
         - cfn-mcp-server
         - code-doc-gen-mcp-server
         - core-mcp-server
-        - cost-analysis-mcp-server
         - documentdb-mcp-server
         - dynamodb-mcp-server
         - frontend-mcp-server

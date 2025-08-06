@@ -16,14 +16,12 @@
 
 import botocore
 import botocore.exceptions
-import os
-from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_REGION
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_engine_logs_internal,
     get_run_manifest_logs_internal,
     get_task_logs_internal,
 )
-from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
+from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from datetime import datetime, timedelta
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -82,21 +80,6 @@ def calculate_log_time_window(start_time, end_time, buffer_minutes=5):
     except Exception as e:
         logger.warning(f'Failed to calculate log time window: {str(e)}')
         return None, None
-
-
-def get_omics_client():
-    """Get an AWS HealthOmics client.
-
-    Returns:
-        boto3.client: Configured HealthOmics client
-    """
-    region = os.environ.get('AWS_REGION', DEFAULT_REGION)
-    session = get_aws_session(region)
-    try:
-        return session.client('omics')
-    except Exception as e:
-        logger.error(f'Failed to create HealthOmics client: {str(e)}')
-        raise
 
 
 async def diagnose_run_failure(
