@@ -4,8 +4,31 @@ import json
 import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+from functools import wraps
 
 import boto3
+
+# Global variable to track write mode
+_WRITE_MODE_ENABLED = False
+
+def set_write_mode(enabled: bool) -> None:
+    """Set the global write mode."""
+    global _WRITE_MODE_ENABLED
+    _WRITE_MODE_ENABLED = enabled
+
+def require_write_mode(func):
+    """Decorator to require write mode for destructive operations."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not _WRITE_MODE_ENABLED:
+            return json.dumps({
+                "error": "Write operations are disabled",
+                "message": f"The '{func.__name__}' operation requires write mode. Please restart the server with --allow-writes flag to enable write operations.",
+                "operation": func.__name__,
+                "read_only_mode": True
+            }, indent=2)
+        return func(*args, **kwargs)
+    return wrapper
 
 
 def _serialize_datetime(obj: Any) -> Any:
@@ -154,6 +177,7 @@ def get_experiment(experiment_id: str, region: str = "us-east-1") -> str:
         return f"Error retrieving experiment: {str(e)}"
 
 
+@require_write_mode
 def start_experiment(template_id: str, region: str = "us-east-1", client_token: Optional[str] = None) -> str:
     """
     Start a new AWS FIS experiment based on an experiment template.
@@ -187,6 +211,7 @@ def start_experiment(template_id: str, region: str = "us-east-1", client_token: 
         return f"Error starting experiment: {str(e)}"
 
 
+@require_write_mode
 def stop_experiment(experiment_id: str, region: str = "us-east-1") -> str:
     """
     Stop a running AWS FIS experiment.
@@ -211,6 +236,7 @@ def stop_experiment(experiment_id: str, region: str = "us-east-1") -> str:
         return f"Error stopping experiment: {str(e)}"
 
 
+@require_write_mode
 def create_experiment_template(
     name: str,
     description: str,
@@ -262,6 +288,7 @@ def create_experiment_template(
         return f"Error creating experiment template: {str(e)}"
 
 
+@require_write_mode
 def delete_experiment_template(template_id: str, region: str = "us-east-1") -> str:
     """
     Delete an AWS FIS experiment template.

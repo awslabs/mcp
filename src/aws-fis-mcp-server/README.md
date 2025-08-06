@@ -6,13 +6,32 @@ This MCP server provides tools for working with AWS Fault Injection Service (FIS
 
 AWS Fault Injection Service (FIS) is a managed service that enables you to perform fault injection experiments on your AWS workloads. This MCP server provides capabilities to interact with FIS, making it easier to create and manage chaos engineering experiments.
 
+## Security Features
+
+### Read-Only Mode by Default
+
+The server operates in **read-only mode by default** for enhanced security. Write operations (create, start, stop, delete) require explicit enablement with the `--allow-writes` flag.
+
+**Benefits:**
+- **Secure by Default**: Prevents accidental destructive operations
+- **Explicit Enable**: Write operations require explicit enablement
+- **Clear Messaging**: Blocked operations provide informative error messages
+
 ## Features
 
-- List and retrieve experiment templates
-- Create and delete experiment templates
-- Start and stop experiments
-- List available action types
-- Generate example templates
+### Read-Only Operations (Always Available)
+- `list_experiment_templates` - List experiment templates
+- `get_experiment_template` - Get experiment template details
+- `list_experiments` - List experiments
+- `get_experiment` - Get experiment details
+- `list_action_types` - List action types
+- `generate_template_example` - Generate template examples
+
+### Write Operations (Require --allow-writes)
+- `start_experiment` - Start an experiment
+- `stop_experiment` - Stop an experiment
+- `create_experiment_template` - Create experiment template
+- `delete_experiment_template` - Delete experiment template
 
 ## Installation and Usage
 
@@ -76,6 +95,8 @@ uv run main.py
 ## MCP Client Configuration
 
 ### For uvx usage (Recommended):
+
+#### Read-Only Mode (Default - Secure):
 ```json
 {
   "mcpServers": {
@@ -91,6 +112,25 @@ uv run main.py
   }
 }
 ```
+
+#### With Write Operations Enabled:
+```json
+{
+  "mcpServers": {
+    "aws_fis_mcp": {
+      "command": "uvx",
+      "args": ["aws-fis-mcp", "--", "--allow-writes"],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-east-1"
+      },
+      "transportType": "stdio"
+    }
+  }
+}
+```
+
+**Note**: The `--` separator is required to pass arguments to the application rather than to uvx itself.
 
 ### For pip installed version:
 ```json
@@ -109,6 +149,8 @@ uv run main.py
 ```
 
 ### For local development:
+
+#### Read-Only Mode (Default):
 ```json
 {
   "mcpServers": {
@@ -116,9 +158,32 @@ uv run main.py
       "command": "uv",
       "args": [
         "--directory",
-        "/home/ec2-user/mcp-servers/AWS-FIS-MCP",
+        "/home/ec2-user/mcp-servers/aws-fis-mcp-server",
         "run",
-        "main.py"
+        "aws_fis_mcp/server.py"
+      ],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-east-1"
+      },
+      "transportType": "stdio"
+    }
+  }
+}
+```
+
+#### With Write Operations Enabled:
+```json
+{
+  "mcpServers": {
+    "aws_fis_mcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/home/ec2-user/mcp-servers/aws-fis-mcp-server",
+        "run",
+        "aws_fis_mcp/server.py",
+        "--allow-writes"
       ],
       "env": {
         "AWS_PROFILE": "default",
@@ -135,18 +200,43 @@ uv run main.py
 ### Experiment Templates
 - `list_experiment_templates`: List all AWS FIS experiment templates
 - `get_experiment_template`: Get detailed information about a specific template
-- `create_experiment_template`: Create a new experiment template
-- `delete_experiment_template`: Delete an experiment template
+- `create_experiment_template`: Create a new experiment template *(requires --allow-writes)*
+- `delete_experiment_template`: Delete an experiment template *(requires --allow-writes)*
 
 ### Experiments
 - `list_experiments`: List all AWS FIS experiments
 - `get_experiment`: Get detailed information about a specific experiment
-- `start_experiment`: Start a new experiment based on a template
-- `stop_experiment`: Stop a running experiment
+- `start_experiment`: Start a new experiment based on a template *(requires --allow-writes)*
+- `stop_experiment`: Stop a running experiment *(requires --allow-writes)*
 
 ### Action Types
 - `list_action_types`: List all available AWS FIS action types
 - `generate_template_example`: Generate an example template for a given target and action type
+
+## Security and Error Handling
+
+### Read-Only Mode Error Messages
+
+When attempting write operations in read-only mode, you'll receive structured error messages:
+
+```json
+{
+  "error": "Write operations are disabled",
+  "message": "The 'start_experiment' operation requires write mode. Please restart the server with --allow-writes flag to enable write operations.",
+  "operation": "start_experiment",
+  "read_only_mode": true
+}
+```
+
+### Region Support
+
+All functions support specifying AWS regions, with configurable defaults:
+
+```bash
+# Examples of region usage
+List all my FIS experiment templates in us-west-2
+Start an experiment using template exp-12345abcde in eu-west-1
+```
 
 ## Example Usage
 
