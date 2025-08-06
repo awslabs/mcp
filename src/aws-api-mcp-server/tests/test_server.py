@@ -588,7 +588,9 @@ async def test_call_aws_awscli_customization_success(
     assert result == expected_response
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
     mock_validate.assert_called_once_with(mock_ir)
-    mock_execute_awscli_customization.assert_called_once_with('aws configure list')
+    mock_execute_awscli_customization.assert_called_once_with(
+        'aws configure list', mock_ir.command
+    )
 
 
 @patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
@@ -626,7 +628,9 @@ async def test_call_aws_awscli_customization_error(
     assert result == error_response
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
     mock_validate.assert_called_once_with(mock_ir)
-    mock_execute_awscli_customization.assert_called_once_with('aws configure list')
+    mock_execute_awscli_customization.assert_called_once_with(
+        'aws configure list', mock_ir.command
+    )
     mock_ctx.error.assert_called_once_with(error_response.detail)
 
 
