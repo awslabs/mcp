@@ -15,7 +15,6 @@
 #!/usr/bin/env python3
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -48,9 +47,6 @@ def run_command(command: list[str]) -> subprocess.CompletedProcess:
 def get_latest_artifact() -> Optional[dict]:
     """Get the latest dist-aws-api-mcp-server artifact from GitHub."""
     try:
-        repo = os.environ.get('GITHUB_REPOSITORY', 'awslabs/mcp')
-        owner = repo.split('/')[0]
-
         cmd = [
             'gh',
             'api',
@@ -59,7 +55,7 @@ def get_latest_artifact() -> Optional[dict]:
             'Accept: application/vnd.github+json',
             '-H',
             'X-GitHub-Api-Version: 2022-11-28',
-            f'/repos/{owner}/mcp/actions/artifacts?name=dist-aws-api-mcp-server&per_page=100',
+            '/repos/awslabs/mcp/actions/artifacts?name=dist-aws-api-mcp-server&per_page=100',
         ]
 
         result = run_command(cmd)
