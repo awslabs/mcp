@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Improve tool logging (#1004)
 - Validate `AWS_REGION` environment variable (#1030)
+
+## [0.2.3] - 2025-08-06
+
+### Changed
+
+- Improve tool logging (#1004)
 
 ## [0.2.2] - 2025-08-05
 
