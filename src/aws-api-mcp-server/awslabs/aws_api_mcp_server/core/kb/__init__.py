@@ -15,6 +15,8 @@ import threading
 from typing import Protocol, Any
 from pathlib import Path
 
+from loguru import logger
+
 from .dense_retriever import DenseRetriever
 from awslabs.aws_api_mcp_server.scripts.download_latest_embeddings import (
     try_download_latest_embeddings,
@@ -54,6 +56,7 @@ class KnowledgeBase:
         # Load the RAG model in background to avoid doing it at runtime when the tools are invoked
         if self.rag is not None:
             rag = self.rag
+            logger.info('Starting background process to load embedding model')
             threading.Thread(target=lambda: rag.model, daemon=True).start()
 
     def get_suggestions(self, query: str, **kwargs):

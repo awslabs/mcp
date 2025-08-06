@@ -40,7 +40,7 @@ Version = NewType('Version', str)
 SemVerRegEx = r'^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
 PACKAGE_NAME_REGEX = r'^[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]$'
 DIRECTORY_NAME_REGEX = r'^[a-zA-Z0-9_-]+$'
-MAX_VERSION_COMPONENT = 9999999999999999999
+MAX_VERSION_COMPONENT = sys.maxsize  # sys.maxsize is 9223372036854775807
 MAX_PACKAGE_NAME_LENGTH = 100
 MAX_PATH_DEPTH = 15
 
@@ -138,7 +138,10 @@ def validate_version_format(version: str) -> bool:
             logging.warning(
                 f'Version component exceeds maximum ({MAX_VERSION_COMPONENT}): {version}'
             )
-            return False
+            if major >= MAX_VERSION_COMPONENT:
+                logging.warning('Major version component is at maximum, failing validation')
+                return False  # Bumping Major version back to zero doesn't make sense
+            return True  # Allow large components for bumping to zero
     except (ValueError, TypeError):
         return False
     return True

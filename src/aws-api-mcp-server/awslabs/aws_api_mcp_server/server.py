@@ -17,7 +17,6 @@ import sys
 from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     execute_awscli_customization,
-    get_local_credentials,
     interpret_command,
     is_operation_read_only,
     request_consent,
@@ -128,12 +127,18 @@ async def suggest_aws_commands(
     ctx: Context,
 ) -> dict[str, Any] | AwsApiMcpServerErrorResponse:
     """Suggest AWS CLI commands based on the provided query."""
+    logger.info('Suggesting AWS commands for query: {}', query)
     if not query.strip():
         error_message = 'Empty query provided'
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
     try:
-        return knowledge_base.get_suggestions(query)
+        suggestions = knowledge_base.get_suggestions(query)
+        logger.info(
+            'Suggested commands: {}',
+            [suggestion.get('command') for suggestion in suggestions.get('suggestions', {})],
+        )
+        return suggestions
     except Exception as e:
         error_message = f'Error while suggesting commands: {str(e)}'
         await ctx.error(error_message)
@@ -191,6 +196,7 @@ async def call_aws(
     ] = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
+    logger.info('Executing AWS CLI command: {}', cli_command)
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
@@ -232,16 +238,14 @@ async def call_aws(
 
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
-                execute_awscli_customization(cli_command)
+                execute_awscli_customization(cli_command, ir.command)
             )
             if isinstance(response, AwsApiMcpServerErrorResponse):
                 await ctx.error(response.detail)
             return response
 
-        creds = get_local_credentials()
         return interpret_command(
             cli_command=cli_command,
-            credentials=creds,
             default_region=cast(str, DEFAULT_REGION),
             max_results=max_results,
         )
