@@ -1,0 +1,80 @@
+{
+  "Comment": "Conditional data pipeline with branching logic",
+  "StartAt": "CheckDataVolume",
+  "States": {
+    "CheckDataVolume": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "raw",
+        "Sql": "SELECT COUNT(*) as record_count FROM raw.transactions WHERE created_date = CURRENT_DATE"
+      },
+      "ResultPath": "$.volume_check",
+      "Next": "EvaluateVolume"
+    },
+    "EvaluateVolume": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.volume_check.Records[0].record_count",
+          "NumericGreaterThan": 10000,
+          "Next": "HighVolumeProcessing"
+        },
+        {
+          "Variable": "$.volume_check.Records[0].record_count",
+          "NumericGreaterThan": 1000,
+          "Next": "MediumVolumeProcessing"
+        }
+      ],
+      "Default": "LowVolumeProcessing"
+    },
+    "HighVolumeProcessing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobDefinition": "high-volume-etl-job",
+        "JobName": "high-volume-processing",
+        "JobQueue": "high-memory-queue",
+        "Parameters": {
+          "inputTable": "raw.transactions",
+          "outputTable": "processed.transactions_high_volume",
+          "batchSize": "5000"
+        }
+      },
+      "Next": "GenerateReport"
+    },
+    "MediumVolumeProcessing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "medium-volume-processor",
+        "Payload": {
+          "inputTable": "raw.transactions",
+          "outputTable": "processed.transactions_medium_volume"
+        }
+      },
+      "Next": "GenerateReport"
+    },
+    "LowVolumeProcessing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "CREATE TABLE processed.transactions_low_volume AS SELECT transaction_id, customer_id, amount, transaction_date FROM raw.transactions WHERE created_date = CURRENT_DATE"
+      },
+      "Next": "GenerateReport"
+    },
+    "GenerateReport": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "CREATE TABLE reports.daily_transaction_summary AS SELECT COUNT(*) as total_transactions, SUM(amount) as total_amount, AVG(amount) as avg_amount, CURRENT_DATE as report_date FROM processed.transactions_high_volume UNION ALL SELECT COUNT(*), SUM(amount), AVG(amount), CURRENT_DATE FROM processed.transactions_medium_volume UNION ALL SELECT COUNT(*), SUM(amount), AVG(amount), CURRENT_DATE FROM processed.transactions_low_volume"
+      },
+      "End": true
+    }
+  }
+}

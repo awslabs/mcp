@@ -1,0 +1,67 @@
+{
+  "Comment": "Parallel data processing pipeline",
+  "StartAt": "ParallelProcessing",
+  "States": {
+    "ParallelProcessing": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "ProcessCustomers",
+          "States": {
+            "ProcessCustomers": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "Parameters": {
+                "ClusterIdentifier": "data-warehouse",
+                "Database": "analytics",
+                "Sql": "CREATE TABLE processed.customers AS SELECT customer_id, name, email, CASE WHEN last_purchase_date > CURRENT_DATE - INTERVAL '30 days' THEN 'Active' ELSE 'Inactive' END as status FROM raw.customers"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "ProcessOrders",
+          "States": {
+            "ProcessOrders": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "Parameters": {
+                "ClusterIdentifier": "data-warehouse",
+                "Database": "analytics",
+                "Sql": "CREATE TABLE processed.orders AS SELECT order_id, customer_id, total_amount, order_date, EXTRACT(MONTH FROM order_date) as order_month FROM raw.orders WHERE order_date >= CURRENT_DATE - INTERVAL '1 year'"
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "ProcessProducts",
+          "States": {
+            "ProcessProducts": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "Parameters": {
+                "ClusterIdentifier": "data-warehouse",
+                "Database": "analytics",
+                "Sql": "CREATE TABLE processed.products AS SELECT product_id, name, category, price, CASE WHEN price > 100 THEN 'Premium' WHEN price > 50 THEN 'Standard' ELSE 'Budget' END as price_tier FROM raw.products"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "CombineResults"
+    },
+    "CombineResults": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "CREATE TABLE analytics.customer_order_summary AS SELECT c.customer_id, c.name, c.status, COUNT(o.order_id) as total_orders, SUM(o.total_amount) as total_spent FROM processed.customers c LEFT JOIN processed.orders o ON c.customer_id = o.customer_id GROUP BY c.customer_id, c.name, c.status"
+      },
+      "End": true
+    }
+  }
+}

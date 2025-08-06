@@ -1,0 +1,52 @@
+{
+  "Comment": "Sequential ETL pipeline with extract, transform, load",
+  "StartAt": "ExtractData",
+  "States": {
+    "ExtractData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "raw",
+        "Sql": "CREATE TABLE staging.daily_sales AS SELECT * FROM raw.sales WHERE sale_date = CURRENT_DATE"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 2
+        }
+      ],
+      "Next": "TransformData"
+    },
+    "TransformData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "data-transformation-function",
+        "Payload": {
+          "table": "staging.daily_sales",
+          "transformations": ["clean_nulls", "standardize_currency"]
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3
+        }
+      ],
+      "Next": "LoadData"
+    },
+    "LoadData": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "INSERT INTO analytics.sales_summary SELECT product_id, SUM(amount) as total_sales, COUNT(*) as transaction_count FROM staging.daily_sales GROUP BY product_id"
+      },
+      "End": true
+    }
+  }
+}
