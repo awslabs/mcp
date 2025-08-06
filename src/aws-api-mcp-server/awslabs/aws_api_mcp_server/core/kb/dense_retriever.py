@@ -19,6 +19,7 @@ from awscli.clidriver import __version__ as awscli_version
 from copy import deepcopy
 from loguru import logger
 from pathlib import Path
+from sentence_transformers import SentenceTransformer
 
 
 DEFAULT_TOP_K = 5
@@ -57,7 +58,6 @@ class DenseRetriever:
         """Return the sentence transformer model."""
         if self._model is None:
             logger.info('Loading embedding model...')
-            from sentence_transformers import SentenceTransformer
 
             models_dir = get_server_directory() / 'models' / self.model_name
             self._model = SentenceTransformer(self.model_name, cache_folder=str(models_dir))
