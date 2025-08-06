@@ -14,7 +14,7 @@
 
 """Connect module for creating and configuring jump host EC2 instances to access ElastiCache serverless caches."""
 
-from ...common.connection import EC2ConnectionManager, ElastiCacheConnectionManager
+from ...common.connection import EC2ConnectionManager, ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 
 async def _configure_security_groups(
+    aws_config: AWSConfig,
     serverless_cache_name: str,
     instance_id: str,
     ec2_client: Any = None,
@@ -31,6 +32,7 @@ async def _configure_security_groups(
     """Configure security group rules to allow access from EC2 instance to ElastiCache serverless cache.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
         serverless_cache_name (str): Name of the ElastiCache serverless cache
         instance_id (str): ID of the EC2 instance
         ec2_client (Any, optional): EC2 client. If not provided, will get from connection manager
@@ -43,9 +45,9 @@ async def _configure_security_groups(
         ValueError: If VPC compatibility check fails or required resources not found
     """
     if not ec2_client:
-        ec2_client = EC2ConnectionManager.get_connection()
+        ec2_client = EC2ConnectionManager.get_connection(aws_config)
     if not elasticache_client:
-        elasticache_client = ElastiCacheConnectionManager.get_connection()
+        elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Get serverless cache details
     serverless_cache = elasticache_client.describe_serverless_caches(
@@ -187,11 +189,13 @@ async def connect_jump_host_serverless(
 @mcp.tool(name='get-ssh-tunnel-command-serverless-cache')
 @handle_exceptions
 async def get_ssh_tunnel_command_serverless(
+    aws_config: AWSConfig,
     serverless_cache_name: str, instance_id: str
 ) -> Dict[str, Union[str, int]]:
     """Generates an SSH tunnel command to connect to an ElastiCache serverless cache through an EC2 jump host.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
         serverless_cache_name (str): Name of the ElastiCache serverless cache to connect to
         instance_id (str): ID of the EC2 instance to use as jump host
 
@@ -202,8 +206,8 @@ async def get_ssh_tunnel_command_serverless(
         ValueError: If required resources not found or information cannot be retrieved
     """
     # Get AWS clients
-    ec2_client = EC2ConnectionManager.get_connection()
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    ec2_client = EC2ConnectionManager.get_connection(aws_config)
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     try:
         # Get EC2 instance details
@@ -272,6 +276,7 @@ async def get_ssh_tunnel_command_serverless(
 @mcp.tool(name='create-jump-host-serverless-cache')
 @handle_exceptions
 async def create_jump_host_serverless(
+    aws_config: AWSConfig,
     serverless_cache_name: str,
     key_name: str,
     subnet_id: Optional[str] = None,
@@ -281,6 +286,7 @@ async def create_jump_host_serverless(
     """Creates an EC2 jump host instance to access an ElastiCache serverless cache via SSH tunnel.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
         serverless_cache_name (str): Name of the ElastiCache serverless cache to connect to
         key_name (str): Name of the EC2 key pair to use for SSH access
         subnet_id (str, optional): ID of the subnet to launch the EC2 instance in (must be public).
@@ -302,8 +308,8 @@ async def create_jump_host_serverless(
         )
 
     # Get AWS clients from connection managers
-    ec2_client = EC2ConnectionManager.get_connection()
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    ec2_client = EC2ConnectionManager.get_connection(aws_config)
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     try:
         # Validate key_name

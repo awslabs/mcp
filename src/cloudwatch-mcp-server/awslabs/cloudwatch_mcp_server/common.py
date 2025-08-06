@@ -15,6 +15,7 @@
 import datetime
 import json
 from typing import Dict, List, Set
+from pydantic import BaseModel, Field
 
 
 def remove_null_values(d: Dict):
@@ -49,3 +50,10 @@ def clean_up_pattern(pattern_result: List[Dict[str, str]]):
         entry.pop('@visualization', None)
         # limit to 1 sample
         entry['@logSamples'] = json.loads(entry.get('@logSamples', '[]'))[:1]
+
+
+class AWSConfig(BaseModel):
+    """AWS credentials and region for creating clients."""
+    aws_access_key_id: str = Field(..., description="AWS access key ID")
+    aws_secret_access_key: str = Field(..., description="AWS secret access key")
+    region_name: str = Field("us-east-1", description="AWS region to query. Defaults to us-east-1.")

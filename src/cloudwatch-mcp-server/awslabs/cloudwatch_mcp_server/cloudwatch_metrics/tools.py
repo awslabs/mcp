@@ -17,6 +17,7 @@
 import boto3
 import json
 import os
+from awslabs.cloudwatch_mcp_server.common import AWSConfig
 from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AlarmRecommendation,
@@ -49,19 +50,20 @@ class CloudWatchMetricsTools:
         )
         logger.info(f'Loaded {len(self.metric_metadata_index)} metric metadata entries')
 
-    def _get_cloudwatch_client(self, region: str):
+    def _get_cloudwatch_client(self, aws_config: AWSConfig):
         """Create a CloudWatch client for the specified region."""
         config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
 
         try:
-            if aws_profile := os.environ.get('AWS_PROFILE'):
-                return boto3.Session(profile_name=aws_profile, region_name=region).client(
-                    'cloudwatch', config=config
-                )
-            else:
-                return boto3.Session(region_name=region).client('cloudwatch', config=config)
+            return boto3.Session(
+                aws_access_key_id=aws_config.aws_access_key_id,
+                aws_secret_access_key=aws_config.aws_secret_access_key,
+                region_name=aws_config.region_name,
+            ).client(
+                'cloudwatch', config=config
+            )
         except Exception as e:
-            logger.error(f'Error creating cloudwatch client for region {region}: {str(e)}')
+            logger.error(f'Error creating cloudwatch client for region {aws_config.region_name}: {str(e)}')
             raise
 
     def _load_and_index_metadata(self) -> Dict[MetricMetadataIndexKey, Any]:
@@ -142,6 +144,7 @@ class CloudWatchMetricsTools:
     async def get_metric_data(
         self,
         ctx: Context,
+        aws_config: AWSConfig,
         namespace: str,
         metric_name: str,
         start_time: Union[str, datetime],
@@ -203,10 +206,6 @@ class CloudWatchMetricsTools:
                 description='Statistic to use in the ORDER BY clause. Required if sort_order is specified.'
             ),
         ] = None,
-        region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
     ) -> GetMetricDataResponse:
         """Retrieves CloudWatch metric data for a specific metric.
 
@@ -350,7 +349,7 @@ class CloudWatchMetricsTools:
                 )
 
             # Create CloudWatch client for the specified region
-            cloudwatch_client = self._get_cloudwatch_client(region)
+            cloudwatch_client = self._get_cloudwatch_client(aws_config)
 
             # Call the GetMetricData API
             response = cloudwatch_client.get_metric_data(

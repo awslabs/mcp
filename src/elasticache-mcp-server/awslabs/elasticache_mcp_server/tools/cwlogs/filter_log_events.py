@@ -14,7 +14,7 @@
 
 """Tool for filtering log events from CloudWatch Logs."""
 
-from ...common.connection import CloudWatchLogsConnectionManager
+from ...common.connection import CloudWatchLogsConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from datetime import datetime
@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 @mcp.tool(name='filter-log-events')
 @handle_exceptions
 async def filter_log_events(
+    aws_config: AWSConfig,
     log_group_name: Optional[str] = None,
     log_group_identifier: Optional[str] = None,
     log_stream_names: Optional[List[str]] = None,
@@ -40,6 +41,10 @@ async def filter_log_events(
     """Filter log events from CloudWatch Logs.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         log_group_name: The name of the log group
         log_group_identifier: The unique identifier of the log group
         log_stream_names: Optional list of log stream names to search
@@ -59,7 +64,7 @@ async def filter_log_events(
         - searchedLogStreams: List of log streams that were searched
         - nextToken: Token for getting the next set of events
     """
-    client = CloudWatchLogsConnectionManager.get_connection()
+    client = CloudWatchLogsConnectionManager.get_connection(aws_config)
 
     # Build request parameters
     params: Dict[str, Any] = {}

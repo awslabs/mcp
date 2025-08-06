@@ -14,7 +14,7 @@
 
 """Complete migration tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -61,7 +61,7 @@ def prepare_request_dict(request: CompleteMigrationRequest) -> Dict[str, Any]:
 
 @mcp.tool(name='complete-migration')
 @handle_exceptions
-async def complete_migration(request: CompleteMigrationRequest) -> Dict:
+async def complete_migration(request: CompleteMigrationRequest, aws_config: AWSConfig) -> Dict:
     """Complete migration to an Amazon ElastiCache replication group.
 
     This tool completes the migration of data from a Redis instance to an ElastiCache replication group.
@@ -73,6 +73,10 @@ async def complete_migration(request: CompleteMigrationRequest) -> Dict:
             - force: (Optional) Forces the migration to stop without ensuring that data is in sync.
               It is recommended to use this option only to abort the migration and not recommended
               when application wants to continue migration to ElastiCache.
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
 
     Returns:
         Dict containing information about the migration completion result.
@@ -84,7 +88,7 @@ async def complete_migration(request: CompleteMigrationRequest) -> Dict:
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Prepare request dictionary
     complete_request = prepare_request_dict(request)

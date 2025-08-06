@@ -1,0 +1,185 @@
+services:
+  # ecs_mcp_server:
+  #   build:
+  #     context: src/ecs-mcp-server
+  #     dockerfile: Dockerfile
+  #   image: ecs-mcp-server:latest
+  #   container_name: ecs-mcp-server
+  #   environment:
+  #     FASTMCP_LOG_LEVEL: ${FASTMCP_LOG_LEVEL:-INFO}
+  #     ALLOW_WRITE: ${ALLOW_WRITE:-false}
+  #     ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+  #   ports:
+  #     - 127.0.0.1:8000:8000
+  #   networks:
+  #     - mcp-servers-network
+
+  eks_mcp_server:
+    build:
+      context: src/eks-mcp-server
+      dockerfile: Dockerfile
+    image: eks-mcp-server:latest
+    container_name: eks-mcp-server
+    environment:
+      FASTMCP_LOG_LEVEL: ${FASTMCP_LOG_LEVEL:-INFO}
+      ALLOW_WRITE: ${ALLOW_WRITE:-false}
+      ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+    ports:
+      - 127.0.0.1:9000:9000
+    networks:
+      - mcp-servers-network
+
+  terraform_mcp_server:
+    build:
+      context: src/terraform-mcp-server
+      dockerfile: Dockerfile
+    image: terraform-mcp-server:latest
+    container_name: terraform-mcp-server
+    environment:
+      FASTMCP_LOG_LEVEL: ${FASTMCP_LOG_LEVEL:-INFO}
+      ALLOW_WRITE: ${ALLOW_WRITE:-false}
+      ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+    ports:
+      - 127.0.0.1:9100:9100
+    networks:
+      - mcp-servers-network
+
+  # lambda_mcp_server:
+  #   build:
+  #     context: src/lambda-tool-mcp-server
+  #     dockerfile: Dockerfile
+  #   image: lambda-mcp-server:latest
+  #   container_name: lambda-mcp-server
+  #   environment:
+  #     AWS_PROFILE: your-aws-profile
+  #     AWS_REGION: us-east-1
+  #     FUNCTION_PREFIX: your-function-prefix
+  #     FUNCTION_LIST: your-first-function, your-second-function
+  #     FUNCTION_TAG_KEY: your-tag-key
+  #     FUNCTION_TAG_VALUE: your-tag-value
+  #     FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: your-function-tag-for-input-schema
+  #     ALLOW_WRITE: ${ALLOW_WRITE:-false}
+  #     ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+  #   ports:
+  #     - 127.0.0.1:9200:9200
+  #   networks:
+  #     - mcp-servers-network
+
+  # dynamodb_mcp_server:
+  #   build:
+  #     context: src/dynamodb-mcp-server
+  #     dockerfile: Dockerfile
+  #   image: dynamodb-mcp-server:latest
+  #   container_name: dynamodb-mcp-server
+  #   environment:
+  #     DDB-MCP-READONLY: "true"
+  #     AWS_PROFILE: default
+  #     AWS_REGION: us-west-2
+  #     FASTMCP_LOG_LEVEL: ERROR
+  #     ALLOW_WRITE: ${ALLOW_WRITE:-false}
+  #     ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+  #   ports:
+  #     - 127.0.0.1:9300:9300
+  #   networks:
+  #     - mcp-servers-network
+
+  elasticache_mcp_server:
+    build:
+      context: src/elasticache-mcp-server
+      dockerfile: Dockerfile
+    image: elasticache-mcp-server:latest
+    container_name: elasticache-mcp-server
+    environment:
+      AWS_PROFILE: default
+      AWS_REGION: us-west-2
+      FASTMCP_LOG_LEVEL: ERROR
+      ALLOW_WRITE: ${ALLOW_WRITE:-false}
+      ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+    ports:
+      - 127.0.0.1:9400:9400
+    networks:
+      - mcp-servers-network
+
+  aurora_mcp_server:
+    build:
+      context: src/aurora-dsql-mcp-server
+      dockerfile: Dockerfile
+    image: aurora-mcp-server:latest
+    container_name: aurora-mcp-server
+    environment:
+      ALLOW_WRITE: ${ALLOW_WRITE:-false}
+      ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+    ports:
+      - 127.0.0.1:9500:9500
+    networks:
+      - mcp-servers-network
+
+  mysql_mcp_server:
+    build:
+      context: src/mysql-mcp-server
+      dockerfile: Dockerfile
+    image: mysql-mcp-server:latest
+    container_name: mysql-mcp-server
+    environment:
+      AWS_PROFILE: your-aws-profile
+      AWS_REGION: us-east-1
+      FASTMCP_LOG_LEVEL: ERROR
+      ALLOW_WRITE: ${ALLOW_WRITE:-false}
+      ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+    ports:
+      - 127.0.0.1:9600:9600
+    networks:
+      - mcp-servers-network
+
+  postgres_mcp_server:
+    build:
+      context: src/postgres-mcp-server
+      dockerfile: Dockerfile
+    image: postgres-mcp-server:latest
+    container_name: postgres-mcp-server
+    environment:
+      AWS_PROFILE: your-aws-profile
+      AWS_REGION: us-east-1
+      FASTMCP_LOG_LEVEL: ERROR
+      ALLOW_WRITE: ${ALLOW_WRITE:-false}
+      ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+    ports:
+      - 127.0.0.1:9700:9700
+    networks:
+      - mcp-servers-network
+
+  cloudwatch_mcp_server:
+    build:
+      context: src/cloudwatch-mcp-server
+      dockerfile: Dockerfile
+    image: cloudwatch-mcp-server:latest
+    container_name: cloudwatch-mcp-server
+    environment:
+      AWS_PROFILE: your-aws-profile
+      FASTMCP_LOG_LEVEL: ERROR
+      ALLOW_WRITE: ${ALLOW_WRITE:-false}
+      ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+    ports:
+      - 127.0.0.1:9800:9800
+    networks:
+      - mcp-servers-network
+
+  # aws_serverless_mcp:
+  #   build:
+  #     context: src/aws-serverless-mcp-server
+  #     dockerfile: Dockerfile
+  #   image: aws-serverless-mcp:latest
+  #   container_name: aws-serverless-mcp
+  #   environment:
+  #     AWS_PROFILE: your-aws-profile
+  #     AWS_REGION: us-east-1
+  #     ALLOW_WRITE: ${ALLOW_WRITE:-false}
+  #     ALLOW_SENSITIVE_DATA: ${ALLOW_SENSITIVE_DATA:-false}
+  #   ports:
+  #     - 127.0.0.1:9900:9900
+  #   networks:
+  #     - mcp-servers-network
+
+networks:
+  mcp-servers-network:
+    driver: bridge

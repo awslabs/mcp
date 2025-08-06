@@ -14,7 +14,7 @@
 
 """Describe cache clusters tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Dict, Optional
@@ -23,6 +23,7 @@ from typing import Dict, Optional
 @mcp.tool(name='describe-cache-clusters')
 @handle_exceptions
 async def describe_cache_clusters(
+    aws_config: AWSConfig,
     cache_cluster_id: Optional[str] = None,
     max_records: Optional[int] = None,
     marker: Optional[str] = None,
@@ -36,6 +37,10 @@ async def describe_cache_clusters(
     about up to MaxRecords cache clusters is returned.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         cache_cluster_id (Optional[str]): The identifier for the cache cluster to describe.
             If not provided, information about all cache clusters is returned.
         max_records (Optional[int]): The maximum number of records to include in the response.
@@ -56,7 +61,7 @@ async def describe_cache_clusters(
         - Marker: Pagination marker for next set of results
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build describe request
     describe_request = {}

@@ -14,7 +14,7 @@
 
 """Modify cache cluster tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -89,7 +89,7 @@ class ModifyCacheClusterRequest(BaseModel):
 
 @mcp.tool(name='modify-cache-cluster')
 @handle_exceptions
-async def modify_cache_cluster(request: ModifyCacheClusterRequest) -> Dict:
+async def modify_cache_cluster(request: ModifyCacheClusterRequest, aws_config: AWSConfig) -> Dict:
     """Modify an existing Amazon ElastiCache cache cluster."""
     # Check if readonly mode is enabled
     if Context.readonly_mode():
@@ -98,7 +98,7 @@ async def modify_cache_cluster(request: ModifyCacheClusterRequest) -> Dict:
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Convert request model to dictionary, only including non-None values
     modify_request: Dict[str, Any] = {'CacheClusterId': request.cache_cluster_id}

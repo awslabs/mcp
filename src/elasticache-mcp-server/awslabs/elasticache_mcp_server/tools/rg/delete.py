@@ -14,7 +14,7 @@
 
 """Delete replication group tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -24,6 +24,7 @@ from typing import Dict, Optional
 @mcp.tool(name='delete-replication-group')
 @handle_exceptions
 async def delete_replication_group(
+    aws_config: AWSConfig,
     replication_group_id: str,
     retain_primary_cluster: Optional[bool] = None,
     final_snapshot_name: Optional[str] = None,
@@ -34,6 +35,10 @@ async def delete_replication_group(
     as a standalone cache cluster or create a final snapshot before deletion.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         replication_group_id (str): The identifier of the replication group to delete.
         retain_primary_cluster (Optional[bool]): If True, retains the primary cluster as a standalone
             cache cluster. If False, deletes all clusters in the replication group.
@@ -50,7 +55,7 @@ async def delete_replication_group(
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build delete request
     delete_request = {

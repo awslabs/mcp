@@ -14,104 +14,111 @@
 
 """Connection management for AWS services used by MCP Server."""
 
-import boto3
 import os
+import boto3
 from botocore.config import Config
-from typing import Any, Optional
+from typing import Any, Optional, Type
+from pydantic import BaseModel, Field
 
+# ------------------------------------------------------------------------------
+# Pydantic model for AWS credentials + region
+# ------------------------------------------------------------------------------
+class AWSConfig(BaseModel):
+    """AWS credentials and region for creating clients."""
+    aws_access_key_id: str = Field(..., description="AWS access key ID")
+    aws_secret_access_key: str = Field(..., description="AWS secret access key")
+    region_name: str = Field(..., description="AWS region, e.g. 'us-east-1'")
 
+# ------------------------------------------------------------------------------
+# Base connection manager using AWSConfig
+# ------------------------------------------------------------------------------
 class BaseConnectionManager:
-    """Base class for AWS service connection managers."""
+    """
+    Base class for AWS service connection managers.
 
+    Use get_connection(cls, aws_config) to obtain a client built from explicit
+    credentials. Retry settings are still read from env using the subclass's _env_prefix.
+    """
     _client: Optional[Any] = None
-    _service_name: str = ''  # Must be overridden by subclasses
-    _env_prefix: str = ''  # Must be overridden by subclasses
+    _service_name: str = ""    # override in subclass
+    _env_prefix: str = ""      # override in subclass
 
     @classmethod
-    def get_connection(cls) -> Any:
-        """Get or create an AWS service client connection with retry capabilities.
+    def get_connection(cls, aws_config: AWSConfig) -> Any:
+        """
+        Get or create an AWS service client with retry capabilities, using explicit AWSConfig.
 
+        Args:
+            aws_config: validated AWSConfig instance
         Returns:
-            boto3.client: An AWS service client configured with retries
+            boto3.client for cls._service_name
         """
         if cls._client is None:
-            # Get AWS configuration from environment
-            aws_profile = os.environ.get('AWS_PROFILE', 'default')
-            aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+            # read retry settings from environment
+            max_retries = int(os.environ.get(f"{cls._env_prefix}_MAX_RETRIES", "3"))
+            retry_mode = os.environ.get(f"{cls._env_prefix}_RETRY_MODE", "standard")
+            connect_timeout = int(os.environ.get(f"{cls._env_prefix}_CONNECT_TIMEOUT", "5"))
+            read_timeout = int(os.environ.get(f"{cls._env_prefix}_READ_TIMEOUT", "10"))
 
-            # Configure retry settings
-            max_retries = int(os.environ.get(f'{cls._env_prefix}_MAX_RETRIES', '3'))
-            retry_mode = os.environ.get(f'{cls._env_prefix}_RETRY_MODE', 'standard')
-            connect_timeout = int(os.environ.get(f'{cls._env_prefix}_CONNECT_TIMEOUT', '5'))
-            read_timeout = int(os.environ.get(f'{cls._env_prefix}_READ_TIMEOUT', '10'))
-
-            # Create boto3 config with retry settings
             config = Config(
-                retries={'max_attempts': max_retries, 'mode': retry_mode},
+                retries={"max_attempts": max_retries, "mode": retry_mode},
                 connect_timeout=connect_timeout,
                 read_timeout=read_timeout,
-                # Configure custom user agent to identify requests from LLM/MCP
-                user_agent_extra='MCP/ElastiCacheServer',
+                user_agent_extra="MCP/ConnectionManager",
             )
 
-            # Initialize AWS client with session and config
-            # so that if user changes credential, it will be reflected immediately in the next call
-            session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
-            cls._client = session.client(service_name=cls._service_name, config=config)
+            # instantiate client with explicit credentials
+            cls._client = boto3.client(
+                cls._service_name,
+                aws_access_key_id=aws_config.aws_access_key_id,
+                aws_secret_access_key=aws_config.aws_secret_access_key,
+                region_name=aws_config.region_name,
+                config=config,
+            )
 
         return cls._client
 
     @classmethod
     def close_connection(cls) -> None:
-        """Close the AWS service client connection."""
+        """Close the AWS service client and reset it."""
         if cls._client is not None:
             cls._client.close()
             cls._client = None
 
-
+# ------------------------------------------------------------------------------
+# Concrete connection managers
+# ------------------------------------------------------------------------------
 class ElastiCacheConnectionManager(BaseConnectionManager):
     """Manages connection to ElastiCache using boto3."""
-
-    _client: Optional[Any] = None
-    _service_name = 'elasticache'
-    _env_prefix = 'ELASTICACHE'
+    _service_name = "elasticache"
+    _env_prefix = "ELASTICACHE"
 
 
 class EC2ConnectionManager(BaseConnectionManager):
     """Manages connection to EC2 using boto3."""
-
-    _client: Optional[Any] = None
-    _service_name = 'ec2'
-    _env_prefix = 'EC2'
+    _service_name = "ec2"
+    _env_prefix = "EC2"
 
 
 class CloudWatchLogsConnectionManager(BaseConnectionManager):
     """Manages connection to CloudWatch Logs using boto3."""
-
-    _client: Optional[Any] = None
-    _service_name = 'logs'
-    _env_prefix = 'CLOUDWATCH_LOGS'
+    _service_name = "logs"
+    _env_prefix = "CLOUDWATCH_LOGS"
 
 
 class FirehoseConnectionManager(BaseConnectionManager):
     """Manages connection to Kinesis Firehose using boto3."""
-
-    _client: Optional[Any] = None
-    _service_name = 'firehose'
-    _env_prefix = 'FIREHOSE'
+    _service_name = "firehose"
+    _env_prefix = "FIREHOSE"
 
 
 class CostExplorerConnectionManager(BaseConnectionManager):
     """Manages connection to AWS Cost Explorer using boto3."""
-
-    _client: Optional[Any] = None
-    _service_name = 'ce'
-    _env_prefix = 'COST_EXPLORER'
+    _service_name = "ce"
+    _env_prefix = "COST_EXPLORER"
 
 
 class CloudWatchConnectionManager(BaseConnectionManager):
     """Manages connection to CloudWatch using boto3."""
-
-    _client: Optional[Any] = None
-    _service_name = 'cloudwatch'
-    _env_prefix = 'CLOUDWATCH'
+    _service_name = "cloudwatch"
+    _env_prefix = "CLOUDWATCH"

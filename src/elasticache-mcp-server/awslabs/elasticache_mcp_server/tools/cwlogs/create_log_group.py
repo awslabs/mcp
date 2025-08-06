@@ -14,7 +14,7 @@
 
 """Tool for creating a CloudWatch Logs log group."""
 
-from ...common.connection import CloudWatchLogsConnectionManager
+from ...common.connection import CloudWatchLogsConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional
 @mcp.tool(name='create-log-group')
 @handle_exceptions
 async def create_log_group(
+    aws_config: AWSConfig,
     log_group_name: str,
     kms_key_id: Optional[str] = None,
     tags: Optional[Dict[str, str]] = None,
@@ -32,6 +33,10 @@ async def create_log_group(
     """Create a new CloudWatch Logs log group.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         log_group_name: The name of the log group to create
         kms_key_id: The Amazon Resource Name (ARN) of the KMS key to use for encryption
         tags: The key-value pairs to use for the tags
@@ -48,7 +53,7 @@ async def create_log_group(
             'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
         )
 
-    client = CloudWatchLogsConnectionManager.get_connection()
+    client = CloudWatchLogsConnectionManager.get_connection(aws_config)
 
     # Build request parameters
     params: Dict[str, Any] = {

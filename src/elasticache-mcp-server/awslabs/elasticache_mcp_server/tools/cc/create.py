@@ -14,7 +14,7 @@
 
 """Create cache cluster tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -99,7 +99,7 @@ class CreateCacheClusterRequest(BaseModel):
 
 @mcp.tool(name='create-cache-cluster')
 @handle_exceptions
-async def create_cache_cluster(request: CreateCacheClusterRequest) -> Dict:
+async def create_cache_cluster(request: CreateCacheClusterRequest, aws_config: AWSConfig) -> Dict:
     """Create an Amazon ElastiCache cache cluster."""
     # Check if readonly mode is enabled
     if Context.readonly_mode():
@@ -108,7 +108,7 @@ async def create_cache_cluster(request: CreateCacheClusterRequest) -> Dict:
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Convert request model to dictionary, only including non-None values
     create_request: Dict[str, Any] = {

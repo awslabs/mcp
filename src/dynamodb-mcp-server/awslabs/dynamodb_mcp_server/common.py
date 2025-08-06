@@ -16,6 +16,7 @@ import os
 from functools import wraps
 from typing import Any, Callable, Dict, List, Literal, Optional
 from typing_extensions import TypedDict
+from pydantic import BaseModel, Field
 
 
 def handle_exceptions(func: Callable) -> Callable:
@@ -332,3 +333,10 @@ class UpdateTableInput(TypedDict, total=False):
     StreamSpecification: StreamSpecification
     TableClass: Literal['STANDARD', 'STANDARD_INFREQUENT_ACCESS']
     WarmThroughput: WarmThroughput
+
+
+class AWSConfig(BaseModel):
+    """AWS credentials and region for creating clients."""
+    aws_access_key_id: str = Field(..., description="AWS access key ID")
+    aws_secret_access_key: str = Field(..., description="AWS secret access key")
+    region_name: str = Field("us-west-2", description="The aws region to run the tool")

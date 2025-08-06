@@ -14,7 +14,7 @@
 
 """Start migration tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -118,7 +118,7 @@ def prepare_request_dict(request: StartMigrationRequest) -> Dict[str, Any]:
 
 @mcp.tool(name='start-migration')
 @handle_exceptions
-async def start_migration(request: StartMigrationRequest) -> Dict:
+async def start_migration(request: StartMigrationRequest, aws_config: AWSConfig) -> Dict:
     """Start migration to an Amazon ElastiCache replication group.
 
     This tool starts migration from a Redis instance to an ElastiCache replication group.
@@ -130,6 +130,10 @@ async def start_migration(request: StartMigrationRequest) -> Dict:
             - replication_group_id: The ID of the replication group to which data should be migrated
             - customer_node_endpoint_list: List of endpoints from which data should be migrated.
               For Valkey or Redis OSS (cluster mode disabled), the list should have only one element.
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
 
     Returns:
         Dict containing information about the migration start result.
@@ -141,7 +145,7 @@ async def start_migration(request: StartMigrationRequest) -> Dict:
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Prepare request dictionary
     start_request = prepare_request_dict(request)

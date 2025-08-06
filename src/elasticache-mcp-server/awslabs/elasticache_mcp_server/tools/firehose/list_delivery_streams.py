@@ -14,7 +14,7 @@
 
 """Tool for listing Kinesis Firehose delivery streams."""
 
-from ...common.connection import FirehoseConnectionManager
+from ...common.connection import FirehoseConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Any, Dict
@@ -23,6 +23,7 @@ from typing import Any, Dict
 @mcp.tool(name='list-delivery-streams')
 @handle_exceptions
 async def list_delivery_streams(
+    aws_config: AWSConfig,
     limit: Any = None,
     delivery_stream_type: Any = None,
     exclusive_start_delivery_stream_name: Any = None,
@@ -30,6 +31,10 @@ async def list_delivery_streams(
     """List your delivery streams.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         limit: The maximum number of delivery streams to list
         delivery_stream_type: The delivery stream type. This can be one of the following values:
             DirectPut - Provider data is sent directly to the Firehose stream
@@ -39,7 +44,7 @@ async def list_delivery_streams(
     Returns:
         Dict containing the list of delivery streams and whether there are more streams available
     """
-    client = FirehoseConnectionManager.get_connection()
+    client = FirehoseConnectionManager.get_connection(aws_config)
 
     # Build request parameters
     params: Dict[str, Any] = {}

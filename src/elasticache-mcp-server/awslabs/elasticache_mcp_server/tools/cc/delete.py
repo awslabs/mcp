@@ -14,7 +14,7 @@
 
 """Delete cache cluster tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -24,6 +24,7 @@ from typing import Optional
 @mcp.tool(name='delete-cache-cluster')
 @handle_exceptions
 async def delete_cache_cluster(
+    aws_config: AWSConfig,
     cache_cluster_id: str,
     final_snapshot_identifier: Optional[str] = None,
 ) -> dict:
@@ -33,6 +34,10 @@ async def delete_cache_cluster(
     snapshot of the cluster before deletion.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         cache_cluster_id (str): The ID of the cache cluster to delete.
         final_snapshot_identifier (Optional[str]): The user-supplied name of a final
             cache cluster snapshot. This is the unique name that identifies the
@@ -49,7 +54,7 @@ async def delete_cache_cluster(
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build delete request
     delete_request = {

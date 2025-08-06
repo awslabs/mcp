@@ -14,7 +14,7 @@
 
 """Tool for describing CloudWatch Logs log groups."""
 
-from ...common.connection import CloudWatchLogsConnectionManager
+from ...common.connection import CloudWatchLogsConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Any, Dict, List, Optional
@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 @mcp.tool(name='describe-log-groups')
 @handle_exceptions
 async def describe_log_groups(
+    aws_config: AWSConfig,
     account_identifiers: Optional[List[str]] = None,
     log_group_name_prefix: Optional[str] = None,
     log_group_name_pattern: Optional[str] = None,
@@ -36,6 +37,10 @@ async def describe_log_groups(
     """Describe CloudWatch Logs log groups.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         account_identifiers: List of account IDs to filter log groups
         log_group_name_prefix: Prefix to filter log groups by name
         log_group_name_pattern: Pattern to match log group names
@@ -49,7 +54,7 @@ async def describe_log_groups(
     Returns:
         Dict containing log groups information or error details
     """
-    client = CloudWatchLogsConnectionManager.get_connection()
+    client = CloudWatchLogsConnectionManager.get_connection(aws_config)
 
     # Build request parameters
     params: Dict[str, Any] = {}

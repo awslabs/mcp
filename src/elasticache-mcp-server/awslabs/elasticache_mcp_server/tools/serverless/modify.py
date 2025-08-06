@@ -14,7 +14,7 @@
 
 """Modify serverless cache operations."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from .models import ModifyServerlessCacheRequest
@@ -23,7 +23,10 @@ from typing import Dict
 
 @mcp.tool(name='modify-serverless-cache')
 @handle_exceptions
-async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict:
+async def modify_serverless_cache(
+    request: ModifyServerlessCacheRequest,
+    aws_config: AWSConfig,
+) -> Dict:
     """Modify an Amazon ElastiCache serverless cache.
 
     This tool modifies the configuration of an existing serverless cache including:
@@ -35,26 +38,32 @@ async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict
     - User groups
 
     Parameters:
-        serverless_cache_name (str): Name of the serverless cache to modify.
-        apply_immediately (Optional[bool]): Whether to apply changes immediately or during maintenance window.
-        description (Optional[str]): New description for the cache.
-        major_engine_version (Optional[str]): New major engine version.
-        snapshot_retention_limit (Optional[int]): Number of days for which ElastiCache retains automatic snapshots.
-        daily_snapshot_time (Optional[str]): Time range (in UTC) when daily snapshots are taken (e.g., '04:00-05:00').
-        cache_usage_limits (Optional[CacheUsageLimits]): New usage limits for the cache. Structure:
-            {
-                "DataStorage": {
-                    "Maximum": int,  # Maximum storage in GB
-                    "Minimum": int,  # Minimum storage in GB
-                    "Unit": "GB"     # Storage unit (currently only GB is supported)
-                },
-                "ECPUPerSecond": {
-                    "Maximum": int,  # Maximum ECPU per second
-                    "Minimum": int   # Minimum ECPU per second
+        request (ModifyServerlessCacheRequest): Request object containing modification parameters.
+            serverless_cache_name (str): Name of the serverless cache to modify.
+            apply_immediately (Optional[bool]): Whether to apply changes immediately or during maintenance window.
+            description (Optional[str]): New description for the cache.
+            major_engine_version (Optional[str]): New major engine version.
+            snapshot_retention_limit (Optional[int]): Number of days for which ElastiCache retains automatic snapshots.
+            daily_snapshot_time (Optional[str]): Time range (in UTC) when daily snapshots are taken (e.g., '04:00-05:00').
+            cache_usage_limits (Optional[CacheUsageLimits]): New usage limits for the cache. Structure:
+                {
+                    "DataStorage": {
+                        "Maximum": int,  # Maximum storage in GB
+                        "Minimum": int,  # Minimum storage in GB
+                        "Unit": "GB"     # Storage unit (currently only GB is supported)
+                    },
+                    "ECPUPerSecond": {
+                        "Maximum": int,  # Maximum ECPU per second
+                        "Minimum": int   # Minimum ECPU per second
+                    }
                 }
-            }
-        security_group_ids (Optional[List[str]]): List of security group IDs.
-        user_group_id (Optional[str]): ID of the user group to associate with the cache.
+            security_group_ids (Optional[List[str]]): List of security group IDs.
+            user_group_id (Optional[str]): ID of the user group to associate with the cache.
+        aws_config (AWSConfig):
+            Pydantic model with:
+                - aws_access_key_id: str
+                - aws_secret_access_key: str
+                - region_name: str
 
     Returns:
         Dict containing information about the modified serverless cache.
@@ -76,7 +85,7 @@ async def modify_serverless_cache(request: ModifyServerlessCacheRequest) -> Dict
         Dict containing information about the modified serverless cache.
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Convert request to dict and remove None values
     modify_request = {k: v for k, v in request.model_dump().items() if v is not None}

@@ -14,7 +14,7 @@
 
 """Tool for describing CloudWatch Logs log streams."""
 
-from ...common.connection import CloudWatchLogsConnectionManager
+from ...common.connection import CloudWatchLogsConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Any, Dict, Optional
@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional
 @mcp.tool(name='describe-log-streams')
 @handle_exceptions
 async def describe_log_streams(
+    aws_config: AWSConfig,
     log_group_name: Optional[str] = None,
     log_group_identifier: Optional[str] = None,
     log_stream_name_prefix: Optional[str] = None,
@@ -47,7 +48,7 @@ async def describe_log_streams(
     Returns:
         Dict containing information about the log streams or error details.
     """
-    client = CloudWatchLogsConnectionManager.get_connection()
+    client = CloudWatchLogsConnectionManager.get_connection(aws_config)
 
     # Build request parameters
     params: Dict[str, Any] = {}

@@ -14,309 +14,255 @@
 
 """awslabs lambda MCP Server implementation."""
 
-import boto3
 import json
 import logging
 import os
 import re
+from typing import Optional, Dict
+
+import boto3
+from pydantic import BaseModel, Field, validator
 from mcp.server.fastmcp import Context, FastMCP
-from typing import Optional
 
-
-# Set up logging
+# ------------------------------------------------------------------------------
+# logging setup
+# ------------------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
-logger.info(f'AWS_PROFILE: {AWS_PROFILE}')
+# ------------------------------------------------------------------------------
+# Pydantic model for AWS credentials passed in to every tool call
+# ------------------------------------------------------------------------------
+class AWSConfig(BaseModel):
+    """AWS credentials and region for creating clients."""
+    aws_access_key_id: str = Field(..., description="AWS access key ID")
+    aws_secret_access_key: str = Field(..., description="AWS secret access key")
+    region_name: str = Field(..., description="AWS region, e.g. 'us-east-1'")
 
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-logger.info(f'AWS_REGION: {AWS_REGION}')
+    @validator("region_name")
+    def region_must_not_be_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("region_name must be a non-empty string")
+        return v
 
-FUNCTION_PREFIX = os.environ.get('FUNCTION_PREFIX', '')
-logger.info(f'FUNCTION_PREFIX: {FUNCTION_PREFIX}')
-
+# ------------------------------------------------------------------------------
+# Read optional function‐filtering parameters from env for compatibility
+# ------------------------------------------------------------------------------
+FUNCTION_PREFIX = os.environ.get("FUNCTION_PREFIX", "").strip()
 FUNCTION_LIST = [
-    function_name.strip()
-    for function_name in os.environ.get('FUNCTION_LIST', '').split(',')
-    if function_name.strip()
+    fn.strip()
+    for fn in os.environ.get("FUNCTION_LIST", "").split(",")
+    if fn.strip()
 ]
-logger.info(f'FUNCTION_LIST: {FUNCTION_LIST}')
+FUNCTION_TAG_KEY = os.environ.get("FUNCTION_TAG_KEY", "").strip()
+FUNCTION_TAG_VALUE = os.environ.get("FUNCTION_TAG_VALUE", "").strip()
+FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY = os.environ.get(
+    "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY"
+)
 
-FUNCTION_TAG_KEY = os.environ.get('FUNCTION_TAG_KEY', '')
-logger.info(f'FUNCTION_TAG_KEY: {FUNCTION_TAG_KEY}')
+logger.info(f"FUNCTION_PREFIX: {FUNCTION_PREFIX!r}")
+logger.info(f"FUNCTION_LIST: {FUNCTION_LIST}")
+logger.info(f"FUNCTION_TAG_KEY: {FUNCTION_TAG_KEY!r}")
+logger.info(f"FUNCTION_TAG_VALUE: {FUNCTION_TAG_VALUE!r}")
+logger.info(f"FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY!r}")
 
-FUNCTION_TAG_VALUE = os.environ.get('FUNCTION_TAG_VALUE', '')
-logger.info(f'FUNCTION_TAG_VALUE: {FUNCTION_TAG_VALUE}')
-
-FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY = os.environ.get('FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY')
-logger.info(f'FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY: {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY}')
-
-# Initialize AWS clients
-session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
-lambda_client = session.client('lambda')
-schemas_client = session.client('schemas')
-
+# ------------------------------------------------------------------------------
+# MCP server instance
+# ------------------------------------------------------------------------------
 mcp = FastMCP(
-    'awslabs.lambda-tool-mcp-server',
-    instructions="""Use AWS Lambda functions to improve your answers.
-    These Lambda functions give you additional capabilities and access to AWS services and resources in an AWS account.""",
-    dependencies=['pydantic', 'boto3'],
+    "awslabs.lambda-tool-mcp-server",
+    instructions=(
+        "Use AWS Lambda functions to improve your answers. "
+        "These Lambda functions give you additional capabilities and access "
+        "to AWS services and resources in an AWS account."
+    ),
+    dependencies=["pydantic", "boto3"],
 )
 
 
-def validate_function_name(function_name: str) -> bool:
-    """Validate that the function name is valid and can be called."""
-    # If both prefix and list are empty, consider all functions valid
-    if not FUNCTION_PREFIX and not FUNCTION_LIST:
-        return True
-
-    # Otherwise, check if the function name matches the prefix or is in the list
-    return (FUNCTION_PREFIX and function_name.startswith(FUNCTION_PREFIX)) or (
-        function_name in FUNCTION_LIST
+# ------------------------------------------------------------------------------
+# Helper: instantiate any AWS client from AWSConfig
+# ------------------------------------------------------------------------------
+def get_aws_client(service_name: str, credentials: AWSConfig):
+    """
+    Create a boto3 client for the given service using explicit credentials.
+    """
+    return boto3.client(
+        service_name,
+        aws_access_key_id=credentials.aws_access_key_id,
+        aws_secret_access_key=credentials.aws_secret_access_key,
+        region_name=credentials.region_name,
     )
 
 
-def sanitize_tool_name(name: str) -> str:
-    """Sanitize a Lambda function name to be used as a tool name."""
-    # Remove prefix if present
-    if name.startswith(FUNCTION_PREFIX):
-        name = name[len(FUNCTION_PREFIX) :]
-
-    # Replace invalid characters with underscore
-    name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
-
-    # Ensure name doesn't start with a number
-    if name and name[0].isdigit():
-        name = '_' + name
-
-    return name
+# ------------------------------------------------------------------------------
+# Validation / filtering for function discovery
+# ------------------------------------------------------------------------------
+def validate_function_name(function_name: str) -> bool:
+    """Allow if no prefix/list is set, else must match."""
+    if not FUNCTION_PREFIX and not FUNCTION_LIST:
+        return True
+    if FUNCTION_PREFIX and function_name.startswith(FUNCTION_PREFIX):
+        return True
+    if FUNCTION_LIST and function_name in FUNCTION_LIST:
+        return True
+    return False
 
 
-def format_lambda_response(function_name: str, payload: bytes) -> str:
-    """Format the Lambda function response payload."""
+def filter_functions_by_tag(functions, tag_key: str, tag_value: str):
+    """Return only functions with the given tag key=value."""
+    logger.info(f"Filtering {len(functions)} functions by tag {tag_key}={tag_value}")
+    filtered = []
+    for fn in functions:
+        try:
+            tags = get_aws_client("lambda", aws_creds).list_tags(
+                Resource=fn["FunctionArn"]
+            ).get("Tags", {})
+            if tags.get(tag_key) == tag_value:
+                filtered.append(fn)
+        except Exception as e:
+            logger.warning(f"Could not retrieve tags for {fn['FunctionName']}: {e}")
+    logger.info(f"{len(filtered)} functions remain after tag filter.")
+    return filtered
+
+
+# ------------------------------------------------------------------------------
+# Schema registry helper
+# ------------------------------------------------------------------------------
+def get_schema_from_registry(
+    schemas_client, schema_arn: str
+) -> Optional[str]:
+    """Fetch and return the raw schema content for a given ARN."""
     try:
-        # Try to parse the payload as JSON
-        payload_json = json.loads(payload)
-        return f'Function {function_name} returned: {json.dumps(payload_json, indent=2)}'
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        # Return raw payload if not JSON
-        return f'Function {function_name} returned payload: {payload}'
+        parts = schema_arn.split(":")
+        if len(parts) < 6:
+            logger.error(f"Bad schema ARN: {schema_arn}")
+            return None
+        registry, name = parts[5].split("/")[1:]
+        resp = schemas_client.describe_schema(
+            RegistryName=registry, SchemaName=name
+        )
+        return resp.get("Content")
+    except Exception as e:
+        logger.error(f"Error fetching schema {schema_arn}: {e}")
+        return None
 
 
-async def invoke_lambda_function_impl(function_name: str, parameters: dict, ctx: Context) -> str:
-    """Tool that invokes an AWS Lambda function with a JSON payload."""
-    await ctx.info(f'Invoking {function_name} with parameters: {parameters}')
+# ------------------------------------------------------------------------------
+# Generic invoker implementation
+# ------------------------------------------------------------------------------
+async def invoke_lambda_function_impl(
+    function_name: str,
+    parameters: Dict,
+    aws_config: AWSConfig,
+    ctx: Context,
+) -> str:
+    """
+    Invoke a Lambda by name, passing parameters, using the provided AWSConfig.
+    """
+    await ctx.info(f"Invoking {function_name} with parameters: {parameters}")
+    lambda_client = get_aws_client("lambda", aws_config)
 
     response = lambda_client.invoke(
         FunctionName=function_name,
-        InvocationType='RequestResponse',
+        InvocationType="RequestResponse",
         Payload=json.dumps(parameters),
     )
+    await ctx.info(f"StatusCode: {response['StatusCode']}")
+    if "FunctionError" in response:
+        errmsg = f"Function {function_name} error: {response['FunctionError']}"
+        await ctx.error(errmsg)
+        return errmsg
 
-    await ctx.info(f'Function {function_name} returned with status code: {response["StatusCode"]}')
-
-    if 'FunctionError' in response:
-        error_message = (
-            f'Function {function_name} returned with error: {response["FunctionError"]}'
-        )
-        await ctx.error(error_message)
-        return error_message
-
-    payload = response['Payload'].read()
-    # Format the response payload
-    return format_lambda_response(function_name, payload)
-
-
-def get_schema_from_registry(schema_arn: str) -> Optional[dict]:
-    """Fetch schema from EventBridge Schema Registry.
-
-    Args:
-        schema_arn: ARN of the schema to fetch
-
-    Returns:
-        Schema content if successful, None if failed
-    """
+    payload = response["Payload"].read()
     try:
-        # Parse registry name and schema name from ARN
-        # ARN format: arn:aws:schemas:region:account:schema/registry-name/schema-name
-        arn_parts = schema_arn.split(':')
-        if len(arn_parts) < 6:
-            logger.error(f'Invalid schema ARN format: {schema_arn}')
-            return None
-
-        registry_schema = arn_parts[5].split('/')
-        if len(registry_schema) != 3:
-            logger.error(f'Invalid schema path in ARN: {arn_parts[5]}')
-            return None
-
-        registry_name = registry_schema[1]
-        schema_name = registry_schema[2]
-
-        # Get the latest schema version
-        response = schemas_client.describe_schema(
-            RegistryName=registry_name,
-            SchemaName=schema_name,
-        )
-
-        # Return the raw schema content
-        return response['Content']
-
-    except Exception as e:
-        logger.error(f'Error fetching schema from registry: {e}')
-        return None
+        parsed = json.loads(payload)
+        pretty = json.dumps(parsed, indent=2)
+        return f"Function {function_name} returned:\n{pretty}"
+    except Exception:
+        return f"Function {function_name} returned raw payload: {payload!r}"
 
 
-def create_lambda_tool(function_name: str, description: str, schema_arn: Optional[str] = None):
-    """Create a tool function for a Lambda function.
-
-    Args:
-        function_name: Name of the Lambda function
-        description: Base description for the tool
-        schema_arn: Optional ARN of the input schema in the Schema Registry
+# ------------------------------------------------------------------------------
+# Tool‐factory: create one decorator per Lambda
+# ------------------------------------------------------------------------------
+def create_lambda_tool(
+    function_name: str, description: str, schema_arn: Optional[str] = None
+):
     """
-    # Create a meaningful tool name
-    tool_name = sanitize_tool_name(function_name)
+    Dynamically register an MCP tool that calls a specific Lambda.
+    Expects incoming parameters to include:
+      - aws_config: dict matching AWSConfig
+      - payload: dict of the actual function arguments
+    """
+    tool_name = re.sub(r"[^a-zA-Z0-9_]", "_", function_name)
+    if tool_name[0].isdigit():
+        tool_name = "_" + tool_name
 
-    # Define the inner function
-    async def lambda_function(parameters: dict, ctx: Context) -> str:
-        """Tool for invoking a specific AWS Lambda function with parameters."""
-        # Use the same implementation as the generic invoke function
-        return await invoke_lambda_function_impl(function_name, parameters, ctx)
-
-    # Set the function's documentation
+    # pull in JSON schema if available
+    doc = description
     if schema_arn:
-        schema = get_schema_from_registry(schema_arn)
-        if schema:
-            #  We add the schema to the description because mcp.tool does not expose overriding the tool schema.
-            description_with_schema = f'{description}\n\nInput Schema:\n{schema}'
-            lambda_function.__doc__ = description_with_schema
-            logger.info(f'Added schema from registry to description for function {function_name}')
-        else:
-            lambda_function.__doc__ = description
-    else:
-        lambda_function.__doc__ = description
-
-    logger.info(f'Registering tool {tool_name} with description: {description}')
-    # Apply the decorator manually with the specific name
-    decorated_function = mcp.tool(name=tool_name)(lambda_function)
-
-    return decorated_function
-
-
-def get_schema_arn_from_function_arn(function_arn: str) -> Optional[str]:
-    """Get schema ARN from function tags if configured.
-
-    Args:
-        function_arn: ARN of the Lambda function
-
-    Returns:
-        Schema ARN if found and configured, None otherwise
-    """
-    if not FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY:
-        logger.info(
-            'No schema tag environment variable provided (FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY ).'
+        # note: we fetch schema only once at startup
+        aws_creds = AWSConfig(
+            aws_access_key_id="DUMMY",
+            aws_secret_access_key="DUMMY",
+            region_name="us-east-1",
         )
-        return None
+        client = get_aws_client("schemas", aws_creds)
+        schema_content = get_schema_from_registry(client, schema_arn)
+        if schema_content:
+            doc = f"{description}\n\nInput Schema:\n{schema_content}"
 
-    try:
-        tags_response = lambda_client.list_tags(Resource=function_arn)
-        tags = tags_response.get('Tags', {})
-        if FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY in tags:
-            return tags[FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY]
-        else:
-            logger.info(
-                f'No schema arn provided for function {function_arn} via tag {FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY}'
-            )
-    except Exception as e:
-        logger.warning(f'Error checking tags for function {function_arn}: {e}')
+    @mcp.tool(name=tool_name, description=doc)
+    async def _lambda_tool(args: Dict, ctx: Context) -> str:
+        """
+        args must have:
+          - aws_config: { aws_access_key_id, aws_secret_access_key, region_name }
+          - payload: the dict passed to the Lambda
+        """
+        # validate aws_config
+        raw_conf = args.get("aws_config")
+        aws_conf = AWSConfig(**raw_conf)
+        payload = args.get("payload", {})
+        return await invoke_lambda_function_impl(
+            function_name, payload, aws_conf, ctx
+        )
 
-    return None
-
-
-def filter_functions_by_tag(functions, tag_key, tag_value):
-    """Filter Lambda functions by a specific tag key-value pair.
-
-    Args:
-        functions: List of Lambda function objects
-        tag_key: Tag key to filter by
-        tag_value: Tag value to filter by
-
-    Returns:
-        List of Lambda functions that have the specified tag key-value pair
-    """
-    logger.info(f'Filtering functions by tag key-value pair: {tag_key}={tag_value}')
-    tagged_functions = []
-
-    for function in functions:
-        try:
-            # Get tags for the function
-            tags_response = lambda_client.list_tags(Resource=function['FunctionArn'])
-            tags = tags_response.get('Tags', {})
-
-            # Check if the function has the specified tag key-value pair
-            if tag_key in tags and tags[tag_key] == tag_value:
-                tagged_functions.append(function)
-        except Exception as e:
-            logger.warning(f'Error getting tags for function {function["FunctionName"]}: {e}')
-
-    logger.info(f'{len(tagged_functions)} Lambda functions found with tag {tag_key}={tag_value}.')
-    return tagged_functions
+    return _lambda_tool
 
 
+# ------------------------------------------------------------------------------
+# Discover & register all your Lambda functions
+# ------------------------------------------------------------------------------
 def register_lambda_functions():
-    """Register Lambda functions as individual tools."""
-    try:
-        logger.info('Registering Lambda functions as individual tools...')
-        functions = lambda_client.list_functions()
+    # for discovery we still need a client; fall back to env if no creds
+    # allows your MCP server to discover fns via profile if you want.
+    fallback = boto3.Session().client("lambda")
+    all_fns = fallback.list_functions()["Functions"]
+    valid = [f for f in all_fns if validate_function_name(f["FunctionName"])]
 
-        # Get all functions
-        all_functions = functions['Functions']
-        logger.info(f'Total Lambda functions found: {len(all_functions)}')
+    if FUNCTION_TAG_KEY and FUNCTION_TAG_VALUE:
+        valid = filter_functions_by_tag(valid, FUNCTION_TAG_KEY, FUNCTION_TAG_VALUE)
 
-        # First filter by function name if prefix or list is set
-        if FUNCTION_PREFIX or FUNCTION_LIST:
-            valid_functions = [
-                f for f in all_functions if validate_function_name(f['FunctionName'])
-            ]
-            logger.info(f'{len(valid_functions)} Lambda functions found after name filtering.')
-        else:
-            valid_functions = all_functions
-            logger.info(
-                'No name filtering applied (both FUNCTION_PREFIX and FUNCTION_LIST are empty).'
-            )
+    for fn in valid:
+        arn = fn["FunctionArn"]
+        desc = fn.get("Description", f"Invoke Lambda {fn['FunctionName']}")
+        schema_arn = None
+        if FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY:
+            tags = fallback.list_tags(Resource=arn).get("Tags", {})
+            schema_arn = tags.get(FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY)
+        create_lambda_tool(fn["FunctionName"], desc, schema_arn)
 
-        # Then filter by tag if both FUNCTION_TAG_KEY and FUNCTION_TAG_VALUE are set and non-empty
-        if FUNCTION_TAG_KEY and FUNCTION_TAG_VALUE:
-            tagged_functions = filter_functions_by_tag(
-                valid_functions, FUNCTION_TAG_KEY, FUNCTION_TAG_VALUE
-            )
-            valid_functions = tagged_functions
-        elif FUNCTION_TAG_KEY or FUNCTION_TAG_VALUE:
-            logger.warning(
-                'Both FUNCTION_TAG_KEY and FUNCTION_TAG_VALUE must be set to filter by tag.'
-            )
-            valid_functions = []
-
-        for function in valid_functions:
-            function_name = function['FunctionName']
-            description = function.get('Description', f'AWS Lambda function: {function_name}')
-            schema_arn = get_schema_arn_from_function_arn(function['FunctionArn'])
-
-            create_lambda_tool(function_name, description, schema_arn)
-
-        logger.info('Lambda functions registered successfully as individual tools.')
-
-    except Exception as e:
-        logger.error(f'Error registering Lambda functions as tools: {e}')
+    logger.info(f"Registered {len(valid)} Lambda tools.")
 
 
+# ------------------------------------------------------------------------------
+# Entrypoint
+# ------------------------------------------------------------------------------
 def main():
-    """Run the MCP server with CLI argument support."""
     register_lambda_functions()
-
     mcp.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

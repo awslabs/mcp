@@ -14,7 +14,7 @@
 
 """Tool for retrieving log events from CloudWatch Logs."""
 
-from ...common.connection import CloudWatchLogsConnectionManager
+from ...common.connection import CloudWatchLogsConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from datetime import datetime
@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional
 @mcp.tool(name='get-log-events')
 @handle_exceptions
 async def get_log_events(
+    aws_config: AWSConfig,
     log_stream_name: str,
     log_group_name: Optional[str] = None,
     log_group_identifier: Optional[str] = None,
@@ -37,6 +38,7 @@ async def get_log_events(
     """Get log events from CloudWatch Logs.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
         log_group_name: The name of the log group
         log_group_identifier: The unique identifier of the log group
         log_stream_name: The name of the log stream
@@ -53,7 +55,7 @@ async def get_log_events(
         - nextForwardToken: Token for getting the next set of events
         - nextBackwardToken: Token for getting the previous set of events
     """
-    client = CloudWatchLogsConnectionManager.get_connection()
+    client = CloudWatchLogsConnectionManager.get_connection(aws_config)
 
     # Build request parameters
     params: Dict[str, Any] = {

@@ -14,7 +14,7 @@
 
 """Describe events tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from datetime import datetime
@@ -24,6 +24,7 @@ from typing import Dict, Optional
 @mcp.tool(name='describe-events')
 @handle_exceptions
 async def describe_events(
+    aws_config: AWSConfig,
     source_type: Optional[str] = None,
     source_identifier: Optional[str] = None,
     start_time: Optional[datetime] = None,
@@ -35,6 +36,10 @@ async def describe_events(
     """Returns events related to clusters, cache security groups, and parameter groups.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         source_type (Optional[str]): The event source to retrieve events for. If not specified, all
             events are returned. Valid values: cache-cluster | cache-parameter-group |
             cache-security-group | cache-subnet-group | replication-group | user | user-group
@@ -60,7 +65,7 @@ async def describe_events(
         - Marker: Pagination marker for next set of results
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build describe request
     describe_request = {}

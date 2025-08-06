@@ -14,7 +14,7 @@
 
 """Tool for getting CloudWatch metric statistics."""
 
-from ...common.connection import CloudWatchConnectionManager
+from ...common.connection import CloudWatchConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from datetime import datetime
@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 @mcp.tool(name='get-metric-statistics')
 @handle_exceptions
 async def get_metric_statistics(
+    aws_config: AWSConfig,
     metric_name: str,
     start_time: str,
     end_time: str,
@@ -36,6 +37,10 @@ async def get_metric_statistics(
     """Get CloudWatch metric statistics.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         metric_name: The name of the metric
         start_time: The start time in ISO 8601 format
         end_time: The end time in ISO 8601 format
@@ -48,7 +53,7 @@ async def get_metric_statistics(
     Returns:
         Dict containing metric statistics
     """
-    client = CloudWatchConnectionManager.get_connection()
+    client = CloudWatchConnectionManager.get_connection(aws_config)
 
     # Convert ISO 8601 strings to datetime objects
     start = datetime.fromisoformat(start_time.replace('Z', '+00:00'))

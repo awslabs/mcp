@@ -14,7 +14,7 @@
 
 """Create serverless cache operations."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -24,7 +24,10 @@ from typing import Dict
 
 @mcp.tool(name='create-serverless-cache')
 @handle_exceptions
-async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict:
+async def create_serverless_cache(
+    request: CreateServerlessCacheRequest,
+    aws_config: AWSConfig,
+) -> Dict:
     """Create a new Amazon ElastiCache serverless cache.
 
     This tool creates a new serverless cache with specified configuration including:
@@ -36,40 +39,46 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
     - Optional tags
 
     Parameters:
-        serverless_cache_name (str): Name of the serverless cache.
-        engine (str): Cache engine type.
-        description (Optional[str]): Description for the cache.
-        kms_key_id (Optional[str]): KMS key ID for encryption.
-        major_engine_version (Optional[str]): Major engine version.
-        snapshot_arns_to_restore (Optional[List[str]]): List of snapshot ARNs to restore from.
-        subnet_ids (Optional[List[str]]): List of subnet IDs for VPC configuration.
-        tags (Optional[Union[str, List[Dict[str, Optional[str]]], Dict[str, Optional[str]]]]): Tags to apply to the cache.
-            Tag requirements:
-            - Key: (string) Required. The key for the tag. Must not be empty.
-            - Value: (string) Optional. The tag's value. May be null.
+        request (CreateServerlessCacheRequest): Request object containing all parameters.
+            serverless_cache_name (str): Name of the serverless cache to create.
+            engine (str): Cache engine type.
+            description (Optional[str]): Description for the cache.
+            kms_key_id (Optional[str]): KMS key ID for encryption.
+            major_engine_version (Optional[str]): Major engine version.
+            snapshot_arns_to_restore (Optional[List[str]]): List of snapshot ARNs to restore from.
+            subnet_ids (Optional[List[str]]): List of subnet IDs for VPC configuration.
+            tags (Optional[Union[str, List[Dict[str, Optional[str]]], Dict[str, Optional[str]]]]): Tags to apply to the cache.
+                Tag requirements:
+                - Key: (string) Required. The key for the tag. Must not be empty.
+                - Value: (string) Optional. The tag's value. May be null.
 
-            Supports three formats:
-            1. Shorthand syntax: "Key=value,Key2=value2" or "Key=,Key2=" for null values
-            2. Dictionary: {"key": "value", "key2": null}
-            3. JSON array: [{"Key": "string", "Value": "string"}, {"Key": "string2", "Value": null}]
+                Supports three formats:
+                1. Shorthand syntax: "Key=value,Key2=value2" or "Key=,Key2=" for null values
+                2. Dictionary: {"key": "value", "key2": null}
+                3. JSON array: [{"Key": "string", "Value": "string"}, {"Key": "string2", "Value": null}]
 
-            Can be None if no tags are needed.
-        security_group_ids (Optional[List[str]]): List of security group IDs.
-        cache_usage_limits (Optional[CacheUsageLimits]): Usage limits for the cache. Structure:
-            {
-                "DataStorage": {
-                    "Maximum": int,  # Maximum storage in GB
-                    "Minimum": int,  # Minimum storage in GB
-                    "Unit": "GB"     # Storage unit (currently only GB is supported)
-                },
-                "ECPUPerSecond": {
-                    "Maximum": int,  # Maximum ECPU per second
-                    "Minimum": int   # Minimum ECPU per second
+                Can be None if no tags are needed.
+            security_group_ids (Optional[List[str]]): List of security group IDs.
+            cache_usage_limits (Optional[CacheUsageLimits]): Usage limits for the cache. Structure:
+                {
+                    "DataStorage": {
+                        "Maximum": int,  # Maximum storage in GB
+                        "Minimum": int,  # Minimum storage in GB
+                        "Unit": "GB"     # Storage unit (currently only GB is supported)
+                    },
+                    "ECPUPerSecond": {
+                        "Maximum": int,  # Maximum ECPU per second
+                        "Minimum": int   # Minimum ECPU per second
+                    }
                 }
-            }
-        user_group_id (Optional[str]): ID of the user group to associate with the cache.
-        snapshot_retention_limit (Optional[int]): Number of days for which ElastiCache retains automatic snapshots.
-        daily_snapshot_time (Optional[str]): Time range (in UTC) when daily snapshots are taken (e.g., '04:00-05:00').
+            user_group_id (Optional[str]): ID of the user group to associate with the cache.
+            snapshot_retention_limit (Optional[int]): Number of days for which ElastiCache retains automatic snapshots.
+            daily_snapshot_time (Optional[str]): Time range (in UTC) when daily snapshots are taken (e.g., '04:00-05:00').
+        aws_config (AWSConfig):
+            Pydantic model with:
+                - aws_access_key_id: str
+                - aws_secret_access_key: str
+                - region_name: str
 
     Returns:
         Dict containing information about the created serverless cache.
@@ -97,7 +106,7 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build AWS API request
     create_request = {}

@@ -14,7 +14,7 @@
 
 """Get cost and usage data for ElastiCache resources."""
 
-from ...common.connection import CostExplorerConnectionManager
+from ...common.connection import CostExplorerConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from pydantic import BaseModel, ConfigDict, Field
@@ -36,7 +36,7 @@ class GetCostAndUsageRequest(BaseModel):
 
 @mcp.tool(name='get-cost-and-usage')
 @handle_exceptions
-async def get_cost_and_usage(request: GetCostAndUsageRequest) -> Dict[str, Any]:
+async def get_cost_and_usage(request: GetCostAndUsageRequest, aws_config: AWSConfig) -> Dict[str, Any]:
     """Get cost and usage data for ElastiCache resources.
 
     This tool retrieves cost and usage data for ElastiCache resources with customizable
@@ -49,12 +49,16 @@ async def get_cost_and_usage(request: GetCostAndUsageRequest) -> Dict[str, Any]:
         request: The GetCostAndUsageRequest object containing:
             - time_period: Time period in YYYY-MM-DD/YYYY-MM-DD format
             - granularity: Data granularity (DAILY, MONTHLY, or HOURLY)
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
 
     Returns:
         Dict containing the cost and usage data.
     """
     # Get Cost Explorer client
-    ce_client = CostExplorerConnectionManager.get_connection()
+    ce_client = CostExplorerConnectionManager.get_connection(aws_config)
 
     # Split time period into start and end dates
     start_date, end_date = request.time_period.split('/')

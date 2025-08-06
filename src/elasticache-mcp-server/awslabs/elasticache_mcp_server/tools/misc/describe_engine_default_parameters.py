@@ -14,7 +14,7 @@
 
 """Describe engine default parameters tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Dict, Optional
@@ -23,6 +23,7 @@ from typing import Dict, Optional
 @mcp.tool(name='describe-engine-default-parameters')
 @handle_exceptions
 async def describe_engine_default_parameters(
+    aws_config: AWSConfig,
     cache_parameter_group_family: str,
     max_records: Optional[int] = None,
     marker: Optional[str] = None,
@@ -30,6 +31,10 @@ async def describe_engine_default_parameters(
     """Returns the default engine and system parameter information for the specified cache engine family.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         cache_parameter_group_family (str): The name of the cache parameter group family.
             Valid values are: memcached1.4 | memcached1.5 | memcached1.6 | redis2.6 | redis2.8 |
             redis3.2 | redis4.0 | redis5.0 | redis6.x | redis7.x | valkey7.x | valkey8.x
@@ -48,7 +53,7 @@ async def describe_engine_default_parameters(
         - Marker: Pagination marker for next set of results
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build describe request
     describe_request = {'CacheParameterGroupFamily': cache_parameter_group_family}

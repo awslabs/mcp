@@ -15,7 +15,7 @@
 """Modify replication group tool for ElastiCache MCP server."""
 
 import json
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Union
 @mcp.tool(name='modify-replication-group-shard-configuration')
 @handle_exceptions
 async def modify_replication_group_shard_configuration(
+    aws_config: AWSConfig,
     replication_group_id: str,
     node_group_count: int,
     apply_immediately: Optional[bool] = None,
@@ -39,6 +40,10 @@ async def modify_replication_group_shard_configuration(
     - Specifying preferred availability zones for replicas
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         replication_group_id (str): The identifier of the replication group to modify.
         node_group_count (int): The number of node groups (shards) in the replication group.
         apply_immediately (Optional[bool]): Whether to apply changes immediately or during maintenance window.
@@ -61,7 +66,7 @@ async def modify_replication_group_shard_configuration(
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build modify request
     modify_request = {
@@ -201,7 +206,7 @@ def prepare_modify_request_dict(request: ModifyReplicationGroupRequest) -> Dict[
 
 @mcp.tool(name='modify-replication-group')
 @handle_exceptions
-async def modify_replication_group(request: ModifyReplicationGroupRequest) -> Dict:
+async def modify_replication_group(request: ModifyReplicationGroupRequest, aws_config: AWSConfig) -> Dict:
     """Modify an existing Amazon ElastiCache replication group.
 
     This tool modifies the settings of an existing replication group including:
@@ -215,6 +220,10 @@ async def modify_replication_group(request: ModifyReplicationGroupRequest) -> Di
 
     Args:
         request: The ModifyReplicationGroupRequest object containing all parameters
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
 
     Returns:
         Dict containing information about the modified replication group.
@@ -226,7 +235,7 @@ async def modify_replication_group(request: ModifyReplicationGroupRequest) -> Di
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Prepare request dictionary
     modify_request = prepare_modify_request_dict(request)

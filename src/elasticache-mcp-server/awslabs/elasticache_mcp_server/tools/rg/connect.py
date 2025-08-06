@@ -14,7 +14,7 @@
 
 """Connect module for creating and configuring jump host EC2 instances to access ElastiCache replication groups."""
 
-from ...common.connection import EC2ConnectionManager, ElastiCacheConnectionManager
+from ...common.connection import EC2ConnectionManager, ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -23,6 +23,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 
 
 async def _configure_security_groups(
+    aws_config: AWSConfig,
     replication_group_id: str,
     instance_id: str,
     ec2_client: Any = None,
@@ -31,6 +32,10 @@ async def _configure_security_groups(
     """Configure security group rules to allow access from EC2 instance to ElastiCache replication group.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         replication_group_id (str): ID of the ElastiCache replication group
         instance_id (str): ID of the EC2 instance
         ec2_client (Any, optional): EC2 client. If not provided, will get from connection manager
@@ -43,9 +48,9 @@ async def _configure_security_groups(
         ValueError: If VPC compatibility check fails or required resources not found
     """
     if not ec2_client:
-        ec2_client = EC2ConnectionManager.get_connection()
+        ec2_client = EC2ConnectionManager.get_connection(aws_config)
     if not elasticache_client:
-        elasticache_client = ElastiCacheConnectionManager.get_connection()
+        elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Get replication group details
     replication_group = elasticache_client.describe_replication_groups(
@@ -201,11 +206,16 @@ async def connect_jump_host_rg(replication_group_id: str, instance_id: str) -> D
 @mcp.tool(name='get-ssh-tunnel-command-replication-group')
 @handle_exceptions
 async def get_ssh_tunnel_command_rg(
+    aws_config: AWSConfig,
     replication_group_id: str, instance_id: str
 ) -> Dict[str, Union[str, int]]:
     """Generates an SSH tunnel command to connect to an ElastiCache replication group through an EC2 jump host.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         replication_group_id (str): ID of the ElastiCache replication group to connect to
         instance_id (str): ID of the EC2 instance to use as jump host
 
@@ -216,8 +226,8 @@ async def get_ssh_tunnel_command_rg(
         ValueError: If required resources not found or information cannot be retrieved
     """
     # Get AWS clients
-    ec2_client = EC2ConnectionManager.get_connection()
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    ec2_client = EC2ConnectionManager.get_connection(aws_config)
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     try:
         # Get EC2 instance details
@@ -280,6 +290,7 @@ async def get_ssh_tunnel_command_rg(
 @mcp.tool(name='create-jump-host-replication-group')
 @handle_exceptions
 async def create_jump_host_rg(
+    aws_config: AWSConfig,
     replication_group_id: str,
     key_name: str,
     subnet_id: Optional[str] = None,
@@ -289,6 +300,10 @@ async def create_jump_host_rg(
     """Creates an EC2 jump host instance to access an ElastiCache replication group via SSH tunnel.
 
     Args:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         replication_group_id (str): ID of the ElastiCache replication group to connect to
         key_name (str): Name of the EC2 key pair to use for SSH access
         subnet_id (str, optional): ID of the subnet to launch the EC2 instance in (must be public).
@@ -310,8 +325,8 @@ async def create_jump_host_rg(
         )
 
     # Get AWS clients from connection managers
-    ec2_client = EC2ConnectionManager.get_connection()
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    ec2_client = EC2ConnectionManager.get_connection(aws_config)
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     try:
         # Validate key_name

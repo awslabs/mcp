@@ -14,7 +14,7 @@
 
 """Create replication group tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -284,7 +284,7 @@ def prepare_request_dict(request: CreateReplicationGroupRequest) -> Dict[str, An
 
 @mcp.tool(name='create-replication-group')
 @handle_exceptions
-async def create_replication_group(request: CreateReplicationGroupRequest) -> Dict:
+async def create_replication_group(request: CreateReplicationGroupRequest, aws_config: AWSConfig) -> Dict:
     """Create an Amazon ElastiCache replication group.
 
     This tool creates a new replication group with specified configuration including:
@@ -297,6 +297,10 @@ async def create_replication_group(request: CreateReplicationGroupRequest) -> Di
 
     Args:
         request: The CreateReplicationGroupRequest object containing all parameters
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
 
     Returns:
         Dict containing information about the created replication group.
@@ -308,7 +312,7 @@ async def create_replication_group(request: CreateReplicationGroupRequest) -> Di
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Prepare request dictionary
     create_request = prepare_request_dict(request)

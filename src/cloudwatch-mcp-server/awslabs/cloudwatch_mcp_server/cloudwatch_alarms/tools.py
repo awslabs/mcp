@@ -17,6 +17,7 @@
 import boto3
 import json
 import os
+from awslabs.cloudwatch_mcp_server.common import AWSConfig
 from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
     ActiveAlarmsResponse,
@@ -43,19 +44,20 @@ class CloudWatchAlarmsTools:
         """Initialize the CloudWatch Alarms tools."""
         pass
 
-    def _get_cloudwatch_client(self, region: str):
+    def _get_cloudwatch_client(self, aws_config: AWSConfig):
         """Create a CloudWatch client for the specified region."""
         config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
 
         try:
-            if aws_profile := os.environ.get('AWS_PROFILE'):
-                return boto3.Session(profile_name=aws_profile, region_name=region).client(
-                    'cloudwatch', config=config
-                )
-            else:
-                return boto3.Session(region_name=region).client('cloudwatch', config=config)
+            return boto3.Session(
+                aws_access_key_id=aws_config.aws_access_key_id,
+                aws_secret_access_key=aws_config.aws_secret_access_key,
+                region_name=aws_config.region_name,
+            ).client(
+                'cloudwatch', config=config
+            )
         except Exception as e:
-            logger.error(f'Error creating cloudwatch client for region {region}: {str(e)}')
+            logger.error(f'Error creating cloudwatch client for region {aws_config.region_name}: {str(e)}')
             raise
 
     def register(self, mcp):
@@ -69,16 +71,13 @@ class CloudWatchAlarmsTools:
     async def get_active_alarms(
         self,
         ctx: Context,
+        aws_config: AWSConfig,
         max_items: Annotated[
             int | None,
             Field(
                 description='Maximum number of alarms to return (default: 50). Large values may cause context window overflow and impact LLM performance.'
             ),
         ] = 50,
-        region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
     ) -> ActiveAlarmsResponse:
         """Gets all CloudWatch alarms currently in ALARM state.
 
@@ -92,7 +91,10 @@ class CloudWatchAlarmsTools:
         Args:
             ctx: The MCP context object for error handling and logging.
             max_items: Maximum number of alarms to return (default: 50).
-            region: AWS region to query. Defaults to 'us-east-1'.
+            aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+                aws_access_key_id (str): AWS access key ID.
+                aws_secret_access_key (str): AWS secret access key.
+                region_name (str): AWS region, e.g. 'us-east-1'.
 
         Returns:
             ActiveAlarmsResponse: Response containing active alarms.
@@ -118,7 +120,7 @@ class CloudWatchAlarmsTools:
                 raise ValueError('max_items must be at least 1')
 
             # Create CloudWatch client for the specified region
-            cloudwatch_client = self._get_cloudwatch_client(region)
+            cloudwatch_client = self._get_cloudwatch_client(aws_config)
 
             # Fetch active alarms using paginator
             logger.info(f'Fetching up to {max_items} active alarms')
@@ -188,6 +190,7 @@ class CloudWatchAlarmsTools:
     async def get_alarm_history(
         self,
         ctx: Context,
+        aws_config: AWSConfig,
         alarm_name: str = Field(..., description='Name of the alarm to retrieve history for'),
         start_time: Annotated[
             str | None,
@@ -219,10 +222,6 @@ class CloudWatchAlarmsTools:
                 description='For composite alarms, whether to include details about component alarms. Defaults to false.'
             ),
         ] = False,
-        region: Annotated[
-            str,
-            Field(description='AWS region to query. Defaults to us-east-1.'),
-        ] = 'us-east-1',
     ) -> Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]:
         """Gets the history for a CloudWatch alarm with time range suggestions for investigation.
 
@@ -244,6 +243,10 @@ class CloudWatchAlarmsTools:
             history_item_type: Optional type of history items to retrieve. Defaults to 'StateUpdate'.
             max_items: Maximum number of history items to return. Defaults to 50.
             include_component_alarms: For composite alarms, whether to include details about component alarms.
+            aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+                aws_access_key_id (str): AWS access key ID.
+                aws_secret_access_key (str): AWS secret access key.
+                region_name (str): AWS region, e.g. 'us-east-1'.
 
         Returns:
             Union[AlarmHistoryResponse, CompositeAlarmComponentResponse]: Either a response containing
@@ -271,7 +274,7 @@ class CloudWatchAlarmsTools:
                 history_item_type = 'StateUpdate'
 
             # Create CloudWatch client for the specified region
-            cloudwatch_client = self._get_cloudwatch_client(region)
+            cloudwatch_client = self._get_cloudwatch_client(aws_config)
 
             # Set up default time range (last 24 hours)
             if end_time is None or not isinstance(end_time, str):

@@ -14,7 +14,7 @@
 
 """Describe cache engine versions tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Dict, Optional
@@ -23,6 +23,7 @@ from typing import Dict, Optional
 @mcp.tool(name='describe-cache-engine-versions')
 @handle_exceptions
 async def describe_cache_engine_versions(
+    aws_config: AWSConfig,
     engine: Optional[str] = None,
     engine_version: Optional[str] = None,
     cache_parameter_group_family: Optional[str] = None,
@@ -33,6 +34,10 @@ async def describe_cache_engine_versions(
     """Returns a list of the available cache engines and their versions.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         engine (Optional[str]): The cache engine to return. Valid values: memcached | redis | valkey
         engine_version (Optional[str]): The cache engine version to return.
             Example: memcached 1.4.14, redis 6.x, valkey 8.0
@@ -55,7 +60,7 @@ async def describe_cache_engine_versions(
         - Marker: Pagination marker for next set of results
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build describe request
     describe_request = {}

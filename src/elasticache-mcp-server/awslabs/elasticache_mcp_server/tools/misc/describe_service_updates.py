@@ -14,7 +14,7 @@
 
 """Describe service updates tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Dict, List, Optional
@@ -23,6 +23,7 @@ from typing import Dict, List, Optional
 @mcp.tool(name='describe-service-updates')
 @handle_exceptions
 async def describe_service_updates(
+    aws_config: AWSConfig,
     service_update_name: Optional[str] = None,
     service_update_status: Optional[List[str]] = None,
     starting_token: Optional[str] = None,
@@ -32,6 +33,10 @@ async def describe_service_updates(
     """Returns details of the service updates.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         service_update_name (Optional[str]): The unique ID of the service update to describe.
         service_update_status (Optional[List[str]]): List of status values to filter by.
             Valid values: available | cancelled | expired | complete
@@ -49,7 +54,7 @@ async def describe_service_updates(
         - NextToken: Token for next set of results
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build describe request
     describe_request = {}

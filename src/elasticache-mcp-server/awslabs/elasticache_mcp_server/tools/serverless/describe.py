@@ -14,7 +14,7 @@
 
 """Describe serverless cache operations."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Dict, Optional
@@ -23,6 +23,7 @@ from typing import Dict, Optional
 @mcp.tool(name='describe-serverless-caches')
 @handle_exceptions
 async def describe_serverless_caches(
+    aws_config: AWSConfig,
     serverless_cache_name: Optional[str] = None,
     max_items: Optional[int] = None,
     starting_token: Optional[str] = None,
@@ -38,6 +39,10 @@ async def describe_serverless_caches(
     - Cache connections
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         serverless_cache_name (Optional[str]): Name of the serverless cache to describe. If not provided, describes all caches.
         max_items (Optional[int]): Maximum number of results to return.
         starting_token (Optional[str]): Token to start the list from a specific page.
@@ -47,7 +52,7 @@ async def describe_serverless_caches(
         Dict containing information about the serverless cache(s).
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     if serverless_cache_name:
         # Get specific cache details

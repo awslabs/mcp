@@ -14,7 +14,7 @@
 
 """Describe replication groups tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Dict, Optional
@@ -23,6 +23,7 @@ from typing import Dict, Optional
 @mcp.tool(name='describe-replication-groups')
 @handle_exceptions
 async def describe_replication_groups(
+    aws_config: AWSConfig,
     replication_group_id: Optional[str] = None,
     max_records: Optional[int] = None,
     marker: Optional[str] = None,
@@ -34,6 +35,10 @@ async def describe_replication_groups(
     about up to MaxRecords replication groups is returned.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         replication_group_id (Optional[str]): The identifier for the replication group to describe.
             If not provided, information about all replication groups is returned.
         max_records (Optional[int]): The maximum number of records to include in the response.
@@ -50,7 +55,7 @@ async def describe_replication_groups(
         - Marker: Pagination marker for next set of results
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build describe request
     describe_request = {}

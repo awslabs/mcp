@@ -14,7 +14,7 @@
 
 """Delete serverless cache operations."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from typing import Dict, Optional
@@ -23,6 +23,7 @@ from typing import Dict, Optional
 @mcp.tool(name='delete-serverless-cache')
 @handle_exceptions
 async def delete_serverless_cache(
+    aws_config: AWSConfig,
     serverless_cache_name: str,
     final_snapshot_name: Optional[str] = None,
 ) -> Dict:
@@ -32,6 +33,10 @@ async def delete_serverless_cache(
     The cache must exist and be in a deletable state.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         serverless_cache_name (str): Name of the serverless cache to delete.
         final_snapshot_name (Optional[str]): Name of the final snapshot to create before deletion.
 
@@ -39,7 +44,7 @@ async def delete_serverless_cache(
         Dict containing the deletion response or error information.
     """
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     delete_request = {'ServerlessCacheName': serverless_cache_name}
     if final_snapshot_name:

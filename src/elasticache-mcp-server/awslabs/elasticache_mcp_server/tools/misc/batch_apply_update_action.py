@@ -14,7 +14,7 @@
 
 """Batch apply update action tool for ElastiCache MCP server."""
 
-from ...common.connection import ElastiCacheConnectionManager
+from ...common.connection import ElastiCacheConnectionManager, AWSConfig
 from ...common.decorators import handle_exceptions
 from ...common.server import mcp
 from ...context import Context
@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 @mcp.tool(name='batch-apply-update-action')
 @handle_exceptions
 async def batch_apply_update_action(
+    aws_config: AWSConfig,
     service_update_name: str,
     replication_group_ids: Optional[List[str]] = None,
     cache_cluster_ids: Optional[List[str]] = None,
@@ -31,6 +32,10 @@ async def batch_apply_update_action(
     """Apply service update to multiple ElastiCache resources.
 
     Parameters:
+        aws_config (AWSConfig): Pydantic model with AWS credentials and region.
+            aws_access_key_id (str): AWS access key ID.
+            aws_secret_access_key (str): AWS secret access key.
+            region_name (str): AWS region, e.g. 'us-east-1'.
         service_update_name (str): The unique ID of the service update to apply.
         replication_group_ids (Optional[List[str]]): List of replication group IDs to update.
             Either this or cache_cluster_ids must be provided.
@@ -47,7 +52,7 @@ async def batch_apply_update_action(
         )
 
     # Get ElastiCache client
-    elasticache_client = ElastiCacheConnectionManager.get_connection()
+    elasticache_client = ElastiCacheConnectionManager.get_connection(aws_config)
 
     # Build request
     request: Dict[str, str | List[str]] = {'ServiceUpdateName': service_update_name}
