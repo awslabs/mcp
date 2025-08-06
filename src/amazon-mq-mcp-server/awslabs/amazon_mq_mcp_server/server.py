@@ -18,7 +18,7 @@ from awslabs.amazon_mq_mcp_server.aws_service_mcp_generator import (
 )
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 from mcp.server.fastmcp import FastMCP
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 # override create_broker tool to tag resources
@@ -31,14 +31,14 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
         broker_name: str,
         engine_type: str,
         deployment_mode: str,
-        users: List[Dict[str, str]] = [
+        users: List[Dict[str, Any]] = [
             {
                 'ConsoleAccess': True,
                 'Password': 'temp-password',  # pragma: allowlist secret
                 'Username': 'temp-user',
             }
         ],
-        engine_version: str = None,
+        engine_version: Optional[str] = None,
         publicly_accessible: bool = True,
         host_instance_type: str = 'mq.m5.xlarge',
         auto_minor_version_upgrade: bool = True,
