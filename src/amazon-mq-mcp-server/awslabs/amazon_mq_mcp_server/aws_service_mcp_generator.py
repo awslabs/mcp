@@ -216,10 +216,7 @@ class AWSToolGenerator:
                 return response
             except ClientError as e:
                 error_response = e.response['Error']
-                return {
-                    'error': error_response['Message'],
-                    'code': error_response['Code']
-                }
+                return {'error': error_response['Message'], 'code': error_response['Code']}
             except Exception as e:
                 raise e
 

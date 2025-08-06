@@ -65,6 +65,7 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
             engine_version: The broker engine version. Defaults to the latest available version for the specified broker engine type. It should also be unspecified to use the latest version.
             publicly_accessible: Enables connections from applications outside of the VPC that hosts the broker's subnets. Default to True for publicly accessible broker.
             host_instance_type: The broker instance type. Default to production-ready instance type "mq.m5.xlarge".
+            auto_minor_version_upgrade: Whether or not to enable minor version automatic upgrade. Default is true.
 
         Returns:
             Response from API
