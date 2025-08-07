@@ -17,6 +17,32 @@ The AWS CloudWAN MCP Server enables AI assistants to analyze, troubleshoot, and 
 - **⚡ Real-time Analysis** - Live network troubleshooting and diagnostics
 - **🏆 100% Test Coverage** - 172/172 tests passing with comprehensive validation
 
+## Prerequisites
+
+Before installing and using the AWS CloudWAN MCP Server, ensure you have:
+
+### Required Software
+- **Python 3.11+** - Required for running the MCP server
+- **uv** or **uvx** - Recommended package manager ([install guide](https://docs.astral.sh/uv/))
+- **Git** - For installation from source
+
+### AWS Requirements
+- **AWS CLI** configured with appropriate credentials
+- **AWS CloudWAN** deployed in your AWS account
+- **IAM Permissions** - See [IAM Permissions](#iam-permissions) section below
+
+### Network Infrastructure
+- Active **AWS CloudWAN Core Network** in your target regions
+- **Transit Gateways** (if using TGW integration features)
+- **VPC** resources for network discovery and analysis
+
+### MCP Client
+One of the following MCP-compatible clients:
+- **Claude Desktop** - For conversational AI interactions
+- **Claude Code** - For development workflow integration  
+- **VS Code MCP Extension** - For IDE integration
+- Any MCP-compatible client application
+
 ## Installation
 
 ### Using uvx (Recommended)
@@ -188,6 +214,66 @@ The following AWS IAM permissions are required:
 ```
 "Discover all VPCs in us-west-2 and us-east-1 regions and show their CloudWAN attachments"
 ```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Authentication Errors
+```bash
+# Problem: "Unable to locate credentials"
+# Solution: Configure AWS credentials
+aws configure
+# or set environment variables
+export AWS_PROFILE=your-profile
+export AWS_DEFAULT_REGION=us-west-2
+```
+
+#### MCP Connection Issues
+```bash
+# Problem: "MCP server failed to start"
+# Solution: Verify installation and Python version
+python --version  # Should be 3.11+
+uvx --from git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server cloudwan-mcp-server --version
+```
+
+#### Permission Errors
+```bash
+# Problem: "User is not authorized to perform..."
+# Solution: Check IAM permissions in the IAM Permissions section
+# Ensure your user/role has the necessary CloudWAN, EC2, and NetworkManager permissions
+```
+
+#### No CloudWAN Resources Found
+```
+# Problem: "No core networks found"
+# Check: Verify CloudWAN is deployed in the target region
+# Verify: Your AWS credentials have access to the CloudWAN resources
+# Try: List regions and check other regions where CloudWAN might be deployed
+```
+
+#### Slow Performance or Timeouts
+```bash
+# Solution 1: Use custom endpoints for testing
+export CLOUDWAN_AWS_CUSTOM_ENDPOINTS='{"networkmanager": "https://networkmanager.us-west-2.amazonaws.com"}'
+
+# Solution 2: Check network connectivity and AWS service health
+aws networkmanager list-core-networks --region us-west-2
+```
+
+### Debug Mode
+Enable detailed logging for troubleshooting:
+```bash
+export PYTHONPATH=/path/to/cloudwan-mcp-server
+export MCP_DEBUG=1
+export CLOUDWAN_MCP_DEBUG=true
+```
+
+### Getting Help
+- Check the [Issues](https://github.com/awslabs/mcp/issues) for known problems
+- Review AWS CloudWAN documentation for infrastructure setup
+- Verify your CloudWAN policy configuration
+- Test with basic AWS CLI commands to confirm connectivity
 
 ## Testing
 
