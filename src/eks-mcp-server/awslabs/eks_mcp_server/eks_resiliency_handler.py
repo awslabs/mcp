@@ -34,7 +34,7 @@ class EKSResiliencyHandler:
 
         Args:
             mcp: The MCP server instance
-            client_cache: K8sClientCache instance for getting K8s clients
+            client_cache: K8sClientCache instance to share between handlers
         """
         self.mcp = mcp
         self.client_cache = client_cache

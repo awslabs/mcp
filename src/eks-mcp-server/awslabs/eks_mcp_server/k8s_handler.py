@@ -49,7 +49,7 @@ class K8sHandler:
         mcp,
         allow_write: bool = False,
         allow_sensitive_data_access: bool = False,
-        client_cache=None,
+        client_cache,
     ):
         """Initialize the Kubernetes handler.
 
@@ -57,10 +57,10 @@ class K8sHandler:
             mcp: The MCP server instance
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
-            client_cache: Optional K8sClientCache instance to share between handlers
+            client_cache: K8sClientCache instance to share between handlers
         """
         self.mcp = mcp
-        self.client_cache = client_cache if client_cache is not None else K8sClientCache()
+        self.client_cache = client_cache
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
 
