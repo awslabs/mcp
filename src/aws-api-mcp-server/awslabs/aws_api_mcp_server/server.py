@@ -279,7 +279,7 @@ def main():
     global READ_OPERATIONS_INDEX
 
     if not os.path.isabs(WORKING_DIRECTORY):
-        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.\n'
+        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.'
         logger.error(error_message)
         raise ValueError(error_message)
 
@@ -288,7 +288,7 @@ def main():
     logger.info(f'CWD: {os.getcwd()}')
 
     if DEFAULT_REGION is None:
-        error_message = 'AWS_REGION environment variable is not defined.\n'
+        error_message = 'AWS_REGION environment variable is not defined.'
         logger.error(error_message)
         raise ValueError(error_message)
 
