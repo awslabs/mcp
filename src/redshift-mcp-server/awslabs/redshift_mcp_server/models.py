@@ -129,6 +129,15 @@ class RedshiftColumn(BaseModel):
     remarks: Optional[str] = Field(None, description='Remarks about the column')
 
 
+class ColumnMatch(BaseModel):
+    """Information about a column matching a search pattern."""
+
+    table_schema: str = Field(..., description='The schema name where the column was found')
+    table_name: str = Field(..., description='The name of the table containing the column')
+    column_name: str = Field(..., description='The name of the matching column')
+    data_type: Optional[str] = Field(None, description='The data type of the column')
+
+
 class QueryResult(BaseModel):
     """Result of a SQL query execution."""
 
