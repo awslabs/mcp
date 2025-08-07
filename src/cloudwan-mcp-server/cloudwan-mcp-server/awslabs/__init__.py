@@ -15,10 +15,11 @@
 
 """AWS Labs CloudWAN MCP Server Package."""
 
-__version__ = "0.0.0"
+__version__ = "1.2.0"
 __author__ = "AWS Labs"
 __description__ = "MCP server for AWS CloudWAN network analysis and troubleshooting"
 
-from .cloudwan_mcp_server import *
+# Explicit import to avoid wildcard import issues
+from . import cloudwan_mcp_server
 
-__all__ = ["cloudwan_mcp_server"]
+__all__ = ["cloudwan_mcp_server", "__version__", "__author__", "__description__"]

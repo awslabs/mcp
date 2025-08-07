@@ -1,8 +1,8 @@
 """
 AWS CloudWAN MCP Server
 
-A professional MCP (Model Context Protocol) Server providing comprehensive operational 
-capabilities for AWS CloudWAN environments. Built for production use with enterprise-grade 
+A professional MCP (Model Context Protocol) Server providing comprehensive operational
+capabilities for AWS CloudWAN environments. Built for production use with enterprise-grade
 security, performance, and monitoring.
 
 Features:

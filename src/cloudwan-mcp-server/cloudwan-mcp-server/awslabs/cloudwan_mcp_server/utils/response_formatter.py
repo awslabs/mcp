@@ -15,16 +15,16 @@
 """Response formatting utilities following AWS Labs patterns."""
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 
-def format_error_response(error: str, error_code: str) -> Dict[str, Any]:
+def format_error_response(error: str, error_code: str) -> dict[str, Any]:
     """Format error response following AWS Labs standards.
-    
+
     Args:
         error: Error message
         error_code: Error code for categorization
-        
+
     Returns:
         Standardized error response dictionary
     """
@@ -35,12 +35,12 @@ def format_error_response(error: str, error_code: str) -> Dict[str, Any]:
     }
 
 
-def format_success_response(data: Any) -> Dict[str, Any]:
+def format_success_response(data: Any) -> dict[str, Any]:
     """Format success response following AWS Labs standards.
-    
+
     Args:
         data: Response data
-        
+
     Returns:
         Standardized success response dictionary
     """
@@ -52,11 +52,11 @@ def format_success_response(data: Any) -> Dict[str, Any]:
 
 def safe_json_dumps(data: Any, **kwargs) -> str:
     """Safely serialize data to JSON string.
-    
+
     Args:
         data: Data to serialize
         **kwargs: Additional arguments for json.dumps
-        
+
     Returns:
         JSON string representation
     """
@@ -65,3 +65,28 @@ def safe_json_dumps(data: Any, **kwargs) -> str:
     except TypeError:
         # Handle non-serializable objects
         return json.dumps(str(data), **kwargs)
+
+
+def format_response(success: bool, data: Any = None, error: str = None) -> str:
+    """Format response as JSON string following AWS Labs standards.
+
+    Args:
+        success: Whether the operation was successful
+        data: Response data for successful operations
+        error: Error message for failed operations
+
+    Returns:
+        JSON string representation of the response
+    """
+    if success:
+        response = {
+            "status": "success",
+            "data": data
+        }
+    else:
+        response = {
+            "status": "error",
+            "message": error or "Unknown error occurred"
+        }
+
+    return safe_json_dumps(response, indent=2)

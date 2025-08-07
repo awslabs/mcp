@@ -14,40 +14,44 @@
 
 """Logger utilities following AWS Labs patterns."""
 
+import logging
 import sys
-from loguru import logger as _logger
 
 
 def get_logger(name: str):
     """Get logger instance following AWS Labs patterns.
-    
+
     Args:
         name: Logger name (typically __name__)
-        
+
     Returns:
         Logger instance with standard AWS Labs configuration
     """
-    # Configure loguru logger for AWS Labs standards
-    _logger.remove()  # Remove default handler
-    _logger.add(
-        sys.stderr,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level="INFO"
-    )
-
-    # Return logger with context
-    return _logger.bind(name=name)
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        # Configure standard logging for AWS Labs standards
+        handler = logging.StreamHandler(sys.stderr)
+        formatter = logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    return logger
 
 
 def configure_logging(level: str = "INFO"):
     """Configure global logging level.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR)
     """
-    _logger.remove()
-    _logger.add(
-        sys.stderr,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level=level
+    logging.basicConfig(
+        level=getattr(logging, level.upper()),
+        format="%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
+        stream=sys.stderr
     )
+
+
+# Create a default logger instance for backward compatibility
+logger = get_logger(__name__)

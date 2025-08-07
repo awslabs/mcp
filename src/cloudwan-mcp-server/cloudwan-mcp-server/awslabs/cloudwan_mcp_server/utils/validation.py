@@ -16,15 +16,14 @@
 
 import ipaddress
 import re
-from typing import Optional
 
 
-def validate_core_network_id(network_id: Optional[str]) -> bool:
+def validate_core_network_id(network_id: str | None) -> bool:
     """Validate AWS CloudWAN Core Network ID format.
-    
+
     Args:
         network_id: Core network ID to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -32,16 +31,16 @@ def validate_core_network_id(network_id: Optional[str]) -> bool:
         return False
 
     # AWS Core Network ID pattern: core-network-[17 char hex]
-    pattern = r'^core-network-[0-9a-f]{17}$'
+    pattern = r"^core-network-[0-9a-f]{17}$"
     return bool(re.match(pattern, network_id))
 
 
-def validate_global_network_id(network_id: Optional[str]) -> bool:
+def validate_global_network_id(network_id: str | None) -> bool:
     """Validate AWS CloudWAN Global Network ID format.
-    
+
     Args:
         network_id: Global network ID to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -49,16 +48,16 @@ def validate_global_network_id(network_id: Optional[str]) -> bool:
         return False
 
     # AWS Global Network ID pattern: global-network-[17 char hex]
-    pattern = r'^global-network-[0-9a-f]{17}$'
+    pattern = r"^global-network-[0-9a-f]{17}$"
     return bool(re.match(pattern, network_id))
 
 
-def validate_ip_address(ip: Optional[str]) -> bool:
+def validate_ip_address(ip: str | None) -> bool:
     """Validate IP address format (IPv4 or IPv6).
-    
+
     Args:
         ip: IP address to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -72,12 +71,12 @@ def validate_ip_address(ip: Optional[str]) -> bool:
         return False
 
 
-def validate_cidr_block(cidr: Optional[str]) -> bool:
+def validate_cidr_block(cidr: str | None) -> bool:
     """Validate CIDR block format.
-    
+
     Args:
         cidr: CIDR block to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -91,12 +90,12 @@ def validate_cidr_block(cidr: Optional[str]) -> bool:
         return False
 
 
-def validate_aws_region(region: Optional[str]) -> bool:
+def validate_aws_region(region: str | None) -> bool:
     """Validate AWS region format.
-    
+
     Args:
         region: AWS region to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -104,5 +103,30 @@ def validate_aws_region(region: Optional[str]) -> bool:
         return False
 
     # AWS region pattern: 2-3 letter prefix, dash, direction, dash, number
-    pattern = r'^[a-z]{2,3}-[a-z]+-\d+$'
+    pattern = r"^[a-z]{2,3}-[a-z]+-\d+$"
     return bool(re.match(pattern, region))
+
+
+def validate_required_fields(data: dict, required_fields: list, field_name: str = "input") -> bool:
+    """Validate that required fields are present in data.
+
+    Args:
+        data: Dictionary to validate
+        required_fields: List of required field names
+        field_name: Name of the field being validated (for error messages)
+
+    Returns:
+        True if all required fields are present, False otherwise
+
+    Raises:
+        ValueError: If required fields are missing
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"{field_name} must be a dictionary")
+
+    missing_fields = [field for field in required_fields if field not in data or data[field] is None]
+
+    if missing_fields:
+        raise ValueError(f"Missing required fields in {field_name}: {', '.join(missing_fields)}")
+
+    return True

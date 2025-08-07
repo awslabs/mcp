@@ -2,12 +2,23 @@
 name = "cloudwan-mcp-server"
 version = "1.2.0"
 description = "AWS CloudWAN MCP Server for network analysis"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.12",
     "boto3>=1.34.13",
     "loguru>=0.7.0",
     "pydantic-settings>=2.0.0",
-    "mcp>=1.11.0"
+    "mcp>=1.11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0", 
+    "pytest-cov>=6.2.1",
+    "pyyaml>=6.0.2",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
 ]
 
 [tool.pytest.ini_options]
@@ -24,7 +35,12 @@ testpaths = [
     "tests"
 ]
 
-addopts = "--cov=awslabs --cov-report=term-missing --asyncio-mode=auto"
+addopts = "--cov=awslabs --cov-report=term-missing --asyncio-mode=auto -v --tb=short"
+python_paths = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 120
@@ -39,3 +55,11 @@ select = [
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
+
+[dependency-groups]
+dev = [
+    "aiobotocore>=2.23.2",
+    "bandit>=1.8.6",
+    "moto>=5.1.9",
+    "psutil>=7.0.0",
+]

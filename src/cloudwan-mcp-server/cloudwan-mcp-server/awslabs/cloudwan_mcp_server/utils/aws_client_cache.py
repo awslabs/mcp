@@ -13,12 +13,13 @@
 # limitations under the License.
 
 
-import boto3
 import logging
 import threading
 import time
+from typing import Any
+
+import boto3
 from botocore.client import BaseClient
-from typing import Any, Dict, Optional
 
 
 class ThreadSafeAWSClientCache:
@@ -29,13 +30,13 @@ class ThreadSafeAWSClientCache:
         prune_interval: float = 300.0  # Prune every 5 minutes
     ):
         """Thread-safe AWS client cache with configurable size and expiry.
-        
+
         Args:
             max_size: Maximum number of cached clients
             max_age: Maximum age of cached clients before eviction (seconds)
             prune_interval: How often to run cache pruning (seconds)
         """
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
         self._max_size = max_size
         self._max_age = max_age
@@ -46,8 +47,8 @@ class ThreadSafeAWSClientCache:
     def _generate_cache_key(
         self,
         service: str,
-        region: Optional[str] = None,
-        profile: Optional[str] = None
+        region: str | None = None,
+        profile: str | None = None
     ) -> str:
         """Generate a unique cache key based on service parameters."""
         return f"{service}:{region or 'default'}:{profile or 'default'}"
@@ -61,14 +62,14 @@ class ThreadSafeAWSClientCache:
             self._cache = {
                 key: entry for key, entry
                 in self._cache.items()
-                if current_time - entry['timestamp'] < self._max_age
+                if current_time - entry["timestamp"] < self._max_age
             }
 
             # Remove excess entries if over max size
             if len(self._cache) > self._max_size:
                 sorted_entries = sorted(
                     self._cache.items(),
-                    key=lambda x: x[1]['timestamp']
+                    key=lambda x: x[1]["timestamp"]
                 )
                 for key, _ in sorted_entries[:len(self._cache) - self._max_size]:
                     del self._cache[key]
@@ -78,16 +79,16 @@ class ThreadSafeAWSClientCache:
     def get_client(
         self,
         service: str,
-        region: Optional[str] = None,
-        profile: Optional[str] = None
+        region: str | None = None,
+        profile: str | None = None
     ) -> BaseClient:
         """Thread-safe method to retrieve or create AWS client.
-        
+
         Args:
             service: AWS service name (e.g. 's3', 'ec2')
             region: Optional AWS region
             profile: Optional AWS profile name
-        
+
         Returns:
             Boto3 client instance
         """
@@ -102,27 +103,27 @@ class ThreadSafeAWSClientCache:
             # Check existing cache
             if cache_key in self._cache:
                 cached_entry = self._cache[cache_key]
-                if current_time - cached_entry['timestamp'] < self._max_age:
-                    return cached_entry['client']
+                if current_time - cached_entry["timestamp"] < self._max_age:
+                    return cached_entry["client"]
 
             # Create new client
             try:
                 session_kwargs = {}
                 if profile:
-                    session_kwargs['profile_name'] = profile
+                    session_kwargs["profile_name"] = profile
 
                 session = boto3.Session(**session_kwargs)
-                client_kwargs = {'service_name': service}
+                client_kwargs = {"service_name": service}
 
                 if region:
-                    client_kwargs['region_name'] = region
+                    client_kwargs["region_name"] = region
 
                 new_client = session.client(**client_kwargs)
 
                 # Store in cache
                 self._cache[cache_key] = {
-                    'client': new_client,
-                    'timestamp': current_time
+                    "client": new_client,
+                    "timestamp": current_time
                 }
 
                 return new_client
@@ -136,14 +137,32 @@ class ThreadSafeAWSClientCache:
         with self._lock:
             self._cache.clear()
 
-    def cache_stats(self) -> Dict[str, Any]:
+    def cache_stats(self) -> dict[str, Any]:
         """Return cache performance statistics."""
         with self._lock:
             return {
-                'total_entries': len(self._cache),
-                'max_size': self._max_size,
-                'max_age': self._max_age
+                "total_entries": len(self._cache),
+                "max_size": self._max_size,
+                "max_age": self._max_age
             }
 
 # Global thread-safe client cache instance
 aws_client_cache = ThreadSafeAWSClientCache()
+
+
+def get_cached_aws_client(
+    service: str,
+    region: str | None = None,
+    profile: str | None = None
+) -> BaseClient:
+    """Get cached AWS client using the global cache instance.
+
+    Args:
+        service: AWS service name (e.g. 's3', 'ec2', 'networkfirewall')
+        region: Optional AWS region
+        profile: Optional AWS profile name
+
+    Returns:
+        Boto3 client instance
+    """
+    return aws_client_cache.get_client(service, region, profile)
