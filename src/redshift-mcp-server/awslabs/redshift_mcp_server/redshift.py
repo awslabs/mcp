@@ -157,7 +157,11 @@ def protect_sql(sql: str, allow_read_write: bool) -> list[str]:
 
 
 async def execute_statement(
-    cluster_identifier: str, database_name: str, sql: str, allow_read_write: bool = False
+    cluster_identifier: str,
+    database_name: str,
+    sql: str,
+    allow_read_write: bool = False,
+    use_superuser: bool = False,
 ) -> tuple[dict, str]:
     """Execute a SQL statement against a Redshift cluster using the Data API.
 
@@ -168,6 +172,7 @@ async def execute_statement(
         database_name: The database to execute the query against.
         sql: The SQL statement to execute.
         allow_read_write: Indicates if read-write mode should be activated.
+        use_superuser: Execute as cluster superuser instead of current user.
 
     Returns:
         Tuple containing:
@@ -192,6 +197,16 @@ async def execute_statement(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
+    # Determine database user
+    db_user = None
+    if use_superuser:
+        # Get superuser from cluster info we already have
+        db_user = (
+            cluster_info.get('master_username') if cluster_info['type'] == 'provisioned' else None
+        )
+    elif os.environ.get('REDSHIFT_DB_USER'):
+        db_user = os.environ.get('REDSHIFT_DB_USER')
+
     # Guard from executing read-write statements if not allowed
     protected_sqls = protect_sql(sql, allow_read_write)
     logger.debug(f'Protected SQL: {" ".join(protected_sqls)}')
@@ -199,14 +214,24 @@ async def execute_statement(
     # Execute the query using Data API
     if cluster_info['type'] == 'provisioned':
         logger.debug(f'Using ClusterIdentifier for provisioned cluster: {cluster_identifier}')
-        response = data_client.batch_execute_statement(
-            ClusterIdentifier=cluster_identifier, Database=database_name, Sqls=protected_sqls
-        )
+        params = {
+            'ClusterIdentifier': cluster_identifier,
+            'Database': database_name,
+            'Sqls': protected_sqls,
+        }
+        if db_user:
+            params['DbUser'] = db_user
+        response = data_client.batch_execute_statement(**params)
     elif cluster_info['type'] == 'serverless':
         logger.debug(f'Using WorkgroupName for serverless workgroup: {cluster_identifier}')
-        response = data_client.batch_execute_statement(
-            WorkgroupName=cluster_identifier, Database=database_name, Sqls=protected_sqls
-        )
+        params = {
+            'WorkgroupName': cluster_identifier,
+            'Database': database_name,
+            'Sqls': protected_sqls,
+        }
+        if db_user:
+            params['DbUser'] = db_user
+        response = data_client.batch_execute_statement(**params)
     else:
         raise Exception(f'Unknown cluster type: {cluster_info["type"]}')
 
@@ -541,13 +566,16 @@ async def discover_columns(
         raise
 
 
-async def execute_query(cluster_identifier: str, database_name: str, sql: str) -> dict:
+async def execute_query(
+    cluster_identifier: str, database_name: str, sql: str, use_superuser: bool = False
+) -> dict:
     """Execute a SQL query against a Redshift cluster using the Data API.
 
     Args:
         cluster_identifier: The cluster identifier to query.
         database_name: The database to execute the query against.
         sql: The SQL statement to execute.
+        use_superuser: Execute as cluster superuser instead of current user.
 
     Returns:
         Dictionary with query results including columns, rows, and metadata.
@@ -563,7 +591,10 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
 
         # Execute the query using the common function
         results_response, query_id = await execute_statement(
-            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            use_superuser=use_superuser,
         )
 
         # Calculate execution time

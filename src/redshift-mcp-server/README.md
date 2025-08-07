@@ -74,6 +74,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 
 - `AWS_REGION`: AWS region to use (default: `us-east-1`)
 - `AWS_PROFILE`: AWS profile to use (optional, uses default if not specified)
+- `REDSHIFT_DB_USER`: Default database user for query execution (optional, uses IAM user if not specified)
 - `FASTMCP_LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
 - `LOG_FILE`: Path to log file (optional, logs to stdout if not specified)
 

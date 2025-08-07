@@ -966,3 +966,171 @@ class TestExecuteQueryTool:
                 database_name='dev',
                 sql='SELECT * FROM users',
             )
+
+    @pytest.mark.asyncio
+    async def test_execute_query_tool_use_superuser_provisioned(self, mocker):
+        """Test query execution with use_superuser=True for provisioned cluster."""
+        # Mock data client for query execution
+        mock_data_client = mocker.Mock()
+        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'SubStatements': [
+                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
+                {'Id': 'query-123'},  # Our actual SQL query
+                {'Id': 'sub-query-2'},  # END
+            ],
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'ColumnMetadata': [{'name': 'count'}],
+            'Records': [[{'longValue': 1}]],
+            'QueryStatus': 'FINISHED',
+            'TotalExecutionTimeInMillis': 123,
+        }
+
+        # Mock cluster discovery to return a provisioned cluster with master_username
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'master_username': 'testuser'}
+        ]
+
+        # Patch client manager
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        # Test the tool with use_superuser=True
+        result = await execute_query_tool(
+            Context(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT COUNT(*) FROM users',
+            use_superuser=True,
+        )
+
+        # Verify results
+        assert isinstance(result, QueryResult)
+        assert result.row_count == 1
+
+        # Verify batch_execute_statement was called with DbUser parameter
+        mock_data_client.batch_execute_statement.assert_called_once()
+        call_args = mock_data_client.batch_execute_statement.call_args[1]
+        assert 'DbUser' in call_args
+        assert call_args['DbUser'] == 'testuser'
+
+    @pytest.mark.asyncio
+    async def test_execute_query_tool_use_superuser_serverless(self, mocker):
+        """Test query execution with use_superuser=True for serverless cluster."""
+        # Mock data client for query execution
+        mock_data_client = mocker.Mock()
+        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'SubStatements': [
+                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
+                {'Id': 'query-123'},  # Our actual SQL query
+                {'Id': 'sub-query-2'},  # END
+            ],
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'ColumnMetadata': [{'name': 'count'}],
+            'Records': [[{'longValue': 1}]],
+            'QueryStatus': 'FINISHED',
+            'TotalExecutionTimeInMillis': 123,
+        }
+
+        # Mock cluster discovery to return a serverless cluster (no master_username)
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-workgroup', 'type': 'serverless', 'master_username': None}
+        ]
+
+        # Patch client manager
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        # Test the tool with use_superuser=True
+        result = await execute_query_tool(
+            Context(),
+            cluster_identifier='test-workgroup',
+            database_name='dev',
+            sql='SELECT COUNT(*) FROM users',
+            use_superuser=True,
+        )
+
+        # Verify results
+        assert isinstance(result, QueryResult)
+        assert result.row_count == 1
+
+        # Verify batch_execute_statement was called without DbUser parameter for serverless
+        mock_data_client.batch_execute_statement.assert_called_once()
+        call_args = mock_data_client.batch_execute_statement.call_args[1]
+        assert 'DbUser' not in call_args
+
+    @pytest.mark.asyncio
+    async def test_execute_query_tool_with_env_db_user(self, mocker):
+        """Test query execution with REDSHIFT_DB_USER environment variable."""
+        # Patch os.environ in the specific module where execute_statement is defined
+        mocker.patch.dict('os.environ', {'REDSHIFT_DB_USER': 'envuser'}, clear=False)
+
+        # Mock data client for query execution
+        mock_data_client = mocker.Mock()
+        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'SubStatements': [
+                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
+                {'Id': 'query-123'},  # Our actual SQL query
+                {'Id': 'sub-query-2'},  # END
+            ],
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'ColumnMetadata': [{'name': 'count'}],
+            'Records': [[{'longValue': 1}]],
+            'QueryStatus': 'FINISHED',
+            'TotalExecutionTimeInMillis': 123,
+        }
+
+        # Mock cluster discovery to return a provisioned cluster
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {
+                'identifier': 'test-cluster',
+                'type': 'provisioned',
+                'master_username': None,  # Important: Set to None so it doesn't use superuser
+            }
+        ]
+
+        # Patch client manager
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        # Test the tool with default use_superuser=False
+        result = await execute_query_tool(
+            Context(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT COUNT(*) FROM users',
+            use_superuser=False,  # Explicitly set to False
+        )
+
+        # Verify results
+        assert isinstance(result, QueryResult)
+        assert result.row_count == 1
+
+        # Verify batch_execute_statement was called with DbUser from environment variable
+        mock_data_client.batch_execute_statement.assert_called_once()
+        call_args = mock_data_client.batch_execute_statement.call_args[1]
+        assert 'DbUser' in call_args
+        assert call_args['DbUser'] == 'envuser'
