@@ -1,0 +1,45 @@
+{
+    "mcp_configuration_uvx_recommended": {
+        "aws_fis_mcp": {
+            "autoApprove": [],
+            "disabled": false,
+            "command": "uvx",
+            "args": ["aws-fis-mcp"],
+            "env": {
+                "AWS_PROFILE": "default",
+                "AWS_REGION": "us-east-1"
+            },
+            "transportType": "stdio"
+        }
+    },
+    "mcp_configuration_pip_installed": {
+        "aws_fis_mcp": {
+            "autoApprove": [],
+            "disabled": false,
+            "command": "aws-fis-mcp",
+            "env": {
+                "AWS_PROFILE": "default",
+                "AWS_REGION": "us-east-1"
+            },
+            "transportType": "stdio"
+        }
+    },
+    "mcp_configuration_local_development": {
+        "aws_fis_mcp": {
+            "autoApprove": [],
+            "disabled": false,
+            "command": "uv",
+            "args": [
+                "--directory",
+                "/home/ec2-user/mcp-servers/AWS-FIS-MCP",
+                "run",
+                "main.py"
+            ],
+            "env": {
+                "AWS_PROFILE": "default",
+                "AWS_REGION": "us-east-1"
+            },
+            "transportType": "stdio"
+        }
+    }
+}
