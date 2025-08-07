@@ -57,6 +57,3 @@ target/
 
 # PyPI
 .pypirc
-
-# data files
-awslabs/aws_api_mcp_server/core/data/embeddings/knowledge-base-*.npz
