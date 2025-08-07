@@ -55,6 +55,10 @@ class AWSServiceMocker:
             self._configure_networkmanager()
         elif self.service_name == "ec2":
             self._configure_ec2()
+        elif self.service_name == "network-firewall":
+            self._configure_network_firewall()
+        elif self.service_name == "logs":
+            self._configure_cloudwatch_logs()
         else:
             # Generic service configuration
             self._configure_generic_service()
@@ -137,6 +141,82 @@ class AWSServiceMocker:
                     "CidrBlock": "10.0.0.0/16",
                     "IsDefault": False,
                     "Tags": [{"Key": "Name", "Value": "test-vpc"}]
+                }
+            ]
+        }
+
+    def _configure_network_firewall(self) -> None:
+        """Configure AWS Network Firewall service mock responses."""
+        # Default firewall response
+        self._client.describe_firewall.return_value = {
+            "Firewall": {
+                "FirewallName": "test-firewall",
+                "FirewallArn": "arn:aws:network-firewall:us-east-1:123456789012:firewall/test-firewall",
+                "VpcId": "vpc-12345",
+                "SubnetMappings": [{"SubnetId": "subnet-12345"}],
+                "FirewallPolicyArn": "arn:aws:network-firewall:us-east-1:123456789012:firewall-policy/test-policy"
+            },
+            "FirewallStatus": {
+                "Status": "READY"
+            }
+        }
+        
+        # Default firewall policy response
+        self._client.describe_firewall_policy.return_value = {
+            "FirewallPolicy": {
+                "StatelessRuleGroups": [
+                    {"ResourceArn": "arn:aws:network-firewall:us-east-1:123456789012:stateless-rulegroup/test-stateless"}
+                ],
+                "StatefulRuleGroups": [
+                    {"ResourceArn": "arn:aws:network-firewall:us-east-1:123456789012:stateful-rulegroup/test-stateful"}
+                ],
+                "StatelessDefaultActions": ["aws:pass"],
+                "StatelessFragmentDefaultActions": ["aws:drop"]
+            }
+        }
+        
+        # Default rule group response
+        self._client.describe_rule_group.return_value = {
+            "RuleGroup": {
+                "RulesSource": {
+                    "RulesString": "alert tcp any any -> any 80 (msg:\"HTTP traffic detected\"; sid:1; rev:1;)"
+                }
+            }
+        }
+        
+        # Default logging configuration
+        self._client.describe_logging_configuration.return_value = {
+            "LoggingConfiguration": {
+                "LogDestinationConfigs": [
+                    {
+                        "LogType": "FLOW",
+                        "LogDestinationType": "CloudWatchLogs",
+                        "LogDestination": {
+                            "logGroup": "/aws/network-firewall/test-firewall"
+                        }
+                    }
+                ]
+            }
+        }
+
+    def _configure_cloudwatch_logs(self) -> None:
+        """Configure CloudWatch Logs service mock responses."""
+        self._client.start_query.return_value = {"queryId": "test-query-123"}
+        self._client.get_query_results.return_value = {
+            "status": "Complete",
+            "results": [
+                [
+                    {"field": "@timestamp", "value": "2023-01-01T12:00:00.000Z"},
+                    {"field": "@message", "value": "FLOW srcaddr=10.0.1.100 dstaddr=10.0.2.200 srcport=12345 dstport=80 protocol=6 action=ALLOW"}
+                ]
+            ]
+        }
+        self._client.describe_log_groups.return_value = {
+            "logGroups": [
+                {
+                    "logGroupName": "/aws/network-firewall/test-firewall",
+                    "creationTime": 1672531200000,
+                    "retentionInDays": 30
                 }
             ]
         }
