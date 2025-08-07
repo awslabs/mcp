@@ -840,9 +840,11 @@ async def aws_config_manager(operation: str, profile: str | None = None, region:
 
                 # Save configuration persistently
                 current_region = aws_config.default_region
-                config_saved = config_persistence.save_current_config(
-                    profile, current_region, metadata={"identity": identity, "operation": "set_profile"}
-                )
+                config_saved = None
+                if config_persistence:
+                    config_saved = config_persistence.save_current_config(
+                        profile, current_region, metadata={"identity": identity, "operation": "set_profile"}
+                    )
 
                 # Clear client cache to force reload with new profile
                 with _client_lock:
@@ -925,9 +927,11 @@ async def aws_config_manager(operation: str, profile: str | None = None, region:
 
                 # Save configuration persistently
                 current_profile = aws_config.profile or "default"
-                config_saved = config_persistence.save_current_config(
-                    current_profile, region, metadata={"operation": "set_region", "region_validated": True}
-                )
+                config_saved = None
+                if config_persistence:
+                    config_saved = config_persistence.save_current_config(
+                        current_profile, region, metadata={"operation": "set_region", "region_validated": True}
+                    )
 
                 # Clear client cache to force reload with new region
                 with _client_lock:
@@ -991,11 +995,13 @@ async def aws_config_manager(operation: str, profile: str | None = None, region:
                     )
 
                 # Save configuration persistently
-                config_saved = config_persistence.save_current_config(
-                    profile,
-                    region,
-                    metadata={"identity": identity, "operation": "set_both", "profile_and_region_validated": True},
-                )
+                config_saved = None
+                if config_persistence:
+                    config_saved = config_persistence.save_current_config(
+                        profile,
+                        region,
+                        metadata={"identity": identity, "operation": "set_both", "profile_and_region_validated": True},
+                    )
 
                 # Clear client cache
                 with _client_lock:
@@ -1086,33 +1092,46 @@ async def aws_config_manager(operation: str, profile: str | None = None, region:
             }
 
         elif operation == "get_config_history":
-            history_entries = config_persistence.get_config_history(limit=20)
-            result = {
-                "success": True,
-                "operation": "get_config_history",
-                "history_count": len(history_entries),
-                "history": history_entries,
-            }
-
-        elif operation == "validate_persistence":
-            validation_result = config_persistence.validate_config_file()
-            result = {"success": True, "operation": "validate_persistence", "validation": validation_result}
-
-        elif operation == "restore_last_config":
-            saved_config = config_persistence.load_current_config()
-            if saved_config and "aws_profile" in saved_config and "aws_region" in saved_config:
-                restored = config_persistence.restore_config(saved_config["aws_profile"], saved_config["aws_region"])
-                with _client_lock:
-                    _create_client.cache_clear()
-
+            if config_persistence:
+                history_entries = config_persistence.get_config_history(limit=20)
                 result = {
-                    "success": restored,
-                    "operation": "restore_last_config",
-                    "restored_config": saved_config if restored else None,
-                    "cache_cleared": restored,
+                    "success": True,
+                    "operation": "get_config_history",
+                    "history_count": len(history_entries),
+                    "history": history_entries,
                 }
             else:
-                result = {"success": False, "operation": "restore_last_config", "error": "No saved configuration found"}
+                result = {
+                    "success": False,
+                    "operation": "get_config_history",
+                    "error": "Configuration persistence not available",
+                }
+
+        elif operation == "validate_persistence":
+            if config_persistence:
+                validation_result = config_persistence.validate_config_file()
+                result = {"success": True, "operation": "validate_persistence", "validation": validation_result}
+            else:
+                result = {"success": False, "operation": "validate_persistence", "error": "Configuration persistence not available"}
+
+        elif operation == "restore_last_config":
+            if config_persistence:
+                saved_config = config_persistence.load_current_config()
+                if saved_config and "aws_profile" in saved_config and "aws_region" in saved_config:
+                    restored = config_persistence.restore_config(saved_config["aws_profile"], saved_config["aws_region"])
+                    with _client_lock:
+                        _create_client.cache_clear()
+
+                    result = {
+                        "success": restored,
+                        "operation": "restore_last_config",
+                        "restored_config": saved_config if restored else None,
+                        "cache_cleared": restored,
+                    }
+                else:
+                    result = {"success": False, "operation": "restore_last_config", "error": "No saved configuration found"}
+            else:
+                result = {"success": False, "operation": "restore_last_config", "error": "Configuration persistence not available"}
 
         else:
             return safe_json_dumps(

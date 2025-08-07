@@ -14,10 +14,33 @@
 
 """AWS configuration manager utilities."""
 
+import json
+from typing import Any, Dict
 from ..config_manager import AWSConfigManager
+from ..server import _create_client  # Import the cached client function
 
 __all__ = ["AWSConfigManager"]
 
+# Global configuration instance
+_aws_config_instance = None
+
+def get_aws_config() -> AWSConfigManager:
+    """Get or create AWS config instance."""
+    global _aws_config_instance
+    if _aws_config_instance is None:
+        _aws_config_instance = AWSConfigManager()
+    return _aws_config_instance
+
+def get_aws_client(service: str, region: str | None = None):
+    """Get AWS client using the cached function."""
+    return _create_client(service, region or "us-east-1")
+
+def safe_json_dumps(data: Dict[str, Any], indent: int = 2) -> str:
+    """Safe JSON serialization."""
+    try:
+        return json.dumps(data, indent=indent, default=str)
+    except (TypeError, ValueError) as e:
+        return json.dumps({"error": f"JSON serialization failed: {str(e)}"}, indent=indent)
 
 class AWSConfigManager:
     """AWS configuration manager class."""
@@ -26,10 +49,11 @@ class AWSConfigManager:
         try:
             global _client_cache
             _client_cache = _create_client.cache_info()  # Initialize cache reference
+            aws_config = get_aws_config()  # Get the config instance
 
             if operation == "get_current":
                 current_profile = aws_config.profile or "default"
-                current_region = aws_config.default_region
+                current_region = aws_config.region or "us-east-1"
 
                 # Test current configuration
                 try:
