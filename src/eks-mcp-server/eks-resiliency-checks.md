@@ -1,4 +1,6 @@
 
+# EKS Resiliency Checks
+
 ## Overview
 
 The EKS Resiliency Checker is a comprehensive tool that evaluates Amazon EKS clusters against 28 critical resiliency best practices. It performs automated checks across three main categories: Application workloads, Control Plane configuration, and Data Plane setup. The tool provides detailed findings, compliance status, and actionable remediation guidance for each check.
@@ -520,7 +522,7 @@ The EKS Resiliency Checker provides a comprehensive evaluation of cluster health
 
 The tool helps ensure EKS clusters follow best practices for:
 - **High Availability**: Multi-replica deployments, anti-affinity, PDBs
-- **Scalability**: Autoscaling, resource management, large cluster optimizations  
+- **Scalability**: Autoscaling, resource management, large cluster optimizations
 - **Observability**: Monitoring, logging, metrics collection
 - **Security**: Access control, endpoint restrictions, authentication
 - **Operational Excellence**: Resource governance, graceful termination, service mesh

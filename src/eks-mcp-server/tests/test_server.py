@@ -225,6 +225,7 @@ async def test_k8s_handler_initialization_default():
 
     # Initialize the K8s handler with the mock MCP server (default allow_write=False, allow_sensitive_data_access=False)
     from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
+
     client_cache = K8sClientCache()
     K8sHandler(mock_mcp, client_cache=client_cache)
 
@@ -253,6 +254,7 @@ async def test_k8s_handler_initialization_write_access_disabled():
 
     # Initialize the K8s handler with the mock MCP server with allow_write=False
     from awslabs.eks_mcp_server.k8s_client_cache import K8sClientCache
+
     client_cache = K8sClientCache()
     K8sHandler(mock_mcp, allow_write=False, client_cache=client_cache)
 
