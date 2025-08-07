@@ -334,7 +334,7 @@ These checks assess worker node configuration, resource management, and cluster 
 - IP caching prevents EC2 API throttling
 - Critical for maintaining performance at scale
 
-**Compliance**: 
+**Compliance**:
 - ✅ PASS if <1000 services (no optimization needed)
 - ✅ PASS if >1000 services with proper optimizations
 - ❌ FAIL if >1000 services without optimizations
