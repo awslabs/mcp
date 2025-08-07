@@ -106,6 +106,7 @@ async def query_knowledge_base(
                     'content': result['content'],
                     'location': result.get('location', ''),
                     'score': result.get('score', ''),
+                    'metadata': result.get('metadata', {}),
                 }
             )
 
