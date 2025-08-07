@@ -93,7 +93,6 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
 
         # Check if any of the analyzers are active
         active_analyzers = [a for a in analyzers if a.get("status") == "ACTIVE"]
-        print(f"[DEBUG:AccessAnalyzer] Found {len(active_analyzers)} ACTIVE analyzers")
 
         # Access Analyzer is enabled if there's at least one analyzer, even if not all are ACTIVE
         analyzer_details = []
@@ -104,14 +103,10 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
                     findings_count = await get_analyzer_findings_count(
                         analyzer_arn, analyzer_client, ctx
                     )
-                    print(
-                        f"[DEBUG:AccessAnalyzer] Analyzer {analyzer.get('name')} has {findings_count} findings"
-                    )
-                except Exception as e:
-                    print(f"[DEBUG:AccessAnalyzer] Error getting findings count: {e}")
+
+                except Exception:
                     findings_count = "Error"
             else:
-                print(f"[DEBUG:AccessAnalyzer] Missing ARN for analyzer: {analyzer.get('name')}")
                 findings_count = "Unknown (No ARN)"
 
             analyzer_details.append(
@@ -150,25 +145,18 @@ async def check_security_hub(region: str, session: boto3.Session, ctx: Context) 
     Returns:
         Dictionary with status information about AWS Security Hub
     """
-    print(f"[DEBUG:SecurityHub] Starting Security Hub check for region: {region}")
     try:
         # Create Security Hub client
         securityhub_client = session.client("securityhub", region_name=region)
 
         try:
             # Check if Security Hub is enabled
-            print("[DEBUG:SecurityHub] Calling describe_hub() to check if enabled")
             hub_response = securityhub_client.describe_hub()
-            print(
-                f"[DEBUG:SecurityHub] Security Hub is enabled. Hub ARN: {hub_response.get('HubArn', 'Unknown')}"
-            )
 
             # Security Hub is enabled, get enabled standards
             try:
-                print("[DEBUG:SecurityHub] Getting enabled standards")
                 standards_response = securityhub_client.get_enabled_standards()
                 standards = standards_response.get("StandardsSubscriptions", [])
-                print(f"[DEBUG:SecurityHub] Found {len(standards)} enabled standards")
 
                 # Safely process standards with better error handling
                 processed_standards = []
@@ -190,11 +178,8 @@ async def check_security_hub(region: str, session: boto3.Session, ctx: Context) 
                                 "enabled_at": enabled_at,
                             }
                         )
-                        print(
-                            f"[DEBUG:SecurityHub] Processed standard: {standard_name} (status: {standard_status})"
-                        )
-                    except Exception as std_err:
-                        print(f"[DEBUG:SecurityHub] Error processing a standard: {std_err}")
+                    except Exception:
+                        pass
 
                 return {
                     "enabled": True,
@@ -206,7 +191,6 @@ async def check_security_hub(region: str, session: boto3.Session, ctx: Context) 
                     },
                 }
             except Exception as std_ex:
-                print(f"[DEBUG:SecurityHub] Error getting standards: {std_ex}")
                 # Security Hub is enabled but we couldn't get standards
                 return {
                     "enabled": True,
@@ -218,35 +202,20 @@ async def check_security_hub(region: str, session: boto3.Session, ctx: Context) 
                     },
                 }
 
-        except securityhub_client.exceptions.InvalidAccessException as e:
+        except securityhub_client.exceptions.InvalidAccessException:
             # Security Hub is not enabled
-            print(
-                f"[DEBUG:SecurityHub] InvalidAccessException indicates Security Hub is not enabled: {e}"
-            )
             return {
                 "enabled": False,
                 "standards": [],
                 "setup_instructions": """
                 # AWS Security Hub Setup Instructions
-
                 AWS Security Hub is not enabled in this region. To enable it:
-
-                1. Open the Security Hub console: https://console.aws.amazon.com/securityhub/
-                2. Choose Go to Security Hub
-                3. Configure your security standards
-                4. Choose Enable Security Hub
-
-                This is strongly recommended for maintaining security best practices.
-
-                Learn more: https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-get-started.html
+                https://docs.aws.amazon.com/securityhub/latest/userguide/securityhub-get-started.html
                 """,
                 "message": "AWS Security Hub is not enabled in this region.",
             }
-        except securityhub_client.exceptions.ResourceNotFoundException as e:
+        except securityhub_client.exceptions.ResourceNotFoundException:
             # Hub not found - not enabled
-            print(
-                f"[DEBUG:SecurityHub] ResourceNotFoundException indicates Security Hub is not enabled: {e}"
-            )
             return {
                 "enabled": False,
                 "standards": [],
@@ -267,7 +236,6 @@ async def check_security_hub(region: str, session: boto3.Session, ctx: Context) 
                 "message": "AWS Security Hub is not enabled in this region.",
             }
     except Exception as e:
-        print(f"[DEBUG:SecurityHub] ERROR: Error checking Security Hub status: {e}")
         return {
             "enabled": False,
             "error": str(e),
@@ -353,7 +321,6 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
 
         try:
             # Get Inspector status
-            print(f"[DEBUG:Inspector] Calling get_status() API for region: {region}")
             try:
                 # First try using get_status API
                 status_response = inspector_client.get_status()
@@ -479,9 +446,7 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
             # If get_status failed or didn't find scan types, try another approach
             # Try calling batch_get_account_status which may give different information
             try:
-                print("[DEBUG:Inspector] Trying batch_get_account_status() as alternative")
                 account_status = inspector_client.batch_get_account_status()
-                print(f"[DEBUG:Inspector] batch_get_account_status returned: {account_status}")
 
                 # If we get here, the service is enabled
                 if "accounts" in account_status and account_status["accounts"]:
@@ -521,16 +486,14 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
             # As a last resort, try listing findings
             # If this works, it means Inspector is enabled
             try:
-                print("[DEBUG:Inspector] Trying list_findings() as last resort check")
                 # Try listing a small number of findings just to test API access
                 findings_response = inspector_client.list_findings(maxResults=1)
-                print(
-                    f"[DEBUG:Inspector] list_findings successful, found {len(findings_response.get('findings', []))} findings"
-                )
-
+                flag = False
+                if findings_response:
+                    flag = True
                 # If we can call list_findings, Inspector is definitely enabled
                 return {
-                    "enabled": True,
+                    "enabled": flag,
                     "scan_status": {
                         "ec2_status": "UNKNOWN",
                         "ecr_status": "UNKNOWN",
@@ -571,17 +534,11 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
                 "enabled": False,
                 "setup_instructions": """
                 # Amazon Inspector Setup Instructions
-
                 Amazon Inspector is not enabled in this region. To enable it:
-
                 1. Open the Inspector console: https://console.aws.amazon.com/inspector/
                 2. Choose Get started
                 3. Choose Enable Amazon Inspector
                 4. Select the scan types to enable
-
-                This is strongly recommended for identifying vulnerabilities in your workloads.
-
-                Learn more: https://docs.aws.amazon.com/inspector/latest/user/enabling-disable-scanning-account.html
                 """,
                 "message": "Amazon Inspector is not enabled in this region.",
             }
@@ -612,7 +569,6 @@ async def get_guardduty_findings(
     Returns:
         Dictionary containing GuardDuty findings
     """
-    print(f"[DEBUG:GuardDuty] Starting findings retrieval for region: {region}")
     try:
         # First check if GuardDuty is enabled
         print(f"[DEBUG:GuardDuty] Checking if GuardDuty is enabled in {region}")
@@ -1238,9 +1194,6 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
 
         except support_client.exceptions.SubscriptionRequiredException:
             # This exception means Trusted Advisor is not available with the current support plan
-            print(
-                "[DEBUG:TrustedAdvisor] SubscriptionRequiredException - Business or Enterprise Support required"
-            )
             return {
                 "enabled": False,
                 "support_tier": "Basic",
@@ -1336,14 +1289,8 @@ async def get_trusted_advisor_findings(
         # Get check results
         findings = []
         for check in checks_to_process:
-            check_id = check.get("id")
-            if not check_id:
-                continue
-
             try:
-                print(
-                    f"[DEBUG:TrustedAdvisor] Getting results for check: {check.get('name')} ({check_id})"
-                )
+                check_id = check.get("id")
                 result = support_client.describe_trusted_advisor_check_result(
                     checkId=check_id, language="en"
                 )
@@ -1354,9 +1301,6 @@ async def get_trusted_advisor_findings(
 
                 # Skip checks that don't match the status filter
                 if status_filter and status not in status_filter:
-                    print(
-                        f"[DEBUG:TrustedAdvisor] Skipping check with status '{status}' (not in {status_filter})"
-                    )
                     continue
 
                 # Format the finding
@@ -1392,9 +1336,6 @@ async def get_trusted_advisor_findings(
                 )
 
             except Exception as check_error:
-                print(
-                    f"[DEBUG:TrustedAdvisor] Error getting results for check {check_id}: {check_error}"
-                )
                 await ctx.warning(
                     f"Error getting results for Trusted Advisor check {check_id}: {check_error}"
                 )
