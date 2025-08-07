@@ -95,6 +95,14 @@ mcp = FastMCP(
     ],
 )
 
+# Import modular tools
+try:
+    from .tools.network_firewall import NETWORK_FIREWALL_TOOLS
+    logger.info("Successfully imported Network Firewall tools")
+except ImportError as e:
+    logger.warning(f"Failed to import network firewall tools: {e}")
+    NETWORK_FIREWALL_TOOLS = []
+
 
 # AWS client cache with thread-safe LRU implementation
 @lru_cache(maxsize=10)

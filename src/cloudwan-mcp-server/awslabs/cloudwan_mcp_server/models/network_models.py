@@ -100,3 +100,96 @@ class SegmentRouteAnalysis(BaseModel):
     optimized_routes: int = Field(..., description="Optimized routes")
     redundant_routes: int = Field(..., description="Redundant routes")
     recommendations: List[str] = Field(default_factory=list, description="Optimization recommendations")
+
+
+class NetworkFirewall(BaseModel):
+    """Model for AWS Network Firewall details."""
+    
+    firewall_name: str = Field(..., description="Network Firewall name")
+    firewall_arn: str = Field(..., description="Network Firewall ARN")
+    vpc_id: str = Field(..., description="VPC ID where firewall is deployed")
+    status: str = Field(..., description="Firewall status")
+    subnet_mappings: int = Field(..., description="Number of subnet mappings")
+    policy_arn: str = Field(..., description="Firewall policy ARN")
+    region: str = Field(..., description="AWS region")
+
+
+class FirewallPolicy(BaseModel):
+    """Model for AWS Network Firewall policy details."""
+    
+    policy_arn: str = Field(..., description="Policy ARN")
+    policy_name: str = Field(..., description="Policy name")
+    stateless_rule_groups: int = Field(..., description="Number of stateless rule groups")
+    stateful_rule_groups: int = Field(..., description="Number of stateful rule groups")
+    stateless_default_actions: List[str] = Field(default_factory=list, description="Default actions for stateless rules")
+    logging_enabled: bool = Field(..., description="Whether logging is enabled")
+
+
+class SuricataRule(BaseModel):
+    """Model for parsed Suricata rule details."""
+    
+    action: str = Field(..., description="Rule action (alert, drop, pass, etc.)")
+    protocol: str = Field(..., description="Protocol (TCP, UDP, ICMP, etc.)")
+    src_ip: Optional[str] = Field(None, description="Source IP or CIDR")
+    src_port: Optional[str] = Field(None, description="Source port or range")
+    dst_ip: Optional[str] = Field(None, description="Destination IP or CIDR")
+    dst_port: Optional[str] = Field(None, description="Destination port or range")
+    raw_rule: str = Field(..., description="Original Suricata rule text")
+    parsed: bool = Field(..., description="Whether rule was successfully parsed")
+    parse_error: Optional[str] = Field(None, description="Parse error if any")
+
+
+class FlowLog(BaseModel):
+    """Model for Network Firewall flow log entry."""
+    
+    timestamp: str = Field(..., description="Log timestamp")
+    firewall_name: str = Field(..., description="Firewall name")
+    source_ip: str = Field(..., description="Source IP address")
+    destination_ip: str = Field(..., description="Destination IP address")
+    source_port: int = Field(..., description="Source port")
+    destination_port: int = Field(..., description="Destination port")
+    protocol: str = Field(..., description="Protocol")
+    action: str = Field(..., description="Action taken (ALLOW, DENY)")
+    
+    @validator("source_ip", "destination_ip")
+    def validate_ip_address(cls, v):
+        """Validate IP address format."""
+        try:
+            ipaddress.ip_address(v)
+            return v
+        except ValueError:
+            raise ValueError(f"Invalid IP address: {v}")
+
+
+class FiveTupleFlow(BaseModel):
+    """Model for 5-tuple flow analysis."""
+    
+    source_ip: str = Field(..., description="Source IP address")
+    destination_ip: str = Field(..., description="Destination IP address")
+    protocol: str = Field(..., description="Protocol (TCP, UDP, ICMP)")
+    source_port: int = Field(..., ge=1, le=65535, description="Source port")
+    destination_port: int = Field(..., ge=1, le=65535, description="Destination port")
+    firewall_decision: str = Field(..., description="Firewall decision (ALLOW, DENY)")
+    rule_matches: List[Dict[str, Any]] = Field(default_factory=list, description="Matching rules")
+    
+    @validator("source_ip", "destination_ip")
+    def validate_ip_address(cls, v):
+        """Validate IP address format."""
+        try:
+            ipaddress.ip_address(v)
+            return v
+        except ValueError:
+            raise ValueError(f"Invalid IP address: {v}")
+
+
+class PolicySimulation(BaseModel):
+    """Model for policy change simulation results."""
+    
+    firewall_name: str = Field(..., description="Firewall name")
+    change_description: str = Field(..., description="Description of policy changes")
+    flows_analyzed: int = Field(..., description="Number of flows analyzed")
+    newly_blocked: int = Field(..., description="Flows that would be newly blocked")
+    newly_allowed: int = Field(..., description="Flows that would be newly allowed")
+    no_change: int = Field(..., description="Flows with no impact")
+    detailed_analysis: List[Dict[str, Any]] = Field(default_factory=list, description="Detailed flow analysis")
+    recommendations: List[Dict[str, str]] = Field(default_factory=list, description="Policy recommendations")

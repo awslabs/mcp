@@ -275,7 +275,7 @@ Environment Variables:
 
 ## Available Tools
 
-The CloudWAN MCP Server provides 17 specialized tools organized by functionality:
+The CloudWAN MCP Server provides 22 specialized tools organized by functionality:
 
 ### Network Analysis
 - **`trace_network_path`** - Trace paths between IP addresses with hop-by-hop analysis
@@ -302,6 +302,13 @@ The CloudWAN MCP Server provides 17 specialized tools organized by functionality
 - **`analyze_tgw_routes`** - Transit Gateway route table analysis
 - **`analyze_tgw_peers`** - TGW peering relationship analysis
 - **`manage_tgw_routes`** - Route management operations (create, delete, blackhole)
+
+### AWS Network Firewall (ANFW) Integration
+- **`monitor_anfw_logs`** - Monitor Network Firewall flow and alert logs with analysis
+- **`analyze_anfw_policy`** - Analyze firewall policy configuration and compliance
+- **`analyze_five_tuple_flow`** - Analyze 5-tuple flow permissions through firewall policy
+- **`parse_suricata_rules`** - Parse and analyze Suricata rules for L7 inspection
+- **`simulate_policy_changes`** - Simulate what-if scenarios for policy changes
 
 ### Configuration Management
 - **`aws_config_manager`** - Dynamic AWS profile and region management
@@ -330,7 +337,15 @@ The following AWS IAM permissions are required for full functionality:
         "ec2:DescribeTransitGateways",
         "ec2:DescribeTransitGatewayRouteTables",
         "ec2:SearchTransitGatewayRoutes",
-        "ec2:DescribeTransitGatewayPeeringAttachments"
+        "ec2:DescribeTransitGatewayPeeringAttachments",
+        "network-firewall:DescribeFirewall",
+        "network-firewall:DescribeFirewallPolicy",
+        "network-firewall:DescribeRuleGroup",
+        "network-firewall:DescribeLoggingConfiguration",
+        "logs:StartQuery",
+        "logs:GetQueryResults",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
       ],
       "Resource": "*"
     }
@@ -385,6 +400,31 @@ Configure IAM roles with the required permissions when running on AWS infrastruc
 ### Transit Gateway Route Analysis
 ```
 "Analyze Transit Gateway route table rtb-12345 for route conflicts and optimization opportunities"
+```
+
+### AWS Network Firewall Analysis
+```
+"Monitor Network Firewall 'production-firewall' logs for the last 2 hours and identify top traffic sources"
+```
+
+### Network Firewall Policy Compliance
+```
+"Analyze the policy configuration for firewall 'security-firewall' and check CloudWAN compliance"
+```
+
+### 5-Tuple Flow Analysis
+```
+"Check if traffic from 10.1.1.100:12345 to 172.16.2.200:443 TCP would be allowed by firewall 'web-tier-firewall'"
+```
+
+### Suricata Rule Analysis
+```
+"Parse and analyze all Suricata rules in firewall 'intrusion-detection-firewall' for L7 application protocols"
+```
+
+### Policy Change Simulation
+```
+"Simulate adding a new deny rule for port 22 traffic and analyze the impact on existing flows"
 ```
 
 ## Docker Deployment
