@@ -412,7 +412,7 @@ These checks assess worker node configuration, resource management, and cluster 
 - Better resource distribution
 - Required for production workloads
 
-**Compliance**: 
+**Compliance**:
 - ✅ PASS if nodes spread across multiple AZs with balanced distribution
 - ❌ FAIL if single AZ or uneven distribution
 
@@ -504,7 +504,7 @@ These checks assess worker node configuration, resource management, and cluster 
 - Simplified management and maintenance
 - Improved security posture
 
-**Compliance**: 
+**Compliance**:
 - ✅ PASS for auto mode clusters (always managed)
 - ✅ PASS if CoreDNS is EKS managed add-on
 - ❌ FAIL if CoreDNS is self-managed in regular clusters
