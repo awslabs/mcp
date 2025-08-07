@@ -1289,8 +1289,8 @@ async def get_trusted_advisor_findings(
         # Get check results
         findings = []
         for check in checks_to_process:
+            check_id = check.get("id", "unknown")  # Initialize check_id outside try block
             try:
-                check_id = check.get("id")
                 result = support_client.describe_trusted_advisor_check_result(
                     checkId=check_id, language="en"
                 )
