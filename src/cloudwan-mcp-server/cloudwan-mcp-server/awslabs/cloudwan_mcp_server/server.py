@@ -27,11 +27,44 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Dict, List, Optional, TypedDict
 
 
+# Enhanced config_persistence import with proper error handling
+config_persistence = None
+_config_persistence_error = None
+
 try:
     from .config_manager import config_persistence
-except ImportError:
-    # Fallback for missing config_manager
-    config_persistence = None
+except ImportError as e:
+    _config_persistence_error = str(e)
+    # Create a mock config_persistence object for graceful degradation
+    class MockConfigPersistence:
+        """Mock config persistence for when config_manager is unavailable."""
+        
+        def save_current_config(self, profile: str, region: str, metadata: Optional[Dict] = None) -> bool:
+            """Mock save - always returns False."""
+            logger.warning("Config persistence unavailable - configuration will not be saved")
+            return False
+        
+        def load_current_config(self) -> Optional[Dict]:
+            """Mock load - always returns None."""
+            return None
+        
+        def get_config_history(self, limit: int = 20) -> List[Dict]:
+            """Mock history - always returns empty list."""
+            return []
+        
+        def validate_config_file(self) -> Dict:
+            """Mock validation - returns error status."""
+            return {
+                "valid": False,
+                "error": "Config persistence module not available",
+                "import_error": _config_persistence_error
+            }
+        
+        def restore_config(self, profile: str, region: str) -> bool:
+            """Mock restore - always returns False."""
+            return False
+    
+    config_persistence = MockConfigPersistence()
 
 
 class AWSConfig(BaseSettings):
@@ -780,6 +813,9 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
     try:
         global _client_cache
 
+        # Check if config persistence is available
+        config_persistence_available = not isinstance(config_persistence, MockConfigPersistence)
+
         if operation == "get_current":
             current_profile = aws_config.profile or "default"
             current_region = aws_config.default_region
@@ -831,13 +867,15 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                         "error": "Failed to update AWS_PROFILE environment variable securely"
                     }, indent=2)
 
-                # Save configuration persistently
+                # Save configuration persistently if available
                 current_region = aws_config.default_region
-                config_saved = config_persistence.save_current_config(
-                    profile,
-                    current_region,
-                    metadata={"identity": identity, "operation": "set_profile"}
-                )
+                config_saved = False
+                if config_persistence_available:
+                    config_saved = config_persistence.save_current_config(
+                        profile,
+                        current_region,
+                        metadata={"identity": identity, "operation": "set_profile"}
+                    )
 
                 # Clear client cache to force reload with new profile
                 with _client_lock:
@@ -909,13 +947,15 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                         "error": "Failed to update AWS_DEFAULT_REGION environment variable securely"
                     }, indent=2)
 
-                # Save configuration persistently
+                # Save configuration persistently if available
                 current_profile = aws_config.profile or "default"
-                config_saved = config_persistence.save_current_config(
-                    current_profile,
-                    region,
-                    metadata={"operation": "set_region", "region_validated": True}
-                )
+                config_saved = False
+                if config_persistence_available:
+                    config_saved = config_persistence.save_current_config(
+                        current_profile,
+                        region,
+                        metadata={"operation": "set_region", "region_validated": True}
+                    )
 
                 # Clear client cache to force reload with new region
                 with _client_lock:
@@ -976,16 +1016,18 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
                         "error": "Failed to update AWS_DEFAULT_REGION environment variable securely"
                     }, indent=2)
 
-                # Save configuration persistently
-                config_saved = config_persistence.save_current_config(
-                    profile,
-                    region,
-                    metadata={
-                        "identity": identity,
-                        "operation": "set_both",
-                        "profile_and_region_validated": True
-                    }
-                )
+                # Save configuration persistently if available
+                config_saved = False
+                if config_persistence_available:
+                    config_saved = config_persistence.save_current_config(
+                        profile,
+                        region,
+                        metadata={
+                            "identity": identity,
+                            "operation": "set_both",
+                            "profile_and_region_validated": True
+                        }
+                    )
 
                 # Clear client cache
                 with _client_lock:
@@ -1088,6 +1130,14 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
             }
 
         elif operation == "get_config_history":
+            if not config_persistence_available:
+                return safe_json_dumps({
+                    "success": False,
+                    "operation": "get_config_history",
+                    "error": "Configuration persistence is not available",
+                    "reason": _config_persistence_error or "config_manager module not found"
+                }, indent=2)
+            
             history_entries = config_persistence.get_config_history(limit=20)
             result = {
                 "success": True,
@@ -1101,10 +1151,19 @@ async def aws_config_manager(operation: str, profile: Optional[str] = None, regi
             result = {
                 "success": True,
                 "operation": "validate_persistence",
-                "validation": validation_result
+                "validation": validation_result,
+                "persistence_type": "MockConfigPersistence" if not config_persistence_available else "ConfigPersistence"
             }
 
         elif operation == "restore_last_config":
+            if not config_persistence_available:
+                return safe_json_dumps({
+                    "success": False,
+                    "operation": "restore_last_config",
+                    "error": "Configuration persistence is not available",
+                    "reason": _config_persistence_error or "config_manager module not found"
+                }, indent=2)
+            
             saved_config = config_persistence.load_current_config()
             if saved_config and 'aws_profile' in saved_config and 'aws_region' in saved_config:
                 restored = config_persistence.restore_config(

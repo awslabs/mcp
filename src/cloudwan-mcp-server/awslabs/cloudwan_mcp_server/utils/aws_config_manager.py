@@ -15,20 +15,33 @@
 """AWS configuration manager utilities."""
 
 import json
-from typing import Any, Dict
-from ..config_manager import AWSConfigManager
-from ..server import _create_client  # Import the cached client function
+from typing import Any, Dict, Optional
 
 __all__ = ["AWSConfigManager"]
 
 # Global configuration instance
 _aws_config_instance = None
 
-def get_aws_config() -> AWSConfigManager:
-    """Get or create AWS config instance."""
+def get_aws_config() -> Optional['AWSConfigManager']:
+    """Get AWS config instance with error handling.
+    
+    Returns a simple config object without dependencies on server module.
+    """
     global _aws_config_instance
-    if _aws_config_instance is None:
-        _aws_config_instance = AWSConfigManager()
+    if '_aws_config_instance' not in globals():
+        # Create a minimal config manager without server dependencies
+        class MinimalAWSConfigManager:
+            @property
+            def profile(self) -> Optional[str]:
+                import os
+                return os.environ.get("AWS_PROFILE")
+            
+            @property
+            def default_region(self) -> str:
+                import os
+                return os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        
+        _aws_config_instance = MinimalAWSConfigManager()
     return _aws_config_instance
 
 def get_aws_client(service: str, region: str | None = None):

@@ -45,16 +45,37 @@ One of the following MCP-compatible clients:
 
 ## Installation
 
-### Using uvx (Recommended)
+> **⚠️ Pre-Release Note**: This package will be published to PyPI by the AWS Labs team. Until then, use the git-based installation method below.
+
+### Using uvx (Recommended - Once Published to PyPI)
 
 ```bash
-uvx --from git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server cloudwan-mcp-server
+uvx awslabs-cloudwan-mcp-server
 ```
 
-### Using uv
+### Using uv (Once Published to PyPI)
 
 ```bash
-uv add git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server
+uv add awslabs-cloudwan-mcp-server
+```
+
+### Pre-Release Installation (Current Method)
+
+Until published to PyPI by AWS Labs, install from a local clone of the repository:
+
+#### Step 1: Clone the Repository
+```bash
+git clone https://github.com/awslabs/mcp.git
+cd mcp/src/cloudwan-mcp-server
+```
+
+#### Step 2: Install Locally
+```bash
+# Using uvx (recommended)
+uvx --from /path/to/mcp/src/cloudwan-mcp-server awslabs-cloudwan-mcp-server
+
+# Or using uv
+uv add --editable /path/to/mcp/src/cloudwan-mcp-server
 ```
 
 ### Docker
@@ -70,12 +91,34 @@ Add to your MCP client configuration:
 
 ### Claude Desktop
 
+#### Once Published to PyPI:
 ```json
 {
   "mcpServers": {
     "awslabs.cloudwan_mcp_server": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server", "cloudwan-mcp-server"],
+      "args": ["awslabs-cloudwan-mcp-server"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_DEFAULT_REGION": "us-west-2"
+      }
+    }
+  }
+}
+```
+
+#### Pre-Release (Current):
+```json
+{
+  "mcpServers": {
+    "awslabs.cloudwan_mcp_server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "/path/to/mcp/src/cloudwan-mcp-server",
+        "awslabs-cloudwan-mcp-server"
+      ],
+      "cwd": "/path/to/mcp/src/cloudwan-mcp-server",
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_DEFAULT_REGION": "us-west-2"
@@ -87,13 +130,36 @@ Add to your MCP client configuration:
 
 ### Claude Code
 
+#### Once Published to PyPI:
 ```json
 {
   "$schema": "https://schema.modelcontextprotocol.io/mcp.json",
   "mcpServers": {
     "awslabs.cloudwan_mcp_server": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server", "cloudwan-mcp-server"],
+      "args": ["awslabs-cloudwan-mcp-server"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile", 
+        "AWS_DEFAULT_REGION": "us-west-2"
+      }
+    }
+  }
+}
+```
+
+#### Pre-Release (Current):
+```json
+{
+  "$schema": "https://schema.modelcontextprotocol.io/mcp.json",
+  "mcpServers": {
+    "awslabs.cloudwan_mcp_server": {
+      "command": "uvx",
+      "args": [
+        "--from", 
+        "/path/to/mcp/src/cloudwan-mcp-server", 
+        "awslabs-cloudwan-mcp-server"
+      ],
+      "cwd": "/path/to/mcp/src/cloudwan-mcp-server",
       "env": {
         "AWS_PROFILE": "your-aws-profile", 
         "AWS_DEFAULT_REGION": "us-west-2"
@@ -105,13 +171,37 @@ Add to your MCP client configuration:
 
 ### VS Code MCP Extension
 
+#### Once Published to PyPI:
 ```json
 {
   "mcp": {
     "servers": {
       "awslabs.cloudwan_mcp_server": {
         "command": "uvx",
-        "args": ["--from", "git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server", "cloudwan-mcp-server"],
+        "args": ["awslabs-cloudwan-mcp-server"],
+        "env": {
+          "AWS_PROFILE": "your-profile",
+          "AWS_DEFAULT_REGION": "us-west-2"
+        }
+      }
+    }
+  }
+}
+```
+
+#### Pre-Release (Current):
+```json
+{
+  "mcp": {
+    "servers": {
+      "awslabs.cloudwan_mcp_server": {
+        "command": "uvx",
+        "args": [
+          "--from", 
+          "/path/to/mcp/src/cloudwan-mcp-server", 
+          "awslabs-cloudwan-mcp-server"
+        ],
+        "cwd": "/path/to/mcp/src/cloudwan-mcp-server",
         "env": {
           "AWS_PROFILE": "your-profile",
           "AWS_DEFAULT_REGION": "us-west-2"

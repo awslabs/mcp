@@ -1,55 +1,105 @@
 # AWS CloudWAN MCP Server
 
-An MCP server that provides comprehensive AWS CloudWAN network analysis and troubleshooting capabilities.
+An MCP server that provides comprehensive AWS CloudWAN network analysis and troubleshooting capabilities for AI assistants.
 
 ## Overview
 
 The AWS CloudWAN MCP Server enables AI assistants to analyze, troubleshoot, and manage AWS CloudWAN networks through natural language interactions. With 17 specialized tools, it provides complete visibility into CloudWAN infrastructure, path tracing, network function group (NFG) analysis, and policy validation.
 
-## Features
+## Prerequisites
 
-- **🔍 Network Path Tracing** - Trace network paths between IP addresses with detailed hop analysis
-- **📊 Core Network Management** - List and analyze CloudWAN core networks and segments  
-- **🔧 Network Function Groups** - Comprehensive NFG analysis and troubleshooting
-- **🌐 Multi-Region Discovery** - Discover VPCs and network resources across AWS regions
-- **📝 Policy Validation** - Validate CloudWAN policies and configurations
-- **🚦 Transit Gateway Integration** - Manage TGW routes and analyze peering
-- **⚡ Real-time Analysis** - Live network troubleshooting and diagnostics
-- **🏆 100% Test Coverage** - 172/172 tests passing with comprehensive validation
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python using `uv python install 3.9`
+3. Set up AWS credentials with access to AWS services
+   - Configure AWS CLI or set environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)
+   - Consider setting up appropriate IAM permissions for CloudWAN operations
+4. **Network access** to AWS APIs
+
+### Required AWS Services
+- AWS CloudWAN (Network Manager) - Active core network deployed
+- Amazon VPC - For network discovery and analysis
+- AWS Transit Gateway (for cross-service analysis features)
 
 ## Installation
 
-### Using uvx (Recommended)
+> **⚠️ Pre-Release Note**: This package will be published to PyPI by the AWS Labs team. Until then, use the git-based installation method below.
+
+### Using uv (Recommended - Once Published to PyPI)
 
 ```bash
-uvx --from git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server cloudwan-mcp-server
+uv add awslabs-cloudwan-mcp-server
 ```
 
-### Using uv
+### Using uvx (Once Published to PyPI)
 
 ```bash
-uv add git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server
+uvx awslabs-cloudwan-mcp-server
 ```
 
-### Docker
+### Pre-Release Installation (Current Method)
+
+Until published to PyPI by AWS Labs, install directly from the repository:
+
+#### Step 1: Clone Repository
+```bash
+git clone https://github.com/awslabs/mcp.git
+cd mcp/src/cloudwan-mcp-server
+```
+
+#### Step 2: Install Locally
+```bash
+# Using uvx (recommended)
+uvx --from /path/to/mcp/src/cloudwan-mcp-server awslabs-cloudwan-mcp-server
+
+# Using uv
+uv add --editable /path/to/mcp/src/cloudwan-mcp-server
+```
+
+### Using Docker
 
 ```bash
 docker run -e AWS_PROFILE=your-profile -e AWS_DEFAULT_REGION=us-west-2 \
-    awslabs/cloudwan-mcp-server:latest
+  -v ~/.aws:/root/.aws:ro \
+  awslabs/cloudwan-mcp-server:latest
 ```
 
 ## Configuration
 
-Add to your MCP client configuration:
-
 ### Claude Desktop
 
+Add to your Claude Desktop configuration file:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+#### Once Published to PyPI:
 ```json
 {
   "mcpServers": {
-    "awslabs.cloudwan_mcp_server": {
+    "cloudwan-mcp-server": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server", "cloudwan-mcp-server"],
+      "args": ["awslabs-cloudwan-mcp-server"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_DEFAULT_REGION": "us-west-2"
+      }
+    }
+  }
+}
+```
+
+#### Pre-Release (Current):
+```json
+{
+  "mcpServers": {
+    "cloudwan-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "/path/to/mcp/src/cloudwan-mcp-server",
+        "awslabs-cloudwan-mcp-server"
+      ],
+      "cwd": "/path/to/mcp/src/cloudwan-mcp-server",
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_DEFAULT_REGION": "us-west-2"
@@ -61,33 +111,23 @@ Add to your MCP client configuration:
 
 ### Claude Code
 
-```json
-{
-  "$schema": "https://schema.modelcontextprotocol.io/mcp.json",
-  "mcpServers": {
-    "awslabs.cloudwan_mcp_server": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server", "cloudwan-mcp-server"],
-      "env": {
-        "AWS_PROFILE": "your-aws-profile", 
-        "AWS_DEFAULT_REGION": "us-west-2"
-      }
-    }
-  }
-}
+#### Once Published to PyPI:
+
+Using the `mcp add` command:
+```bash
+claude mcp add awslabs-cloudwan-mcp-server
 ```
 
-### VS Code MCP Extension
-
+Or manually add to settings.json:
 ```json
 {
   "mcp": {
-    "servers": {
-      "awslabs.cloudwan_mcp_server": {
+    "mcpServers": {
+      "cloudwan-mcp-server": {
         "command": "uvx",
-        "args": ["--from", "git+https://github.com/awslabs/mcp.git#subdirectory=src/cloudwan-mcp-server", "cloudwan-mcp-server"],
+        "args": ["awslabs-cloudwan-mcp-server"],
         "env": {
-          "AWS_PROFILE": "your-profile",
+          "AWS_PROFILE": "your-aws-profile",
           "AWS_DEFAULT_REGION": "us-west-2"
         }
       }
@@ -96,42 +136,179 @@ Add to your MCP client configuration:
 }
 ```
 
+#### Pre-Release (Current):
+
+For local development, manually add to settings.json:
+
+```json
+{
+  "mcp": {
+    "mcpServers": {
+      "cloudwan-mcp-server": {
+        "command": "uvx",
+        "args": [
+          "--from",
+          "/path/to/mcp/src/cloudwan-mcp-server",
+          "awslabs-cloudwan-mcp-server"
+        ],
+        "cwd": "/path/to/mcp/src/cloudwan-mcp-server",
+        "env": {
+          "AWS_PROFILE": "your-aws-profile",
+          "AWS_DEFAULT_REGION": "us-west-2"
+        }
+      }
+    }
+  }
+}
+```
+
+### Amazon Q Developer CLI
+
+Add to your `~/.aws/amazonq/mcp.json` file:
+
+#### Once Published to PyPI:
+```json
+{
+  "mcpServers": {
+    "awslabs.cloudwan_mcp_server": {
+      "command": "uvx",
+      "args": ["awslabs-cloudwan-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "your-profile",
+        "AWS_DEFAULT_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+#### Pre-Release (Current):
+```json
+{
+  "mcpServers": {
+    "awslabs.cloudwan_mcp_server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "/path/to/mcp/src/cloudwan-mcp-server",
+        "awslabs-cloudwan-mcp-server"
+      ],
+      "cwd": "/path/to/mcp/src/cloudwan-mcp-server",
+      "env": {
+        "AWS_PROFILE": "your-profile",
+        "AWS_DEFAULT_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### VS Code MCP Extension
+
+1. Install the MCP extension from the VS Code marketplace
+
+#### Once Published to PyPI:
+```json
+{
+  "mcp.servers": {
+    "cloudwan-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs-cloudwan-mcp-server"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_DEFAULT_REGION": "us-west-2"
+      }
+    }
+  }
+}
+```
+
+#### Pre-Release (Current):
+```json
+{
+  "mcp.servers": {
+    "cloudwan-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "/path/to/mcp/src/cloudwan-mcp-server",
+        "awslabs-cloudwan-mcp-server"
+      ],
+      "cwd": "/path/to/mcp/src/cloudwan-mcp-server",
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_DEFAULT_REGION": "us-west-2"
+      }
+    }
+  }
+}
+```
+
+### Cursor
+
+1. Open Cursor Settings
+2. Navigate to MCP Servers
+3. Add new server with one-click install:
+
+```
+Name: AWS CloudWAN MCP Server
+Install Command: uvx --from /path/to/mcp/src/cloudwan-mcp-server awslabs-cloudwan-mcp-server
+Environment Variables:
+  - AWS_PROFILE=your-aws-profile
+  - AWS_DEFAULT_REGION=us-west-2
+```
+
+## Environment Variables
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `AWS_PROFILE` | Yes | AWS profile name | `default` |
+| `AWS_DEFAULT_REGION` | Yes | Primary AWS region | `us-west-2` |
+| `CLOUDWAN_MCP_LOG_LEVEL` | No | Logging level | `INFO` |
+| `CLOUDWAN_MCP_DEBUG` | No | Enable debug mode | `false` |
+
 ## Available Tools
 
-The CloudWAN MCP Server provides 17 specialized tools:
+The CloudWAN MCP Server provides 17 specialized tools organized by functionality:
 
-### Network Analysis Tools
-- **`trace_network_path`** - Trace network paths between IP addresses
+### Network Analysis
+- **`trace_network_path`** - Trace paths between IP addresses with hop-by-hop analysis
 - **`discover_ip_details`** - Analyze IP address details and network context
-- **`validate_ip_cidr`** - Validate IP addresses and CIDR blocks
+- **`validate_ip_cidr`** - Validate IP addresses and CIDR block configurations
 
 ### Core Network Management
-- **`get_global_networks`** - List available global network resources
-- **`list_core_networks`** - List and analyze CloudWAN core networks
+- **`get_global_networks`** - List and analyze global network resources
+- **`list_core_networks`** - Discover CloudWAN core networks and their status
 - **`get_core_network_policy`** - Retrieve core network policy documents
-- **`get_core_network_change_set`** - Get policy change sets
-- **`get_core_network_change_events`** - Retrieve policy change events
+- **`get_core_network_change_set`** - Analyze policy change sets and modifications
+- **`get_core_network_change_events`** - Track policy change events and history
 
 ### Network Function Groups (NFG)
-- **`list_network_function_groups`** - List available network function groups
-- **`analyze_network_function_group`** - Detailed NFG analysis and configuration
+- **`list_network_function_groups`** - Discover available network function groups
+- **`analyze_network_function_group`** - Detailed NFG analysis and configuration review
 
-### Segment & Route Analysis
-- **`analyze_segment_routes`** - Analyze CloudWAN segment routing
-- **`discover_vpcs`** - Discover VPCs across regions
-- **`validate_cloudwan_policy`** - Validate CloudWAN policy configurations
+### Routing & Segments
+- **`analyze_segment_routes`** - CloudWAN segment routing analysis and optimization
+- **`discover_vpcs`** - Multi-region VPC discovery with CloudWAN attachment status
+- **`validate_cloudwan_policy`** - Policy validation and compliance checking
 
 ### Transit Gateway Integration
-- **`analyze_tgw_routes`** - Analyze Transit Gateway routes
-- **`analyze_tgw_peers`** - Analyze TGW peering relationships
-- **`manage_tgw_routes`** - Manage Transit Gateway routes
+- **`analyze_tgw_routes`** - Transit Gateway route table analysis
+- **`analyze_tgw_peers`** - TGW peering relationship analysis
+- **`manage_tgw_routes`** - Route management operations (create, delete, blackhole)
 
 ### Configuration Management
-- **`aws_config_manager`** - Manage AWS configuration and profiles
+- **`aws_config_manager`** - Dynamic AWS profile and region management
 
-## IAM Permissions
+## IAM Requirements
 
-The following AWS IAM permissions are required:
+The following AWS IAM permissions are required for full functionality:
 
 ```json
 {
@@ -140,13 +317,19 @@ The following AWS IAM permissions are required:
     {
       "Effect": "Allow",
       "Action": [
-        "networkmanager:*",
+        "networkmanager:DescribeGlobalNetworks",
+        "networkmanager:ListCoreNetworks",
+        "networkmanager:GetCoreNetwork",
+        "networkmanager:GetCoreNetworkPolicy",
+        "networkmanager:GetCoreNetworkChangeSet",
+        "networkmanager:GetCoreNetworkChangeEvents",
         "ec2:DescribeVpcs",
         "ec2:DescribeSubnets", 
         "ec2:DescribeNetworkInterfaces",
         "ec2:DescribeRegions",
         "ec2:DescribeTransitGateways",
         "ec2:DescribeTransitGatewayRouteTables",
+        "ec2:SearchTransitGatewayRoutes",
         "ec2:DescribeTransitGatewayPeeringAttachments"
       ],
       "Resource": "*"
@@ -155,97 +338,105 @@ The following AWS IAM permissions are required:
 }
 ```
 
-## Environment Variables
+## AWS Credentials Configuration
 
-- **`AWS_PROFILE`** (required) - AWS profile with CloudWAN permissions
-- **`AWS_DEFAULT_REGION`** (required) - Primary AWS region
-- **`CLOUDWAN_MCP_LOG_LEVEL`** (optional) - Logging level (DEBUG, INFO, WARNING, ERROR)
-- **`CLOUDWAN_MCP_DEBUG`** (optional) - Enable debug logging (true/false)
+### Option 1: AWS Profile (Recommended)
+```bash
+aws configure --profile your-profile-name
+# Set AWS_PROFILE environment variable in your MCP configuration
+```
+
+### Option 2: Default Credentials
+```bash
+aws configure
+# Uses default profile automatically
+```
+
+### Option 3: IAM Roles (for EC2/Lambda)
+Configure IAM roles with the required permissions when running on AWS infrastructure.
 
 ## Usage Examples
 
-### Network Troubleshooting
+### Network Path Tracing
 ```
-"Trace the network path from 10.1.51.65 to 100.69.1.106 and identify any issues"
+"Trace the network path from 10.1.51.65 to 100.69.1.106 and identify any routing issues or bottlenecks"
 ```
 
 ### Core Network Analysis
 ```
-"List all CloudWAN core networks and show their current status"
+"List all CloudWAN core networks in us-west-2 and show their current operational status"
 ```
 
 ### Policy Validation
 ```
-"Validate the CloudWAN policy for core-network-12345 and check for compliance issues"
+"Validate the CloudWAN policy for core network core-network-12345 and check for any compliance violations"
 ```
 
-### NFG Analysis
+### Network Function Group Analysis
 ```
-"Analyze the network function group 'production-nfg' and show its configuration"
-```
-
-### VPC Discovery
-```
-"Discover all VPCs in us-west-2 and us-east-1 regions and show their CloudWAN attachments"
+"Analyze the network function group 'production-nfg' and show its configuration details and health status"
 ```
 
-## Testing
+### Multi-Region VPC Discovery
+```
+"Discover all VPCs across us-west-2 and us-east-1 regions and show their CloudWAN attachment status"
+```
 
-The CloudWAN MCP Server includes comprehensive testing with **100% test coverage**:
+### Transit Gateway Route Analysis
+```
+"Analyze Transit Gateway route table rtb-12345 for route conflicts and optimization opportunities"
+```
 
-- **172 total tests** with **100% pass rate**
-- Unit tests with realistic mock fixtures  
-- Integration testing with AWS services
-- Security validation and error handling
-- AWS Labs compliance validation
+## Docker Deployment
 
-Run tests:
-
+### Build and Run
 ```bash
-uv run pytest --cov --cov-report=term-missing
+# Pull the latest image
+docker pull public.ecr.aws/awslabs/cloudwan-mcp-server:latest
+
+# Run with AWS credentials
+docker run -d \
+  --name cloudwan-mcp-server \
+  -e AWS_PROFILE=your-profile \
+  -e AWS_DEFAULT_REGION=us-west-2 \
+  -v ~/.aws:/root/.aws:ro \
+  public.ecr.aws/awslabs/cloudwan-mcp-server:latest
 ```
 
-## Development
-
-### Setup Development Environment
-
-```bash
-git clone https://github.com/awslabs/mcp.git
-cd mcp/src/cloudwan-mcp-server
-uv sync --all-groups
+### Docker Compose
+```yaml
+version: '3.8'
+services:
+  cloudwan-mcp-server:
+    image: public.ecr.aws/awslabs/cloudwan-mcp-server:latest
+    environment:
+      - AWS_PROFILE=your-profile
+      - AWS_DEFAULT_REGION=us-west-2
+      - CLOUDWAN_MCP_LOG_LEVEL=INFO
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    restart: unless-stopped
 ```
 
-### Run Server Locally
+## Troubleshooting
 
-```bash
-uv run python -m awslabs.cloudwan_mcp_server
-```
+### Common Issues
 
-### Code Quality
+**Authentication Errors**
+- Verify AWS credentials: `aws sts get-caller-identity`
+- Check IAM permissions against the required permissions list
+- Ensure AWS_PROFILE is set correctly
 
-```bash
-uv run ruff check .
-uv run pyright .
-```
+**Network Connectivity**
+- Verify access to AWS APIs from your network
+- Check security groups and NACLs if running in AWS
+- Test basic AWS CLI commands: `aws ec2 describe-regions`
 
-## Architecture
+**CloudWAN Specific Issues**
+- Ensure CloudWAN is available in your region
+- Verify you have NetworkManager permissions
+- Check that you have active CloudWAN resources
 
-The server is built with a modular architecture:
-
-- **Thread-safe LRU caching** for optimal performance
-- **Comprehensive error handling** with detailed diagnostics  
-- **Multi-region support** for global CloudWAN deployments
-- **Extensible tool framework** for easy enhancement
-- **Production-ready logging** and monitoring
-
-## Support
+## Support and Issues
 
 For issues and feature requests, please use the [GitHub Issues](https://github.com/awslabs/mcp/issues) page.
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-We welcome contributions! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) file for details on how to get started.

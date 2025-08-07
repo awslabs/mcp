@@ -12,4 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for AWS CloudWAN MCP Server."""
+"""Setup script for AWS CloudWAN MCP Server - for legacy compatibility only.
+
+This file is provided for backward compatibility with older pip versions.
+The project uses pyproject.toml as the primary configuration file.
+"""
+
+from setuptools import setup
+
+# Actual configuration is in pyproject.toml
+setup()

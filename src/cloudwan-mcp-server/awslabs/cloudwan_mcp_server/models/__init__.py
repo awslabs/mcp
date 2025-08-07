@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Entry point for awslabs.cloudwan_mcp_server package when run as a module."""
+"""Data models and types for CloudWAN MCP Server."""
 
-from .server import main
+from . import aws_models, network_models
 
-
-if __name__ == "__main__":
-    main()
+__all__ = ["aws_models", "network_models"]

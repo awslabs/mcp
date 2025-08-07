@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include NOTICE
+include CHANGELOG.md
+include pyproject.toml
+recursive-include awslabs/cloudwan_mcp_server/static *
+recursive-include awslabs/cloudwan_mcp_server/templates *
+global-exclude *.py[cod]
+global-exclude __pycache__
+global-exclude .DS_Store

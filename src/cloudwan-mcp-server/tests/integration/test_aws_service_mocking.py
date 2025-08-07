@@ -363,7 +363,7 @@ class TestEC2ServiceMocking:
             "Tags": [{"Key": "Name", "Value": "Cross-region peering"}, {"Key": "Purpose", "Value": "DR connectivity"}],
         }
 
-        with patch("awslabs.cloudwan_mcp_server.server.server.get_aws_client") as mock_get_client:
+        with patch("awslabs.cloudwan_mcp_server.server.get_aws_client") as mock_get_client:
             mock_client = Mock()
             mock_client.describe_transit_gateway_peering_attachments.return_value = {
                 "TransitGatewayPeeringAttachments": [mock_peering_attachment]

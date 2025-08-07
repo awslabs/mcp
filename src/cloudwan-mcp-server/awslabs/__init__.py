@@ -12,13 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""AWS Labs namespace package."""
 
-"""AWS Labs CloudWAN MCP Server Package."""
-
-__version__ = "0.0.0"
-__author__ = "AWS Labs"
-__description__ = "MCP server for AWS CloudWAN network analysis and troubleshooting"
-
-from .cloudwan_mcp_server import *
-
-__all__ = ["cloudwan_mcp_server"]
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
