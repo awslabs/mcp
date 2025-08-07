@@ -25,7 +25,11 @@ sys.path.append('.')
 
 async def test_mcp_server_fix():
     """Test the MCP server fix to ensure tools return visible results"""
-    os.environ["AWS_PROFILE"] = "taylaand+net-dev-Admin"
+    aws_profile = os.environ.get("TEST_AWS_PROFILE")
+    if aws_profile:
+        os.environ["AWS_PROFILE"] = aws_profile
+    else:
+        print("⚠️  TEST_AWS_PROFILE environment variable not set. Using default AWS profile.")
     os.environ["AWS_DEFAULT_REGION"] = "us-west-2"
     os.environ["AWS_REGION"] = "us-west-2"
 

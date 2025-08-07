@@ -43,11 +43,14 @@ async def test_list_core_networks_directly():
 
     try:
         # Set up environment
-        os.environ.update({
-            "AWS_PROFILE": "taylaand+net-dev-Admin",
+        aws_profile = os.environ.get("TEST_AWS_PROFILE")
+        env_vars = {
             "AWS_DEFAULT_REGION": "us-west-2",
             "CLOUDWAN_MCP_DEBUG": "true"
-        })
+        }
+        if aws_profile:
+            env_vars["AWS_PROFILE"] = aws_profile
+        os.environ.update(env_vars)
 
         # Import the components
         from awslabs.cloudwan_mcp_server.aws.client_manager import AWSClientManager
