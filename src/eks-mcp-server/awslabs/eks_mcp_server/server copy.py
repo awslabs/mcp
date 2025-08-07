@@ -71,59 +71,27 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 5. Search troubleshooting guide: `search_eks_troubleshoot_guide(query='pod pending')`
 
 ### Checking Cluster Resiliency
-The EKS Resiliency Checker evaluates your cluster against **28 critical best practices** grouped into three categories:
-
-- **Application Related (A1-A14)**: Checks for workload resiliency such as liveness/readiness probes, autoscaling, disruption budgets, and observability.
-- **Control Plane Related (C1-C5)**: Covers audit logging, IAM authentication, API server access controls, and large cluster optimizations.
-- **Data Plane Related (D1-D7)**: Ensures node-level robustness including AZ distribution, CoreDNS scaling, resource quotas, taints/tolerations, and auto-scaling behavior.
+The EKS Resiliency Checker evaluates clusters against 28 critical best practices across three categories:
+- **Application Related (A1-A14)**: Workload resilience, health probes, autoscaling, monitoring
+- **Control Plane Related (C1-C5)**: Logging, authentication, endpoint security, large cluster optimizations
+- **Data Plane Related (D1-D7)**: Node autoscaling, AZ distribution, resource governance, CoreDNS
 
 **Usage:**
-To run a full resiliency check:
-```
-check_eks_resiliency(cluster_name='my-cluster')
-```
+1. Run full resiliency checks: `check_eks_resiliency(cluster_name='my-cluster')`
 
 **Output Requirements:**
-- All 28 checks must be executed. Do not skip any check regardless of compliance status.
-- Results should be summarized at the top, clearly stating how many checks passed, failed, or encountered errors.
-- For each check:
-  - Include the check ID and name (e.g., A3 – Liveness Probe Configured)
-  - Indicate if the check passed ✅, failed ❌, or errored ⚠️
-- For failed checks, describe:
-  - Impacted resources (e.g., deployments, nodes)
-  - Remediation guidance
-  - Severity level (high / medium / low)
-- For compliant checks, it's sufficient to display check ID and "✅ Compliant"
-- For any errors during execution, clearly log the check ID and the error message under a separate "Errors Encountered" section
-- If the output exceeds response limits, indicate this by including a note like: "Some output may be truncated"
+3. Return all check results in a JSON object with a top-level array named "results"
+4. Each check result must include: check_id, check_name, compliant (boolean), impacted_resources, details, remediation
+5. If output is truncated, include "is_truncated": true
+6. If any errors are encountered during checks, include them explicitly under a key named "errors"
+7. Ensure all 28 checks are executed, and no check is skipped
+8. Group the results by compliance status and severity level before displaying to users
 
-**Example Output Format:**
-```
-Cluster Resiliency Summary:
-✅ 23 checks passed
-❌ 4 checks failed
-⚠️ 1 check encountered an error
-
-❌ A4 - Readiness Probe Configured
-Missing in 3 deployments: frontend, backend, worker
-→ Remediation: Add readiness probes to ensure traffic is only routed to ready pods
-→ Severity: Medium
-
-✅ A5 - HPA Configured
-✅ C1 - Control Plane Logging Enabled
-
-⚠️ C3 - API Server Access Restricted
-Error: Could not verify endpoint access due to missing permissions
-
-Note: All 28 checks were run. Some compliant results are summarized for brevity.
-```
-
-**Interpretation Guidelines:**
-- ✅ **PASS**: Best practice met
-- ❌ **FAIL**: Requires remediation
-- ⚠️ **ERROR**: Execution issue; may need elevated access or config fix
-
-Use this check to proactively address weak points and improve cluster availability posture.
+**Interpretation:**
+- PASS: Check meets best practice requirements
+- FAIL: Check identifies issues requiring remediation
+- Focus on FAIL results for immediate action items
+- Use impacted_resources to target specific remediation efforts
 
 ## Best Practices
 - Use descriptive names for resources to make them easier to identify and manage.
