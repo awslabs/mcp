@@ -511,8 +511,9 @@ class TestAWSToolGenerator(unittest.TestCase):
         # Test with validator returning False
         validator_mock.reset_mock()
         validator_mock.return_value = (False, 'Validation failed')
-        result = asyncio.run(operation_func(region='us-east-1'))
-        self.assertEqual(result, {'error': 'Validation failed'})
+        with self.assertRaises(Exception) as context:
+            asyncio.run(operation_func(region='us-east-1'))
+        self.assertEqual(str(context.exception), 'Validation failed')
 
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.botocore.session.get_session')

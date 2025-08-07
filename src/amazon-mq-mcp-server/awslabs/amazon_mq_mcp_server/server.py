@@ -18,39 +18,65 @@ from awslabs.amazon_mq_mcp_server.aws_service_mcp_generator import (
 )
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 from mcp.server.fastmcp import FastMCP
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
 
 # override create_broker tool to tag resources
 def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, _: str):
-    """Create a ActiveMQ or RabbitMQ broker on AmazonMQ."""
+    """Override broker creation behaviour."""
 
     @mcp.tool()
     def create_broker(
+        region: str,
         broker_name: str,
         engine_type: str,
-        engine_version: str,
-        host_instance_type: str,
         deployment_mode: str,
-        publicly_accessible: bool,
-        auto_minor_version_upgrade: bool,
-        users: List[Dict[str, str]],
-        region: str = 'us-east-1',
+        username: str,
+        password: str,
+        engine_version: Optional[str] = None,
+        publicly_accessible: bool = True,
+        host_instance_type: str = 'mq.m5.xlarge',
+        auto_minor_version_upgrade: bool = True,
     ):
-        """Create a ActiveMQ or RabbitMQ broker on AmazonMQ."""
+        """Create a ActiveMQ or RabbitMQ broker on AmazonMQ.
+
+        Args:
+            region: AWS region code (e.g., 'us-east-1', 'eu-west-1').
+            broker_name: The name given to the broker.
+            engine_type: The engine type of the broker. Possible values: "RABBITMQ" and "ACTIVEMQ".
+            deployment_mode: The broker deployment mode. Possible values for ACTIVEMQ engine type: SINGLE_INSTANCE, ACTIVE_STANDBY_MULTI_AZ and possible values for RABBITMQ engine type: SINGLE_INSTANCE, CLUSTER_MULTI_AZ.
+            username: The username to access the broker.
+            password: The password for the user.
+            engine_version: The broker engine version. Defaults to the latest available version for the specified broker engine type. It should also be unspecified to use the latest version.
+            publicly_accessible: Enables connections from applications outside of the VPC that hosts the broker's subnets. Default to True for publicly accessible broker.
+            host_instance_type: The broker instance type. Default to production-ready instance type "mq.m5.xlarge".
+            auto_minor_version_upgrade: Whether or not to enable minor version automatic upgrade. Default is true.
+
+        Returns:
+            Response from API
+
+        """
         create_params = {
             'BrokerName': broker_name,
             'EngineType': engine_type,
-            'EngineVersion': engine_version,
             'HostInstanceType': host_instance_type,
             'DeploymentMode': deployment_mode,
             'PubliclyAccessible': publicly_accessible,
             'AutoMinorVersionUpgrade': auto_minor_version_upgrade,
-            'Users': users,
+            'Users': [
+                {
+                    'ConsoleAccess': True,
+                    'Password': password,
+                    'Username': username,
+                }
+            ],
             'Tags': {
                 'mcp_server_version': MCP_SERVER_VERSION,
             },
         }
+        if engine_version is not None:
+            create_params['EngineVersion'] = engine_version
+
         mq_client = mq_client_getter(region)
         response = mq_client.create_broker(**create_params)
         return response
