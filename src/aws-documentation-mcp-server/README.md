@@ -31,7 +31,10 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   "mcpServers": {
     "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "args": [
+         "--from"
+         "awslabs.aws-documentation-mcp-server@latest",
+"        awslabs.aws-documentation-mcp-server.exe"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_DOCUMENTATION_PARTITION": "aws"
