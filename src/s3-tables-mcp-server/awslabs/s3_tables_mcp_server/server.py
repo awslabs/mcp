@@ -85,7 +85,6 @@ class S3TablesMCPServer(FastMCP):
 app = S3TablesMCPServer(
     name='s3-tables-server',
     instructions='A Model Context Protocol (MCP) server that enables programmatic access to AWS S3 Tables. This server provides a comprehensive interface for creating, managing, and interacting with S3-based table storage, supporting operations for table buckets, namespaces, and individual S3 tables. It integrates with Amazon Athena for SQL query execution, allowing both read and write operations on your S3 Tables data.',
-    version=__version__,
 )
 
 
@@ -589,6 +588,9 @@ async def import_csv_to_table(
         str, Field('s3tables', description='REST signing name')
     ] = 's3tables',
     rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
+    preserve_case: Annotated[
+        bool, Field(..., description='Preserve case of column names')
+    ] = False,
 ) -> dict:
     """Import data from a CSV file into an S3 table.
 
@@ -596,6 +598,7 @@ async def import_csv_to_table(
     If the table doesn't exist, it will be created with a schema inferred from the CSV file.
     If the table exists, the CSV file schema must be compatible with the table's schema.
     The tool will validate the schema before attempting to import the data.
+    If preserve_case is True, the column names will not be converted to snake_case. Otherwise, the column names will be converted to snake_case.
 
     Returns error dictionary with status and error message if:
         - URL is not a valid S3 URL
@@ -615,6 +618,7 @@ async def import_csv_to_table(
         catalog_name: 's3tablescatalog'
         rest_signing_name: 's3tables'
         rest_sigv4_enabled: 'true'
+        preserve_case: False
 
     Permissions:
     You must have:
@@ -634,6 +638,7 @@ async def import_csv_to_table(
         catalog_name=catalog_name,
         rest_signing_name=rest_signing_name,
         rest_sigv4_enabled=rest_sigv4_enabled,
+        preserve_case=preserve_case,
     )
 
 
@@ -656,6 +661,9 @@ async def import_parquet_to_table(
         str, Field('s3tables', description='REST signing name')
     ] = 's3tables',
     rest_sigv4_enabled: Annotated[str, Field('true', description='Enable SigV4 signing')] = 'true',
+    preserve_case: Annotated[
+        bool, Field(..., description='Preserve case of column names')
+    ] = False,
 ) -> dict:
     """Import data from a Parquet file into an S3 table.
 
@@ -663,6 +671,7 @@ async def import_parquet_to_table(
     If the table doesn't exist, it will be created with a schema inferred from the Parquet file.
     If the table exists, the Parquet file schema must be compatible with the table's schema.
     The tool will validate the schema before attempting to import the data.
+    If preserve_case is True, the column names will not be converted to snake_case. Otherwise, the column names will be converted to snake_case.
 
     Returns error dictionary with status and error message if:
         - URL is not a valid S3 URL
@@ -688,6 +697,7 @@ async def import_parquet_to_table(
         catalog_name: 's3tablescatalog'
         rest_signing_name: 's3tables'
         rest_sigv4_enabled: 'true'
+        preserve_case: False
 
     Permissions:
     You must have:
@@ -708,6 +718,7 @@ async def import_parquet_to_table(
         catalog_name=catalog_name,
         rest_signing_name=rest_signing_name,
         rest_sigv4_enabled=rest_sigv4_enabled,
+        preserve_case=preserve_case,
     )
 
 
