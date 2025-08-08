@@ -66,6 +66,7 @@ def test_validate_aws_region_valid_regions(valid_region: str):
         'us-east-verylongstring-1',
         'us-east-123',
         'us-gov-east-123',
+        'this-is-not-a-region-1',
         '',
         ' ',
         'not a region',

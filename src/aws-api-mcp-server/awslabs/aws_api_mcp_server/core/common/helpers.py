@@ -64,7 +64,7 @@ def expand_user_home_directory(args: list[str]) -> list[str]:
 
 def validate_aws_region(region: str):
     """Checks if provided region is a valid AWS Region."""
-    aws_region_pattern = '^(\\w{1,10}+)-(\\w{1,10}+-)?(\\w{1,10}+)-\\d{1,2}$'
+    aws_region_pattern = '^(\\w{1,10})-(\\w{1,10}-)?(\\w{1,10})-\\d{1,2}$'
 
     if not re.match(aws_region_pattern, region):
         error_message = f'{region} is not a valid AWS Region'
