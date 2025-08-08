@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Validate `AWS_REGION` environment variable (#1030)
 
+## [0.2.4] - 2025-08-07
+
 ### Fixed
 
 - Async model loading on Windows (#1035)
