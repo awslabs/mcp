@@ -45,7 +45,8 @@ RUN apk update && \
     musl-dev \
     libffi-dev \
     openssl-dev \
-    cargo
+    cargo && \
+    pip install --no-cache-dir uv
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
