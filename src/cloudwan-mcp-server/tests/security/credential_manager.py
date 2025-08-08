@@ -27,9 +27,9 @@ import math
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock
-from typing import Any
+from typing import Any, Optional
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
@@ -57,7 +57,7 @@ class TemporalCredentials:
 
     def is_expired(self) -> bool:
         """Check if credentials have expired."""
-        return datetime.now(UTC) > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at
 
     def to_env_dict(self) -> dict[str, str]:
         """Convert to environment variable dictionary."""
@@ -208,7 +208,7 @@ class CredentialManager:
             return False
 
     def generate_credentials(
-        self, duration: timedelta | None = None, test_context: str = "default"
+        self, duration: Optional[timedelta] = None, test_context: str = "default"
     ) -> TemporalCredentials:
         """Generate secure temporal credentials for test execution.
 
@@ -227,7 +227,7 @@ class CredentialManager:
         secret_key = f"test-secret-{self._generate_secure_suffix(40)}"
         session_token = f"test-session-{self._generate_secure_suffix(32)}"
 
-        expires_at = datetime.now(UTC) + duration
+        expires_at = datetime.now(timezone.utc) + duration
 
         credentials = TemporalCredentials(
             access_key=access_key,
@@ -247,7 +247,7 @@ class CredentialManager:
                 "session_id": test_session_id,
                 "context": test_context,
                 "expires_at": expires_at.isoformat(),
-                "timestamp": datetime.now(UTC).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 
@@ -277,7 +277,7 @@ class CredentialManager:
                 {
                     "event": "credential_expired_cleanup",
                     "session_id": session_id,
-                    "timestamp": datetime.now(UTC).isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
 
@@ -290,7 +290,7 @@ class CredentialManager:
         """Log credential lifecycle events for audit compliance with encryption."""
         # Add tamper detection metadata
         event["_audit_id"] = secrets.token_hex(8)
-        event["_logged_at"] = datetime.now(UTC).isoformat()
+        event["_logged_at"] = datetime.now(timezone.utc).isoformat()
 
         # Generate checksum before adding to log
         checksum = self._generate_entry_checksum(event)
@@ -320,7 +320,7 @@ class CredentialManager:
         if not self._verify_audit_integrity():
             logger.error("Audit log integrity compromised - returning secured snapshot")
             # Return sanitized version indicating tampering
-            return [{"error": "Audit log integrity compromised", "timestamp": datetime.now(UTC).isoformat()}]
+            return [{"error": "Audit log integrity compromised", "timestamp": datetime.now(timezone.utc).isoformat()}]
 
         # Return decrypted audit trail for authorized access
         return self._audit_log.copy()
@@ -335,7 +335,7 @@ class CredentialManager:
                 {
                     "event": "emergency_cleanup",
                     "session_id": session_id,
-                    "timestamp": datetime.now(UTC).isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
 

@@ -27,6 +27,7 @@ dependencies = [
     "mcp>=0.1.0",
     "pydantic-settings>=2.0.0",
     "loguru>=0.7.0",
+    "cryptography>=41.0.0",
 ]
 
 [project.optional-dependencies]
@@ -34,7 +35,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
-    "moto>=4.0.0",
+    "moto[ec2]>=4.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
@@ -61,3 +62,38 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--disable-warnings",
+    "--tb=short"
+]
+markers = [
+    "unit: marks tests as unit tests (fast, isolated)",
+    "integration: marks tests as integration tests (slower, requires resources)",
+    "e2e: marks tests as end-to-end tests (slowest, requires full setup)",
+    "security: marks tests as security-related tests",
+    "stress: marks tests as stress/performance tests",
+    "aws_region: marks tests that require specific AWS region setup",
+    "slow: marks tests as slow running",
+    "live: marks tests that require live AWS credentials/services",
+    "slowtest: marks tests as slow running (alternative name)"
+]
+
+[dependency-groups]
+dev = [
+    "moto[ec2]>=5.1.9",
+    "mypy>=1.17.1",
+    "psutil>=7.0.0",
+    "pyright>=1.1.403",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.8",
+]

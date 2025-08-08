@@ -28,7 +28,7 @@ from .utils.logger import logger
 class AWSConfigManager:
     """AWS configuration manager following AWS Labs patterns."""
 
-    def __init__(self, profile: str | None = None, region: str | None = None):
+    def __init__(self, profile: str | None = None, region: str | None = None) -> None:
         """Initialize AWS configuration manager.
 
         Args:
@@ -39,7 +39,7 @@ class AWSConfigManager:
         self.region = region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
         self._client_cache = {}
 
-    def get_aws_client(self, service_name: str, region: str | None = None):
+    def get_aws_client(self, service_name: str, region: str | None = None) -> Any:  # noqa: ANN401
         """Get AWS client for specified service.
 
         Args:
@@ -63,11 +63,11 @@ class AWSConfigManager:
 
         return self._client_cache[cache_key]
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Cleanup resources."""
         self._client_cache.clear()
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Destructor to cleanup resources."""
         self.cleanup()
 
@@ -75,7 +75,7 @@ class AWSConfigManager:
 class ConfigPersistenceManager:
     """Manages configuration persistence for AWS settings."""
 
-    def __init__(self, config_dir: Path | None = None):
+    def __init__(self, config_dir: Path | None = None) -> None:
         """Initialize configuration manager.
 
         Args:
@@ -106,7 +106,7 @@ class ConfigPersistenceManager:
                 "aws_profile": profile,
                 "aws_region": region,
                 "last_updated": datetime.now(UTC).isoformat(),
-                "metadata": metadata or {}
+                "metadata": metadata or {},
             }
 
             with open(self.config_file, "w") as f:
@@ -180,9 +180,7 @@ class ConfigPersistenceManager:
 
             # Save the restored configuration
             return self.save_current_config(
-                profile,
-                region,
-                metadata={"restored": True, "restored_at": datetime.now(UTC).isoformat()}
+                profile, region, metadata={"restored": True, "restored_at": datetime.now(UTC).isoformat()}
             )
         except Exception:
             return False
@@ -199,7 +197,7 @@ class ConfigPersistenceManager:
             "config_valid": False,
             "history_file_exists": self.history_file.exists(),
             "history_entries": 0,
-            "errors": []
+            "errors": [],
         }
 
         try:
@@ -295,14 +293,13 @@ class ConfigPersistenceManager:
 
             # Sanitize sensitive data before export
             sanitized_config = self._sanitize_config_for_export(current_config)
-            sanitized_history = [self._sanitize_config_for_export(entry)
-                               for entry in self.get_config_history(20)]
+            sanitized_history = [self._sanitize_config_for_export(entry) for entry in self.get_config_history(20)]
 
             export_data = {
                 "export_timestamp": datetime.now(UTC).isoformat(),
                 "current_config": sanitized_config,
                 "config_history": sanitized_history,
-                "note": "Sensitive data has been sanitized for security"
+                "note": "Sensitive data has been sanitized for security",
             }
 
             with open(export_path, "w") as f:
@@ -327,10 +324,7 @@ class ConfigPersistenceManager:
 
             current_config = import_data.get("current_config")
             if current_config and "aws_profile" in current_config and "aws_region" in current_config:
-                return self.restore_config(
-                    current_config["aws_profile"],
-                    current_config["aws_region"]
-                )
+                return self.restore_config(current_config["aws_profile"], current_config["aws_region"])
 
             return False
         except Exception:
