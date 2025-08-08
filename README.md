@@ -203,7 +203,10 @@ Work with databases, caching systems, and data processing workflows.
 
 ##### Search & Analytics
 
-- **[Amazon OpenSearch MCP Server](https://github.com/opensearch-project/opensearch-mcp-server-py)** - OpenSearch powered search, Analytics, and Observability
+| Server Name | Description | Install |
+|-------------|-------------|---------|
+| [Amazon OpenSearch MCP Server](https://github.com/opensearch-project/opensearch-mcp-server-py) | OpenSearch powered search, Analytics, and Observability | External Repository |
+| [AWS S3 Vectors MCP Server](src/s3-vectors-mcp-server) | Embed text using Amazon Bedrock models and perform semantic search with S3 Vectors | [![Install](https://img.shields.io/badge/Install-Cursor-blue?style=flat-square&logo=cursor)](https://cursor.com/install-mcp?name=awslabs.s3-vectors-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuczMtdmVjdG9ycy1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUFJPRklMRSI6InlvdXItYXdzLXByb2ZpbGUiLCJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) <br/>[![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=S3%20Vectors%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.s3-vectors-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 #### Caching & Performance
 | Server Name | Description | Install |
