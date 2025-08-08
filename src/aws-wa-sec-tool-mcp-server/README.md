@@ -226,7 +226,7 @@ This script will:
 1. Install required dependencies (pytest, pytest-asyncio, pytest-cov)
 2. Run all tests with coverage reporting
 
-For more detailed information about testing, see the [tests/README.md](tests/README.md) file.
+For more detailed information about testing, see the tests/README.md file in the project repository.
 
 ## License
 
