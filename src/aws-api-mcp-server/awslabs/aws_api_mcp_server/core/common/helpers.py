@@ -14,6 +14,7 @@
 
 import json
 import os
+import re
 import time
 from botocore.response import StreamingBody
 from contextlib import contextmanager
@@ -59,3 +60,13 @@ def as_json(boto_response: dict[str, Any]) -> str:
 def expand_user_home_directory(args: list[str]) -> list[str]:
     """Expand paths beginning with '~' or '~user'."""
     return [os.path.expanduser(arg) for arg in args]
+
+
+def validate_aws_region(region: str):
+    """Checks if provided region is a valid AWS Region."""
+    aws_region_pattern = '^(\\w{1,10})-(\\w{1,10}-)?(\\w{1,10})-\\d{1,2}$'
+
+    if not re.match(aws_region_pattern, region):
+        error_message = f'{region} is not a valid AWS Region'
+        logger.error(error_message)
+        raise ValueError(error_message)
