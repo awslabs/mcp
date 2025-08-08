@@ -1,0 +1,87 @@
+{
+    "KPIVisual": {
+        "VisualId": "",
+        "Title": {
+            "Visibility": "VISIBLE"
+        },
+        "Subtitle": {
+            "Visibility": "VISIBLE"
+        },
+        "ChartConfiguration": {
+            "FieldWells": {
+                "Values": [],
+                "TargetValues": [],
+                "TrendGroups": []
+            },
+            "SortConfiguration": {},
+            "KPIOptions": {
+                "Comparison": {
+                    "ComparisonMethod": "PERCENT_DIFFERENCE"
+                },
+                "PrimaryValueDisplayType": "ACTUAL",
+                "SecondaryValueFontConfiguration": {
+                    "FontSize": {
+                        "Relative": "EXTRA_LARGE"
+                    }
+                },
+                "VisualLayoutOptions": {
+                    "StandardLayout": {
+                        "Type": "VERTICAL"
+                    }
+                }
+            }
+        },
+        "ConditionalFormatting": {
+            "ConditionalFormattingOptions": [
+                {
+                    "ComparisonValue": {
+                        "TextColor": {
+                            "Solid": {
+                                "Expression": "",
+                                "Color": "#2CAD00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "ComparisonValue": {
+                        "TextColor": {
+                            "Solid": {
+                                "Expression": "",
+                                "Color": "#DE3B00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "ComparisonValue": {
+                        "Icon": {
+                            "CustomCondition": {
+                                "Expression": "",
+                                "IconOptions": {
+                                    "Icon": "CARET_UP"
+                                },
+                                "Color": "#2CAD00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "ComparisonValue": {
+                        "Icon": {
+                            "CustomCondition": {
+                                "Expression": "",
+                                "IconOptions": {
+                                    "Icon": "CARET_DOWN"
+                                },
+                                "Color": "#DE3B00"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        "Actions": [],
+        "ColumnHierarchies": []
+    }
+}

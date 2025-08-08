@@ -1,0 +1,32 @@
+{
+    "PluginVisual": {
+        "VisualId": "",
+        "PluginArn": "arn:aws:quicksight::aws:visualplugin/highcharts/alias/V1",
+        "Title": {
+            "Visibility": "VISIBLE"
+        },
+        "Subtitle": {
+            "Visibility": "VISIBLE"
+        },
+        "ChartConfiguration": {
+            "FieldWells": [
+                {
+                    "AxisName": "GROUP_BY",
+                    "Dimensions": []
+                },
+                {
+                    "AxisName": "VALUE",
+                    "Measures": []
+                }
+            ],
+            "VisualOptions": {
+                "VisualProperties": [
+                    {
+                        "Name": "codeEditor",
+                        "Value": ""
+                    }
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,26 @@
+{
+    "TableVisual": {
+        "VisualId": "",
+        "Title": {
+            "Visibility": "VISIBLE"
+        },
+        "Subtitle": {
+            "Visibility": "VISIBLE"
+        },
+        "ChartConfiguration": {
+            "FieldWells": {
+                "TableAggregatedFieldWells": {
+                    "GroupBy": [],
+                    "Values": []
+                }
+            },
+            "SortConfiguration": {},
+            "TableOptions": {
+                "CellStyle": {
+                    "Height": 25
+                }
+            }
+        },
+        "Actions": []
+    }
+}
