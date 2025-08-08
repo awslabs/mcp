@@ -168,6 +168,7 @@ async def query_knowledge_bases_tool(
     - content: The text content of the document
     - location: The source location of the document
     - score: The relevance score of the document
+    - metadata: The metadata of the document
 
 
     ## Interpretation Best Practices
