@@ -1141,6 +1141,29 @@
       "workflows": [
         "autonomous"
       ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Assess AWS environments against the Well-Architected Framework Security Pillar",
+      "icon": "\ud83d\udee0\ufe0f",
+      "id": "aws-wa-sec-tool-mcp-server",
+      "name": "AWS Well-Architected Security Assessment Tool MCP Server",
+      "source_path": "src/aws-wa-sec-tool-mcp-server/",
+      "subcategory": "Security Assessment",
+      "tags": [
+        "developer-tools",
+        "security",
+        "well-architected",
+        "assessment",
+        "compliance",
+        "security-posture",
+        "vibe-coding",
+        "conversational"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational"
+      ]
     }
   ],
   "workflows": [
