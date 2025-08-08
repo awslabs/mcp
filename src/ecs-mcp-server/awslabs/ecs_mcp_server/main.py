@@ -71,10 +71,6 @@ config = get_config()
 # Create the MCP server
 mcp = FastMCP(
     name="AWS ECS MCP Server",
-    description=(
-        "A server for automating containerization and deployment of web applications to AWS ECS"
-    ),
-    version="0.1.0",
     instructions="""Use this server to containerize and deploy web applications to AWS ECS.
 
 WORKFLOW:
