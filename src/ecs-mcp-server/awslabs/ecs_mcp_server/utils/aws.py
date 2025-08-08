@@ -24,6 +24,8 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+from awslabs.ecs_mcp_server import __version__
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +36,7 @@ def get_aws_config() -> Config:
     Returns:
         Config object with user-agent tag
     """
-    return Config(user_agent_extra="awslabs/mcp/ecs-mcp-server/0.1.0")
+    return Config(user_agent_extra=f"awslabs/mcp/ecs-mcp-server/{__version__}")
 
 
 # Dictionary to store clients for reuse
