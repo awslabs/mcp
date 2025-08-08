@@ -49,8 +49,7 @@ RUN apk update && \
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
-    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
-    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
+    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
