@@ -24,6 +24,19 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 ## Installation
 
+### Prerequisites
+
+Before installing the ECS MCP Server, ensure you have the following prerequisites installed:
+
+1. **Docker or Finch**: Required for containerization and local testing
+   - [Docker](https://docs.docker.com/get-docker/) for container management
+   - [Finch](https://github.com/runfinch/finch) as a Docker alternative
+
+2. **UV**: Required for package management and running MCP servers
+   - Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
+
+### Installation Steps
+
 ```bash
 # Install using uv
 uv pip install awslabs.ecs-mcp-server
@@ -41,6 +54,8 @@ git clone https://github.com/awslabs/mcp.git
 # Run the server directly using uv
 uv --directory /path/to/ecs-mcp-server/src/ecs-mcp-server/awslabs/ecs_mcp_server run main.py
 ```
+
+To setup your preferred MCP client (ie. Amazon Q Developer CLI, Cline, Cursor, VS Code, etc.) with the ECS MCP Server, proceed to the [Configuration](#configuration) section.
 
 ## Usage Environments
 
