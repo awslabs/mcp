@@ -33,6 +33,10 @@ from awslabs.cloudwan_mcp_server.server import (
 @pytest.fixture(scope="session")
 def live_aws_credentials():
     """Ensure AWS credentials are available for live tests."""
+    # Skip live tests in CI/CD environments unless explicitly enabled
+    if os.getenv('CI') and not os.getenv('ENABLE_LIVE_AWS_TESTS'):
+        pytest.skip("Live AWS tests disabled in CI/CD environment")
+    
     required_vars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 

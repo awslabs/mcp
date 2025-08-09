@@ -14,6 +14,9 @@
 
 """Large network topology handling tests following AWS Labs patterns."""
 
+# Memory threshold constants
+LARGE_DATASET_MEMORY_THRESHOLD_MB = 500  # Memory limit for large dataset operations
+
 import gc
 import json
 import os
@@ -90,7 +93,7 @@ class TestLargeVPCDiscoveryPerformance:
 
             # Performance assertions
             assert execution_time < 10.0, f"Execution took {execution_time:.2f}s, expected < 10s"
-            assert memory_usage < 500, f"Memory usage {memory_usage:.2f}MB, expected < 500MB"
+            assert memory_usage < LARGE_DATASET_MEMORY_THRESHOLD_MB, f"Memory usage {memory_usage:.2f}MB, expected < {LARGE_DATASET_MEMORY_THRESHOLD_MB}MB"
 
             # Validate data integrity
             assert parsed['vpcs'][0]['VpcId'] == 'vpc-00000000abcdef0'
@@ -606,7 +609,7 @@ class TestOversizedPolicyDocumentHandling:
 
         # Performance constraints for massive policy
         assert validation_time < 60.0, f"Massive policy validation took {validation_time:.2f}s"
-        assert memory_usage < 500, f"Memory usage {memory_usage:.2f}MB for large policy"
+        assert memory_usage < LARGE_DATASET_MEMORY_THRESHOLD_MB, f"Memory usage {memory_usage:.2f}MB for large policy"
 
         # Verify validation captured key elements
         validation_results = parsed['validation_results']

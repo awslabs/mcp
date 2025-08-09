@@ -48,7 +48,7 @@ class TestMemoryUsageMonitoring:
         peak_memory = 0
         baseline_memory = 0
 
-        def memory_intensive_mock(service, region=None):
+        def create_memory_intensive_mock_factory(service, region=None):
             mock_client = Mock()
 
             def memory_consuming_operation(**kwargs):
@@ -87,7 +87,7 @@ class TestMemoryUsageMonitoring:
         process = psutil.Process(os.getpid())
         baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=memory_intensive_mock):
+        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=create_memory_intensive_mock_factory):
 
             # Perform multiple operations and monitor memory
             operations_count = 100

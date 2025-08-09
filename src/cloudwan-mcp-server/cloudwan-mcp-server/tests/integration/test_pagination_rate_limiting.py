@@ -67,7 +67,7 @@ class TestListCoreNetworksPagination:
         ]
 
         call_count = 0
-        def pagination_mock(service, region=None):
+        def create_pagination_mock_factory(service, region=None):
             nonlocal call_count
             mock_client = Mock()
 
@@ -99,7 +99,7 @@ class TestListCoreNetworksPagination:
             mock_client.list_core_networks.side_effect = list_core_networks_side_effect
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=pagination_mock):
+        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=create_pagination_mock_factory):
             result = await list_core_networks()
 
             parsed = json.loads(result)
@@ -190,7 +190,7 @@ class TestListCoreNetworksPagination:
         ]
 
         call_count = 0
-        def route_pagination_mock(service, region=None):
+        def create_route_pagination_mock_factory(service, region=None):
             nonlocal call_count
             mock_client = Mock()
 
@@ -212,7 +212,7 @@ class TestListCoreNetworksPagination:
             mock_client.search_transit_gateway_routes.side_effect = search_routes_side_effect
             return mock_client
 
-        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=route_pagination_mock):
+        with patch('awslabs.cloudwan_mcp_server.server.get_aws_client', side_effect=create_route_pagination_mock_factory):
             result = await analyze_tgw_routes('tgw-rtb-123456789')
 
             parsed = json.loads(result)
