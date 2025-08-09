@@ -1,0 +1,1193 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.11, pytest-8.4.1, pluggy-1.6.0 -- /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server
+configfile: pyproject.toml
+plugins: asyncio-1.1.0, anyio-4.10.0, cov-6.2.1, mock-3.14.1
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 378 items / 3 errors
+
+==================================== ERRORS ====================================
+____ ERROR collecting tests/integration/test_final_compliance_validation.py ____
+ImportError while importing test module '/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_final_compliance_validation.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/taylaand/.local/share/uv/python/cpython-3.11.11-macos-aarch64-none/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_final_compliance_validation.py:30: in <module>
+    from awslabs.cloudwan_mcp_server.config_manager import ConfigPersistenceManager
+E   ImportError: cannot import name 'ConfigPersistenceManager' from 'awslabs.cloudwan_mcp_server.config_manager' (/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/awslabs/cloudwan_mcp_server/config_manager.py)
+_________ ERROR collecting tests/integration/test_main_entry_point.py __________
+ImportError while importing test module '/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_main_entry_point.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/taylaand/.local/share/uv/python/cpython-3.11.11-macos-aarch64-none/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_main_entry_point.py:24: in <module>
+    from awslabs.cloudwan_mcp_server.__main__ import main as module_main
+E   ModuleNotFoundError: No module named 'awslabs.cloudwan_mcp_server.__main__'
+_______ ERROR collecting tests/security/test_credential_sanitization.py ________
+ImportError while importing test module '/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/security/test_credential_sanitization.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/taylaand/.local/share/uv/python/cpython-3.11.11-macos-aarch64-none/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/security/test_credential_sanitization.py:31: in <module>
+    from awslabs.cloudwan_mcp_server.config_manager import ConfigPersistenceManager
+E   ImportError: cannot import name 'ConfigPersistenceManager' from 'awslabs.cloudwan_mcp_server.config_manager' (/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/awslabs/cloudwan_mcp_server/config_manager.py)
+=============================== warnings summary ===============================
+tests/integration/test_aws_labs_compliance.py:49
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_labs_compliance.py:49: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_aws_labs_compliance.py:115
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_labs_compliance.py:115: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_aws_labs_compliance.py:137
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_labs_compliance.py:137: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/integration/test_aws_labs_compliance.py:172
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_labs_compliance.py:172: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:37
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:37: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:81
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:81: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:113
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:113: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:165
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:165: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:211
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:211: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:279
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:279: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:344
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:344: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:392
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:392: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:440
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:440: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:481
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:481: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_aws_service_mocking.py:513
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_aws_service_mocking.py:513: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:44
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:44: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:63
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:63: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:98
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:98: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:120
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:120: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:146
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:146: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:166
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:166: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:200
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:200: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:223
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:223: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:256
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:256: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:276
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:276: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:290
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:290: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:300
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:300: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:315
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:315: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:328
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:328: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:342
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:342: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:353
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:353: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:367
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:367: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:390
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:390: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:411
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:411: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:440
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:440: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:461
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:461: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:481
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:481: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:502
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:502: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:517
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:517: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:530
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:530: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:540
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:540: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:555
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:555: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:583
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:583: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:604
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:604: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_cloudwan_api_operations.py:623
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_cloudwan_api_operations.py:623: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:36
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:36: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:61
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:61: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:90
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:90: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:110
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:110: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:136
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:136: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:161
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:161: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:189
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:189: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:190
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:190: PytestUnknownMarkWarning: Unknown pytest.mark.slowtest - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slowtest
+
+tests/integration/test_comprehensive_fixtures.py:215
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:215: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:216
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:216: PytestUnknownMarkWarning: Unknown pytest.mark.slowtest - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slowtest
+
+tests/integration/test_comprehensive_fixtures.py:246
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:246: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:247
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:247: PytestUnknownMarkWarning: Unknown pytest.mark.slowtest - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slowtest
+
+tests/integration/test_comprehensive_fixtures.py:282
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:282: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:308
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:308: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:335
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:335: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:372
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:372: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:373
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:373: PytestUnknownMarkWarning: Unknown pytest.mark.slowtest - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slowtest
+
+tests/integration/test_comprehensive_fixtures.py:410
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:410: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_fixtures.py:443
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_fixtures.py:443: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:40
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:40: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:53
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:53: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:76
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:76: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:93
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:93: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:114
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:114: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:134
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:134: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:157
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:157: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:183
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:183: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:199
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:199: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:214
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:214: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:244
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:244: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:269
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:269: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_comprehensive_server.py:291
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_comprehensive_server.py:291: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:40
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:40: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:41
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:41: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_concurrent_handling.py:151
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:151: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:152
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:152: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_concurrent_handling.py:247
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:247: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:330
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:330: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:331
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:331: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_concurrent_handling.py:419
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:419: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:526
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:526: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:638
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:638: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:741
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:741: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:850
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:850: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_concurrent_handling.py:953
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_concurrent_handling.py:953: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:39
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:39: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:66
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:66: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:97
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:97: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:129
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:129: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:155
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:155: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:180
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:180: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:209
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:209: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:229
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:229: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:255
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:255: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:279
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:279: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:305
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:305: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:335
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:335: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:360
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:360: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:395
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:395: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:421
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:421: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:451
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:451: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:491
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:491: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:538
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:538: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:584
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:584: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:636
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:636: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_error_simulation.py:691
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_error_simulation.py:691: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:41
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:41: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:42
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:42: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:101
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:101: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:102
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:102: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:158
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:158: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:159
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:159: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:221
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:221: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:222
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:222: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:286
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:286: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:287
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:287: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:341
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:341: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:342
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:342: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:394
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:394: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:395
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:395: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:466
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:466: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:467
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:467: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:518
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:518: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:519
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:519: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:600
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:600: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:601
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:601: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:663
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:663: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:664
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:664: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:717
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:717: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:718
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:718: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_large_topology.py:765
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:765: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_large_topology.py:766
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_large_topology.py:766: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_live_api.py:68
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:68: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:107
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:107: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:133
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:133: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:164
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:164: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:165
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:165: PytestUnknownMarkWarning: Unknown pytest.mark.slowtest - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slowtest
+
+tests/integration/test_live_api.py:204
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:204: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:240
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:240: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:273
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:273: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:294
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:294: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:319
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:352
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:352: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:389
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:389: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:414
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:414: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:440
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:440: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:474
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:474: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:475
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:475: PytestUnknownMarkWarning: Unknown pytest.mark.slowtest - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slowtest
+
+tests/integration/test_live_api.py:511
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:511: PytestUnknownMarkWarning: Unknown pytest.mark.live - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.live
+
+tests/integration/test_live_api.py:512
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_live_api.py:512: PytestUnknownMarkWarning: Unknown pytest.mark.slowtest - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slowtest
+
+tests/integration/test_mcp_server.py:36
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_mcp_server.py:36: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_mcp_server.py:42
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_mcp_server.py:42: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_mcp_server.py:84
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_mcp_server.py:84: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_mcp_server.py:127
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_mcp_server.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:44
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:44: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:45
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:45: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_memory_load.py:143
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:143: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:259
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:259: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:373
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:373: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:474
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:474: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:558
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:558: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:655
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:655: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:656
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:656: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_memory_load.py:759
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:759: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:849
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:849: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_memory_load.py:971
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_memory_load.py:971: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:36
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:36: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:127
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:173
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:173: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:211
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:211: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:239
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:239: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:277
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:277: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:308
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:308: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:356
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:356: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:401
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:401: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:449
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:449: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:503
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:503: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:548
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:548: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:599
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:599: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:654
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:654: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:708
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:708: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:754
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:754: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_pagination_rate_limiting.py:792
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_pagination_rate_limiting.py:792: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:81
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:81: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:82
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:82: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_policy_performance.py:243
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:243: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:244
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:244: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_policy_performance.py:308
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:308: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:309
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:309: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_policy_performance.py:352
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:352: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:407
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:407: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:456
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:456: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:512
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:512: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:513
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:513: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_policy_performance.py:595
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:595: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:653
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:653: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:654
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:654: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests/integration/test_policy_performance.py:743
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:743: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_policy_performance.py:806
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_policy_performance.py:806: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:38
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:38: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:39
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:39: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:117
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:117: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:118
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:118: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:162
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:162: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:163
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:163: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:217
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:217: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:218
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:218: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:251
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:251: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:252
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:252: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:276
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:276: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:277
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:277: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:304
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:304: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:305
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:305: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:329
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:329: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:330
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:330: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:362
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:362: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:363
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:363: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:398
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:398: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:399
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:399: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:446
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:446: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:447
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:447: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:502
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:502: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:503
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:503: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:564
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:564: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:565
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:565: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:587
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:587: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:588
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:588: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:620
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:620: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:621
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:621: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_security_compliance.py:647
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:647: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+tests/integration/test_security_compliance.py:648
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_security_compliance.py:648: PytestUnknownMarkWarning: Unknown pytest.mark.security - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.security
+
+tests/integration/test_server_performance.py:28
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_server_performance.py:28: PytestUnknownMarkWarning: Unknown pytest.mark.stress - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.stress
+
+tests/unit/test_aws_helpers.py:37
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:37: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:55
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:55: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:78
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:78: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:101
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:101: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:127
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:170
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:170: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:194
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:194: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:213
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:213: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:240
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:240: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:262
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:262: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:279
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:279: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:293
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:293: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:307
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:307: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:325
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:325: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:339
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:339: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:352
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:352: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:366
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:366: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:395
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:395: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:435
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:435: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_helpers.py:455
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_helpers.py:455: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_labs_patterns.py:30
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_labs_patterns.py:30: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_labs_patterns.py:38
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_labs_patterns.py:38: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_aws_labs_patterns.py:60
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_aws_labs_patterns.py:60: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:33
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:33: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:42
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:42: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:52
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:52: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:59
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:59: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:72
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:72: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:88
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:88: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:99
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:99: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:108
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:108: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:118
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:118: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:133
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:133: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:140
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:140: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:153
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:153: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:165
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:165: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:175
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:175: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:185
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:185: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:194
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:194: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:210
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:210: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:222
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:222: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:234
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:234: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:257
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:257: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:279
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:279: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:296
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:296: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:314
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:314: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_comprehensive_models.py:345
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_comprehensive_models.py:345: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_server_utils.py:10
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_server_utils.py:10: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+tests/unit/test_server_utils.py:17
+  /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/unit/test_server_utils.py:17: PytestUnknownMarkWarning: Unknown pytest.mark.unit - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.unit
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/reports/analysis/junit.xml -
+=========================== short test summary info ============================
+ERROR tests/integration/test_final_compliance_validation.py
+ERROR tests/integration/test_main_entry_point.py
+ERROR tests/security/test_credential_sanitization.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!!
+======================= 286 warnings, 3 errors in 1.77s ========================
