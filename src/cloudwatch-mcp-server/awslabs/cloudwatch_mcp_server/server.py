@@ -15,6 +15,7 @@
 """awslabs cloudwatch MCP Server implementation."""
 
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlarmsTools
+from awslabs.cloudwatch_mcp_server.cloudwatch_dashboard.tools import CloudWatchDashboardTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools import CloudWatchLogsTools
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from loguru import logger
@@ -23,7 +24,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
     'awslabs.cloudwatch-mcp-server',
-    instructions='Use this MCP server to run read-only commands and analyze CloudWatch Logs, Metrics, and Alarms. Supports discovering log groups, running CloudWatch Log Insight Queries, retrieving CloudWatch Metrics information, and getting active alarms with region information. With CloudWatch Logs Insights, you can interactively search and analyze your log data. With CloudWatch Metrics, you can get information about system and application metrics. With CloudWatch Alarms, you can retrieve all currently active alarms for operational awareness, with clear indication of which AWS region was checked.',
+    instructions='Use this MCP server to run read-only commands and analyze CloudWatch Logs, Metrics, Alarms, and Dashboards. Supports discovering log groups, running CloudWatch Log Insight Queries, retrieving CloudWatch Metrics information, getting active alarms with region information, and retrieving dashboard configurations. With CloudWatch Logs Insights, you can interactively search and analyze your log data. With CloudWatch Metrics, you can get information about system and application metrics. With CloudWatch Alarms, you can retrieve all currently active alarms for operational awareness. With CloudWatch Dashboards, you can retrieve dashboard configurations and widget layouts for analysis and troubleshooting, with clear indication of which AWS region was checked.',
     dependencies=[
         'pydantic',
         'loguru',
@@ -41,6 +42,9 @@ try:
     cloudwatch_alarms_tools = CloudWatchAlarmsTools()
     cloudwatch_alarms_tools.register(mcp)
     logger.info('CloudWatch Alarms tools registered successfully')
+    cloudwatch_dashboard_tools = CloudWatchDashboardTools()
+    cloudwatch_dashboard_tools.register(mcp)
+    logger.info('CloudWatch Dashboard tools registered successfully')
 except Exception as e:
     logger.error(f'Error initializing CloudWatch tools: {str(e)}')
     raise
