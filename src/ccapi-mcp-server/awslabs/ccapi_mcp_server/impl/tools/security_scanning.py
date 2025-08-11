@@ -45,6 +45,7 @@ def _check_checkov_installed() -> dict:
             capture_output=True,
             text=True,
             check=True,
+            shell=False,
         )
         return {
             'installed': True,
@@ -113,15 +114,29 @@ async def run_checkov_impl(request: RunCheckovRequest, workflow_store: dict) -> 
         temp_file_path = temp_file.name
 
     try:
-        # Build the checkov command
+        # Build the checkov command with input validation
         cmd = ['checkov', '-f', temp_file_path, '--output', 'json']
 
-        # Add framework if specified
+        # Add framework if specified (validate against allowed frameworks)
         if request.framework:
-            cmd.extend(['--framework', request.framework])
+            allowed_frameworks = [
+                'terraform',
+                'cloudformation',
+                'kubernetes',
+                'dockerfile',
+                'arm',
+                'all',
+            ]
+            if request.framework in allowed_frameworks:
+                cmd.extend(['--framework', request.framework])
+            else:
+                return {
+                    'passed': False,
+                    'error': f'Invalid framework: {request.framework}. Allowed: {allowed_frameworks}',
+                }
 
-        # Run checkov
-        process = subprocess.run(cmd, capture_output=True, text=True)
+        # Run checkov with shell=False for security
+        process = subprocess.run(cmd, capture_output=True, text=True, shell=False)
 
         # Parse the output
         if process.returncode == 0:

@@ -45,7 +45,6 @@ const sidebars: SidebarsConfig = {
             'servers/ccapi-mcp-server',
             'servers/cdk-mcp-server',
             'servers/cfn-mcp-server',
-            'servers/ccapi-mcp-server',
             'servers/terraform-mcp-server',
             'servers/eks-mcp-server',
             'servers/ecs-mcp-server',
