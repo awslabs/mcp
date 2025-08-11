@@ -22,6 +22,7 @@ class TestCheckovCheck:
                 capture_output=True,
                 text=True,
                 check=True,
+                shell=False,
             )
 
     def test_checkov_not_found(self):
