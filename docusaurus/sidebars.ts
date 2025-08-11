@@ -126,6 +126,7 @@ const sidebars: SidebarsConfig = {
             'servers/cost-explorer-mcp-server',
             'servers/cloudwatch-mcp-server',
             'servers/cloudwatch-appsignals-mcp-server',
+            'servers/cloudtrail-mcp-server',
           ],
         },
         {
