@@ -103,7 +103,9 @@ class TestGetActiveAlarms:
             mock_session.return_value.client.return_value = mock_client
 
             alarms_tools = CloudWatchAlarmsTools()
-            result = await alarms_tools.get_active_alarms(mock_context)
+            result = await alarms_tools.get_active_alarms(
+                mock_context, include_autoscaling_alarms=True
+            )
 
             # Verify paginator was used
             mock_client.get_paginator.assert_called_once_with('describe_alarms')
@@ -148,7 +150,9 @@ class TestGetActiveAlarms:
             mock_session.return_value.client.return_value = mock_client
 
             alarms_tools = CloudWatchAlarmsTools()
-            result = await alarms_tools.get_active_alarms(mock_context, max_items=50)
+            result = await alarms_tools.get_active_alarms(
+                mock_context, max_items=50, include_autoscaling_alarms=True
+            )
 
             # Verify paginator was used
             mock_client.get_paginator.assert_called_once_with('describe_alarms')
@@ -224,7 +228,9 @@ class TestGetActiveAlarms:
             mock_session.return_value.client.return_value = mock_client
 
             alarms_tools = CloudWatchAlarmsTools()
-            result = await alarms_tools.get_active_alarms(mock_context, max_items=50)
+            result = await alarms_tools.get_active_alarms(
+                mock_context, max_items=50, include_autoscaling_alarms=True
+            )
 
             assert isinstance(result, ActiveAlarmsResponse)
             assert len(result.metric_alarms) == 0
@@ -338,7 +344,8 @@ class TestGetActiveAlarms:
             assert result.has_more_results
             assert (
                 result.message is not None
-                and 'Showing 2 alarms (more available)' in result.message
+                and 'Showing 2 non-autoscaling alarms' in result.message
+                and 'more non-autoscaling alarms available' in result.message
             )
 
     @pytest.mark.asyncio

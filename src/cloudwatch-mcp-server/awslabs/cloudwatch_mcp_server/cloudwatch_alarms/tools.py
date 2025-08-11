@@ -28,6 +28,9 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
     MetricAlarmSummary,
     TimeRangeSuggestion,
 )
+from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.utils.autoscaling_filter import (
+    AutoscalingActionFilter,
+)
 from botocore.config import Config
 from datetime import datetime, timedelta
 from loguru import logger
@@ -41,7 +44,7 @@ class CloudWatchAlarmsTools:
 
     def __init__(self):
         """Initialize the CloudWatch Alarms tools."""
-        pass
+        self.autoscaling_filter = AutoscalingActionFilter()
 
     def _get_cloudwatch_client(self, region: str):
         """Create a CloudWatch client for the specified region."""
@@ -57,6 +60,115 @@ class CloudWatchAlarmsTools:
         except Exception as e:
             logger.error(f'Error creating cloudwatch client for region {region}: {str(e)}')
             raise
+
+    def _calculate_has_more_results(
+        self,
+        include_autoscaling_alarms: bool,
+        total_items_fetched: int,
+        items_to_return: int,
+        max_items: int,
+    ) -> bool:
+        """Calculate whether more results are available, accounting for filtering.
+
+        Args:
+            include_autoscaling_alarms: Whether autoscaling alarms are included
+            total_items_fetched: Total number of alarms fetched from CloudWatch
+            items_to_return: Number of alarms being returned after filtering
+            max_items: Maximum number of items requested
+
+        Returns:
+            bool: True if more results are available, False otherwise
+        """
+        if include_autoscaling_alarms:
+            # No filtering - use existing logic for backward compatibility
+            # More results available if we fetched more than max_items (the +1 in pagination)
+            return total_items_fetched > max_items
+        else:
+            # Filtering enabled - more complex logic needed
+            # More results available if:
+            # 1. We reached our max_items limit (indicating we stopped due to limit, not lack of data)
+            # 2. AND we processed more items than we're returning (indicating filtering occurred)
+            # This suggests there might be more non-autoscaling alarms in subsequent pages
+            return (items_to_return >= max_items) and (total_items_fetched > items_to_return)
+
+    def _generate_response_message(
+        self,
+        items_to_return: int,
+        has_more_results: bool,
+        include_autoscaling_alarms: bool,
+        filtered_count: int,
+        total_processed: int,
+    ) -> str | None:
+        """Generate appropriate response messages for filtered results.
+
+        Args:
+            items_to_return: Number of alarms being returned
+            has_more_results: Whether more results are available
+            include_autoscaling_alarms: Whether autoscaling alarms are included
+            filtered_count: Number of alarms filtered out (only relevant when filtering enabled)
+            total_processed: Total number of alarms processed from CloudWatch
+
+        Returns:
+            str | None: Appropriate message for LLM agents, or None if no message needed
+        """
+        # Handle empty results
+        if items_to_return == 0:
+            if not include_autoscaling_alarms:
+                if total_processed == 0:
+                    return 'No active alarms found in the specified region'
+                elif filtered_count > 0:
+                    return f'No non-autoscaling active alarms found. {filtered_count} autoscaling alarms were filtered out. Set include_autoscaling_alarms=True to see all alarms.'
+                else:
+                    return 'No non-autoscaling active alarms found'
+            else:
+                return 'No active alarms found'
+
+        # Handle cases with results
+        if not include_autoscaling_alarms and filtered_count > 0:
+            # Filtering occurred - provide informative message
+            if has_more_results:
+                return f'Showing {items_to_return} non-autoscaling alarms (filtered out {filtered_count} autoscaling alarms, more non-autoscaling alarms available)'
+            else:
+                return f'Found {items_to_return} non-autoscaling alarms (filtered out {filtered_count} autoscaling alarms)'
+        elif not include_autoscaling_alarms and filtered_count == 0:
+            # Filtering enabled but no autoscaling alarms found
+            if has_more_results:
+                return f'Showing {items_to_return} alarms (no autoscaling alarms found, more alarms available)'
+            else:
+                return f'Found {items_to_return} alarms (no autoscaling alarms found)'
+        else:
+            # No filtering or filtering disabled
+            if has_more_results:
+                return f'Showing {items_to_return} alarms (more available)'
+            else:
+                # No message needed for successful results without filtering
+                return None
+
+    def _should_include_alarm(
+        self, alarm: Dict[str, Any], include_autoscaling_alarms: bool, alarm_type: str
+    ) -> bool:
+        """Determine if an alarm should be included based on filtering criteria.
+
+        Args:
+            alarm: Raw alarm data from CloudWatch API response
+            include_autoscaling_alarms: Whether to include alarms with autoscaling actions
+            alarm_type: Type of alarm ('metric' or 'composite') for logging purposes
+
+        Returns:
+            bool: True if the alarm should be included, False otherwise
+        """
+        # If filtering is disabled, include all alarms
+        if include_autoscaling_alarms:
+            return True
+
+        # Apply autoscaling filter with error handling
+        try:
+            return not self.autoscaling_filter.has_autoscaling_actions(alarm)
+        except Exception as e:
+            alarm_name = alarm.get('AlarmName', 'unknown')
+            logger.warning(f'Error filtering {alarm_type} alarm {alarm_name}: {e}')
+            # Default to including the alarm to avoid data loss
+            return True
 
     def register(self, mcp):
         """Register all CloudWatch Alarms tools with the MCP server."""
@@ -79,39 +191,81 @@ class CloudWatchAlarmsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
+        include_autoscaling_alarms: Annotated[
+            bool | None,
+            Field(
+                description='Whether to include alarms with autoscaling actions. '
+                'Defaults to False to reduce noise from routine scaling events. '
+                'Set to True to include all alarms regardless of action types. '
+                'When False, alarms containing autoscaling action ARNs (arn:aws:autoscaling:*) '
+                'in AlarmActions, OKActions, or InsufficientDataActions will be filtered out.'
+            ),
+        ] = False,
     ) -> ActiveAlarmsResponse:
-        """Gets all CloudWatch alarms currently in ALARM state.
+        """Gets all CloudWatch alarms currently in ALARM state with optional autoscaling filtering.
 
         This tool retrieves all CloudWatch alarms that are currently in the ALARM state,
         including both metric alarms and composite alarms. Results are optimized for
         LLM reasoning with summary-level information.
 
+        By default, alarms with autoscaling actions are filtered out to reduce noise from
+        routine scaling events and focus on application-level issues. This filtering can
+        be controlled using the include_autoscaling_alarms parameter.
+
+        Autoscaling alarms are identified by the presence of action ARNs with the prefix
+        'arn:aws:autoscaling:' in any of the alarm's action fields (AlarmActions, OKActions,
+        or InsufficientDataActions).
+
         Usage: Use this tool to get an overview of all active alarms in your AWS account
-        for troubleshooting, monitoring, and operational awareness.
+        for troubleshooting, monitoring, and operational awareness. The filtering capability
+        helps focus on application-level issues while optionally including infrastructure
+        scaling events when needed.
 
         Args:
             ctx: The MCP context object for error handling and logging.
-            max_items: Maximum number of alarms to return (default: 50).
+            max_items: Maximum number of alarms to return (default: 50). When filtering
+                      is enabled, pagination continues until this many non-autoscaling
+                      alarms are collected or all available alarms are processed.
             region: AWS region to query. Defaults to 'us-east-1'.
+            include_autoscaling_alarms: Whether to include alarms with autoscaling actions.
+                                       Defaults to False to filter out autoscaling-related
+                                       alarms and reduce noise from routine scaling events.
+                                       Set to True to include all alarms regardless of
+                                       their action types.
 
         Returns:
-            ActiveAlarmsResponse: Response containing active alarms.
+            ActiveAlarmsResponse: Response containing active alarms. When filtering is
+                                 enabled, only non-autoscaling alarms are included.
 
-        Example:
+        Examples:
+            # Get active alarms with autoscaling alarms filtered out (default behavior)
             result = await get_active_alarms(ctx, max_items=25)
             if isinstance(result, ActiveAlarmsResponse):
-                print(f"Found {len(result.metric_alarms + result.composite_alarms)} active alarms")
+                print(f"Found {len(result.metric_alarms + result.composite_alarms)} non-autoscaling active alarms")
                 for alarm in result.metric_alarms:
                     print(f"Metric Alarm: {alarm.alarm_name}")
-                for alarm in result.composite_alarms:
-                    print(f"Composite Alarm: {alarm.alarm_name}")
+
+            # Get all active alarms including autoscaling alarms
+            result = await get_active_alarms(ctx, max_items=25, include_autoscaling_alarms=True)
+            if isinstance(result, ActiveAlarmsResponse):
+                print(f"Found {len(result.metric_alarms + result.composite_alarms)} active alarms (including autoscaling)")
+                for alarm in result.metric_alarms:
+                    print(f"Metric Alarm: {alarm.alarm_name}")
+
+            # Explicitly exclude autoscaling alarms
+            result = await get_active_alarms(ctx, max_items=25, include_autoscaling_alarms=False)
+            if isinstance(result, ActiveAlarmsResponse):
+                print(f"Found {len(result.metric_alarms + result.composite_alarms)} application-level active alarms")
         """
         try:
             # Pydantic Field doesn't automatically fill the required type with default if a value is not provided.
             # Because of this behavior, checking explicitly if we got what we expected.
-            # if max_items is None or not isinstance(max_items, int):
             if max_items is None or not isinstance(max_items, int):
                 max_items = 50
+            if include_autoscaling_alarms is None or not isinstance(
+                include_autoscaling_alarms, bool
+            ):
+                include_autoscaling_alarms = False
 
             # Validate max_items parameter
             if max_items < 1:
@@ -124,14 +278,23 @@ class CloudWatchAlarmsTools:
             logger.info(f'Fetching up to {max_items} active alarms')
 
             paginator = cloudwatch_client.get_paginator('describe_alarms')
-            page_iterator = paginator.paginate(
-                StateValue='ALARM',
-                AlarmTypes=['CompositeAlarm', 'MetricAlarm'],
-                PaginationConfig={
-                    # Requesting an extra item so that we can evaluate if there's extra
-                    'MaxItems': max_items + 1
-                },
-            )
+
+            # Determine pagination strategy based on filtering needs
+            if include_autoscaling_alarms:
+                # No filtering needed, it's ok to get just 1 extra item to know if there's remaining alarms
+                page_iterator = paginator.paginate(
+                    StateValue='ALARM',
+                    AlarmTypes=['CompositeAlarm', 'MetricAlarm'],
+                    PaginationConfig={
+                        # Requesting an extra item so that we can evaluate if there's extra
+                        'MaxItems': max_items + 1
+                    },
+                )
+            else:
+                # Filtering needed - cannot use MaxItems limit, must process all pages
+                page_iterator = paginator.paginate(
+                    StateValue='ALARM', AlarmTypes=['CompositeAlarm', 'MetricAlarm']
+                )
 
             # Collect results
             metric_alarms = []
@@ -139,35 +302,73 @@ class CloudWatchAlarmsTools:
             total_items_fetched = 0
             items_to_return = 0
 
+            # Log filtering status
+            if include_autoscaling_alarms:
+                logger.info('Filtering disabled: including all alarms')
+            else:
+                logger.info('Filtering enabled: excluding autoscaling alarms')
+
             for page in page_iterator:
                 metric_alarms_list = page.get('MetricAlarms', [])
                 composite_alarms_list = page.get('CompositeAlarms', [])
 
                 total_items_fetched += len(metric_alarms_list) + len(composite_alarms_list)
 
+                # Process metric alarms with filtering logic
                 for alarm in metric_alarms_list:
-                    if items_to_return < max_items:
+                    if (
+                        self._should_include_alarm(alarm, include_autoscaling_alarms, 'metric')
+                        and items_to_return < max_items
+                    ):
                         metric_alarms.append(self._transform_metric_alarm(alarm))
                         items_to_return += 1
-                    else:
+
+                    # Early termination optimization when we have enough items
+                    if items_to_return >= max_items:
                         break
 
+                # Process composite alarms with filtering logic
                 for alarm in composite_alarms_list:
-                    if items_to_return < max_items:
+                    if (
+                        self._should_include_alarm(alarm, include_autoscaling_alarms, 'composite')
+                        and items_to_return < max_items
+                    ):
                         composite_alarms.append(self._transform_composite_alarm(alarm))
                         items_to_return += 1
-                    else:
+
+                    # Early termination optimization when we have enough items
+                    if items_to_return >= max_items:
                         break
 
-            # Determine if more results are available
-            has_more_results = total_items_fetched > max_items
+                # Early termination when we have enough items (optimization)
+                if items_to_return >= max_items:
+                    break
 
-            # Handle empty results
-            message = None
-            if items_to_return == 0:
-                message = 'No active alarms found'
-            elif has_more_results:
-                message = f'Showing {items_to_return} alarms (more available)'
+            has_more_results = self._calculate_has_more_results(
+                include_autoscaling_alarms=include_autoscaling_alarms,
+                total_items_fetched=total_items_fetched,
+                items_to_return=items_to_return,
+                max_items=max_items,
+            )
+
+            # Add debug logging for filtering statistics
+            filtered_count = 0
+            if not include_autoscaling_alarms:
+                filtered_count = total_items_fetched - items_to_return
+                logger.debug(
+                    f'Processed {total_items_fetched} alarms, collected {items_to_return} non-autoscaling alarms'
+                )
+                if filtered_count > 0:
+                    logger.debug(f'Filtered out {filtered_count} autoscaling alarms')
+
+            # Generate appropriate response messages for LLM agents
+            message = self._generate_response_message(
+                items_to_return=items_to_return,
+                has_more_results=has_more_results,
+                include_autoscaling_alarms=include_autoscaling_alarms,
+                filtered_count=filtered_count,
+                total_processed=total_items_fetched,
+            )
 
             logger.info(
                 f'Found {items_to_return} active alarms ({len(metric_alarms)} metric, {len(composite_alarms)} composite), has_more_results: {has_more_results}'
