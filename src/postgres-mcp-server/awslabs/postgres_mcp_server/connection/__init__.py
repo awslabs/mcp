@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""awslabs.aws-pricing-mcp-server"""
 
-__version__ = '1.0.9'
+"""aws.postgres-mcp-server.connection"""
+
+from awslabs.postgres_mcp_server.connection.db_connection_singleton import DBConnectionSingleton
+from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection

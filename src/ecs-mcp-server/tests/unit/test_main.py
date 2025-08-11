@@ -2,7 +2,7 @@
 Unit tests for main server module.
 
 This file contains tests for the ECS MCP Server main module, including:
-- Basic properties (name, version, description, instructions)
+- Basic properties (name, instructions)
 - Tools registration
 - Prompt patterns registration
 - Server startup and shutdown
@@ -19,22 +19,19 @@ from unittest.mock import MagicMock, call, patch
 class MockFastMCP:
     """Mock implementation of FastMCP for testing."""
 
-    def __init__(self, name, description=None, version=None, instructions=None):
+    def __init__(self, name, instructions=None):
         self.name = name
-        self.description = description or ""
-        self.version = version
         self.instructions = instructions
         self.tools = []
         self.prompt_patterns = []
 
-    def tool(self, name=None, description=None, annotations=None):
+    def tool(self, name=None, annotations=None):
         def decorator(func):
             self.tools.append(
                 {
                     "name": name or func.__name__,
                     "function": func,
                     "annotations": annotations,
-                    "description": description,
                 }
             )
             return func
@@ -76,20 +73,12 @@ class TestMain(unittest.TestCase):
 
         This test focuses only on the basic properties of the server:
         - Name
-        - Version
-        - Description
         - Instructions
 
         If this test fails, it indicates an issue with the basic server configuration.
         """
         # Verify the server has the correct name and version
         self.assertEqual(mcp.name, "AWS ECS MCP Server")
-        self.assertEqual(mcp.version, "0.1.0")
-
-        # Verify the description contains expected keywords
-        self.assertIn("containerization", mcp.description.lower())
-        self.assertIn("deployment", mcp.description.lower())
-        self.assertIn("aws ecs", mcp.description.lower())
 
         # Verify instructions are provided
         self.assertIsNotNone(mcp.instructions)
