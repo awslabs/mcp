@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import botocore.config
+from awslabs.ccapi_mcp_server import __version__
 from awslabs.ccapi_mcp_server.errors import ClientError
 from boto3 import Session
 from os import environ
 
 
 session_config = botocore.config.Config(
-    user_agent_extra='ccapi-mcp-server/1.1.0',
+    user_agent_extra=f'ccapi-mcp-server/{__version__}',
 )
 
 

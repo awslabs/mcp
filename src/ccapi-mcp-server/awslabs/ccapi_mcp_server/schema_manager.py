@@ -212,13 +212,6 @@ class SchemaManager:
 
 _schema_manager_instance = SchemaManager()
 
-# Clear any corrupted schemas from memory on module load
-if 'AWS::S3::Bucket' in _schema_manager_instance.schema_registry:
-    cached_s3_schema = _schema_manager_instance.schema_registry['AWS::S3::Bucket']
-    if not cached_s3_schema.get('properties'):
-        print('Clearing corrupted S3 schema from memory cache')
-        del _schema_manager_instance.schema_registry['AWS::S3::Bucket']
-
 
 # used to load a single instance of the schema manager
 def schema_manager() -> SchemaManager:

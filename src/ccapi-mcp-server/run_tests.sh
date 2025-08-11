@@ -18,7 +18,7 @@
 set -e
 
 echo "========================================================"
-echo "Running tests for git-repo-research-mcp-server"
+echo "Running tests for ccapi-mcp-server"
 echo "========================================================"
 
 # Install dependencies if not already installed
