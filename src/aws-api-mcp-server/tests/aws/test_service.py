@@ -158,7 +158,7 @@ def test_interpret_returns_missing_context_failures():
         (
             'aws sts get-caller-identity',
             GET_CALLER_IDENTITY_PAYLOAD,
-            ('GetCallerIdentity', {}, 'us-east-1', 10, 'https://sts.amazonaws.com'),
+            ('GetCallerIdentity', {}, 'us-east-1', 10, 'https://sts.us-east-1.amazonaws.com'),
             'sts',
             'AWS Security Token Service',
             'GetCallerIdentity',
