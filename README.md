@@ -113,7 +113,7 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 
 ## Available MCP Servers: Quick Installation
 
-Get started quickly with one-click installation buttons for popular MCP clients. Click the buttons below to install servers directly in Cursor or VS Code:
+You can get started quickly by using the one-click installation buttons for popular MCP clients. Use the buttons below to install MCP servers directly in Cursor or VS Code. MCP servers can run either locally or remotely. After installation and any required configuration (as described in the provided instructions), the MCP servers will work out of the box with coding assistant tools such as the Amazon Q Developer CLI. For more information, see the [agent configuration](https://github.com/aws/amazon-q-developer-cli/blob/main/docs/agent-format.md) in the Amazon Q Developer CLI documentation. You do not need to run local MCP servers separately.
 
 ### 🚀 Getting Started with AWS
 
