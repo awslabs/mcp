@@ -238,7 +238,9 @@ The `env` field in the MCP server definition allows you to configure environment
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
-        "AWS_REGION": "us-west-2"
+        "AWS_REGION": "us-west-2",
+        "HTTP_PROXY": "http://proxy.example.com:8080",
+        "HTTPS_PROXY": "https://proxy.example.com:8080"
       }
     }
   }
@@ -266,6 +268,14 @@ Specifies the AWS region where EKS clusters are managed, which will be used for 
 
 * Default: None (If not set, uses default AWS region).
 * Example: `"AWS_REGION": "us-west-2"`
+
+#### `HTTP_PROXY` / `HTTPS_PROXY` (optional)
+
+Configures proxy settings for HTTP and HTTPS connections. These environment variables are used when the EKS MCP server needs to make outbound connections to the K8s API server through a proxy or firewall.
+
+* Default: None (Direct connections are used if not set).
+* Example: `"HTTP_PROXY": "http://proxy.example.com:8080"`, `"HTTPS_PROXY": "https://proxy.example.com:8080"`
+* Note: Both variables can be set to the same proxy server if it handles both HTTP and HTTPS traffic.
 
 ## Tools
 
@@ -654,7 +664,3 @@ In accordance with security best practices, we recommend the following:
 * **Log Level**: Increase the log level to DEBUG for more detailed logs.
 
 For general EKS issues, consult the [Amazon EKS documentation](https://docs.aws.amazon.com/eks/).
-
-## Version
-
-Current MCP server version: 0.1.0
