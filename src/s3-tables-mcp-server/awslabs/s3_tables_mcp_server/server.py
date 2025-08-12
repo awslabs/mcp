@@ -776,7 +776,7 @@ async def get_bucket_metadata_config(
     - request_id: String
 
     Permissions:
-    You must have the s3:GetBucketMetadataTableConfiguration permission to use this operation.
+    You must have the s3:GetBucketMetadataConfiguration permission to use this operation.
     """
     return await s3_operations.get_bucket_metadata_table_configuration(
         bucket=bucket, region_name=region_name
