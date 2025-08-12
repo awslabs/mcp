@@ -1,0 +1,314 @@
+Building Continuous Deployment Pipeline for Cell-based Architectures
+
+* Introduction
+* The building blocks of cell-based architecture
+* The deployment pipeline perspective
+* Understanding the scope of impact on failures
+* Aligning your fault isolation boundaries, observability, and deployment pipeline
+* Designing your CD pipeline
+    * Single-AZ based applications
+    * Multi-az based applications
+    * Kubernetes(EKS) based applications
+    * Serverless based Applications
+    * Continuous configuration with feature flag
+    * Automatic rollback alone may not be enough
+    * A quick note on multi-region application
+* A checklist to get you started
+    * Deployment related questions
+    * Observability related questions
+* Resources
+* Contributors
+* Conclusion
+
+
+
+Introduction
+
+According to the State of DevOps 2024, 80% of companies that responded to the survey have between 20 and 40% of failures originating from changes made by development teams.
+
+Moving to cell-based architecture usually highlight gaps in the deployment process
+
+The building blocks of cell-based architecture
+
+A cell-based architecture comes from the concept of a bulkhead in a ship, where vertical partition walls subdivide the ship's interior into self-contained, watertight compartments. Bulkheads reduce the extent of seawater flooding in case of damage and provide additional stiffness to the hull girder.
+
+The idea of this guide is not to repeat what was explained in Reducing the scope of impact with cell-based architecture, but to focus on the subject of continuous deployment in cell-based architectures. However, to make the subject more understandable, some introduction is necessary.
+
+If you have an application that is composed only of an Application Load Balancer, an ECS container and a DynamoDB database. Designing your application to be cellular, you will have multiple copies of these 3 services that make up your application, each copy being responsible for a fraction of your traffic or clients. And another component called a cell-router that will be responsible for being the entry point of your application, identifying which cell a request or client belongs to and then redirecting the traffic to it.
+The cell-based architecture has the following components:
+
+
+
+* Cell router — We also refer to this layer as the thinnest possible layer, with the responsibility of routing requests to the right cell, and only that.
+* Cell — A complete workload, with everything needed to operate independently.
+* Control plane — Responsible for administration tasks such as cell provisioning, cell deprovisioning, and cell client migration.
+
+Another concept we have here is that of Control planes and data planes, where the control plane is responsible for provisioning your cells and the data plane is your application itself, divided into cells.
+
+The deployment pipeline perspective
+
+As discussed in cell deployment, unless you are already operating a multi-region architecture, you have a single deployment of your application to perform. And when you are using a cell-based architecture, you have N deployments of your application to perform based on the number of cells that exist.
+
+The image below shows what the deployment process for a cell-based architecture should look like. Organized in waves, with each wave updating a portion of your cells at a time, in order to reduce the scope of impact in the event of a failure originating from the new version of your application.
+
+
+
+Although this diagram is correct, it is at a very high level of abstraction. In reality, there is no such thing as deploying your cell, and unless you are operating a monolithic application, including with the database on the same server (extreme example, I know!), there is no such thing as deploying your application either. Modern applications are increasingly distributed, so what exists is the deployment of each component of your application, and consequently the deployment of each component of each cell of your application.
+
+Of course, you can deploy all the components of your application and even all the cells at once, but it would not make much sense to invest in a cell-based architecture and have this deployment approach, because the impact on failures would still be enormous.
+
+To help expand our definition, let's look at the diagram below where we have the entire scope of the deployment pipeline that we need to keep in mind when we are thinking about the design of cell-based architectures. We will have at least the following deployment pipelines:
+
+* cell components pipeline - since a cell is a complete copy of your application, for each component, for example in the example above the Application Load Balancer (ALB), you will have a deployment pipeline that updates this ALB in cell 1, then in cell 2 and so on. And even at the component level, you can have different deployment strategies, we will cover this later in this guide.
+* cell router components pipeline - the cell router can have several architectural designs, the representation of a single component in the diagram below is just for simplification. With it you will also have a pipeline for each component.
+* control plane components pipeline - the control plane is responsible for provisioning new cells, migration, rebalancing and observability. Depending on its design, the control plane may also have other responsibilities.
+
+The components of your control plane tend to have more conventional deployment strategies, since your clients and their data are handled by the data plane components. And it is on the data plane components that we want to reduce the scope of impact and that is where we will focus this guide.
+
+This way, each service in the data plane will have a pipeline like the image below, but we will explore a more detailed example in the section Designing your CD Pipeline.
+Just like the cell router will have the archetype below:
+At AWS, each deployment we make impacts a large number of customers if a failure occurs. To mitigate this type of failure, we practice gradual deployment in several approaches, one of which is one-box environments. In My CI/CD pipeline is my release captain, we explain how we use one-box environments to avoid deploying all at once, even within each deployment wave. When we are practicing cell-based architecture, we practice the same principle. Even though we already divide the pipeline into several waves where each wave can have 1 or more cells, we still create one-box environments between each deployment wave and include what we call "bake time." A waiting time before starting the next wave. This time is used to observe whether any alarms will be triggered as a result of some metric that may have degraded due to the deployment. If this happens, a rollback is automatically performed and an engineer is notified to investigate.
+
+Understanding the scope of impact on failures
+
+When designing a cell-based application, it is normal to focus on cell design, routing strategies, and partition keys. But implementing a cell-based architecture requires focusing on several topics, and the deployment pipeline plays a fundamental role. There is no reduction in the scope of impact in a cell-based architecture without a robust deployment pipeline.
+
+To make this clearer, let's take a closer look at what the scope of impact in failures would be, which is exactly what we want to mitigate with a cell-based architecture. Your applications can fail for N number of reasons. In the Resilience Analysis Framework, we show a systematic approach to assess these types of failures. For our continuous deployment context, we will summarize them in 3 very frequent types of failures that can happen, as in the image below:
+
+
+1. Your client may have an unusual traffic pattern and overload your application.
+2. You can make a change of any kind to your application and this can cause a failure.
+3. An application that you depend on may fail.
+
+
+Fault isolation boundaries
+
+Fault isolation boundaries are, as the name suggests, boundaries that prevent a fault from propagating beyond that boundary. There is an amazing whitepaper that extensively describes Fault Isolation Boundaries in AWS. What we will cover here is how Fault Isolation Boundaries relate to the cell-based architecture and your deployment pipeline.
+
+Your application, and the AWS infrastructure resources you use, are all Fault Isolation Boundaries, such as your AWS account, an AZ, or even a region.
+
+Scope of impact on monolithic applications
+
+If you have a monolithic application, for example an e-commerce, all the business capabilities of your application are contained in a software component that is deployed all at once. Therefore, any failure that occurs.
+Assuming that this application is stateless you still have the possibility of doing other deployment approaches like blue-green, but we just want to demonstrate here that your fault isolation boundary is your entire application in a single deployment component, the service and its database.
+
+Scope of impact on microservices
+
+In a microservices architecture, your application's capabilities are divided into more than one service, according to what makes sense for the business context, so if an order management service starts to fail, customers who are using inventory are still under normal usage conditions. This is one of the advantages of the microservices architecture.
+A good practice is to separate your application into user journeys and understand, based on criticality, which journeys make sense to be maintained in the same service and, consequently, deployment unit. As we can see in the image above, now if we need to deploy a new version of the order management service, the inventory does not need to change anything and this in itself already reduces its scope of impact with failures originated from deployment.
+
+Scope of impact in single-az and multi-az applications
+
+Another fault isolation boundary is the availability zone, being one or more data centers with redundant power and connectivity.  Even if your application is made up of several independent services, you can still have infrastructure failures where one or more services can fail in an AZ, or even the entire AZ can become unavailable.
+
+To mitigate this type of failure, AWS recommends using multiple Availability Zones, so we use redundancy to reduce the scope of failures that can occur. In the image below, even if one AZ becomes unavailable, the application can still continue to operate because the services are deployed in another Availability Zone. 
+Another important aspect is to ensure that even when using multiple availability zones, they can fail independently, that is, even if one AZ fails, your application can continue to operate normally. By definition, AZs are designed to fail independently, but you can design your application so that the order management service in Zone 1 depends on a database that is in another zone. When this happens, even if you are using more than 1 AZ, if one fails, your application becomes unavailable. Designing for this is what we call Availability Zone Independence.
+
+Scope of impact with cell-based architecture
+
+No matter how many services or components your application has, a cell is a complete copy of it. Is your application like the example above? Two EC2 instances and two databases? Your cell will have these 4 components. Does your application have 50 services, each on a different instance, 50 databases, 10 API gateways and 20 message topics? Each cell of yours will have all of these components.
+
+Whatever your application design, it will fit into one of the models below, using cells that are single-az or multi-az. The way AWS implements cell-based architecture, it uses the multi-az cell scenario with greater emphasis, taking advantage of the best that AZs have to offer, such as reducing single points of failure with redundancy and using cells to reduce the scope of impact with compartmentalization.
+We can see in the single-AZ cell scenario that if one cell fails, the other cells continue to operate normally, even within the same AZ. If an entire AZ fails, those cells become unavailable, but cells within other AZs continue to operate normally. In the multi-AZ cell scenario, if one AZ fails, the cell still continues to operate normally, since its components are in other AZs as well. Only if a cell fails in all 3 AZs does that cell become completely unavailable.
+
+There is yet another fault isolation limit that has a close relationship when we talk about cell-based architecture: the AWS account. A very frequent question that customers ask is what should be the cell boundary? Well, the answer is it depends. At AWS, to maintain the highest level of isolation possible, each cell usually has its own AWS account. Even if your application is well segregated, a single cell may start competing for resources within the AWS account with another cell, and as a consequence, this may generate a failure.
+
+Aligning your fault isolation boundaries, deployment pipeline and observability
+
+Now that we have seen the building blocks of a cell-based architecture, how and which pipelines we need to keep in mind when we are creating this type of architecture and what the effect of failures and the scope of their impact, depending on the type of design you choose for your application, let's introduce the last concept we need to build continuous deployment pipelines for cell-based architectures, observability.
+
+Usually evolving an application to a cell-based architecture reveals gaps and points of improvement mainly in the deployment pipeline and observability. There usually comes a time when the times realize that both are too simple or limited for the type of deployment and observability they need in this new type of architecture.
+
+Now let's look at some side effects of not having fault isolation boundaries, deployment pipeline and observability fully aligned. Let's take a very simple example application, composed of an Application Load Banker (ALB), a microservice on an EC2 instance with Autoscaling group (ASG) and an RDS database with Standby instance and read replica. All available in 3 AZs.
+When using cell-based architecture, each cell will be a complete copy of your application, as we can see in the image above we now have 3 cells, therefore 3 copies of all the components of our application plus the cell router, responsible for determining to which cell a request should be directed.
+
+Logs, tracing and metrics need to be cell-aware and according your fault isolation boundary
+
+Even in a non-cell-based architecture, it is essential to have fault isolation boundaries aligned with how you generate your application's observability data, logs, tracing, and metrics. In other words, do you use regional components in your application? Generate data with regional information. Do you use a multi-AZ architecture with zonal services? Generate each observability event preferably containing the ID of the AZ in which the processing is taking place.
+
+Let's consider the example below. Before migrating to a cell-based architecture, you had all observability aligned, logs, tracing, and metrics identified with AZ data, and the customer's tenantID. Now, with a cell-based architecture, you have to consider one more dimension in all your events: the cell. If a host of your application in the third AZ starts to experience instability, you now have multiple deployments of your application. How can you tell which cell has a service triggering an alarm? And what about logs and tracing? Without this ability to have the cell ID (a cellID) in all generated events, you are limited in your ability to diagnose problems.
+
+
+
+An application with a cell-based architecture is equivalent to having multiple applications to operate, so all instrumentation must be done with this level of granularity. Just to make it more tangible, below are some examples of logs, tracing and metrics containing the information of the cell in which the event is occurring.
+
+Example of logs
+
+{
+    "timestamp": "2025-01-09T10:15:30Z",
+    "cell_id": "cell-us-east-1-a",
+    "availability_zone": "us-east-1a",
+    "service": "payment-service",
+    "level": "INFO",
+    "message": "Payment processed successfully",
+    "transaction_id": "tx-123",
+    "cell_metadata": {
+        "region": "us-east-1",
+        "az": "us-east-1a",
+        "cell_capacity": "100%",
+        "cell_health": "healthy",
+        "az_status": "active"
+    }
+}
+
+Example of tracing
+
+{
+    "trace_id": "1-5759e988-bd862e3fe1be46a994272793",
+    "cell_context": {
+        "cell_id": "cell-us-east-1-a",
+        "availability_zone": "us-east-1a",
+        "cell_route": "payment-route-a"
+    },
+    "segments": [
+        {
+            "id": "4a611b",
+            "name": "payment-api",
+            "cell_metadata": {
+                "cell_id": "cell-us-east-1-a",
+                "az": "us-east-1a",
+                "service_version": "1.2.3"
+            }
+        }
+    ]
+}
+
+Example of metrics using Amazon CloudWatch EMF:
+
+{
+    "_aws": {
+        "Timestamp": 1704806400000,
+        "CloudWatchMetrics": [
+            {
+                "Namespace": "CellBasedArchitecture/AZHealth",
+                "Dimensions": [
+                    ["AvailabilityZone"],
+                    ["SourceAZ", "DestinationAZ"]
+                ],
+                "Metrics": [
+                    {
+                        "Name": "AZHealthStatus",
+                        "Unit": "None"
+                    },
+                    {
+                        "Name": "CrossAZLatency",
+                        "Unit": "Milliseconds"
+                    }
+                ]
+            }
+        ]
+    },
+    "AvailabilityZone": "us-east-1a",
+    "SourceAZ": "us-east-1a",
+    "DestinationAZ": "us-east-1b",
+    "AZHealthStatus": 1,
+    "CrossAZLatency": 8.5
+}
+
+The way to obtain the cell ID, availability zone or region will vary depending on the design of your application. You can obtain this information at runtime, via deployment pipeline, AWS AppConfig or even during provisioning of your stack via CDK, CloudFormation or Terraform.. The important thing is that your service has it available to propagate via logs, tracing and metrics.
+
+The same goes for your visualization dashboards and alarms, they should all consider the context of the cell, having each dashboard by your CellID.
+
+
+Your deployment pipeline needs to be aligned with your fault isolation boundaries
+
+
+
+Design your CI/CD Pipeline
+
+1. Split production into many small environments.
+2. Deploy small first, then more broadly.
+3. Roll back proactively and automatically.
+
+Single-AZ based applications
+
+Multi-az based applications
+
+Kubernetes(EKS) based applications
+
+Serverless based Applications
+
+Automatic rollback alone may not be enough
+
+A checklist to get you started
+
+Deployment related questions
+
+1. Is your deployment model aligned with your fault isolation boundaries?
+
+The deployment model must be strictly aligned with fault isolation boundaries to ensure system reliability and stability. For example, if you have a cell serving customers in the US-East region, your deployment process should treat this cell as an independent unit. This means that when deploying a new feature or update, you can deploy it to this specific cell without affecting other cells in US-West or Europe. This alignment helps contain potential issues within a single cell, preventing system-wide failures.
+
+2. Are you able to effectively deploy a change gradually cell per cell in a service?
+
+Gradual cell-by-cell deployment is crucial for risk management and service reliability. For instance, you might start by deploying a new feature to a single cell that serves 5% of your traffic. This allows you to monitor the impact and performance before expanding to other cells. A practical example would be rolling out a new payment processing system: you first deploy to a cell handling non-critical customers, monitor for 24-48 hours, and if successful, gradually roll out to cells handling more critical workloads.
+
+3. How are new cells onboarded to your application?
+
+Cell onboarding should follow a well-defined, automated process. For example, when adding a new cell to support expansion into a new geographic region, the process should include automated infrastructure provisioning (using tools like AWS CloudFormation or Terraform), security configuration, networking setup, and integration with existing monitoring systems. The process should also include validation steps, such as load testing and security scanning, before the cell goes live.
+
+4. Can you support a specific customer per cell?
+
+Supporting specific customers per cell is important for meeting unique customer requirements. For example, a large enterprise customer might require dedicated resources for compliance reasons. In this case, you would configure a dedicated cell with specific resource allocations, security controls, and monitoring. This allows for customized service levels and isolated resources while maintaining the overall cell-based architecture principles.
+
+5. How do you balance cell sizes and move clients between them?
+
+Cell balancing requires sophisticated automation and clear metrics. For instance, if you notice one cell is consistently running at 80% capacity while others are at 40%, you might implement automated customer migration processes. This could involve gradually shifting traffic using DNS routing or load balancer configurations, ensuring zero downtime during the transition. The process should consider factors like customer usage patterns, time zones, and service dependencies.
+
+ 6. Can you automatically rollback changes that cause failures? 
+
+Automatic rollback capabilities are essential for maintaining service reliability. For example, if you deploy a new version that causes error rates to spike above 1%, an automated system should detect this through monitoring metrics and immediately initiate a rollback to the last known good version. This process should include automated health checks, metric validation, and notification systems to alert relevant teams.
+
+7. Do you test your cell limits in your deployment pipeline? 
+
+Testing cell limits in the deployment pipeline is crucial for preventing production issues. This involves creating automated tests that simulate maximum load conditions, such as running load tests that push the cell to its designed capacity limits. For example, if a cell is designed to handle 10,000 requests per second, the pipeline should include tests that verify performance at this level and slightly beyond to ensure proper degradation behavior.
+
+Observability related questions
+
+1. Is your observability model aligned with your fault isolation boundaries?
+
+Observability alignment with fault isolation boundaries is critical for effective monitoring and troubleshooting. Each cell should have its own comprehensive set of metrics, logs, and traces. For example, if you're running a microservices architecture, each service within a cell should emit metrics tagged with the cell identifier, allowing you to quickly isolate and diagnose issues specific to that cell.
+
+2. Are you able to effectively monitor the operational health of a single cell?
+
+ Effective cell health monitoring requires comprehensive instrumentation. This includes monitoring key metrics like error rates, latency, throughput, and resource utilization specific to each cell. For example, a dashboard should show real-time health indicators for each cell, with the ability to drill down into specific services or components within that cell.
+
+3. How are you capturing and displaying metric data that can be used to analyze the behavior of specific customers by cell?
+
+Customer-specific metrics within cells require careful instrumentation and data organization. For instance, you might implement a system where all customer transactions are tagged with both customer ID and cell ID, allowing you to generate reports showing performance metrics per customer within each cell. This data can be visualized in customized dashboards showing patterns like usage trends, error rates, and resource consumption per customer.
+
+4. Are you generating logs, metrics, tracing with the cell identifier?
+
+Proper tagging of observability data with cell identifiers is fundamental for effective operations. Every log entry, metric, and trace should include the cell identifier as a standard dimension. For example, when implementing distributed tracing using tools like AWS X-Ray or OpenTelemetry, each trace should automatically include the cell ID as a trace attribute. This allows operators to easily filter and analyze issues by cell, making troubleshooting more efficient. In practice, this might look like log entries prefixed with "cell-us-east-1a" or metrics having a "cell_id" dimension.
+
+5. Are there alarms and aggregated alarms by zone (when possible) and by cell?
+
+Alarm systems should be hierarchical, providing both cell-level and zone-level visibility. For instance, you might have individual cell alarms that trigger when error rates exceed 1% within a specific cell, and zone-level alarms that trigger when multiple cells in a zone show degraded performance. This hierarchical approach helps identify both localized issues and broader systemic problems. For example, if three cells in US-East show similar latency spikes, a zone-level alarm would help quickly identify a potential regional infrastructure issue.
+
+6. Do you have cell limits/dimensions established and with alarms?
+
+Cell limits and dimensions must be clearly defined and monitored. This includes setting specific thresholds for metrics like maximum concurrent connections, request rates, memory usage, and CPU utilization. For example, if a cell is designed to handle up to 5,000 concurrent users, you might set up graduated alarms that trigger at 70% (warning), 85% (critical), and 95% (emergency) of this limit. These alarms should trigger automated notifications and potentially automated responses like load shedding or capacity expansion.
+
+7. Do you have customer limits/dimensions inside the cell established and with alarms?
+
+Customer-specific limits within cells are crucial for maintaining fair resource allocation and preventing noisy neighbor issues. For instance, you might establish per-customer quotas for API calls, storage usage, or compute resources within each cell. Alarms should trigger when customers approach or exceed these limits. For example, if a customer has a limit of 1,000 requests per minute, you might set up alerts at 80% utilization and implement automatic throttling at 100% to protect the cell's overall health.
+
+8. How do you measure the resource consumption of individual cells and customers?
+
+Resource consumption measurement requires comprehensive monitoring at both cell and customer levels. This involves tracking metrics like CPU usage, memory consumption, network I/O, and storage utilization. For example, you might use detailed resource tracking to generate usage reports showing how each customer's workload impacts cell resources over time. This data can be used for capacity planning, cost allocation, and identifying optimization opportunities. Tools like AWS CloudWatch or custom monitoring solutions can aggregate this data into dashboards showing real-time and historical resource
+
+Conclusion
+
+Contributors
+
+* Robisson Oliveira - Sr. Cloud Application Architect
+
+Resources
+
+* https://aws.amazon.com/builders-library/cicd-pipeline/
+* https://docs.aws.amazon.com/wellarchitected/latest/reducing-scope-of-impact-with-cell-based-architecture/cell-routing.html
+* https://aws.amazon.com/builders-library/automating-safe-hands-off-deployments/?did=ba_card&trk=ba_card
+* https://aws.amazon.com/builders-library/going-faster-with-continuous-delivery/
+* https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/control-planes-and-data-planes.html
+* https://docs.aws.amazon.com/whitepapers/latest/overview-deployment-options/deployment-strategies.html
+* https://aws-samples.github.io/aws-deployment-pipeline-reference-architecture/dynamic-configuration-pipeline/ri-cdk-codepipeline-appconfig/
+
