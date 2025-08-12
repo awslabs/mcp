@@ -1,5 +1,4 @@
 version = 1
-revision = 1
 requires-python = ">=3.10"
 
 [[package]]
@@ -46,7 +45,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-mq-mcp-server"
-version = "2.0.2"
+version = "2.0.4"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

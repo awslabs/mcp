@@ -1,5 +1,5 @@
 ---
-name: Release v2 Merge (automated)
+name: Release Merged (automatic)
 description: |
   This workflow creates a tag on the `main` branch when a pull request is merged from a `release/**` branch.
   It is triggered by the `pull_request` event with the `closed` type, specifically when the PR is merged.
@@ -11,8 +11,8 @@ on:
     branches:
       - main
 env:
-  GITHUB_USER_EMAIL: ${{ vars.GITHUB_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
-  GITHUB_USER_NAME: ${{ vars.GITHUB_USER_NAME || 'awslabs-mcp' }}
+  BOT_USER_EMAIL: ${{ vars.BOT_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
+  BOT_USER_NAME: ${{ vars.BOT_USER_NAME || 'awslabs-mcp' }}
 permissions:
   actions: none
   attestations: none
@@ -102,8 +102,8 @@ jobs:
           echo "::debug::Setting up secure GPG environment"
 
           # Configure git user (non-sensitive information)
-          git config --local user.email "${{ env.GITHUB_USER_EMAIL }}"
-          git config --local user.name "${{ env.GITHUB_USER_NAME }}"
+          git config --local user.email "${{ env.BOT_USER_EMAIL }}"
+          git config --local user.name "${{ env.BOT_USER_NAME }}"
 
           # Import GPG key without exposing secrets in command line
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import --quiet
@@ -139,9 +139,6 @@ jobs:
           # Create signed tag with proper message
           git tag -a "$TAG" -m "Release $TAG" --sign
 
-          # Avoid checking too fast
-          sleep 5
-
           # Verify tag was created and is signed
           if ! git tag -v "$TAG" 2>/dev/null; then
             echo "::error::Failed to verify signed tag: $TAG" >&2
@@ -156,7 +153,7 @@ jobs:
           git push origin "$TAG"
 
           # Verify tag was pushed successfully
-          if ! git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+          if [[ $(git ls-remote --tags origin "$TAG" | wc -l) -eq 0 ]]; then
             echo "::error::Failed to verify tag was pushed: $TAG" >&2
             exit 1
           fi

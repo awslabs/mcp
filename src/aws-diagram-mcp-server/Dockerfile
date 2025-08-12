@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm@sha256:4600f71648e110b005bf7bca92dbb335e549e6b27f2e83fceee5e11b3e1a4d01 AS uv
+FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -37,37 +37,51 @@ COPY pyproject.toml uv.lock uv-requirements.txt ./
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Install system dependencies and Python package manager
+RUN apk update && \
+    apk add --no-cache --virtual .build-deps \
+    build-base \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    curl
+
+# Install Rust and Cargo with a newer version that supports edition2024
+RUN curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/rust-lang/rustup/f7935a8ad24a445629ceedb2cb706a4469e1e5b3/rustup-init.sh | sh -s -- -v -y --default-toolchain nightly && \
+    . $HOME/.cargo/env && \
+    rustup default nightly
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
+    . $HOME/.cargo/env && \
     pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
-    uv sync --python 3.12 --frozen --no-install-project --no-dev --no-editable
+    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --python 3.12 --frozen --no-dev --no-editable
+    . $HOME/.cargo/env && \
+    uv sync --python 3.13 --frozen --no-dev --no-editable
 
-# # Make the directory just in case it doesn't exist
-# RUN mkdir -p /root/.local
+# Make the directory just in case it doesn't exist
+RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm@sha256:4600f71648e110b005bf7bca92dbb335e549e6b27f2e83fceee5e11b3e1a4d01
+FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin" \
+ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-# Add non-root user and ability to change directory into /root
-RUN apt-get update -y && \
-    apt-get install -y graphviz && \
-    apt-get clean -y && \
-    apt-get autoremove -y && \
-    groupadd --force --system app && \
-    useradd app -g app -d /app && \
-    chmod o+x /root
+# Install runtime dependencies and create application user
+RUN apk update && \
+    apk add --no-cache ca-certificates libgcc graphviz && \
+    update-ca-certificates && \
+    addgroup -S app && \
+    adduser -S app -G app -h /app
 
 # Copy application artifacts from build stage
-# COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
