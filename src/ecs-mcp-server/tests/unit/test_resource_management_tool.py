@@ -12,10 +12,8 @@ import pytest
 class MockFastMCP:
     """Mock implementation of FastMCP for testing."""
 
-    def __init__(self, name, description=None, version=None, instructions=None):
+    def __init__(self, name, instructions=None):
         self.name = name
-        self.description = description or ""
-        self.version = version
         self.instructions = instructions
         self.tools = []
         self.prompt_patterns = []

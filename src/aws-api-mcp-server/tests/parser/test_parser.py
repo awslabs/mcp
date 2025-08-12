@@ -250,7 +250,7 @@ def test_command_validation_error_for_parameter(command, message):
             + "--sort-criteria 'field=AWS_ACCOUNT_ID,_sortOrder=desc'",
             [
                 "The parameter '--filter-criteria' received an invalid input: "
-                + 'Unknown parameter in input: "myKey", must be one of: awsAccountId,',
+                + 'Unknown parameter in input: "myKey", must be one of: findingArn, awsAccountId,',
                 "\nThe parameter '--sort-criteria' received an invalid input: "
                 + 'Missing required parameter in input: "sortOrder"',
             ],
