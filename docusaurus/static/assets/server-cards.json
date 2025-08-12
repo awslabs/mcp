@@ -119,6 +119,47 @@
     },
     {
       "category": "Infrastructure & Deployment",
+      "description": "Comprehensive AWS resource management with integrated security scanning and full CRUDL operations",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "ccapi-mcp-server",
+      "name": "AWS Cloud Control API MCP Server",
+      "source_path": "src/ccapi-mcp-server/",
+      "subcategory": "Infrastructure as Code",
+      "tags": [
+        "infrastructure-as-code",
+        "cloud-control-api",
+        "security-scanning",
+        "resource-management",
+        "crudl-operations",
+        "vibe-coding",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Direct CloudFormation resource management via Cloud Control API",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "cfn-mcp-server",
+      "name": "AWS CloudFormation MCP Server",
+      "source_path": "src/cfn-mcp-server/",
+      "subcategory": "Infrastructure as Code",
+      "tags": [
+        "infrastructure-as-code",
+        "cloudformation",
+        "cloud-control-api",
+        "resource-management",
+        "vibe-coding",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
       "description": "AWS CDK development with security compliance",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "cdk-mcp-server",
@@ -151,26 +192,6 @@
         "terraform",
         "security-scanning",
         "workflows",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
-      "description": "Direct CloudFormation resource management via Cloud Control API",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "cfn-mcp-server",
-      "name": "AWS CloudFormation MCP Server",
-      "source_path": "src/cfn-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "cloudformation",
-        "cloud-control-api",
-        "resource-management",
         "vibe-coding",
         "infrastructure-deployment"
       ],
