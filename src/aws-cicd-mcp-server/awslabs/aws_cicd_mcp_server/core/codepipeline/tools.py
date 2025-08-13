@@ -23,7 +23,7 @@ async def list_pipelines(
     )
     
     return {
-        "pipelines": [p['name'] for p in pipelines],
+        "pipelines": [p.get('name', p) if isinstance(p, dict) else p for p in pipelines],
         "count": len(pipelines),
         "region": region
     }
