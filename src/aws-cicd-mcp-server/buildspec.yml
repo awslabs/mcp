@@ -1,0 +1,42 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+    commands:
+      - echo Installing dependencies
+      - apt-get update
+      - apt-get install -y maven
+  
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR
+      - aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 008732538448.dkr.ecr.ap-south-1.amazonaws.com
+      
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Running security scan
+      - mvn dependency-check:check
+      - echo Running tests
+      - mvn test
+      - echo Building the application
+      - mvn clean package
+      - echo Building Docker image
+      - docker build -t java-app .
+      - docker tag java-app:latest 008732538448.dkr.ecr.ap-south-1.amazonaws.com/java-app:latest
+      
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing Docker image
+      - docker push 008732538448.dkr.ecr.ap-south-1.amazonaws.com/java-app:latest
+      - echo Creating deployment artifacts
+      - printf '[{"name":"java-app","imageUri":"008732538448.dkr.ecr.ap-south-1.amazonaws.com/java-app:latest"}]' > imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
+    - appspec.yml
+    - taskdef.json

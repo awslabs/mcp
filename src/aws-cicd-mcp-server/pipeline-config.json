@@ -1,0 +1,85 @@
+{
+  "pipeline": {
+    "name": "java-app-cicd-pipeline",
+    "roleArn": "arn:aws:iam::008732538448:role/CodePipelineServiceRole",
+    "artifactStore": {
+      "type": "S3",
+      "location": "java-app-artifacts-008732538448"
+    },
+    "stages": [
+      {
+        "name": "Source",
+        "actions": [
+          {
+            "name": "SourceAction",
+            "actionTypeId": {
+              "category": "Source",
+              "owner": "AWS",
+              "provider": "S3",
+              "version": "1"
+            },
+            "configuration": {
+              "S3Bucket": "java-app-source-008732538448",
+              "S3ObjectKey": "source.zip"
+            },
+            "outputArtifacts": [
+              {
+                "name": "SourceOutput"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Build",
+        "actions": [
+          {
+            "name": "BuildAction",
+            "actionTypeId": {
+              "category": "Build",
+              "owner": "AWS",
+              "provider": "CodeBuild",
+              "version": "1"
+            },
+            "configuration": {
+              "ProjectName": "java-app-build"
+            },
+            "inputArtifacts": [
+              {
+                "name": "SourceOutput"
+              }
+            ],
+            "outputArtifacts": [
+              {
+                "name": "BuildOutput"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Deploy",
+        "actions": [
+          {
+            "name": "DeployAction",
+            "actionTypeId": {
+              "category": "Deploy",
+              "owner": "AWS",
+              "provider": "CodeDeploy",
+              "version": "1"
+            },
+            "configuration": {
+              "ApplicationName": "java-app",
+              "DeploymentGroupName": "ecs-deployment-group"
+            },
+            "inputArtifacts": [
+              {
+                "name": "BuildOutput"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
