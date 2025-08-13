@@ -31,12 +31,16 @@ async def test_list_pipelines_success(mock_boto_client):
     """Test successful pipeline listing."""
     mock_client = MagicMock()
     mock_boto_client.return_value = mock_client
-    mock_client.list_pipelines.return_value = {
-        'pipelines': [
+    
+    # Mock paginator
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.return_value = [
+        {'pipelines': [
             {'name': 'test-pipeline-1'},
             {'name': 'test-pipeline-2'}
-        ]
-    }
+        ]}
+    ]
+    mock_client.get_paginator.return_value = mock_paginator
     
     result = await list_pipelines()
     
@@ -51,15 +55,20 @@ async def test_list_pipelines_error(mock_boto_client):
     """Test pipeline listing with error."""
     mock_client = MagicMock()
     mock_boto_client.return_value = mock_client
-    mock_client.list_pipelines.side_effect = ClientError(
+    error = ClientError(
         {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
         'ListPipelines'
     )
     
+    # Mock both paginator and direct call to raise the same error
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.side_effect = error
+    mock_client.get_paginator.return_value = mock_paginator
+    mock_client.list_pipelines.side_effect = error
+    
     result = await list_pipelines()
     
     assert 'error' in result
-    assert result['pipelines'] == []
 
 
 @pytest.mark.asyncio

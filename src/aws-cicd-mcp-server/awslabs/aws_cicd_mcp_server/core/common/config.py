@@ -27,6 +27,10 @@ AWS_PROFILE = os.getenv('AWS_PROFILE')
 # Read-only mode
 READ_ONLY_MODE = os.getenv('CICD_READ_ONLY_MODE', 'true').lower() == 'true'
 
+# Pagination defaults
+DEFAULT_MAX_ITEMS = 100
+DEFAULT_PAGE_SIZE = 50
+
 def get_server_directory() -> Path:
     """Get the server directory for logs and cache."""
     return Path.home() / '.aws-cicd-mcp-server'

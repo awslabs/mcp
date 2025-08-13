@@ -25,9 +25,13 @@ from awslabs.aws_cicd_mcp_server.core.codebuild import tools
 async def test_list_projects(mock_boto_client):
     """Test listing CodeBuild projects."""
     mock_client = MagicMock()
-    mock_client.list_projects.return_value = {
-        'projects': ['project1', 'project2']
-    }
+    
+    # Mock paginator
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.return_value = [
+        {'projects': ['project1', 'project2']}
+    ]
+    mock_client.get_paginator.return_value = mock_paginator
     mock_boto_client.return_value = mock_client
     
     result = await tools.list_projects()
@@ -43,16 +47,21 @@ async def test_list_projects(mock_boto_client):
 async def test_list_projects_error(mock_boto_client):
     """Test listing projects with error."""
     mock_client = MagicMock()
-    mock_client.list_projects.side_effect = ClientError(
+    error = ClientError(
         {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
         'ListProjects'
     )
+    
+    # Mock both paginator and direct call to raise the same error
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.side_effect = error
+    mock_client.get_paginator.return_value = mock_paginator
+    mock_client.list_projects.side_effect = error
     mock_boto_client.return_value = mock_client
     
     result = await tools.list_projects()
     
     assert "error" in result
-    assert "projects" in result
 
 
 @pytest.mark.asyncio

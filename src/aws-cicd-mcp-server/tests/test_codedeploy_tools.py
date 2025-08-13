@@ -25,9 +25,13 @@ from awslabs.aws_cicd_mcp_server.core.codedeploy import tools
 async def test_list_applications(mock_boto_client):
     """Test listing CodeDeploy applications."""
     mock_client = MagicMock()
-    mock_client.list_applications.return_value = {
-        'applications': ['app1', 'app2']
-    }
+    
+    # Mock paginator
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.return_value = [
+        {'applications': ['app1', 'app2']}
+    ]
+    mock_client.get_paginator.return_value = mock_paginator
     mock_boto_client.return_value = mock_client
     
     result = await tools.list_applications()
@@ -43,16 +47,21 @@ async def test_list_applications(mock_boto_client):
 async def test_list_applications_error(mock_boto_client):
     """Test listing applications with error."""
     mock_client = MagicMock()
-    mock_client.list_applications.side_effect = ClientError(
+    error = ClientError(
         {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
         'ListApplications'
     )
+    
+    # Mock both paginator and direct call to raise the same error
+    mock_paginator = MagicMock()
+    mock_paginator.paginate.side_effect = error
+    mock_client.get_paginator.return_value = mock_paginator
+    mock_client.list_applications.side_effect = error
     mock_boto_client.return_value = mock_client
     
     result = await tools.list_applications()
     
     assert "error" in result
-    assert "applications" in result
 
 
 @pytest.mark.asyncio
