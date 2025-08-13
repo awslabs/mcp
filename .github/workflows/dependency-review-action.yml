@@ -15,7 +15,9 @@ jobs:
         uses: actions/dependency-review-action@da24556b548a50705dd671f47852072ea4c105d9 #v4.7.1
         with:
           # https://github.com/actions/dependency-review-action/issues/944
-          allow-dependencies-licenses: 'pkg:pypi/uv@0.8.6'
+          allow-dependencies-licenses:
+            - 'pkg:pypi/uv@0.8.6'
+            - 'pkg:pypi/uv@0.8.10'
           deny-licenses: |
             AGPL-1.0,AGPL-1.0-only,AGPL-1.0-or-later,AGPL-3.0,AGPL-3.0-only,AGPL-3.0-or-later,
             AML,
