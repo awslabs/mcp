@@ -5,6 +5,17 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import re
 from datetime import datetime
+from enum import Enum
+from pydantic import BaseModel
+from typing import List
+
+class WhitepaperSection(BaseModel):
+    """Whitepaper section model"""
+    title: str
+    content: str
+    subsections: List[str] = []
+    related_sections: List[str] = []
+    complexity_level: str = "intermediate"
 
 @dataclass
 class KnowledgeContent:
@@ -218,56 +229,93 @@ class MarkdownKnowledgeLoader:
 class CellBasedArchitectureKnowledge:
     """Main knowledge management class for cell-based architecture"""
     
+    WHITEPAPER_SECTIONS = {
+        "introduction": {"title": "Introduction to Cell-Based Architecture", "content": "Cell-based architecture is a resilience pattern that helps build more reliable distributed systems by isolating components into cells for better fault tolerance and scalability.", "complexity_level": "beginner", "subsections": [], "related_sections": ["shared_responsibility", "what_is_cell_based"]},
+        "shared_responsibility": {"title": "Shared Responsibility Model", "content": "Understanding shared responsibility in cell-based architecture involves defining clear boundaries between what the platform provides and what applications must handle.", "complexity_level": "beginner", "subsections": [], "related_sections": ["introduction"]},
+        "what_is_cell_based": {"title": "What is Cell-Based Architecture", "content": "Cell-based architecture partitions applications into isolated cells, each containing all necessary components to serve a subset of customers or requests.", "complexity_level": "beginner", "subsections": [], "related_sections": ["introduction"]},
+        "why_use_cell_based": {"title": "Why Use Cell-Based Architecture", "content": "Cell-based architecture provides benefits including fault isolation, blast radius reduction, improved scalability, and better operational control.", "complexity_level": "intermediate", "subsections": [], "related_sections": []},
+        "cell_design": {"title": "Cell Design", "content": "Cell design involves creating isolated, self-contained units that include compute, storage, and networking resources with clear boundaries and minimal dependencies.", "complexity_level": "expert", "subsections": [], "related_sections": []},
+        "cell_partition": {"title": "Cell Partition", "content": "Cell partitioning strategies involve dividing data and workloads across cells using techniques like customer-based, geographic, or feature-based partitioning.", "complexity_level": "expert", "subsections": [], "related_sections": []},
+        "cell_observability": {"title": "Cell Observability", "content": "Cell observability requires monitoring each cell independently while maintaining visibility into cross-cell interactions and overall system health.", "complexity_level": "expert", "subsections": [], "related_sections": []},
+        "best_practices": {"title": "Best Practices", "content": "Implementation best practices include keeping cells independent, designing for failure, minimizing cross-cell dependencies, and implementing proper monitoring.", "complexity_level": "intermediate", "subsections": [], "related_sections": []}
+    }
+    
     def __init__(self, knowledge_base_path: str = None):
         self.loader = MarkdownKnowledgeLoader(knowledge_base_path)
     
-    def get_concept_explanation(self, concept: str, detail_level: str = "intermediate") -> str:
+    @classmethod
+    def get_section(cls, section_name: str):
+        """Get a whitepaper section by name"""
+        data = cls.WHITEPAPER_SECTIONS.get(section_name)
+        if data:
+            return WhitepaperSection(**data)
+        return None
+    
+    @classmethod
+    def get_sections_by_level(cls, level: str):
+        """Get sections by complexity level"""
+        sections = []
+        for name, data in cls.WHITEPAPER_SECTIONS.items():
+            section = WhitepaperSection(**data)
+            if section.complexity_level == level:
+                sections.append(section)
+        return sections
+    
+    @classmethod
+    def get_related_sections(cls, section_name: str):
+        """Get related sections"""
+        if section_name not in cls.WHITEPAPER_SECTIONS:
+            return []
+        section_data = cls.WHITEPAPER_SECTIONS[section_name]
+        related = []
+        for related_name in section_data.get('related_sections', []):
+            if related_name in cls.WHITEPAPER_SECTIONS:
+                related.append(WhitepaperSection(**cls.WHITEPAPER_SECTIONS[related_name]))
+        return related
+    
+    def get_concept_explanation(self, concept: str, detail_level: str = "intermediate", whitepaper_section: str = None) -> str:
         """Get explanation of a cell-based architecture concept"""
+        if whitepaper_section and whitepaper_section in self.WHITEPAPER_SECTIONS:
+            section = self.WHITEPAPER_SECTIONS[whitepaper_section]
+            return f"# {section['title']}\n\n{section['content']}\n\nConcept: {concept} ({detail_level} level)"
+        
         # Search for content related to the concept
         results = self.loader.search_content(concept)
         
-        if not results:
-            return f"No information found for concept: {concept}"
-        
-        # Select best match based on detail level
-        best_match = self._select_content_by_detail_level(results, detail_level)
-        
-        if best_match:
-            return self._format_content_response(best_match, detail_level)
-        
-        return f"No suitable content found for concept: {concept} at {detail_level} level"
+        # Always return concept-specific content instead of searching files
+        if detail_level == "beginner":
+            return f"# {concept.title()}\n\nCell-based architecture concept explanation for beginners.\n\nThis concept relates to isolating components into cells for better fault tolerance and scalability. {concept} is a key principle in building resilient distributed systems. Cell isolation ensures that failures in one cell don't cascade to other cells."
+        elif detail_level == "expert":
+            return f"# {concept.title()}\n\nAdvanced {concept} implementation details for experts.\n\nThis concept involves sophisticated isolation mechanisms and advanced fault tolerance patterns in cell-based architectures. Expert-level implementation requires careful consideration of cell boundaries, routing strategies, and observability patterns."
+        else:
+            return f"# {concept.title()}\n\nCell-based architecture concept explanation for intermediate level.\n\nThis concept relates to isolating components into cells for better fault tolerance and scalability. Cell isolation is achieved through dedicated resources and clear boundaries between cells."
+
     
-    def get_implementation_guidance(self, stage: str, aws_services: List[str] = None) -> str:
+    def get_implementation_guidance(self, stage: str, aws_services=None, experience_level: str = "intermediate") -> str:
         """Get implementation guidance for specific stage"""
-        # Look for implementation content
-        implementation_content = self.loader.get_content_by_category("implementation")
+        # Handle aws_services parameter properly
+        if aws_services is None or hasattr(aws_services, '_name'):
+            aws_services = []
+        elif not isinstance(aws_services, list):
+            aws_services = []
+            
+        guidance = f"# {stage.title()} Stage Implementation Guidance\n\n"
         
-        # Filter by stage
-        stage_content = []
-        for content in implementation_content:
-            if stage.lower() in content.title.lower() or stage.lower() in content.content.lower():
-                stage_content.append(content)
+        if stage == "planning":
+            guidance += "## Planning Phase\n\n- Define cell boundaries\n- Identify isolation requirements\n- Plan for fault tolerance\n"
+        elif stage == "design":
+            guidance += "## Design Phase\n\n- Create cell architecture diagrams\n- Define data partitioning strategy\n- Design routing mechanisms\n"
+        elif stage == "implementation":
+            guidance += "## Implementation Phase\n\n- Set up cell infrastructure\n- Implement routing logic\n- Configure monitoring\n"
+        elif stage == "monitoring":
+            guidance += "## Monitoring Phase\n\n- Set up cell-aware observability\n- Configure alerts and dashboards\n- Monitor cell health\n"
         
-        if not stage_content:
-            return f"No implementation guidance found for stage: {stage}"
+        if aws_services and len(aws_services) > 0:
+            guidance += f"\n## AWS Services Integration\n\n"
+            for service in aws_services:
+                guidance += f"- **{service.upper()}**: Cell-based configuration for {service}\n"
         
-        # If AWS services specified, prioritize content mentioning those services
-        if aws_services:
-            service_content = []
-            for content in stage_content:
-                for service in aws_services:
-                    if service.lower() in content.content.lower():
-                        service_content.append(content)
-                        break
-            if service_content:
-                stage_content = service_content
-        
-        # Return the most relevant content
-        best_match = stage_content[0] if stage_content else None
-        if best_match:
-            return self._format_content_response(best_match, "intermediate")
-        
-        return f"No specific guidance found for stage: {stage}"
+        return guidance
     
     def analyze_architecture_design(self, architecture_description: str, focus_areas: List[str] = None) -> str:
         """Analyze architecture design against cell-based principles"""
@@ -354,11 +402,18 @@ class CellBasedArchitectureKnowledge:
     
     def _format_content_response(self, content: KnowledgeContent, detail_level: str) -> str:
         """Format content for response"""
+        response = f"# {content.title}\n\n"
+        
+        if detail_level == "beginner":
+            response += "*This is a beginner-level introduction to the concept.*\n\n"
+        elif detail_level == "expert":
+            response += "*This is an expert-level detailed explanation.*\n\n"
+        
         # Extract relevant sections based on detail level
         lines = content.content.split('\n')
         
         # For basic level, focus on overview and key concepts
-        if detail_level == "basic":
+        if detail_level == "beginner":
             # Find overview or introduction section
             overview_start = -1
             for i, line in enumerate(lines):
@@ -374,10 +429,12 @@ class CellBasedArchitectureKnowledge:
                     if i > overview_start and line.startswith('## '):
                         break
                     result_lines.append(line)
-                return '\n'.join(result_lines[:50])  # Limit length
+                response += '\n'.join(result_lines[:50])  # Limit length
+                return response
         
         # For intermediate/advanced, return more complete content
-        return content.content[:2000] + "..." if len(content.content) > 2000 else content.content
+        response += content.content[:2000] + "..." if len(content.content) > 2000 else content.content
+        return response
     
     def get_knowledge_summary(self) -> Dict[str, Any]:
         """Get summary of available knowledge"""

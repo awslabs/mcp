@@ -102,55 +102,9 @@ async def query_cell_concepts(
     try:
         logger.info(f'Querying concept: {concept}, level: {detail_level}, section: {whitepaper_section}')
         
-        # Get relevant section content
-        if whitepaper_section:
-            section = CellBasedArchitectureKnowledge.get_section(whitepaper_section)
-            if section:
-                response = f"## {section.title}\n\n{section.content}"
-                if section.subsections:
-                    response += f"\n\n### Key Topics:\n" + "\n".join([f"- {sub}" for sub in section.subsections])
-                
-                # Add related sections for navigation
-                related = CellBasedArchitectureKnowledge.get_related_sections(whitepaper_section)
-                if related:
-                    response += f"\n\n### Related Sections:\n" + "\n".join([f"- {r.title}" for r in related])
-                
-                return response
-        
-        # General concept query with level-appropriate content
-        if detail_level == 'beginner':
-            sections = CellBasedArchitectureKnowledge.get_sections_by_level('beginner')
-            response = f"# Cell-Based Architecture: {concept}\n\n"
-            response += "## Introduction for Beginners\n\n"
-            response += "Cell-based architecture is a resilience pattern that helps build more reliable distributed systems. "
-            response += f"Here's what you need to know about {concept}:\n\n"
-            
-            for section in sections[:2]:  # Limit to first 2 beginner sections
-                response += f"### {section.title}\n{section.content}\n\n"
-                
-        elif detail_level == 'expert':
-            sections = CellBasedArchitectureKnowledge.get_sections_by_level('expert')
-            response = f"# Advanced Cell-Based Architecture: {concept}\n\n"
-            response += "## Expert-Level Implementation Details\n\n"
-            
-            for section in sections[:3]:  # Show more expert content
-                response += f"### {section.title}\n{section.content}\n\n"
-                if section.subsections:
-                    response += "**Key Implementation Areas:**\n" + "\n".join([f"- {sub}" for sub in section.subsections]) + "\n\n"
-        
-        else:  # intermediate
-            response = f"# Cell-Based Architecture: {concept}\n\n"
-            response += "## Intermediate Overview\n\n"
-            response += f"Understanding {concept} in the context of cell-based architecture:\n\n"
-            
-            # Mix of beginner and intermediate content
-            intro_section = CellBasedArchitectureKnowledge.get_section('what_is_cell_based')
-            why_section = CellBasedArchitectureKnowledge.get_section('why_use_cell_based')
-            
-            if intro_section:
-                response += f"### {intro_section.title}\n{intro_section.content}\n\n"
-            if why_section:
-                response += f"### {why_section.title}\n{why_section.content}\n\n"
+        # Use the knowledge instance method
+        knowledge = CellBasedArchitectureKnowledge()
+        response = knowledge.get_concept_explanation(concept, detail_level, whitepaper_section)
         
         return response
         
@@ -182,55 +136,9 @@ async def get_implementation_guidance(
     try:
         logger.info(f'Getting guidance for stage: {stage}, level: {experience_level}, services: {aws_services}')
         
-        response = f"# Cell-Based Architecture Implementation Guidance\n\n"
-        response += f"## {stage.title()} Stage ({experience_level} level)\n\n"
-        
-        if stage == 'planning':
-            response += "### Planning Your Cell-Based Architecture\n\n"
-            if experience_level == 'beginner':
-                response += "Start with understanding the fundamentals:\n\n"
-                intro = CellBasedArchitectureKnowledge.get_section('introduction')
-                what_is = CellBasedArchitectureKnowledge.get_section('what_is_cell_based')
-                if intro:
-                    response += f"**{intro.title}**\n{intro.content}\n\n"
-                if what_is:
-                    response += f"**{what_is.title}**\n{what_is.content}\n\n"
-            else:
-                when_to_use = CellBasedArchitectureKnowledge.get_section('when_to_use')
-                if when_to_use:
-                    response += f"{when_to_use.content}\n\n"
-                    
-        elif stage == 'design':
-            design_section = CellBasedArchitectureKnowledge.get_section('cell_design')
-            partition_section = CellBasedArchitectureKnowledge.get_section('cell_partition')
-            
-            if design_section:
-                response += f"### {design_section.title}\n{design_section.content}\n\n"
-            if partition_section and experience_level != 'beginner':
-                response += f"### {partition_section.title}\n{partition_section.content}\n\n"
-                
-        elif stage == 'implementation':
-            deployment_section = CellBasedArchitectureKnowledge.get_section('cell_deployment')
-            routing_section = CellBasedArchitectureKnowledge.get_section('cell_routing')
-            
-            if deployment_section:
-                response += f"### {deployment_section.title}\n{deployment_section.content}\n\n"
-            if routing_section and experience_level == 'expert':
-                response += f"### {routing_section.title}\n{routing_section.content}\n\n"
-                
-        elif stage == 'monitoring':
-            observability_section = CellBasedArchitectureKnowledge.get_section('cell_observability')
-            if observability_section:
-                response += f"### {observability_section.title}\n{observability_section.content}\n\n"
-        
-        # Add AWS services recommendations if provided
-        if aws_services:
-            response += f"### AWS Services Integration\n\n"
-            response += f"For the {stage} stage with services {', '.join(aws_services)}:\n\n"
-            for service in aws_services:
-                response += f"- **{service.upper()}**: Consider how this service fits into your cell boundaries and isolation strategy\n"
-        
-        return response
+        # Use the knowledge instance method
+        knowledge = CellBasedArchitectureKnowledge()
+        return knowledge.get_implementation_guidance(stage, aws_services, experience_level)
         
     except Exception as e:
         logger.error(f'Error in get_implementation_guidance: {str(e)}')
@@ -253,11 +161,8 @@ async def cell_architecture_guide() -> str:
         
         for section_name, section_data in CellBasedArchitectureKnowledge.WHITEPAPER_SECTIONS.items():
             guide['sections'][section_name] = {
-                'title': section_data.title,
-                'content': section_data.content,
-                'complexity_level': section_data.complexity_level,
-                'subsections': section_data.subsections,
-                'related_sections': section_data.related_sections
+                'title': section_data['title'],
+                'content': section_data['content']
             }
         
         return json.dumps(guide, indent=2)
@@ -321,7 +226,12 @@ async def analyze_cell_design(
         description='Specific areas to focus the analysis on (e.g., ["isolation", "scalability", "fault_tolerance"])'
     ),
 ) -> str:
-    """Analyze cell-based architecture designs and provide recommendations."""
+    """Analyze cell-based architecture designs and provide comprehensive recommendations.
+    
+    This tool evaluates architecture descriptions against cell-based architecture principles,
+    identifies strengths and weaknesses, and provides actionable recommendations for improvement.
+    The analysis focuses on key areas like isolation, fault tolerance, and scalability.
+    """
     try:
         logger.info(f'Analyzing cell design, focus areas: {focus_areas}')
         
@@ -333,15 +243,19 @@ async def analyze_cell_design(
         
         if 'isolation' in architecture_description.lower():
             strengths.append('Design mentions isolation principles')
-        else:
-            recommendations.append('Define clear cell isolation boundaries')
-        
+        if 'dedicated' in architecture_description.lower():
+            strengths.append('Uses dedicated resources per cell')
+        if 'boundaries' in architecture_description.lower():
+            strengths.append('Defines clear cell boundaries')
         if 'fault' in architecture_description.lower():
             strengths.append('Considers fault tolerance')
-        else:
+        
+        if 'isolation' not in architecture_description.lower():
+            recommendations.append('Define clear cell isolation boundaries')
+        if 'fault' not in architecture_description.lower():
             recommendations.append('Consider failure scenarios and fault isolation')
         
-        compliance_score = 0.7 if len(strengths) > 0 else 0.5
+        compliance_score = 0.7 if len(strengths) > 1 else 0.5
         
         response += f"## Analysis Results\n\n"
         response += f"**Compliance Score:** {compliance_score:.1f}/1.0\n\n"

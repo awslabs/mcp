@@ -65,7 +65,8 @@ class TestCellBasedArchitectureKnowledge:
 
     def test_all_sections_have_required_fields(self):
         """Test that all sections have required fields."""
-        for section_name, section in CellBasedArchitectureKnowledge.WHITEPAPER_SECTIONS.items():
+        for section_name, section_data in CellBasedArchitectureKnowledge.WHITEPAPER_SECTIONS.items():
+            section = WhitepaperSection(**section_data)
             assert section.title
             assert section.content
             assert section.complexity_level in ["beginner", "intermediate", "expert"]
@@ -74,8 +75,8 @@ class TestCellBasedArchitectureKnowledge:
 
     def test_section_relationships_are_valid(self):
         """Test that section relationships reference valid sections."""
-        for section_name, section in CellBasedArchitectureKnowledge.WHITEPAPER_SECTIONS.items():
-            for related_name in section.related_sections:
+        for section_name, section_data in CellBasedArchitectureKnowledge.WHITEPAPER_SECTIONS.items():
+            for related_name in section_data.get('related_sections', []):
                 assert related_name in CellBasedArchitectureKnowledge.WHITEPAPER_SECTIONS, \
                     f"Section {section_name} references invalid related section {related_name}"
 
