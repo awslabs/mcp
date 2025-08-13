@@ -2,20 +2,20 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.aws-wa-sec-tool-mcp-server.svg)](https://pypi.org/project/awslabs.aws-wa-sec-tool-mcp-server/)
 
-A Model Context Protocol (MCP) server that provides tools for assessing AWS environments against the AWS Well-Architected Framework Security Pillar. This server enables AI assistants to help users evaluate their AWS security posture, identify potential vulnerabilities, and implement best practices according to the Well-Architected Framework.
+A Model Context Protocol (MCP) server that provides operational tools for monitoring and assessing AWS environments against the AWS Well-Architected Framework Security Pillar. This server enables AI assistants to help operations teams evaluate security posture, monitor compliance status, and optimize security costs while maintaining operational excellence according to the Well-Architected Framework.
 
 ## Features
 
-- **Security Service Status**: Check status of AWS security services (GuardDuty, Security Hub, Inspector, IAM Access Analyzer)
-- **Security Findings**: Retrieve and analyze findings from AWS security services
-- **Well-Architected Analysis**: Analyze security posture against Well-Architected Framework recommendations
-- **Resource Discovery**: Explore AWS resources across multiple services and regions through Resource Explorer
-- **Data Protection**: Check storage configuration for encryption of data at rest
-- **Network Security**: Verify network configuration for encryption of data in transit
-- **Compliance Verification**: Check compliance status of AWS resources against security standards
-- **Security Context**: Access stored security context data for comprehensive analysis
+- **Operational Security Monitoring**: Monitor status of AWS security services (GuardDuty, Security Hub, Inspector, IAM Access Analyzer) across your infrastructure
+- **Security Operations Dashboard**: Retrieve and analyze security findings from AWS services for operational visibility
+- **Compliance Operations**: Continuously assess security posture against Well-Architected Framework for operational compliance
+- **Resource Operations**: Discover and monitor AWS resources across multiple services and regions for security operations
+- **Cost-Effective Data Protection**: Monitor storage configuration for encryption compliance while optimizing security costs
+- **Network Operations Security**: Verify network configuration for encryption compliance in operational environments
+- **Compliance Monitoring**: Monitor compliance status of AWS resources against security standards for operational reporting
+- **Security Operations Context**: Access stored security context data for operational analysis and trending
 
-Customers can use the `CheckSecurityServices` tool to verify if critical AWS security services are enabled in their environment. The `GetSecurityFindings` tool retrieves findings from these services, while `AnalyzeSecurityPosture` performs a comprehensive security assessment against the Well-Architected Framework. The `ExploreAwsResources` tool provides inventory capabilities across services and regions to ensure complete visibility of the AWS environment.
+Operations teams can use the `CheckSecurityServices` tool to monitor if critical AWS security services are operational across their infrastructure. The `GetSecurityFindings` tool provides operational visibility into security findings, while `AnalyzeSecurityPosture` delivers comprehensive security operations reporting against the Well-Architected Framework. The `ExploreAwsResources` tool provides operational inventory capabilities across services and regions to ensure complete operational visibility and cost optimization of the AWS environment.
 
 ## Installation
 
@@ -39,42 +39,47 @@ uv --directory /path/to/aws-wa-sec-tool-mcp-server/src/aws-wa-sec-tool-mcp-serve
 
 ## Usage Environments
 
-The AWS Well-Architected Security Assessment Tool MCP Server is designed for the following environments:
+The AWS Well-Architected Security Assessment Tool MCP Server is designed for operational use across the following environments:
 
-- **Development and Testing**: Ideal for security posture assessment in development and test environments.
-- **Security Audits**: Excellent for performing security audits and preparing for compliance reviews.
-- **Well-Architected Reviews**: Perfect companion for conducting Well-Architected Framework reviews with a focus on the Security Pillar.
-- **Security Baseline Establishment**: Useful for establishing security baselines across AWS environments.
+- **Production Operations**: Monitor security posture and compliance status in production environments for operational excellence.
+- **Compliance Operations**: Perform ongoing compliance monitoring and reporting for regulatory and internal requirements.
+- **Security Operations Center (SOC)**: Integrate with SOC workflows for continuous security monitoring and incident response.
+- **Cost Optimization**: Monitor security service costs and optimize security spending while maintaining compliance.
+- **Operational Reporting**: Generate security operations reports and dashboards for stakeholders and management.
 
-**Not Recommended For**:
-- **Production Remediation**: While the tool can identify issues in production environments, remediation actions should be carefully planned and executed outside the tool.
-- **Continuous Monitoring**: The tool is designed for point-in-time assessments rather than continuous security monitoring.
+**Operational Considerations**:
+- **Automated Remediation**: While the tool provides operational visibility, automated remediation should be implemented through separate operational workflows.
+- **Monitoring Integration**: Designed for integration with existing monitoring and alerting systems for comprehensive operational coverage.
 
 **Important Note on Security Data**: When connecting to any environment, especially production, always prevent accidental exposure of sensitive security information.
 
-## Production Considerations
+## Operational Deployment Considerations
 
-While the AWS Well-Architected Security Assessment Tool MCP Server is primarily designed for security assessments, certain components can be considered for controlled production use with appropriate safeguards.
+The AWS Well-Architected Security Assessment Tool MCP Server is designed for operational deployment across various environments with appropriate operational controls.
 
-### When to Consider Production Use
+### Operational Use Cases
 
-The AWS Well-Architected Security Assessment Tool may be appropriate for production environments in the following scenarios:
+The tool is well-suited for operational deployment in the following scenarios:
 
-1. **Security audits**: Periodic security posture assessments
-2. **Compliance verification**: Checking resources against security standards
-3. **Well-Architected reviews**: As part of scheduled Well-Architected Framework reviews
+1. **Security Operations Monitoring**: Continuous monitoring of security posture and compliance status
+2. **Operational Compliance Reporting**: Regular compliance verification and reporting workflows
+3. **Cost Operations**: Monitoring security service costs and optimizing security spending
+4. **Operational Dashboards**: Integration with operational dashboards and monitoring systems
 
-### When to Avoid Production Use
+### Operational Best Practices
 
-Avoid using the tool in production for:
+For optimal operational deployment:
 
-1. High-frequency or continuous scanning that may impact performance
-2. During critical business operations or peak traffic periods
-3. On highly sensitive environments without proper IAM restrictions
+1. **Rate Limiting**: Implement appropriate rate limiting to avoid impacting AWS API limits
+2. **Monitoring Integration**: Integrate with existing operational monitoring and alerting systems
+3. **Access Controls**: Implement proper IAM controls and operational access patterns
+4. **Cost Monitoring**: Monitor API costs and optimize query patterns for cost efficiency
 
 ## Configuration
 
 [![Install in Cursor](https://cursor.sh/install-button.svg)](https://cursor.sh/installMcpServer?name=aws-wa-sec-tool-mcp-server&command=uvx&args=%5B%22--from%22%2C%22awslabs.aws-wa-sec-tool-mcp-server%22%2C%22aws-wa-sec-tool-mcp-server%22%5D)
+
+[![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Well-Architected%20Security%20Assessment%20Tool%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-wa-sec-tool-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D)
 
 Add the AWS Well-Architected Security Assessment Tool MCP Server to your MCP client configuration:
 
@@ -134,63 +139,64 @@ For detailed example IAM policies tailored for security assessment use cases, se
 
 ## MCP Tools
 
-### Security Assessment Tools
+### Security Operations Tools
 
-These tools help you assess your AWS environment against the Well-Architected Framework Security Pillar.
+These operational tools help you monitor and manage your AWS security posture against the Well-Architected Framework Security Pillar.
 
-- **CheckSecurityServices**: Verify if AWS security services are enabled
-  - Checks status of GuardDuty, Security Hub, Inspector, and IAM Access Analyzer
-  - Identifies which regions have services enabled or disabled
-  - Provides recommendations for enabling critical security services
+- **CheckSecurityServices**: Monitor AWS security services operational status
+  - Monitors operational status of GuardDuty, Security Hub, Inspector, and IAM Access Analyzer
+  - Identifies service availability across regions for operational visibility
+  - Provides operational recommendations for maintaining security service coverage
 
-- **GetSecurityFindings**: Retrieve findings from AWS security services
-  - Collects findings from Security Hub, GuardDuty, and Inspector
-  - Filters findings by severity, resource type, or service
-  - Provides context and remediation guidance for identified issues
+- **GetSecurityFindings**: Operational security findings retrieval
+  - Collects operational security findings from Security Hub, GuardDuty, and Inspector
+  - Filters findings for operational prioritization by severity, resource type, or service
+  - Provides operational context and cost-effective remediation guidance
 
-- **GetResourceComplianceStatus**: Check compliance status of AWS resources
-  - Evaluates resources against security standards and best practices
-  - Identifies non-compliant resources and configuration issues
-  - Provides compliance scores and improvement recommendations
+- **GetResourceComplianceStatus**: Operational compliance monitoring
+  - Monitors resources against security standards for operational compliance
+  - Identifies non-compliant resources for operational remediation workflows
+  - Provides compliance metrics and operational improvement recommendations
 
-- **GetStoredSecurityContext**: Access stored security context data
-  - Retrieves previously collected security assessment data
-  - Enables comparison of security posture over time
-  - Provides historical context for security findings
+- **GetStoredSecurityContext**: Historical security operations data
+  - Retrieves historical security operations data for trend analysis
+  - Enables operational comparison of security posture over time
+  - Provides operational context for security findings and cost optimization
 
-- **ExploreAwsResources**: Inventory AWS resources across services and regions
-  - Discovers resources across multiple AWS services
-  - Maps relationships between resources for security context
-  - Identifies resources that may not be properly secured
+- **ExploreAwsResources**: Operational resource inventory
+  - Discovers resources across AWS services for operational visibility
+  - Maps resource relationships for operational security context
+  - Identifies resources requiring operational security attention
 
-- **AnalyzeSecurityPosture**: Perform comprehensive security assessment
-  - Evaluates overall security posture against Well-Architected Framework
-  - Provides detailed recommendations for security improvements
-  - Generates security score and prioritized action items
+- **AnalyzeSecurityPosture**: Comprehensive security operations analysis
+  - Evaluates operational security posture against Well-Architected Framework
+  - Provides operational recommendations for security improvements and cost optimization
+  - Generates operational security metrics and prioritized action items
 
 ## Example Prompts
 
-### Security Assessment
+### Security Operations Monitoring
 
-- "Check if AWS security services are enabled in my account"
-- "Analyze my AWS environment against the Well-Architected Security Pillar"
-- "Get security findings from my AWS account"
-- "Check if my S3 buckets are properly encrypted"
-- "Verify that my network traffic is encrypted in transit"
+- "Monitor the operational status of AWS security services across my account"
+- "Generate an operational security report against the Well-Architected Security Pillar"
+- "Show me current security findings that require operational attention"
+- "Monitor encryption compliance across my S3 buckets for operational reporting"
+- "Verify network encryption compliance for operational security standards"
 
-### Resource Exploration
+### Operational Resource Management
 
-- "Show me all resources in my AWS account"
-- "Find resources that might have security issues"
-- "List all EC2 instances across all regions"
-- "Check which resources are not compliant with security standards"
+- "Provide an operational inventory of all resources in my AWS account"
+- "Identify resources with security issues that need operational attention"
+- "List all EC2 instances across regions for security operations review"
+- "Monitor which resources are not compliant with operational security standards"
 
-### Security Analysis
+### Security Operations Analysis
 
-- "Analyze my security posture against Well-Architected best practices"
-- "What security improvements should I prioritize?"
-- "Compare my current security posture with last month's assessment"
-- "Generate a security report for my AWS environment"
+- "Analyze operational security posture against Well-Architected best practices"
+- "What security improvements should operations prioritize for cost optimization?"
+- "Compare current security operations metrics with last month's operational baseline"
+- "Generate an operational security dashboard for management reporting"
+- "Monitor security service costs and recommend optimization opportunities"
 
 ## Requirements
 
