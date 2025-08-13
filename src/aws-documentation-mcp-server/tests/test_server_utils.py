@@ -298,7 +298,7 @@ class TestVersionImport:
     @patch('importlib.metadata.version')
     def test_version_from_metadata_success(self, mock_version):
         """Test successful version retrieval from importlib.metadata."""
-        mock_version.return_value = '1.1.0'
+        mock_version.return_value = '1.1.3'
 
         # Re-import the module to trigger the version logic
         import awslabs.aws_documentation_mcp_server.server_utils as server_utils
@@ -308,14 +308,18 @@ class TestVersionImport:
 
         # Verify the version was retrieved from metadata
         mock_version.assert_called_once_with('awslabs.aws-documentation-mcp-server')
-        assert '1.1.0' in server_utils.DEFAULT_USER_AGENT
-        assert 'ModelContextProtocol/1.1.0' in server_utils.DEFAULT_USER_AGENT
+        assert '1.1.3' in server_utils.DEFAULT_USER_AGENT
+        assert 'ModelContextProtocol/1.1.3' in server_utils.DEFAULT_USER_AGENT
 
     @patch('importlib.metadata.version')
     def test_version_fallback_to_init(self, mock_version):
-        """Test fallback to __init__.py version when metadata fails."""
+        """Test fallback to __init__.py version when metadata fails. `__version__` patched in to avoid having to update with every version bump."""
         # Make metadata version raise an exception
         mock_version.side_effect = Exception('Package not found')
+
+        import awslabs.aws_documentation_mcp_server as mcp_server
+
+        version = mcp_server.__version__
 
         # Re-import the module to trigger the fallback logic
         import awslabs.aws_documentation_mcp_server.server_utils as server_utils
@@ -325,5 +329,5 @@ class TestVersionImport:
 
         # Verify it fell back to the __init__.py version
         mock_version.assert_called_once_with('awslabs.aws-documentation-mcp-server')
-        assert '1.1.0' in server_utils.DEFAULT_USER_AGENT
-        assert 'ModelContextProtocol/1.1.0' in server_utils.DEFAULT_USER_AGENT
+        assert version in server_utils.DEFAULT_USER_AGENT
+        assert f'ModelContextProtocol/{version}' in server_utils.DEFAULT_USER_AGENT
