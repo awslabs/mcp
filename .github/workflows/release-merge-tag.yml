@@ -152,15 +152,8 @@ jobs:
           # Push tag with verification
           git push origin "$TAG"
 
-          # Avoid checking too fast
-          echo "::group::Was failing when immediately checking for remote tag existence"
-          git ls-remote --tags origin
-          for i in {1..60}; do git ls-remote --tags origin | grep -q "refs/tags/$TAG" && break || echo "sleeping..." && sleep 1; done
-          git ls-remote --tags origin
-          echo "::endgroup::"
-
           # Verify tag was pushed successfully
-          if ! git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+          if [[ $(git ls-remote --tags origin "$TAG" | wc -l) -eq 0 ]]; then
             echo "::error::Failed to verify tag was pushed: $TAG" >&2
             exit 1
           fi

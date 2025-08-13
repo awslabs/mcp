@@ -94,7 +94,7 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 
 | Cursor | VS Code |
 |:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.eks-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLmVrcy1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=EKS%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.eks-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.eks-mcp-server&config=eyJhdXRvQXBwcm92ZSI6W10sImRpc2FibGVkIjpmYWxzZSwiY29tbWFuZCI6InV2eCBhd3NsYWJzLmVrcy1tY3Atc2VydmVyQGxhdGVzdCAtLWFsbG93LXdyaXRlIC0tYWxsb3ctc2Vuc2l0aXZlLWRhdGEtYWNjZXNzIiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwidHJhbnNwb3J0VHlwZSI6InN0ZGlvIn0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=EKS%20MCP%20Server&config=%7B%22autoApprove%22%3A%5B%5D%2C%22disabled%22%3Afalse%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.eks-mcp-server%40latest%22%2C%22--allow-write%22%2C%22--allow-sensitive-data-access%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22transportType%22%3A%22stdio%22%7D) |
 
 **Set up the Amazon Q Developer CLI**
 
@@ -238,7 +238,9 @@ The `env` field in the MCP server definition allows you to configure environment
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "my-profile",
-        "AWS_REGION": "us-west-2"
+        "AWS_REGION": "us-west-2",
+        "HTTP_PROXY": "http://proxy.example.com:8080",
+        "HTTPS_PROXY": "https://proxy.example.com:8080"
       }
     }
   }
@@ -266,6 +268,14 @@ Specifies the AWS region where EKS clusters are managed, which will be used for 
 
 * Default: None (If not set, uses default AWS region).
 * Example: `"AWS_REGION": "us-west-2"`
+
+#### `HTTP_PROXY` / `HTTPS_PROXY` (optional)
+
+Configures proxy settings for HTTP and HTTPS connections. These environment variables are used when the EKS MCP server needs to make outbound connections to the K8s API server through a proxy or firewall.
+
+* Default: None (Direct connections are used if not set).
+* Example: `"HTTP_PROXY": "http://proxy.example.com:8080"`, `"HTTPS_PROXY": "https://proxy.example.com:8080"`
+* Note: Both variables can be set to the same proxy server if it handles both HTTP and HTTPS traffic.
 
 ## Tools
 
@@ -654,7 +664,3 @@ In accordance with security best practices, we recommend the following:
 * **Log Level**: Increase the log level to DEBUG for more detailed logs.
 
 For general EKS issues, consult the [Amazon EKS documentation](https://docs.aws.amazon.com/eks/).
-
-## Version
-
-Current MCP server version: 0.1.0
