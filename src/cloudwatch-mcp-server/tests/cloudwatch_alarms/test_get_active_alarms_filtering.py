@@ -258,6 +258,7 @@ class TestGetActiveAlarmsFiltering:
             assert isinstance(result, ActiveAlarmsResponse)
             assert len(result.metric_alarms) == 0
             assert len(result.composite_alarms) == 0
+            assert result.message is not None
             assert 'No non-autoscaling active alarms found' in result.message
             assert 'autoscaling alarms were filtered out' in result.message
             assert 'Set include_autoscaling_alarms=True to see all alarms' in result.message
@@ -319,6 +320,7 @@ class TestGetActiveAlarmsFiltering:
             assert (
                 result.has_more_results
             )  # Should be True because we have more non-autoscaling alarms
+            assert result.message is not None
             assert 'Showing 3 non-autoscaling alarms' in result.message
             assert 'more non-autoscaling alarms available' in result.message
 
