@@ -41,12 +41,25 @@ pip install awslabs.cell-based-architecture-mcp-server
 
 Add to your MCP client configuration:
 
+Replace `<PROJECT_DIRECTORY>` by your directory.
+
 ```json
 {
-  "awslabs.cell-based-architecture-mcp-server": {
-    "command": "awslabs.cell-based-architecture-mcp-server",
-    "env": {
-      "FASTMCP_LOG_LEVEL": "INFO"
+  "mcpServers": {
+    "cell-based-architecture": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "<PROJECT_DIRECTORY>/mcp/src/cell-based-architecture-mcp-server",
+        "python",
+        "-m",
+        "awslabs.cell_based_architecture_mcp_server.server"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }
