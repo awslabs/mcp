@@ -148,6 +148,7 @@ class AWSToolGenerator:
             'boolean': bool,
             'integer': int,
             'map': dict[Any, Any],
+            'list': list[Any],
         }
         try:
             input_parameters = self.__get_operation_input_parameters(operation)
