@@ -28,7 +28,7 @@ async def get_bucket_metadata_table_configuration(
     determines how metadata is stored and managed for the bucket.
 
     Permissions:
-    You must have the s3:GetBucketMetadataTableConfiguration permission to use this operation.
+    You must have the s3:GetBucketMetadataConfiguration permission to use this operation.
 
     Args:
         bucket: The name of the S3 bucket
@@ -39,5 +39,5 @@ async def get_bucket_metadata_table_configuration(
         Dict containing the bucket metadata table configuration
     """
     client = get_s3_client(region_name)
-    response = client.get_bucket_metadata_table_configuration(Bucket=bucket)
+    response = client.get_bucket_metadata_configuration(Bucket=bucket)
     return dict(response)

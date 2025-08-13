@@ -1,5 +1,4 @@
 import json
-import os
 import pytest
 import subprocess
 import sys
@@ -83,8 +82,7 @@ def test_get_latest_artifact_success(mock_run_command):
     )
     mock_run_command.return_value = mock_result
 
-    with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'awslabs/mcp'}):
-        artifact = get_latest_artifact()
+    artifact = get_latest_artifact()
 
     assert artifact is not None
     assert artifact['id'] == 123
@@ -108,8 +106,7 @@ def test_get_latest_artifact_no_main_branch(mock_run_command):
     )
     mock_run_command.return_value = mock_result
 
-    with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'awslabs/mcp'}):
-        artifact = get_latest_artifact()
+    artifact = get_latest_artifact()
 
     assert artifact is None
 
@@ -121,8 +118,7 @@ def test_get_latest_artifact_no_artifacts(mock_run_command):
     mock_result.stdout = json.dumps({'artifacts': []})
     mock_run_command.return_value = mock_result
 
-    with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'awslabs/mcp'}):
-        artifact = get_latest_artifact()
+    artifact = get_latest_artifact()
 
     assert artifact is None
 
@@ -134,8 +130,7 @@ def test_get_latest_artifact_command_failure(mock_run_command):
         returncode=1, cmd=['gh', 'api'], output='', stderr='API error'
     )
 
-    with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'awslabs/mcp'}):
-        artifact = get_latest_artifact()
+    artifact = get_latest_artifact()
 
     assert artifact is None
 
@@ -147,8 +142,7 @@ def test_get_latest_artifact_invalid_json(mock_run_command):
     mock_result.stdout = 'invalid json'
     mock_run_command.return_value = mock_result
 
-    with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'awslabs/mcp'}):
-        artifact = get_latest_artifact()
+    artifact = get_latest_artifact()
 
     assert artifact is None
 

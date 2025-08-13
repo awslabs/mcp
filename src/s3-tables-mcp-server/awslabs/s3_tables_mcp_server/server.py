@@ -85,7 +85,6 @@ class S3TablesMCPServer(FastMCP):
 app = S3TablesMCPServer(
     name='s3-tables-server',
     instructions='A Model Context Protocol (MCP) server that enables programmatic access to AWS S3 Tables. This server provides a comprehensive interface for creating, managing, and interacting with S3-based table storage, supporting operations for table buckets, namespaces, and individual S3 tables. It integrates with Amazon Athena for SQL query execution, allowing both read and write operations on your S3 Tables data.',
-    version=__version__,
 )
 
 
@@ -777,7 +776,7 @@ async def get_bucket_metadata_config(
     - request_id: String
 
     Permissions:
-    You must have the s3:GetBucketMetadataTableConfiguration permission to use this operation.
+    You must have the s3:GetBucketMetadataConfiguration permission to use this operation.
     """
     return await s3_operations.get_bucket_metadata_table_configuration(
         bucket=bucket, region_name=region_name
