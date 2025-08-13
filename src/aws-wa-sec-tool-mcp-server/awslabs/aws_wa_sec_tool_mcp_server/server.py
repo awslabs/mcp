@@ -22,6 +22,7 @@ import sys
 from typing import Dict, List, Optional
 
 import boto3
+from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -44,6 +45,9 @@ from awslabs.aws_wa_sec_tool_mcp_server.util.security_services import (
     get_trusted_advisor_findings,
 )
 from awslabs.aws_wa_sec_tool_mcp_server.util.storage_security import check_storage_encryption
+
+# User agent configuration for AWS API calls
+USER_AGENT_CONFIG = Config(user_agent_extra="awslabs/mcp/aws-wa-sec-tool-mcp-server/1.0.0")
 
 # Set up AWS region and profile from environment variables
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")

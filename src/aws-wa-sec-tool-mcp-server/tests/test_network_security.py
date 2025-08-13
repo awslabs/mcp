@@ -191,7 +191,9 @@ async def test_find_network_resources_success(
     assert "cloudfront" in result["resources_by_service"]
 
     # Verify Resource Explorer was called correctly
-    mock_boto3_session.client.assert_called_with("resource-explorer-2", region_name="us-east-1")
+    mock_boto3_session.client.assert_called_with(
+        "resource-explorer-2", region_name="us-east-1", config=mock.ANY
+    )
     resource_explorer.list_views.assert_called_once()
     paginator.paginate.assert_called_once()
     assert (

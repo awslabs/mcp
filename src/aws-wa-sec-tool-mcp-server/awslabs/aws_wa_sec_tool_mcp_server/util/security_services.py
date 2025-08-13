@@ -19,7 +19,11 @@ import json
 from typing import Any, Dict, List, Optional
 
 import boto3
+from botocore.config import Config
 from mcp.server.fastmcp import Context
+
+# User agent configuration for AWS API calls
+USER_AGENT_CONFIG = Config(user_agent_extra="awslabs/mcp/aws-wa-sec-tool-mcp-server/1.0.0")
 
 
 async def get_analyzer_findings_count(
@@ -55,7 +59,9 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
         Dictionary with status information about IAM Access Analyzer
     """
     try:
-        analyzer_client = session.client("accessanalyzer", region_name=region)
+        analyzer_client = session.client(
+            "accessanalyzer", region_name=region, config=USER_AGENT_CONFIG
+        )
         response = analyzer_client.list_analyzers()
 
         # Extract analyzers - verify the field exists to prevent KeyError
@@ -147,7 +153,9 @@ async def check_security_hub(region: str, session: boto3.Session, ctx: Context) 
     """
     try:
         # Create Security Hub client
-        securityhub_client = session.client("securityhub", region_name=region)
+        securityhub_client = session.client(
+            "securityhub", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         try:
             # Check if Security Hub is enabled
@@ -257,7 +265,9 @@ async def check_guard_duty(region: str, session: boto3.Session, ctx: Context) ->
     """
     try:
         # Create GuardDuty client
-        guardduty_client = session.client("guardduty", region_name=region)
+        guardduty_client = session.client(
+            "guardduty", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         # List detectors
         detector_response = guardduty_client.list_detectors()
@@ -317,7 +327,9 @@ async def check_inspector(region: str, session: boto3.Session, ctx: Context) -> 
     """
     try:
         # Create Inspector client (using inspector2)
-        inspector_client = session.client("inspector2", region_name=region)
+        inspector_client = session.client(
+            "inspector2", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         try:
             # Get Inspector status
@@ -598,7 +610,9 @@ async def get_guardduty_findings(
         print(f"[DEBUG:GuardDuty] Using detector ID: {detector_id}")
 
         # Create GuardDuty client
-        guardduty_client = session.client("guardduty", region_name=region)
+        guardduty_client = session.client(
+            "guardduty", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         # Set up default finding criteria if none provided
         if filter_criteria is None:
@@ -723,7 +737,9 @@ async def get_securityhub_findings(
             }
 
         # Create Security Hub client
-        securityhub_client = session.client("securityhub", region_name=region)
+        securityhub_client = session.client(
+            "securityhub", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         # Set up default finding criteria if none provided
         if filter_criteria is None:
@@ -812,7 +828,9 @@ async def get_inspector_findings(
             }
 
         # Create Inspector client
-        inspector_client = session.client("inspector2", region_name=region)
+        inspector_client = session.client(
+            "inspector2", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         # Set up default finding criteria if none provided
         if filter_criteria is None:
@@ -887,7 +905,9 @@ async def get_access_analyzer_findings(
             }
 
         # Create Access Analyzer client
-        analyzer_client = session.client("accessanalyzer", region_name=region)
+        analyzer_client = session.client(
+            "accessanalyzer", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         analyzers = analyzer_status.get("analyzers", [])
         if not analyzers:
@@ -1153,7 +1173,9 @@ async def check_trusted_advisor(region: str, session: boto3.Session, ctx: Contex
         print("[DEBUG:TrustedAdvisor] Starting Trusted Advisor check")
 
         # Trusted Advisor API is only available in us-east-1
-        support_client = session.client("support", region_name="us-east-1")
+        support_client = session.client(
+            "support", region_name="us-east-1", config=USER_AGENT_CONFIG
+        )
 
         try:
             # Try to describe Trusted Advisor checks to see if we have access
@@ -1264,7 +1286,9 @@ async def get_trusted_advisor_findings(
             }
 
         # Create Support client (Trusted Advisor API is only available in us-east-1)
-        support_client = session.client("support", region_name="us-east-1")
+        support_client = session.client(
+            "support", region_name="us-east-1", config=USER_AGENT_CONFIG
+        )
 
         # Get all available checks
         print("[DEBUG:TrustedAdvisor] Getting all available checks")
@@ -1412,7 +1436,7 @@ async def check_macie(region: str, session: boto3.Session, ctx: Context) -> Dict
     try:
         print(f"[DEBUG:Macie] Starting Macie check for region: {region}")
         # Create Macie client
-        macie_client = session.client("macie2", region_name=region)
+        macie_client = session.client("macie2", region_name=region, config=USER_AGENT_CONFIG)
 
         # Check if Macie is enabled
         try:
@@ -1489,7 +1513,7 @@ async def get_macie_findings(
             }
 
         # Create Macie client
-        macie_client = session.client("macie2", region_name=region)
+        macie_client = session.client("macie2", region_name=region, config=USER_AGENT_CONFIG)
 
         # Set up default finding criteria if none provided
         if filter_criteria is None:

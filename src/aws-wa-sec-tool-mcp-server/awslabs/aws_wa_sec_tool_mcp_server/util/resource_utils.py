@@ -17,7 +17,11 @@
 from typing import Any, Dict
 
 import boto3
+from botocore.config import Config
 from mcp.server.fastmcp import Context
+
+# User agent configuration for AWS API calls
+USER_AGENT_CONFIG = Config(user_agent_extra="awslabs/mcp/aws-wa-sec-tool-mcp-server/1.0.0")
 
 
 async def list_services_in_region(
@@ -39,7 +43,9 @@ async def list_services_in_region(
 
         # Use Resource Explorer to efficiently discover resources
         try:
-            resource_explorer = session.client("resource-explorer-2", region_name=region)
+            resource_explorer = session.client(
+                "resource-explorer-2", region_name=region, config=USER_AGENT_CONFIG
+            )
 
             # Check if Resource Explorer is available in this region
             try:

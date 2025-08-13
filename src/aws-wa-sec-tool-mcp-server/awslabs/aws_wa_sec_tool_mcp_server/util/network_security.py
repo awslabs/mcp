@@ -18,7 +18,11 @@ from typing import Any, Dict, List
 
 import boto3
 import botocore.exceptions
+from botocore.config import Config
 from mcp.server.fastmcp import Context
+
+# User agent configuration for AWS API calls
+USER_AGENT_CONFIG = Config(user_agent_extra="awslabs/mcp/aws-wa-sec-tool-mcp-server/1.0.0")
 
 # Acceptable TLS versions for secure data in transit
 ACCEPTABLE_TLS_VERSIONS = ["TLSv1.2", "TLSv1.3"]
@@ -66,21 +70,21 @@ async def check_network_security(
     # Check each service as requested
     if "elb" in services:
         # Check classic load balancers
-        elb_client = session.client("elb", region_name=region)
+        elb_client = session.client("elb", region_name=region, config=USER_AGENT_CONFIG)
         elb_results = await check_classic_load_balancers(
             region, elb_client, ctx, network_resources
         )
         await _update_results(results, elb_results, "elb", include_non_compliant_only)
 
         # Check application and network load balancers
-        elbv2_client = session.client("elbv2", region_name=region)
+        elbv2_client = session.client("elbv2", region_name=region, config=USER_AGENT_CONFIG)
         elbv2_results = await check_elbv2_load_balancers(
             region, elbv2_client, ctx, network_resources
         )
         await _update_results(results, elbv2_results, "elbv2", include_non_compliant_only)
 
     if "vpc" in services:
-        vpc_client = session.client("ec2", region_name=region)
+        vpc_client = session.client("ec2", region_name=region, config=USER_AGENT_CONFIG)
         vpc_results = await check_vpc_endpoints(region, vpc_client, ctx, network_resources)
         await _update_results(results, vpc_results, "vpc", include_non_compliant_only)
 
@@ -89,14 +93,14 @@ async def check_network_security(
         await _update_results(results, sg_results, "security_groups", include_non_compliant_only)
 
     if "apigateway" in services:
-        apigw_client = session.client("apigateway", region_name=region)
+        apigw_client = session.client("apigateway", region_name=region, config=USER_AGENT_CONFIG)
         apigw_results = await check_api_gateway(region, apigw_client, ctx, network_resources)
         await _update_results(results, apigw_results, "apigateway", include_non_compliant_only)
 
     if "cloudfront" in services:
         # CloudFront is a global service, but we'll check it if requested
         if region == "us-east-1":
-            cf_client = session.client("cloudfront", region_name=region)
+            cf_client = session.client("cloudfront", region_name=region, config=USER_AGENT_CONFIG)
             cf_results = await check_cloudfront_distributions(
                 region, cf_client, ctx, network_resources
             )
@@ -227,7 +231,9 @@ async def find_network_resources(
         )
 
         # Initialize resource explorer client
-        resource_explorer = session.client("resource-explorer-2", region_name=region)
+        resource_explorer = session.client(
+            "resource-explorer-2", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         # Try to get the default view for Resource Explorer
         print("[DEBUG:NetworkSecurity] Listing Resource Explorer views...")

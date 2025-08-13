@@ -18,7 +18,11 @@ from typing import Any, Dict, List
 
 import boto3
 import botocore.exceptions
+from botocore.config import Config
 from mcp.server.fastmcp import Context
+
+# User agent configuration for AWS API calls
+USER_AGENT_CONFIG = Config(user_agent_extra="awslabs/mcp/aws-wa-sec-tool-mcp-server/1.0.0")
 
 
 async def check_storage_encryption(
@@ -56,34 +60,36 @@ async def check_storage_encryption(
 
     # Check each service as requested
     if "s3" in services:
-        s3_client = session.client("s3", region_name=region)
+        s3_client = session.client("s3", region_name=region, config=USER_AGENT_CONFIG)
         s3_results = await check_s3_buckets(region, s3_client, ctx, storage_resources)
         await _update_results(results, s3_results, "s3", include_unencrypted_only)
 
     if "ebs" in services:
-        ec2_client = session.client("ec2", region_name=region)
+        ec2_client = session.client("ec2", region_name=region, config=USER_AGENT_CONFIG)
         ebs_results = await check_ebs_volumes(region, ec2_client, ctx, storage_resources)
         await _update_results(results, ebs_results, "ebs", include_unencrypted_only)
 
     if "rds" in services:
-        rds_client = session.client("rds", region_name=region)
+        rds_client = session.client("rds", region_name=region, config=USER_AGENT_CONFIG)
         rds_results = await check_rds_instances(region, rds_client, ctx, storage_resources)
         await _update_results(results, rds_results, "rds", include_unencrypted_only)
 
     if "dynamodb" in services:
-        dynamodb_client = session.client("dynamodb", region_name=region)
+        dynamodb_client = session.client("dynamodb", region_name=region, config=USER_AGENT_CONFIG)
         dynamodb_results = await check_dynamodb_tables(
             region, dynamodb_client, ctx, storage_resources
         )
         await _update_results(results, dynamodb_results, "dynamodb", include_unencrypted_only)
 
     if "efs" in services:
-        efs_client = session.client("efs", region_name=region)
+        efs_client = session.client("efs", region_name=region, config=USER_AGENT_CONFIG)
         efs_results = await check_efs_filesystems(region, efs_client, ctx, storage_resources)
         await _update_results(results, efs_results, "efs", include_unencrypted_only)
 
     if "elasticache" in services:
-        elasticache_client = session.client("elasticache", region_name=region)
+        elasticache_client = session.client(
+            "elasticache", region_name=region, config=USER_AGENT_CONFIG
+        )
         elasticache_results = await check_elasticache_clusters(
             region, elasticache_client, ctx, storage_resources
         )
@@ -195,7 +201,9 @@ async def find_storage_resources(
         )
 
         # Initialize resource explorer client
-        resource_explorer = session.client("resource-explorer-2", region_name=region)
+        resource_explorer = session.client(
+            "resource-explorer-2", region_name=region, config=USER_AGENT_CONFIG
+        )
 
         # Try to get the default view for Resource Explorer
         print("[DEBUG:StorageSecurity] Listing Resource Explorer views...")

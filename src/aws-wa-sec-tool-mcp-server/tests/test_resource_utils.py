@@ -61,7 +61,9 @@ async def test_list_services_in_region_success(
     assert result["total_resources"] == 4
 
     # Verify Resource Explorer was called correctly
-    mock_boto3_session.client.assert_called_with("resource-explorer-2", region_name="us-east-1")
+    mock_boto3_session.client.assert_called_with(
+        "resource-explorer-2", region_name="us-east-1", config=mock.ANY
+    )
     resource_explorer.search.assert_called_once()
     paginator.paginate.assert_called_once_with(QueryString="*", MaxResults=1000)
 
