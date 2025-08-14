@@ -162,7 +162,7 @@ class TestSiteWiseAccess:
 
         mock_response = {
             "encryptionType": "KMS_BASED_ENCRYPTION",
-            "kmsKeyId": "arn:aws:kms:us-east-1:<account-id>:key/12345678-1234-1234-1234-<account-id>",
+            "kmsKeyId": "arn:aws:kms:us-east-1:<account-id>:key/<your-key-id-here>>",
             "configurationStatus": {"state": "ACTIVE"},
         }
         mock_client.put_default_encryption_configuration.return_value = mock_response
@@ -171,14 +171,14 @@ class TestSiteWiseAccess:
         result = put_default_encryption_configuration(
             encryption_type="KMS_BASED_ENCRYPTION",
             region="us-west-2",
-            kms_key_id="arn:aws:kms:us-east-1:<account-id>:key/12345678-1234-1234-1234-<account-id>",
+            kms_key_id="arn:aws:kms:us-east-1:<account-id>:key/<your-key-id-here>>",
         )
 
         assert result["success"] is True
         assert result["encryption_type"] == "KMS_BASED_ENCRYPTION"
         mock_client.put_default_encryption_configuration.assert_called_once_with(
             encryptionType="KMS_BASED_ENCRYPTION",
-            kmsKeyId="arn:aws:kms:us-east-1:<account-id>:key/12345678-1234-1234-1234-<account-id>",
+            kmsKeyId="arn:aws:kms:us-east-1:<account-id>:key/<your-key-id-here>>",
         )
 
         # Test without KMS key (SiteWise default)
