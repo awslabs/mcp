@@ -598,10 +598,10 @@ async def convert_api_response_to_table(
 
         conn.commit()
 
-        # Get preview
-        # Use safe SQL statement creation
-        sql = create_safe_sql_statement('SELECT', table_name, '*') + ' LIMIT 5'
-        cursor.execute(sql)
+        # Get preview - SQLite doesn't allow parameterization of table names
+        # But we've validated the table_name through validate_table_name 
+        validate_table_name(table_name)
+        cursor.execute(f"SELECT * FROM {table_name} LIMIT 5")
         preview_rows = cursor.fetchall()
 
         # Get column names for preview

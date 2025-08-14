@@ -59,16 +59,12 @@ def register_all_prompts(mcp: Any) -> None:
         if module_name not in ALLOWED_PROMPT_MODULES:
             logger.warning(f"Module '{module_name}' is not in the allowed modules list. Skipping.")
             continue
-
-        # Import the module using a whitelist approach
-        # Only import from the known, allowed modules list
-        if module_name not in ALLOWED_PROMPT_MODULES:
-            logger.warning(f"Attempted to import unauthorized module: {module_name}")
-            continue
+            
+        # Construct module path for the allowed module
+        module_path = f"awslabs.billing_cost_management_mcp_server.prompts.{module_name}"
         
-        # Construct module path using a fixed prefix for safety
-        module_path = 'awslabs.billing_cost_management_mcp_server.prompts.' + module_name
         try:
+            # Safe import as module_name is validated against whitelist
             module = importlib.import_module(module_path)
 
             # Find all functions decorated with @finops_prompt
