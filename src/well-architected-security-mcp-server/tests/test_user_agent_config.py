@@ -23,19 +23,19 @@ def test_user_agent_config_is_properly_configured():
 
     # Test security_services config
     assert isinstance(USER_AGENT_CONFIG, Config)
-    assert USER_AGENT_CONFIG.user_agent_extra == expected_user_agent
+    assert USER_AGENT_CONFIG.user_agent_extra == expected_user_agent  # type: ignore[attr-defined]
 
     # Test storage_security config
     assert isinstance(STORAGE_USER_AGENT_CONFIG, Config)
-    assert STORAGE_USER_AGENT_CONFIG.user_agent_extra == expected_user_agent
+    assert STORAGE_USER_AGENT_CONFIG.user_agent_extra == expected_user_agent  # type: ignore[attr-defined]
 
     # Test network_security config
     assert isinstance(NETWORK_USER_AGENT_CONFIG, Config)
-    assert NETWORK_USER_AGENT_CONFIG.user_agent_extra == expected_user_agent
+    assert NETWORK_USER_AGENT_CONFIG.user_agent_extra == expected_user_agent  # type: ignore[attr-defined]
 
     # Test resource_utils config
     assert isinstance(RESOURCE_USER_AGENT_CONFIG, Config)
-    assert RESOURCE_USER_AGENT_CONFIG.user_agent_extra == expected_user_agent
+    assert RESOURCE_USER_AGENT_CONFIG.user_agent_extra == expected_user_agent  # type: ignore[attr-defined]
 
 
 @pytest.mark.asyncio
