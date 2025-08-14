@@ -12,6 +12,7 @@ The tests are organized as follows:
 - `test_main.py`: Tests for the main function
 - `test_response_types.py`: Tests for the response type classes
 - `test_server.py`: Tests for the server module
+- `test_signal_handler.py`: Tests for the signal handler function
 - `test_static.py`: Tests for the static module
 
 ## Running Tests
