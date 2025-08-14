@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="3" failures="0" skipped="0" tests="3" time="1.758" timestamp="2025-08-07T14:17:44.569704+01:00" hostname="842f575e3614"><testcase classname="" name="tests.integration.test_final_compliance_validation" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_final_compliance_validation.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/taylaand/.local/share/uv/python/cpython-3.11.11-macos-aarch64-none/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_final_compliance_validation.py:30: in &lt;module&gt;
+    from awslabs.cloudwan_mcp_server.config_manager import ConfigPersistenceManager
+E   ImportError: cannot import name 'ConfigPersistenceManager' from 'awslabs.cloudwan_mcp_server.config_manager' (/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/awslabs/cloudwan_mcp_server/config_manager.py)</error></testcase><testcase classname="" name="tests.integration.test_main_entry_point" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/integration/test_main_entry_point.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/taylaand/.local/share/uv/python/cpython-3.11.11-macos-aarch64-none/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_main_entry_point.py:24: in &lt;module&gt;
+    from awslabs.cloudwan_mcp_server.__main__ import main as module_main
+E   ModuleNotFoundError: No module named 'awslabs.cloudwan_mcp_server.__main__'</error></testcase><testcase classname="" name="tests.security.test_credential_sanitization" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/tests/security/test_credential_sanitization.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Users/taylaand/.local/share/uv/python/cpython-3.11.11-macos-aarch64-none/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/security/test_credential_sanitization.py:31: in &lt;module&gt;
+    from awslabs.cloudwan_mcp_server.config_manager import ConfigPersistenceManager
+E   ImportError: cannot import name 'ConfigPersistenceManager' from 'awslabs.cloudwan_mcp_server.config_manager' (/Users/taylaand/code/mcp/cloud-wan-mcp-server/mcp/src/cloudwan-mcp-server/awslabs/cloudwan_mcp_server/config_manager.py)</error></testcase></testsuite></testsuites>

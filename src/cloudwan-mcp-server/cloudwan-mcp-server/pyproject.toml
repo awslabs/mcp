@@ -1,0 +1,65 @@
+[project]
+name = "cloudwan-mcp-server"
+version = "1.2.0"
+description = "AWS CloudWAN MCP Server for network analysis"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.12",
+    "boto3>=1.34.13",
+    "loguru>=0.7.0",
+    "pydantic-settings>=2.0.0",
+    "mcp>=1.11.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pyyaml>=6.0.2",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: mark tests as integration tests",
+    "slow: mark tests as slow (performance-sensitive)",
+    "live: mark tests requiring live AWS credentials",
+    "unit: mark tests as unit tests",
+    "asyncio: mark tests as async",
+    "parametrize: parametrize tests with multiple inputs"
+]
+
+testpaths = [
+    "tests"
+]
+
+addopts = "--cov=awslabs --cov-report=term-missing --asyncio-mode=auto -v --tb=short"
+python_paths = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I", "Q", "S",  # Standard error codes
+    "ANN", "DTZ", "UP"  # Annotations, timezones, pyupgrade
+]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[dependency-groups]
+dev = [
+    "aiobotocore>=2.23.2",
+    "bandit>=1.8.6",
+    "moto>=5.1.9",
+    "psutil>=7.0.0",
+]
