@@ -157,7 +157,9 @@ def test_graviton_migration_prompt():
 def test_savings_plans_prompt():
     """Test that the savings plans prompt generates correct content."""
     # Import the prompt function
-    from awslabs.billing_cost_management_mcp_server.prompts.savings_plans import savings_plans_analysis
+    from awslabs.billing_cost_management_mcp_server.prompts.savings_plans import (
+        savings_plans_analysis,
+    )
 
     # Call the function with test parameters
     account_ids = '123456789012'

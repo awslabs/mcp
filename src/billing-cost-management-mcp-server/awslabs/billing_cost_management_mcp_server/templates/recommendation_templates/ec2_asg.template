@@ -89,7 +89,7 @@ Memory metrics are vital:
 
 **CPU/Memory Headroom:**
 - Default 20% (PERCENT_20): Recommends instances with utilization below 80%
-- PERCENT_30: Recommends instances with utilization below 70% 
+- PERCENT_30: Recommends instances with utilization below 70%
 - PERCENT_10: Recommends instances with utilization below 90% (memory only)
 - PERCENT_0: Recommends instances with utilization up to 100% (CPU only)
 
@@ -175,7 +175,7 @@ A single concise paragraph that includes only:
 - Auto Scaling group name and ARN
 - Finding classification (not optimized, optimized, idle)
 - Finding reason codes (e.g., CPUOverprovisioned)
-- Current instance type and configuration 
+- Current instance type and configuration
 - Recommended instance type or configuration
 - Monthly savings ($ and %)
 - Performance risk level
@@ -263,4 +263,3 @@ Switching to t3.medium instances (2 vCPUs, 4GB memory) would reduce monthly cost
 Next Steps
 * Install the CloudWatch agent on your instances to collect memory metrics if you haven't already done so. This ensures the most accurate recommendations based on both CPU and memory usage.
 * Enable enhanced infrastructure metrics (32-day free or 93-day paid) as you're currently using the standard 14-day lookback period, to capture more utilization data and identify any weekly or monthly patterns.
-

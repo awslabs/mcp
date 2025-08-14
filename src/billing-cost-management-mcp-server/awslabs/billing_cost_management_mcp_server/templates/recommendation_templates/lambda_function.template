@@ -54,7 +54,7 @@ Monthly Lambda spend would drop from $262.69 to $228.66, saving $34.03, or 12.96
 
 Next steps
 * Deploy the 848 MB setting in a staging stage and run workload tests.
-* Monitor duration and error rate in CloudWatch Logs or Lambda Insights; adjust if latency rises. 
+* Monitor duration and error rate in CloudWatch Logs or Lambda Insights; adjust if latency rises.
 * Review any provisioned-concurrency settings after the memory change.
 
 ## Recommendation Information

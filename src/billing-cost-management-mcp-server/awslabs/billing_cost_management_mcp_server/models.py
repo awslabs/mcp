@@ -16,51 +16,57 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, List, Optional
 
 
 # Common Enums
 class APIStatus(str, Enum):
     """API response status."""
-    SUCCESS = "success"
-    ERROR = "error"
+
+    SUCCESS = 'success'
+    ERROR = 'error'
 
 
 class CostMetric(str, Enum):
     """AWS Cost Explorer cost metrics."""
-    UNBLENDED_COST = "UnblendedCost"
-    BLENDED_COST = "BlendedCost"
-    AMORTIZED_COST = "AmortizedCost"
-    NET_UNBLENDED_COST = "NetUnblendedCost"
-    NET_AMORTIZED_COST = "NetAmortizedCost"
-    USAGE_QUANTITY = "UsageQuantity"
-    NORMALIZED_USAGE_AMOUNT = "NormalizedUsageAmount"
+
+    UNBLENDED_COST = 'UnblendedCost'
+    BLENDED_COST = 'BlendedCost'
+    AMORTIZED_COST = 'AmortizedCost'
+    NET_UNBLENDED_COST = 'NetUnblendedCost'
+    NET_AMORTIZED_COST = 'NetAmortizedCost'
+    USAGE_QUANTITY = 'UsageQuantity'
+    NORMALIZED_USAGE_AMOUNT = 'NormalizedUsageAmount'
 
 
 class DateGranularity(str, Enum):
     """AWS Cost Explorer time granularity."""
-    DAILY = "DAILY"
-    MONTHLY = "MONTHLY"
-    HOURLY = "HOURLY"
+
+    DAILY = 'DAILY'
+    MONTHLY = 'MONTHLY'
+    HOURLY = 'HOURLY'
 
 
 class SchemaFormat(str, Enum):
     """Storage Lens schema formats."""
-    CSV = "CSV"
-    PARQUET = "PARQUET"
-    JSON = "JSON"
+
+    CSV = 'CSV'
+    PARQUET = 'PARQUET'
+    JSON = 'JSON'
 
 
 # Base Models
 class BaseResponse(BaseModel):
     """Base model for API responses."""
+
     status: APIStatus
     message: Optional[str] = None
 
 
 class ErrorResponse(BaseResponse):
     """Error response model."""
+
     status: APIStatus = APIStatus.ERROR
     error_code: Optional[str] = None
     error_details: Optional[Dict[str, Any]] = None
@@ -68,29 +74,32 @@ class ErrorResponse(BaseResponse):
 
 class SuccessResponse(BaseResponse):
     """Success response model."""
+
     status: APIStatus = APIStatus.SUCCESS
     data: Optional[Dict[str, Any]] = None
 
 
 class DateRange(BaseModel):
     """Date range for cost queries."""
-    start_date: str = Field(description="The start date in YYYY-MM-DD format")
-    end_date: str = Field(description="The end date in YYYY-MM-DD format")
 
-    @field_validator("start_date", "end_date")
+    start_date: str = Field(description='The start date in YYYY-MM-DD format')
+    end_date: str = Field(description='The end date in YYYY-MM-DD format')
+
+    @field_validator('start_date', 'end_date')
     @classmethod
     def validate_date_format(cls, v):
         """Validate date format is YYYY-MM-DD."""
         try:
-            datetime.strptime(v, "%Y-%m-%d")
+            datetime.strptime(v, '%Y-%m-%d')
         except ValueError:
-            raise ValueError(f"Invalid date format: {v}. Expected format: YYYY-MM-DD")
+            raise ValueError(f'Invalid date format: {v}. Expected format: YYYY-MM-DD')
         return v
 
 
 # Storage Lens Models
 class ColumnDefinition(BaseModel):
     """Column definition for Storage Lens data schema."""
+
     name: str
     type: str
     nullable: Optional[bool] = True
@@ -98,6 +107,7 @@ class ColumnDefinition(BaseModel):
 
 class SchemaInfo(BaseModel):
     """Schema information for Storage Lens data."""
+
     format: SchemaFormat
     columns: List[ColumnDefinition]
     skip_header: Optional[bool] = False
@@ -105,15 +115,17 @@ class SchemaInfo(BaseModel):
 
 class StorageLensQueryRequest(BaseModel):
     """Storage Lens query request."""
-    manifest_location: str = Field(description="S3 URI to the manifest file or folder")
-    query: str = Field(description="SQL query to execute against the data")
-    database_name: Optional[str] = "storage_lens_db"
-    table_name: Optional[str] = "storage_lens_metrics"
+
+    manifest_location: str = Field(description='S3 URI to the manifest file or folder')
+    query: str = Field(description='SQL query to execute against the data')
+    database_name: Optional[str] = 'storage_lens_db'
+    table_name: Optional[str] = 'storage_lens_metrics'
     output_location: Optional[str] = None
 
 
 class AthenaQueryExecution(BaseModel):
     """Athena query execution status."""
+
     query_execution_id: str
     status: str
     submission_time: Optional[datetime] = None
@@ -125,18 +137,21 @@ class AthenaQueryExecution(BaseModel):
 # Cost Explorer Models
 class GroupBy(BaseModel):
     """Group by dimension for cost queries."""
-    type: str = "DIMENSION"
+
+    type: str = 'DIMENSION'
     key: str
 
 
 class CostFilter(BaseModel):
     """Cost filter for AWS Cost Explorer queries."""
+
     dimensions: Optional[Dict[str, List[str]]] = None
     tags: Optional[Dict[str, List[str]]] = None
 
 
 class CostExplorerRequest(BaseModel):
     """Cost Explorer request model."""
+
     time_period: DateRange
     granularity: Optional[DateGranularity] = DateGranularity.MONTHLY
     metrics: List[CostMetric] = [CostMetric.UNBLENDED_COST]
@@ -147,17 +162,19 @@ class CostExplorerRequest(BaseModel):
 # Compute Optimizer Models
 class RecommendationType(str, Enum):
     """AWS Compute Optimizer recommendation types."""
-    EC2_INSTANCE = "Ec2Instance"
-    AUTO_SCALING_GROUP = "AutoScalingGroup"
-    EBS_VOLUME = "EbsVolume"
-    LAMBDA_FUNCTION = "LambdaFunction"
-    ECS_SERVICE = "EcsService"
-    FARGATE = "Fargate"
-    RDS = "Rds"
+
+    EC2_INSTANCE = 'Ec2Instance'
+    AUTO_SCALING_GROUP = 'AutoScalingGroup'
+    EBS_VOLUME = 'EbsVolume'
+    LAMBDA_FUNCTION = 'LambdaFunction'
+    ECS_SERVICE = 'EcsService'
+    FARGATE = 'Fargate'
+    RDS = 'Rds'
 
 
 class ComputeOptimizerRequest(BaseModel):
     """Compute Optimizer recommendation request."""
+
     resource_type: RecommendationType
     account_ids: Optional[List[str]] = None
     regions: Optional[List[str]] = None
@@ -167,25 +184,28 @@ class ComputeOptimizerRequest(BaseModel):
 # Budget Models
 class BudgetPeriod(str, Enum):
     """AWS Budget time periods."""
-    DAILY = "DAILY"
-    MONTHLY = "MONTHLY"
-    QUARTERLY = "QUARTERLY"
-    ANNUALLY = "ANNUALLY"
+
+    DAILY = 'DAILY'
+    MONTHLY = 'MONTHLY'
+    QUARTERLY = 'QUARTERLY'
+    ANNUALLY = 'ANNUALLY'
 
 
 class BudgetType(str, Enum):
     """AWS Budget types."""
-    COST = "COST"
-    USAGE = "USAGE"
-    RI_UTILIZATION = "RI_UTILIZATION"
-    RI_COVERAGE = "RI_COVERAGE"
-    SAVINGS_PLANS_UTILIZATION = "SAVINGS_PLANS_UTILIZATION"
-    SAVINGS_PLANS_COVERAGE = "SAVINGS_PLANS_COVERAGE"
+
+    COST = 'COST'
+    USAGE = 'USAGE'
+    RI_UTILIZATION = 'RI_UTILIZATION'
+    RI_COVERAGE = 'RI_COVERAGE'
+    SAVINGS_PLANS_UTILIZATION = 'SAVINGS_PLANS_UTILIZATION'
+    SAVINGS_PLANS_COVERAGE = 'SAVINGS_PLANS_COVERAGE'
 
 
 # SQL Models
 class SQLExecutionResult(BaseModel):
     """SQL execution result."""
+
     columns: List[str]
     rows: List[Dict[str, Any]]
     row_count: int
@@ -194,23 +214,29 @@ class SQLExecutionResult(BaseModel):
 # Export/Import models for interoperability between tools
 __all__ = [
     # Enums
-    "APIStatus", "CostMetric", "DateGranularity", "SchemaFormat", 
-    "RecommendationType", "BudgetPeriod", "BudgetType",
-    
+    'APIStatus',
+    'CostMetric',
+    'DateGranularity',
+    'SchemaFormat',
+    'RecommendationType',
+    'BudgetPeriod',
+    'BudgetType',
     # Base models
-    "BaseResponse", "ErrorResponse", "SuccessResponse",
-    "DateRange", "GroupBy", "CostFilter",
-    
+    'BaseResponse',
+    'ErrorResponse',
+    'SuccessResponse',
+    'DateRange',
+    'GroupBy',
+    'CostFilter',
     # Storage Lens models
-    "ColumnDefinition", "SchemaInfo", "StorageLensQueryRequest",
-    "AthenaQueryExecution",
-    
+    'ColumnDefinition',
+    'SchemaInfo',
+    'StorageLensQueryRequest',
+    'AthenaQueryExecution',
     # Cost Explorer models
-    "CostExplorerRequest",
-    
+    'CostExplorerRequest',
     # Compute Optimizer models
-    "ComputeOptimizerRequest",
-    
+    'ComputeOptimizerRequest',
     # SQL models
-    "SQLExecutionResult",
+    'SQLExecutionResult',
 ]

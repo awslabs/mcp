@@ -12,39 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Cost Explorer tools for the AWS Billing and Cost Management MCP server.
+"""AWS Cost Explorer tools for the AWS Billing and Cost Management MCP server.
 
 Updated to use shared utility functions.
 """
 
-from typing import Any, Dict, Optional
-from fastmcp import Context, FastMCP
-from ..utilities.aws_service_base import (
-    create_aws_client,
-    handle_aws_error,
-    format_response
-)
-
+from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from .cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
-    get_dimension_values,
-    get_cost_forecast,
-    get_usage_forecast,
-    get_tags,
     get_cost_categories,
-    get_savings_plans_utilization
+    get_cost_forecast,
+    get_dimension_values,
+    get_savings_plans_utilization,
+    get_tags,
+    get_usage_forecast,
 )
+from fastmcp import Context, FastMCP
+from typing import Any, Dict, Optional
+
 
 cost_explorer_server = FastMCP(
-    name="cost-explorer-tools", 
-    instructions="Tools for working with AWS Cost Explorer API"
+    name='cost-explorer-tools', instructions='Tools for working with AWS Cost Explorer API'
 )
 
 
 @cost_explorer_server.tool(
-    name="cost_explorer",
+    name='cost_explorer',
     description="""Retrieves AWS cost and usage data using the Cost Explorer API.
 
 IMPORTANT USAGE GUIDELINES:
@@ -132,7 +126,7 @@ async def cost_explorer(
     operation: str,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    granularity: str = "DAILY",
+    granularity: str = 'DAILY',
     metrics: Optional[str] = None,
     group_by: Optional[str] = None,
     filter: Optional[str] = None,
@@ -146,28 +140,41 @@ async def cost_explorer(
     tag_key: Optional[str] = None,
     cost_category_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Main entry point for Cost Explorer operations.
-    
+    """Main entry point for Cost Explorer operations.
+
     This function routes requests to the appropriate operation handler
     based on the operation parameter.
-    
+
     Args:
         ctx: MCP context
         operation: The operation to perform
-        Additional parameters specific to each operation
-        
+        start_date: Start date for cost data in YYYY-MM-DD format
+        end_date: End date for cost data in YYYY-MM-DD format
+        granularity: Granularity of the returned data (DAILY, MONTHLY, etc.)
+        metrics: Metrics to include in the response
+        group_by: How to group the results
+        filter: Filter to apply to the results
+        dimension: Dimension to get values for (getDimensionValues)
+        search_string: Search string to filter dimension values
+        max_results: Maximum number of results to return
+        next_token: Pagination token
+        max_pages: Maximum number of pages to retrieve
+        metric: Metric for cost forecasts
+        prediction_interval_level: Confidence level for forecasts
+        tag_key: Tag key to get values for
+        cost_category_name: Cost category to get values for
+
     Returns:
         Response from the operation handler
     """
-    await ctx.info(f"Cost Explorer operation: {operation}")
-    
+    await ctx.info(f'Cost Explorer operation: {operation}')
+
     # Create Cost Explorer client
-    ce_client = create_aws_client("ce")
-    
+    ce_client = create_aws_client('ce')
+
     # Route to the appropriate operation handler
     try:
-        if operation == "getCostAndUsage":
+        if operation == 'getCostAndUsage':
             return await get_cost_and_usage(
                 ctx,
                 ce_client,
@@ -178,28 +185,20 @@ async def cost_explorer(
                 group_by,
                 filter,
                 next_token,
-                max_pages
+                max_pages,
             )
-            
-        elif operation == "getCostAndUsageWithResources":
+
+        elif operation == 'getCostAndUsageWithResources':
             return await get_cost_and_usage_with_resources(
-                ctx,
-                ce_client,
-                start_date,
-                end_date,
-                granularity,
-                metrics,
-                group_by,
-                filter
+                ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter
             )
-            
-        elif operation == "getDimensionValues":
+
+        elif operation == 'getDimensionValues':
             if not dimension:
                 return format_response(
-                    "error", 
-                    {"message": "dimension is required for getDimensionValues operation"}
+                    'error', {'message': 'dimension is required for getDimensionValues operation'}
                 )
-                
+
             return await get_dimension_values(
                 ctx,
                 ce_client,
@@ -210,16 +209,15 @@ async def cost_explorer(
                 filter,
                 max_results,
                 next_token,
-                max_pages
+                max_pages,
             )
-            
-        elif operation == "getCostForecast":
+
+        elif operation == 'getCostForecast':
             if not metric:
                 return format_response(
-                    "error", 
-                    {"message": "metric is required for getCostForecast operation"}
+                    'error', {'message': 'metric is required for getCostForecast operation'}
                 )
-                
+
             return await get_cost_forecast(
                 ctx,
                 ce_client,
@@ -228,16 +226,15 @@ async def cost_explorer(
                 end_date,
                 granularity,
                 filter,
-                prediction_interval_level
+                prediction_interval_level,
             )
-            
-        elif operation == "getUsageForecast":
+
+        elif operation == 'getUsageForecast':
             if not metric:
                 return format_response(
-                    "error", 
-                    {"message": "metric is required for getUsageForecast operation"}
+                    'error', {'message': 'metric is required for getUsageForecast operation'}
                 )
-                
+
             return await get_usage_forecast(
                 ctx,
                 ce_client,
@@ -246,50 +243,40 @@ async def cost_explorer(
                 end_date,
                 granularity,
                 filter,
-                prediction_interval_level
+                prediction_interval_level,
             )
-            
-        elif operation == "getTags" or operation == "getTagValues":
+
+        elif operation == 'getTags' or operation == 'getTagValues':
             return await get_tags(
                 ctx,
                 ce_client,
                 start_date,
                 end_date,
                 search_string,
-                tag_key if operation == "getTagValues" else None,
+                tag_key if operation == 'getTagValues' else None,
                 next_token,
-                max_pages
+                max_pages,
             )
-            
-        elif operation == "getCostCategories" or operation == "getCostCategoryValues":
+
+        elif operation == 'getCostCategories' or operation == 'getCostCategoryValues':
             return await get_cost_categories(
                 ctx,
                 ce_client,
                 start_date,
                 end_date,
                 search_string,
-                cost_category_name if operation == "getCostCategoryValues" else None,
+                cost_category_name if operation == 'getCostCategoryValues' else None,
                 next_token,
-                max_pages
+                max_pages,
             )
-            
-        elif operation == "getSavingsPlansUtilization":
+
+        elif operation == 'getSavingsPlansUtilization':
             return await get_savings_plans_utilization(
-                ctx,
-                ce_client,
-                start_date,
-                end_date,
-                granularity,
-                filter,
-                next_token,
-                max_pages
+                ctx, ce_client, start_date, end_date, granularity, filter, next_token, max_pages
             )
-            
+
         else:
-            return format_response(
-                "error",
-                {"message": f"Unknown operation: {operation}"}
-            )
-            
+            return format_response('error', {'message': f'Unknown operation: {operation}'})
+
     except Exception as e:
-        return await handle_aws_error(ctx, e, operation, "Cost Explorer")
+        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')

@@ -12,31 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Reservation Coverage and Utilization tools for the AWS Billing and Cost Management MCP server.
+"""AWS Reservation Coverage and Utilization tools for the AWS Billing and Cost Management MCP server.
 
 Updated to use shared utility functions.
 """
 
-from typing import Any, Dict, Optional
-from fastmcp import Context, FastMCP
 from ..utilities.aws_service_base import (
     create_aws_client,
+    format_response,
     get_date_range,
-    parse_json,
     handle_aws_error,
     paginate_aws_response,
-    format_response
+    parse_json,
 )
+from fastmcp import Context, FastMCP
+from typing import Any, Dict, Optional
+
 
 ri_performance_server = FastMCP(
-    name="ri-performance-tools",
-    instructions="Tools for working with AWS Reserved Instance Performance (Coverage and Utilization) API",
+    name='ri-performance-tools',
+    instructions='Tools for working with AWS Reserved Instance Performance (Coverage and Utilization) API',
 )
 
 
 @ri_performance_server.tool(
-    name="ri_performance",
+    name='ri_performance',
     description="""Retrieves AWS Reserved Instance (RI) coverage and utilization data using the Cost Explorer API.
 
 This tool provides insights into your Reserved Instance (RI) and Savings Plans usage patterns through two main operations:
@@ -67,15 +67,14 @@ async def ri_performance(
     operation: str,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    granularity: str = "DAILY",
+    granularity: str = 'DAILY',
     metrics: Optional[str] = None,
     group_by: Optional[str] = None,
     filter: Optional[str] = None,
     sort_by: Optional[str] = None,
     max_results: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    Retrieves AWS RI coverage and utilization data using the Cost Explorer API.
+    """Retrieves AWS RI coverage and utilization data using the Cost Explorer API.
 
     Args:
         ctx: The MCP context object
@@ -94,12 +93,12 @@ async def ri_performance(
         Dict containing the reservation coverage/utilization information
     """
     try:
-        await ctx.info(f"Reservation Coverage/Utilization operation: {operation}")
+        await ctx.info(f'Reservation Coverage/Utilization operation: {operation}')
 
         # Initialize Cost Explorer client using shared utility
-        ce_client = create_aws_client("ce", region_name="us-east-1")
+        ce_client = create_aws_client('ce', region_name='us-east-1')
 
-        if operation == "get_reservation_coverage":
+        if operation == 'get_reservation_coverage':
             return await get_reservation_coverage(
                 ctx,
                 ce_client,
@@ -112,28 +111,28 @@ async def ri_performance(
                 sort_by,
                 max_results,
             )
-        elif operation == "get_reservation_utilization":
+        elif operation == 'get_reservation_utilization':
             return await get_reservation_utilization(
                 ctx,
-                ce_client, 
-                start_date, 
-                end_date, 
-                granularity, 
-                group_by, 
-                filter, 
-                sort_by, 
-                max_results
+                ce_client,
+                start_date,
+                end_date,
+                granularity,
+                group_by,
+                filter,
+                sort_by,
+                max_results,
             )
         else:
             return format_response(
-                "error",
+                'error',
                 {},
-                f"Unsupported operation: {operation}. Use 'get_reservation_coverage' or 'get_reservation_utilization'."
+                f"Unsupported operation: {operation}. Use 'get_reservation_coverage' or 'get_reservation_utilization'.",
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "ri_performance", "Cost Explorer")
+        return await handle_aws_error(ctx, e, 'ri_performance', 'Cost Explorer')
 
 
 async def get_reservation_coverage(
@@ -148,9 +147,8 @@ async def get_reservation_coverage(
     sort_by: Optional[str],
     max_results: Optional[int],
 ) -> Dict[str, Any]:
-    """
-    Retrieves reservation coverage data using the AWS Cost Explorer API.
-    
+    """Retrieves reservation coverage data using the AWS Cost Explorer API.
+
     Args:
         ctx: The MCP context
         ce_client: Cost Explorer client
@@ -162,49 +160,51 @@ async def get_reservation_coverage(
         filter_expr: Filter expression as JSON string
         sort_by: Sort configuration as JSON string
         max_results: Maximum results to return
-        
+
     Returns:
         Dict containing coverage data
     """
     try:
         # Get date range using shared utility
         start, end = get_date_range(start_date, end_date)
-        
+
         # Log the time period
-        await ctx.info(f"Analyzing reservation coverage from {start} to {end} with {granularity} granularity")
+        await ctx.info(
+            f'Analyzing reservation coverage from {start} to {end} with {granularity} granularity'
+        )
 
         # Prepare the request parameters
         request_params = {
-            "TimePeriod": {"Start": start, "End": end},
-            "Granularity": granularity,
+            'TimePeriod': {'Start': start, 'End': end},
+            'Granularity': granularity,
         }
 
         # Add optional parameters if provided
         if metrics:
-            request_params["Metrics"] = parse_json(metrics, "metrics")
+            request_params['Metrics'] = parse_json(metrics, 'metrics')
 
         if group_by:
-            request_params["GroupBy"] = parse_json(group_by, "group_by")
+            request_params['GroupBy'] = parse_json(group_by, 'group_by')
 
         if filter_expr:
-            request_params["Filter"] = parse_json(filter_expr, "filter")
+            request_params['Filter'] = parse_json(filter_expr, 'filter')
 
         if sort_by:
-            request_params["SortBy"] = parse_json(sort_by, "sort_by")
+            request_params['SortBy'] = parse_json(sort_by, 'sort_by')
 
         if max_results:
-            request_params["MaxResults"] = max_results
+            request_params['MaxResults'] = max_results
 
         # Use the paginate_aws_response utility for consistent pagination
         all_coverages, pagination_metadata = await paginate_aws_response(
             ctx=ctx,
-            operation_name="GetReservationCoverage",
+            operation_name='GetReservationCoverage',
             api_function=ce_client.get_reservation_coverage,
             request_params=request_params,
-            result_key="CoveragesByTime",
-            token_param="NextPageToken",
-            token_key="NextPageToken",
-            max_pages=None
+            result_key='CoveragesByTime',
+            token_param='NextPageToken',
+            token_key='NextPageToken',
+            max_pages=None,
         )
 
         # Get the Total from the first response (not included in the paginated results)
@@ -212,50 +212,50 @@ async def get_reservation_coverage(
         if all_coverages:
             # We need to make one call to get the Total
             initial_response = ce_client.get_reservation_coverage(**request_params)
-            total_coverage = initial_response.get("Total")
+            total_coverage = initial_response.get('Total')
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
-            "coverages_by_time": [],
-            "pagination": pagination_metadata
+            'coverages_by_time': [],
+            'pagination': pagination_metadata,
         }
 
         # Format total coverage if present
         if total_coverage:
-            formatted_response["total"] = format_coverage_metrics(total_coverage)
+            formatted_response['total'] = format_coverage_metrics(total_coverage)
 
         # Format all collected coverages
         for coverage in all_coverages:
-            time_period = coverage.get("TimePeriod", {})
-            groups = coverage.get("Groups", [])
-            total = coverage.get("Total", {})
+            time_period = coverage.get('TimePeriod', {})
+            groups = coverage.get('Groups', [])
+            total = coverage.get('Total', {})
 
             formatted_coverage: Dict[str, Any] = {
-                "time_period": {"start": time_period.get("Start"), "end": time_period.get("End")},
-                "total": {},
-                "groups": [],
+                'time_period': {'start': time_period.get('Start'), 'end': time_period.get('End')},
+                'total': {},
+                'groups': [],
             }
 
             # Format total for this time period
             if total:
-                formatted_coverage["total"] = format_coverage_metrics(total)
+                formatted_coverage['total'] = format_coverage_metrics(total)
 
             # Format groups if present
             if groups:
                 for group in groups:
                     formatted_group = {
-                        "attributes": group.get("Attributes", {}),
-                        "coverage": format_coverage_metrics(group.get("Coverage", {})),
+                        'attributes': group.get('Attributes', {}),
+                        'coverage': format_coverage_metrics(group.get('Coverage', {})),
                     }
-                    formatted_coverage["groups"].append(formatted_group)
+                    formatted_coverage['groups'].append(formatted_group)
 
-            formatted_response["coverages_by_time"].append(formatted_coverage)
+            formatted_response['coverages_by_time'].append(formatted_coverage)
 
-        return format_response("success", formatted_response)
+        return format_response('success', formatted_response)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "get_reservation_coverage", "Cost Explorer")
+        return await handle_aws_error(ctx, e, 'get_reservation_coverage', 'Cost Explorer')
 
 
 async def get_reservation_utilization(
@@ -267,11 +267,10 @@ async def get_reservation_utilization(
     group_by: Optional[str],
     filter_expr: Optional[str],
     sort_by: Optional[str],
-    max_results: Optional[int]
+    max_results: Optional[int],
 ) -> Dict[str, Any]:
-    """
-    Retrieves reservation utilization data using the AWS Cost Explorer API.
-    
+    """Retrieves reservation utilization data using the AWS Cost Explorer API.
+
     Args:
         ctx: The MCP context
         ce_client: Cost Explorer client
@@ -282,46 +281,48 @@ async def get_reservation_utilization(
         filter_expr: Filter expression as JSON string
         sort_by: Sort configuration as JSON string
         max_results: Maximum results to return
-        
+
     Returns:
         Dict containing utilization data
     """
     try:
         # Get date range using shared utility
         start, end = get_date_range(start_date, end_date)
-        
+
         # Log the time period
-        await ctx.info(f"Analyzing reservation utilization from {start} to {end} with {granularity} granularity")
+        await ctx.info(
+            f'Analyzing reservation utilization from {start} to {end} with {granularity} granularity'
+        )
 
         # Prepare the request parameters
         request_params = {
-            "TimePeriod": {"Start": start, "End": end},
-            "Granularity": granularity,
+            'TimePeriod': {'Start': start, 'End': end},
+            'Granularity': granularity,
         }
 
         # Add optional parameters if provided
         if group_by:
-            request_params["GroupBy"] = parse_json(group_by, "group_by")
+            request_params['GroupBy'] = parse_json(group_by, 'group_by')
 
         if filter_expr:
-            request_params["Filter"] = parse_json(filter_expr, "filter")
+            request_params['Filter'] = parse_json(filter_expr, 'filter')
 
         if sort_by:
-            request_params["SortBy"] = parse_json(sort_by, "sort_by")
+            request_params['SortBy'] = parse_json(sort_by, 'sort_by')
 
         if max_results:
-            request_params["MaxResults"] = max_results
+            request_params['MaxResults'] = max_results
 
         # Use the paginate_aws_response utility for consistent pagination
         all_utilizations, pagination_metadata = await paginate_aws_response(
             ctx=ctx,
-            operation_name="GetReservationUtilization",
+            operation_name='GetReservationUtilization',
             api_function=ce_client.get_reservation_utilization,
             request_params=request_params,
-            result_key="UtilizationsByTime",
-            token_param="NextPageToken",
-            token_key="NextPageToken",
-            max_pages=None
+            result_key='UtilizationsByTime',
+            token_param='NextPageToken',
+            token_key='NextPageToken',
+            max_pages=None,
         )
 
         # Get the Total from the first response (not included in the paginated results)
@@ -329,136 +330,134 @@ async def get_reservation_utilization(
         if all_utilizations:
             # We need to make one call to get the Total
             initial_response = ce_client.get_reservation_utilization(**request_params)
-            total_utilization = initial_response.get("Total")
+            total_utilization = initial_response.get('Total')
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
-            "utilizations_by_time": [],
-            "pagination": pagination_metadata,
-            "total": {}
+            'utilizations_by_time': [],
+            'pagination': pagination_metadata,
+            'total': {},
         }
 
         # Format total utilization if present
         if total_utilization:
-            formatted_response["total"] = format_utilization_metrics(total_utilization)
+            formatted_response['total'] = format_utilization_metrics(total_utilization)
 
         # Format all collected utilizations
         for utilization in all_utilizations:
-            time_period = utilization.get("TimePeriod", {})
-            groups = utilization.get("Groups", [])
-            total = utilization.get("Total", {})
+            time_period = utilization.get('TimePeriod', {})
+            groups = utilization.get('Groups', [])
+            total = utilization.get('Total', {})
 
             formatted_utilization: Dict[str, Any] = {
-                "time_period": {"start": time_period.get("Start"), "end": time_period.get("End")},
-                "total": {},
-                "groups": [],
+                'time_period': {'start': time_period.get('Start'), 'end': time_period.get('End')},
+                'total': {},
+                'groups': [],
             }
 
             # Format total for this time period
             if total:
-                formatted_utilization["total"] = format_utilization_metrics(total)
+                formatted_utilization['total'] = format_utilization_metrics(total)
 
             # Format groups if present
             if groups:
                 for group in groups:
                     formatted_group = {
-                        "attributes": group.get("Attributes", {}),
-                        "utilization": format_utilization_metrics(group.get("Utilization", {})),
+                        'attributes': group.get('Attributes', {}),
+                        'utilization': format_utilization_metrics(group.get('Utilization', {})),
                     }
-                    formatted_utilization["groups"].append(formatted_group)
+                    formatted_utilization['groups'].append(formatted_group)
 
-            formatted_response["utilizations_by_time"].append(formatted_utilization)
+            formatted_response['utilizations_by_time'].append(formatted_utilization)
 
-        return format_response("success", formatted_response)
+        return format_response('success', formatted_response)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "get_reservation_utilization", "Cost Explorer")
+        return await handle_aws_error(ctx, e, 'get_reservation_utilization', 'Cost Explorer')
 
 
 def format_coverage_metrics(coverage_data: Dict) -> Dict:
-    """
-    Formats the coverage metrics data for better readability.
-    
+    """Formats the coverage metrics data for better readability.
+
     Args:
         coverage_data: Raw coverage data from Cost Explorer API
-        
+
     Returns:
         Dict containing formatted coverage metrics
     """
     formatted_coverage = {}
 
     # Format overall coverage metrics
-    if "CoverageHours" in coverage_data:
-        ch = coverage_data["CoverageHours"]
-        formatted_coverage["coverage_hours"] = {
-            "on_demand_hours": ch.get("OnDemandHours"),
-            "reserved_hours": ch.get("ReservedHours"),
-            "total_running_hours": ch.get("TotalRunningHours"),
-            "coverage_hours_percentage": ch.get("CoverageHoursPercentage"),
+    if 'CoverageHours' in coverage_data:
+        ch = coverage_data['CoverageHours']
+        formatted_coverage['coverage_hours'] = {
+            'on_demand_hours': ch.get('OnDemandHours'),
+            'reserved_hours': ch.get('ReservedHours'),
+            'total_running_hours': ch.get('TotalRunningHours'),
+            'coverage_hours_percentage': ch.get('CoverageHoursPercentage'),
         }
 
     # Format coverage by service
-    if "CoverageNormalizedUnits" in coverage_data:
-        cnu = coverage_data["CoverageNormalizedUnits"]
-        formatted_coverage["coverage_normalized_units"] = {
-            "on_demand_normalized_units": cnu.get("OnDemandNormalizedUnits"),
-            "reserved_normalized_units": cnu.get("ReservedNormalizedUnits"),
-            "total_running_normalized_units": cnu.get("TotalRunningNormalizedUnits"),
-            "coverage_normalized_units_percentage": cnu.get("CoverageNormalizedUnitsPercentage"),
+    if 'CoverageNormalizedUnits' in coverage_data:
+        cnu = coverage_data['CoverageNormalizedUnits']
+        formatted_coverage['coverage_normalized_units'] = {
+            'on_demand_normalized_units': cnu.get('OnDemandNormalizedUnits'),
+            'reserved_normalized_units': cnu.get('ReservedNormalizedUnits'),
+            'total_running_normalized_units': cnu.get('TotalRunningNormalizedUnits'),
+            'coverage_normalized_units_percentage': cnu.get('CoverageNormalizedUnitsPercentage'),
         }
 
     # Format cost coverage
-    if "CoverageCost" in coverage_data:
-        cc = coverage_data["CoverageCost"]
-        formatted_coverage["coverage_cost"] = {
-            "on_demand_cost": cc.get("OnDemandCost"),
-            "reserved_cost": cc.get("ReservedCost"),
-            "total_cost": cc.get("TotalCost"),
-            "coverage_cost_percentage": cc.get("CoverageCostPercentage"),
+    if 'CoverageCost' in coverage_data:
+        cc = coverage_data['CoverageCost']
+        formatted_coverage['coverage_cost'] = {
+            'on_demand_cost': cc.get('OnDemandCost'),
+            'reserved_cost': cc.get('ReservedCost'),
+            'total_cost': cc.get('TotalCost'),
+            'coverage_cost_percentage': cc.get('CoverageCostPercentage'),
         }
 
     return formatted_coverage
 
 
 def format_utilization_metrics(utilization_data: Dict) -> Dict:
-    """
-    Formats the utilization metrics data for better readability.
-    
+    """Formats the utilization metrics data for better readability.
+
     Args:
         utilization_data: Raw utilization data from Cost Explorer API
-        
+
     Returns:
         Dict containing formatted utilization metrics
     """
     formatted_utilization = {}
 
     # Add utilization metrics
-    if "UtilizationPercentage" in utilization_data:
-        formatted_utilization["utilization_percentage"] = utilization_data["UtilizationPercentage"]
+    if 'UtilizationPercentage' in utilization_data:
+        formatted_utilization['utilization_percentage'] = utilization_data['UtilizationPercentage']
 
-    if "PurchasedHours" in utilization_data:
-        formatted_utilization["purchased_hours"] = utilization_data["PurchasedHours"]
+    if 'PurchasedHours' in utilization_data:
+        formatted_utilization['purchased_hours'] = utilization_data['PurchasedHours']
 
-    if "TotalActualHours" in utilization_data:
-        formatted_utilization["total_actual_hours"] = utilization_data["TotalActualHours"]
+    if 'TotalActualHours' in utilization_data:
+        formatted_utilization['total_actual_hours'] = utilization_data['TotalActualHours']
 
-    if "UnusedHours" in utilization_data:
-        formatted_utilization["unused_hours"] = utilization_data["UnusedHours"]
+    if 'UnusedHours' in utilization_data:
+        formatted_utilization['unused_hours'] = utilization_data['UnusedHours']
 
     # Add normalized unit metrics if present
-    if "PurchasedUnits" in utilization_data:
-        formatted_utilization["purchased_units"] = utilization_data["PurchasedUnits"]
+    if 'PurchasedUnits' in utilization_data:
+        formatted_utilization['purchased_units'] = utilization_data['PurchasedUnits']
 
-    if "TotalActualUnits" in utilization_data:
-        formatted_utilization["total_actual_units"] = utilization_data["TotalActualUnits"]
+    if 'TotalActualUnits' in utilization_data:
+        formatted_utilization['total_actual_units'] = utilization_data['TotalActualUnits']
 
-    if "UnusedUnits" in utilization_data:
-        formatted_utilization["unused_units"] = utilization_data["UnusedUnits"]
+    if 'UnusedUnits' in utilization_data:
+        formatted_utilization['unused_units'] = utilization_data['UnusedUnits']
 
-    if "UtilizationPercentageInUnits" in utilization_data:
-        formatted_utilization["utilization_percentage_in_units"] = utilization_data[
-            "UtilizationPercentageInUnits"
+    if 'UtilizationPercentageInUnits' in utilization_data:
+        formatted_utilization['utilization_percentage_in_units'] = utilization_data[
+            'UtilizationPercentageInUnits'
         ]
 
     return formatted_utilization

@@ -12,112 +12,106 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Athena Cost & Usage Report tools for the AWS Billing and Cost Management MCP Server.
+"""AWS Athena Cost & Usage Report tools for the AWS Billing and Cost Management MCP Server.
 
 Updated to use shared utility functions.
 """
 
 import time
-from typing import Any, Dict, Optional
+from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from fastmcp import Context, FastMCP
-from ..utilities.aws_service_base import (
-    create_aws_client,
-    handle_aws_error,
-    format_response
-)
+from typing import Any, Dict, Optional
+
 
 # Global configuration storage
 _athena_config: Dict[str, Any] = {}
 
 athena_cur_server = FastMCP(
-    name="athena-cur-tools",
-    instructions="Tools for querying AWS Cost & Usage Reports via Amazon Athena"
+    name='athena-cur-tools',
+    instructions='Tools for querying AWS Cost & Usage Reports via Amazon Athena',
 )
 
 
 async def _execute_athena_query(ctx: Context, athena_client: Any, query: str) -> Dict[str, Any]:
-    """Helper function to execute Athena queries"""
+    """Helper function to execute Athena queries."""
     try:
         # Prepare query execution parameters
         execution_params = {
-            "QueryString": query,
-            "QueryExecutionContext": {"Database": _athena_config["database"]},
+            'QueryString': query,
+            'QueryExecutionContext': {'Database': _athena_config['database']},
         }
 
         # Add workgroup or result configuration
-        if _athena_config.get("workgroup"):
-            execution_params["WorkGroup"] = _athena_config["workgroup"]
+        if _athena_config.get('workgroup'):
+            execution_params['WorkGroup'] = _athena_config['workgroup']
         else:
-            execution_params["ResultConfiguration"] = {
-                "OutputLocation": _athena_config["output_location"]
+            execution_params['ResultConfiguration'] = {
+                'OutputLocation': _athena_config['output_location']
             }
 
         # Start query execution
-        await ctx.info(f"Starting Athena query execution: {query[:100]}...")
+        await ctx.info(f'Starting Athena query execution: {query[:100]}...')
         response = athena_client.start_query_execution(**execution_params)
-        query_execution_id = response["QueryExecutionId"]
+        query_execution_id = response['QueryExecutionId']
 
         # Wait for query to complete
-        max_wait_time = _athena_config.get("max_wait_time", 300)
+        max_wait_time = _athena_config.get('max_wait_time', 300)
         wait_interval = 2
         elapsed_time = 0
 
         while elapsed_time < max_wait_time:
-            execution_response = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
-            status = execution_response["QueryExecution"]["Status"]["State"]
+            execution_response = athena_client.get_query_execution(
+                QueryExecutionId=query_execution_id
+            )
+            status = execution_response['QueryExecution']['Status']['State']
 
-            if status == "SUCCEEDED":
+            if status == 'SUCCEEDED':
                 break
-            elif status in ["FAILED", "CANCELLED"]:
-                error_message = execution_response["QueryExecution"]["Status"].get(
-                    "StateChangeReason", "Unknown error"
+            elif status in ['FAILED', 'CANCELLED']:
+                error_message = execution_response['QueryExecution']['Status'].get(
+                    'StateChangeReason', 'Unknown error'
                 )
-                return format_response("error", {}, f"Query {status.lower()}: {error_message}")
+                return format_response('error', {}, f'Query {status.lower()}: {error_message}')
 
             time.sleep(wait_interval)
             elapsed_time += wait_interval
-            
+
             # Log progress every 30 seconds
             if elapsed_time % 30 == 0:
-                await ctx.info(f"Waiting for query completion... ({elapsed_time}s elapsed)")
+                await ctx.info(f'Waiting for query completion... ({elapsed_time}s elapsed)')
 
         if elapsed_time >= max_wait_time:
-            return format_response("error", {}, f"Query timed out after {max_wait_time} seconds")
+            return format_response('error', {}, f'Query timed out after {max_wait_time} seconds')
 
         # Get query results
-        await ctx.info("Query succeeded, fetching results...")
+        await ctx.info('Query succeeded, fetching results...')
         results_response = athena_client.get_query_results(
             QueryExecutionId=query_execution_id, MaxResults=1000
         )
 
         # Format results
-        column_info = results_response["ResultSet"]["ResultSetMetadata"]["ColumnInfo"]
-        rows = results_response["ResultSet"]["Rows"]
+        column_info = results_response['ResultSet']['ResultSetMetadata']['ColumnInfo']
+        rows = results_response['ResultSet']['Rows']
 
-        columns = [col["Name"] for col in column_info]
+        columns = [col['Name'] for col in column_info]
         formatted_rows = []
         for row in rows[1:]:  # Skip header row
             row_data: Dict[str, Any] = {}
-            for i, data in enumerate(row["Data"]):
-                row_data[columns[i]] = data.get("VarCharValue", "")
+            for i, data in enumerate(row['Data']):
+                row_data[columns[i]] = data.get('VarCharValue', '')
             formatted_rows.append(row_data)
 
         return format_response(
-            "success", 
-            {
-                "columns": columns, 
-                "rows": formatted_rows,
-                "row_count": len(formatted_rows)
-            }
+            'success',
+            {'columns': columns, 'rows': formatted_rows, 'row_count': len(formatted_rows)},
         )
-    
+
     except Exception as e:
-        return await handle_aws_error(ctx, e, "execute_athena_query", "Athena")
+        return await handle_aws_error(ctx, e, 'execute_athena_query', 'Athena')
 
 
 @athena_cur_server.tool(
-    name="athena_cur_configure",
+    name='athena_cur_configure',
     description="""Configure Athena settings for Cost & Usage Report queries.
 
 IMPORTANT: You MUST ask the user to provide the following configuration values before calling this tool:
@@ -141,8 +135,7 @@ async def athena_cur_configure(
     output_location: Optional[str] = None,
     max_wait_time: int = 300,
 ) -> Dict[str, Any]:
-    """
-    Configure Athena settings for CUR queries.
+    """Configure Athena settings for CUR queries.
 
     Args:
         ctx: The MCP context object
@@ -159,59 +152,55 @@ async def athena_cur_configure(
         # Validate that either workgroup or output_location is provided
         if not workgroup and not output_location:
             return format_response(
-                "error", 
-                {}, 
-                "Either workgroup or output_location must be provided"
+                'error', {}, 'Either workgroup or output_location must be provided'
             )
 
         # Update global configuration
         _athena_config.update(
             {
-                "database": database,
-                "table": table,
-                "workgroup": workgroup,
-                "output_location": output_location,
-                "max_wait_time": max_wait_time,
+                'database': database,
+                'table': table,
+                'workgroup': workgroup,
+                'output_location': output_location,
+                'max_wait_time': max_wait_time,
             }
         )
 
-        await ctx.info(f"Athena configuration updated: database={database}, table={table}")
+        await ctx.info(f'Athena configuration updated: database={database}, table={table}')
 
         # Create Athena client using shared utility
-        athena_client = create_aws_client("athena", region_name="us-east-1")
+        athena_client = create_aws_client('athena', region_name='us-east-1')
 
         # Get table schema
-        schema_query = f"DESCRIBE {table}"
+        schema_query = f'DESCRIBE {table}'
         schema_result = await _execute_athena_query(ctx, athena_client, schema_query)
 
         # Get sample data
-        sample_query = f"SELECT * FROM {table} LIMIT 10"
+        sample_query = f'SELECT * FROM {table} LIMIT 10'
         sample_result = await _execute_athena_query(ctx, athena_client, sample_query)
 
-        if schema_result.get("status") == "error" or sample_result.get("status") == "error":
-            error_message = schema_result.get("message") or sample_result.get("message")
+        if schema_result.get('status') == 'error' or sample_result.get('status') == 'error':
+            error_message = schema_result.get('message') or sample_result.get('message')
             return format_response(
-                "error", 
-                {}, 
-                f"Error testing Athena configuration: {error_message}"
+                'error', {}, f'Error testing Athena configuration: {error_message}'
             )
 
         return format_response(
-            "success",
+            'success',
             {
-                "configuration": _athena_config.copy(),
-                "table_schema": schema_result.get("data", {}).get("rows", []),
-                "sample_data": sample_result.get("data", {}).get("rows", []),
+                'configuration': _athena_config.copy(),
+                'table_schema': schema_result.get('data', {}).get('rows', []),
+                'sample_data': sample_result.get('data', {}).get('rows', []),
             },
-            "Athena configuration updated and tested successfully"
+            'Athena configuration updated and tested successfully',
         )
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, "athena_cur_configure", "Athena")
+        return await handle_aws_error(ctx, e, 'athena_cur_configure', 'Athena')
 
 
 @athena_cur_server.tool(
-    name="athena_cur_query",
+    name='athena_cur_query',
     description="""Query AWS Cost & Usage Report data using Amazon Athena.
 
 PREREQUISITE: User must have configured Athena settings using athena_cur_configure first.
@@ -229,8 +218,8 @@ Example queries (replace {table} with actual table name from configuration):
 async def athena_cur_query(
     ctx: Context, query: str, max_results: Optional[int] = None
 ) -> Dict[str, Any]:
-    """
-    Execute a SQL query against AWS Cost & Usage Report data via Athena.
+    """Execute a SQL query against AWS Cost & Usage Report data via Athena.
+
     Uses the configuration set by athena_cur_configure.
 
     Args:
@@ -242,35 +231,33 @@ async def athena_cur_query(
         Dict containing the query results
     """
     try:
-        await ctx.info(f"Executing Athena CUR query: {query[:100]}...")
+        await ctx.info(f'Executing Athena CUR query: {query[:100]}...')
 
         # Check if configuration exists
         if not _athena_config:
             return format_response(
-                "error", 
-                {}, 
-                "Athena not configured. Please run athena_cur_configure first."
+                'error', {}, 'Athena not configured. Please run athena_cur_configure first.'
             )
 
         # Create Athena client using shared utility
-        athena_client = create_aws_client("athena", region_name="us-east-1")
+        athena_client = create_aws_client('athena', region_name='us-east-1')
         result = await _execute_athena_query(ctx, athena_client, query)
 
-        if result["status"] == "error":
+        if result['status'] == 'error':
             return result
 
-        if result["status"] == "error":
+        if result['status'] == 'error':
             return result
 
         # Limit results if specified
-        data = result.get("data", {})
-        rows = data.get("rows", [])
-        
+        data = result.get('data', {})
+        rows = data.get('rows', [])
+
         if max_results and len(rows) > max_results:
-            data["rows"] = rows[:max_results]
-            data["row_count"] = max_results
-            
+            data['rows'] = rows[:max_results]
+            data['row_count'] = max_results
+
         return result
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, "athena_cur_query", "Athena")
+        return await handle_aws_error(ctx, e, 'athena_cur_query', 'Athena')

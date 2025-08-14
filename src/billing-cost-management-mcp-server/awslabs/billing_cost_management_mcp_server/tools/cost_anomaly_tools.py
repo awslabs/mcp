@@ -12,27 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Cost Anomaly Detection tools for the AWS Billing and Cost Management MCP server.
+"""AWS Cost Anomaly Detection tools for the AWS Billing and Cost Management MCP server.
 
 Updated to use shared utility functions.
 """
 
-from typing import Any, Dict, Optional
+from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from fastmcp import Context, FastMCP
-from ..utilities.aws_service_base import (
-    create_aws_client,
-    handle_aws_error,
-    format_response
-)
+from typing import Any, Dict, Optional
+
 
 cost_anomaly_server = FastMCP(
-    name="cost-anomaly-tools", instructions="Tools for working with AWS Cost Anomaly Detection API"
+    name='cost-anomaly-tools', instructions='Tools for working with AWS Cost Anomaly Detection API'
 )
 
 
 @cost_anomaly_server.tool(
-    name="cost_anomaly",
+    name='cost_anomaly',
     description="""Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API.
 
 This tool allows you to retrieve cost anomalies detected on your AWS account during a specified time period.
@@ -60,8 +56,7 @@ async def cost_anomaly(
     total_impact_start: Optional[float] = None,
     total_impact_end: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """
-    Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API.
+    """Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API.
 
     Args:
         ctx: The MCP context object
@@ -78,10 +73,10 @@ async def cost_anomaly(
         Dict containing the cost anomaly information
     """
     try:
-        await ctx.info(f"Retrieving cost anomalies from {start_date} to {end_date}")
+        await ctx.info(f'Retrieving cost anomalies from {start_date} to {end_date}')
 
         # Initialize Cost Explorer client using shared utility
-        ce_client = create_aws_client("ce", region_name="us-east-1")
+        ce_client = create_aws_client('ce', region_name='us-east-1')
 
         return await get_anomalies(
             ctx,
@@ -98,7 +93,7 @@ async def cost_anomaly(
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "cost_anomaly", "Cost Explorer")
+        return await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')
 
 
 async def get_anomalies(
@@ -113,9 +108,8 @@ async def get_anomalies(
     total_impact_start: Optional[float],
     total_impact_end: Optional[float],
 ) -> Dict[str, Any]:
-    """
-    Retrieves cost anomalies using the AWS Cost Explorer GetAnomalies API.
-    
+    """Retrieves cost anomalies using the AWS Cost Explorer GetAnomalies API.
+
     Args:
         ctx: The MCP context
         ce_client: Cost Explorer client
@@ -127,35 +121,35 @@ async def get_anomalies(
         total_impact_operator: Optional numeric operator for filtering
         total_impact_start: Optional start value for total impact filter
         total_impact_end: Optional end value for total impact filter
-        
+
     Returns:
         Dict containing anomaly data
     """
     try:
         # Prepare the request parameters
-        request_params = {"DateInterval": {"StartDate": start_date, "EndDate": end_date}}
+        request_params = {'DateInterval': {'StartDate': start_date, 'EndDate': end_date}}
 
         # Add optional parameters if provided
         if monitor_arn:
-            request_params["MonitorArn"] = monitor_arn
+            request_params['MonitorArn'] = monitor_arn
 
         if feedback:
-            request_params["Feedback"] = feedback
+            request_params['Feedback'] = feedback
 
         if max_results:
-            request_params["MaxResults"] = max_results
+            request_params['MaxResults'] = max_results
 
         # Add total impact filter if provided
         if total_impact_operator:
-            total_impact = {"NumericOperator": total_impact_operator}
+            total_impact = {'NumericOperator': total_impact_operator}
 
             if total_impact_start is not None:
-                total_impact["StartValue"] = total_impact_start
+                total_impact['StartValue'] = total_impact_start
 
             if total_impact_end is not None:
-                total_impact["EndValue"] = total_impact_end
+                total_impact['EndValue'] = total_impact_end
 
-            request_params["TotalImpact"] = total_impact
+            request_params['TotalImpact'] = total_impact
 
         # Collect all anomalies with internal pagination
         all_anomalies = []
@@ -164,74 +158,76 @@ async def get_anomalies(
 
         while True:
             page_count += 1
-            
+
             if next_page_token:
-                request_params["NextPageToken"] = next_page_token
+                request_params['NextPageToken'] = next_page_token
 
-            await ctx.info(f"Fetching cost anomalies page {page_count}")
+            await ctx.info(f'Fetching cost anomalies page {page_count}')
             response = ce_client.get_anomalies(**request_params)
-            
-            page_anomalies = response.get("Anomalies", [])
-            all_anomalies.extend(page_anomalies)
-            
-            await ctx.info(f"Retrieved {len(page_anomalies)} anomalies (total: {len(all_anomalies)})")
 
-            next_page_token = response.get("NextPageToken")
+            page_anomalies = response.get('Anomalies', [])
+            all_anomalies.extend(page_anomalies)
+
+            await ctx.info(
+                f'Retrieved {len(page_anomalies)} anomalies (total: {len(all_anomalies)})'
+            )
+
+            next_page_token = response.get('NextPageToken')
             if not next_page_token:
                 break
 
         # Format the response for better readability
-        formatted_response: Dict[str, Any] = {"anomalies": []}
+        formatted_response: Dict[str, Any] = {'anomalies': []}
 
         for anomaly in all_anomalies:
             formatted_anomaly = {
-                "id": anomaly.get("AnomalyId"),
-                "start_date": anomaly.get("AnomalyStartDate"),
-                "end_date": anomaly.get("AnomalyEndDate"),
-                "dimension_value": anomaly.get("DimensionValue"),
-                "monitor_arn": anomaly.get("MonitorArn"),
-                "feedback": anomaly.get("Feedback"),
+                'id': anomaly.get('AnomalyId'),
+                'start_date': anomaly.get('AnomalyStartDate'),
+                'end_date': anomaly.get('AnomalyEndDate'),
+                'dimension_value': anomaly.get('DimensionValue'),
+                'monitor_arn': anomaly.get('MonitorArn'),
+                'feedback': anomaly.get('Feedback'),
             }
 
             # Add anomaly score if present
-            if "AnomalyScore" in anomaly:
-                formatted_anomaly["score"] = {
-                    "current": anomaly["AnomalyScore"].get("CurrentScore"),
-                    "max": anomaly["AnomalyScore"].get("MaxScore"),
+            if 'AnomalyScore' in anomaly:
+                formatted_anomaly['score'] = {
+                    'current': anomaly['AnomalyScore'].get('CurrentScore'),
+                    'max': anomaly['AnomalyScore'].get('MaxScore'),
                 }
 
             # Add impact if present
-            if "Impact" in anomaly:
-                formatted_anomaly["impact"] = {
-                    "total_impact": anomaly["Impact"].get("TotalImpact"),
-                    "total_impact_percentage": anomaly["Impact"].get("TotalImpactPercentage"),
-                    "max_impact": anomaly["Impact"].get("MaxImpact"),
-                    "total_actual_spend": anomaly["Impact"].get("TotalActualSpend"),
-                    "total_expected_spend": anomaly["Impact"].get("TotalExpectedSpend"),
+            if 'Impact' in anomaly:
+                formatted_anomaly['impact'] = {
+                    'total_impact': anomaly['Impact'].get('TotalImpact'),
+                    'total_impact_percentage': anomaly['Impact'].get('TotalImpactPercentage'),
+                    'max_impact': anomaly['Impact'].get('MaxImpact'),
+                    'total_actual_spend': anomaly['Impact'].get('TotalActualSpend'),
+                    'total_expected_spend': anomaly['Impact'].get('TotalExpectedSpend'),
                 }
 
             # Add root causes if present
-            if "RootCauses" in anomaly and anomaly["RootCauses"]:
-                formatted_anomaly["root_causes"] = []
-                for cause in anomaly["RootCauses"]:
+            if 'RootCauses' in anomaly and anomaly['RootCauses']:
+                formatted_anomaly['root_causes'] = []
+                for cause in anomaly['RootCauses']:
                     formatted_cause = {
-                        "service": cause.get("Service"),
-                        "region": cause.get("Region"),
-                        "linked_account": cause.get("LinkedAccount"),
-                        "linked_account_name": cause.get("LinkedAccountName"),
-                        "usage_type": cause.get("UsageType"),
+                        'service': cause.get('Service'),
+                        'region': cause.get('Region'),
+                        'linked_account': cause.get('LinkedAccount'),
+                        'linked_account_name': cause.get('LinkedAccountName'),
+                        'usage_type': cause.get('UsageType'),
                     }
 
                     # Add contribution if present
-                    if "Impact" in cause and "Contribution" in cause["Impact"]:
-                        formatted_cause["contribution"] = cause["Impact"]["Contribution"]
+                    if 'Impact' in cause and 'Contribution' in cause['Impact']:
+                        formatted_cause['contribution'] = cause['Impact']['Contribution']
 
-                    formatted_anomaly["root_causes"].append(formatted_cause)
+                    formatted_anomaly['root_causes'].append(formatted_cause)
 
-            formatted_response["anomalies"].append(formatted_anomaly)
+            formatted_response['anomalies'].append(formatted_anomaly)
 
-        return format_response("success", formatted_response)
+        return format_response('success', formatted_response)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "get_anomalies", "Cost Explorer")
+        return await handle_aws_error(ctx, e, 'get_anomalies', 'Cost Explorer')

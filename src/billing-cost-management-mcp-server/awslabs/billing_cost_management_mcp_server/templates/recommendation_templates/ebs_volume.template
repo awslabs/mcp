@@ -108,7 +108,7 @@ Write four narrative sections for one EBS recommendation JSON.
 • Quote each numeric value exactly once.
 • No CLI steps, alternative scenarios, or RI/SP advice.
 
-#### 1 | Summary 
+#### 1 | Summary
 EBS volume <id> is **<currType> <size GB>** with <currIOPS> IOPS and <currMBps> MB/s, costing about $<curr>/month.
 Based on the most recent <X>-day usage pattern, switching to **<recType> <size GB>** with <recIOPS/MBps> would reduce monthly cost from $<curr> to $<new>, a savings of $<Δ> (<Δ %>). Performance-risk for recommended volume is <riskLabel>. [View in Compute Optimizer](link_url).
 

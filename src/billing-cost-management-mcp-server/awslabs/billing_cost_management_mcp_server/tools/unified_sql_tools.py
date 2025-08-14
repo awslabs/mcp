@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Unified SQL tool for the AWS Billing and Cost Management MCP server.
+"""Unified SQL tool for the AWS Billing and Cost Management MCP server.
 
 This module provides a unified interface for executing SQL queries against
 session data, including AWS API results stored in SQLite.
@@ -22,21 +21,20 @@ Updated to use shared utility functions.
 """
 
 import uuid
-from typing import Any, Dict, List, Optional
-from fastmcp import Context, FastMCP
-from ..utilities.aws_service_base import (
-    handle_aws_error
-)
+from ..utilities.aws_service_base import handle_aws_error
 from ..utilities.sql_utils import execute_session_sql
+from fastmcp import Context, FastMCP
+from typing import Any, Dict, List, Optional
+
 
 unified_sql_server = FastMCP(
-    name="unified-sql-tools",
-    instructions="Unified SQL tool for querying session database and adding user data",
+    name='unified-sql-tools',
+    instructions='Unified SQL tool for querying session database and adding user data',
 )
 
 
 @unified_sql_server.tool(
-    name="session_sql",
+    name='session_sql',
     description="""Execute SQL queries on the persistent session database.
 
 This tool queries tables created by other tools (like cost_explorer_sql) within the current session.
@@ -58,8 +56,7 @@ async def session_sql(
     data: Optional[List[List[Any]]] = None,
     table_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Execute SQL query on the persistent session database, optionally adding user data first.
+    """Execute SQL query on the persistent session database, optionally adding user data first.
 
     Args:
         ctx: The MCP context object
@@ -74,11 +71,11 @@ async def session_sql(
     try:
         # Generate a table name if one is not provided but data is
         if data and schema and not table_name:
-            table_name = f"user_data_{str(uuid.uuid4())[:8]}"
-            
+            table_name = f'user_data_{str(uuid.uuid4())[:8]}'
+
         # Use the shared SQL utility to execute the query
         return await execute_session_sql(ctx, query, schema, data, table_name)
-        
+
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "session_sql", "SQL")
+        return await handle_aws_error(ctx, e, 'session_sql', 'SQL')

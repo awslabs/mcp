@@ -25,7 +25,7 @@ Generate four narrative sections for a single ECS-Fargate recommendation JSON.
 • Quote every numeric value once.
 • No implementation details, alternative scenarios, or RI/SP advice.
 ---
-#### 1. Summary 
+#### 1. Summary
 ECS service <name> runs tasks sized <CPU units> CPU & <MiB> MiB memory, costing about <current USD>/month.
 Based on the most recent <X>-day usage pattern, lowering <CPU/Mem> to <new value(s)> would reduce monthly cost from <current USD> to <new USD>, a savings of <Δ USD> (<Δ %>).
 Projected utilisation: <CPU %> CPU, <Mem %> memory. Performance-risk score: <score>.
@@ -62,7 +62,7 @@ What happens if you implement this recommendation
 Monthly service cost would drop from $78.56 to $72.07, saving $6.49 (8.3%). Annual savings would be about $78. Savings reflect a 205.73 GB-hour reduction in memory usage multiplied by the Fargate memory rate; vCPU-hour charges stay the same.
 
 Next steps
-* Register a new task definition with 2,048 MiB memory, deploy, and monitor for one week. If latency or errors rise, revert to the previous definition. 
+* Register a new task definition with 2,048 MiB memory, deploy, and monitor for one week. If latency or errors rise, revert to the previous definition.
 * Confirm no scaling policy targets both CPU and memory before applying the change.
 
 ## Recommendation Information

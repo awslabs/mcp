@@ -12,109 +12,72 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Pricing tools for the AWS Billing and Cost Management MCP server.
+"""AWS Pricing tools for the AWS Billing and Cost Management MCP server.
 
 Updated to use shared utility functions.
 """
 
 import os
-from typing import Any, Dict, Optional
-from fastmcp import Context, FastMCP
-from ..utilities.aws_service_base import (
-    handle_aws_error,
-    format_response
-)
-
-def get_pricing_region(requested_region: Optional[str] = None) -> str:
-    """Determine the appropriate AWS Pricing API region.
-    
-    The AWS Pricing API is only available in specific regions:
-    - Classic partition: us-east-1, eu-central-1, ap-southeast-1
-    - China partition: cn-northwest-1
-    
-    Args:
-        requested_region: The AWS region requested by the user (default: None)
-        
-    Returns:
-        str: The closest AWS Pricing API region
-    """
-    if not requested_region:
-        requested_region = os.environ.get("AWS_REGION", "us-east-1")
-    
-    # If the requested region is a pricing API region, use it directly
-    all_pricing_regions = ["us-east-1", "eu-central-1", "ap-southeast-1", "cn-northwest-1"]
-    if requested_region in all_pricing_regions:
-        return requested_region
-    
-    # Map the requested region to the nearest pricing API region
-    if requested_region.startswith("cn-"):
-        pricing_region = "cn-northwest-1"
-    elif requested_region.startswith(("eu-", "me-", "af-")):
-        pricing_region = "eu-central-1"
-    elif requested_region.startswith("ap-"):
-        pricing_region = "ap-southeast-1"
-    else:
-        pricing_region = "us-east-1"
-    
-    return pricing_region
+from ..utilities.aws_service_base import format_response, handle_aws_error
 
 # Import operation handlers from local module
 from .aws_pricing_operations import (
-    get_service_codes,
-    get_service_attributes,
     get_attribute_values,
-    get_pricing_from_api
+    get_pricing_from_api,
+    get_service_attributes,
+    get_service_codes,
 )
+from fastmcp import Context, FastMCP
+from typing import Any, Dict, Optional
+
 
 aws_pricing_server = FastMCP(
-    name="aws-pricing-tools", 
-    instructions="Tools for working with AWS Pricing API"
+    name='aws-pricing-tools', instructions='Tools for working with AWS Pricing API'
 )
 
 # Supported AWS Pricing API regions
 PRICING_API_REGIONS = {
-    "classic": ["us-east-1", "eu-central-1", "ap-southeast-1"],
-    "china": ["cn-northwest-1"],
+    'classic': ['us-east-1', 'eu-central-1', 'ap-southeast-1'],
+    'china': ['cn-northwest-1'],
 }
 
 
 def get_pricing_region(requested_region: Optional[str] = None) -> str:
     """Determine the appropriate AWS Pricing API region.
-    
+
     The AWS Pricing API is only available in specific regions:
     - Classic partition: us-east-1, eu-central-1, ap-southeast-1
     - China partition: cn-northwest-1
-    
+
     Args:
         requested_region: The AWS region requested by the user (default: None)
-        
+
     Returns:
         str: The closest AWS Pricing API region
     """
     if not requested_region:
-        requested_region = os.environ.get("AWS_REGION", "us-east-1")
-    
+        requested_region = os.environ.get('AWS_REGION', 'us-east-1')
+
     # If the requested region is a pricing API region, use it directly
-    all_pricing_regions = PRICING_API_REGIONS["classic"] + PRICING_API_REGIONS["china"]
+    all_pricing_regions = PRICING_API_REGIONS['classic'] + PRICING_API_REGIONS['china']
     if requested_region in all_pricing_regions:
         return requested_region
-    
+
     # Map the requested region to the nearest pricing API region
-    if requested_region.startswith("cn-"):
-        pricing_region = "cn-northwest-1"
-    elif requested_region.startswith(("eu-", "me-", "af-")):
-        pricing_region = "eu-central-1"
-    elif requested_region.startswith("ap-"):
-        pricing_region = "ap-southeast-1"
+    if requested_region.startswith('cn-'):
+        pricing_region = 'cn-northwest-1'
+    elif requested_region.startswith(('eu-', 'me-', 'af-')):
+        pricing_region = 'eu-central-1'
+    elif requested_region.startswith('ap-'):
+        pricing_region = 'ap-southeast-1'
     else:
-        pricing_region = "us-east-1"
-    
+        pricing_region = 'us-east-1'
+
     return pricing_region
 
 
 @aws_pricing_server.tool(
-    name="aws_pricing",
+    name='aws_pricing',
     description="""Comprehensive AWS pricing analysis tool that provides access to AWS service pricing information and cost analysis capabilities.
 
 This tool supports four main operations:
@@ -162,8 +125,7 @@ async def aws_pricing(
     filters: Optional[str] = None,
     max_results: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    AWS pricing analysis tool.
+    """AWS pricing analysis tool.
 
     Args:
         ctx: The MCP context object
@@ -178,41 +140,51 @@ async def aws_pricing(
         Dict containing the pricing information
     """
     try:
-        await ctx.info(f"AWS Pricing operation: {operation}")
+        await ctx.info(f'AWS Pricing operation: {operation}')
 
-        if operation == "get_service_codes":
+        if operation == 'get_service_codes':
             return await get_service_codes(ctx, max_results=max_results)
-            
-        elif operation == "get_service_attributes":
+
+        elif operation == 'get_service_attributes':
             if not service_code:
                 return format_response(
-                    "error",
-                    {"message": "service_code is required for get_service_attributes operation"}
+                    'error',
+                    {'message': 'service_code is required for get_service_attributes operation'},
                 )
             return await get_service_attributes(ctx, service_code)
-            
-        elif operation == "get_attribute_values":
+
+        elif operation == 'get_attribute_values':
             if not service_code or not attribute_name:
                 return format_response(
-                    "error",
-                    {"message": "service_code and attribute_name are required for get_attribute_values operation"}
+                    'error',
+                    {
+                        'message': 'service_code and attribute_name are required for get_attribute_values operation'
+                    },
                 )
-            return await get_attribute_values(ctx, service_code, attribute_name, max_results=max_results)
-            
-        elif operation == "get_pricing_from_api":
+            return await get_attribute_values(
+                ctx, service_code, attribute_name, max_results=max_results
+            )
+
+        elif operation == 'get_pricing_from_api':
             if not service_code or not region:
                 return format_response(
-                    "error",
-                    {"message": "service_code and region are required for get_pricing_from_api operation"}
+                    'error',
+                    {
+                        'message': 'service_code and region are required for get_pricing_from_api operation'
+                    },
                 )
-            return await get_pricing_from_api(ctx, service_code, region, filters, max_results=max_results)
-            
+            return await get_pricing_from_api(
+                ctx, service_code, region, filters, max_results=max_results
+            )
+
         else:
             return format_response(
-                "error",
-                {"message": f"Unknown operation: {operation}. Supported operations: get_service_codes, get_service_attributes, get_attribute_values, get_pricing_from_api"}
+                'error',
+                {
+                    'message': f'Unknown operation: {operation}. Supported operations: get_service_codes, get_service_attributes, get_attribute_values, get_pricing_from_api'
+                },
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, operation, "AWS Pricing")
+        return await handle_aws_error(ctx, e, operation, 'AWS Pricing')

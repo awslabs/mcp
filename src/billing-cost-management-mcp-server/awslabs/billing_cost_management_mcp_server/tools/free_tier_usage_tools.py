@@ -12,28 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Free Tier Usage tools for the AWS Billing and Cost Management MCP server.
+"""AWS Free Tier Usage tools for the AWS Billing and Cost Management MCP server.
 
 Updated to use shared utility functions.
 """
 
-from typing import Any, Dict, List, Optional
-from fastmcp import Context, FastMCP
 from ..utilities.aws_service_base import (
     create_aws_client,
-    handle_aws_error,
     format_response,
-    parse_json
+    handle_aws_error,
+    parse_json,
 )
+from fastmcp import Context, FastMCP
+from typing import Any, Dict, List, Optional
+
 
 free_tier_usage_server = FastMCP(
-    name="free-tier-usage-tools", instructions="Tools for working with AWS Free Tier Usage API"
+    name='free-tier-usage-tools', instructions='Tools for working with AWS Free Tier Usage API'
 )
 
 
 @free_tier_usage_server.tool(
-    name="free_tier_usage",
+    name='free_tier_usage',
     description="""Retrieves AWS Free Tier usage information using the Free Tier Usage API.
 
 This tool provides insights into your AWS Free Tier usage across services:
@@ -45,12 +45,11 @@ This tool provides insights into your AWS Free Tier usage across services:
 )
 async def free_tier_usage(
     ctx: Context,
-    operation: str = "get_free_tier_usage",
+    operation: str = 'get_free_tier_usage',
     filter: Optional[str] = None,
     max_results: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    Retrieves AWS Free Tier usage information using the Free Tier Usage API.
+    """Retrieves AWS Free Tier usage information using the Free Tier Usage API.
 
     Args:
         ctx: The MCP context object
@@ -62,40 +61,34 @@ async def free_tier_usage(
         Dict containing the free tier usage information
     """
     try:
-        await ctx.info(f"Free Tier Usage operation: {operation}")
+        await ctx.info(f'Free Tier Usage operation: {operation}')
 
         # Initialize Free Tier client using shared utility
-        freetier_client = create_aws_client("freetier", region_name="us-east-1")
+        freetier_client = create_aws_client('freetier', region_name='us-east-1')
 
-        if operation == "get_free_tier_usage":
+        if operation == 'get_free_tier_usage':
             return await get_free_tier_usage_data(ctx, freetier_client, filter, max_results)
         else:
             return format_response(
-                "error", 
-                {}, 
-                f"Unsupported operation: {operation}. Use 'get_free_tier_usage'."
+                'error', {}, f"Unsupported operation: {operation}. Use 'get_free_tier_usage'."
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "free_tier_usage", "Free Tier Usage")
+        return await handle_aws_error(ctx, e, 'free_tier_usage', 'Free Tier Usage')
 
 
 async def get_free_tier_usage_data(
-    ctx: Context,
-    freetier_client: Any, 
-    filter_expr: Optional[str], 
-    max_results: Optional[int]
+    ctx: Context, freetier_client: Any, filter_expr: Optional[str], max_results: Optional[int]
 ) -> Dict[str, Any]:
-    """
-    Retrieves Free Tier usage data.
-    
+    """Retrieves Free Tier usage data.
+
     Args:
         ctx: The MCP context
         freetier_client: Free Tier API client
         filter_expr: Optional filter as JSON string
         max_results: Maximum results to return
-        
+
     Returns:
         Dict containing Free Tier usage data
     """
@@ -114,10 +107,10 @@ async def get_free_tier_usage_data(
 
         # Add optional parameters if provided
         if filter_expr:
-            request_params["filter"] = parse_json(filter_expr, "filter")
+            request_params['filter'] = parse_json(filter_expr, 'filter')
 
         if max_results:
-            request_params["maxResults"] = max_results
+            request_params['maxResults'] = max_results
 
         # Use pagination to collect all usage data
         all_usages = []
@@ -126,19 +119,21 @@ async def get_free_tier_usage_data(
 
         while True:
             page_count += 1
-            
+
             if next_token:
-                request_params["nextToken"] = next_token
+                request_params['nextToken'] = next_token
 
-            await ctx.info(f"Fetching free tier usage page {page_count}")
+            await ctx.info(f'Fetching free tier usage page {page_count}')
             response = freetier_client.get_free_tier_usage(**request_params)
-            
-            page_usages = response.get("freeTierUsages", [])
-            all_usages.extend(page_usages)
-            
-            await ctx.info(f"Retrieved {len(page_usages)} free tier usage items (total: {len(all_usages)})")
 
-            next_token = response.get("nextToken")
+            page_usages = response.get('freeTierUsages', [])
+            all_usages.extend(page_usages)
+
+            await ctx.info(
+                f'Retrieved {len(page_usages)} free tier usage items (total: {len(all_usages)})'
+            )
+
+            next_token = response.get('nextToken')
             if not next_token:
                 break
 
@@ -146,26 +141,19 @@ async def get_free_tier_usage_data(
         summary = create_free_tier_usage_summary(all_usages)
 
         # Return formatted response using shared utility
-        return format_response(
-            "success",
-            {
-                "freeTierUsages": all_usages,
-                "summary": summary
-            }
-        )
+        return format_response('success', {'freeTierUsages': all_usages, 'summary': summary})
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "get_free_tier_usage_data", "Free Tier Usage")
+        return await handle_aws_error(ctx, e, 'get_free_tier_usage_data', 'Free Tier Usage')
 
 
 def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Create a summary of Free Tier usage focusing on items at or near limits.
-    
+    """Create a summary of Free Tier usage focusing on items at or near limits.
+
     Args:
         usages: List of Free Tier usage items
-        
+
     Returns:
         Dict containing usage summaries
     """
@@ -177,26 +165,26 @@ def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, An
 
     for item in usages:
         # Extract essential fields
-        service = item.get("service", "Unknown Service")
-        usage_type = item.get("usageType", "Unknown Type")
-        actual = item.get("actualUsageAmount")
-        limit = item.get("limit")
-        unit = item.get("unit", "")
-        
+        service = item.get('service', 'Unknown Service')
+        usage_type = item.get('usageType', 'Unknown Type')
+        actual = item.get('actualUsageAmount')
+        limit = item.get('limit')
+        unit = item.get('unit', '')
+
         # Create formatted usage item
         usage_item = {
-            "service": service,
-            "usage_type": usage_type,
-            "actual": actual,
-            "limit": limit,
-            "unit": unit,
+            'service': service,
+            'usage_type': usage_type,
+            'actual': actual,
+            'limit': limit,
+            'unit': unit,
         }
-        
+
         # Categorize based on usage percentage if we have valid numbers
         if actual is not None and limit is not None and limit > 0:
             usage_pct = (actual / limit) * 100
-            usage_item["percentage"] = round(usage_pct, 1)
-            
+            usage_item['percentage'] = round(usage_pct, 1)
+
             if usage_pct >= 99.9:  # At limit (accounting for floating point imprecision)
                 at_limit_items.append(usage_item)
             elif usage_pct >= 80:  # Near limit (80%+)
@@ -206,20 +194,20 @@ def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, An
         else:
             # Can't calculate percentage - missing data
             unknown_items.append(usage_item)
-    
+
     # Sort items by percentage (highest first) or service name
-    at_limit_items.sort(key=lambda x: (-(x.get("percentage") or 0), x.get("service", "")))
-    near_limit_items.sort(key=lambda x: (-(x.get("percentage") or 0), x.get("service", "")))
-    safe_items.sort(key=lambda x: (-(x.get("percentage") or 0), x.get("service", "")))
-    unknown_items.sort(key=lambda x: x.get("service", ""))
-    
+    at_limit_items.sort(key=lambda x: (-(x.get('percentage') or 0), x.get('service', '')))
+    near_limit_items.sort(key=lambda x: (-(x.get('percentage') or 0), x.get('service', '')))
+    safe_items.sort(key=lambda x: (-(x.get('percentage') or 0), x.get('service', '')))
+    unknown_items.sort(key=lambda x: x.get('service', ''))
+
     # Create the summary
     return {
-        "at_limit_count": len(at_limit_items),
-        "near_limit_count": len(near_limit_items),
-        "safe_count": len(safe_items),
-        "unknown_count": len(unknown_items),
-        "at_limit_items": at_limit_items,
-        "near_limit_items": near_limit_items,
-        "total_services": len(set(item.get("service", "") for item in usages))
+        'at_limit_count': len(at_limit_items),
+        'near_limit_count': len(near_limit_items),
+        'safe_count': len(safe_items),
+        'unknown_count': len(unknown_items),
+        'at_limit_items': at_limit_items,
+        'near_limit_items': near_limit_items,
+        'total_services': len({item.get('service', '') for item in usages}),
     }

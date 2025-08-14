@@ -12,218 +12,225 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Pricing operations for the AWS Billing and Cost Management MCP server.
+"""AWS Pricing operations for the AWS Billing and Cost Management MCP server.
 
 This module contains the individual operation handlers for the AWS Pricing tool.
 Updated to use shared utility functions.
 """
 
 import json
-from typing import Any, Dict, Optional
-from fastmcp import Context
-from ..utilities.aws_service_base import (
-    create_aws_client,
-    parse_json,
-    format_response
-)
+from ..utilities.aws_service_base import create_aws_client, format_response, parse_json
 from ..utilities.sql_utils import convert_api_response_to_table
 from .aws_pricing_tools import get_pricing_region
+from fastmcp import Context
+from typing import Any, Dict, Optional
 
 
 async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> Dict[str, Any]:
     """Retrieve all available service codes from AWS Price List API.
-    
+
     Uses shared utilities for client creation and response formatting.
-    
+
     Args:
         ctx: MCP context
         max_results: Maximum number of results to return
-        
+
     Returns:
         Dict containing service codes
     """
     try:
-        await ctx.info("Retrieving AWS service codes from Price List API")
-        
+        await ctx.info('Retrieving AWS service codes from Price List API')
+
         # Create pricing client using shared utility
-        pricing_client = create_aws_client("pricing", "us-east-1")
-        
+        pricing_client = create_aws_client('pricing', 'us-east-1')
+
         # Initialize collection variables
         service_codes = []
         next_token = None
         page_count = 0
-        
+
         # Fetch all pages
         while True:
             page_count += 1
-            
+
             # Prepare request parameters
             params: Dict[str, Any] = {}
             if next_token:
-                params["NextToken"] = next_token
+                params['NextToken'] = next_token
             if max_results:
-                params["MaxResults"] = int(max_results)
-            
+                params['MaxResults'] = int(max_results)
+
             # Make API call
-            await ctx.info(f"Fetching service codes page {page_count}")
+            await ctx.info(f'Fetching service codes page {page_count}')
             response = pricing_client.describe_services(**params)
-            
+
             # Process results
-            page_services = response.get("Services", [])
+            page_services = response.get('Services', [])
             for service in page_services:
-                service_codes.append(service["ServiceCode"])
-            
-            await ctx.info(f"Retrieved {len(page_services)} services (total: {len(service_codes)})")
-            
+                service_codes.append(service['ServiceCode'])
+
+            await ctx.info(
+                f'Retrieved {len(page_services)} services (total: {len(service_codes)})'
+            )
+
             # Check for more pages
-            next_token = response.get("NextToken")
+            next_token = response.get('NextToken')
             if not next_token:
                 break
-        
+
         # Sort for consistent output
         sorted_codes = sorted(service_codes)
-        
+
         # Use shared format_response utility
-        return format_response("success", {
-            "service_codes": sorted_codes,
-            "total_count": len(sorted_codes),
-            "message": f"Successfully retrieved {len(sorted_codes)} AWS service codes"
-        })
-    
+        return format_response(
+            'success',
+            {
+                'service_codes': sorted_codes,
+                'total_count': len(sorted_codes),
+                'message': f'Successfully retrieved {len(sorted_codes)} AWS service codes',
+            },
+        )
+
     except Exception as e:
         # Use standard error format
-        return format_response("error", {
-            "message": f"Error retrieving service codes: {str(e)}"
-        })
+        return format_response('error', {'message': f'Error retrieving service codes: {str(e)}'})
 
 
 async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, Any]:
     """Retrieve all available attributes for a specific AWS service.
-    
+
     Args:
         ctx: MCP context
         service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3')
-        
+
     Returns:
         Dict containing service attributes
     """
     try:
-        await ctx.info(f"Retrieving attributes for service: {service_code}")
-        
+        await ctx.info(f'Retrieving attributes for service: {service_code}')
+
         # Create pricing client using shared utility
-        pricing_client = create_aws_client("pricing", "us-east-1")
-        
+        pricing_client = create_aws_client('pricing', 'us-east-1')
+
         # Make API call
         response = pricing_client.describe_services(ServiceCode=service_code)
-        
+
         # Check if service exists
-        if not response.get("Services"):
-            return format_response("error", {
-                "message": f"No service found with code: {service_code}"
-            })
-        
+        if not response.get('Services'):
+            return format_response(
+                'error', {'message': f'No service found with code: {service_code}'}
+            )
+
         # Extract attributes
         attributes = []
-        for attr in response["Services"][0].get("AttributeNames", []):
+        for attr in response['Services'][0].get('AttributeNames', []):
             attributes.append(attr)
-        
+
         # Sort for consistent output
         sorted_attributes = sorted(attributes)
-        
+
         # Use shared format_response utility
-        return format_response("success", {
-            "service_code": service_code,
-            "attributes": sorted_attributes,
-            "total_count": len(sorted_attributes),
-            "message": f"Successfully retrieved {len(sorted_attributes)} attributes for {service_code}"
-        })
-    
+        return format_response(
+            'success',
+            {
+                'service_code': service_code,
+                'attributes': sorted_attributes,
+                'total_count': len(sorted_attributes),
+                'message': f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}',
+            },
+        )
+
     except Exception as e:
         # Use standard error format
-        return format_response("error", {
-            "message": f"Failed to retrieve attributes for service {service_code}: {str(e)}"
-        })
+        return format_response(
+            'error',
+            {'message': f'Failed to retrieve attributes for service {service_code}: {str(e)}'},
+        )
 
 
 async def get_attribute_values(
-    ctx: Context, 
-    service_code: str, 
-    attribute_name: str, 
-    max_results: Optional[int] = None
+    ctx: Context, service_code: str, attribute_name: str, max_results: Optional[int] = None
 ) -> Dict[str, Any]:
     """Retrieve all possible values for a specific attribute of an AWS service.
-    
+
     Args:
         ctx: MCP context
         service_code: AWS service code
         attribute_name: Service attribute name
         max_results: Maximum number of results to return
-        
+
     Returns:
         Dict containing attribute values
     """
     try:
-        await ctx.info(f"Retrieving values for attribute '{attribute_name}' of service '{service_code}'")
-        
+        await ctx.info(
+            f"Retrieving values for attribute '{attribute_name}' of service '{service_code}'"
+        )
+
         # Create pricing client using shared utility
-        pricing_client = create_aws_client("pricing", "us-east-1")
-        
+        pricing_client = create_aws_client('pricing', 'us-east-1')
+
         # Initialize collection variables
         values = []
         next_token = None
         page_count = 0
-        
+
         # Fetch all pages
         while True:
             page_count += 1
-            
+
             # Prepare request parameters
-            params: Dict[str, Any] = {"ServiceCode": service_code, "AttributeName": attribute_name}
+            params: Dict[str, Any] = {'ServiceCode': service_code, 'AttributeName': attribute_name}
             if next_token:
-                params["NextToken"] = next_token
+                params['NextToken'] = next_token
             if max_results is not None:
-                params["MaxResults"] = max_results
-            
+                params['MaxResults'] = max_results
+
             # Make API call
-            await ctx.info(f"Fetching attribute values page {page_count}")
+            await ctx.info(f'Fetching attribute values page {page_count}')
             response = pricing_client.get_attribute_values(**params)
-            
+
             # Process results
-            page_values = response.get("AttributeValues", [])
+            page_values = response.get('AttributeValues', [])
             for attr_value in page_values:
-                if "Value" in attr_value:
-                    values.append(attr_value["Value"])
-            
-            await ctx.info(f"Retrieved {len(page_values)} values (total: {len(values)})")
-            
+                if 'Value' in attr_value:
+                    values.append(attr_value['Value'])
+
+            await ctx.info(f'Retrieved {len(page_values)} values (total: {len(values)})')
+
             # Check for more pages
-            next_token = response.get("NextToken")
+            next_token = response.get('NextToken')
             if not next_token:
                 break
-            
+
             # Stop if max_results is specified and we've reached it
             if max_results is not None and len(values) >= max_results:
-                await ctx.info(f"Reached maximum results limit: {max_results}")
+                await ctx.info(f'Reached maximum results limit: {max_results}')
                 break
-        
+
         # Sort for consistent output
         sorted_values = sorted(values)
-        
+
         # Use shared format_response utility
-        return format_response("success", {
-            "service_code": service_code,
-            "attribute_name": attribute_name,
-            "values": sorted_values,
-            "total_count": len(sorted_values),
-            "message": f"Successfully retrieved {len(sorted_values)} values for attribute {attribute_name} of service {service_code}"
-        })
-    
+        return format_response(
+            'success',
+            {
+                'service_code': service_code,
+                'attribute_name': attribute_name,
+                'values': sorted_values,
+                'total_count': len(sorted_values),
+                'message': f'Successfully retrieved {len(sorted_values)} values for attribute {attribute_name} of service {service_code}',
+            },
+        )
+
     except Exception as e:
         # Use standard error format
-        return format_response("error", {
-            "message": f"Failed to retrieve values for attribute {attribute_name} of service {service_code}: {str(e)}"
-        })
+        return format_response(
+            'error',
+            {
+                'message': f'Failed to retrieve values for attribute {attribute_name} of service {service_code}: {str(e)}'
+            },
+        )
 
 
 async def get_pricing_from_api(
@@ -231,165 +238,178 @@ async def get_pricing_from_api(
     service_code: str,
     region: str,
     filters: Optional[str] = None,
-    max_results: Optional[int] = None
+    max_results: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Get pricing information from AWS Price List API.
-    
+
     Args:
         ctx: MCP context
         service_code: AWS service code
         region: AWS region
         filters: Optional filters as JSON string
         max_results: Maximum number of results to return
-        
+
     Returns:
         Dict containing pricing data
     """
     try:
-        await ctx.info(f"Retrieving pricing data for service '{service_code}' in region '{region}'")
-        
+        await ctx.info(
+            f"Retrieving pricing data for service '{service_code}' in region '{region}'"
+        )
+
         # Determine correct pricing region
         pricing_region = get_pricing_region(region)
-        await ctx.info(f"Using pricing API endpoint in region: {pricing_region}")
-        
+        await ctx.info(f'Using pricing API endpoint in region: {pricing_region}')
+
         # Create pricing client using shared utility
-        pricing_client = create_aws_client("pricing", pricing_region)
-        
+        pricing_client = create_aws_client('pricing', pricing_region)
+
         # Process filters
         api_filters = []
         if filters:
             # Parse JSON using shared utility
-            filters_dict = parse_json(filters, "filters")
+            filters_dict = parse_json(filters, 'filters')
             if filters_dict:
                 # Format: {"volumeType": "Standard", "storageClass": "General Purpose"}
                 for field, value in filters_dict.items():
                     if value is not None:
-                        filter_dict = {"Field": field, "Type": "TERM_MATCH", "Value": value}
+                        filter_dict = {'Field': field, 'Type': 'TERM_MATCH', 'Value': value}
                         api_filters.append(filter_dict)
-                        
-                await ctx.info(f"Applied {len(api_filters)} filters")
-        
+
+                await ctx.info(f'Applied {len(api_filters)} filters')
+
         # Initialize collection variables
         all_price_list = []
         next_token = None
         page_count = 0
-        
+
         # Fetch all pages
         while True:
             page_count += 1
-            
+
             # Prepare request parameters
-            params: Dict[str, Any] = {"ServiceCode": service_code, "Filters": api_filters}
+            params: Dict[str, Any] = {'ServiceCode': service_code, 'Filters': api_filters}
             if max_results:
-                params["MaxResults"] = int(max_results)
+                params['MaxResults'] = int(max_results)
             if next_token:
-                params["NextToken"] = next_token
-            
+                params['NextToken'] = next_token
+
             # Make API call
-            await ctx.info(f"Fetching pricing data page {page_count}")
+            await ctx.info(f'Fetching pricing data page {page_count}')
             response = pricing_client.get_products(**params)
-            
+
             # Process results
-            price_list = response.get("PriceList", [])
+            price_list = response.get('PriceList', [])
             all_price_list.extend(price_list)
-            
-            await ctx.info(f"Retrieved {len(price_list)} products (total: {len(all_price_list)})")
-            
+
+            await ctx.info(f'Retrieved {len(price_list)} products (total: {len(all_price_list)})')
+
             # Check for more pages
-            next_token = response.get("NextToken")
+            next_token = response.get('NextToken')
             if not next_token:
                 break
-            
+
             # Stop if max_results is specified and we've reached it
             if max_results is not None and len(all_price_list) >= max_results:
-                await ctx.info(f"Reached maximum results limit: {max_results}")
+                await ctx.info(f'Reached maximum results limit: {max_results}')
                 break
-        
+
         # Handle no results
         if not all_price_list:
-            return format_response("error", {
-                "message": f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
-                "examples": {
-                    "OpenSearch": "AmazonES",
-                    "Lambda": "AWSLambda",
-                    "DynamoDB": "AmazonDynamoDB",
-                    "Bedrock": "AmazonBedrock",
-                }
-            })
-        
+            return format_response(
+                'error',
+                {
+                    'message': f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
+                    'examples': {
+                        'OpenSearch': 'AmazonES',
+                        'Lambda': 'AWSLambda',
+                        'DynamoDB': 'AmazonDynamoDB',
+                        'Bedrock': 'AmazonBedrock',
+                    },
+                },
+            )
+
         # Create response with raw data
         raw_response = {
-            "service_code": service_code,
-            "region": region,
-            "filter_count": len(api_filters),
-            "total_products_found": len(all_price_list),
-            "PriceList": all_price_list
+            'service_code': service_code,
+            'region': region,
+            'filter_count': len(api_filters),
+            'total_products_found': len(all_price_list),
+            'PriceList': all_price_list,
         }
-        
+
         # Convert large responses to SQL table
         table_response = await convert_api_response_to_table(
-            ctx, 
-            raw_response, 
-            "getPricing", 
-            service_code=service_code,
-            region=region
+            ctx, raw_response, 'getPricing', service_code=service_code, region=region
         )
-        
+
         # If table was created, return that, otherwise process the response for easier consumption
-        if isinstance(table_response, dict) and "data_stored" in table_response:
-            return format_response("success", table_response)
-        
+        if isinstance(table_response, dict) and 'data_stored' in table_response:
+            return format_response('success', table_response)
+
         # Process the pricing data for easier consumption
-        display_limit = min(len(all_price_list), max_results if max_results else 100)  # Limit to 100 by default
+        display_limit = min(
+            len(all_price_list), max_results if max_results else 100
+        )  # Limit to 100 by default
         processed_products = []
-        
+
         for product_json in all_price_list[:display_limit]:
             product = json.loads(product_json)
             processed_product = {
-                "sku": product.get("product", {}).get("sku"),
-                "productFamily": product.get("product", {}).get("productFamily"),
-                "attributes": product.get("product", {}).get("attributes", {}),
+                'sku': product.get('product', {}).get('sku'),
+                'productFamily': product.get('product', {}).get('productFamily'),
+                'attributes': product.get('product', {}).get('attributes', {}),
             }
-            
+
             # Process terms in a more readable format
-            terms = product.get("terms", {})
+            terms = product.get('terms', {})
             processed_terms = {}
-            
+
             for term_type, term_values in terms.items():
                 processed_terms[term_type] = []
                 for _, term_details in term_values.items():
                     price_dimensions = []
-                    
-                    for _, dimension in term_details.get("priceDimensions", {}).items():
-                        price_dimensions.append({
-                            "description": dimension.get("description"),
-                            "unit": dimension.get("unit"),
-                            "pricePerUnit": dimension.get("pricePerUnit"),
-                        })
-                    
-                    processed_terms[term_type].append({
-                        "effectiveDate": term_details.get("effectiveDate"),
-                        "priceDimensions": price_dimensions
-                    })
-            
-            processed_product["terms"] = processed_terms
+
+                    for _, dimension in term_details.get('priceDimensions', {}).items():
+                        price_dimensions.append(
+                            {
+                                'description': dimension.get('description'),
+                                'unit': dimension.get('unit'),
+                                'pricePerUnit': dimension.get('pricePerUnit'),
+                            }
+                        )
+
+                    processed_terms[term_type].append(
+                        {
+                            'effectiveDate': term_details.get('effectiveDate'),
+                            'priceDimensions': price_dimensions,
+                        }
+                    )
+
+            processed_product['terms'] = processed_terms
             processed_products.append(processed_product)
-        
+
         # Use shared format_response utility
-        return format_response("success", {
-            "service_code": service_code,
-            "region": region,
-            "filter_count": len(api_filters),
-            "total_products_found": len(all_price_list),
-            "products_returned": len(processed_products),
-            "products": processed_products,
-        })
-    
+        return format_response(
+            'success',
+            {
+                'service_code': service_code,
+                'region': region,
+                'filter_count': len(api_filters),
+                'total_products_found': len(all_price_list),
+                'products_returned': len(processed_products),
+                'products': processed_products,
+            },
+        )
+
     except Exception as e:
         # Use standard error format
-        return format_response("error", {
-            "message": f"Pricing API request failed: {str(e)}",
-            "service_code": service_code,
-            "region": region,
-            "note": 'AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES" (for OpenSearch), etc.',
-        })
+        return format_response(
+            'error',
+            {
+                'message': f'Pricing API request failed: {str(e)}',
+                'service_code': service_code,
+                'region': region,
+                'note': 'AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES" (for OpenSearch), etc.',
+            },
+        )

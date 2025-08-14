@@ -12,34 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Cost Optimization Hub tools for the AWS Billing and Cost Management MCP server.
+"""AWS Cost Optimization Hub tools for the AWS Billing and Cost Management MCP server.
 
 Updated to use shared utility functions.
 """
 
-from typing import Any, Dict, Optional
-from fastmcp import Context, FastMCP
 from ..utilities.aws_service_base import (
     create_aws_client,
-    parse_json,
+    format_response,
     handle_aws_error,
-    format_response
+    parse_json,
 )
 from .cost_optimization_hub_helpers import (
-    list_recommendations,
     get_recommendation,
-    list_recommendation_summaries
+    list_recommendation_summaries,
+    list_recommendations,
 )
+from fastmcp import Context, FastMCP
+from typing import Any, Dict, Optional
+
 
 cost_optimization_hub_server = FastMCP(
-    name="cost-optimization-hub-tools",
-    instructions="Tools for working with AWS Cost Optimization Hub API"
+    name='cost-optimization-hub-tools',
+    instructions='Tools for working with AWS Cost Optimization Hub API',
 )
 
 
 @cost_optimization_hub_server.tool(
-    name="cost_optimization_hub",
+    name='cost_optimization_hub',
     description="""Retrieves recommendations from AWS Cost Optimization Hub.
 
 IMPORTANT USAGE GUIDELINES:
@@ -80,8 +80,7 @@ async def cost_optimization_hub(
     group_by: Optional[str] = None,
     include_all_recommendations: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """
-    Retrieves recommendations from AWS Cost Optimization Hub.
+    """Retrieves recommendations from AWS Cost Optimization Hub.
 
     Args:
         ctx: The MCP context
@@ -92,69 +91,72 @@ async def cost_optimization_hub(
         next_token: Pagination token for subsequent requests
         filters: Optional filter expression as JSON string
         group_by: Optional grouping parameter for list_recommendation_summaries
+        include_all_recommendations: Whether to include all recommendations
 
     Returns:
         Dict containing the Cost Optimization Hub recommendations
     """
     try:
         # Log the request
-        await ctx.info(f"Cost Optimization Hub operation: {operation}")
+        await ctx.info(f'Cost Optimization Hub operation: {operation}')
 
         # Initialize Cost Optimization Hub client using shared utility
-        coh_client = create_aws_client("cost-optimization-hub", "us-east-1")
-        
+        coh_client = create_aws_client('cost-optimization-hub', 'us-east-1')
+
         # Validate operation-specific requirements
-        if operation == "get_recommendation_summaries":
+        if operation == 'get_recommendation_summaries':
             if not group_by:
                 return format_response(
-                    "error",
+                    'error',
                     {},
-                    "group_by parameter is required for get_recommendation_summaries operation"
+                    'group_by parameter is required for get_recommendation_summaries operation',
                 )
-                
-        elif operation == "get_recommendation":
+
+        elif operation == 'get_recommendation':
             if not resource_id or not resource_type:
                 return format_response(
-                    "error",
+                    'error',
                     {},
-                    "Both resource_id and resource_type are required for get_recommendation operation"
+                    'Both resource_id and resource_type are required for get_recommendation operation',
                 )
 
         # Execute the appropriate operation
-        if operation == "get_recommendation_summaries":
+        if operation == 'get_recommendation_summaries':
             # Parse filters if provided
-            parsed_filters = parse_json(filters, "filters") if filters else None
+            parsed_filters = parse_json(filters, 'filters') if filters else None
             return await list_recommendation_summaries(
                 ctx, coh_client, max_results, next_token, parsed_filters, group_by
             )
-            
-        elif operation == "list_recommendations":
+
+        elif operation == 'list_recommendations':
             # Parse filters if provided
-            parsed_filters = parse_json(filters, "filters") if filters else None
+            parsed_filters = parse_json(filters, 'filters') if filters else None
             return await list_recommendations(
-                ctx, coh_client, max_results, next_token, parsed_filters, include_all_recommendations
+                ctx,
+                coh_client,
+                max_results,
+                next_token,
+                parsed_filters,
+                include_all_recommendations,
             )
-            
-        elif operation == "get_recommendation":
-            return await get_recommendation(
-                ctx, coh_client, resource_id, resource_type
-            )
-            
+
+        elif operation == 'get_recommendation':
+            return await get_recommendation(ctx, coh_client, resource_id, resource_type)
+
         else:
             # Return error for unsupported operations
             return format_response(
-                "error",
+                'error',
                 {
-                    "supported_operations": [
-                        "get_recommendation_summaries",
-                        "list_recommendations",
-                        "get_recommendation"
+                    'supported_operations': [
+                        'get_recommendation_summaries',
+                        'list_recommendations',
+                        'get_recommendation',
                     ]
                 },
-                f"Unsupported operation: {operation}. Use 'get_recommendation_summaries', 'list_recommendations', or 'get_recommendation'."
+                f"Unsupported operation: {operation}. Use 'get_recommendation_summaries', 'list_recommendations', or 'get_recommendation'.",
             )
 
     except Exception as e:
         # Use shared error handler
-        return await handle_aws_error(ctx, e, operation, "Cost Optimization Hub")
-
+        return await handle_aws_error(ctx, e, operation, 'Cost Optimization Hub')

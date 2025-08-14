@@ -12,26 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-AWS Budgets tools for the AWS Billing and Cost Management MCP server.
+"""AWS Budgets tools for the AWS Billing and Cost Management MCP server.
 
 Updated to use shared utility functions.
 """
 
+from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 from fastmcp import Context, FastMCP
-from ..utilities.aws_service_base import (
-    create_aws_client,
-    handle_aws_error,
-    format_response
-)
+from typing import Any, Dict, List, Optional
 
-budget_server = FastMCP(name="budget-tools", instructions="Tools for working with AWS Budgets API")
+
+budget_server = FastMCP(name='budget-tools', instructions='Tools for working with AWS Budgets API')
 
 
 @budget_server.tool(
-    name="budgets",
+    name='budgets',
     description="""Retrieves AWS budget information using the AWS Budgets API.
 
 This tool uses the DescribeBudgets API to retrieve all budgets for an account.
@@ -53,8 +49,7 @@ async def budgets(
     max_results: int = 100,
     account_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Retrieves AWS budget information using the AWS Budgets API.
+    """Retrieves AWS budget information using the AWS Budgets API.
 
     Args:
         ctx: The MCP context object
@@ -67,27 +62,27 @@ async def budgets(
     """
     try:
         # Log the request
-        await ctx.info(f"Retrieving budgets (budget_name={budget_name}, max_results={max_results})")
+        await ctx.info(
+            f'Retrieving budgets (budget_name={budget_name}, max_results={max_results})'
+        )
 
-        # Initialize Budgets client using shared utility
-        budgets_client = create_aws_client("budgets", region_name="us-east-1")
+        # Budgets client will be initialized in describe_budgets function
 
         # Get the AWS account ID dynamically or use provided one
         if not account_id:
             account_id = await get_aws_account_id(ctx)
-        await ctx.info(f"Using AWS Account ID: {account_id}")
+        await ctx.info(f'Using AWS Account ID: {account_id}')
 
         # Call describe_budgets
         return await describe_budgets(ctx, account_id, budget_name, max_results)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "budgets", "AWS Budgets")
+        return await handle_aws_error(ctx, e, 'budgets', 'AWS Budgets')
 
 
 async def get_aws_account_id(ctx: Context) -> str:
-    """
-    Retrieves the AWS account ID of the calling identity.
+    """Retrieves the AWS account ID of the calling identity.
 
     Returns:
         str: The AWS account ID.
@@ -97,31 +92,27 @@ async def get_aws_account_id(ctx: Context) -> str:
     """
     try:
         # Create an STS client using shared utility
-        sts_client = create_aws_client("sts")
+        sts_client = create_aws_client('sts')
 
-        await ctx.info("Retrieving AWS account ID from STS")
+        await ctx.info('Retrieving AWS account ID from STS')
 
         # Call get-caller-identity to retrieve the account ID
         response = sts_client.get_caller_identity()
 
         # Extract and return the account ID
-        return response["Account"]
+        return response['Account']
     except Exception as e:
         # Proper error handling - raise the exception with a clear message
-        raise Exception(f"Failed to retrieve AWS account ID: {str(e)}")
+        raise Exception(f'Failed to retrieve AWS account ID: {str(e)}')
 
 
 async def describe_budgets(
-    ctx: Context,
-    account_id: str, 
-    budget_name: Optional[str], 
-    max_results: int
+    ctx: Context, account_id: str, budget_name: Optional[str], max_results: int
 ) -> Dict[str, Any]:
-    """
-    Retrieves budgets using the AWS Budgets API.
+    """Retrieves budgets using the AWS Budgets API.
 
     Args:
-        budgets_client: The boto3 budgets client.
+        ctx: The MCP context object.
         account_id: The AWS account ID.
         budget_name: Optional budget name filter.
         max_results: Maximum number of results to return.
@@ -131,10 +122,10 @@ async def describe_budgets(
     """
     try:
         # Prepare the request parameters
-        request_params = {"AccountId": account_id, "MaxResults": max_results}
+        request_params = {'AccountId': account_id, 'MaxResults': max_results}
 
         # Initialize Budgets client using shared utility
-        budgets_client = create_aws_client("budgets", region_name="us-east-1")
+        budgets_client = create_aws_client('budgets', region_name='us-east-1')
 
         # Collect all budgets with internal pagination
         all_budgets = []
@@ -144,17 +135,17 @@ async def describe_budgets(
         while True:
             page_count += 1
             if next_token:
-                request_params["NextToken"] = next_token
+                request_params['NextToken'] = next_token
 
-            await ctx.info(f"Fetching budgets page {page_count}")
+            await ctx.info(f'Fetching budgets page {page_count}')
             response = budgets_client.describe_budgets(**request_params)
-            
-            page_budgets = response.get("Budgets", [])
-            all_budgets.extend(page_budgets)
-            
-            await ctx.info(f"Retrieved {len(page_budgets)} budgets (total: {len(all_budgets)})")
 
-            next_token = response.get("NextToken")
+            page_budgets = response.get('Budgets', [])
+            all_budgets.extend(page_budgets)
+
+            await ctx.info(f'Retrieved {len(page_budgets)} budgets (total: {len(all_budgets)})')
+
+            next_token = response.get('NextToken')
             if not next_token:
                 break
 
@@ -163,28 +154,29 @@ async def describe_budgets(
 
         # Handle budget name filtering client-side if provided
         if budget_name:
-            filtered_budgets = [b for b in formatted_budgets if b.get("budget_name") == budget_name]
+            filtered_budgets = [
+                b for b in formatted_budgets if b.get('budget_name') == budget_name
+            ]
             await ctx.info(f"Filtered to {len(filtered_budgets)} budgets matching '{budget_name}'")
             formatted_budgets = filtered_budgets
 
         # Return success response using shared format_response utility
         return format_response(
-            "success", 
+            'success',
             {
-                "budgets": formatted_budgets, 
-                "total_count": len(formatted_budgets),
-                "account_id": account_id
-            }
+                'budgets': formatted_budgets,
+                'total_count': len(formatted_budgets),
+                'account_id': account_id,
+            },
         )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, "describe_budgets", "AWS Budgets")
+        return await handle_aws_error(ctx, e, 'describe_budgets', 'AWS Budgets')
 
 
 def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Formats the budget objects from the AWS API response.
+    """Formats the budget objects from the AWS API response.
 
     Args:
         budgets: List of budget objects from the AWS API.
@@ -196,85 +188,88 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     for budget in budgets:
         formatted_budget = {
-            "budget_name": budget.get("BudgetName"),
-            "budget_type": budget.get("BudgetType"),
-            "time_unit": budget.get("TimeUnit"),
+            'budget_name': budget.get('BudgetName'),
+            'budget_type': budget.get('BudgetType'),
+            'time_unit': budget.get('TimeUnit'),
         }
 
         # Add limit if present
-        if "BudgetLimit" in budget:
-            formatted_budget["budget_limit"] = {
-                "amount": budget["BudgetLimit"].get("Amount"),
-                "unit": budget["BudgetLimit"].get("Unit"),
-                "formatted": f"{budget['BudgetLimit'].get('Amount')} {budget['BudgetLimit'].get('Unit')}"
+        if 'BudgetLimit' in budget:
+            formatted_budget['budget_limit'] = {
+                'amount': budget['BudgetLimit'].get('Amount'),
+                'unit': budget['BudgetLimit'].get('Unit'),
+                'formatted': f'{budget["BudgetLimit"].get("Amount")} {budget["BudgetLimit"].get("Unit")}',
             }
 
         # Add calculated spend if present
-        if "CalculatedSpend" in budget:
-            calculated_spend = budget["CalculatedSpend"]
+        if 'CalculatedSpend' in budget:
+            calculated_spend = budget['CalculatedSpend']
             calculated_spend_dict: Dict[str, Any] = {}
 
-            if "ActualSpend" in calculated_spend:
-                actual = calculated_spend["ActualSpend"]
-                calculated_spend_dict["actual_spend"] = {
-                    "amount": actual.get("Amount"),
-                    "unit": actual.get("Unit"),
-                    "formatted": f"{actual.get('Amount')} {actual.get('Unit')}"
+            if 'ActualSpend' in calculated_spend:
+                actual = calculated_spend['ActualSpend']
+                calculated_spend_dict['actual_spend'] = {
+                    'amount': actual.get('Amount'),
+                    'unit': actual.get('Unit'),
+                    'formatted': f'{actual.get("Amount")} {actual.get("Unit")}',
                 }
 
-            if "ForecastedSpend" in calculated_spend:
-                forecast = calculated_spend["ForecastedSpend"]
-                calculated_spend_dict["forecasted_spend"] = {
-                    "amount": forecast.get("Amount"),
-                    "unit": forecast.get("Unit"),
-                    "formatted": f"{forecast.get('Amount')} {forecast.get('Unit')}"
+            if 'ForecastedSpend' in calculated_spend:
+                forecast = calculated_spend['ForecastedSpend']
+                calculated_spend_dict['forecasted_spend'] = {
+                    'amount': forecast.get('Amount'),
+                    'unit': forecast.get('Unit'),
+                    'formatted': f'{forecast.get("Amount")} {forecast.get("Unit")}',
                 }
 
-            formatted_budget["calculated_spend"] = calculated_spend_dict
+            formatted_budget['calculated_spend'] = calculated_spend_dict
 
         # Add cost filters if present
-        if "CostFilters" in budget and budget["CostFilters"]:
-            formatted_budget["cost_filters"] = budget["CostFilters"]
+        if 'CostFilters' in budget and budget['CostFilters']:
+            formatted_budget['cost_filters'] = budget['CostFilters']
 
         # Add time period if present
-        if "TimePeriod" in budget:
-            time_period = budget["TimePeriod"]
+        if 'TimePeriod' in budget:
+            time_period = budget['TimePeriod']
             time_period_dict: Dict[str, Any] = {}
 
-            if "Start" in time_period:
-                time_period_dict["start"] = (
-                    time_period["Start"].strftime("%Y-%m-%d")
-                    if isinstance(time_period["Start"], datetime)
-                    else time_period["Start"]
+            if 'Start' in time_period:
+                time_period_dict['start'] = (
+                    time_period['Start'].strftime('%Y-%m-%d')
+                    if isinstance(time_period['Start'], datetime)
+                    else time_period['Start']
                 )
 
-            if "End" in time_period:
-                time_period_dict["end"] = (
-                    time_period["End"].strftime("%Y-%m-%d")
-                    if isinstance(time_period["End"], datetime)
-                    else time_period["End"]
+            if 'End' in time_period:
+                time_period_dict['end'] = (
+                    time_period['End'].strftime('%Y-%m-%d')
+                    if isinstance(time_period['End'], datetime)
+                    else time_period['End']
                 )
 
-            formatted_budget["time_period"] = time_period_dict
+            formatted_budget['time_period'] = time_period_dict
 
         # Add budget status (derived field)
-        if ("calculated_spend" in formatted_budget and 
-            "actual_spend" in formatted_budget["calculated_spend"] and 
-            "budget_limit" in formatted_budget):
-            
-            actual_amount = float(formatted_budget["calculated_spend"]["actual_spend"]["amount"])
-            limit_amount = float(formatted_budget["budget_limit"]["amount"])
-            
+        if (
+            'calculated_spend' in formatted_budget
+            and 'actual_spend' in formatted_budget['calculated_spend']
+            and 'budget_limit' in formatted_budget
+        ):
+            actual_amount = float(formatted_budget['calculated_spend']['actual_spend']['amount'])
+            limit_amount = float(formatted_budget['budget_limit']['amount'])
+
             if actual_amount >= limit_amount:
-                formatted_budget["status"] = "EXCEEDED"
-            elif "forecasted_spend" in formatted_budget["calculated_spend"]:
-                forecast_amount = float(formatted_budget["calculated_spend"]["forecasted_spend"]["amount"])
+                formatted_budget['status'] = 'EXCEEDED'
+            elif 'forecasted_spend' in formatted_budget['calculated_spend']:
+                forecast_amount = float(
+                    formatted_budget['calculated_spend']['forecasted_spend']['amount']
+                )
                 if forecast_amount >= limit_amount:
-                    formatted_budget["status"] = "FORECASTED_TO_EXCEED"
+                    formatted_budget['status'] = 'FORECASTED_TO_EXCEED'
                 else:
-                    formatted_budget["status"] = "OK"
+                    formatted_budget['status'] = 'OK'
             else:
-                formatted_budget["status"] = "OK"
+                formatted_budget['status'] = 'OK'
 
         formatted_budgets.append(formatted_budget)
 

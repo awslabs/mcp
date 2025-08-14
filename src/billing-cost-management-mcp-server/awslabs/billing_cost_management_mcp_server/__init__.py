@@ -31,7 +31,7 @@ from .utilities.aws_service_base import (
     validate_date_format,
     handle_aws_error,
     paginate_aws_response,
-    format_response
+    format_response,
 )
 
 # Import SQL utilities
@@ -42,5 +42,5 @@ from .utilities.sql_utils import (
     insert_data,
     execute_query,
     convert_api_response_to_table,
-    execute_session_sql
+    execute_session_sql,
 )
