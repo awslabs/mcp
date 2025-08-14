@@ -153,13 +153,16 @@ def validate_table_name(table_name: str) -> bool:
     return True
 
 
-def create_safe_sql_statement(statement_type: str, table_name: str, *args) -> str:
+def create_safe_sql_statement(
+    statement_type: str, table_name: str, *args, limit: Optional[int] = None
+) -> str:
     """Create a SQL statement with validated table name.
 
     Args:
         statement_type: Type of SQL statement (CREATE, SELECT, INSERT, etc.)
         table_name: Name of the table (will be validated)
         *args: Additional SQL statement parts
+        limit: Optional LIMIT clause value
 
     Returns:
         str: A safe SQL statement
@@ -172,7 +175,10 @@ def create_safe_sql_statement(statement_type: str, table_name: str, *args) -> st
     if statement_type.upper() == 'CREATE':
         return f'CREATE TABLE {table_name} ({", ".join(args)})'
     elif statement_type.upper() == 'SELECT':
-        return f'SELECT {", ".join(args)} FROM {table_name}'
+        base_sql = f'SELECT {", ".join(args)} FROM {table_name}'
+        if limit is not None and isinstance(limit, int) and limit > 0:
+            base_sql += f' LIMIT {limit}'
+        return base_sql
     elif statement_type.upper() == 'INSERT':
         return f'INSERT INTO {table_name} {args[0]}'
     else:
@@ -632,8 +638,8 @@ async def convert_api_response_to_table(
         conn.commit()
 
         # Get preview
-        sql = create_safe_sql_statement('SELECT', table_name, '*')
-        cursor.execute(sql + ' LIMIT 5')
+        sql = create_safe_sql_statement('SELECT', table_name, '*', limit=5)
+        cursor.execute(sql)
         preview_rows = cursor.fetchall()
 
         # Get column names for preview
