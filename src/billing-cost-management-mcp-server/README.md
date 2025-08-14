@@ -19,7 +19,7 @@ This helps AWS customers optimize their cloud spending by leveraging the analyti
 
 ## Value proposition
 
-The AWS Billing and Cost Management MCP Server provides several key benefits:
+The AWS Billing and Cost Management MCP Server provides several benefits:
 
 1. **Simplified Access**: Makes AWS cost optimization services accessible to LLMs without complex integration
 2. **Enhanced Analysis**: Combines AWS's cost data with LLM's analytical capabilities
