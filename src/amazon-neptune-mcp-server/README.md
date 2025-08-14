@@ -6,8 +6,8 @@ An Amazon Neptune MCP server that allows for fetching status, schema, and queryi
 
 The Amazon Neptune MCP Server provides the following capabilities:
 
-1. **Run Queries**: Execute openCypher and/or Gremlin queries against the configured database
-2. **Schema**: Get the schema in the configured graph as a text string
+1. **Run Queries**: Execute openCypher, SPARQL, and/or Gremlin queries against the configured database
+2. **Schema**: Get the schema in the configured graph as a text string.  You can choose to see either the Property Graph or RDF schemas
 3. **Status**: Find if the graph is "Available" or "Unavailable" to your server.  This is useful in helping to ensure that the graph is connected.
 
 ### AWS Requirements
@@ -45,8 +45,9 @@ Below is an example of how to configure your MCP client, although different clie
       "command": "uvx",
       "args": ["awslabs.amazon-neptune-mcp-server@latest"],
       "env": {
-        "FASTMCP_LOG_LEVEL": "INFO",
-        "NEPTUNE_ENDPOINT": "<INSERT NEPTUNE ENDPOINT IN FORMAT SPECIFIED BELOW>"
+        "FASTMCP_LOG_LEVEL": "INFO", // Optional, Change this to see more troubleshooting and debug information
+        "NEPTUNE_ENDPOINT": "<INSERT NEPTUNE ENDPOINT IN FORMAT SPECIFIED BELOW>",
+        "NEPTUNE_PORT":  8182 // Optional, this is an integer value representing the port
       }
     }
   }
@@ -69,7 +70,8 @@ After building with `docker build -t awslabs/amazon-neptune-mcp-server .`:
         ],
         "env": {
         "FASTMCP_LOG_LEVEL": "INFO",
-        "NEPTUNE_ENDPOINT": "<INSERT NEPTUNE ENDPOINT IN FORMAT SPECIFIED BELOW>"
+        "NEPTUNE_ENDPOINT": "<INSERT NEPTUNE ENDPOINT IN FORMAT SPECIFIED BELOW>",
+        "NEPTUNE_PORT":  8182 // Optional, this is an integer value representing the port
         },
         "disabled": false,
         "autoApprove": []

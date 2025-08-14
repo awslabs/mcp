@@ -14,11 +14,17 @@
 """Tests for the data models."""
 
 from awslabs.amazon_neptune_mcp_server.models import (
+    ClassItem,
+    DatatypePropertyItem,
     GraphSchema,
     Node,
+    ObjectPropertyItem,
+    OntologyItem,
     Property,
+    RDFGraphSchema,
     Relationship,
     RelationshipPattern,
+    URIItem,
 )
 
 
@@ -212,3 +218,223 @@ class TestModels:
         assert len(schema_dict['nodes']) == 2
         assert len(schema_dict['relationships']) == 2
         assert len(schema_dict['relationship_patterns']) == 2
+
+    def test_uri_item_model(self):
+        """Test the URIItem model creation and serialization.
+
+        This test verifies that:
+        1. A URIItem can be created with uri and local attributes
+        2. The attributes are correctly accessible
+        3. The model serializes correctly to a dictionary
+        """
+        # Create a URIItem
+        uri_item = URIItem(uri='http://example.org/person', local='person')
+
+        # Verify attributes
+        assert uri_item.uri == 'http://example.org/person'
+        assert uri_item.local == 'person'
+
+        # Test serialization
+        uri_item_dict = uri_item.model_dump()
+        assert uri_item_dict == {'uri': 'http://example.org/person', 'local': 'person'}
+
+    def test_ontology_item_model(self):
+        """Test the OntologyItem model creation and serialization.
+
+        This test verifies that:
+        1. An OntologyItem can be created with uri, label, and comment attributes
+        2. The attributes are correctly accessible
+        3. The model serializes correctly to a dictionary
+        """
+        # Create an OntologyItem
+        ontology = OntologyItem(
+            uri='http://example.org/ontology',
+            label='Example Ontology',
+            comment='An example ontology for testing',
+        )
+
+        # Verify attributes
+        assert ontology.uri == 'http://example.org/ontology'
+        assert ontology.label == 'Example Ontology'
+        assert ontology.comment == 'An example ontology for testing'
+
+        # Test serialization
+        ontology_dict = ontology.model_dump()
+        assert ontology_dict == {
+            'uri': 'http://example.org/ontology',
+            'label': 'Example Ontology',
+            'comment': 'An example ontology for testing',
+        }
+
+    def test_class_item_model(self):
+        """Test the ClassItem model creation and serialization.
+
+        This test verifies that:
+        1. A ClassItem can be created with all attributes
+        2. The attributes are correctly accessible
+        3. The model serializes correctly to a dictionary
+        """
+        # Create a ClassItem
+        class_item = ClassItem(
+            uri='http://example.org/Person',
+            local='Person',
+            parent_uri='http://example.org/Agent',
+            label='Person Class',
+            comment='Represents a person',
+        )
+
+        # Verify attributes
+        assert class_item.uri == 'http://example.org/Person'
+        assert class_item.local == 'Person'
+        assert class_item.parent_uri == 'http://example.org/Agent'
+        assert class_item.label == 'Person Class'
+        assert class_item.comment == 'Represents a person'
+
+        # Test serialization
+        class_item_dict = class_item.model_dump()
+        assert class_item_dict == {
+            'uri': 'http://example.org/Person',
+            'local': 'Person',
+            'parent_uri': 'http://example.org/Agent',
+            'label': 'Person Class',
+            'comment': 'Represents a person',
+        }
+
+    def test_datatype_property_item_model(self):
+        """Test the DatatypePropertyItem model creation and serialization.
+
+        This test verifies that:
+        1. A DatatypePropertyItem can be created with all attributes
+        2. The attributes are correctly accessible
+        3. The model serializes correctly to a dictionary
+        """
+        # Create a DatatypePropertyItem
+        dt_prop = DatatypePropertyItem(
+            uri='http://example.org/age',
+            local='age',
+            domain_uri='http://example.org/Person',
+            range_uri='http://www.w3.org/2001/XMLSchema#integer',
+            label='Age',
+            comment='The age of a person',
+        )
+
+        # Verify attributes
+        assert dt_prop.uri == 'http://example.org/age'
+        assert dt_prop.local == 'age'
+        assert dt_prop.domain_uri == 'http://example.org/Person'
+        assert dt_prop.range_uri == 'http://www.w3.org/2001/XMLSchema#integer'
+        assert dt_prop.label == 'Age'
+        assert dt_prop.comment == 'The age of a person'
+
+        # Test serialization
+        dt_prop_dict = dt_prop.model_dump()
+        assert dt_prop_dict == {
+            'uri': 'http://example.org/age',
+            'local': 'age',
+            'parent_uri': None,
+            'domain_uri': 'http://example.org/Person',
+            'range_uri': 'http://www.w3.org/2001/XMLSchema#integer',
+            'label': 'Age',
+            'comment': 'The age of a person',
+        }
+
+    def test_object_property_item_model(self):
+        """Test the ObjectPropertyItem model creation and serialization.
+
+        This test verifies that:
+        1. An ObjectPropertyItem can be created with all attributes
+        2. The attributes are correctly accessible
+        3. The model serializes correctly to a dictionary
+        """
+        # Create an ObjectPropertyItem
+        obj_prop = ObjectPropertyItem(
+            uri='http://example.org/knows',
+            local='knows',
+            domain_uri='http://example.org/Person',
+            range_uri='http://example.org/Person',
+            label='Knows',
+            comment='Indicates that a person knows another person',
+        )
+
+        # Verify attributes
+        assert obj_prop.uri == 'http://example.org/knows'
+        assert obj_prop.local == 'knows'
+        assert obj_prop.domain_uri == 'http://example.org/Person'
+        assert obj_prop.range_uri == 'http://example.org/Person'
+        assert obj_prop.label == 'Knows'
+        assert obj_prop.comment == 'Indicates that a person knows another person'
+
+        # Test serialization
+        obj_prop_dict = obj_prop.model_dump()
+        assert obj_prop_dict == {
+            'uri': 'http://example.org/knows',
+            'local': 'knows',
+            'parent_uri': None,
+            'domain_uri': 'http://example.org/Person',
+            'range_uri': 'http://example.org/Person',
+            'label': 'Knows',
+            'comment': 'Indicates that a person knows another person',
+        }
+
+    def test_rdf_graph_schema_model(self):
+        """Test the RDFGraphSchema model creation and serialization.
+
+        This test verifies that:
+        1. An RDFGraphSchema can be created with all attributes
+        2. The attributes are correctly accessible
+        3. The model serializes correctly to a dictionary
+        """
+        # Create prefixes
+        prefixes = {'ex': 'http://example.org/'}
+
+        # Create ontologies
+        ontology = OntologyItem(uri='http://example.org/ontology', label='Example Ontology')
+
+        # Create classes
+        person_class = ClassItem(uri='http://example.org/Person', local='Person')
+
+        # Create relationships
+        knows_rel = URIItem(uri='http://example.org/knows', local='knows')
+
+        # Create datatype properties
+        age_prop = DatatypePropertyItem(uri='http://example.org/age', local='age')
+
+        # Create object properties
+        knows_prop = ObjectPropertyItem(uri='http://example.org/knows', local='knows')
+
+        # Create RDF classes and predicates
+        rdfclasses = ['http://example.org/Person']
+        predicates = ['http://example.org/knows', 'http://example.org/age']
+
+        # Create RDF graph schema
+        schema = RDFGraphSchema(
+            distinct_prefixes=prefixes,
+            ontologies=[ontology],
+            classes=[person_class],
+            rels=[knows_rel],
+            dtprops=[age_prop],
+            oprops=[knows_prop],
+            rdfclasses=rdfclasses,
+            predicates=predicates,
+        )
+
+        # Verify attributes
+        assert schema.distinct_prefixes == prefixes
+        assert len(schema.ontologies) == 1
+        assert len(schema.classes) == 1
+        assert len(schema.rels) == 1
+        assert len(schema.dtprops) == 1
+        assert len(schema.oprops) == 1
+        assert len(schema.rdfclasses) == 1
+        assert len(schema.predicates) == 2
+
+        # Test serialization
+        schema_dict = schema.model_dump()
+        assert schema_dict['distinct_prefixes'] == prefixes
+        assert len(schema_dict['ontologies']) == 1
+        assert len(schema_dict['classes']) == 1
+        assert len(schema_dict['rels']) == 1
+        assert len(schema_dict['dtprops']) == 1
+        assert len(schema_dict['oprops']) == 1
+        assert len(schema_dict['rdfclasses']) == 1
+        assert len(schema_dict['predicates']) == 2
