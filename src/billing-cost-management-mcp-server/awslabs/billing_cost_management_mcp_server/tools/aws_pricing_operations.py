@@ -19,9 +19,8 @@ Updated to use shared utility functions.
 """
 
 import json
-from ..utilities.aws_service_base import create_aws_client, format_response, parse_json
+from ..utilities.aws_service_base import create_aws_client, format_response, parse_json, get_pricing_region
 from ..utilities.sql_utils import convert_api_response_to_table
-from .aws_pricing_tools import get_pricing_region
 from fastmcp import Context
 from typing import Any, Dict, Optional
 

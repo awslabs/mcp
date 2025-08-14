@@ -35,46 +35,6 @@ aws_pricing_server = FastMCP(
     name='aws-pricing-tools', instructions='Tools for working with AWS Pricing API'
 )
 
-# Supported AWS Pricing API regions
-PRICING_API_REGIONS = {
-    'classic': ['us-east-1', 'eu-central-1', 'ap-southeast-1'],
-    'china': ['cn-northwest-1'],
-}
-
-
-def get_pricing_region(requested_region: Optional[str] = None) -> str:
-    """Determine the appropriate AWS Pricing API region.
-
-    The AWS Pricing API is only available in specific regions:
-    - Classic partition: us-east-1, eu-central-1, ap-southeast-1
-    - China partition: cn-northwest-1
-
-    Args:
-        requested_region: The AWS region requested by the user (default: None)
-
-    Returns:
-        str: The closest AWS Pricing API region
-    """
-    if not requested_region:
-        requested_region = os.environ.get('AWS_REGION', 'us-east-1')
-
-    # If the requested region is a pricing API region, use it directly
-    all_pricing_regions = PRICING_API_REGIONS['classic'] + PRICING_API_REGIONS['china']
-    if requested_region in all_pricing_regions:
-        return requested_region
-
-    # Map the requested region to the nearest pricing API region
-    if requested_region.startswith('cn-'):
-        pricing_region = 'cn-northwest-1'
-    elif requested_region.startswith(('eu-', 'me-', 'af-')):
-        pricing_region = 'eu-central-1'
-    elif requested_region.startswith('ap-'):
-        pricing_region = 'ap-southeast-1'
-    else:
-        pricing_region = 'us-east-1'
-
-    return pricing_region
-
 
 @aws_pricing_server.tool(
     name='aws_pricing',
