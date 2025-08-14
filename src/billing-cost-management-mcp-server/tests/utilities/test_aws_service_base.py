@@ -370,7 +370,7 @@ class TestFormatResponse:
         # Execute
         result = format_response('error', data, message)
 
-        # Assert with comprehensive validation
+        # Assert with comprehensive validatio
         assert result['status'] == 'error'
         assert result['data'] == data
         assert result['message'] == message
