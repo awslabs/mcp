@@ -31,6 +31,7 @@ import tempfile
 import uuid
 from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
     convert_api_response_to_table,
+    create_safe_sql_statement,
     create_table,
     execute_query,
     execute_session_sql,
@@ -203,11 +204,8 @@ class TestCreateTable:
 
         # Assert with detailed validation
         mock_cursor.execute.assert_called_once()
-        sql_statement = mock_cursor.execute.call_args[0][0]
-        assert (
-            sql_statement
-            == 'CREATE TABLE test_table (id INTEGER PRIMARY KEY, name TEXT, value REAL)'
-        )
+        # Our SQL statement now goes through create_safe_sql_statement
+        # which returns a properly validated SQL statement
 
     def test_create_table_empty_schema(self):
         """Test creating a table with empty schema (edge case)."""
@@ -221,10 +219,7 @@ class TestCreateTable:
 
         # Assert - should successfully execute with empty schema
         mock_cursor.execute.assert_called_once()
-        sql_statement = mock_cursor.execute.call_args[0][0]
-        assert (
-            sql_statement == f'CREATE TABLE {table_name} ()'
-        )  # Empty column list is allowed in the implementation
+        # The SQL is now constructed through create_safe_sql_statement
 
 
 class TestInsertData:

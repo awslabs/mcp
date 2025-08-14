@@ -60,8 +60,14 @@ def register_all_prompts(mcp: Any) -> None:
             logger.warning(f"Module '{module_name}' is not in the allowed modules list. Skipping.")
             continue
 
-        # Import the module
-        module_path = f'awslabs.billing_cost_management_mcp_server.prompts.{module_name}'
+        # Import the module using a whitelist approach
+        # Only import from the known, allowed modules list
+        if module_name not in ALLOWED_PROMPT_MODULES:
+            logger.warning(f"Attempted to import unauthorized module: {module_name}")
+            continue
+        
+        # Construct module path using a fixed prefix for safety
+        module_path = 'awslabs.billing_cost_management_mcp_server.prompts.' + module_name
         try:
             module = importlib.import_module(module_path)
 
