@@ -178,9 +178,9 @@ class TestCreateResourceResponse:
         # Arrange
         items = [
             TableBucketSummary(
-                arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+                arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
                 name='test-bucket',
-                owner_account_id='123456789012',
+                owner_account_id='<account-id>',
                 created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
             )
         ]
@@ -194,7 +194,7 @@ class TestCreateResourceResponse:
         parsed = json.loads(result)
         assert (
             parsed['table_buckets'][0]['arn']
-            == 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+            == 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
         )
         assert parsed['table_buckets'][0]['name'] == 'test-bucket'
         assert parsed['total_count'] == 1
@@ -246,9 +246,9 @@ class TestListTableBucketsResource:
             {
                 'tableBuckets': [
                     {
-                        'arn': 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+                        'arn': 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
                         'name': 'test-bucket',
-                        'ownerAccountId': '123456789012',
+                        'ownerAccountId': '<account-id>',
                         'createdAt': '2023-01-01T00:00:00Z',
                     }
                 ]
@@ -267,7 +267,7 @@ class TestListTableBucketsResource:
             assert len(parsed['table_buckets']) == 1
             assert (
                 parsed['table_buckets'][0]['arn']
-                == 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+                == 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
             )
             assert parsed['total_count'] == 1
 
@@ -319,9 +319,9 @@ class TestListTableBucketsResource:
             {
                 'tableBuckets': [
                     {
-                        'arn': 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+                        'arn': 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
                         'name': 'test-bucket',
-                        'ownerAccountId': '123456789012',
+                        'ownerAccountId': '<account-id>',
                         'createdAt': '2023-01-01T00:00:00Z',
                     }
                 ]
@@ -358,7 +358,7 @@ class TestGetTableBuckets:
     async def test_get_table_buckets_success(self):
         """Test successful table buckets retrieval."""
         # Arrange
-        mock_response = '{"table_buckets": [{"arn": "arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket", "name": "test-bucket", "owner_account_id": "123456789012", "created_at": "2023-01-01T00:00:00Z"}], "total_count": 1}'
+        mock_response = '{"table_buckets": [{"arn": "arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket", "name": "test-bucket", "owner_account_id": "<account-id>", "created_at": "2023-01-01T00:00:00Z"}], "total_count": 1}'
 
         with patch(
             'awslabs.s3_tables_mcp_server.resources.list_table_buckets_resource',
@@ -369,7 +369,7 @@ class TestGetTableBuckets:
 
             # Assert
             assert len(result) == 1
-            assert result[0].arn == 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+            assert result[0].arn == 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
             assert result[0].name == 'test-bucket'
 
     @pytest.mark.asyncio
@@ -402,8 +402,8 @@ class TestListNamespacesResource:
                     {
                         'namespace': ['test-namespace'],
                         'createdAt': '2023-01-01T00:00:00Z',
-                        'createdBy': '123456789012',
-                        'ownerAccountId': '123456789012',
+                        'createdBy': '<account-id>',
+                        'ownerAccountId': '<account-id>',
                     }
                 ]
             }
@@ -412,9 +412,9 @@ class TestListNamespacesResource:
 
         # Mock get_table_buckets to return a bucket
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
@@ -442,9 +442,9 @@ class TestListNamespacesResource:
         """Test namespaces resource listing with exception."""
         # Arrange
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
@@ -492,17 +492,17 @@ class TestListNamespacesResource:
                     {
                         'namespace': ['test-namespace'],
                         'createdAt': '2023-01-01T00:00:00Z',
-                        'createdBy': '123456789012',
-                        'ownerAccountId': '123456789012',
+                        'createdBy': '<account-id>',
+                        'ownerAccountId': '<account-id>',
                     }
                 ]
             }
         ]
         mock_client.get_paginator.return_value = mock_paginator
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
         with (
@@ -522,9 +522,9 @@ class TestListNamespacesResource:
     async def test_list_namespaces_resource_invalid_region(self):
         """Test namespaces resource listing with invalid region_name."""
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
         with (
@@ -558,11 +558,11 @@ class TestListTablesResource:
                         'name': 'test-table',
                         'namespace': ['test-namespace'],
                         'type': 'customer',
-                        'tableARN': 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket/table/123e4567-e89b-12d3-a456-426614174000',
+                        'tableARN': 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket/table/123e4567-e89b-12d3-a456-426614174000',
                         'createdAt': '2023-01-01T00:00:00Z',
                         'modifiedAt': '2023-01-01T00:00:00Z',
-                        'createdBy': '123456789012',
-                        'ownerAccountId': '123456789012',
+                        'createdBy': '<account-id>',
+                        'ownerAccountId': '<account-id>',
                     }
                 ]
             }
@@ -571,9 +571,9 @@ class TestListTablesResource:
 
         # Mock get_table_buckets to return a bucket
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
@@ -602,9 +602,9 @@ class TestListTablesResource:
         """Test tables resource listing with exception."""
         # Arrange
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
 
@@ -653,20 +653,20 @@ class TestListTablesResource:
                         'name': 'test-table',
                         'namespace': ['test-namespace'],
                         'type': 'customer',
-                        'tableARN': 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket/table/123e4567-e89b-12d3-a456-426614174000',
+                        'tableARN': 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket/table/123e4567-e89b-12d3-a456-426614174000',
                         'createdAt': '2023-01-01T00:00:00Z',
                         'modifiedAt': '2023-01-01T00:00:00Z',
-                        'createdBy': '123456789012',
-                        'ownerAccountId': '123456789012',
+                        'createdBy': '<account-id>',
+                        'ownerAccountId': '<account-id>',
                     }
                 ]
             }
         ]
         mock_client.get_paginator.return_value = mock_paginator
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
         with (
@@ -686,9 +686,9 @@ class TestListTablesResource:
     async def test_list_tables_resource_invalid_region(self):
         """Test tables resource listing with invalid region_name."""
         mock_bucket = TableBucketSummary(
-            arn='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            arn='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             name='test-bucket',
-            owner_account_id='123456789012',
+            owner_account_id='<account-id>',
             created_at=datetime.fromisoformat('2023-01-01T00:00:00+00:00'),
         )
         with (

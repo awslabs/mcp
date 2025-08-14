@@ -60,9 +60,9 @@ async def test_detect_image_pull_failures_happy_path(test_module_setup):
     async def mock_get_td(app_name):
         return [
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "containerDefinitions": [{"name": "container1", "image": "image1"}],
-                "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+                "executionRoleArn": "arn:aws:iam::<account-id>:role/ecsTaskExecutionRole",
             }
         ]
 
@@ -72,7 +72,7 @@ async def test_detect_image_pull_failures_happy_path(test_module_setup):
                 "image": "image1",
                 "exists": "true",
                 "repository_type": "ecr",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "container_name": "container1",
             }
         ]
@@ -122,12 +122,12 @@ async def test_detect_image_pull_failures_with_invalid_images(test_module_setup)
     async def mock_get_td(app_name):
         return [
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "containerDefinitions": [
                     {"name": "container1", "image": "valid-image"},
                     {"name": "container2", "image": "invalid-image"},
                 ],
-                "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+                "executionRoleArn": "arn:aws:iam::<account-id>:role/ecsTaskExecutionRole",
             }
         ]
 
@@ -137,14 +137,14 @@ async def test_detect_image_pull_failures_with_invalid_images(test_module_setup)
                 "image": "valid-image",
                 "exists": "true",
                 "repository_type": "ecr",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "container_name": "container1",
             },
             {
                 "image": "invalid-image",
                 "exists": "false",
                 "repository_type": "ecr",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "container_name": "container2",
             },
         ]
@@ -174,18 +174,18 @@ async def test_detect_image_pull_failures_comprehensive(test_module_setup):
     async def mock_get_td(app_name):
         return [
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "containerDefinitions": [
                     {"name": "container1", "image": "image1"},
                     {"name": "container2", "image": "image2"},
                 ],
             },
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task2:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task2:1",
                 "containerDefinitions": [{"name": "container3", "image": "image3"}],
             },
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task3:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task3:1",
                 "containerDefinitions": [{"name": "container4", "image": "image4"}],
             },
         ]
@@ -196,7 +196,7 @@ async def test_detect_image_pull_failures_comprehensive(test_module_setup):
                 "image": "image1",
                 "exists": "true",
                 "repository_type": "ecr",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "container_name": "container1",
             },
             {
@@ -204,14 +204,14 @@ async def test_detect_image_pull_failures_comprehensive(test_module_setup):
                 "exists": "false",
                 "repository_type": "ecr",
                 "reason": "Repository not found",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "container_name": "container2",
             },
             {
                 "image": "image3",
                 "exists": "true",
                 "repository_type": "ecr",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task2:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task2:1",
                 "container_name": "container3",
             },
             {
@@ -219,7 +219,7 @@ async def test_detect_image_pull_failures_comprehensive(test_module_setup):
                 "exists": "false",
                 "repository_type": "ecr",
                 "reason": "Access denied",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task3:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task3:1",
                 "container_name": "container4",
             },
         ]
@@ -253,11 +253,11 @@ async def test_detect_image_pull_failures_with_missing_execution_role(test_modul
     async def mock_get_td(app_name):
         return [
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "containerDefinitions": [
                     {
                         "name": "container1",
-                        "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:latest",
+                        "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:latest",
                     }
                 ],
                 # No executionRoleArn
@@ -267,10 +267,10 @@ async def test_detect_image_pull_failures_with_missing_execution_role(test_modul
     async def mock_validate(task_definitions):
         return [
             {
-                "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:latest",
+                "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:latest",
                 "exists": "true",
                 "repository_type": "ecr",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "container_name": "container1",
             }
         ]
@@ -299,9 +299,9 @@ async def test_detect_image_pull_failures_external_image(test_module_setup):
     async def mock_get_td(app_name):
         return [
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "containerDefinitions": [{"name": "container1", "image": "nginx:latest"}],
-                "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+                "executionRoleArn": "arn:aws:iam::<account-id>:role/ecsTaskExecutionRole",
             }
         ]
 
@@ -311,7 +311,7 @@ async def test_detect_image_pull_failures_external_image(test_module_setup):
                 "image": "nginx:latest",
                 "exists": "unknown",
                 "repository_type": "external",
-                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "task_definition": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "container_name": "container1",
             }
         ]
@@ -367,7 +367,7 @@ async def test_detect_image_pull_failures_validate_images_error(test_module_setu
     async def mock_get_td(app_name):
         return [
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "containerDefinitions": [{"name": "container1", "image": "image1"}],
             }
         ]
@@ -398,7 +398,7 @@ async def test_detect_image_pull_failures_client_error(test_module_setup):
     async def mock_get_td(app_name):
         return [
             {
-                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/task1:1",
                 "containerDefinitions": [{"name": "container1", "image": "image1"}],
             }
         ]

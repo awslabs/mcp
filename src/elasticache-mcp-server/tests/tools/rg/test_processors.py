@@ -211,9 +211,9 @@ class TestProcessNodegroupConfiguration:
             'ReplicaCount': 2,
             'PrimaryAvailabilityZone': 'us-west-2a',
             'ReplicaAvailabilityZones': ['us-west-2b', 'us-west-2c'],
-            'PrimaryOutpostArn': 'arn:aws:outposts:us-west-2:123456789012:outpost/op-1234567890abcdef0',
+            'PrimaryOutpostArn': 'arn:aws:outposts:us-west-2:<account-id>:outpost/op-1234567890abcdef0',
             'ReplicaOutpostArns': [
-                'arn:aws:outposts:us-west-2:123456789012:outpost/op-0987654321fedcba0'
+                'arn:aws:outposts:us-west-2:<account-id>:outpost/op-0987654321fedcba0'
             ],
         }
         configs = process_nodegroup_configuration([config])

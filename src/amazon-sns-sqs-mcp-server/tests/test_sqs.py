@@ -42,7 +42,7 @@ class TestSQSTools:
         result, _ = is_mutative_action_allowed(
             mock_mcp,
             mock_sqs_client,
-            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'},
+            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue'},
         )
         assert result is True
 
@@ -56,7 +56,7 @@ class TestSQSTools:
         result, message = is_mutative_action_allowed(
             mock_mcp,
             mock_sqs_client,
-            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'},
+            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue'},
         )
         assert result is False
         assert message == 'mutating a resource without the mcp_server_version tag is not allowed'
@@ -130,7 +130,7 @@ class TestSQSTools:
             mock_mcp,
             mock_sqs_client,
             {
-                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue',
                 'MessageBody': 'Hello world',
             },
         )
@@ -141,7 +141,7 @@ class TestSQSTools:
             mock_mcp,
             mock_sqs_client,
             {
-                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue',
                 'MaxNumberOfMessages': 10,
             },
         )
@@ -152,7 +152,7 @@ class TestSQSTools:
             mock_mcp,
             mock_sqs_client,
             {
-                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue',
                 'Entries': [],
             },
         )
@@ -163,7 +163,7 @@ class TestSQSTools:
             mock_mcp,
             mock_sqs_client,
             {
-                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue',
                 'ReceiptHandle': 'receipt-handle',
             },
         )
@@ -187,7 +187,7 @@ class TestSQSTools:
         # Mock SQS client
         mock_sqs_client = MagicMock()
         mock_sqs_client.create_queue.return_value = {
-            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'
+            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue'
         }
         mock_sqs_client_getter = MagicMock(return_value=mock_sqs_client)
 
@@ -217,7 +217,7 @@ class TestSQSTools:
 
         # Verify result
         assert result == {
-            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'
+            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue'
         }
 
         # Test with FIFO queue
@@ -255,7 +255,7 @@ class TestSQSTools:
         # Mock SQS client
         mock_sqs_client = MagicMock()
         mock_sqs_client.create_queue.return_value = {
-            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue.fifo'
+            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue.fifo'
         }
         mock_sqs_client_getter = MagicMock(return_value=mock_sqs_client)
 
@@ -287,7 +287,7 @@ class TestSQSTools:
 
         # Verify result
         assert result == {
-            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue.fifo'
+            'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue.fifo'
         }
 
     def test_is_mutative_action_allowed_exception(self):
@@ -303,7 +303,7 @@ class TestSQSTools:
         result, message = is_mutative_action_allowed(
             mock_mcp,
             mock_sqs_client,
-            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'},
+            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue'},
         )
         assert result is False
         assert message == 'Test exception'

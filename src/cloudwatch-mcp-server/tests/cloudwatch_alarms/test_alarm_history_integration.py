@@ -140,7 +140,7 @@ def realistic_metric_alarm():
         'Statistic': 'Average',
         'TreatMissingData': 'notBreaching',
         'ActionsEnabled': True,
-        'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:cpu-alarm-topic'],
+        'AlarmActions': ['arn:aws:sns:us-east-1:<account-id>:cpu-alarm-topic'],
     }
 
 
@@ -155,7 +155,7 @@ def realistic_composite_alarm():
         'StateUpdatedTimestamp': datetime(2025, 6, 20, 10, 0, 0),
         'AlarmRule': '(ALARM("web-server-cpu-alarm") OR ALARM("database-connection-alarm")) AND NOT ALARM("maintenance-mode-alarm")',
         'ActionsEnabled': True,
-        'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:critical-alert-topic'],
+        'AlarmActions': ['arn:aws:sns:us-east-1:<account-id>:critical-alert-topic'],
     }
 
 
@@ -430,7 +430,7 @@ class TestAlarmHistoryIntegration:
                         'HistoryData': json.dumps(
                             {
                                 'actionExecuted': {
-                                    'actionArn': 'arn:aws:sns:us-east-1:123456789012:alarm-topic'
+                                    'actionArn': 'arn:aws:sns:us-east-1:<account-id>:alarm-topic'
                                 }
                             }
                         ),

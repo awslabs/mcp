@@ -27,7 +27,7 @@ class TestSchemaRegistry:
 
             # Call the function with a valid ARN
             result = get_schema_from_registry(
-                'arn:aws:schemas:us-east-1:123456789012:schema/registry-name/schema-name'
+                'arn:aws:schemas:us-east-1:<account-id>:schema/registry-name/schema-name'
             )
 
             # Verify the result
@@ -61,7 +61,7 @@ class TestSchemaRegistry:
             with caplog.at_level(logging.ERROR):
                 # Test with ARN containing invalid path
                 result = get_schema_from_registry(
-                    'arn:aws:schemas:us-east-1:123456789012:schema/invalid-path'
+                    'arn:aws:schemas:us-east-1:<account-id>:schema/invalid-path'
                 )
 
                 # Verify the result is None
@@ -82,7 +82,7 @@ class TestSchemaRegistry:
             with caplog.at_level(logging.ERROR):
                 # Call the function
                 result = get_schema_from_registry(
-                    'arn:aws:schemas:us-east-1:123456789012:schema/registry-name/schema-name'
+                    'arn:aws:schemas:us-east-1:<account-id>:schema/registry-name/schema-name'
                 )
 
                 # Verify the result is None
@@ -102,7 +102,7 @@ class TestSchemaArnRetrieval:
     )
     def test_get_schema_arn_from_tags(self):
         """Test getting schema ARN from function tags."""
-        schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry/schema'
+        schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry/schema'
 
         with patch('awslabs.lambda_tool_mcp_server.server.lambda_client') as mock_client:
             # Set up the mock
@@ -193,7 +193,7 @@ class TestToolCreationWithSchema:
             # Call the function
             function_name = 'test-function'
             description = 'Test function description'
-            schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry/schema'
+            schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry/schema'
             create_lambda_tool(function_name, description, schema_arn)
 
             # Verify schema was fetched
@@ -222,7 +222,7 @@ class TestToolCreationWithSchema:
                 # Call the function
                 function_name = 'test-function'
                 description = 'Test function description'
-                schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry/schema'
+                schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry/schema'
                 create_lambda_tool(function_name, description, schema_arn)
 
                 # Verify schema was attempted to be fetched

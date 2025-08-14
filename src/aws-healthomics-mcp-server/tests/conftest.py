@@ -102,7 +102,7 @@ def sample_run_response():
         'name': 'test-run',
         'workflowId': 'workflow-12345',
         'status': 'COMPLETED',
-        'roleArn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'roleArn': 'arn:aws:iam::<account-id>:role/HealthOmicsRole',
         'outputUri': 's3://test-bucket/outputs/',
         'creationTime': '2023-01-01T00:00:00Z',
         'startTime': '2023-01-01T00:01:00Z',

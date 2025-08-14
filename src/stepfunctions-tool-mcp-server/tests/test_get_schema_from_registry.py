@@ -17,7 +17,7 @@ class TestGetSchema:
     def test_get_schema_success(self, mock_schemas_client):
         """Test successful schema retrieval with valid ARN."""
         # Set up test data
-        schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry-name/schema-name'
+        schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry-name/schema-name'
         schema_content = {'type': 'object', 'properties': {'test': {'type': 'string'}}}
 
         # Set up mock response
@@ -54,7 +54,7 @@ class TestGetSchema:
     def test_get_schema_invalid_path(self, mock_schemas_client, caplog):
         """Test schema retrieval with invalid schema path in ARN."""
         # Set up test data
-        invalid_path_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/invalid-path'
+        invalid_path_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/invalid-path'
 
         # Call the function and check logging
         with caplog.at_level(logging.ERROR):
@@ -71,7 +71,7 @@ class TestGetSchema:
     def test_get_schema_client_error(self, mock_schemas_client, caplog):
         """Test error handling during schema retrieval."""
         # Set up test data
-        schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry-name/schema-name'
+        schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry-name/schema-name'
 
         # Set up mock to raise an exception
         mock_schemas_client.describe_schema.side_effect = Exception('Schema client error')
@@ -95,7 +95,7 @@ class TestGetSchema:
     def test_get_schema_complex_content(self, mock_schemas_client):
         """Test retrieval of schema with complex content structure."""
         # Set up test data
-        schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry-name/schema-name'
+        schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry-name/schema-name'
         schema_content = {
             'type': 'object',
             'properties': {

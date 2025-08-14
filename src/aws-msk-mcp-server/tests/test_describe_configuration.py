@@ -30,7 +30,7 @@ class TestDescribeConfiguration:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'Name': 'test-config',
             'Description': 'Test configuration',
             'KafkaVersions': ['2.8.1', '3.3.1'],
@@ -45,7 +45,7 @@ class TestDescribeConfiguration:
         mock_client.describe_configuration.return_value = expected_response
 
         # Act
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         result = describe_configuration(arn, mock_client)
 
         # Assert
@@ -53,7 +53,7 @@ class TestDescribeConfiguration:
         assert result == expected_response
         assert (
             result['Arn']
-            == 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         )
         assert result['Name'] == 'test-config'
         assert result['KafkaVersions'] == ['2.8.1', '3.3.1']
@@ -71,7 +71,7 @@ class TestDescribeConfiguration:
         )
 
         # Act & Assert
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         with pytest.raises(ClientError) as excinfo:
             describe_configuration(arn, mock_client)
 
@@ -83,7 +83,7 @@ class TestDescribeConfiguration:
     def test_describe_configuration_missing_client(self):
         """Test the describe_configuration function with a missing client."""
         # Act & Assert
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         with pytest.raises(ValueError) as excinfo:
             describe_configuration(arn, None)
 

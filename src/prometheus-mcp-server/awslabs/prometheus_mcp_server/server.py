@@ -478,7 +478,7 @@ async def execute_query(
     ctx: Context,
     workspace_id: Optional[str] = Field(
         None,
-        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
+        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-<account-id>). Optional if a URL is configured via command line arguments.',
     ),
     query: str = Field(..., description='The PromQL query to execute'),
     time: Optional[str] = Field(
@@ -499,7 +499,7 @@ async def execute_query(
 
     ## Example
     Input:
-      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      workspace_id: "ws-12345678-abcd-1234-efgh-<account-id>"
       query: "up"
       region: "us-east-1"
 
@@ -564,7 +564,7 @@ async def execute_range_query(
     ctx: Context,
     workspace_id: Optional[str] = Field(
         None,
-        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
+        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-<account-id>). Optional if a URL is configured via command line arguments.',
     ),
     query: str = Field(..., description='The PromQL query to execute'),
     start: str = Field(..., description='Start timestamp (RFC3339 or Unix timestamp)'),
@@ -587,7 +587,7 @@ async def execute_range_query(
 
     ## Example
     Input:
-      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      workspace_id: "ws-12345678-abcd-1234-efgh-<account-id>"
       query: "rate(node_cpu_seconds_total{mode=\"system\"}[5m])"
       start: "2023-04-01T00:00:00Z"
       end: "2023-04-01T01:00:00Z"
@@ -643,7 +643,7 @@ async def list_metrics(
     ctx: Context,
     workspace_id: Optional[str] = Field(
         None,
-        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
+        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-<account-id>). Optional if a URL is configured via command line arguments.',
     ),
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
     profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
@@ -658,7 +658,7 @@ async def list_metrics(
 
     ## Example
     Input:
-      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      workspace_id: "ws-12345678-abcd-1234-efgh-<account-id>"
       region: "us-east-1"
 
     Output:
@@ -702,7 +702,7 @@ async def get_server_info(
     ctx: Context,
     workspace_id: Optional[str] = Field(
         None,
-        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-123456789012). Optional if a URL is configured via command line arguments.',
+        description='The Prometheus workspace ID to use (e.g., ws-12345678-abcd-1234-efgh-<account-id>). Optional if a URL is configured via command line arguments.',
     ),
     region: Optional[str] = Field(None, description='AWS region (defaults to current region)'),
     profile: Optional[str] = Field(None, description='AWS profile to use (defaults to None)'),
@@ -719,12 +719,12 @@ async def get_server_info(
 
     ## Example
     Input:
-      workspace_id: "ws-12345678-abcd-1234-efgh-123456789012"
+      workspace_id: "ws-12345678-abcd-1234-efgh-<account-id>"
       region: "us-east-1"
 
     Output:
       {
-        "prometheus_url": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-123456789012",
+        "prometheus_url": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-<account-id>",
         "aws_region": "us-east-1",
         "aws_profile": "default",
         "service_name": "aps"
@@ -775,10 +775,10 @@ async def get_available_workspaces(
       {
         "workspaces": [
           {
-            "workspace_id": "ws-12345678-abcd-1234-efgh-123456789012",
+            "workspace_id": "ws-12345678-abcd-1234-efgh-<account-id>",
             "alias": "production",
             "status": "ACTIVE",
-            "prometheus_url": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-123456789012",
+            "prometheus_url": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-<account-id>",
             "is_configured": true
           },
           {
@@ -792,7 +792,7 @@ async def get_available_workspaces(
         "count": 2,
         "region": "us-east-1",
         "requires_user_selection": true,
-        "configured_workspace_id": "ws-12345678-abcd-1234-efgh-123456789012"
+        "configured_workspace_id": "ws-12345678-abcd-1234-efgh-<account-id>"
       }
     """
     try:

@@ -56,7 +56,7 @@ class TestReadConfigInit:
 
         # Mock the describe_configuration function
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'Description': 'Test configuration',
             'KafkaVersions': ['2.8.1', '3.3.1'],
@@ -135,7 +135,7 @@ class TestReadConfigInit:
 
         # Mock the describe_configuration_revision function
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'Description': 'Initial revision',
             'Revision': 1,

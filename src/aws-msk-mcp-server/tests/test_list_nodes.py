@@ -58,7 +58,7 @@ class TestListNodes:
         mock_client.list_nodes.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_nodes(cluster_arn, mock_client)
 
         # Assert
@@ -79,7 +79,7 @@ class TestListNodes:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             list_nodes(cluster_arn, mock_client)
 
@@ -91,7 +91,7 @@ class TestListNodes:
     def test_list_nodes_missing_client(self):
         """Test the list_nodes function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             list_nodes(cluster_arn, None)
 
@@ -106,7 +106,7 @@ class TestListNodes:
         mock_client.list_nodes.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_nodes(cluster_arn, mock_client)
 
         # Assert

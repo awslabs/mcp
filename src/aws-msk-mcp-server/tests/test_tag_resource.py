@@ -31,7 +31,7 @@ class TestTagResource:
         mock_client.tag_resource.return_value = expected_response
 
         # Act
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         tags = {'Environment': 'Production', 'Owner': 'DataTeam'}
         result = tag_resource(resource_arn, tags, mock_client)
 
@@ -49,7 +49,7 @@ class TestTagResource:
         )
 
         # Act & Assert
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         tags = {'Environment': 'Production', 'Owner': 'DataTeam'}
         with pytest.raises(ClientError) as excinfo:
             tag_resource(resource_arn, tags, mock_client)
@@ -62,7 +62,7 @@ class TestTagResource:
     def test_tag_resource_missing_client(self):
         """Test the tag_resource function with a missing client."""
         # Act & Assert
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         tags = {'Environment': 'Production', 'Owner': 'DataTeam'}
         with pytest.raises(ValueError) as excinfo:
             tag_resource(resource_arn, tags, None)

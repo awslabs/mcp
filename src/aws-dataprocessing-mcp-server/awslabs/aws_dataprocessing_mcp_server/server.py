@@ -169,7 +169,7 @@ It enables you to create, manage, and monitor data processing workflows.
 2. Manage data catalogs: `manage_aws_athena_data_catalogs(operation='create-data-catalog', name='my-catalog', type='GLUE', parameters={...})`
 
 ### Glue Interactive Sessions
-1. Create a session: `manage_aws_glue_sessions(operation='create-session', session_id='my-spark-session', role='arn:aws:iam::123456789012:role/GlueInteractiveSessionRole', command={'Name': 'glueetl', 'PythonVersion': '3'}, glue_version='4.0')`
+1. Create a session: `manage_aws_glue_sessions(operation='create-session', session_id='my-spark-session', role='arn:aws:iam::<account-id>:role/GlueInteractiveSessionRole', command={'Name': 'glueetl', 'PythonVersion': '3'}, glue_version='4.0')`
 2. Get session details: `manage_aws_glue_sessions(operation='get-session', session_id='my-spark-session')`
 3. List all sessions: `manage_aws_glue_sessions(operation='list-sessions')`
 4. Stop a session: `manage_aws_glue_sessions(operation='stop-session', session_id='my-spark-session')`

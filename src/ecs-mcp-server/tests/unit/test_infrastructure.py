@@ -169,7 +169,7 @@ async def test_get_latest_image_tag(mock_get_aws_client_with_role):
 
     # Call get_latest_image_tag
     result = await get_latest_image_tag(
-        app_name="test-app", role_arn="arn:aws:iam::123456789012:role/test-role"
+        app_name="test-app", role_arn="arn:aws:iam::<account-id>:role/test-role"
     )
 
     # Verify the result is the latest tag
@@ -177,7 +177,7 @@ async def test_get_latest_image_tag(mock_get_aws_client_with_role):
 
     # Verify get_aws_client_with_role was called with the correct role
     mock_get_aws_client_with_role.assert_called_once_with(
-        "ecr", "arn:aws:iam::123456789012:role/test-role"
+        "ecr", "arn:aws:iam::<account-id>:role/test-role"
     )
     # Verify list_images was called with the correct repository name
     mock_ecr.list_images.assert_called_once_with(repositoryName="test-app-repo")
@@ -195,7 +195,7 @@ async def test_get_latest_image_tag_no_images_error(mock_get_aws_client_with_rol
     # Call get_latest_image_tag - should raise ValueError
     with pytest.raises(ValueError) as excinfo:
         await get_latest_image_tag(
-            app_name="test-app", role_arn="arn:aws:iam::123456789012:role/test-role"
+            app_name="test-app", role_arn="arn:aws:iam::<account-id>:role/test-role"
         )
 
     # Verify the error message
@@ -219,7 +219,7 @@ async def test_get_latest_image_tag_no_tagged_images(mock_get_aws_client_with_ro
     # Call get_latest_image_tag - should raise ValueError
     with pytest.raises(ValueError) as excinfo:
         await get_latest_image_tag(
-            app_name="test-app", role_arn="arn:aws:iam::123456789012:role/test-role"
+            app_name="test-app", role_arn="arn:aws:iam::<account-id>:role/test-role"
         )
 
     # Verify the error message
@@ -242,7 +242,7 @@ async def test_get_latest_image_tag_non_numeric_tags(mock_get_aws_client_with_ro
 
     # Call get_latest_image_tag - should return the first tag since they can't be sorted numerically
     result = await get_latest_image_tag(
-        app_name="test-app", role_arn="arn:aws:iam::123456789012:role/test-role"
+        app_name="test-app", role_arn="arn:aws:iam::<account-id>:role/test-role"
     )
 
     # Verify the result is the first tag
@@ -261,7 +261,7 @@ async def test_get_latest_image_tag_client_error(mock_get_aws_client_with_role):
     # Call get_latest_image_tag - should raise the exception
     with pytest.raises(Exception) as excinfo:
         await get_latest_image_tag(
-            app_name="test-app", role_arn="arn:aws:iam::123456789012:role/test-role"
+            app_name="test-app", role_arn="arn:aws:iam::<account-id>:role/test-role"
         )
 
     # Verify the error message
@@ -279,7 +279,7 @@ async def test_get_latest_image_tag_client_error(mock_get_aws_client_with_role):
 async def test_create_ecr_infrastructure_new_stack(mock_get_aws_client, mock_get_account_id):
     """Test create_ecr_infrastructure creating a new stack."""
     # Set up mocks
-    mock_get_account_id.return_value = "123456789012"
+    mock_get_account_id.return_value = "<account-id>"
 
     mock_cfn = MagicMock()
     mock_cfn.exceptions.ClientError = Exception
@@ -292,12 +292,12 @@ async def test_create_ecr_infrastructure_new_stack(mock_get_aws_client, mock_get
                     "Outputs": [
                         {
                             "OutputKey": "ECRRepositoryURI",
-                            "OutputValue": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+                            "OutputValue": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
                         },
                         {
                             "OutputKey": "ECRPushPullRoleArn",
                             "OutputValue": "\
-                                arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+                                arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
                         },
                     ]
                 }
@@ -324,7 +324,7 @@ async def test_create_ecr_infrastructure_new_stack(mock_get_aws_client, mock_get
 async def test_create_ecr_infrastructure_existing_stack(mock_get_aws_client, mock_get_account_id):
     """Test create_ecr_infrastructure updating an existing stack."""
     # Set up mocks
-    mock_get_account_id.return_value = "123456789012"
+    mock_get_account_id.return_value = "<account-id>"
 
     mock_cfn = MagicMock()
     mock_cfn.exceptions.ClientError = Exception
@@ -333,16 +333,16 @@ async def test_create_ecr_infrastructure_existing_stack(mock_get_aws_client, moc
         "Stacks": [
             {
                 "StackId": (
-                    "arn:aws:cloudformation:us-west-2:123456789012:stack/test-app-ecr/abcdef"
+                    "arn:aws:cloudformation:us-west-2:<account-id>:stack/test-app-ecr/abcdef"
                 ),
                 "Outputs": [
                     {
                         "OutputKey": "ECRRepositoryURI",
-                        "OutputValue": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+                        "OutputValue": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
                     },
                     {
                         "OutputKey": "ECRPushPullRoleArn",
-                        "OutputValue": "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+                        "OutputValue": "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
                     },
                 ],
             }
@@ -369,7 +369,7 @@ async def test_create_ecr_infrastructure_existing_stack(mock_get_aws_client, moc
 async def test_create_ecr_infrastructure_no_updates(mock_get_aws_client, mock_get_account_id):
     """Test create_ecr_infrastructure with no updates needed."""
     # Set up mocks
-    mock_get_account_id.return_value = "123456789012"
+    mock_get_account_id.return_value = "<account-id>"
 
     mock_cfn = MagicMock()
     mock_cfn.exceptions.ClientError = Exception
@@ -378,16 +378,16 @@ async def test_create_ecr_infrastructure_no_updates(mock_get_aws_client, mock_ge
         "Stacks": [
             {
                 "StackId": (
-                    "arn:aws:cloudformation:us-west-2:123456789012:stack/test-app-ecr/abcdef"
+                    "arn:aws:cloudformation:us-west-2:<account-id>:stack/test-app-ecr/abcdef"
                 ),
                 "Outputs": [
                     {
                         "OutputKey": "ECRRepositoryURI",
-                        "OutputValue": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+                        "OutputValue": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
                     },
                     {
                         "OutputKey": "ECRPushPullRoleArn",
-                        "OutputValue": "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+                        "OutputValue": "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
                     },
                 ],
             }
@@ -422,7 +422,7 @@ async def test_create_ecs_infrastructure_new_stack(
 ):
     """Test create_ecs_infrastructure creating a new stack."""
     # Set up mocks
-    mock_get_account_id.return_value = "123456789012"
+    mock_get_account_id.return_value = "<account-id>"
     mock_get_vpc.return_value = {"vpc_id": "vpc-12345", "subnet_ids": ["subnet-1", "subnet-2"]}
     mock_get_route_tables.return_value = ["rtb-1", "rtb-2"]
 
@@ -450,7 +450,7 @@ async def test_create_ecs_infrastructure_new_stack(
     result = await create_ecs_infrastructure(
         app_name="test-app",
         template_content="{}",
-        image_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+        image_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
         image_tag="latest",
     )
 
@@ -470,7 +470,7 @@ async def test_create_ecs_infrastructure_new_stack(
 async def test_create_ecs_infrastructure_existing_stack(mock_get_aws_client, mock_get_account_id):
     """Test create_ecs_infrastructure updating an existing stack."""
     # Set up mocks
-    mock_get_account_id.return_value = "123456789012"
+    mock_get_account_id.return_value = "<account-id>"
 
     mock_cfn = MagicMock()
     mock_cfn.exceptions.ClientError = Exception
@@ -479,7 +479,7 @@ async def test_create_ecs_infrastructure_existing_stack(mock_get_aws_client, moc
         "Stacks": [
             {
                 "StackId": (
-                    "arn:aws:cloudformation:us-west-2:123456789012:stack/test-app-ecs/ghijkl"
+                    "arn:aws:cloudformation:us-west-2:<account-id>:stack/test-app-ecs/ghijkl"
                 ),
                 "Outputs": [
                     {
@@ -506,7 +506,7 @@ async def test_create_ecs_infrastructure_existing_stack(mock_get_aws_client, moc
         result = await create_ecs_infrastructure(
             app_name="test-app",
             template_content="{}",
-            image_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+            image_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
             image_tag="latest",
         )
 
@@ -527,7 +527,7 @@ async def test_create_ecs_infrastructure_existing_stack(mock_get_aws_client, moc
 async def test_create_ecs_infrastructure_no_updates(mock_get_aws_client, mock_get_account_id):
     """Test create_ecs_infrastructure with no updates needed."""
     # Set up mocks
-    mock_get_account_id.return_value = "123456789012"
+    mock_get_account_id.return_value = "<account-id>"
 
     mock_cfn = MagicMock()
     mock_cfn.exceptions.ClientError = Exception
@@ -536,7 +536,7 @@ async def test_create_ecs_infrastructure_no_updates(mock_get_aws_client, mock_ge
         "Stacks": [
             {
                 "StackId": (
-                    "arn:aws:cloudformation:us-west-2:123456789012:stack/test-app-ecs/ghijkl"
+                    "arn:aws:cloudformation:us-west-2:<account-id>:stack/test-app-ecs/ghijkl"
                 ),
                 "Outputs": [
                     {
@@ -565,7 +565,7 @@ async def test_create_ecs_infrastructure_no_updates(mock_get_aws_client, mock_ge
         result = await create_ecs_infrastructure(
             app_name="test-app",
             template_content="{}",
-            image_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+            image_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
             image_tag="latest",
         )
 
@@ -666,8 +666,8 @@ async def test_create_infrastructure_force_deploy_step1(
         "operation": "create",
         "resources": {
             "ecr_repository": "test-app-repo",
-            "ecr_repository_uri": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
-            "ecr_push_pull_role_arn": "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+            "ecr_repository_uri": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+            "ecr_push_pull_role_arn": "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
         },
     }
 
@@ -725,11 +725,11 @@ async def test_create_infrastructure_force_deploy_step2(
                 "Outputs": [
                     {
                         "OutputKey": "ECRRepositoryURI",
-                        "OutputValue": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+                        "OutputValue": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
                     },
                     {
                         "OutputKey": "ECRPushPullRoleArn",
-                        "OutputValue": "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+                        "OutputValue": "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
                     },
                 ]
             }
@@ -760,8 +760,8 @@ async def test_create_infrastructure_force_deploy_step2(
         # Verify build_and_push_image was called
         mock_build_and_push.assert_called_once_with(
             app_path="/path/to/app",
-            repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
-            role_arn="arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+            repository_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+            role_arn="arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
         )
 
         # Verify the result
@@ -849,11 +849,11 @@ async def test_create_infrastructure_step2_build_error(
                 "Outputs": [
                     {
                         "OutputKey": "ECRRepositoryURI",
-                        "OutputValue": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+                        "OutputValue": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
                     },
                     {
                         "OutputKey": "ECRPushPullRoleArn",
-                        "OutputValue": "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+                        "OutputValue": "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
                     },
                 ]
             }
@@ -884,8 +884,8 @@ async def test_create_infrastructure_step2_build_error(
         # Verify build_and_push_image was called
         mock_build_and_push.assert_called_once_with(
             app_path="/path/to/app",
-            repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
-            role_arn="arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+            repository_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+            role_arn="arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
         )
 
         # Verify the result
@@ -930,11 +930,11 @@ async def test_create_infrastructure_force_deploy_step3(
                 "Outputs": [
                     {
                         "OutputKey": "ECRRepositoryURI",
-                        "OutputValue": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+                        "OutputValue": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
                     },
                     {
                         "OutputKey": "ECRPushPullRoleArn",
-                        "OutputValue": "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+                        "OutputValue": "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
                     },
                 ]
             }
@@ -948,7 +948,7 @@ async def test_create_infrastructure_force_deploy_step3(
     # Mock create_ecs_infrastructure
     mock_create_ecs.return_value = {
         "stack_name": "test-app-ecs-infrastructure",
-        "stack_id": "arn:aws:cloudformation:us-west-2:123456789012:stack/test-app-ecs/abcdef",
+        "stack_id": "arn:aws:cloudformation:us-west-2:<account-id>:stack/test-app-ecs/abcdef",
         "operation": "create",
         "vpc_id": "vpc-12345",
         "subnet_ids": ["subnet-1", "subnet-2"],
@@ -976,7 +976,7 @@ async def test_create_infrastructure_force_deploy_step3(
 
     # Verify get_latest_image_tag was called
     mock_get_latest_image_tag.assert_called_once_with(
-        "test-app", "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
+        "test-app", "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role"
     )
 
     # Verify create_ecs_infrastructure was called with the correct parameters
@@ -984,7 +984,7 @@ async def test_create_infrastructure_force_deploy_step3(
     mock_create_ecs.assert_called_once()
     call_args = mock_create_ecs.call_args[1]
     assert call_args["app_name"] == "test-app"
-    assert call_args["image_uri"] == "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo"
+    assert call_args["image_uri"] == "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo"
     assert call_args["image_tag"] == "20230101"
     assert call_args["template_content"] == "ecs template content"
 
@@ -1033,11 +1033,11 @@ async def test_create_infrastructure_step3_error(
                 "Outputs": [
                     {
                         "OutputKey": "ECRRepositoryURI",
-                        "OutputValue": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
+                        "OutputValue": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app-repo",
                     },
                     {
                         "OutputKey": "ECRPushPullRoleArn",
-                        "OutputValue": "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+                        "OutputValue": "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
                     },
                 ]
             }
@@ -1067,7 +1067,7 @@ async def test_create_infrastructure_step3_error(
 
     # Verify get_latest_image_tag was called
     mock_get_latest_image_tag.assert_called_once_with(
-        "test-app", "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
+        "test-app", "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role"
     )
 
     # Verify create_ecs_infrastructure was called

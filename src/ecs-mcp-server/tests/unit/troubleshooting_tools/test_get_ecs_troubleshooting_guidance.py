@@ -63,8 +63,8 @@ class TestHelperFunctions:
         # Configure the response
         mock_ecs.list_clusters.return_value = {
             "clusterArns": [
-                "arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster",
-                "arn:aws:ecs:us-west-2:123456789012:cluster/other-cluster",
+                "arn:aws:ecs:us-west-2:<account-id>:cluster/test-app-cluster",
+                "arn:aws:ecs:us-west-2:<account-id>:cluster/other-cluster",
             ]
         }
 
@@ -106,7 +106,7 @@ class TestHelperFunctions:
         mock_ecs.list_clusters.return_value = {
             "clusterArns": [
                 "not-a-valid-arn",
-                "arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster",
+                "arn:aws:ecs:us-west-2:<account-id>:cluster/test-app-cluster",
             ]
         }
 
@@ -122,8 +122,8 @@ class TestHelperFunctions:
         # Configure the response for list_services
         mock_ecs.list_services.return_value = {
             "serviceArns": [
-                "arn:aws:ecs:us-west-2:123456789012:service/test-cluster/test-app-service",
-                "arn:aws:ecs:us-west-2:123456789012:service/test-cluster/other-service",
+                "arn:aws:ecs:us-west-2:<account-id>:service/test-cluster/test-app-service",
+                "arn:aws:ecs:us-west-2:<account-id>:service/test-cluster/other-service",
             ]
         }
 
@@ -236,8 +236,8 @@ class TestHelperFunctions:
 
         # Create task definition arns with mix of case
         task_def_arns = [
-            "arn:aws:ecs:us-west-2:123456789012:task-definition/TEST-app:1",
-            "arn:aws:ecs:us-west-2:123456789012:task-definition/other-app:1",
+            "arn:aws:ecs:us-west-2:<account-id>:task-definition/TEST-app:1",
+            "arn:aws:ecs:us-west-2:<account-id>:task-definition/other-app:1",
         ]
 
         # Set up paginator with AsyncIterator
@@ -274,8 +274,8 @@ class TestHelperFunctions:
 
         # Create task definition arns with no matches
         task_def_arns = [
-            "arn:aws:ecs:us-west-2:123456789012:task-definition/service-1:1",
-            "arn:aws:ecs:us-west-2:123456789012:task-definition/service-2:1",
+            "arn:aws:ecs:us-west-2:<account-id>:task-definition/service-1:1",
+            "arn:aws:ecs:us-west-2:<account-id>:task-definition/service-2:1",
         ]
 
         # Set up paginator with AsyncIterator
@@ -297,8 +297,8 @@ class TestHelperFunctions:
         mock_ecs = mock_aws_clients["ecs"]
 
         # Create task definition arns across multiple pages
-        page1_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app-page1:1"]
-        page2_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app-page2:1"]
+        page1_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app-page1:1"]
+        page2_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app-page2:1"]
 
         # Set up paginator with AsyncIterator for multiple pages
         mock_paginator = mock.Mock()
@@ -424,17 +424,17 @@ class TestHelperFunctions:
         task_definitions = [
             {
                 "taskDefinitionArn": "\
-                    arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1",
+                    arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1",
                 "containerDefinitions": [
                     {
                         "name": "app",
-                        "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app:latest",
+                        "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app:latest",
                     }
                 ],
             },
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:"
-                "123456789012:task-definition/test-app:1",
+                "<account-id>:task-definition/test-app:1",
                 "containerDefinitions": [{"name": "web", "image": "nginx:latest"}],
             },
         ]
@@ -463,7 +463,7 @@ class TestHelperFunctions:
         task_definitions = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                 ),
                 # No containerDefinitions key
             }
@@ -484,7 +484,7 @@ class TestHelperFunctions:
         task_definitions = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                 ),
                 "containerDefinitions": [
                     {"name": "app"}  # No image field
@@ -510,7 +510,7 @@ class TestHelperFunctions:
         mock_ecr.describe_images.return_value = {"imageDetails": [{"imageTag": "tag"}]}
 
         result = await validate_image(
-            "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:tag", ecr_client=mock_ecr
+            "<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:tag", ecr_client=mock_ecr
         )
 
         # Validation should succeed
@@ -534,7 +534,7 @@ class TestHelperFunctions:
         )
 
         result = await validate_image(
-            "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:tag", ecr_client=mock_ecr
+            "<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:tag", ecr_client=mock_ecr
         )
 
         # Should fail validation
@@ -559,7 +559,7 @@ class TestHelperFunctions:
         mock_ecr.describe_images.side_effect = ClientError(error_response, "DescribeImages")
 
         result = await validate_image(
-            "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:missing", ecr_client=mock_ecr
+            "<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:missing", ecr_client=mock_ecr
         )
 
         # Should fail validation but repository exists
@@ -580,7 +580,7 @@ class TestHelperFunctions:
         mock_ecr.describe_images.side_effect = ClientError(error_response, "DescribeImages")
 
         result = await validate_image(
-            "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:latest", ecr_client=mock_ecr
+            "<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:latest", ecr_client=mock_ecr
         )
 
         # All client errors are treated as image not found in current implementation
@@ -600,7 +600,7 @@ class TestHelperFunctions:
         mock_ecr.describe_images.side_effect = Exception("General error")
 
         result = await validate_image(
-            "123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:latest", ecr_client=mock_ecr
+            "<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:latest", ecr_client=mock_ecr
         )
 
         # Should fail validation with general error
@@ -690,10 +690,10 @@ class TestHelperFunctions:
     def test_is_ecr_image(self):
         """Test is_ecr_image function with various formats."""
         # Valid ECR image URI
-        assert is_ecr_image("123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:tag") is True
+        assert is_ecr_image("<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:tag") is True
 
         # Without tag
-        assert is_ecr_image("123456789012.dkr.ecr.us-west-2.amazonaws.com/repo") is True
+        assert is_ecr_image("<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo") is True
 
         # Invalid URIs
         assert is_ecr_image("docker.io/nginx:latest") is False
@@ -702,13 +702,13 @@ class TestHelperFunctions:
     def test_is_ecr_image_edge_cases(self):
         """Test is_ecr_image function with edge cases."""
         # Malformed hostname with double dots
-        assert is_ecr_image("123456789012..dkr.ecr.us-west-2.amazonaws.com/repo") is False
+        assert is_ecr_image("<account-id>..dkr.ecr.us-west-2.amazonaws.com/repo") is False
 
         # Hostname starting with dot
-        assert is_ecr_image(".123456789012.dkr.ecr.us-west-2.amazonaws.com/repo") is False
+        assert is_ecr_image(".<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo") is False
 
         # Hostname ending with dot
-        assert is_ecr_image("123456789012.dkr.ecr.us-west-2.amazonaws.com./repo") is False
+        assert is_ecr_image("<account-id>.dkr.ecr.us-west-2.amazonaws.com./repo") is False
 
         # Invalid ECR pattern (wrong account ID length)
         assert is_ecr_image("123456789.dkr.ecr.us-west-2.amazonaws.com/repo") is False
@@ -720,12 +720,12 @@ class TestHelperFunctions:
     def test_parse_ecr_image_uri(self):
         """Test parse_ecr_image_uri function with various formats."""
         # Standard ECR URI with tag
-        repo, tag = parse_ecr_image_uri("123456789012.dkr.ecr.us-west-2.amazonaws.com/repo:tag")
+        repo, tag = parse_ecr_image_uri("<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo:tag")
         assert repo == "repo"
         assert tag == "tag"
 
         # Without tag (should default to latest)
-        repo, tag = parse_ecr_image_uri("123456789012.dkr.ecr.us-west-2.amazonaws.com/repo")
+        repo, tag = parse_ecr_image_uri("<account-id>.dkr.ecr.us-west-2.amazonaws.com/repo")
         assert repo == "repo"
         assert tag == "latest"
 
@@ -743,15 +743,15 @@ class TestHelperFunctions:
 
         # Test with complex path
         repo, tag = parse_ecr_image_uri(
-            "123456789012.dkr.ecr.us-west-2.amazonaws.com/path/to/repo:tag"
+            "<account-id>.dkr.ecr.us-west-2.amazonaws.com/path/to/repo:tag"
         )
         assert repo == "repo"
         assert tag == "tag"
 
         # Test with ARN format - our implementation splits at first colon
-        repo, tag = parse_ecr_image_uri("arn:aws:ecr:us-west-2:123456789012:repository/repo:tag")
+        repo, tag = parse_ecr_image_uri("arn:aws:ecr:us-west-2:<account-id>:repository/repo:tag")
         assert repo == "arn"
-        assert tag == "aws:ecr:us-west-2:123456789012:repository/repo:tag"
+        assert tag == "aws:ecr:us-west-2:<account-id>:repository/repo:tag"
 
     def test_create_assessment(self):
         """Test create_assessment function with various scenarios."""
@@ -863,18 +863,18 @@ class TestHelperFunctions:
 
         # Mock clusters
         mock_ecs.list_clusters.return_value = {
-            "clusterArns": ["arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster"]
+            "clusterArns": ["arn:aws:ecs:us-west-2:<account-id>:cluster/test-app-cluster"]
         }
 
         # Mock services
         mock_ecs.list_services.return_value = {
             "serviceArns": [
-                "arn:aws:ecs:us-west-2:123456789012:service/test-app-cluster/test-app-service"
+                "arn:aws:ecs:us-west-2:<account-id>:service/test-app-cluster/test-app-service"
             ]
         }
 
         # Mock task definitions
-        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        task_def_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"]
         mock_paginator = mock.Mock()
         mock_paginator.paginate.return_value = AsyncIterator(
             [{"taskDefinitionArns": task_def_arns}]
@@ -884,7 +884,7 @@ class TestHelperFunctions:
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:"
-                "123456789012:task-definition/test-app:1",
+                "<account-id>:task-definition/test-app:1",
                 "containerDefinitions": [{"name": "app", "image": "test-image"}],
             }
         }
@@ -939,14 +939,14 @@ class TestHelperFunctions:
 
         # Mock clusters
         mock_ecs.list_clusters.return_value = {
-            "clusterArns": ["arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster"]
+            "clusterArns": ["arn:aws:ecs:us-west-2:<account-id>:cluster/test-app-cluster"]
         }
 
         # Mock service list error
         mock_ecs.list_services.side_effect = Exception("Service listing error")
 
         # Mock task definitions
-        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        task_def_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"]
         mock_paginator = mock.Mock()
         mock_paginator.paginate.return_value = AsyncIterator(
             [{"taskDefinitionArns": task_def_arns}]
@@ -955,7 +955,7 @@ class TestHelperFunctions:
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                 ),
                 "containerDefinitions": [{"name": "app", "image": "test-image"}],
             }
@@ -984,7 +984,7 @@ class TestHelperFunctions:
         mock_ecs = mock_aws_clients["ecs"]
 
         # Set up mock for get_task_definitions
-        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        task_def_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"]
         mock_paginator = mock.Mock()
         mock_paginator.paginate.return_value = AsyncIterator(
             [{"taskDefinitionArns": task_def_arns}]
@@ -995,7 +995,7 @@ class TestHelperFunctions:
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                 ),
                 "family": "test-app",
                 "containerDefinitions": [{"name": "app", "image": "test-image"}],
@@ -1042,7 +1042,7 @@ class TestComprehensiveSystem:
 
         # Setup clusters
         mock_ecs.list_clusters.return_value = {
-            "clusterArns": ["arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster"]
+            "clusterArns": ["arn:aws:ecs:us-west-2:<account-id>:cluster/test-app-cluster"]
         }
         mock_ecs.describe_clusters.return_value = {
             "clusters": [create_sample_cluster_data("test-app-cluster")]
@@ -1051,12 +1051,12 @@ class TestComprehensiveSystem:
         # Setup services
         mock_ecs.list_services.return_value = {
             "serviceArns": [
-                "arn:aws:ecs:us-west-2:123456789012:service/test-app-cluster/test-app-service"
+                "arn:aws:ecs:us-west-2:<account-id>:service/test-app-cluster/test-app-service"
             ]
         }
 
         # Setup task definitions
-        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        task_def_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"]
         mock_paginator = mock.Mock()
         mock_paginator.paginate.return_value = AsyncIterator(
             [{"taskDefinitionArns": task_def_arns}]
@@ -1066,11 +1066,11 @@ class TestComprehensiveSystem:
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:"
-                "123456789012:task-definition/test-app:1",
+                "<account-id>:task-definition/test-app:1",
                 "containerDefinitions": [
                     {
                         "name": "app",
-                        "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app:latest",
+                        "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app:latest",
                     }
                 ],
             }
@@ -1266,14 +1266,14 @@ class TestComprehensiveSystem:
 
         # Setup clusters
         mock_ecs.list_clusters.return_value = {
-            "clusterArns": ["arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster"]
+            "clusterArns": ["arn:aws:ecs:us-west-2:<account-id>:cluster/test-app-cluster"]
         }
         mock_ecs.describe_clusters.return_value = {
             "clusters": [create_sample_cluster_data("test-app-cluster")]
         }
 
         # Setup task definitions with mixed image types
-        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        task_def_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"]
         mock_paginator = mock.Mock()
         mock_paginator.paginate.return_value = AsyncIterator(
             [{"taskDefinitionArns": task_def_arns}]
@@ -1284,11 +1284,11 @@ class TestComprehensiveSystem:
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:"
-                "123456789012:task-definition/test-app:1",
+                "<account-id>:task-definition/test-app:1",
                 "containerDefinitions": [
                     {
                         "name": "app",
-                        "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app:latest",
+                        "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app:latest",
                     },
                     {"name": "nginx", "image": "nginx:latest"},
                 ],
@@ -1337,7 +1337,7 @@ class TestComprehensiveSystem:
 
         # Return malformed ARNs
         task_def_arns = [
-            "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1",  # Valid
+            "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1",  # Valid
             "not-an-arn",  # Invalid
         ]
         mock_paginator = mock.Mock()
@@ -1357,7 +1357,7 @@ class TestComprehensiveSystem:
             return {
                 "taskDefinition": {
                     "taskDefinitionArn": "arn:aws:ecs:us-west-2:"
-                    "123456789012:task-definition/test-app:1",
+                    "<account-id>:task-definition/test-app:1",
                     "containerDefinitions": [{"name": "app", "image": "test-image"}],
                 }
             }
@@ -1395,7 +1395,7 @@ class TestComprehensiveSystem:
         mock_ecs.list_clusters.return_value = {"clusterArns": []}
 
         # Setup task definitions
-        task_def_arns = ["arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"]
+        task_def_arns = ["arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"]
         mock_paginator = mock.Mock()
         mock_paginator.paginate.return_value = AsyncIterator(
             [{"taskDefinitionArns": task_def_arns}]
@@ -1406,7 +1406,7 @@ class TestComprehensiveSystem:
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:"
-                "123456789012:task-definition/test-app:1",
+                "<account-id>:task-definition/test-app:1",
                 # No containerDefinitions key
             }
         }

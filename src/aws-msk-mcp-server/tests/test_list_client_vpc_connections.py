@@ -32,7 +32,7 @@ class TestListClientVpcConnections:
         expected_response = {
             'VpcConnectionInfoList': [
                 {
-                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-connection/abcdef',
+                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-connection/abcdef',
                     'VpcId': 'vpc-12345',
                     'SubnetIds': ['subnet-1', 'subnet-2', 'subnet-3'],
                     'SecurityGroups': ['sg-1'],
@@ -44,7 +44,7 @@ class TestListClientVpcConnections:
         mock_client.list_client_vpc_connections.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_client_vpc_connections(cluster_arn, mock_client)
 
         # Assert
@@ -64,7 +64,7 @@ class TestListClientVpcConnections:
         expected_response = {
             'VpcConnectionInfoList': [
                 {
-                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-connection/abcdef',
+                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-connection/abcdef',
                     'VpcId': 'vpc-12345',
                     'SubnetIds': ['subnet-1', 'subnet-2', 'subnet-3'],
                     'SecurityGroups': ['sg-1'],
@@ -77,7 +77,7 @@ class TestListClientVpcConnections:
         mock_client.list_client_vpc_connections.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         max_results = 5
         next_token = 'token'
         result = list_client_vpc_connections(cluster_arn, mock_client, max_results, next_token)
@@ -99,7 +99,7 @@ class TestListClientVpcConnections:
         mock_client.list_client_vpc_connections.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_client_vpc_connections(cluster_arn, mock_client)
 
         # Assert
@@ -120,7 +120,7 @@ class TestListClientVpcConnections:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             list_client_vpc_connections(cluster_arn, mock_client)
 
@@ -134,7 +134,7 @@ class TestListClientVpcConnections:
     def test_list_client_vpc_connections_missing_client(self):
         """Test the list_client_vpc_connections function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             list_client_vpc_connections(cluster_arn, None)
 

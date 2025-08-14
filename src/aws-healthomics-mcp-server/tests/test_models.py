@@ -89,7 +89,7 @@ def test_workflow_summary():
     # Test with all fields
     workflow = WorkflowSummary(
         id='wfl-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         name='test-workflow',
         description='Test workflow',
         status='ACTIVE',
@@ -106,7 +106,7 @@ def test_workflow_summary():
     # Test with minimal fields
     workflow = WorkflowSummary(
         id='wfl-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         status='ACTIVE',
         type='WDL',
         creationTime=creation_time,
@@ -124,14 +124,14 @@ def test_workflow_list_response():
     workflows = [
         WorkflowSummary(
             id='wfl-12345',
-            arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+            arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
             status='ACTIVE',
             type='WDL',
             creationTime=creation_time,
         ),
         WorkflowSummary(
             id='wfl-67890',
-            arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-67890',
+            arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-67890',
             status='ACTIVE',
             type='CWL',
             creationTime=creation_time,
@@ -158,7 +158,7 @@ def test_run_summary():
     # Test with all fields
     run = RunSummary(
         id='run-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         name='test-run',
         parameters={'param1': 'value1'},
         status='COMPLETED',
@@ -178,7 +178,7 @@ def test_run_summary():
     # Test with minimal fields
     run = RunSummary(
         id='run-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         status='PENDING',
         workflowId='wfl-12345',
         workflowType='WDL',
@@ -197,7 +197,7 @@ def test_run_list_response():
     runs = [
         RunSummary(
             id='run-12345',
-            arn='arn:aws:omics:us-east-1:123456789012:run/run-12345',
+            arn='arn:aws:omics:us-east-1:<account-id>:run/run-12345',
             status='COMPLETED',
             workflowId='wfl-12345',
             workflowType='WDL',
@@ -205,7 +205,7 @@ def test_run_list_response():
         ),
         RunSummary(
             id='run-67890',
-            arn='arn:aws:omics:us-east-1:123456789012:run/run-67890',
+            arn='arn:aws:omics:us-east-1:<account-id>:run/run-67890',
             status='RUNNING',
             workflowId='wfl-67890',
             workflowType='CWL',
@@ -429,7 +429,7 @@ def test_workflow_summary_validation():
     with pytest.raises(ValidationError):
         WorkflowSummary(
             id='wfl-12345',
-            arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+            arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
             status='ACTIVE',
             type='PRIVATE',
             creationTime='invalid-datetime',  # type: ignore
@@ -449,7 +449,7 @@ def test_run_summary_validation():
     # Test with all required fields
     run = RunSummary(
         id='run-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         status='PENDING',
         workflowId='wfl-12345',
         workflowType='WDL',
@@ -563,7 +563,7 @@ def test_model_serialization():
 
     workflow = WorkflowSummary(
         id='wfl-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         name='test-workflow',
         status='ACTIVE',
         type='WDL',
@@ -579,7 +579,7 @@ def test_model_serialization():
     # Test model_dump with exclude_none
     workflow_minimal = WorkflowSummary(
         id='wfl-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         status='ACTIVE',
         type='WDL',
         creationTime=creation_time,
@@ -597,7 +597,7 @@ def test_model_json_serialization():
 
     workflow = WorkflowSummary(
         id='wfl-12345',
-        arn='arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        arn='arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         name='test-workflow',
         status='ACTIVE',
         type='WDL',

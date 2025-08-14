@@ -47,14 +47,14 @@ async def test_add_instance_fleet_response_model():
     model = AddInstanceFleetResponseModel(
         cluster_id='j-1234567890ABCDEF0',
         instance_fleet_id='if-1234567890ABCDEF0',
-        cluster_arn='arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0',
+        cluster_arn='arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0',
         operation='add_fleet',
     )
     assert model.cluster_id == 'j-1234567890ABCDEF0'
     assert model.instance_fleet_id == 'if-1234567890ABCDEF0'
     assert (
         model.cluster_arn
-        == 'arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0'
+        == 'arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0'
     )
     assert model.operation == 'add_fleet'
 
@@ -65,7 +65,7 @@ async def test_add_instance_fleet_response():
     model = AddInstanceFleetResponseModel(
         cluster_id='j-1234567890ABCDEF0',
         instance_fleet_id='if-1234567890ABCDEF0',
-        cluster_arn='arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0',
+        cluster_arn='arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0',
         operation='add_fleet',
     )
     response = AddInstanceFleetResponse.create(
@@ -79,7 +79,7 @@ async def test_add_instance_fleet_response():
     assert response.instance_fleet_id == 'if-1234567890ABCDEF0'
     assert (
         response.cluster_arn
-        == 'arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0'
+        == 'arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0'
     )
     assert response.operation == 'add_fleet'
 
@@ -91,7 +91,7 @@ async def test_add_instance_groups_response_model():
         cluster_id='j-1234567890ABCDEF0',
         job_flow_id='j-1234567890ABCDEF0',
         instance_group_ids=['ig-1234567890ABCDEF0', 'ig-0987654321ABCDEF0'],
-        cluster_arn='arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0',
+        cluster_arn='arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0',
         operation='add_groups',
     )
     assert model.cluster_id == 'j-1234567890ABCDEF0'
@@ -99,7 +99,7 @@ async def test_add_instance_groups_response_model():
     assert model.instance_group_ids == ['ig-1234567890ABCDEF0', 'ig-0987654321ABCDEF0']
     assert (
         model.cluster_arn
-        == 'arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0'
+        == 'arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0'
     )
     assert model.operation == 'add_groups'
 
@@ -111,7 +111,7 @@ async def test_add_instance_groups_response():
         cluster_id='j-1234567890ABCDEF0',
         job_flow_id='j-1234567890ABCDEF0',
         instance_group_ids=['ig-1234567890ABCDEF0', 'ig-0987654321ABCDEF0'],
-        cluster_arn='arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0',
+        cluster_arn='arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0',
         operation='add_groups',
     )
     response = AddInstanceGroupsResponse.create(
@@ -126,7 +126,7 @@ async def test_add_instance_groups_response():
     assert response.instance_group_ids == ['ig-1234567890ABCDEF0', 'ig-0987654321ABCDEF0']
     assert (
         response.cluster_arn
-        == 'arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0'
+        == 'arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0'
     )
     assert response.operation == 'add_groups'
 

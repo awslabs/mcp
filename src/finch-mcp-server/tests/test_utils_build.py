@@ -12,7 +12,7 @@ class TestContainsEcrReference:
     @patch(
         'builtins.open',
         new_callable=mock_open,
-        read_data='FROM 123456789012.dkr.ecr.us-west-2.amazonaws.com/base:latest',
+        read_data='FROM <account-id>.dkr.ecr.us-west-2.amazonaws.com/base:latest',
     )
     def test_contains_ecr_reference_true(self, mock_file, mock_exists):
         """Test that ECR reference is detected correctly."""

@@ -28,8 +28,8 @@ class TestSessionManagement:
         """Test check_aws_credentials success path."""
         mock_sts = MagicMock()
         mock_sts.get_caller_identity.return_value = {
-            'Account': '123456789012',
-            'Arn': 'arn:aws:iam::123456789012:user/test',
+            'Account': '<account-id>',
+            'Arn': 'arn:aws:iam::<account-id>:user/test',
             'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
         }
         mock_client.return_value = mock_sts
@@ -48,7 +48,7 @@ class TestSessionManagement:
 
             result = check_aws_credentials()
             assert result['valid'] is True
-            assert result['account_id'] == '123456789012'
+            assert result['account_id'] == '<account-id>'
             assert result['credential_source'] == 'env'
 
     @patch('awslabs.ccapi_mcp_server.impl.tools.session_management.get_aws_client')
@@ -56,8 +56,8 @@ class TestSessionManagement:
         """Test check_aws_credentials with profile."""
         mock_sts = MagicMock()
         mock_sts.get_caller_identity.return_value = {
-            'Account': '123456789012',
-            'Arn': 'arn:aws:iam::123456789012:user/test',
+            'Account': '<account-id>',
+            'Arn': 'arn:aws:iam::<account-id>:user/test',
             'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
         }
         mock_client.return_value = mock_sts
@@ -126,9 +126,9 @@ class TestSessionManagement:
         """Test get_aws_session_info_impl success path."""
         mock_check.return_value = {
             'valid': True,
-            'account_id': '123456789012',
+            'account_id': '<account-id>',
             'region': 'us-east-1',
-            'arn': 'arn:aws:iam::123456789012:user/test',
+            'arn': 'arn:aws:iam::<account-id>:user/test',
             'user_id': 'AIDACKCEVSQ6C2EXAMPLE',
             'profile': 'default',
             'credential_source': 'profile',
@@ -142,7 +142,7 @@ class TestSessionManagement:
         result = await get_aws_session_info_impl('env_token', workflow_store)
 
         assert result['credentials_valid'] is True
-        assert result['account_id'] == '123456789012'
+        assert result['account_id'] == '<account-id>'
         assert 'credentials_token' in result
 
     @pytest.mark.asyncio
@@ -151,9 +151,9 @@ class TestSessionManagement:
         """Test get_aws_session_info_impl with environment credentials."""
         mock_check.return_value = {
             'valid': True,
-            'account_id': '123456789012',
+            'account_id': '<account-id>',
             'region': 'us-east-1',
-            'arn': 'arn:aws:iam::123456789012:user/test',
+            'arn': 'arn:aws:iam::<account-id>:user/test',
             'user_id': 'AIDACKCEVSQ6C2EXAMPLE',
             'profile': '',
             'credential_source': 'env',
@@ -215,8 +215,8 @@ class TestSessionManagement:
         """Test get_aws_profile_info success path."""
         mock_sts = MagicMock()
         mock_sts.get_caller_identity.return_value = {
-            'Account': '123456789012',
-            'Arn': 'arn:aws:iam::123456789012:user/test',
+            'Account': '<account-id>',
+            'Arn': 'arn:aws:iam::<account-id>:user/test',
         }
         mock_client.return_value = mock_sts
 
@@ -230,7 +230,7 @@ class TestSessionManagement:
 
             result = get_aws_profile_info()
             assert result['profile'] == 'test-profile'
-            assert result['account_id'] == '123456789012'
+            assert result['account_id'] == '<account-id>'
             assert result['using_env_vars'] is False
 
     @patch('awslabs.ccapi_mcp_server.impl.tools.session_management.get_aws_client')
@@ -238,8 +238,8 @@ class TestSessionManagement:
         """Test get_aws_profile_info with environment variables."""
         mock_sts = MagicMock()
         mock_sts.get_caller_identity.return_value = {
-            'Account': '123456789012',
-            'Arn': 'arn:aws:iam::123456789012:user/test',
+            'Account': '<account-id>',
+            'Arn': 'arn:aws:iam::<account-id>:user/test',
         }
         mock_client.return_value = mock_sts
 

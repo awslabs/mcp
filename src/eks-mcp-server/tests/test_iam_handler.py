@@ -64,7 +64,7 @@ async def test_get_policies_for_role(mock_create_client):
         'Role': {
             'RoleName': 'test-role',
             'RoleId': 'AROAEXAMPLEID',
-            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Arn': 'arn:aws:iam::<account-id>:role/test-role',
             'Path': '/',
             'CreateDate': MagicMock(isoformat=lambda: '2023-01-01T00:00:00Z'),
             'AssumeRolePolicyDocument': json.dumps(
@@ -157,7 +157,7 @@ async def test_get_policies_for_role(mock_create_client):
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    assert result.role_arn == 'arn:aws:iam::123456789012:role/test-role'
+    assert result.role_arn == 'arn:aws:iam::<account-id>:role/test-role'
     assert result.description == 'Test role'
     assert len(result.managed_policies) == 1
     assert result.managed_policies[0].policy_type == 'Managed'
@@ -387,7 +387,7 @@ async def test_get_policies_for_role_string_policy_document(mock_create_client):
         'Role': {
             'RoleName': 'test-role',
             'RoleId': 'AROAEXAMPLEID',
-            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Arn': 'arn:aws:iam::<account-id>:role/test-role',
             'Path': '/',
             'CreateDate': MagicMock(isoformat=lambda: '2023-01-01T00:00:00Z'),
             'AssumeRolePolicyDocument': '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"eks.amazonaws.com"},"Action":"sts:AssumeRole"}]}',
@@ -421,7 +421,7 @@ async def test_get_policies_for_role_string_policy_document(mock_create_client):
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    assert result.role_arn == 'arn:aws:iam::123456789012:role/test-role'
+    assert result.role_arn == 'arn:aws:iam::<account-id>:role/test-role'
     assert result.description == 'Test role'
     assert result.assume_role_policy_document == {
         'Version': '2012-10-17',
@@ -450,7 +450,7 @@ async def test_get_managed_policies_error(mock_create_client):
         'Role': {
             'RoleName': 'test-role',
             'RoleId': 'AROAEXAMPLEID',
-            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Arn': 'arn:aws:iam::<account-id>:role/test-role',
             'Path': '/',
             'CreateDate': MagicMock(isoformat=lambda: '2023-01-01T00:00:00Z'),
             'AssumeRolePolicyDocument': {
@@ -521,7 +521,7 @@ async def test_get_managed_policies_error(mock_create_client):
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
-    assert result.role_arn == 'arn:aws:iam::123456789012:role/test-role'
+    assert result.role_arn == 'arn:aws:iam::<account-id>:role/test-role'
     assert result.description == 'Test role'
     assert len(result.managed_policies) == 1
     assert result.managed_policies[0].policy_type == 'Managed'
@@ -543,7 +543,7 @@ async def test_get_inline_policies_error(mock_create_client):
         'Role': {
             'RoleName': 'test-role',
             'RoleId': 'AROAEXAMPLEID',
-            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Arn': 'arn:aws:iam::<account-id>:role/test-role',
             'Path': '/',
             'CreateDate': MagicMock(isoformat=lambda: '2023-01-01T00:00:00Z'),
             'AssumeRolePolicyDocument': {

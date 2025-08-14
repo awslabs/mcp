@@ -382,7 +382,7 @@ class TestDatabaseResponseModels:
             location_uri='s3://test-bucket/',
             parameters={'key1': 'value1'},
             creation_time='2023-01-01T00:00:00Z',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
             content=[TextContent(type='text', text='Successfully retrieved database')],
         )
         assert response.isError is False
@@ -391,7 +391,7 @@ class TestDatabaseResponseModels:
         assert response.location_uri == 's3://test-bucket/'
         assert response.parameters == {'key1': 'value1'}
         assert response.creation_time == '2023-01-01T00:00:00Z'
-        assert response.catalog_id == '123456789012'
+        assert response.catalog_id == '<account-id>'
         assert response.operation == 'get'  # Default value
         assert len(response.content) == 1
         assert response.content[0].text == 'Successfully retrieved database'
@@ -405,7 +405,7 @@ class TestDatabaseResponseModels:
             isError=False,
             databases=[db1, db2],
             count=2,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
             content=[TextContent(type='text', text='Successfully listed databases')],
         )
         assert response.isError is False
@@ -413,7 +413,7 @@ class TestDatabaseResponseModels:
         assert response.databases[0].name == 'db1'
         assert response.databases[1].name == 'db2'
         assert response.count == 2
-        assert response.catalog_id == '123456789012'
+        assert response.catalog_id == '<account-id>'
         assert response.operation == 'list'  # Default value
         assert len(response.content) == 1
         assert response.content[0].text == 'Successfully listed databases'
@@ -562,12 +562,12 @@ class TestConnectionResponseModels:
         response = CreateConnectionResponse(
             isError=False,
             connection_name='test-conn',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
             content=[TextContent(type='text', text='Successfully created connection')],
         )
         assert response.isError is False
         assert response.connection_name == 'test-conn'
-        assert response.catalog_id == '123456789012'
+        assert response.catalog_id == '<account-id>'
         assert response.operation == 'create'  # Default value
         assert len(response.content) == 1
         assert response.content[0].text == 'Successfully created connection'
@@ -577,12 +577,12 @@ class TestConnectionResponseModels:
         response = DeleteConnectionResponse(
             isError=False,
             connection_name='test-conn',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
             content=[TextContent(type='text', text='Successfully deleted connection')],
         )
         assert response.isError is False
         assert response.connection_name == 'test-conn'
-        assert response.catalog_id == '123456789012'
+        assert response.catalog_id == '<account-id>'
         assert response.operation == 'delete'  # Default value
         assert len(response.content) == 1
         assert response.content[0].text == 'Successfully deleted connection'
@@ -608,7 +608,7 @@ class TestConnectionResponseModels:
             status='READY',
             status_reason='Connection is ready',
             last_connection_validation_time='2023-01-03T00:00:00Z',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
             content=[TextContent(type='text', text='Successfully retrieved connection')],
         )
         assert response.isError is False
@@ -626,7 +626,7 @@ class TestConnectionResponseModels:
         assert response.status == 'READY'
         assert response.status_reason == 'Connection is ready'
         assert response.last_connection_validation_time == '2023-01-03T00:00:00Z'
-        assert response.catalog_id == '123456789012'
+        assert response.catalog_id == '<account-id>'
         assert response.operation == 'get'  # Default value
         assert len(response.content) == 1
         assert response.content[0].text == 'Successfully retrieved connection'

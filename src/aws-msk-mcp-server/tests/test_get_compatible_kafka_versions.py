@@ -37,7 +37,7 @@ class TestGetCompatibleKafkaVersions:
         mock_client.get_compatible_kafka_versions.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = get_compatible_kafka_versions(cluster_arn, mock_client)
 
         # Assert
@@ -62,7 +62,7 @@ class TestGetCompatibleKafkaVersions:
         mock_client.get_compatible_kafka_versions.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = get_compatible_kafka_versions(cluster_arn, mock_client)
 
         # Assert
@@ -82,7 +82,7 @@ class TestGetCompatibleKafkaVersions:
         mock_client.get_compatible_kafka_versions.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = get_compatible_kafka_versions(cluster_arn, mock_client)
 
         # Assert
@@ -101,7 +101,7 @@ class TestGetCompatibleKafkaVersions:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             get_compatible_kafka_versions(cluster_arn, mock_client)
 
@@ -113,7 +113,7 @@ class TestGetCompatibleKafkaVersions:
     def test_get_compatible_kafka_versions_missing_client(self):
         """Test the get_compatible_kafka_versions function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             get_compatible_kafka_versions(cluster_arn, None)
 

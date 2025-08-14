@@ -85,9 +85,9 @@ class TestReadVpcInit:
 
         # Mock the describe_vpc_connection function
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'ACTIVE',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'Authentication': {'Sasl': {'Scram': {'Enabled': True}}},
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'VpcId': 'vpc-12345678',
@@ -100,7 +100,7 @@ class TestReadVpcInit:
 
         # Act
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
 
         result = describe_vpc_connection_tool(

@@ -29,7 +29,7 @@ class TestDescribeCluster:
         mock_client = MagicMock()
         expected_response = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
                 'State': 'ACTIVE',
                 'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -39,7 +39,7 @@ class TestDescribeCluster:
         mock_client.describe_cluster_v2.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = describe_cluster(cluster_arn, mock_client)
 
         # Assert
@@ -56,7 +56,7 @@ class TestDescribeCluster:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             describe_cluster(cluster_arn, mock_client)
 
@@ -68,7 +68,7 @@ class TestDescribeCluster:
     def test_describe_cluster_missing_client(self):
         """Test the describe_cluster function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             describe_cluster(cluster_arn, None)
 

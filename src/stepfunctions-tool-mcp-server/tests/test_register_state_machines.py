@@ -23,12 +23,12 @@ class TestRegisterStateMachines:
             'stateMachines': [
                 {
                     'name': 'test-state-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine',
                     'type': 'STANDARD',
                 },
                 {
                     'name': 'prefix-test-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:prefix-test-machine',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:prefix-test-machine',
                     'type': 'STANDARD',
                 },
             ]
@@ -41,7 +41,7 @@ class TestRegisterStateMachines:
         assert mock_create_tool.call_count == 1
         mock_create_tool.assert_called_with(
             'prefix-test-machine',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:prefix-test-machine',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:prefix-test-machine',
             'STANDARD',
             'AWS Step Functions state machine: prefix-test-machine',
             None,
@@ -59,17 +59,17 @@ class TestRegisterStateMachines:
             'stateMachines': [
                 {
                     'name': 'machine1',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine1',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:machine1',
                     'type': 'STANDARD',
                 },
                 {
                     'name': 'machine2',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine2',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:machine2',
                     'type': 'STANDARD',
                 },
                 {
                     'name': 'machine3',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:machine3',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:machine3',
                     'type': 'STANDARD',
                 },
             ]
@@ -82,14 +82,14 @@ class TestRegisterStateMachines:
         assert mock_create_tool.call_count == 2
         mock_create_tool.assert_any_call(
             'machine1',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:machine1',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:machine1',
             'STANDARD',
             'AWS Step Functions state machine: machine1',
             None,
         )
         mock_create_tool.assert_any_call(
             'machine2',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:machine2',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:machine2',
             'STANDARD',
             'AWS Step Functions state machine: machine2',
             None,
@@ -106,7 +106,7 @@ class TestRegisterStateMachines:
             'stateMachines': [
                 {
                     'name': 'tagged-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:tagged-machine',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:tagged-machine',
                     'type': 'STANDARD',
                 },
             ]
@@ -121,7 +121,7 @@ class TestRegisterStateMachines:
         # Verify results
         mock_create_tool.assert_called_once_with(
             'tagged-machine',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:tagged-machine',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:tagged-machine',
             'STANDARD',
             'AWS Step Functions state machine: tagged-machine',
             None,
@@ -136,7 +136,7 @@ class TestRegisterStateMachines:
             'stateMachines': [
                 {
                     'name': 'test-machine',
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-machine',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-machine',
                     'type': 'STANDARD',
                 },
             ]
@@ -152,7 +152,7 @@ class TestRegisterStateMachines:
         # Verify results
         mock_create_tool.assert_called_once_with(
             'test-machine',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:test-machine',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:test-machine',
             'STANDARD',
             'Test Description\n\nWorkflow Description: Workflow Comment',
             None,

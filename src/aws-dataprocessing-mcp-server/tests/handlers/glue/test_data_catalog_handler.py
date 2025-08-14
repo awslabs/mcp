@@ -270,7 +270,7 @@ class TestGlueDataCatalogHandler:
         mock_response.parameters = {}
         mock_response.creation_time = '2023-01-01T00:00:00Z'
         mock_response.operation = 'get'
-        mock_response.catalog_id = '123456789012'
+        mock_response.catalog_id = '<account-id>'
 
         # Setup the mock to return a response
         mock_database_manager.get_database.return_value = mock_response
@@ -313,7 +313,7 @@ class TestGlueDataCatalogHandler:
         mock_response.content = []
         mock_response.databases = []
         mock_response.count = 0
-        mock_response.catalog_id = '123456789012'
+        mock_response.catalog_id = '<account-id>'
         mock_response.operation = 'list'
 
         # Setup the mock to return a response
@@ -354,7 +354,7 @@ class TestGlueDataCatalogHandler:
             description='Test database',
             location_uri='s3://test-bucket/',
             parameters={'key': 'value'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -364,7 +364,7 @@ class TestGlueDataCatalogHandler:
             description='Test database',
             location_uri='s3://test-bucket/',
             parameters={'key': 'value'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -388,12 +388,12 @@ class TestGlueDataCatalogHandler:
             mock_ctx,
             operation='delete-database',
             database_name='test-db',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
         mock_database_manager.delete_database.assert_called_once_with(
-            ctx=mock_ctx, database_name='test-db', catalog_id='123456789012'
+            ctx=mock_ctx, database_name='test-db', catalog_id='<account-id>'
         )
 
         # Verify that the result is the expected response
@@ -454,7 +454,7 @@ class TestGlueDataCatalogHandler:
             description='Updated database',
             location_uri='s3://updated-bucket/',
             parameters={'key': 'updated-value'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -464,7 +464,7 @@ class TestGlueDataCatalogHandler:
             description='Updated database',
             location_uri='s3://updated-bucket/',
             parameters={'key': 'updated-value'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -859,7 +859,7 @@ class TestGlueDataCatalogHandler:
         mock_response.content = []
         mock_response.catalogs = []
         mock_response.count = 0
-        mock_response.catalog_id = '123456789012'
+        mock_response.catalog_id = '<account-id>'
         mock_response.operation = 'list-catalogs'
         handler.data_catalog_manager.list_catalogs.return_value = mock_response
         result = await handler.manage_aws_glue_data_catalog(mock_ctx, operation='list-catalogs')
@@ -908,7 +908,7 @@ class TestGlueDataCatalogHandler:
         mock_response = MagicMock()
         mock_response.isError = False
         mock_response.content = []
-        mock_response.catalog_id = '123456789012'
+        mock_response.catalog_id = '<account-id>'
         mock_response.operation = 'import-catalog-to-glue'
         handler_with_write_access.data_catalog_manager.import_catalog_to_glue.return_value = (
             mock_response
@@ -1249,7 +1249,7 @@ class TestGlueDataCatalogHandler:
             description='Test database',
             location_uri='s3://test-bucket/',
             parameters={'key1': 'value1', 'key2': 'value2'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1264,7 +1264,7 @@ class TestGlueDataCatalogHandler:
             'key1': 'value1',
             'key2': 'value2',
         }
-        assert mock_database_manager.create_database.call_args[1]['catalog_id'] == '123456789012'
+        assert mock_database_manager.create_database.call_args[1]['catalog_id'] == '<account-id>'
 
         # Verify that the result is the expected response
         assert result == expected_response
@@ -1638,7 +1638,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input=table_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1647,7 +1647,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input=table_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -1702,7 +1702,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input=table_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1711,7 +1711,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input=table_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -1728,7 +1728,7 @@ class TestGlueDataCatalogHandler:
         expected_response.content = []
         expected_response.connection_name = 'test-jdbc-connection'
         expected_response.operation = 'create-connection'
-        expected_response.catalog_id = '123456789012'
+        expected_response.catalog_id = '<account-id>'
         mock_catalog_manager.create_connection.return_value = expected_response
 
         # Create a comprehensive connection input
@@ -1754,7 +1754,7 @@ class TestGlueDataCatalogHandler:
             operation='create-connection',
             connection_name='test-jdbc-connection',
             connection_input=connection_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1762,13 +1762,13 @@ class TestGlueDataCatalogHandler:
             ctx=mock_ctx,
             connection_name='test-jdbc-connection',
             connection_input=connection_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
         assert result == expected_response
         assert result.connection_name == 'test-jdbc-connection'
-        assert result.catalog_id == '123456789012'
+        assert result.catalog_id == '<account-id>'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_connections_update_with_connection_input(
@@ -1781,7 +1781,7 @@ class TestGlueDataCatalogHandler:
         expected_response.content = []
         expected_response.connection_name = 'test-jdbc-connection'
         expected_response.operation = 'update-connection'
-        expected_response.catalog_id = '123456789012'
+        expected_response.catalog_id = '<account-id>'
         mock_catalog_manager.update_connection.return_value = expected_response
 
         # Create a comprehensive connection input for update
@@ -1807,7 +1807,7 @@ class TestGlueDataCatalogHandler:
             operation='update-connection',
             connection_name='test-jdbc-connection',
             connection_input=connection_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1815,13 +1815,13 @@ class TestGlueDataCatalogHandler:
             ctx=mock_ctx,
             connection_name='test-jdbc-connection',
             connection_input=connection_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
         assert result == expected_response
         assert result.connection_name == 'test-jdbc-connection'
-        assert result.catalog_id == '123456789012'
+        assert result.catalog_id == '<account-id>'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_create_with_partition_input(
@@ -1872,7 +1872,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             partition_values=['2023', '01'],
             partition_input=partition_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1882,7 +1882,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             partition_values=['2023', '01'],
             partition_input=partition_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -1942,7 +1942,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             partition_values=['2023', '01'],
             partition_input=partition_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1952,7 +1952,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             partition_values=['2023', '01'],
             partition_input=partition_input,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -1987,7 +1987,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             search_text='test',
             max_results=10,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -1995,7 +1995,7 @@ class TestGlueDataCatalogHandler:
             ctx=mock_ctx,
             search_text='test',
             max_results=10,
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -2039,7 +2039,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             max_results=10,
             expression="year='2023'",
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -2049,7 +2049,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             max_results=10,
             expression="year='2023'",
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
             next_token=ANY,
         )
 
@@ -2376,7 +2376,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input={'Name': 'test-table'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -2385,7 +2385,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input={'Name': 'test-table'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -2432,7 +2432,7 @@ class TestGlueDataCatalogHandler:
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'get-connection'
-        expected_response.catalog_id = '123456789012'
+        expected_response.catalog_id = '<account-id>'
         mock_catalog_manager.get_connection.return_value = expected_response
 
         # Call the method with a catalog ID
@@ -2440,16 +2440,16 @@ class TestGlueDataCatalogHandler:
             mock_ctx,
             operation='get-connection',
             connection_name='test-connection',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
         assert mock_catalog_manager.get_connection.call_count == 1
-        assert mock_catalog_manager.get_connection.call_args[1]['catalog_id'] == '123456789012'
+        assert mock_catalog_manager.get_connection.call_args[1]['catalog_id'] == '<account-id>'
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.catalog_id == '123456789012'
+        assert result.catalog_id == '<account-id>'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_get_with_catalog_id(
@@ -2473,12 +2473,12 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             partition_values=['2023', '01'],
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
         assert mock_catalog_manager.get_partition.call_count == 1
-        assert mock_catalog_manager.get_partition.call_args[1]['catalog_id'] == '123456789012'
+        assert mock_catalog_manager.get_partition.call_args[1]['catalog_id'] == '<account-id>'
 
         # Verify that the result is the expected response
         assert result == expected_response
@@ -3141,7 +3141,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input={'Name': 'test-table'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -3150,7 +3150,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             table_input={'Name': 'test-table'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -3167,7 +3167,7 @@ class TestGlueDataCatalogHandler:
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'update-connection'
-        expected_response.catalog_id = '123456789012'
+        expected_response.catalog_id = '<account-id>'
         mock_catalog_manager.update_connection.return_value = expected_response
 
         # Call the method with a catalog ID
@@ -3176,7 +3176,7 @@ class TestGlueDataCatalogHandler:
             operation='update-connection',
             connection_name='test-connection',
             connection_input={'ConnectionType': 'JDBC'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -3184,12 +3184,12 @@ class TestGlueDataCatalogHandler:
             ctx=mock_ctx,
             connection_name='test-connection',
             connection_input={'ConnectionType': 'JDBC'},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.catalog_id == '123456789012'
+        assert result.catalog_id == '<account-id>'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_update_with_catalog_id(
@@ -3214,7 +3214,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             partition_values=['2023'],
             partition_input={'StorageDescriptor': {'Location': 's3://bucket/path/2023'}},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -3224,7 +3224,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             partition_values=['2023'],
             partition_input={'StorageDescriptor': {'Location': 's3://bucket/path/2023'}},
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -3250,7 +3250,7 @@ class TestGlueDataCatalogHandler:
             operation='delete-table',
             database_name='test-db',
             table_name='test-table',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -3258,7 +3258,7 @@ class TestGlueDataCatalogHandler:
             ctx=mock_ctx,
             database_name='test-db',
             table_name='test-table',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -3275,7 +3275,7 @@ class TestGlueDataCatalogHandler:
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'delete-connection'
-        expected_response.catalog_id = '123456789012'
+        expected_response.catalog_id = '<account-id>'
         mock_catalog_manager.delete_connection.return_value = expected_response
 
         # Call the method with a catalog ID
@@ -3283,19 +3283,19 @@ class TestGlueDataCatalogHandler:
             mock_ctx,
             operation='delete-connection',
             connection_name='test-connection',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
         mock_catalog_manager.delete_connection.assert_called_once_with(
             ctx=mock_ctx,
             connection_name='test-connection',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.catalog_id == '123456789012'
+        assert result.catalog_id == '<account-id>'
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_data_catalog_partitions_delete_with_catalog_id(
@@ -3319,7 +3319,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             partition_values=['2023'],
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -3328,7 +3328,7 @@ class TestGlueDataCatalogHandler:
             database_name='test-db',
             table_name='test-table',
             partition_values=['2023'],
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the result is the expected response
@@ -3736,7 +3736,7 @@ class TestGlueDataCatalogHandler:
             table_name='test-table',
             max_results=10,
             expression="year='2023'",
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -3745,7 +3745,7 @@ class TestGlueDataCatalogHandler:
         assert mock_catalog_manager.list_partitions.call_args[1]['table_name'] == 'test-table'
         assert mock_catalog_manager.list_partitions.call_args[1]['max_results'] == 10
         assert mock_catalog_manager.list_partitions.call_args[1]['expression'] == "year='2023'"
-        assert mock_catalog_manager.list_partitions.call_args[1]['catalog_id'] == '123456789012'
+        assert mock_catalog_manager.list_partitions.call_args[1]['catalog_id'] == '<account-id>'
 
         # Verify that the result is the expected response
         assert result == expected_response
@@ -3803,12 +3803,12 @@ class TestGlueDataCatalogHandler:
         result = await handler.manage_aws_glue_data_catalog_connections(
             mock_ctx,
             operation='list-connections',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
         mock_catalog_manager.list_connections.assert_called_once()
-        assert mock_catalog_manager.list_connections.call_args[1]['catalog_id'] == '123456789012'
+        assert mock_catalog_manager.list_connections.call_args[1]['catalog_id'] == '<account-id>'
 
         # Verify that the result is the expected response
         assert result == expected_response
@@ -3836,7 +3836,7 @@ class TestGlueDataCatalogHandler:
             mock_ctx,
             operation='get-connection',
             connection_name='test-connection',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
         )
 
         # Verify that the method was called with the correct parameters
@@ -3845,7 +3845,7 @@ class TestGlueDataCatalogHandler:
             mock_catalog_manager.get_connection.call_args[1]['connection_name']
             == 'test-connection'
         )
-        assert mock_catalog_manager.get_connection.call_args[1]['catalog_id'] == '123456789012'
+        assert mock_catalog_manager.get_connection.call_args[1]['catalog_id'] == '<account-id>'
 
         # Verify that the result is the expected response
         assert result == expected_response

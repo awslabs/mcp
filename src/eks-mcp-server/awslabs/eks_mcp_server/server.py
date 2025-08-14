@@ -57,7 +57,7 @@ DO NOT use standard EKS and Kubernetes CLI commands (aws eks, eksctl, kubectl). 
 ### Creating and Deploying an Application
 1. Generate a CloudFormation template: `manage_eks_stacks(operation='generate', template_file='/path/to/template.yaml', cluster_name='my-cluster')`
 2. Deploy the CloudFormation stack: `manage_eks_stacks(operation='deploy', template_file='/path/to/template.yaml', cluster_name='my-cluster')`
-3. Generate an application manifest: `generate_app_manifest(app_name='my-app', image_uri='123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest')`
+3. Generate an application manifest: `generate_app_manifest(app_name='my-app', image_uri='<account-id>.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest')`
 4. Apply the manifest: `apply_yaml(yaml_path='/path/to/manifest.yaml', cluster_name='my-cluster', namespace='default')`
 5. Monitor the application: `get_pod_logs(cluster_name='my-cluster', namespace='default', pod_name='my-app-pod')`
 

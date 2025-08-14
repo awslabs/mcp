@@ -20,15 +20,15 @@ class TestFilterStateMachines:
         state_machines = [
             {
                 'name': 'test-state-machine-1',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-1',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine-1',
             },
             {
                 'name': 'test-state-machine-2',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-2',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine-2',
             },
             {
                 'name': 'prefix-test-state-machine-3',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:prefix-test-state-machine-3',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:prefix-test-state-machine-3',
             },
         ]
 
@@ -57,11 +57,11 @@ class TestFilterStateMachines:
         state_machines = [
             {
                 'name': 'test-state-machine-1',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-1',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine-1',
             },
             {
                 'name': 'test-state-machine-2',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-2',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine-2',
             },
         ]
 
@@ -86,7 +86,7 @@ class TestFilterStateMachines:
         state_machines = [
             {
                 'name': 'test-state-machine-1',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine-1',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine-1',
             },
         ]
 
@@ -114,15 +114,15 @@ class TestFilterStateMachines:
         state_machines = [
             {
                 'name': 'success-machine',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:success-machine',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:success-machine',
             },
             {
                 'name': 'error-machine',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:error-machine',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:error-machine',
             },
             {
                 'name': 'empty-tags-machine',
-                'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:empty-tags-machine',
+                'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:empty-tags-machine',
             },
         ]
 

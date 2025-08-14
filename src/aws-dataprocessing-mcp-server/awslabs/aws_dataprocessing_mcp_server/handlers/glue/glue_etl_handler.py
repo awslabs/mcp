@@ -210,7 +210,7 @@ class GlueEtlJobsHandler:
             'operation': 'create-job',
             'job_name': 'my-etl-job',
             'job_definition': {
-                'Role': 'arn:aws:iam::123456789012:role/GlueETLRole',
+                'Role': 'arn:aws:iam::<account-id>:role/GlueETLRole',
                 'Command': {
                     'Name': 'glueetl',
                     'ScriptLocation': 's3://my-bucket/scripts/etl-script.py',

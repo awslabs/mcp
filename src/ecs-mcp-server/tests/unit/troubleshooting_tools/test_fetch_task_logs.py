@@ -32,7 +32,7 @@ async def test_logs_found(mock_get_aws_client):
                 "logGroupName": "/ecs/test-cluster/test-app",
                 "creationTime": int(timestamp.timestamp()) * 1000,
                 "metricFilterCount": 0,
-                "arn": "arn:aws:logs:us-west-2:123456789012:log-group:/ecs/test-cluster/test-app:*",
+                "arn": "arn:aws:logs:us-west-2:<account-id>:log-group:/ecs/test-cluster/test-app:*",
                 "storedBytes": 1234,
             }
         ]
@@ -49,7 +49,7 @@ async def test_logs_found(mock_get_aws_client):
                 "lastIngestionTime": int(timestamp.timestamp()) * 1000,
                 "uploadSequenceToken": "1234567890",
                 "arn": (
-                    "arn:aws:logs:us-west-2:123456789012:log-group:/ecs/test-cluster/test-app:"
+                    "arn:aws:logs:us-west-2:<account-id>:log-group:/ecs/test-cluster/test-app:"
                     "log-stream:ecs/test-app/1234567890abcdef0"
                 ),
                 "storedBytes": 1234,

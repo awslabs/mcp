@@ -77,7 +77,7 @@ async def test_describe_log_groups_with_all_params():
     ):
         # Call with all parameters
         result = await describe_log_groups(
-            account_identifiers=['123456789012'],
+            account_identifiers=['<account-id>'],
             log_group_name_prefix='/aws/lambda',
             log_group_name_pattern='*lambda*',
             include_linked_accounts=True,
@@ -87,7 +87,7 @@ async def test_describe_log_groups_with_all_params():
 
         # Verify all parameters were passed correctly
         mock_client.describe_log_groups.assert_called_once_with(
-            accountIdentifiers=['123456789012'],
+            accountIdentifiers=['<account-id>'],
             logGroupNamePrefix='/aws/lambda',
             logGroupNamePattern='*lambda*',
             includeLinkedAccounts=True,

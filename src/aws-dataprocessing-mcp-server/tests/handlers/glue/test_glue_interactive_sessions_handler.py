@@ -84,7 +84,7 @@ async def test_create_session_success(mock_prepare_tags, mock_create_client):
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueInteractiveSessionRole',
+        role='arn:aws:iam::<account-id>:role/GlueInteractiveSessionRole',
         command={'Name': 'glueetl', 'PythonVersion': '3'},
         glue_version='3.0',
         description='Test session',
@@ -111,7 +111,7 @@ async def test_create_session_success(mock_prepare_tags, mock_create_client):
     mock_glue_client.create_session.assert_called_once()
     args, kwargs = mock_glue_client.create_session.call_args
     assert kwargs['Id'] == 'test-session'
-    assert kwargs['Role'] == 'arn:aws:iam::123456789012:role/GlueInteractiveSessionRole'
+    assert kwargs['Role'] == 'arn:aws:iam::<account-id>:role/GlueInteractiveSessionRole'
     assert kwargs['Command'] == {'Name': 'glueetl', 'PythonVersion': '3'}
     assert kwargs['GlueVersion'] == '3.0'
     assert kwargs['Description'] == 'Test session'
@@ -150,7 +150,7 @@ async def test_create_session_no_write_access(mock_create_client):
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueInteractiveSessionRole',
+        role='arn:aws:iam::<account-id>:role/GlueInteractiveSessionRole',
         command={'Name': 'glueetl', 'PythonVersion': '3'},
     )
 
@@ -179,7 +179,7 @@ async def test_delete_session_success(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -231,7 +231,7 @@ async def test_delete_session_not_mcp_managed(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return False
     mock_is_mcp_managed.return_value = False
@@ -393,7 +393,7 @@ async def test_stop_session_success(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -968,7 +968,7 @@ async def test_create_session_with_all_optional_params(mock_prepare_tags, mock_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         description='Test description',
         timeout=120,
@@ -1019,7 +1019,7 @@ async def test_create_session_without_user_tags(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
     )
 
@@ -1039,7 +1039,7 @@ async def test_delete_session_client_error(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -1120,7 +1120,7 @@ async def test_stop_session_client_error(mock_get_account_id, mock_get_region, m
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -1150,7 +1150,7 @@ async def test_stop_session_with_request_origin(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_is_mcp_managed.return_value = True
     mock_mcp = MagicMock()
     handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
@@ -1399,7 +1399,7 @@ async def test_stop_session_not_mcp_managed(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_is_mcp_managed.return_value = False
     mock_mcp = MagicMock()
     handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
@@ -1428,7 +1428,7 @@ async def test_stop_session_not_found(mock_get_account_id, mock_get_region, mock
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -1469,7 +1469,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         description='Test description',
     )
@@ -1479,7 +1479,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         timeout=120,
     )
@@ -1489,7 +1489,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         idle_timeout=60,
     )
@@ -1499,7 +1499,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         default_arguments={'--arg': 'value'},
     )
@@ -1509,7 +1509,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         connections={'Connections': ['conn1']},
     )
@@ -1519,7 +1519,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         max_capacity=2.0,
     )
@@ -1529,7 +1529,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         number_of_workers=4,
     )
@@ -1539,7 +1539,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         worker_type='G.2X',
     )
@@ -1549,7 +1549,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         security_configuration='test-config',
     )
@@ -1559,7 +1559,7 @@ async def test_create_session_individual_params(mock_prepare_tags, mock_create_c
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
         glue_version='4.0',
     )
@@ -1596,7 +1596,7 @@ async def test_delete_session_entity_not_found(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -1670,7 +1670,7 @@ async def test_stop_session_without_request_origin(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_is_mcp_managed.return_value = True
     mock_mcp = MagicMock()
     handler = GlueInteractiveSessionsHandler(mock_mcp, allow_write=True)
@@ -1849,7 +1849,7 @@ async def test_create_session_minimal_params(mock_prepare_tags, mock_create_clie
         mock_ctx,
         operation='create-session',
         session_id='test-session',
-        role='arn:aws:iam::123456789012:role/GlueRole',
+        role='arn:aws:iam::<account-id>:role/GlueRole',
         command={'Name': 'glueetl'},
     )
 
@@ -1858,7 +1858,7 @@ async def test_create_session_minimal_params(mock_prepare_tags, mock_create_clie
     mock_glue_client.create_session.assert_called_once()
     args, kwargs = mock_glue_client.create_session.call_args
     assert kwargs['Id'] == 'test-session'
-    assert kwargs['Role'] == 'arn:aws:iam::123456789012:role/GlueRole'
+    assert kwargs['Role'] == 'arn:aws:iam::<account-id>:role/GlueRole'
     assert kwargs['Command'] == {'Name': 'glueetl'}
 
 

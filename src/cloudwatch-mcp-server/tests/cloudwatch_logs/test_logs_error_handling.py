@@ -163,7 +163,7 @@ class TestErrorHandling:
             with pytest.raises(Exception) as exc_info:
                 await tools.analyze_log_group(
                     mock_context,
-                    log_group_arn='arn:aws:logs:us-east-1:123456789012:log-group:test-group',
+                    log_group_arn='arn:aws:logs:us-east-1:<account-id>:log-group:test-group',
                     start_time='2023-01-01T00:00:00+00:00',
                     end_time='2023-01-01T01:00:00+00:00',
                 )

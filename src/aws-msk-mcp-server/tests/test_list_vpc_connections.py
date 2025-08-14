@@ -30,7 +30,7 @@ class TestListVpcConnections:
         expected_response = {
             'VpcConnectionInfoList': [
                 {
-                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-connection-1/abcdef',
+                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-connection-1/abcdef',
                     'VpcId': 'vpc-12345',
                     'SubnetIds': ['subnet-1', 'subnet-2', 'subnet-3'],
                     'SecurityGroups': ['sg-1'],
@@ -38,7 +38,7 @@ class TestListVpcConnections:
                     'VpcConnectionState': 'ACTIVE',
                 },
                 {
-                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-connection-2/ghijkl',
+                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-connection-2/ghijkl',
                     'VpcId': 'vpc-67890',
                     'SubnetIds': ['subnet-4', 'subnet-5', 'subnet-6'],
                     'SecurityGroups': ['sg-2'],
@@ -67,7 +67,7 @@ class TestListVpcConnections:
         expected_response = {
             'VpcConnectionInfoList': [
                 {
-                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-connection-1/abcdef',
+                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-connection-1/abcdef',
                     'VpcId': 'vpc-12345',
                     'SubnetIds': ['subnet-1', 'subnet-2', 'subnet-3'],
                     'SecurityGroups': ['sg-1'],

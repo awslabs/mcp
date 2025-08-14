@@ -906,7 +906,7 @@ metadata:
         result = await handler.generate_app_manifest(
             mock_context,
             app_name='test-app',
-            image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+            image_uri='<account-id>.dkr.ecr.region.amazonaws.com/repo:tag',
             output_dir='/absolute/path/to/output',
         )
 
@@ -936,7 +936,7 @@ metadata:
             result = await handler.generate_app_manifest(
                 mock_context,
                 app_name='test-app',
-                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                image_uri='<account-id>.dkr.ecr.region.amazonaws.com/repo:tag',
                 output_dir='relative/path/to/output',
             )
 
@@ -972,7 +972,7 @@ metadata:
                             result = await handler.generate_app_manifest(
                                 mock_context,
                                 app_name='test-app',
-                                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                                image_uri='<account-id>.dkr.ecr.region.amazonaws.com/repo:tag',
                                 port=8080,
                                 replicas=3,
                                 cpu='250m',
@@ -1000,7 +1000,7 @@ metadata:
                                 in result.content[0].text
                             )
                             assert (
-                                'with image 123456789012.dkr.ecr.region.amazonaws.com/repo:tag'
+                                'with image <account-id>.dkr.ecr.region.amazonaws.com/repo:tag'
                                 in result.content[0].text
                             )
 
@@ -1028,7 +1028,7 @@ metadata:
                 result = await handler.generate_app_manifest(
                     mock_context,
                     app_name='test-app',
-                    image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                    image_uri='<account-id>.dkr.ecr.region.amazonaws.com/repo:tag',
                     output_dir='/absolute/path/to/output',  # Use an absolute path
                 )
 
@@ -1101,7 +1101,7 @@ metadata:
                             result = await handler.generate_app_manifest(
                                 mock_context,
                                 app_name='test-app',
-                                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                                image_uri='<account-id>.dkr.ecr.region.amazonaws.com/repo:tag',
                                 output_dir='/path/to/output',
                             )
 
@@ -1150,7 +1150,7 @@ metadata:
                             result = await handler.generate_app_manifest(
                                 mock_context,
                                 app_name='test-app',
-                                image_uri='123456789012.dkr.ecr.region.amazonaws.com/repo:tag',
+                                image_uri='<account-id>.dkr.ecr.region.amazonaws.com/repo:tag',
                                 port=80,
                                 replicas=2,
                                 cpu='100m',

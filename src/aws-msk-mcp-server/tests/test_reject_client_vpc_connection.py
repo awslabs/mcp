@@ -30,16 +30,16 @@ class TestRejectClientVpcConnection:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'REJECTED',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
         }
         mock_client.reject_client_vpc_connection.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         result = reject_client_vpc_connection(cluster_arn, vpc_connection_arn, mock_client)
 
@@ -50,12 +50,12 @@ class TestRejectClientVpcConnection:
         assert result == expected_response
         assert (
             result['VpcConnectionArn']
-            == 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         assert result['VpcConnectionState'] == 'REJECTED'
         assert (
             result['ClusterArn']
-            == 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
 
     def test_reject_client_vpc_connection_error(self):
@@ -73,9 +73,9 @@ class TestRejectClientVpcConnection:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         with pytest.raises(ClientError) as excinfo:
             reject_client_vpc_connection(cluster_arn, vpc_connection_arn, mock_client)
@@ -90,9 +90,9 @@ class TestRejectClientVpcConnection:
     def test_reject_client_vpc_connection_missing_client(self):
         """Test the reject_client_vpc_connection function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         with pytest.raises(ValueError) as excinfo:
             reject_client_vpc_connection(cluster_arn, vpc_connection_arn, None)

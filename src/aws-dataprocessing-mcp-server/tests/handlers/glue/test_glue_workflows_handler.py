@@ -337,7 +337,7 @@ async def test_delete_workflow_success(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -387,7 +387,7 @@ async def test_delete_workflow_not_mcp_managed(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return False
     mock_is_mcp_managed.return_value = False
@@ -573,7 +573,7 @@ async def test_start_workflow_run_success(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -633,7 +633,7 @@ async def test_start_workflow_run_not_mcp_managed(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return False
     mock_is_mcp_managed.return_value = False
@@ -726,7 +726,7 @@ async def test_start_workflow_run_not_found(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Create a mock MCP server
     mock_mcp = MagicMock()
@@ -777,7 +777,7 @@ async def test_start_workflow_run_without_run_properties(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -1266,7 +1266,7 @@ async def test_delete_trigger_success(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -1316,7 +1316,7 @@ async def test_delete_trigger_not_mcp_managed(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return False
     mock_is_mcp_managed.return_value = False
@@ -1461,7 +1461,7 @@ async def test_start_trigger_success(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -1511,7 +1511,7 @@ async def test_stop_trigger_success(
 
     # Mock the region and account ID
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
 
     # Mock the is_resource_mcp_managed to return True
     mock_is_mcp_managed.return_value = True
@@ -1711,7 +1711,7 @@ async def test_delete_workflow_client_error(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -1783,7 +1783,7 @@ async def test_start_workflow_run_client_error(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -1813,7 +1813,7 @@ async def test_start_workflow_run_without_run_properties_mcp_managed(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_is_mcp_managed.return_value = True
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
@@ -1968,7 +1968,7 @@ async def test_delete_trigger_client_error(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -2015,7 +2015,7 @@ async def test_start_trigger_client_error(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -2042,7 +2042,7 @@ async def test_stop_trigger_client_error(mock_get_account_id, mock_get_region, m
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -2199,7 +2199,7 @@ async def test_delete_workflow_entity_not_found(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -2298,7 +2298,7 @@ async def test_start_workflow_run_entity_not_found(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -2329,7 +2329,7 @@ async def test_start_workflow_run_with_run_properties(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_is_mcp_managed.return_value = True
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
@@ -2364,7 +2364,7 @@ async def test_delete_trigger_entity_not_found(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -2438,7 +2438,7 @@ async def test_start_trigger_entity_not_found(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client
@@ -2468,7 +2468,7 @@ async def test_stop_trigger_entity_not_found(
     mock_glue_client = MagicMock()
     mock_create_client.return_value = mock_glue_client
     mock_get_region.return_value = 'us-east-1'
-    mock_get_account_id.return_value = '123456789012'
+    mock_get_account_id.return_value = '<account-id>'
     mock_mcp = MagicMock()
     handler = GlueWorkflowAndTriggerHandler(mock_mcp, allow_write=True)
     handler.glue_client = mock_glue_client

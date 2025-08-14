@@ -49,12 +49,12 @@ class TestDeploymentStatus(unittest.TestCase):
             ]
         }
         mock_ecs_client.list_tasks.return_value = {
-            "taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/test-cluster/abcdef"]
+            "taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/abcdef"]
         }
         mock_ecs_client.describe_tasks.return_value = {
             "tasks": [
                 {
-                    "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/abcdef",
+                    "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/abcdef",
                     "lastStatus": "RUNNING",
                     "healthStatus": "HEALTHY",
                     "startedAt": datetime.datetime.now(),
@@ -127,7 +127,7 @@ class TestDeploymentStatus(unittest.TestCase):
             "services": [],
             "failures": [
                 {
-                    "arn": "arn:aws:ecs:us-west-2:123456789012:service/test-app/test-app-service",
+                    "arn": "arn:aws:ecs:us-west-2:<account-id>:service/test-app/test-app-service",
                     "reason": "MISSING",
                 }
             ],
@@ -182,12 +182,12 @@ class TestDeploymentStatus(unittest.TestCase):
             ]
         }
         mock_ecs_client.list_tasks.return_value = {
-            "taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/custom-cluster/abcdef"]
+            "taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/custom-cluster/abcdef"]
         }
         mock_ecs_client.describe_tasks.return_value = {
             "tasks": [
                 {
-                    "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/custom-cluster/abcdef",
+                    "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/custom-cluster/abcdef",
                     "lastStatus": "RUNNING",
                     "healthStatus": "HEALTHY",
                     "startedAt": datetime.datetime.now(),
@@ -279,7 +279,7 @@ class TestDeploymentStatus(unittest.TestCase):
             "StackEvents": [
                 {
                     "StackId": (
-                        "arn:aws:cloudformation:us-west-2:123456789012:stack/test-stack/abcdef"
+                        "arn:aws:cloudformation:us-west-2:<account-id>:stack/test-stack/abcdef"
                     ),
                     "EventId": "event1",
                     "StackName": "test-stack",
@@ -291,7 +291,7 @@ class TestDeploymentStatus(unittest.TestCase):
                 },
                 {
                     "StackId": (
-                        "arn:aws:cloudformation:us-west-2:123456789012:stack/test-stack/abcdef"
+                        "arn:aws:cloudformation:us-west-2:<account-id>:stack/test-stack/abcdef"
                     ),
                     "EventId": "event2",
                     "StackName": "test-stack",

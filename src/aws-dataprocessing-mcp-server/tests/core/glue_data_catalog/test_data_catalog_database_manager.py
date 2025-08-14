@@ -64,7 +64,7 @@ class TestDataCatalogDatabaseManager:
         description = 'Test database'
         location_uri = 's3://test-bucket/'
         parameters = {'key1': 'value1', 'key2': 'value2'}
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         tags = {'tag1': 'value1', 'tag2': 'value2'}
 
         # Mock the AWS helper prepare_resource_tags method
@@ -140,7 +140,7 @@ class TestDataCatalogDatabaseManager:
         """Test that delete_database returns a successful response when the Glue API call succeeds."""
         # Setup
         database_name = 'test-db'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_database response to indicate the database is MCP managed
         mock_glue_client.get_database.return_value = {
@@ -243,7 +243,7 @@ class TestDataCatalogDatabaseManager:
         """Test that get_database returns a successful response when the Glue API call succeeds."""
         # Setup
         database_name = 'test-db'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         description = 'Test database'
         location_uri = 's3://test-bucket/'
         parameters = {'key1': 'value1', 'key2': 'value2'}
@@ -289,7 +289,7 @@ class TestDataCatalogDatabaseManager:
         """Test that get_database returns an error response when the Glue API call fails."""
         # Setup
         database_name = 'test-db'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_database to raise an exception
         error_response = {
@@ -320,7 +320,7 @@ class TestDataCatalogDatabaseManager:
     async def test_list_databases_success(self, manager, mock_ctx, mock_glue_client):
         """Test that list_databases returns a successful response when the Glue API call succeeds."""
         # Setup
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         next_token = 'next-token'
         max_results = 10
         resource_share_type = 'ALL'
@@ -393,7 +393,7 @@ class TestDataCatalogDatabaseManager:
     async def test_list_databases_error(self, manager, mock_ctx, mock_glue_client):
         """Test that list_databases returns an error response when the Glue API call fails."""
         # Setup
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_databases to raise an exception
         error_response = {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}}
@@ -421,7 +421,7 @@ class TestDataCatalogDatabaseManager:
         description = 'Updated description'
         location_uri = 's3://updated-bucket/'
         parameters = {'key1': 'updated-value1', 'key2': 'updated-value2'}
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_database response to indicate the database is MCP managed
         mock_glue_client.get_database.return_value = {

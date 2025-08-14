@@ -75,7 +75,7 @@ def mock_bedrock_agent_client():
     # Mock the get_knowledge_base method
     client.get_knowledge_base.side_effect = lambda knowledgeBaseId: {
         'knowledgeBase': {
-            'knowledgeBaseArn': f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{knowledgeBaseId}'
+            'knowledgeBaseArn': f'arn:aws:bedrock:us-west-2:<account-id>:knowledge-base/{knowledgeBaseId}'
         }
     }
 

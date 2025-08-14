@@ -65,7 +65,7 @@ class TestFilterFunctionsByTagCoverage:
             functions = [
                 {
                     'FunctionName': 'test-function-1',
-                    'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
+                    'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-1',
                 },
             ]
 

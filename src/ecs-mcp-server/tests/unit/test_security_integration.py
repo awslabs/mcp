@@ -29,7 +29,7 @@ class TestSecurityIntegration:
                 "message": "Operation completed",
                 "user": {
                     "email": "user@example.com",
-                    "account_id": "123456789012",
+                    "account_id": "<account-id>",
                     "ip_address": "192.168.1.1",
                 },
                 "aws_key": "AKIAIOSFODNN7EXAMPLE",
@@ -48,7 +48,7 @@ class TestSecurityIntegration:
 
         # Check that the response was sanitized
         assert "user@example.com" not in json.dumps(result)
-        assert "123456789012" not in json.dumps(result)
+        assert "<account-id>" not in json.dumps(result)
         assert "192.168.1.1" not in json.dumps(result)
         assert "AKIAIOSFODNN7EXAMPLE" not in json.dumps(result)
 
@@ -74,7 +74,7 @@ class TestSecurityIntegration:
                         "name": "resource1",
                         "owner": "user@example.com",
                         "details": {
-                            "account_id": "123456789012",
+                            "account_id": "<account-id>",
                             "credentials": {"password": "password=secret123"},
                         },
                     },
@@ -101,7 +101,7 @@ class TestSecurityIntegration:
 
         # Check that the response was sanitized
         assert "user@example.com" not in result_json
-        assert "123456789012" not in result_json
+        assert "<account-id>" not in result_json
         assert "password=secret123" not in result_json
         assert "192.168.1.1" not in result_json
         assert "10.0.0.1" not in result_json

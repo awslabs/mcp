@@ -43,7 +43,7 @@ class TestCreateTableBucket:
         region = 'us-west-2'
         expected_response = {
             'tableBucket': {
-                'arn': 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket',
+                'arn': 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket',
                 'name': 'test-bucket',
                 'createdAt': '2023-01-01T00:00:00Z',
             }
@@ -71,7 +71,7 @@ class TestCreateTableBucket:
         name = 'test-bucket'
         expected_response = {
             'tableBucket': {
-                'arn': 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket',
+                'arn': 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket',
                 'name': 'test-bucket',
             }
         }
@@ -139,7 +139,7 @@ class TestDeleteTableBucket:
     async def test_successful_table_bucket_deletion(self):
         """Test successful table bucket deletion."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         region = 'us-west-2'
         expected_response = {'status': 'success', 'message': 'Table bucket deleted successfully'}
 
@@ -164,7 +164,7 @@ class TestDeleteTableBucket:
     async def test_successful_table_bucket_deletion_with_default_region(self):
         """Test successful table bucket deletion with default region."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         expected_response = {'status': 'success'}
 
         with patch(
@@ -185,7 +185,7 @@ class TestDeleteTableBucket:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         error_message = 'Table bucket not found'
 
         with patch(
@@ -209,7 +209,7 @@ class TestPutTableBucketMaintenanceConfiguration:
     async def test_successful_maintenance_configuration_put(self):
         """Test successful maintenance configuration put."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
         value = TableBucketMaintenanceConfigurationValue(
             status=MaintenanceStatus.ENABLED, settings=None
@@ -242,7 +242,7 @@ class TestPutTableBucketMaintenanceConfiguration:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         maintenance_type = TableBucketMaintenanceType.ICEBERG_UNREFERENCED_FILE_REMOVAL
         value = TableBucketMaintenanceConfigurationValue(
             status=MaintenanceStatus.ENABLED, settings=None
@@ -277,14 +277,14 @@ class TestGetTableBucket:
     async def test_successful_table_bucket_retrieval(self):
         """Test successful table bucket retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         region = 'us-west-2'
         expected_response = {
             'tableBucket': {
                 'arn': table_bucket_arn,
                 'name': 'test-bucket',
                 'createdAt': '2023-01-01T00:00:00Z',
-                'ownerAccountId': '123456789012',
+                'ownerAccountId': '<account-id>',
             }
         }
 
@@ -307,7 +307,7 @@ class TestGetTableBucket:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         error_message = 'Table bucket not found'
 
         with patch(
@@ -331,7 +331,7 @@ class TestGetTableBucketMaintenanceConfiguration:
     async def test_successful_maintenance_configuration_retrieval(self):
         """Test successful maintenance configuration retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         region = 'us-west-2'
         expected_response = {
             'maintenanceConfiguration': {
@@ -361,7 +361,7 @@ class TestGetTableBucketMaintenanceConfiguration:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         error_message = 'Maintenance configuration not found'
 
         with patch(
@@ -390,7 +390,7 @@ class TestGetTableBucketPolicy:
     async def test_successful_policy_retrieval(self):
         """Test successful table bucket policy retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         region = 'us-west-2'
         expected_response = {
             'policy': {
@@ -398,7 +398,7 @@ class TestGetTableBucketPolicy:
                 'Statement': [
                     {
                         'Effect': 'Allow',
-                        'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                        'Principal': {'AWS': 'arn:aws:iam::<account-id>:root'},
                         'Action': 's3tables:*',
                         'Resource': table_bucket_arn,
                     }
@@ -427,7 +427,7 @@ class TestGetTableBucketPolicy:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         error_message = 'Policy not found'
 
         with patch(
@@ -451,7 +451,7 @@ class TestDeleteTableBucketPolicy:
     async def test_successful_policy_deletion(self):
         """Test successful table bucket policy deletion."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         region = 'us-west-2'
         expected_response = {'status': 'success', 'message': 'Policy deleted successfully'}
 
@@ -476,7 +476,7 @@ class TestDeleteTableBucketPolicy:
     async def test_successful_policy_deletion_with_default_region(self):
         """Test successful table bucket policy deletion with default region."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         expected_response = {'status': 'success'}
 
         with patch(
@@ -497,7 +497,7 @@ class TestDeleteTableBucketPolicy:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         error_message = 'Policy not found'
 
         with patch(
@@ -517,7 +517,7 @@ class TestDeleteTableBucketPolicy:
     async def test_empty_response_handling(self):
         """Test handling of empty response from delete operation."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         expected_response = {}
 
         with patch(

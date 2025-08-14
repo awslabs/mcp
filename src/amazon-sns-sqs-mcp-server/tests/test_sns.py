@@ -45,7 +45,7 @@ class TestSNSTools:
         result, _ = is_mutative_action_allowed(
             mock_mcp,
             mock_sns_client,
-            {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic'},
         )
         assert result is True
 
@@ -59,7 +59,7 @@ class TestSNSTools:
         result, message = is_mutative_action_allowed(
             mock_mcp,
             mock_sns_client,
-            {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic'},
         )
         assert result is False
         assert message == 'mutating a resource without the mcp_server_version tag is not allowed'
@@ -138,7 +138,7 @@ class TestSNSTools:
         result, message = is_mutative_action_allowed(
             mock_mcp,
             mock_sns_client,
-            {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic'},
         )
         assert result is False
         assert message == 'Test exception'
@@ -156,7 +156,7 @@ class TestSNSTools:
         result, message = is_unsubscribe_allowed(
             mock_mcp,
             mock_sns_client,
-            {'SubscriptionArn': 'arn:aws:sns:us-east-1:123456789012:test-topic:subscription-id'},
+            {'SubscriptionArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic:subscription-id'},
         )
         assert result is False
         assert message == 'Test exception'
@@ -235,7 +235,7 @@ class TestSNSTools:
         result, _ = is_mutative_action_allowed(
             mock_mcp,
             mock_sns_client,
-            {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic', 'Token': 'abc123'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic', 'Token': 'abc123'},
         )
         assert result is True
 
@@ -244,7 +244,7 @@ class TestSNSTools:
             mock_mcp,
             mock_sns_client,
             {
-                'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic',
+                'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic',
                 'Message': 'Hello world',
             },
         )
@@ -255,7 +255,7 @@ class TestSNSTools:
             mock_mcp,
             mock_sns_client,
             {
-                'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic',
+                'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic',
                 'PublishBatchRequestEntries': [],
             },
         )
@@ -271,7 +271,7 @@ class TestSNSTools:
 
         # Mock get_subscription_attributes response
         mock_sns_client.get_subscription_attributes.return_value = {
-            'Attributes': {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic'}
+            'Attributes': {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic'}
         }
 
         # Mock list_tags_for_resource response for a tagged topic
@@ -283,7 +283,7 @@ class TestSNSTools:
         result, _ = is_unsubscribe_allowed(
             mock_mcp,
             mock_sns_client,
-            {'SubscriptionArn': 'arn:aws:sns:us-east-1:123456789012:test-topic:subscription-id'},
+            {'SubscriptionArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic:subscription-id'},
         )
         assert result is True
 
@@ -297,20 +297,20 @@ class TestSNSTools:
         result, message = is_unsubscribe_allowed(
             mock_mcp,
             mock_sns_client,
-            {'SubscriptionArn': 'arn:aws:sns:us-east-1:123456789012:test-topic:subscription-id'},
+            {'SubscriptionArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic:subscription-id'},
         )
         assert result is False
         assert message == 'TopicArn is not passed to the tool'
 
         # Test with untagged topic
         mock_sns_client.get_subscription_attributes.return_value = {
-            'Attributes': {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic'}
+            'Attributes': {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic'}
         }
         mock_sns_client.list_tags_for_resource.return_value = {'Tags': []}
         result, message = is_unsubscribe_allowed(
             mock_mcp,
             mock_sns_client,
-            {'SubscriptionArn': 'arn:aws:sns:us-east-1:123456789012:test-topic:subscription-id'},
+            {'SubscriptionArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic:subscription-id'},
         )
         assert result is False
         assert message == 'mutating a resource without the mcp_server_version tag is not allowed'

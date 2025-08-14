@@ -171,7 +171,7 @@ class TestGlueCommonsHandler:
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
             mock_aws_helper.get_aws_region.return_value = 'us-east-1'
-            mock_aws_helper.get_aws_account_id.return_value = '123456789012'
+            mock_aws_helper.get_aws_account_id.return_value = '<account-id>'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
             handler.glue_client.get_usage_profile.return_value = {'Name': 'test-profile'}
@@ -209,7 +209,7 @@ class TestGlueCommonsHandler:
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
             mock_aws_helper.get_aws_region.return_value = 'us-east-1'
-            mock_aws_helper.get_aws_account_id.return_value = '123456789012'
+            mock_aws_helper.get_aws_account_id.return_value = '<account-id>'
             mock_aws_helper.is_resource_mcp_managed.return_value = False
 
             handler.glue_client.get_usage_profile.return_value = {'Name': 'test-profile'}
@@ -244,7 +244,7 @@ class TestGlueCommonsHandler:
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
             mock_aws_helper.get_aws_region.return_value = 'us-east-1'
-            mock_aws_helper.get_aws_account_id.return_value = '123456789012'
+            mock_aws_helper.get_aws_account_id.return_value = '<account-id>'
             mock_aws_helper.is_resource_mcp_managed.return_value = True
 
             handler.glue_client.get_usage_profile.return_value = {'Name': 'test-profile'}
@@ -459,12 +459,12 @@ class TestGlueCommonsHandler:
         }
 
         result = await handler.manage_aws_glue_encryption(
-            mock_context, operation='get-catalog-encryption-settings', catalog_id='123456789012'
+            mock_context, operation='get-catalog-encryption-settings', catalog_id='<account-id>'
         )
 
         assert result.isError is False
         handler.glue_client.get_data_catalog_encryption_settings.assert_called_with(
-            CatalogId='123456789012'
+            CatalogId='<account-id>'
         )
 
     @pytest.mark.asyncio
@@ -475,7 +475,7 @@ class TestGlueCommonsHandler:
         result = await handler.manage_aws_glue_encryption(
             mock_context,
             operation='put-catalog-encryption-settings',
-            catalog_id='123456789012',
+            catalog_id='<account-id>',
             encryption_at_rest={'test': 'encryption'},
         )
 
@@ -591,7 +591,7 @@ class TestGlueCommonsHandler:
             policy_hash='existing-hash',
             policy_exists_condition='MUST_EXIST',
             enable_hybrid=True,
-            resource_arn='arn:aws:glue:us-east-1:123456789012:catalog',
+            resource_arn='arn:aws:glue:us-east-1:<account-id>:catalog',
         )
 
         assert result.isError is False
@@ -606,7 +606,7 @@ class TestGlueCommonsHandler:
             'awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler.AwsHelper'
         ) as mock_aws_helper:
             mock_aws_helper.get_aws_region.return_value = 'us-east-1'
-            mock_aws_helper.get_aws_account_id.return_value = '123456789012'
+            mock_aws_helper.get_aws_account_id.return_value = '<account-id>'
             mock_aws_helper.is_resource_mcp_managed.return_value = False
 
             handler.glue_client.get_usage_profile.return_value = {'Name': 'test-profile'}

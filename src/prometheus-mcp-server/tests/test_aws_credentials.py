@@ -31,7 +31,7 @@ class TestAWSCredentials:
         mock_session.get_credentials.return_value = mock_credentials
         mock_session.client.return_value = mock_sts_client
         mock_sts_client.get_caller_identity.return_value = {
-            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+            'Arn': 'arn:aws:iam::<account-id>:user/test-user'
         }
 
         with (
@@ -54,7 +54,7 @@ class TestAWSCredentials:
         mock_session.get_credentials.return_value = mock_credentials
         mock_session.client.return_value = mock_sts_client
         mock_sts_client.get_caller_identity.return_value = {
-            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+            'Arn': 'arn:aws:iam::<account-id>:user/test-user'
         }
 
         with (

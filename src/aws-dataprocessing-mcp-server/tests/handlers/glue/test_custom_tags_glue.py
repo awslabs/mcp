@@ -106,7 +106,7 @@ class TestCustomTagsGlue:
                 description='Test database',
                 location_uri='s3://test-bucket/',
                 parameters={'key': 'value'},
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
@@ -116,7 +116,7 @@ class TestCustomTagsGlue:
                 description='Test database',
                 location_uri='s3://test-bucket/',
                 parameters={'key': 'value'},
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the result is the expected response
@@ -177,7 +177,7 @@ class TestCustomTagsGlue:
                 database_name='test-db',
                 table_name='test-table',
                 table_input=table_input,
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
@@ -186,7 +186,7 @@ class TestCustomTagsGlue:
                 database_name='test-db',
                 table_name='test-table',
                 table_input=table_input,
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the result is the expected response
@@ -203,7 +203,7 @@ class TestCustomTagsGlue:
         expected_response.content = []
         expected_response.connection_name = 'test-jdbc-connection'
         expected_response.operation = 'create-connection'
-        expected_response.catalog_id = '123456789012'
+        expected_response.catalog_id = '<account-id>'
         mock_catalog_manager.create_connection.return_value = expected_response
 
         # Create a comprehensive connection input
@@ -231,7 +231,7 @@ class TestCustomTagsGlue:
                 operation='create-connection',
                 connection_name='test-jdbc-connection',
                 connection_input=connection_input,
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
@@ -239,13 +239,13 @@ class TestCustomTagsGlue:
                 ctx=mock_ctx,
                 connection_name='test-jdbc-connection',
                 connection_input=connection_input,
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the result is the expected response
             assert result == expected_response
             assert result.connection_name == 'test-jdbc-connection'
-            assert result.catalog_id == '123456789012'
+            assert result.catalog_id == '<account-id>'
 
     @pytest.mark.asyncio
     async def test_create_partition_with_custom_tags_enabled(
@@ -298,7 +298,7 @@ class TestCustomTagsGlue:
                 table_name='test-table',
                 partition_values=['2023', '01'],
                 partition_input=partition_input,
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
@@ -308,7 +308,7 @@ class TestCustomTagsGlue:
                 table_name='test-table',
                 partition_values=['2023', '01'],
                 partition_input=partition_input,
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the result is the expected response
@@ -380,12 +380,12 @@ class TestCustomTagsGlue:
                 mock_ctx,
                 operation='delete-database',
                 database_name='test-db',
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
             mock_database_manager.delete_database.assert_called_once_with(
-                ctx=mock_ctx, database_name='test-db', catalog_id='123456789012'
+                ctx=mock_ctx, database_name='test-db', catalog_id='<account-id>'
             )
 
             # Verify that the result is the expected response
@@ -413,7 +413,7 @@ class TestCustomTagsGlue:
                 operation='delete-table',
                 database_name='test-db',
                 table_name='test-table',
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
@@ -421,7 +421,7 @@ class TestCustomTagsGlue:
                 ctx=mock_ctx,
                 database_name='test-db',
                 table_name='test-table',
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the result is the expected response
@@ -438,7 +438,7 @@ class TestCustomTagsGlue:
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'delete-connection'
-        expected_response.catalog_id = '123456789012'
+        expected_response.catalog_id = '<account-id>'
         mock_catalog_manager.delete_connection.return_value = expected_response
 
         # Enable CUSTOM_TAGS
@@ -448,19 +448,19 @@ class TestCustomTagsGlue:
                 mock_ctx,
                 operation='delete-connection',
                 connection_name='test-connection',
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
             mock_catalog_manager.delete_connection.assert_called_once_with(
                 ctx=mock_ctx,
                 connection_name='test-connection',
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the result is the expected response
             assert result == expected_response
-            assert result.catalog_id == '123456789012'
+            assert result.catalog_id == '<account-id>'
 
     @pytest.mark.asyncio
     async def test_delete_partition_with_custom_tags_enabled(
@@ -486,7 +486,7 @@ class TestCustomTagsGlue:
                 database_name='test-db',
                 table_name='test-table',
                 partition_values=['2023', '01'],
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the method was called with the correct parameters
@@ -495,7 +495,7 @@ class TestCustomTagsGlue:
                 database_name='test-db',
                 table_name='test-table',
                 partition_values=['2023', '01'],
-                catalog_id='123456789012',
+                catalog_id='<account-id>',
             )
 
             # Verify that the result is the expected response

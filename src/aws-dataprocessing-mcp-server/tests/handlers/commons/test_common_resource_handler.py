@@ -106,7 +106,7 @@ async def test_get_policies_for_role_success(handler, mock_iam_client):
     # Mock role response
     mock_iam_client.get_role.return_value = {
         'Role': {
-            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Arn': 'arn:aws:iam::<account-id>:role/test-role',
             'AssumeRolePolicyDocument': {
                 'Version': '2012-10-17',
                 'Statement': [
@@ -158,7 +158,7 @@ async def test_get_policies_for_role_success(handler, mock_iam_client):
     response = await handler.get_policies_for_role(ctx, role_name='test-role')
 
     assert not response.isError
-    assert response.role_arn == 'arn:aws:iam::123456789012:role/test-role'
+    assert response.role_arn == 'arn:aws:iam::<account-id>:role/test-role'
     assert response.description == 'Test role description'
     assert len(response.managed_policies) == 1
     assert len(response.inline_policies) == 1
@@ -187,7 +187,7 @@ async def test_get_policies_for_role_with_string_assume_role_policy(handler, moc
 
     mock_iam_client.get_role.return_value = {
         'Role': {
-            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Arn': 'arn:aws:iam::<account-id>:role/test-role',
             'AssumeRolePolicyDocument': assume_role_policy_str,
             'Description': 'Test role description',
         }
@@ -321,7 +321,7 @@ async def test_create_data_processing_role_glue_success(handler, mock_iam_client
     handler.iam_client = mock_iam_client
 
     mock_iam_client.create_role.return_value = {
-        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-glue-role'}
+        'Role': {'Arn': 'arn:aws:iam::<account-id>:role/test-glue-role'}
     }
 
     ctx = Mock()
@@ -335,7 +335,7 @@ async def test_create_data_processing_role_glue_success(handler, mock_iam_client
 
     assert not response.isError
     assert response.role_name == 'test-glue-role'
-    assert response.role_arn == 'arn:aws:iam::123456789012:role/test-glue-role'
+    assert response.role_arn == 'arn:aws:iam::<account-id>:role/test-glue-role'
 
     # Verify create_role was called with correct trust relationship
     create_role_call = mock_iam_client.create_role.call_args
@@ -355,7 +355,7 @@ async def test_create_data_processing_role_emr_success(handler, mock_iam_client)
     handler.iam_client = mock_iam_client
 
     mock_iam_client.create_role.return_value = {
-        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-emr-role'}
+        'Role': {'Arn': 'arn:aws:iam::<account-id>:role/test-emr-role'}
     }
 
     ctx = Mock()
@@ -381,7 +381,7 @@ async def test_create_data_processing_role_athena_success(handler, mock_iam_clie
     handler.iam_client = mock_iam_client
 
     mock_iam_client.create_role.return_value = {
-        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-athena-role'}
+        'Role': {'Arn': 'arn:aws:iam::<account-id>:role/test-athena-role'}
     }
 
     ctx = Mock()
@@ -404,7 +404,7 @@ async def test_create_data_processing_role_with_inline_policy(handler, mock_iam_
     handler.iam_client = mock_iam_client
 
     mock_iam_client.create_role.return_value = {
-        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-role'}
+        'Role': {'Arn': 'arn:aws:iam::<account-id>:role/test-role'}
     }
 
     inline_policy = {
@@ -466,7 +466,7 @@ async def test_get_roles_for_service_success(handler, mock_iam_client):
             'Roles': [
                 {
                     'RoleName': 'glue-role-1',
-                    'Arn': 'arn:aws:iam::123456789012:role/glue-role-1',
+                    'Arn': 'arn:aws:iam::<account-id>:role/glue-role-1',
                     'Description': 'Glue role 1',
                     'CreateDate': datetime(2023, 1, 1),
                     'AssumeRolePolicyDocument': {
@@ -482,7 +482,7 @@ async def test_get_roles_for_service_success(handler, mock_iam_client):
                 },
                 {
                     'RoleName': 'emr-role-1',
-                    'Arn': 'arn:aws:iam::123456789012:role/emr-role-1',
+                    'Arn': 'arn:aws:iam::<account-id>:role/emr-role-1',
                     'CreateDate': datetime(2023, 1, 2),
                     'AssumeRolePolicyDocument': {
                         'Version': '2012-10-17',
@@ -536,7 +536,7 @@ async def test_get_roles_for_service_with_string_assume_role_policy(handler, moc
             'Roles': [
                 {
                     'RoleName': 'glue-role-1',
-                    'Arn': 'arn:aws:iam::123456789012:role/glue-role-1',
+                    'Arn': 'arn:aws:iam::<account-id>:role/glue-role-1',
                     'CreateDate': datetime(2023, 1, 1),
                     'AssumeRolePolicyDocument': assume_role_policy_str,
                 }
@@ -848,7 +848,7 @@ async def test_analyze_s3_usage_emr_cluster_details_error(handler, mock_s3_clien
 
         # Mock EMR clusters
         mock_emr_client.list_clusters.return_value = {
-            'Clusters': [{'Id': 'j-1234567890123', 'Name': 'test-cluster'}]
+            'Clusters': [{'Id': 'j-<account-id>3', 'Name': 'test-cluster'}]
         }
 
         # Mock describe_cluster to raise an exception
@@ -861,7 +861,7 @@ async def test_analyze_s3_usage_emr_cluster_details_error(handler, mock_s3_clien
 
         assert not response.isError
         # Should still return results but with warning about cluster check
-        assert 'Warning: Could not check cluster j-1234567890123' in response.analysis_summary
+        assert 'Warning: Could not check cluster j-<account-id>3' in response.analysis_summary
 
 
 @pytest.mark.asyncio
@@ -1664,7 +1664,7 @@ async def test_analyze_s3_usage_emr_cluster_detection(handler, mock_s3_client):
 
         # Mock EMR cluster with log URI
         mock_emr_client.list_clusters.return_value = {
-            'Clusters': [{'Id': 'j-1234567890123', 'Name': 'test-cluster'}]
+            'Clusters': [{'Id': 'j-<account-id>3', 'Name': 'test-cluster'}]
         }
         mock_emr_client.describe_cluster.return_value = {
             'Cluster': {'LogUri': 's3://test-bucket/emr-logs/'}
@@ -1791,7 +1791,7 @@ def test_can_be_assumed_by_service_no_principal_service(handler):
         'Statement': [
             {
                 'Effect': 'Allow',
-                'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                'Principal': {'AWS': 'arn:aws:iam::<account-id>:root'},
                 'Action': 'sts:AssumeRole',
             }
         ],
@@ -1875,7 +1875,7 @@ async def test_create_data_processing_role_attach_policy_error(handler, mock_iam
 
     # Mock successful create_role
     mock_iam_client.create_role.return_value = {
-        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-role'}
+        'Role': {'Arn': 'arn:aws:iam::<account-id>:role/test-role'}
     }
 
     # Mock attach_role_policy to raise an exception
@@ -1902,7 +1902,7 @@ async def test_create_data_processing_role_inline_policy_error(handler, mock_iam
 
     # Mock successful create_role
     mock_iam_client.create_role.return_value = {
-        'Role': {'Arn': 'arn:aws:iam::123456789012:role/test-role'}
+        'Role': {'Arn': 'arn:aws:iam::<account-id>:role/test-role'}
     }
 
     # Mock put_role_policy to raise an exception

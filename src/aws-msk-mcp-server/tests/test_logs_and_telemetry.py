@@ -105,7 +105,7 @@ class TestLogsAndTelemetry:
 
         # Set up parameters for metrics action
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -174,7 +174,7 @@ class TestLogsAndTelemetry:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Mock all the necessary functions
         with (
@@ -234,7 +234,7 @@ class TestLogsAndTelemetry:
             get_cluster_telemetry(
                 region='us-east-1',
                 action='metrics',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 kwargs={
                     'end_time': datetime.now(),
                     'period': 300,
@@ -248,7 +248,7 @@ class TestLogsAndTelemetry:
             get_cluster_telemetry(
                 region='us-east-1',
                 action='metrics',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 kwargs={
                     'start_time': datetime.now() - timedelta(hours=1),
                     'period': 300,
@@ -262,7 +262,7 @@ class TestLogsAndTelemetry:
             get_cluster_telemetry(
                 region='us-east-1',
                 action='metrics',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 kwargs={
                     'start_time': datetime.now() - timedelta(hours=1),
                     'end_time': datetime.now(),
@@ -276,7 +276,7 @@ class TestLogsAndTelemetry:
             get_cluster_telemetry(
                 region='us-east-1',
                 action='metrics',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 kwargs={
                     'start_time': datetime.now() - timedelta(hours=1),
                     'end_time': datetime.now(),
@@ -312,7 +312,7 @@ class TestLogsAndTelemetry:
             get_cluster_telemetry(
                 region='us-east-1',
                 action='invalid_action',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 kwargs={},
             )
         assert 'Unsupported action or missing required arguments for invalid_action' in str(
@@ -375,18 +375,18 @@ class TestLogsAndTelemetry:
         # Set up expected response
         expected_response = {
             'cluster_info': {
-                'cluster_arn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'cluster_arn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'cluster_name': 'test-cluster',
                 'iam_auth_enabled': True,
             },
             'resource_policies': ['test-policy'],
             'matching_policies': {
-                'arn:aws:iam::123456789012:policy/TestPolicy': {
+                'arn:aws:iam::<account-id>:policy/TestPolicy': {
                     'PolicyName': 'TestPolicy',
                     'Statement': {
                         'Effect': 'Allow',
                         'Action': ['kafka:GetBootstrapBrokers', 'kafka:DescribeCluster'],
-                        'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                        'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                     },
                     'ResourceType': 'cluster_wildcard',
                     'AttachedRoles': [],
@@ -397,7 +397,7 @@ class TestLogsAndTelemetry:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Mock the list_customer_iam_access function
         with patch(

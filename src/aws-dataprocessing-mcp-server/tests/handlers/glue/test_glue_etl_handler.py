@@ -19,7 +19,7 @@ def mock_aws_helper():
     ) as mock:
         mock.create_boto3_client.return_value = Mock()
         mock.get_aws_region.return_value = 'us-east-1'
-        mock.get_aws_account_id.return_value = '123456789012'
+        mock.get_aws_account_id.return_value = '<account-id>'
         mock.prepare_resource_tags.return_value = {'mcp-managed': 'true'}
         mock.is_resource_mcp_managed.return_value = True
         yield mock
@@ -42,7 +42,7 @@ def mock_context():
 def basic_job_definition():
     """Create a sample job definition for testing."""
     return {
-        'Role': 'arn:aws:iam::123456789012:role/GlueETLRole',
+        'Role': 'arn:aws:iam::<account-id>:role/GlueETLRole',
         'Command': {'Name': 'glueetl', 'ScriptLocation': 's3://bucket/script.py'},
         'GlueVersion': '5.0',
     }

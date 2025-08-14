@@ -38,7 +38,7 @@ class TestGetBootstrapBrokers:
         mock_client.get_bootstrap_brokers.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = get_bootstrap_brokers(cluster_arn, mock_client)
 
         # Assert
@@ -61,7 +61,7 @@ class TestGetBootstrapBrokers:
         mock_client.get_bootstrap_brokers.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = get_bootstrap_brokers(cluster_arn, mock_client)
 
         # Assert
@@ -82,7 +82,7 @@ class TestGetBootstrapBrokers:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             get_bootstrap_brokers(cluster_arn, mock_client)
 
@@ -94,7 +94,7 @@ class TestGetBootstrapBrokers:
     def test_get_bootstrap_brokers_missing_client(self):
         """Test the get_bootstrap_brokers function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             get_bootstrap_brokers(cluster_arn, None)
 

@@ -22,7 +22,7 @@ class TestExpressStateMachines:
         mock_sfn_client.list_state_machines.return_value = {
             'stateMachines': [
                 {
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:express-test',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:express-test',
                     'name': 'express-test',
                     'type': 'EXPRESS',
                     'creationDate': '2023-01-01T00:00:00Z',
@@ -31,8 +31,8 @@ class TestExpressStateMachines:
         }
 
         mock_sfn_client.start_sync_execution.return_value = {
-            'executionArn': 'arn:aws:states:us-east-1:123456789012:express:express-test:12345',
-            'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:express-test',
+            'executionArn': 'arn:aws:states:us-east-1:<account-id>:express:express-test:12345',
+            'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:express-test',
             'name': '12345',
             'startDate': '2023-01-01T00:00:00Z',
             'stopDate': '2023-01-01T00:00:01Z',
@@ -48,14 +48,14 @@ class TestExpressStateMachines:
         # Call the function
         result = await invoke_express_state_machine_impl(
             'express-test',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:express-test',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:express-test',
             {'param': 'value'},
             ctx,
         )
 
         # Check that the state machine was invoked with the correct parameters
         mock_sfn_client.start_sync_execution.assert_called_once_with(
-            stateMachineArn='arn:aws:states:us-east-1:123456789012:stateMachine:express-test',
+            stateMachineArn='arn:aws:states:us-east-1:<account-id>:stateMachine:express-test',
             input='{"param": "value"}',
         )
 
@@ -74,7 +74,7 @@ class TestExpressStateMachines:
         mock_sfn_client.list_state_machines.return_value = {
             'stateMachines': [
                 {
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:express-error',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:express-error',
                     'name': 'express-error',
                     'type': 'EXPRESS',
                     'creationDate': '2023-01-01T00:00:00Z',
@@ -83,8 +83,8 @@ class TestExpressStateMachines:
         }
 
         mock_sfn_client.start_sync_execution.return_value = {
-            'executionArn': 'arn:aws:states:us-east-1:123456789012:express:express-error:12345',
-            'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:express-error',
+            'executionArn': 'arn:aws:states:us-east-1:<account-id>:express:express-error:12345',
+            'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:express-error',
             'name': '12345',
             'startDate': '2023-01-01T00:00:00Z',
             'stopDate': '2023-01-01T00:00:01Z',
@@ -101,14 +101,14 @@ class TestExpressStateMachines:
         # Call the function
         result = await invoke_express_state_machine_impl(
             'express-error',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:express-error',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:express-error',
             {'param': 'value'},
             ctx,
         )
 
         # Check that the state machine was invoked with the correct parameters
         mock_sfn_client.start_sync_execution.assert_called_once_with(
-            stateMachineArn='arn:aws:states:us-east-1:123456789012:stateMachine:express-error',
+            stateMachineArn='arn:aws:states:us-east-1:<account-id>:stateMachine:express-error',
             input='{"param": "value"}',
         )
 
@@ -127,8 +127,8 @@ class TestExpressStateMachines:
         """Test direct invocation of an Express state machine."""
         # Set up the mock
         mock_sfn_client.start_sync_execution.return_value = {
-            'executionArn': 'arn:aws:states:us-east-1:123456789012:express:express-test:12345',
-            'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:express-test',
+            'executionArn': 'arn:aws:states:us-east-1:<account-id>:express:express-test:12345',
+            'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:express-test',
             'name': '12345',
             'startDate': '2023-01-01T00:00:00Z',
             'stopDate': '2023-01-01T00:00:01Z',
@@ -144,14 +144,14 @@ class TestExpressStateMachines:
         # Call the function directly
         result = await invoke_express_state_machine_impl(
             'express-test',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:express-test',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:express-test',
             {'param': 'value'},
             ctx,
         )
 
         # Check that the state machine was invoked with the correct parameters
         mock_sfn_client.start_sync_execution.assert_called_once_with(
-            stateMachineArn='arn:aws:states:us-east-1:123456789012:stateMachine:express-test',
+            stateMachineArn='arn:aws:states:us-east-1:<account-id>:stateMachine:express-test',
             input='{"param": "value"}',
         )
 
@@ -183,7 +183,7 @@ class TestExpressStateMachines:
         mock_sfn_client.list_state_machines.return_value = {
             'stateMachines': [
                 {
-                    'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:express-complex',
+                    'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:express-complex',
                     'name': 'express-complex',
                     'type': 'EXPRESS',
                     'creationDate': '2023-01-01T00:00:00Z',
@@ -192,8 +192,8 @@ class TestExpressStateMachines:
         }
 
         mock_sfn_client.start_sync_execution.return_value = {
-            'executionArn': 'arn:aws:states:us-east-1:123456789012:express:express-complex:12345',
-            'stateMachineArn': 'arn:aws:states:us-east-1:123456789012:stateMachine:express-complex',
+            'executionArn': 'arn:aws:states:us-east-1:<account-id>:express:express-complex:12345',
+            'stateMachineArn': 'arn:aws:states:us-east-1:<account-id>:stateMachine:express-complex',
             'name': '12345',
             'startDate': '2023-01-01T00:00:00Z',
             'stopDate': '2023-01-01T00:00:01Z',
@@ -209,14 +209,14 @@ class TestExpressStateMachines:
         # Call the function
         result = await invoke_express_state_machine_impl(
             'express-complex',
-            'arn:aws:states:us-east-1:123456789012:stateMachine:express-complex',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:express-complex',
             complex_input,
             ctx,
         )
 
         # Check that the state machine was invoked with the correct parameters
         mock_sfn_client.start_sync_execution.assert_called_once_with(
-            stateMachineArn='arn:aws:states:us-east-1:123456789012:stateMachine:express-complex',
+            stateMachineArn='arn:aws:states:us-east-1:<account-id>:stateMachine:express-complex',
             input=json.dumps(complex_input),
         )
 

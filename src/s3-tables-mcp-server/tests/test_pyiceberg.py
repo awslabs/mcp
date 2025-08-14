@@ -10,7 +10,7 @@ async def test_execute_query_success():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -63,7 +63,7 @@ async def test_execute_query_success():
         # Verify the mocks were called correctly
         mock_load_catalog.assert_called_once_with(
             's3tablescatalog',
-            'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             'https://s3tables.us-west-2.amazonaws.com/iceberg',
             'us-west-2',
             's3tables',
@@ -84,7 +84,7 @@ async def test_initialize_connection_exception():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -109,7 +109,7 @@ async def test_initialize_connection_exception():
         # Verify the mock was called with the correct parameters
         mock_load_catalog.assert_called_once_with(
             's3tablescatalog',
-            'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+            'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
             'https://s3tables.us-west-2.amazonaws.com/iceberg',
             'us-west-2',
             's3tables',
@@ -124,7 +124,7 @@ async def test_execute_query_no_active_session():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -170,7 +170,7 @@ async def test_execute_query_none_result():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -216,7 +216,7 @@ async def test_test_connection_success():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -261,7 +261,7 @@ async def test_test_connection_no_session():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -306,7 +306,7 @@ async def test_test_connection_exception():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -351,7 +351,7 @@ async def test_append_rows_success():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -415,7 +415,7 @@ async def test_append_rows_no_active_catalog():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -465,7 +465,7 @@ async def test_append_rows_general_exception():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',
@@ -522,7 +522,7 @@ async def test_append_rows_with_namespace_in_table_name():
 
     # Test configuration
     config = PyIcebergConfig(
-        warehouse='arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket',
+        warehouse='arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket',
         uri='https://s3tables.us-west-2.amazonaws.com/iceberg',
         region='us-west-2',
         namespace='test_namespace',

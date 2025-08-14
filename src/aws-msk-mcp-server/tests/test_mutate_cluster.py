@@ -101,7 +101,7 @@ class TestMutateClusterTools:
         mock_boto3_client.return_value = mock_kafka_client
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'PROVISIONED',
@@ -170,8 +170,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_kafka_client.update_broker_storage.return_value = expected_response
 
@@ -216,7 +216,7 @@ class TestMutateClusterTools:
 
         result = mock_update_broker_storage_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             target_broker_ebs_volume_info=json.dumps(target_broker_ebs_volume_info),
         )
@@ -237,8 +237,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_kafka_client.update_broker_type.return_value = expected_response
 
@@ -266,7 +266,7 @@ class TestMutateClusterTools:
         # Act
         result = mock_update_broker_type_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             target_instance_type='kafka.m5.xlarge',
         )
@@ -287,8 +287,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_kafka_client.update_cluster_configuration.return_value = expected_response
 
@@ -318,8 +318,8 @@ class TestMutateClusterTools:
         # Act
         result = mock_update_cluster_configuration_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            configuration_arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            configuration_arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             configuration_revision=1,
             current_version='1',
         )
@@ -340,8 +340,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_kafka_client.update_monitoring.return_value = expected_response
 
@@ -388,7 +388,7 @@ class TestMutateClusterTools:
 
         result = mock_update_monitoring_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             enhanced_monitoring='PER_BROKER',
             open_monitoring=open_monitoring,
@@ -410,8 +410,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_kafka_client.update_security.return_value = expected_response
 
@@ -447,7 +447,7 @@ class TestMutateClusterTools:
 
         result = mock_update_security_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             client_authentication=client_authentication,
         )
@@ -459,7 +459,7 @@ class TestMutateClusterTools:
 
         # Verify that update_security was called with the correct parameters
         mock_kafka_client.update_security.assert_called_once_with(
-            ClusterArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            ClusterArn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             CurrentVersion='1',
             ClientAuthentication=client_authentication,
         )
@@ -476,7 +476,7 @@ class TestMutateClusterTools:
         # Act - call with only required parameters
         result = mock_update_security_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
         )
 
@@ -487,7 +487,7 @@ class TestMutateClusterTools:
 
         # Verify that update_security was called with only the required parameters
         mock_kafka_client.update_security.assert_called_once_with(
-            ClusterArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            ClusterArn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             CurrentVersion='1',
         )
 
@@ -509,7 +509,7 @@ class TestMutateClusterTools:
         # Act - call with encryption_info parameter
         result = mock_update_security_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             encryption_info=encryption_info,
         )
@@ -521,7 +521,7 @@ class TestMutateClusterTools:
 
         # Verify that update_security was called with the encryption_info parameter
         mock_kafka_client.update_security.assert_called_once_with(
-            ClusterArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            ClusterArn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             CurrentVersion='1',
             EncryptionInfo=encryption_info,
         )
@@ -538,7 +538,7 @@ class TestMutateClusterTools:
         # Act & Assert - call with client=None should raise ValueError
         with pytest.raises(ValueError) as excinfo:
             update_security(
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 client=None,
             )
@@ -584,16 +584,16 @@ class TestMutateClusterTools:
             'Statement': [
                 {
                     'Effect': 'Allow',
-                    'Principal': {'AWS': 'arn:aws:iam::123456789012:role/ExampleRole'},
+                    'Principal': {'AWS': 'arn:aws:iam::<account-id>:role/ExampleRole'},
                     'Action': ['kafka:GetBootstrapBrokers', 'kafka:DescribeCluster'],
-                    'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                    'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                 }
             ],
         }
 
         result = mock_put_cluster_policy_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             policy=policy,
         )
 
@@ -613,8 +613,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_kafka_client.update_broker_count.return_value = expected_response
 
@@ -644,7 +644,7 @@ class TestMutateClusterTools:
         # Act
         result = mock_update_broker_count_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             target_number_of_broker_nodes=6,
         )
@@ -665,8 +665,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'SecretArnList': ['arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'],
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'SecretArnList': ['arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret'],
         }
         mock_kafka_client.batch_associate_scram_secret.return_value = expected_response
 
@@ -690,11 +690,11 @@ class TestMutateClusterTools:
             return batch_associate_scram_secret(cluster_arn, secret_arns, client)
 
         # Act
-        secret_arns = ['arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret']
+        secret_arns = ['arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret']
 
         result = mock_associate_scram_secret_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             secret_arns=secret_arns,
         )
 
@@ -714,8 +714,8 @@ class TestMutateClusterTools:
         mock_check_tag.return_value = True
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'SecretArnList': ['arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'],
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'SecretArnList': ['arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret'],
         }
         mock_kafka_client.batch_disassociate_scram_secret.return_value = expected_response
 
@@ -739,11 +739,11 @@ class TestMutateClusterTools:
             return batch_disassociate_scram_secret(cluster_arn, secret_arns, client)
 
         # Act
-        secret_arns = ['arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret']
+        secret_arns = ['arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret']
 
         result = mock_disassociate_scram_secret_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             secret_arns=secret_arns,
         )
 
@@ -761,8 +761,8 @@ class TestMutateClusterTools:
         mock_boto3_client.return_value = mock_kafka_client
 
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_kafka_client.reboot_broker.return_value = expected_response
 
@@ -781,7 +781,7 @@ class TestMutateClusterTools:
 
         result = mock_reboot_broker_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             broker_ids=broker_ids,
         )
 
@@ -830,7 +830,7 @@ class TestMutateClusterTools:
             )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         target_broker_ebs_volume_info = [{'KafkaBrokerNodeId': 'ALL', 'VolumeSizeGB': 1100}]
 
         with pytest.raises(ValueError) as excinfo:

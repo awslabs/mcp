@@ -200,7 +200,7 @@ class TestExtractTaskMetricsFromManifest:
         # Arrange
         task_data = {
             'name': 'test-task',
-            'arn': 'arn:aws:omics:us-east-1:123456789012:run/1234567890123456/task/test-task',
+            'arn': 'arn:aws:omics:us-east-1:<account-id>:run/<account-id>3456/task/test-task',
             'uuid': 'task-uuid-123',
             'cpus': 4,
             'memory': 8,
@@ -382,7 +382,7 @@ class TestParseManifestForAnalysis:
                             'workflow': 'test-workflow',
                             'metrics': {'runningSeconds': 3300},
                             'name': 'test-workflow-run',
-                            'arn': 'arn:aws:omics:us-east-1:123456789012:run/test-run-123',
+                            'arn': 'arn:aws:omics:us-east-1:<account-id>:run/test-run-123',
                             'parameters': {'input': 'test.fastq'},
                             'storageType': 'DYNAMIC',
                         }

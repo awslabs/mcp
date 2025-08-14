@@ -316,7 +316,7 @@ class TestFinchTools:
         """Test finch_build_container_image with ECR reference."""
         dockerfile_path = '/path/to/Dockerfile'
         context_path = '/path/to/context'
-        tags = ['123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest']
+        tags = ['<account-id>.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest']
 
         with (
             patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
@@ -359,7 +359,7 @@ class TestFinchTools:
         """Test finch_build_container_image with ECR reference when configure_ecr returns an error."""
         dockerfile_path = '/path/to/Dockerfile'
         context_path = '/path/to/context'
-        tags = ['123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest']
+        tags = ['<account-id>.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest']
 
         with (
             patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,
@@ -493,7 +493,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_push_image_success(self):
         """Test successful finch_push_image operation."""
-        image = '123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
+        image = '<account-id>.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
 
         set_enable_aws_resource_write(True)
 
@@ -537,7 +537,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_push_image_with_ecr_error(self):
         """Test finch_push_image with ECR reference when configure_ecr returns an error."""
-        image = '123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
+        image = '<account-id>.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
 
         set_enable_aws_resource_write(True)
 
@@ -739,7 +739,7 @@ class TestFinchTools:
                 mock_create_ecr_repository.return_value = {
                     'status': STATUS_SUCCESS,
                     'message': "ECR repository 'test-repo' already exists.",
-                    'repository_uri': '123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo',
+                    'repository_uri': '<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-repo',
                     'exists': True,
                 }
 
@@ -832,7 +832,7 @@ class TestFinchTools:
     @pytest.mark.asyncio
     async def test_finch_push_image_readonly_mode(self):
         """Test finch_push_image when AWS resource write is disabled and pushing to ECR."""
-        image = '123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
+        image = '<account-id>.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest'
 
         with (
             patch('awslabs.finch_mcp_server.server.check_finch_installation') as mock_check_finch,

@@ -67,14 +67,14 @@ class TestSLOSummary:
         created_time = datetime.now(timezone.utc)
         summary = SLOSummary(
             name='test-slo',
-            arn='arn:aws:application-signals:us-east-1:123456789012:slo/test-slo',
+            arn='arn:aws:application-signals:us-east-1:<account-id>:slo/test-slo',
             key_attributes={'Name': 'TestService', 'Type': 'Service'},
             operation_name='GetItem',
             created_time=created_time,
         )
 
         assert summary.name == 'test-slo'
-        assert summary.arn == 'arn:aws:application-signals:us-east-1:123456789012:slo/test-slo'
+        assert summary.arn == 'arn:aws:application-signals:us-east-1:<account-id>:slo/test-slo'
         assert summary.key_attributes == {'Name': 'TestService', 'Type': 'Service'}
         assert summary.operation_name == 'GetItem'
         assert summary.created_time == created_time
@@ -189,14 +189,14 @@ class TestSLIReportClient:
             'SloSummaries': [
                 {
                     'Name': 'slo-1',
-                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/slo-1',
+                    'Arn': 'arn:aws:application-signals:us-east-1:<account-id>:slo/slo-1',
                     'KeyAttributes': {'Name': 'TestService'},
                     'OperationName': 'GetItem',
                     'CreatedTime': created_time,
                 },
                 {
                     'Name': 'slo-2',
-                    'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/slo-2',
+                    'Arn': 'arn:aws:application-signals:us-east-1:<account-id>:slo/slo-2',
                     'KeyAttributes': {'Name': 'TestService'},
                     'CreatedTime': created_time,
                 },

@@ -1232,7 +1232,7 @@ class TestTagOperations:
             ]
         }
 
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/test-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/test-db'
 
         # Act
         result = await list_tags_for_resource(resource_arn=resource_arn)
@@ -1259,7 +1259,7 @@ class TestTagOperations:
             'ListTagsForResource',
         )
 
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/non-existent-db'
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
@@ -1278,7 +1278,7 @@ class TestTagOperations:
         mock_get_client.return_value = mock_client
         mock_client.tag_resource.return_value = {}  # Typically returns empty response on success
 
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/test-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/test-db'
         tags = {'Environment': 'Production', 'Owner': 'DataTeam'}
 
         # Act
@@ -1298,7 +1298,7 @@ class TestTagOperations:
     async def test_tag_resource_read_only_mode(self):
         """Test tool in read-only mode."""
         # Arrange
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/non-existent-db'
         tags = {'Environment': 'Production'}
 
         # Act & Assert
@@ -1322,7 +1322,7 @@ class TestTagOperations:
             'TagResource',
         )
 
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/non-existent-db'
         tags = {'Environment': 'Production'}
 
         # Act & Assert
@@ -1342,7 +1342,7 @@ class TestTagOperations:
         mock_get_client.return_value = mock_client
         mock_client.untag_resource.return_value = {}  # Typically returns empty response on success
 
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/test-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/test-db'
         tag_keys = ['Environment', 'Owner']
 
         # Act
@@ -1361,7 +1361,7 @@ class TestTagOperations:
     async def test_untag_resource_read_only_mode(self):
         """Test tool in read-only mode."""
         # Arrange
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/non-existent-db'
         tag_keys = ['Environment']
 
         # Act & Assert
@@ -1387,7 +1387,7 @@ class TestTagOperations:
             'UntagResource',
         )
 
-        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
+        resource_arn = 'arn:aws:timestream-influxdb:us-east-1:<account-id>:db/non-existent-db'
         tag_keys = ['Environment']
 
         # Act & Assert

@@ -399,11 +399,11 @@ async def create_template(
        )
 
     2. Check status of template generation:
-       create_template(template_id="arn:aws:cloudformation:us-east-1:123456789012:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890")
+       create_template(template_id="arn:aws:cloudformation:us-east-1:<account-id>:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890")
 
     3. Retrieve and save generated template:
        create_template(
-           template_id="arn:aws:cloudformation:us-east-1:123456789012:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890",
+           template_id="arn:aws:cloudformation:us-east-1:<account-id>:generatedtemplate/abcdef12-3456-7890-abcd-ef1234567890",
            save_to_file="/path/to/template.yaml",
            output_format="YAML"
        )

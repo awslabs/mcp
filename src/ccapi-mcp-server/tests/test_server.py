@@ -113,9 +113,9 @@ class TestTools:
 
         mock_check_creds.return_value = {
             'valid': True,
-            'account_id': '123456789012',
+            'account_id': '<account-id>',
             'region': 'us-east-1',
-            'arn': 'arn:aws:iam::123456789012:user/test',
+            'arn': 'arn:aws:iam::<account-id>:user/test',
             'profile': 'default',
         }
 
@@ -125,7 +125,7 @@ class TestTools:
 
         result = await get_aws_session_info(environment_token=env_token)
 
-        assert result['account_id'] == '123456789012'
+        assert result['account_id'] == '<account-id>'
         assert result['credentials_valid']
 
     @patch('awslabs.ccapi_mcp_server.impl.tools.session_management.check_aws_credentials')
@@ -948,7 +948,7 @@ class TestTools:
                         'Sid': 'TestStatement',
                         'Effect': 'Allow',
                         'Action': 's3:GetObject',
-                        'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                        'Principal': {'AWS': 'arn:aws:iam::<account-id>:root'},
                     }
                 ]
             }
@@ -1010,7 +1010,7 @@ class TestTools:
                     mock_profile.return_value = {
                         'profile': '',
                         'using_env_vars': True,
-                        'account_id': '123456789012',
+                        'account_id': '<account-id>',
                         'region': 'us-east-1',
                     }
                     from awslabs.ccapi_mcp_server.server import main
@@ -1333,7 +1333,7 @@ class TestTools:
         with patch('awslabs.ccapi_mcp_server.server.check_environment_variables') as mock_check:
             mock_check.return_value = {'environment_token': 'test_token'}
             with patch('awslabs.ccapi_mcp_server.server.get_aws_session_info') as mock_session:
-                mock_session.return_value = {'account_id': '123456789012'}
+                mock_session.return_value = {'account_id': '<account-id>'}
                 result = await get_aws_account_info()
                 assert 'account_id' in result
 

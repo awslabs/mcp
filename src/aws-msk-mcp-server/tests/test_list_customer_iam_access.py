@@ -40,7 +40,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
                 'BrokerNodeGroupInfo': {
                     'ConnectivityInfo': {
@@ -55,7 +55,7 @@ class TestListCustomerIamAccess:
         # Mock the response from get_cluster_policy
         mock_kafka_client.get_cluster_policy.return_value = {
             'CurrentVersion': '1',
-            'Policy': '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::123456789012:role/TestRole"},"Action":["kafka:GetBootstrapBrokers","kafka:DescribeCluster"],"Resource":"arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*"}]}',
+            'Policy': '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::<account-id>:role/TestRole"},"Action":["kafka:GetBootstrapBrokers","kafka:DescribeCluster"],"Resource":"arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*"}]}',
         }
 
         # Mock the response from list_policies
@@ -64,7 +64,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'TestPolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/TestPolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/TestPolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -80,7 +80,7 @@ class TestListCustomerIamAccess:
                         {
                             'Effect': 'Allow',
                             'Action': ['kafka:GetBootstrapBrokers', 'kafka:DescribeCluster'],
-                            'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                            'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                         }
                     ],
                 }
@@ -96,7 +96,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -130,7 +130,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -145,7 +145,7 @@ class TestListCustomerIamAccess:
         mock_iam_client.get_paginator.return_value.paginate.return_value = [{'Policies': []}]
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -167,7 +167,7 @@ class TestListCustomerIamAccess:
     def test_list_customer_iam_access_missing_client_manager(self):
         """Test the list_customer_iam_access function with a missing client manager."""
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function and expect an error
         with pytest.raises(ValueError) as excinfo:
@@ -204,7 +204,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -218,7 +218,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'ExactMatchPolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/ExactMatchPolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/ExactMatchPolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -234,7 +234,7 @@ class TestListCustomerIamAccess:
                         {
                             'Effect': 'Allow',
                             'Action': ['kafka:GetBootstrapBrokers'],
-                            'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                            'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                         }
                     ],
                 }
@@ -250,7 +250,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -259,9 +259,9 @@ class TestListCustomerIamAccess:
 
         # Verify the result
         assert 'matching_policies' in result
-        assert 'arn:aws:iam::123456789012:policy/ExactMatchPolicy' in result['matching_policies']
+        assert 'arn:aws:iam::<account-id>:policy/ExactMatchPolicy' in result['matching_policies']
         assert (
-            result['matching_policies']['arn:aws:iam::123456789012:policy/ExactMatchPolicy'][
+            result['matching_policies']['arn:aws:iam::<account-id>:policy/ExactMatchPolicy'][
                 'ResourceType'
             ]
             == 'exact'
@@ -282,7 +282,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -296,7 +296,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'GlobalWildcardPolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/GlobalWildcardPolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/GlobalWildcardPolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -328,7 +328,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -338,10 +338,10 @@ class TestListCustomerIamAccess:
         # Verify the result
         assert 'matching_policies' in result
         assert (
-            'arn:aws:iam::123456789012:policy/GlobalWildcardPolicy' in result['matching_policies']
+            'arn:aws:iam::<account-id>:policy/GlobalWildcardPolicy' in result['matching_policies']
         )
         assert (
-            result['matching_policies']['arn:aws:iam::123456789012:policy/GlobalWildcardPolicy'][
+            result['matching_policies']['arn:aws:iam::<account-id>:policy/GlobalWildcardPolicy'][
                 'ResourceType'
             ]
             == 'global_wildcard'
@@ -362,7 +362,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -376,7 +376,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'ClusterWildcardPolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/ClusterWildcardPolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/ClusterWildcardPolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -408,7 +408,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -418,10 +418,10 @@ class TestListCustomerIamAccess:
         # Verify the result
         assert 'matching_policies' in result
         assert (
-            'arn:aws:iam::123456789012:policy/ClusterWildcardPolicy' in result['matching_policies']
+            'arn:aws:iam::<account-id>:policy/ClusterWildcardPolicy' in result['matching_policies']
         )
         assert (
-            result['matching_policies']['arn:aws:iam::123456789012:policy/ClusterWildcardPolicy'][
+            result['matching_policies']['arn:aws:iam::<account-id>:policy/ClusterWildcardPolicy'][
                 'ResourceType'
             ]
             == 'cluster_wildcard'
@@ -442,7 +442,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -456,7 +456,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'PatternMatchPolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/PatternMatchPolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/PatternMatchPolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -472,7 +472,7 @@ class TestListCustomerIamAccess:
                         {
                             'Effect': 'Allow',
                             'Action': ['kafka:GetBootstrapBrokers'],
-                            'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-*/*',
+                            'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-*/*',
                         }
                     ],
                 }
@@ -488,7 +488,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -497,9 +497,9 @@ class TestListCustomerIamAccess:
 
         # Verify the result
         assert 'matching_policies' in result
-        assert 'arn:aws:iam::123456789012:policy/PatternMatchPolicy' in result['matching_policies']
+        assert 'arn:aws:iam::<account-id>:policy/PatternMatchPolicy' in result['matching_policies']
         assert (
-            result['matching_policies']['arn:aws:iam::123456789012:policy/PatternMatchPolicy'][
+            result['matching_policies']['arn:aws:iam::<account-id>:policy/PatternMatchPolicy'][
                 'ResourceType'
             ]
             == 'pattern_match'
@@ -520,7 +520,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -534,7 +534,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'StringActionPolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/StringActionPolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/StringActionPolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -550,7 +550,7 @@ class TestListCustomerIamAccess:
                         {
                             'Effect': 'Allow',
                             'Action': 'kafka:GetBootstrapBrokers',
-                            'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                            'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                         }
                     ],
                 }
@@ -566,7 +566,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -575,7 +575,7 @@ class TestListCustomerIamAccess:
 
         # Verify the result
         assert 'matching_policies' in result
-        assert 'arn:aws:iam::123456789012:policy/StringActionPolicy' in result['matching_policies']
+        assert 'arn:aws:iam::<account-id>:policy/StringActionPolicy' in result['matching_policies']
 
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.get_cluster_name')
     def test_list_customer_iam_access_kafka_cluster_action(self, mock_get_cluster_name):
@@ -592,7 +592,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -606,7 +606,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'KafkaClusterPolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/KafkaClusterPolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/KafkaClusterPolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -622,7 +622,7 @@ class TestListCustomerIamAccess:
                         {
                             'Effect': 'Allow',
                             'Action': ['kafka-cluster:Connect', 'kafka-cluster:DescribeCluster'],
-                            'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                            'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                         }
                     ],
                 }
@@ -638,7 +638,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -647,7 +647,7 @@ class TestListCustomerIamAccess:
 
         # Verify the result
         assert 'matching_policies' in result
-        assert 'arn:aws:iam::123456789012:policy/KafkaClusterPolicy' in result['matching_policies']
+        assert 'arn:aws:iam::<account-id>:policy/KafkaClusterPolicy' in result['matching_policies']
 
     @patch('awslabs.aws_msk_mcp_server.tools.common_functions.get_cluster_name')
     def test_list_customer_iam_access_string_resource(self, mock_get_cluster_name):
@@ -664,7 +664,7 @@ class TestListCustomerIamAccess:
         # Mock the response from describe_cluster
         mock_kafka_client.describe_cluster_v2.return_value = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
             }
         }
@@ -678,7 +678,7 @@ class TestListCustomerIamAccess:
                 'Policies': [
                     {
                         'PolicyName': 'StringResourcePolicy',
-                        'Arn': 'arn:aws:iam::123456789012:policy/StringResourcePolicy',
+                        'Arn': 'arn:aws:iam::<account-id>:policy/StringResourcePolicy',
                         'DefaultVersionId': 'v1',
                     }
                 ]
@@ -694,7 +694,7 @@ class TestListCustomerIamAccess:
                         {
                             'Effect': 'Allow',
                             'Action': ['kafka:GetBootstrapBrokers'],
-                            'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                            'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                         }
                     ],
                 }
@@ -710,7 +710,7 @@ class TestListCustomerIamAccess:
         mock_get_cluster_name.return_value = 'test-cluster'
 
         # Set up parameters
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
 
         # Call the function
         result = list_customer_iam_access(
@@ -720,5 +720,5 @@ class TestListCustomerIamAccess:
         # Verify the result
         assert 'matching_policies' in result
         assert (
-            'arn:aws:iam::123456789012:policy/StringResourcePolicy' in result['matching_policies']
+            'arn:aws:iam::<account-id>:policy/StringResourcePolicy' in result['matching_policies']
         )

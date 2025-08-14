@@ -37,7 +37,7 @@ async def test_list_workflows_success():
         'items': [
             {
                 'id': 'wfl-12345',
-                'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+                'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
                 'name': 'test-workflow-1',
                 'description': 'Test workflow 1',
                 'status': 'ACTIVE',
@@ -48,7 +48,7 @@ async def test_list_workflows_success():
             },
             {
                 'id': 'wfl-67890',
-                'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-67890',
+                'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-67890',
                 'name': 'test-workflow-2',
                 'status': 'ACTIVE',
                 'storageType': 'STATIC',
@@ -193,7 +193,7 @@ async def test_get_workflow_success():
     creation_time = datetime.now(timezone.utc)
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'name': 'test-workflow',
         'status': 'ACTIVE',
         'statusMessage': 'Workflow is ready for execution',
@@ -219,7 +219,7 @@ async def test_get_workflow_success():
 
     # Verify result contains all expected fields
     assert result['id'] == 'wfl-12345'
-    assert result['arn'] == 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345'
+    assert result['arn'] == 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345'
     assert result['name'] == 'test-workflow'
     assert result['status'] == 'ACTIVE'
     assert result['statusMessage'] == 'Workflow is ready for execution'
@@ -265,7 +265,7 @@ async def test_get_workflow_without_export():
     creation_time = datetime.now(timezone.utc)
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'name': 'test-workflow',
         'status': 'ACTIVE',
         'type': 'WDL',
@@ -302,7 +302,7 @@ async def test_get_workflow_minimal_response():
     creation_time = datetime.now(timezone.utc)
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'name': 'test-workflow',
         'status': 'ACTIVE',
         'type': 'WDL',
@@ -405,7 +405,7 @@ async def test_get_workflow_with_status_message():
     creation_time = datetime.now(timezone.utc)
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'name': 'test-workflow',
         'status': 'FAILED',
         'statusMessage': 'Workflow validation failed: Invalid WDL syntax',
@@ -436,7 +436,7 @@ async def test_list_workflow_versions_success(mock_omics_client, mock_context):
     mock_omics_client.list_workflow_versions.return_value = {
         'items': [
             {
-                'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/abc123/1.0',
+                'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/abc123/1.0',
                 'id': 'abc123',
                 'status': 'ACTIVE',
                 'type': 'WDL',
@@ -445,7 +445,7 @@ async def test_list_workflow_versions_success(mock_omics_client, mock_context):
                 'creationTime': '2023-01-01T00:00:00Z',
             },
             {
-                'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/abc123/2.0',
+                'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/abc123/2.0',
                 'id': 'abc123',
                 'status': 'ACTIVE',
                 'type': 'WDL',
@@ -480,7 +480,7 @@ async def test_list_workflow_versions_with_pagination(mock_omics_client, mock_co
         {
             'items': [
                 {
-                    'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/abc123/1.0',
+                    'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/abc123/1.0',
                     'id': 'abc123',
                     'status': 'ACTIVE',
                     'type': 'WDL',
@@ -494,7 +494,7 @@ async def test_list_workflow_versions_with_pagination(mock_omics_client, mock_co
         {
             'items': [
                 {
-                    'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/abc123/2.0',
+                    'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/abc123/2.0',
                     'id': 'abc123',
                     'status': 'ACTIVE',
                     'type': 'WDL',
@@ -607,7 +607,7 @@ async def test_create_workflow_success():
     # Mock response data
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'status': 'ACTIVE',
         'name': 'test-workflow',
         'description': 'Test workflow description',
@@ -643,7 +643,7 @@ async def test_create_workflow_success():
 
     # Verify result contains expected fields
     assert result['id'] == 'wfl-12345'
-    assert result['arn'] == 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345'
+    assert result['arn'] == 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345'
     assert result['status'] == 'ACTIVE'
     assert result['name'] == 'test-workflow'
     assert result['description'] == 'Test workflow description'
@@ -655,7 +655,7 @@ async def test_create_workflow_minimal():
     # Mock response data
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'status': 'ACTIVE',
         'name': 'test-workflow',
     }
@@ -781,7 +781,7 @@ async def test_create_workflow_version_success():
     # Mock response data
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'status': 'ACTIVE',
         'name': 'test-workflow',
         'versionName': 'v2.0',
@@ -832,7 +832,7 @@ async def test_create_workflow_version_with_static_storage():
     # Mock response data
     mock_response = {
         'id': 'wfl-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:workflow/wfl-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:workflow/wfl-12345',
         'status': 'ACTIVE',
         'name': 'test-workflow',
         'versionName': 'v2.0',

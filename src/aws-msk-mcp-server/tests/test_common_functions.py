@@ -33,13 +33,13 @@ class TestCommonFunctions:
 
         # Act
         result = check_mcp_generated_tag(
-            'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
         )
 
         # Assert
         assert result is True
         mock_client.list_tags_for_resource.assert_called_once_with(
-            ResourceArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            ResourceArn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
 
     def test_check_mcp_generated_tag_without_tag(self):
@@ -50,13 +50,13 @@ class TestCommonFunctions:
 
         # Act
         result = check_mcp_generated_tag(
-            'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
         )
 
         # Assert
         assert result is False
         mock_client.list_tags_for_resource.assert_called_once_with(
-            ResourceArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            ResourceArn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
 
     def test_check_mcp_generated_tag_with_false_tag(self):
@@ -67,13 +67,13 @@ class TestCommonFunctions:
 
         # Act
         result = check_mcp_generated_tag(
-            'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
         )
 
         # Assert
         assert result is False
         mock_client.list_tags_for_resource.assert_called_once_with(
-            ResourceArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            ResourceArn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
 
     def test_check_mcp_generated_tag_with_case_insensitive_tag(self):
@@ -84,13 +84,13 @@ class TestCommonFunctions:
 
         # Act
         result = check_mcp_generated_tag(
-            'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+            'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
         )
 
         # Assert
         assert result is True
         mock_client.list_tags_for_resource.assert_called_once_with(
-            ResourceArn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            ResourceArn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
 
     def test_check_mcp_generated_tag_with_no_client(self):
@@ -98,14 +98,14 @@ class TestCommonFunctions:
         # Act & Assert
         with pytest.raises(ValueError, match='Client must be provided'):
             check_mcp_generated_tag(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', None
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', None
             )
 
     def test_get_cluster_name_with_arn(self):
         """Test get_cluster_name with an ARN."""
         # Act
         result = get_cluster_name(
-            'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
 
         # Assert
@@ -123,7 +123,7 @@ class TestCommonFunctions:
         """Test get_cluster_name with an invalid ARN format."""
         # Act & Assert
         with pytest.raises(ValueError, match='Invalid MSK cluster ARN format'):
-            get_cluster_name('arn:aws:kafka:us-east-1:123456789012:cluster')
+            get_cluster_name('arn:aws:kafka:us-east-1:<account-id>:cluster')
 
     def test_get_cluster_name_with_non_kafka_arn(self):
         """Test get_cluster_name with an ARN that does not start with arn:aws:kafka."""

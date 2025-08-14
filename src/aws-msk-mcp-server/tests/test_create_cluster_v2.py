@@ -35,7 +35,7 @@ class TestCreateClusterV2:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'PROVISIONED',
@@ -70,7 +70,7 @@ class TestCreateClusterV2:
                 'BrokerLogs': {'CloudWatchLogs': {'Enabled': True, 'LogGroup': 'my-log-group'}}
             },
             configuration_info={
-                'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+                'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
                 'Revision': 1,
             },
             storage_mode='TIERED',
@@ -108,7 +108,7 @@ class TestCreateClusterV2:
             'BrokerLogs': {'CloudWatchLogs': {'Enabled': True, 'LogGroup': 'my-log-group'}}
         }
         assert call_args['Provisioned']['ConfigurationInfo'] == {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'Revision': 1,
         }
         assert call_args['Provisioned']['StorageMode'] == 'TIERED'
@@ -120,7 +120,7 @@ class TestCreateClusterV2:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'SERVERLESS',
@@ -161,7 +161,7 @@ class TestCreateClusterV2:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'PROVISIONED',
@@ -203,7 +203,7 @@ class TestCreateClusterV2:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'SERVERLESS',
@@ -238,7 +238,7 @@ class TestCreateClusterV2:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'PROVISIONED',

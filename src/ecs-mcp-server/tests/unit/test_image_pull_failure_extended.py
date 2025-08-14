@@ -62,7 +62,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         mock_find_task_defs.return_value = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/valid-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/valid-task-def:1"
                 ),
                 "family": "valid-task-def",
                 "containerDefinitions": [{"name": "web", "image": "valid-repo/valid-image:latest"}],
@@ -74,7 +74,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
             {
                 "image": "valid-repo/valid-image:latest",
                 "task_definition": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/valid-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/valid-task-def:1"
                 ),
                 "container_name": "web",
                 "exists": "true",
@@ -106,13 +106,13 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         mock_find_task_defs.return_value = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/ecr-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/ecr-task-def:1"
                 ),
                 "family": "ecr-task-def",
                 "containerDefinitions": [
                     {
                         "name": "web",
-                        "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/missing-repo:latest",
+                        "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/missing-repo:latest",
                     }
                 ],
             }
@@ -121,9 +121,9 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         # Mock the image check results - ECR image not found
         mock_validate_images.return_value = [
             {
-                "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/missing-repo:latest",
+                "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/missing-repo:latest",
                 "task_definition": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/ecr-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/ecr-task-def:1"
                 ),
                 "container_name": "web",
                 "exists": "false",
@@ -158,7 +158,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         mock_find_task_defs.return_value = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/external-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/external-task-def:1"
                 ),
                 "family": "external-task-def",
                 "containerDefinitions": [
@@ -172,7 +172,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
             {
                 "image": "docker.io/unknown-repo/unknown-image:latest",
                 "task_definition": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/external-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/external-task-def:1"
                 ),
                 "container_name": "web",
                 "exists": "unknown",
@@ -206,7 +206,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         mock_find_task_defs.return_value = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/issue-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/issue-task-def:1"
                 ),
                 "family": "issue-task-def",
                 "containerDefinitions": [{"name": "web", "image": "problem-image:latest"}],
@@ -218,7 +218,7 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
             {
                 "image": "problem-image:latest",
                 "task_definition": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/issue-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/issue-task-def:1"
                 ),
                 "container_name": "web",
                 "exists": "false",
@@ -253,14 +253,14 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         mock_find_task_defs.return_value = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/no-role-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/no-role-task-def:1"
                 ),
                 "family": "no-role-task-def",
                 # No executionRoleArn
                 "containerDefinitions": [
                     {
                         "name": "web",
-                        "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/valid-repo:latest",
+                        "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/valid-repo:latest",
                     }
                 ],
             }
@@ -269,9 +269,9 @@ class TestImagePullFailureDetectionExtended(unittest.TestCase):
         # Mock the image check results - valid image
         mock_validate_images.return_value = [
             {
-                "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/valid-repo:latest",
+                "image": "<account-id>.dkr.ecr.us-west-2.amazonaws.com/valid-repo:latest",
                 "task_definition": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/no-role-task-def:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/no-role-task-def:1"
                 ),
                 "container_name": "web",
                 "exists": "true",

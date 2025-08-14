@@ -61,29 +61,29 @@ class TestAwsHelper:
     def test_get_aws_account_id_cached(self):
         """Test that get_aws_account_id returns the cached account ID if available."""
         # Set the cached account ID
-        AwsHelper._aws_account_id = '123456789012'
+        AwsHelper._aws_account_id = '<account-id>'
 
         # Verify that the cached account ID is returned without calling STS
         with patch('boto3.client') as mock_boto3_client:
             account_id = AwsHelper.get_aws_account_id()
-            assert account_id == '123456789012'
+            assert account_id == '<account-id>'
             mock_boto3_client.assert_not_called()
 
     def test_get_aws_account_id_uncached(self):
         """Test that get_aws_account_id calls STS when the account ID is not cached."""
         # Mock the STS client
         mock_sts_client = MagicMock()
-        mock_sts_client.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_sts_client.get_caller_identity.return_value = {'Account': '<account-id>'}
 
         # Mock boto3.client to return our mock STS client
         with patch('boto3.client', return_value=mock_sts_client) as mock_boto3_client:
             account_id = AwsHelper.get_aws_account_id()
-            assert account_id == '123456789012'
+            assert account_id == '<account-id>'
             mock_boto3_client.assert_called_once_with('sts')
             mock_sts_client.get_caller_identity.assert_called_once()
 
         # Verify that the account ID is now cached
-        assert AwsHelper._aws_account_id == '123456789012'
+        assert AwsHelper._aws_account_id == '<account-id>'
 
     def test_get_aws_account_id_exception(self):
         """Test that get_aws_account_id returns a placeholder when STS call fails."""
@@ -117,7 +117,7 @@ class TestAwsHelper:
         # Mock the STS client
         mock_sts_client = MagicMock()
         mock_sts_client.get_caller_identity.return_value = {
-            'Arn': 'arn:aws:sts::123456789012:assumed-role/role-name/session-name'
+            'Arn': 'arn:aws:sts::<account-id>:assumed-role/role-name/session-name'
         }
 
         # Mock boto3.client to return our mock STS client
@@ -302,7 +302,7 @@ class TestAwsHelper:
         }
 
         # Mock the AWS account ID and region
-        with patch.object(AwsHelper, 'get_aws_account_id', return_value='123456789012'):
+        with patch.object(AwsHelper, 'get_aws_account_id', return_value='<account-id>'):
             with patch.object(AwsHelper, 'get_aws_region', return_value='us-west-2'):
                 # Test with a workgroup name
                 tags = AwsHelper.get_resource_tags_athena_workgroup(
@@ -316,7 +316,7 @@ class TestAwsHelper:
 
                 # Verify the ARN was constructed correctly
                 mock_athena_client.list_tags_for_resource.assert_called_once_with(
-                    ResourceARN='arn:aws:athena:us-west-2:123456789012:workgroup/test-workgroup'
+                    ResourceARN='arn:aws:athena:us-west-2:<account-id>:workgroup/test-workgroup'
                 )
 
     def test_get_resource_tags_athena_workgroup_client_error(self):
@@ -432,11 +432,11 @@ class TestAwsHelper:
 
         # Test with a resource that has the MCP managed tag
         result = AwsHelper.is_resource_mcp_managed(
-            mock_glue_client, 'arn:aws:glue:us-west-2:123456789012:database/test-db'
+            mock_glue_client, 'arn:aws:glue:us-west-2:<account-id>:database/test-db'
         )
         assert result is True
         mock_glue_client.get_tags.assert_called_once_with(
-            ResourceArn='arn:aws:glue:us-west-2:123456789012:database/test-db'
+            ResourceArn='arn:aws:glue:us-west-2:<account-id>:database/test-db'
         )
 
     def test_is_resource_mcp_managed_without_tags(self):
@@ -447,11 +447,11 @@ class TestAwsHelper:
 
         # Test with a resource that doesn't have the MCP managed tag
         result = AwsHelper.is_resource_mcp_managed(
-            mock_glue_client, 'arn:aws:glue:us-west-2:123456789012:database/test-db'
+            mock_glue_client, 'arn:aws:glue:us-west-2:<account-id>:database/test-db'
         )
         assert result is False
         mock_glue_client.get_tags.assert_called_once_with(
-            ResourceArn='arn:aws:glue:us-west-2:123456789012:database/test-db'
+            ResourceArn='arn:aws:glue:us-west-2:<account-id>:database/test-db'
         )
 
     def test_is_resource_mcp_managed_with_parameters(self):
@@ -467,7 +467,7 @@ class TestAwsHelper:
         parameters = {MCP_MANAGED_TAG_KEY: MCP_MANAGED_TAG_VALUE}
         result = AwsHelper.is_resource_mcp_managed(
             mock_glue_client,
-            'arn:aws:glue:us-west-2:123456789012:database/test-db',
+            'arn:aws:glue:us-west-2:<account-id>:database/test-db',
             parameters=parameters,
         )
         assert result is True
@@ -484,7 +484,7 @@ class TestAwsHelper:
 
         # Test without parameters
         result = AwsHelper.is_resource_mcp_managed(
-            mock_glue_client, 'arn:aws:glue:us-west-2:123456789012:database/test-db'
+            mock_glue_client, 'arn:aws:glue:us-west-2:<account-id>:database/test-db'
         )
         assert result is False
         mock_glue_client.get_tags.assert_called_once()
@@ -502,7 +502,7 @@ class TestAwsHelper:
         parameters = {'some_key': 'some_value'}
         result = AwsHelper.is_resource_mcp_managed(
             mock_glue_client,
-            'arn:aws:glue:us-west-2:123456789012:database/test-db',
+            'arn:aws:glue:us-west-2:<account-id>:database/test-db',
             parameters=parameters,
         )
         assert result is False
@@ -577,7 +577,7 @@ class TestAwsHelper:
         }
 
         # Mock the AWS account ID, region, and partition
-        with patch.object(AwsHelper, 'get_aws_account_id', return_value='123456789012'):
+        with patch.object(AwsHelper, 'get_aws_account_id', return_value='<account-id>'):
             with patch.object(AwsHelper, 'get_aws_region', return_value='us-west-2'):
                 with patch.object(AwsHelper, 'get_aws_partition', return_value='aws'):
                     # Test with a data catalog that is managed by MCP
@@ -592,7 +592,7 @@ class TestAwsHelper:
                         Name='test-catalog'
                     )
                     mock_athena_client.list_tags_for_resource.assert_called_once_with(
-                        ResourceARN='arn:aws:athena:us-west-2:123456789012:datacatalog/test-catalog'
+                        ResourceARN='arn:aws:athena:us-west-2:<account-id>:datacatalog/test-catalog'
                     )
 
     def test_verify_athena_data_catalog_managed_by_mcp_with_workgroup(self):
@@ -613,7 +613,7 @@ class TestAwsHelper:
         }
 
         # Mock the AWS account ID, region, and partition
-        with patch.object(AwsHelper, 'get_aws_account_id', return_value='123456789012'):
+        with patch.object(AwsHelper, 'get_aws_account_id', return_value='<account-id>'):
             with patch.object(AwsHelper, 'get_aws_region', return_value='us-west-2'):
                 with patch.object(AwsHelper, 'get_aws_partition', return_value='aws'):
                     # Test with a data catalog that is managed by MCP and a workgroup
@@ -628,7 +628,7 @@ class TestAwsHelper:
                         Name='test-catalog', WorkGroup='test-workgroup'
                     )
                     mock_athena_client.list_tags_for_resource.assert_called_once_with(
-                        ResourceARN='arn:aws:athena:us-west-2:123456789012:datacatalog/test-catalog'
+                        ResourceARN='arn:aws:athena:us-west-2:<account-id>:datacatalog/test-catalog'
                     )
 
     def test_verify_athena_data_catalog_managed_by_mcp_not_managed(self):
@@ -648,7 +648,7 @@ class TestAwsHelper:
         }
 
         # Mock the AWS account ID, region, and partition
-        with patch.object(AwsHelper, 'get_aws_account_id', return_value='123456789012'):
+        with patch.object(AwsHelper, 'get_aws_account_id', return_value='<account-id>'):
             with patch.object(AwsHelper, 'get_aws_region', return_value='us-west-2'):
                 with patch.object(AwsHelper, 'get_aws_partition', return_value='aws'):
                     # Test with a data catalog that is not managed by MCP
@@ -663,7 +663,7 @@ class TestAwsHelper:
                         Name='test-catalog'
                     )
                     mock_athena_client.list_tags_for_resource.assert_called_once_with(
-                        ResourceARN='arn:aws:athena:us-west-2:123456789012:datacatalog/test-catalog'
+                        ResourceARN='arn:aws:athena:us-west-2:<account-id>:datacatalog/test-catalog'
                     )
 
     def test_verify_athena_data_catalog_managed_by_mcp_tag_error(self):
@@ -679,7 +679,7 @@ class TestAwsHelper:
         mock_athena_client.list_tags_for_resource.side_effect = Exception('Error listing tags')
 
         # Mock the AWS account ID, region, and partition
-        with patch.object(AwsHelper, 'get_aws_account_id', return_value='123456789012'):
+        with patch.object(AwsHelper, 'get_aws_account_id', return_value='<account-id>'):
             with patch.object(AwsHelper, 'get_aws_region', return_value='us-west-2'):
                 with patch.object(AwsHelper, 'get_aws_partition', return_value='aws'):
                     # Test with an error when checking tags
@@ -694,7 +694,7 @@ class TestAwsHelper:
                         Name='test-catalog'
                     )
                     mock_athena_client.list_tags_for_resource.assert_called_once_with(
-                        ResourceARN='arn:aws:athena:us-west-2:123456789012:datacatalog/test-catalog'
+                        ResourceARN='arn:aws:athena:us-west-2:<account-id>:datacatalog/test-catalog'
                     )
 
     def test_verify_athena_data_catalog_managed_by_mcp_get_error(self):

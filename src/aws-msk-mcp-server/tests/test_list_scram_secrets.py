@@ -29,14 +29,14 @@ class TestListScramSecrets:
         mock_client = MagicMock()
         expected_response = {
             'SecretArnList': [
-                'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret-1',
-                'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret-2',
+                'arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret-1',
+                'arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret-2',
             ]
         }
         mock_client.list_scram_secrets.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_scram_secrets(cluster_arn, mock_client)
 
         # Assert
@@ -45,11 +45,11 @@ class TestListScramSecrets:
         assert 'SecretArnList' in result
         assert len(result['SecretArnList']) == 2
         assert (
-            'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret-1'
+            'arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret-1'
             in result['SecretArnList']
         )
         assert (
-            'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret-2'
+            'arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret-2'
             in result['SecretArnList']
         )
 
@@ -59,14 +59,14 @@ class TestListScramSecrets:
         mock_client = MagicMock()
         expected_response = {
             'SecretArnList': [
-                'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret-1'
+                'arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret-1'
             ],
             'NextToken': 'next-token-value',
         }
         mock_client.list_scram_secrets.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         max_results = 5
         next_token = 'token'
         result = list_scram_secrets(cluster_arn, mock_client, max_results, next_token)
@@ -88,7 +88,7 @@ class TestListScramSecrets:
         mock_client.list_scram_secrets.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_scram_secrets(cluster_arn, mock_client)
 
         # Assert
@@ -107,7 +107,7 @@ class TestListScramSecrets:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             list_scram_secrets(cluster_arn, mock_client)
 
@@ -119,7 +119,7 @@ class TestListScramSecrets:
     def test_list_scram_secrets_missing_client(self):
         """Test the list_scram_secrets function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             list_scram_secrets(cluster_arn, None)
 

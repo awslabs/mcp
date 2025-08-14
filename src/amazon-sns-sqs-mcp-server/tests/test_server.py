@@ -50,7 +50,7 @@ class TestSNSTools:
         result, _ = sns_is_mutative_action_allowed(
             mock_mcp,
             mock_sns_client,
-            {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic'},
         )
         assert result is True
 
@@ -64,7 +64,7 @@ class TestSNSTools:
         result, message = sns_is_mutative_action_allowed(
             mock_mcp,
             mock_sns_client,
-            {'TopicArn': 'arn:aws:sns:us-east-1:123456789012:test-topic'},
+            {'TopicArn': 'arn:aws:sns:us-east-1:<account-id>:test-topic'},
         )
         assert result is False
         assert message == 'mutating a resource without the mcp_server_version tag is not allowed'
@@ -192,7 +192,7 @@ class TestSQSTools:
         result, _ = sqs_is_mutative_action_allowed(
             mock_mcp,
             mock_sqs_client,
-            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'},
+            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue'},
         )
         assert result is True
 
@@ -206,7 +206,7 @@ class TestSQSTools:
         result, message = sqs_is_mutative_action_allowed(
             mock_mcp,
             mock_sqs_client,
-            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'},
+            {'QueueUrl': 'https://sqs.us-east-1.amazonaws.com/<account-id>/test-queue'},
         )
         assert result is False
         assert message == 'mutating a resource without the mcp_server_version tag is not allowed'

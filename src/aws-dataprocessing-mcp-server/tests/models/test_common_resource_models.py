@@ -54,14 +54,14 @@ class TestRoleSummary:
 
         role_summary = RoleSummary(
             role_name='test-role',
-            role_arn='arn:aws:iam::123456789012:role/test-role',
+            role_arn='arn:aws:iam::<account-id>:role/test-role',
             description='Test role description',
             create_date='2023-01-01T00:00:00Z',
             assume_role_policy_document=assume_role_policy,
         )
 
         assert role_summary.role_name == 'test-role'
-        assert role_summary.role_arn == 'arn:aws:iam::123456789012:role/test-role'
+        assert role_summary.role_arn == 'arn:aws:iam::<account-id>:role/test-role'
         assert role_summary.description == 'Test role description'
         assert role_summary.create_date == '2023-01-01T00:00:00Z'
         assert role_summary.assume_role_policy_document == assume_role_policy
@@ -81,13 +81,13 @@ class TestRoleSummary:
 
         role_summary = RoleSummary(
             role_name='test-role',
-            role_arn='arn:aws:iam::123456789012:role/test-role',
+            role_arn='arn:aws:iam::<account-id>:role/test-role',
             create_date='2023-01-01T00:00:00Z',
             assume_role_policy_document=assume_role_policy,
         )
 
         assert role_summary.role_name == 'test-role'
-        assert role_summary.role_arn == 'arn:aws:iam::123456789012:role/test-role'
+        assert role_summary.role_arn == 'arn:aws:iam::<account-id>:role/test-role'
         assert role_summary.description is None
         assert role_summary.create_date == '2023-01-01T00:00:00Z'
         assert role_summary.assume_role_policy_document == assume_role_policy
@@ -115,7 +115,7 @@ class TestRoleSummary:
                 },
                 {
                     'Effect': 'Allow',
-                    'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                    'Principal': {'AWS': 'arn:aws:iam::<account-id>:root'},
                     'Action': 'sts:AssumeRole',
                 },
             ],
@@ -123,7 +123,7 @@ class TestRoleSummary:
 
         role_summary = RoleSummary(
             role_name='complex-role',
-            role_arn='arn:aws:iam::123456789012:role/complex-role',
+            role_arn='arn:aws:iam::<account-id>:role/complex-role',
             description='Complex role with multiple principals',
             create_date='2023-01-01T00:00:00Z',
             assume_role_policy_document=complex_policy,
@@ -152,14 +152,14 @@ class TestServiceRolesResponse:
         roles = [
             RoleSummary(
                 role_name='glue-role-1',
-                role_arn='arn:aws:iam::123456789012:role/glue-role-1',
+                role_arn='arn:aws:iam::<account-id>:role/glue-role-1',
                 description='First Glue role',
                 create_date='2023-01-01T00:00:00Z',
                 assume_role_policy_document=assume_role_policy,
             ),
             RoleSummary(
                 role_name='glue-role-2',
-                role_arn='arn:aws:iam::123456789012:role/glue-role-2',
+                role_arn='arn:aws:iam::<account-id>:role/glue-role-2',
                 create_date='2023-01-02T00:00:00Z',
                 assume_role_policy_document=assume_role_policy,
             ),
@@ -294,7 +294,7 @@ class TestRoleDescriptionResponse:
         response = RoleDescriptionResponse(
             isError=False,
             content=sample_text_content,
-            role_arn='arn:aws:iam::123456789012:role/test-role',
+            role_arn='arn:aws:iam::<account-id>:role/test-role',
             assume_role_policy_document=assume_role_policy,
             description='Test role for Glue jobs',
             managed_policies=managed_policies,
@@ -302,7 +302,7 @@ class TestRoleDescriptionResponse:
         )
 
         assert response.isError is False
-        assert response.role_arn == 'arn:aws:iam::123456789012:role/test-role'
+        assert response.role_arn == 'arn:aws:iam::<account-id>:role/test-role'
         assert response.assume_role_policy_document == assume_role_policy
         assert response.description == 'Test role for Glue jobs'
         assert len(response.managed_policies) == 2
@@ -326,14 +326,14 @@ class TestRoleDescriptionResponse:
         response = RoleDescriptionResponse(
             isError=False,
             content=sample_text_content,
-            role_arn='arn:aws:iam::123456789012:role/lambda-role',
+            role_arn='arn:aws:iam::<account-id>:role/lambda-role',
             assume_role_policy_document=assume_role_policy,
             managed_policies=[],
             inline_policies=[],
         )
 
         assert response.isError is False
-        assert response.role_arn == 'arn:aws:iam::123456789012:role/lambda-role'
+        assert response.role_arn == 'arn:aws:iam::<account-id>:role/lambda-role'
         assert response.description is None
         assert len(response.managed_policies) == 0
         assert len(response.inline_policies) == 0
@@ -343,7 +343,7 @@ class TestRoleDescriptionResponse:
         response = RoleDescriptionResponse(
             isError=True,
             content=sample_error_content,
-            role_arn='arn:aws:iam::123456789012:role/nonexistent-role',
+            role_arn='arn:aws:iam::<account-id>:role/nonexistent-role',
             assume_role_policy_document={},
             managed_policies=[],
             inline_policies=[],
@@ -439,12 +439,12 @@ class TestCreateRoleResponse:
             isError=False,
             content=sample_text_content,
             role_name='new-glue-role',
-            role_arn='arn:aws:iam::123456789012:role/new-glue-role',
+            role_arn='arn:aws:iam::<account-id>:role/new-glue-role',
         )
 
         assert response.isError is False
         assert response.role_name == 'new-glue-role'
-        assert response.role_arn == 'arn:aws:iam::123456789012:role/new-glue-role'
+        assert response.role_arn == 'arn:aws:iam::<account-id>:role/new-glue-role'
 
     def test_create_role_response_error(self):
         """Test CreateRoleResponse with error."""
@@ -787,7 +787,7 @@ def test_model_serialization():
 
     role_summary = RoleSummary(
         role_name='test-role',
-        role_arn='arn:aws:iam::123456789012:role/test-role',
+        role_arn='arn:aws:iam::<account-id>:role/test-role',
         description='Test role description',
         create_date='2023-01-01T00:00:00Z',
         assume_role_policy_document=assume_role_policy,
@@ -869,7 +869,7 @@ def test_response_models_with_large_data():
     for i in range(100):
         role = RoleSummary(
             role_name=f'role-{i}',
-            role_arn=f'arn:aws:iam::123456789012:role/role-{i}',
+            role_arn=f'arn:aws:iam::<account-id>:role/role-{i}',
             description=f'Role number {i}',
             create_date='2023-01-01T00:00:00Z',
             assume_role_policy_document=assume_role_policy,
@@ -948,7 +948,7 @@ def test_empty_and_null_values():
 
     role_summary = RoleSummary(
         role_name='test-role',
-        role_arn='arn:aws:iam::123456789012:role/test-role',
+        role_arn='arn:aws:iam::<account-id>:role/test-role',
         description=None,
         create_date='2023-01-01T00:00:00Z',
         assume_role_policy_document=assume_role_policy,
@@ -981,7 +981,7 @@ def test_model_field_types():
 
     role_summary = RoleSummary(
         role_name='test-role',
-        role_arn='arn:aws:iam::123456789012:role/test-role',
+        role_arn='arn:aws:iam::<account-id>:role/test-role',
         create_date='2023-01-01T00:00:00Z',
         assume_role_policy_document=assume_role_policy,
     )

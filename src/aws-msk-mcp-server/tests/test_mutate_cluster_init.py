@@ -95,7 +95,7 @@ class TestMutateClusterInit:
 
         # Mock the create_cluster_v2 function
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'PROVISIONED',
@@ -174,7 +174,7 @@ class TestMutateClusterInit:
 
         # Mock the create_cluster_v2 function
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'ClusterName': 'test-cluster',
             'State': 'CREATING',
             'ClusterType': 'PROVISIONED',
@@ -250,7 +250,7 @@ class TestMutateClusterInit:
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
-            "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'."
+            "Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
         # Act & Assert
@@ -266,11 +266,11 @@ class TestMutateClusterInit:
 
         with pytest.raises(
             ValueError,
-            match="Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'.",
+            match="Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'.",
         ):
             update_broker_storage_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 target_broker_ebs_volume_info=target_broker_ebs_volume_info,
             )
@@ -341,8 +341,8 @@ class TestMutateClusterInit:
 
             # Mock the update_broker_storage function
             expected_response = {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
             }
             mock_update_broker_storage.return_value = expected_response
 
@@ -360,7 +360,7 @@ class TestMutateClusterInit:
             # This should now succeed even if check_mcp_generated_tag raises ValueError
             wrapped_update_broker_storage_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 target_broker_ebs_volume_info=target_broker_ebs_volume_info,
             )
@@ -411,17 +411,17 @@ class TestMutateClusterInit:
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
-            "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'."
+            "Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
         # Act & Assert
         with pytest.raises(
             ValueError,
-            match="Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'.",
+            match="Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'.",
         ):
             update_broker_type_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 target_instance_type='kafka.m5.xlarge',
             )
@@ -492,8 +492,8 @@ class TestMutateClusterInit:
 
             # Mock the update_broker_type function
             expected_response = {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
             }
             mock_update_broker_type.return_value = expected_response
 
@@ -501,7 +501,7 @@ class TestMutateClusterInit:
             # This should now succeed even if check_mcp_generated_tag raises ValueError
             wrapped_update_broker_type_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 target_instance_type='kafka.m5.xlarge',
             )
@@ -552,7 +552,7 @@ class TestMutateClusterInit:
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
-            "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'."
+            "Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
         # Act & Assert
@@ -569,11 +569,11 @@ class TestMutateClusterInit:
 
         with pytest.raises(
             ValueError,
-            match="Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'.",
+            match="Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. This operation can only be performed on resources tagged with 'MCP Generated'.",
         ):
             update_monitoring_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 enhanced_monitoring='PER_BROKER',
                 open_monitoring=open_monitoring,
@@ -644,14 +644,14 @@ class TestMutateClusterInit:
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
-            "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
+            "Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
             "This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
         # Mock the update_monitoring function
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_update_monitoring.return_value = expected_response
 
@@ -666,7 +666,7 @@ class TestMutateClusterInit:
         # This should now succeed even if check_mcp_generated_tag raises ValueError
         wrapped_update_monitoring_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             enhanced_monitoring='PER_BROKER',
             open_monitoring=open_monitoring,
@@ -736,14 +736,14 @@ class TestMutateClusterInit:
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
-            "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
+            "Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
             "This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
         # Mock the update_monitoring function
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_update_monitoring.return_value = expected_response
 
@@ -755,7 +755,7 @@ class TestMutateClusterInit:
         # This should now succeed even if check_mcp_generated_tag raises ValueError
         wrapped_update_monitoring_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             enhanced_monitoring='PER_BROKER',
             logging_info=logging_info,
@@ -825,14 +825,14 @@ class TestMutateClusterInit:
 
         # Mock the check_mcp_generated_tag function to raise ValueError
         mock_check_mcp_generated_tag.side_effect = ValueError(
-            "Resource arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
+            "Resource arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef does not have the 'MCP Generated' tag. "
             "This operation can only be performed on resources tagged with 'MCP Generated'."
         )
 
         # Mock the update_monitoring function
         expected_response = {
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+            'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
         }
         mock_update_monitoring.return_value = expected_response
 
@@ -851,7 +851,7 @@ class TestMutateClusterInit:
         # This should now succeed even if check_mcp_generated_tag raises ValueError
         wrapped_update_monitoring_tool(
             region='us-east-1',
-            cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             current_version='1',
             enhanced_monitoring='PER_BROKER',
             open_monitoring=open_monitoring,
@@ -916,8 +916,8 @@ class TestMutateClusterInit:
 
             # Mock the update_security function
             expected_response = {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
             }
             mock_update_security.return_value = expected_response
 
@@ -930,7 +930,7 @@ class TestMutateClusterInit:
 
             result = update_security_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 client_authentication=client_authentication,
                 encryption_info=encryption_info,
@@ -944,10 +944,10 @@ class TestMutateClusterInit:
                 'kafka', region_name='us-east-1', config=mock_config_instance
             )
             mock_check_mcp_generated_tag.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
             )
             mock_update_security.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 '1',
                 client=mock_client,
                 client_authentication=client_authentication,
@@ -1004,16 +1004,16 @@ class TestMutateClusterInit:
 
             # Mock the update_cluster_configuration function
             expected_response = {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
             }
             mock_update_cluster_configuration.return_value = expected_response
 
             # Act
             result = update_cluster_configuration_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                configuration_arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                configuration_arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
                 configuration_revision=3,
                 current_version='1',
             )
@@ -1026,11 +1026,11 @@ class TestMutateClusterInit:
                 'kafka', region_name='us-east-1', config=mock_config_instance
             )
             mock_check_mcp_generated_tag.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
             )
             mock_update_cluster_configuration.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
                 3,
                 '1',
                 mock_client,
@@ -1094,16 +1094,16 @@ class TestMutateClusterInit:
                 'Statement': [
                     {
                         'Effect': 'Allow',
-                        'Principal': {'AWS': 'arn:aws:iam::123456789012:role/ExampleRole'},
+                        'Principal': {'AWS': 'arn:aws:iam::<account-id>:role/ExampleRole'},
                         'Action': ['kafka:GetBootstrapBrokers', 'kafka:DescribeCluster'],
-                        'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                        'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                     }
                 ],
             }
 
             result = put_cluster_policy_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 policy=policy,
             )
 
@@ -1115,10 +1115,10 @@ class TestMutateClusterInit:
                 'kafka', region_name='us-east-1', config=mock_config_instance
             )
             mock_check_mcp_generated_tag.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
             )
             mock_put_cluster_policy.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 policy,
                 mock_client,
             )
@@ -1173,15 +1173,15 @@ class TestMutateClusterInit:
 
             # Mock the update_broker_count function
             expected_response = {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
             }
             mock_update_broker_count.return_value = expected_response
 
             # Act
             result = update_broker_count_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 target_number_of_broker_nodes=6,
             )
@@ -1194,10 +1194,10 @@ class TestMutateClusterInit:
                 'kafka', region_name='us-east-1', config=mock_config_instance
             )
             mock_check_mcp_generated_tag.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
             )
             mock_update_broker_count.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 '1',
                 6,
                 mock_client,
@@ -1253,8 +1253,8 @@ class TestMutateClusterInit:
 
             # Mock the update_monitoring function
             expected_response = {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
             }
             mock_update_monitoring.return_value = expected_response
 
@@ -1272,7 +1272,7 @@ class TestMutateClusterInit:
 
             result = update_monitoring_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 current_version='1',
                 enhanced_monitoring='PER_BROKER',
                 open_monitoring=open_monitoring,
@@ -1287,10 +1287,10 @@ class TestMutateClusterInit:
                 'kafka', region_name='us-east-1', config=mock_config_instance
             )
             mock_check_mcp_generated_tag.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef', mock_client
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef', mock_client
             )
             mock_update_monitoring.assert_called_once_with(
-                'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 '1',
                 'PER_BROKER',
                 client=mock_client,

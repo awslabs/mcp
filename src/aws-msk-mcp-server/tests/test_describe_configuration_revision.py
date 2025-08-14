@@ -30,7 +30,7 @@ class TestDescribeConfigurationRevision:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'Description': 'Initial configuration',
             'Revision': 1,
@@ -39,7 +39,7 @@ class TestDescribeConfigurationRevision:
         mock_client.describe_configuration_revision.return_value = expected_response
 
         # Act
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         revision = 1
         result = describe_configuration_revision(arn, revision, mock_client)
 
@@ -50,7 +50,7 @@ class TestDescribeConfigurationRevision:
         assert result == expected_response
         assert (
             result['Arn']
-            == 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         )
         assert result['Revision'] == 1
         assert result['Description'] == 'Initial configuration'
@@ -72,7 +72,7 @@ class TestDescribeConfigurationRevision:
         )
 
         # Act & Assert
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         revision = 1
         with pytest.raises(ClientError) as excinfo:
             describe_configuration_revision(arn, revision, mock_client)
@@ -87,7 +87,7 @@ class TestDescribeConfigurationRevision:
     def test_describe_configuration_revision_missing_client(self):
         """Test the describe_configuration_revision function with a missing client."""
         # Act & Assert
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         revision = 1
         with pytest.raises(ValueError) as excinfo:
             describe_configuration_revision(arn, revision, None)

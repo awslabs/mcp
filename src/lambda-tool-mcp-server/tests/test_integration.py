@@ -38,7 +38,7 @@ with pytest.MonkeyPatch().context() as CTX:
                 'Functions': [
                     {
                         'FunctionName': 'test-function',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function',
+                        'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function',
                         'Description': 'Test function description',
                     },
                 ]

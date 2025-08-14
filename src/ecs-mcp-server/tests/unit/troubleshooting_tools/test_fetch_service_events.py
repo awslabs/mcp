@@ -374,10 +374,10 @@ async def test_service_exists():
                 "status": "ACTIVE",
                 "deployments": [
                     {
-                        "id": "ecs-svc/1234567890123456",
+                        "id": "ecs-svc/<account-id>3456",
                         "status": "PRIMARY",
                         "taskDefinition": (
-                            "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                            "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                         ),
                         "desiredCount": 2,
                         "pendingCount": 0,
@@ -404,8 +404,8 @@ async def test_service_exists():
                 "loadBalancers": [
                     {
                         "targetGroupArn": (
-                            "arn:aws:elasticloadbalancing:us-west-2:123456789012:"
-                            "targetgroup/test-app/1234567890123456"
+                            "arn:aws:elasticloadbalancing:us-west-2:<account-id>:"
+                            "targetgroup/test-app/<account-id>3456"
                         ),
                         "containerName": "test-app",
                         "containerPort": 8080,
@@ -479,10 +479,10 @@ async def test_service_with_load_balancer_issues():
                 "status": "ACTIVE",
                 "deployments": [
                     {
-                        "id": "ecs-svc/1234567890123456",
+                        "id": "ecs-svc/<account-id>3456",
                         "status": "PRIMARY",
                         "taskDefinition": (
-                            "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                            "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                         ),
                         "desiredCount": 2,
                         "pendingCount": 0,
@@ -503,8 +503,8 @@ async def test_service_with_load_balancer_issues():
                 "loadBalancers": [
                     {
                         "targetGroupArn": (
-                            "arn:aws:elasticloadbalancing:us-west-2:123456789012:"
-                            "targetgroup/test-app/1234567890123456"
+                            "arn:aws:elasticloadbalancing:us-west-2:<account-id>:"
+                            "targetgroup/test-app/<account-id>3456"
                         ),
                         "containerName": "test-app",
                         "containerPort": 8080,
@@ -599,12 +599,12 @@ async def test_service_with_failed_deployment():
                 "status": "ACTIVE",
                 "deployments": [
                     {
-                        "id": "ecs-svc/1234567890123456",
+                        "id": "ecs-svc/<account-id>3456",
                         "status": "PRIMARY",
                         "rolloutState": "FAILED",
                         "rolloutStateReason": "Deployment failed due to health checks",
                         "taskDefinition": "\
-                            arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1",
+                            arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1",
                         "desiredCount": 2,
                         "pendingCount": 0,
                         "runningCount": 0,
@@ -658,11 +658,11 @@ async def test_service_with_stalled_deployment():
                 "status": "ACTIVE",
                 "deployments": [
                     {
-                        "id": "ecs-svc/1234567890123456",
+                        "id": "ecs-svc/<account-id>3456",
                         "status": "PRIMARY",
                         "rolloutState": "IN_PROGRESS",
                         "taskDefinition": "arn:aws:ecs:us-west-2:"
-                        "123456789012:task-definition/test-app:1",
+                        "<account-id>:task-definition/test-app:1",
                         "desiredCount": 4,
                         "pendingCount": 2,
                         "runningCount": 1,
@@ -717,7 +717,7 @@ async def test_service_not_found():
         "services": [],
         "failures": [
             {
-                "arn": "arn:aws:ecs:us-west-2:123456789012:service/test-cluster/test-app",
+                "arn": "arn:aws:ecs:us-west-2:<account-id>:service/test-cluster/test-app",
                 "reason": "MISSING",
             }
         ],

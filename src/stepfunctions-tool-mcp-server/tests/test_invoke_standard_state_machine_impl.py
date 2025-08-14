@@ -21,10 +21,10 @@ class TestStandardStateMachines:
         # Set up test data
         state_machine_name = 'test-state-machine'
         state_machine_arn = (
-            f'arn:aws:states:us-east-1:123456789012:stateMachine:{state_machine_name}'
+            f'arn:aws:states:us-east-1:<account-id>:stateMachine:{state_machine_name}'
         )
         execution_arn = (
-            f'arn:aws:states:us-east-1:123456789012:execution:{state_machine_name}:12345'
+            f'arn:aws:states:us-east-1:<account-id>:execution:{state_machine_name}:12345'
         )
 
         # Set up mock responses
@@ -68,10 +68,10 @@ class TestStandardStateMachines:
         # Set up test data
         state_machine_name = 'error-state-machine'
         state_machine_arn = (
-            f'arn:aws:states:us-east-1:123456789012:stateMachine:{state_machine_name}'
+            f'arn:aws:states:us-east-1:<account-id>:stateMachine:{state_machine_name}'
         )
         execution_arn = (
-            f'arn:aws:states:us-east-1:123456789012:execution:{state_machine_name}:12345'
+            f'arn:aws:states:us-east-1:<account-id>:execution:{state_machine_name}:12345'
         )
 
         # Set up mock responses
@@ -118,10 +118,10 @@ class TestStandardStateMachines:
         # Set up test data
         state_machine_name = 'test-state-machine'
         state_machine_arn = (
-            f'arn:aws:states:us-east-1:123456789012:stateMachine:{state_machine_name}'
+            f'arn:aws:states:us-east-1:<account-id>:stateMachine:{state_machine_name}'
         )
         execution_arn = (
-            f'arn:aws:states:us-east-1:123456789012:execution:{state_machine_name}:12345'
+            f'arn:aws:states:us-east-1:<account-id>:execution:{state_machine_name}:12345'
         )
 
         # Set up mock responses
@@ -180,10 +180,10 @@ class TestStandardStateMachines:
         # Set up test data
         state_machine_name = 'test-complex'
         state_machine_arn = (
-            f'arn:aws:states:us-east-1:123456789012:stateMachine:{state_machine_name}'
+            f'arn:aws:states:us-east-1:<account-id>:stateMachine:{state_machine_name}'
         )
         execution_arn = (
-            f'arn:aws:states:us-east-1:123456789012:execution:{state_machine_name}:12345'
+            f'arn:aws:states:us-east-1:<account-id>:execution:{state_machine_name}:12345'
         )
         complex_input = {
             'data': {
@@ -240,10 +240,10 @@ class TestStandardStateMachines:
         # Set up test data
         state_machine_name = 'test-state-machine'
         state_machine_arn = (
-            f'arn:aws:states:us-east-1:123456789012:stateMachine:{state_machine_name}'
+            f'arn:aws:states:us-east-1:<account-id>:stateMachine:{state_machine_name}'
         )
         execution_arn = (
-            f'arn:aws:states:us-east-1:123456789012:execution:{state_machine_name}:12345'
+            f'arn:aws:states:us-east-1:<account-id>:execution:{state_machine_name}:12345'
         )
 
         # Test different status types

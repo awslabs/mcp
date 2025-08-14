@@ -80,7 +80,7 @@ class TestReadConfigInit:
 
         # Mock the describe_configuration function
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'Description': 'Test configuration',
             'KafkaVersions': ['2.8.1', '3.3.1'],
@@ -107,7 +107,7 @@ class TestReadConfigInit:
         result = wrapper_func(
             region='us-east-1',
             action='describe',
-            arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
         )
 
         # Assert
@@ -118,7 +118,7 @@ class TestReadConfigInit:
             'kafka', region_name='us-east-1', config=mock_config_instance
         )
         mock_describe_configuration.assert_called_once_with(
-            'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef', mock_client
+            'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef', mock_client
         )
         assert result == expected_response
 
@@ -192,7 +192,7 @@ class TestReadConfigInit:
         result = wrapper_func(
             region='us-east-1',
             action='revisions',
-            arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             kwargs=kwargs_dict,
         )
 
@@ -204,7 +204,7 @@ class TestReadConfigInit:
             'kafka', region_name='us-east-1', config=mock_config_instance
         )
         mock_list_configuration_revisions.assert_called_once_with(
-            'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             mock_client,
             max_results=20,
             next_token='token',
@@ -251,7 +251,7 @@ class TestReadConfigInit:
 
         # Mock the describe_configuration_revision function
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'Description': 'Initial revision',
             'Revision': 1,
@@ -274,7 +274,7 @@ class TestReadConfigInit:
         result = wrapper_func(
             region='us-east-1',
             action='revision_details',
-            arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             kwargs=kwargs_dict,
         )
 
@@ -286,7 +286,7 @@ class TestReadConfigInit:
             'kafka', region_name='us-east-1', config=mock_config_instance
         )
         mock_describe_configuration_revision.assert_called_once_with(
-            'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef', 1, mock_client
+            'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef', 1, mock_client
         )
         assert result == expected_response
 
@@ -339,7 +339,7 @@ class TestReadConfigInit:
             wrapper_func(
                 region='us-east-1',
                 action='invalid_action',
-                arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+                arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             )
 
         assert 'Unsupported action: invalid_action' in str(excinfo.value)
@@ -399,7 +399,7 @@ class TestReadConfigInit:
             wrapper_func(
                 region='us-east-1',
                 action='revision_details',
-                arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+                arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             )
 
         assert 'Revision number is required for revision_details action' in str(excinfo.value)
@@ -455,7 +455,7 @@ class TestReadConfigInit:
         # Act
         result = list_tags_for_resource_tool_func(
             region='us-east-1',
-            arn='arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            arn='arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
         )
 
         # Assert
@@ -466,6 +466,6 @@ class TestReadConfigInit:
             'kafka', region_name='us-east-1', config=mock_config_instance
         )
         mock_list_tags_for_resource.assert_called_once_with(
-            'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef', mock_client
+            'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef', mock_client
         )
         assert result == expected_response

@@ -81,8 +81,8 @@ class TestReadClusterInit:
         # Mock the describe_cluster_operation function
         expected_response = {
             'ClusterOperationInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
                 'OperationType': 'UPDATE',
                 'OperationState': 'COMPLETED',
                 'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -93,7 +93,7 @@ class TestReadClusterInit:
 
         # Act
         cluster_operation_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation'
+            'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation'
         )
         result = describe_cluster_operation_tool(
             region='us-east-1', cluster_operation_arn=cluster_operation_arn
@@ -148,7 +148,7 @@ class TestReadClusterInit:
         # Mock the describe_cluster function
         expected_response = {
             'ClusterInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'ClusterName': 'test-cluster',
                 'State': 'ACTIVE',
                 'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -167,7 +167,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='metadata')
 
         # Assert
@@ -234,7 +234,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='brokers')
 
         # Assert
@@ -306,7 +306,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='nodes')
 
         # Assert
@@ -373,7 +373,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = wrapper_func(
             region='us-east-1', cluster_arn=cluster_arn, info_type='compatible_versions'
         )
@@ -426,7 +426,7 @@ class TestReadClusterInit:
 
         # Mock the get_cluster_policy function
         expected_response = {
-            'Policy': '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::123456789012:role/ExampleRole"},"Action":["kafka:GetBootstrapBrokers","kafka:DescribeCluster"],"Resource":"*"}]}'
+            'Policy': '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::<account-id>:role/ExampleRole"},"Action":["kafka:GetBootstrapBrokers","kafka:DescribeCluster"],"Resource":"*"}]}'
         }
         mock_get_cluster_policy.return_value = expected_response
 
@@ -440,7 +440,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='policy')
 
         # Assert
@@ -493,8 +493,8 @@ class TestReadClusterInit:
         expected_response = {
             'ClusterOperationInfoList': [
                 {
-                    'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                    'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                    'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                    'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
                     'OperationType': 'UPDATE',
                     'OperationState': 'COMPLETED',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -515,7 +515,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         kwargs_dict = {'max_results': 20, 'next_token': 'token'}
         result = wrapper_func(
             region='us-east-1', cluster_arn=cluster_arn, info_type='operations', kwargs=kwargs_dict
@@ -571,7 +571,7 @@ class TestReadClusterInit:
         expected_response = {
             'VpcConnectionInfoList': [
                 {
-                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-connection/abcdef',
+                    'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-connection/abcdef',
                     'VpcId': 'vpc-12345',
                     'SubnetIds': ['subnet-1', 'subnet-2', 'subnet-3'],
                     'SecurityGroups': ['sg-1'],
@@ -593,7 +593,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         kwargs_dict = {'max_results': 15, 'next_token': 'token'}
         result = wrapper_func(
             region='us-east-1',
@@ -652,7 +652,7 @@ class TestReadClusterInit:
 
         # Mock the list_scram_secrets function
         expected_response = {
-            'SecretArnList': ['arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'],
+            'SecretArnList': ['arn:aws:secretsmanager:us-east-1:<account-id>:secret:test-secret'],
             'NextToken': 'next-token',
         }
         mock_list_scram_secrets.return_value = expected_response
@@ -667,7 +667,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         kwargs_dict = {'max_results': 5, 'next_token': 'token'}
         result = wrapper_func(
             region='us-east-1',
@@ -729,7 +729,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='invalid_type')
 
@@ -811,7 +811,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='all')
 
         # Assert
@@ -891,7 +891,7 @@ class TestReadClusterInit:
                 region=region, cluster_arn=cluster_arn, info_type=info_type, kwargs=kwargs
             )
 
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = wrapper_func(region='us-east-1', cluster_arn=cluster_arn, info_type='all')
 
         # Assert

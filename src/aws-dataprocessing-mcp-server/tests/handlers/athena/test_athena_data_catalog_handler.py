@@ -101,7 +101,7 @@ async def test_create_data_catalog_success(handler, mock_athena_client):
         name='test-catalog',
         type='GLUE',
         description='Test catalog',
-        parameters={'catalog-id': '123456789012'},
+        parameters={'catalog-id': '<account-id>'},
         tags={'Environment': 'Test'},
     )
 
@@ -114,7 +114,7 @@ async def test_create_data_catalog_success(handler, mock_athena_client):
     assert call_args['Name'] == 'test-catalog'
     assert call_args['Type'] == 'GLUE'
     assert call_args['Description'] == 'Test catalog'
-    assert call_args['Parameters'] == {'catalog-id': '123456789012'}
+    assert call_args['Parameters'] == {'catalog-id': '<account-id>'}
     assert call_args['Tags'] == [{'Key': 'ManagedBy', 'Value': 'MCP'}]
 
 
@@ -211,7 +211,7 @@ async def test_get_data_catalog_success(handler, mock_athena_client):
             'Name': 'test-catalog',
             'Type': 'GLUE',
             'Description': 'Test catalog',
-            'Parameters': {'catalog-id': '123456789012'},
+            'Parameters': {'catalog-id': '<account-id>'},
         }
     }
 

@@ -30,7 +30,7 @@ class TestListClusters:
         expected_response = {
             'ClusterInfoList': [
                 {
-                    'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster-1/abcdef',
+                    'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster-1/abcdef',
                     'ClusterName': 'test-cluster-1',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
                     'CurrentVersion': '1',
@@ -38,7 +38,7 @@ class TestListClusters:
                     'ClusterType': 'PROVISIONED',
                 },
                 {
-                    'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster-2/ghijkl',
+                    'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster-2/ghijkl',
                     'ClusterName': 'test-cluster-2',
                     'CreationTime': '2025-06-20T11:00:00.000Z',
                     'CurrentVersion': '1',
@@ -67,7 +67,7 @@ class TestListClusters:
         expected_response = {
             'ClusterInfoList': [
                 {
-                    'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster-1/abcdef',
+                    'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster-1/abcdef',
                     'ClusterName': 'test-cluster-1',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
                     'CurrentVersion': '1',
@@ -102,7 +102,7 @@ class TestListClusters:
         expected_response = {
             'ClusterInfoList': [
                 {
-                    'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster-1/abcdef',
+                    'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster-1/abcdef',
                     'ClusterName': 'test-cluster-1',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
                     'CurrentVersion': '1',

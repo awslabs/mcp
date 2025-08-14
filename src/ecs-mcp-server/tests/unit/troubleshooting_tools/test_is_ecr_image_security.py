@@ -18,12 +18,12 @@ class TestIsEcrImageSecurity:
     def test_valid_ecr_images(self):
         """Test that valid ECR image URLs are correctly identified."""
         valid_ecr_urls = [
-            "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-repo",
-            "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app:latest",
+            "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-repo",
+            "<account-id>.dkr.ecr.us-west-2.amazonaws.com/my-app:latest",
             "999999999999.dkr.ecr.eu-west-1.amazonaws.com/service:v1.0",
-            "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/repo/sub-repo:tag",
-            "https://123456789012.dkr.ecr.us-east-1.amazonaws.com/test-repo",
-            "http://123456789012.dkr.ecr.us-east-1.amazonaws.com/test-repo",
+            "<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/repo/sub-repo:tag",
+            "https://<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-repo",
+            "http://<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-repo",
         ]
 
         for url in valid_ecr_urls:
@@ -50,7 +50,7 @@ class TestIsEcrImageSecurity:
             "s3.amazonaws.com/bucket",
             "ec2.amazonaws.com/instance",
             "lambda.amazonaws.com/function",
-            "123456789012.dkr.amazonaws.com/repo",  # Missing .ecr.
+            "<account-id>.dkr.amazonaws.com/repo",  # Missing .ecr.
             "ecr.amazonaws.com",  # Wrong structure, should be account.dkr.ecr.region.amazonaws.com
             "amazonaws.com/ecr",  # Missing proper subdomain structure
         ]
@@ -82,8 +82,8 @@ class TestIsEcrImageSecurity:
             "ecr",  # Just the service
             ".amazonaws.com",  # Leading dot
             "amazonaws.com.",  # Trailing dot
-            "123456789012.dkr.ecr..amazonaws.com/repo",  # Double dots - should be False
-            "123456789012.dkr.ecr.amazonaws.com",  # Missing region
+            "<account-id>.dkr.ecr..amazonaws.com/repo",  # Double dots - should be False
+            "<account-id>.dkr.ecr.amazonaws.com",  # Missing region
             "https://",  # Incomplete URL
             "://amazonaws.com/ecr",  # Malformed scheme
         ]
@@ -95,9 +95,9 @@ class TestIsEcrImageSecurity:
     def test_case_sensitivity(self):
         """Test that the function handles case variations appropriately."""
         case_variations = [
-            "123456789012.dkr.ECR.us-east-1.AMAZONAWS.COM/repo",
-            "123456789012.dkr.Ecr.us-east-1.Amazonaws.Com/repo",
-            "123456789012.DKR.ECR.US-EAST-1.AMAZONAWS.COM/REPO",
+            "<account-id>.dkr.ECR.us-east-1.AMAZONAWS.COM/repo",
+            "<account-id>.dkr.Ecr.us-east-1.Amazonaws.Com/repo",
+            "<account-id>.DKR.ECR.US-EAST-1.AMAZONAWS.COM/REPO",
         ]
 
         # These should still be valid ECR URLs despite case differences
@@ -107,9 +107,9 @@ class TestIsEcrImageSecurity:
     def test_url_with_paths_and_parameters(self):
         """Test URLs with additional paths and query parameters."""
         urls_with_extras = [
-            "123456789012.dkr.ecr.us-east-1.amazonaws.com/repo/path?param=value",
-            "123456789012.dkr.ecr.us-east-1.amazonaws.com/repo#fragment",
-            "123456789012.dkr.ecr.us-east-1.amazonaws.com/repo:tag?version=latest",
+            "<account-id>.dkr.ecr.us-east-1.amazonaws.com/repo/path?param=value",
+            "<account-id>.dkr.ecr.us-east-1.amazonaws.com/repo#fragment",
+            "<account-id>.dkr.ecr.us-east-1.amazonaws.com/repo:tag?version=latest",
         ]
 
         for url in urls_with_extras:
@@ -120,9 +120,9 @@ class TestIsEcrImageSecurity:
         invalid_subdomains = [
             # These should fail because they don't have proper ECR subdomain structure
             "ecr.amazonaws.com/repo",  # Wrong structure
-            "123456789012.amazonaws.com/repo",  # Missing dkr.ecr
+            "<account-id>.amazonaws.com/repo",  # Missing dkr.ecr
             "dkr.amazonaws.com/repo",  # Missing account ID and ecr
-            "123456789012.ecr.amazonaws.com/repo",  # Missing dkr
+            "<account-id>.ecr.amazonaws.com/repo",  # Missing dkr
             "fake.ecr.amazonaws.com/repo",  # Invalid account ID format
         ]
 
@@ -169,7 +169,7 @@ class TestIsEcrImageSecurity:
         """Test that proper 12-digit account IDs are required."""
         invalid_account_ids = [
             "12345.dkr.ecr.us-east-1.amazonaws.com/repo",  # Too short
-            "1234567890123.dkr.ecr.us-east-1.amazonaws.com/repo",  # Too long
+            "<account-id>3.dkr.ecr.us-east-1.amazonaws.com/repo",  # Too long
             "abcdefghijk.dkr.ecr.us-east-1.amazonaws.com/repo",  # Non-numeric
             "123456789.dkr.ecr.us-east-1.amazonaws.com/repo",  # Too short
         ]
@@ -180,10 +180,10 @@ class TestIsEcrImageSecurity:
     def test_region_validation(self):
         """Test that regions follow proper AWS format."""
         valid_regions = [
-            "123456789012.dkr.ecr.us-east-1.amazonaws.com/repo",
-            "123456789012.dkr.ecr.eu-west-1.amazonaws.com/repo",
-            "123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/repo",
-            "123456789012.dkr.ecr.ca-central-1.amazonaws.com/repo",
+            "<account-id>.dkr.ecr.us-east-1.amazonaws.com/repo",
+            "<account-id>.dkr.ecr.eu-west-1.amazonaws.com/repo",
+            "<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/repo",
+            "<account-id>.dkr.ecr.ca-central-1.amazonaws.com/repo",
         ]
 
         for url in valid_regions:

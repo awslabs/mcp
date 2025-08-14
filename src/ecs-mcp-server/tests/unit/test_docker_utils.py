@@ -26,7 +26,7 @@ async def test_build_and_push_image_success(
     mock_exists.return_value = True
 
     # Mock get_aws_account_id
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
 
     # Mock get_ecr_login_password
     mock_get_ecr_login_password.return_value = "password"
@@ -44,9 +44,9 @@ async def test_build_and_push_image_success(
     # Call build_and_push_image
     tag = await build_and_push_image(
         app_path="/path/to/app",
-        repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+        repository_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
         tag="latest",
-        role_arn="arn:aws:iam::123456789012:role/test-ecr-push-pull-role",
+        role_arn="arn:aws:iam::<account-id>:role/test-ecr-push-pull-role",
     )
 
     # Verify os.path.exists was called
@@ -71,15 +71,15 @@ async def test_build_and_push_image_dockerfile_not_found(
     mock_exists.return_value = False
 
     # Mock get_aws_account_id
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
 
     # Call build_and_push_image and expect an exception
     with pytest.raises(FileNotFoundError) as excinfo:
         await build_and_push_image(
             app_path="/path/to/app",
-            repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+            repository_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
             tag="latest",
-            role_arn="arn:aws:iam::123456789012:role/test-ecr-push-pull-role",
+            role_arn="arn:aws:iam::<account-id>:role/test-ecr-push-pull-role",
         )
 
     # Verify the error message
@@ -102,7 +102,7 @@ async def test_build_and_push_image_build_error(
     mock_exists.return_value = True
 
     # Mock get_aws_account_id
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
 
     # Mock get_ecr_login_password
     mock_get_ecr_login_password.return_value = "password"
@@ -120,9 +120,9 @@ async def test_build_and_push_image_build_error(
     with pytest.raises(RuntimeError) as excinfo:
         await build_and_push_image(
             app_path="/path/to/app",
-            repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+            repository_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
             tag="latest",
-            role_arn="arn:aws:iam::123456789012:role/test-ecr-push-pull-role",
+            role_arn="arn:aws:iam::<account-id>:role/test-ecr-push-pull-role",
         )
 
     # Verify the error message
@@ -142,7 +142,7 @@ async def test_build_and_push_image_push_error(
     mock_exists.return_value = True
 
     # Mock get_aws_account_id
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
 
     # Mock get_ecr_login_password
     mock_get_ecr_login_password.return_value = "password"
@@ -158,9 +158,9 @@ async def test_build_and_push_image_push_error(
     with pytest.raises(RuntimeError) as excinfo:
         await build_and_push_image(
             app_path="/path/to/app",
-            repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app",
+            repository_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-app",
             tag="latest",
-            role_arn="arn:aws:iam::123456789012:role/test-ecr-push-pull-role",
+            role_arn="arn:aws:iam::<account-id>:role/test-ecr-push-pull-role",
         )
 
     # Verify the error message
@@ -178,18 +178,18 @@ async def test_get_ecr_login_password_success(mock_get_aws_client_with_role):
             {
                 "authorizationToken": "QVdTOmV4YW1wbGVwYXNzd29yZA==",
                 # Base64 encoded "AWS:examplepassword"
-                "proxyEndpoint": "https://123456789012.dkr.ecr.us-west-2.amazonaws.com",
+                "proxyEndpoint": "https://<account-id>.dkr.ecr.us-west-2.amazonaws.com",
             }
         ]
     }
     mock_get_aws_client_with_role.return_value = mock_ecr
 
     # Call get_ecr_login_password
-    result = await get_ecr_login_password("arn:aws:iam::123456789012:role/test-ecr-push-pull-role")
+    result = await get_ecr_login_password("arn:aws:iam::<account-id>:role/test-ecr-push-pull-role")
 
     # Verify get_aws_client_with_role was called
     mock_get_aws_client_with_role.assert_called_once_with(
-        "ecr", "arn:aws:iam::123456789012:role/test-ecr-push-pull-role"
+        "ecr", "arn:aws:iam::<account-id>:role/test-ecr-push-pull-role"
     )
 
     # Verify get_authorization_token was called
@@ -210,7 +210,7 @@ async def test_get_ecr_login_password_error(mock_get_aws_client_with_role):
 
     # Call get_ecr_login_password
     with pytest.raises(Exception) as excinfo:
-        await get_ecr_login_password("arn:aws:iam::123456789012:role/test-ecr-push-pull-role")
+        await get_ecr_login_password("arn:aws:iam::<account-id>:role/test-ecr-push-pull-role")
 
     # Verify the error message
     assert "Error getting" in str(excinfo.value)
@@ -222,7 +222,7 @@ async def test_get_aws_account_id(mock_get_aws_client):
     """Test get_aws_account_id."""
     # Mock get_aws_client
     mock_sts = MagicMock()
-    mock_sts.get_caller_identity.return_value = {"Account": "123456789012"}
+    mock_sts.get_caller_identity.return_value = {"Account": "<account-id>"}
     mock_get_aws_client.return_value = mock_sts
 
     # Call get_aws_account_id
@@ -235,7 +235,7 @@ async def test_get_aws_account_id(mock_get_aws_client):
     mock_sts.get_caller_identity.assert_called_once()
 
     # Verify the result
-    assert result == "123456789012"
+    assert result == "<account-id>"
 
 
 @pytest.mark.anyio

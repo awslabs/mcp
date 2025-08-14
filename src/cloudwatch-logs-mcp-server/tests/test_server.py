@@ -374,7 +374,7 @@ class TestAnalyzeLogGroup:
         # Create a test log group
         log_group_name = '/aws/test/analysis'
         logs_client.create_log_group(logGroupName=log_group_name)
-        log_group_arn = f'arn:aws:logs:us-west-2:123456789012:log-group:{log_group_name}'
+        log_group_arn = f'arn:aws:logs:us-west-2:<account-id>:log-group:{log_group_name}'
 
         # Mock anomaly detector response, not supported by moto
         def mock_describe_anomaly_detectors(*args, **kwargs):
@@ -477,7 +477,7 @@ class TestAnalyzeLogGroup:
         """Test analysis when no anomaly detectors exist."""
         log_group_name = '/aws/test/no-detectors'
         logs_client.create_log_group(logGroupName=log_group_name)
-        log_group_arn = f'arn:aws:logs:us-west-2:123456789012:log-group:{log_group_name}'
+        log_group_arn = f'arn:aws:logs:us-west-2:<account-id>:log-group:{log_group_name}'
 
         # Mock empty detector response
         def mock_describe_anomaly_detectors(*args, **kwargs):
@@ -504,7 +504,7 @@ class TestAnalyzeLogGroup:
 
     async def test_invalid_time_format(self, ctx, logs_client):
         """Test analysis with invalid time format."""
-        log_group_arn = 'arn:aws:logs:us-west-2:123456789012:log-group:/aws/test/invalid'
+        log_group_arn = 'arn:aws:logs:us-west-2:<account-id>:log-group:/aws/test/invalid'
 
         with pytest.raises(Exception):
             await analyze_log_group_tool(

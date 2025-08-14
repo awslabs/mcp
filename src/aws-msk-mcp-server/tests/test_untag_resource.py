@@ -31,7 +31,7 @@ class TestUntagResource:
         mock_client.untag_resource.return_value = expected_response
 
         # Act
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         tag_keys = ['Environment', 'Owner']
         result = untag_resource(resource_arn, tag_keys, mock_client)
 
@@ -51,7 +51,7 @@ class TestUntagResource:
         )
 
         # Act & Assert
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         tag_keys = ['Environment', 'Owner']
         with pytest.raises(ClientError) as excinfo:
             untag_resource(resource_arn, tag_keys, mock_client)
@@ -66,7 +66,7 @@ class TestUntagResource:
     def test_untag_resource_missing_client(self):
         """Test the untag_resource function with a missing client."""
         # Act & Assert
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         tag_keys = ['Environment', 'Owner']
         with pytest.raises(ValueError) as excinfo:
             untag_resource(resource_arn, tag_keys, None)

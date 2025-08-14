@@ -39,8 +39,8 @@ class TestImagePullFailureDetection(unittest.TestCase):
         mock_ecs = MagicMock()
         mock_ecs.list_clusters.return_value = {
             "clusterArns": [
-                "arn:aws:ecs:us-west-2:123456789012:cluster/test-failure-cluster-prbqv",
-                "arn:aws:ecs:us-west-2:123456789012:cluster/another-cluster",
+                "arn:aws:ecs:us-west-2:<account-id>:cluster/test-failure-cluster-prbqv",
+                "arn:aws:ecs:us-west-2:<account-id>:cluster/another-cluster",
             ]
         }
 
@@ -50,10 +50,10 @@ class TestImagePullFailureDetection(unittest.TestCase):
             {
                 "taskDefinitionArns": [
                     (
-                        "arn:aws:ecs:us-west-2:123456789012:task-definition/"
+                        "arn:aws:ecs:us-west-2:<account-id>:task-definition/"
                         "test-failure-task-def-prbqv:1"
                     ),
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/other-task:1",
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/other-task:1",
                 ]
             }
         ]
@@ -69,7 +69,7 @@ class TestImagePullFailureDetection(unittest.TestCase):
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-failure-task-def-prbqv:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-failure-task-def-prbqv:1"
                 ),
                 "family": "test-failure-task-def-prbqv",
                 "revision": 1,
@@ -116,7 +116,7 @@ class TestImagePullFailureDetection(unittest.TestCase):
         mock_paginator.paginate.return_value = [
             {
                 "taskDefinitionArns": [
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-failure-prbqv:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-failure-prbqv:1"
                 ]
             }
         ]
@@ -126,7 +126,7 @@ class TestImagePullFailureDetection(unittest.TestCase):
         mock_ecs.describe_task_definition.return_value = {
             "taskDefinition": {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-failure-prbqv:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-failure-prbqv:1"
                 ),
                 "family": "test-failure-prbqv",
                 "revision": 1,
@@ -176,7 +176,7 @@ class TestImagePullFailureDetection(unittest.TestCase):
         task_defs = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/failing-task-def-prbqv:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/failing-task-def-prbqv:1"
                 ),
                 "family": "failing-task-def-prbqv",
                 "containerDefinitions": [
@@ -207,7 +207,7 @@ class TestImagePullFailureDetection(unittest.TestCase):
         mock_find_task_defs.return_value = [
             {
                 "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/failing-task-def-prbqv:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/failing-task-def-prbqv:1"
                 ),
                 "family": "failing-task-def-prbqv",
                 "containerDefinitions": [
@@ -221,7 +221,7 @@ class TestImagePullFailureDetection(unittest.TestCase):
             {
                 "image": "non-existent-repo/non-existent-image:latest",
                 "task_definition": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/failing-task-def-prbqv:1"
+                    "arn:aws:ecs:us-west-2:<account-id>:task-definition/failing-task-def-prbqv:1"
                 ),
                 "container_name": "web",
                 "exists": "unknown",

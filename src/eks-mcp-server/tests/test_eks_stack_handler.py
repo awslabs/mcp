@@ -353,7 +353,7 @@ class TestEksStackHandler:
                         },
                         {
                             'OutputKey': 'ClusterArn',
-                            'OutputValue': 'arn:aws:eks:us-west-2:123456789012:cluster/test-cluster',
+                            'OutputValue': 'arn:aws:eks:us-west-2:<account-id>:cluster/test-cluster',
                         },
                     ],
                     'Parameters': [
@@ -392,7 +392,7 @@ class TestEksStackHandler:
             assert result.stack_status == 'CREATE_COMPLETE'
             assert result.outputs == {
                 'ClusterEndpoint': 'https://test-endpoint.eks.amazonaws.com',
-                'ClusterArn': 'arn:aws:eks:us-west-2:123456789012:cluster/test-cluster',
+                'ClusterArn': 'arn:aws:eks:us-west-2:<account-id>:cluster/test-cluster',
             }
             assert len(result.content) == 1
             assert result.content[0].type == 'text'

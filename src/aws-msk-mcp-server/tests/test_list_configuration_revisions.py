@@ -41,7 +41,7 @@ class TestListConfigurationRevisions:
         mock_client.list_configuration_revisions.return_value = expected_response
 
         # Act
-        config_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        config_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         result = list_configuration_revisions(config_arn, mock_client, None)
 
         # Assert
@@ -71,7 +71,7 @@ class TestListConfigurationRevisions:
         mock_client.list_configuration_revisions.return_value = expected_response
 
         # Act
-        config_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        config_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         max_results = 5
         next_token = 'token'
         result = list_configuration_revisions(config_arn, mock_client, next_token, max_results)
@@ -93,7 +93,7 @@ class TestListConfigurationRevisions:
         mock_client.list_configuration_revisions.return_value = expected_response
 
         # Act
-        config_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        config_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         result = list_configuration_revisions(config_arn, mock_client, None)
 
         # Assert
@@ -114,7 +114,7 @@ class TestListConfigurationRevisions:
         )
 
         # Act & Assert
-        config_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        config_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         with pytest.raises(ClientError) as excinfo:
             list_configuration_revisions(config_arn, mock_client, None)
 
@@ -128,7 +128,7 @@ class TestListConfigurationRevisions:
     def test_list_configuration_revisions_missing_client(self):
         """Test the list_configuration_revisions function with a missing client."""
         # Act & Assert
-        config_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        config_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         with pytest.raises(ValueError) as excinfo:
             list_configuration_revisions(config_arn, None, None)
 
@@ -164,7 +164,7 @@ class TestListConfigurationRevisions:
         mock_client.list_configuration_revisions.return_value = expected_response
 
         # Act
-        config_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        config_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         result = list_configuration_revisions(config_arn, mock_client, None)
 
         # Assert

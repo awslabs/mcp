@@ -80,7 +80,7 @@ class TestDataCatalogTableManager:
             ],
             'TableType': 'EXTERNAL_TABLE',
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the AWS helper prepare_resource_tags method
         with patch(
@@ -264,7 +264,7 @@ class TestDataCatalogTableManager:
         # Setup
         database_name = 'test-db'
         table_name = 'test-table'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_table response to indicate the table is MCP managed
         mock_glue_client.get_table.return_value = {
@@ -354,7 +354,7 @@ class TestDataCatalogTableManager:
         # Setup
         database_name = 'test-db'
         table_name = 'test-table'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         creation_time = datetime(2023, 1, 1, 0, 0, 0)
         last_access_time = datetime(2023, 1, 2, 0, 0, 0)
 
@@ -418,7 +418,7 @@ class TestDataCatalogTableManager:
         # Setup
         database_name = 'test-db'
         max_results = 10
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_tables response
         creation_time = datetime(2023, 1, 1, 0, 0, 0)
@@ -517,7 +517,7 @@ class TestDataCatalogTableManager:
                 ]
             }
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_table response to indicate the table is MCP managed
         mock_glue_client.get_table.return_value = {
@@ -628,7 +628,7 @@ class TestDataCatalogTableManager:
         # Setup
         search_text = 'test'
         max_results = 10
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the search_tables response
         creation_time = datetime(2023, 1, 1, 0, 0, 0)
@@ -716,7 +716,7 @@ class TestDataCatalogTableManager:
         # Setup
         database_name = 'test-db'
         table_name = 'nonexistent-table'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_table to raise EntityNotFoundException
         error_response = {
@@ -750,7 +750,7 @@ class TestDataCatalogTableManager:
                 'Columns': [{'Name': 'id', 'Type': 'int'}, {'Name': 'name', 'Type': 'string'}]
             }
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_table to raise EntityNotFoundException
         error_response = {
@@ -790,7 +790,7 @@ class TestDataCatalogTableManager:
                 'Columns': [{'Name': 'id', 'Type': 'int'}, {'Name': 'name', 'Type': 'string'}]
             }
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_table response to indicate the table is MCP managed
         mock_glue_client.get_table.return_value = {
@@ -912,7 +912,7 @@ class TestDataCatalogTableManager:
         # Setup
         database_name = 'test-db'
         max_results = 10
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the Glue client to raise an exception
         error_response = {
@@ -997,7 +997,7 @@ class TestDataCatalogTableManager:
         # Setup
         search_text = 'test'
         max_results = 10
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the Glue client to raise an exception
         error_response = {
@@ -1079,7 +1079,7 @@ class TestDataCatalogTableManager:
         # Setup
         database_name = 'test-db'
         table_name = 'nonexistent-table'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_table to raise EntityNotFoundException
         error_response = {
@@ -1110,7 +1110,7 @@ class TestDataCatalogTableManager:
         # Setup
         database_name = 'test-db'
         table_name = 'test-table'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_table response to indicate the table is MCP managed
         mock_glue_client.get_table.return_value = {

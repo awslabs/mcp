@@ -71,9 +71,9 @@ class TestHelperFunctions:
             # Basic task with all fields
             (
                 {
-                    "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/task1",
+                    "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/task1",
                     "taskDefinitionArn": (
-                        "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                        "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                     ),
                     "stoppedAt": datetime.datetime.now(datetime.timezone.utc),
                     "startedAt": datetime.datetime.now(datetime.timezone.utc)
@@ -98,9 +98,9 @@ class TestHelperFunctions:
             # Task with no containers
             (
                 {
-                    "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/task2",
+                    "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/task2",
                     "taskDefinitionArn": (
-                        "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                        "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                     ),
                     "stoppedAt": datetime.datetime.now(datetime.timezone.utc),
                 },
@@ -114,9 +114,9 @@ class TestHelperFunctions:
             # Task with string timestamp
             (
                 {
-                    "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/task3",
+                    "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/task3",
                     "taskDefinitionArn": (
-                        "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                        "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                     ),
                     "stoppedAt": "2023-01-01T00:00:00Z",
                     "containers": [],
@@ -131,9 +131,9 @@ class TestHelperFunctions:
             # Task with missing container fields
             (
                 {
-                    "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/task4",
+                    "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/task4",
                     "taskDefinitionArn": (
-                        "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1"
+                        "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1"
                     ),
                     "stoppedAt": "2023-01-01T00:00:00Z",
                     "containers": [
@@ -182,17 +182,17 @@ class TestHelperFunctions:
         now = datetime.datetime.now(datetime.timezone.utc)
         tasks = [
             {
-                "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/task1",
+                "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/task1",
                 "taskDefinitionArn": "\
-                        arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1\
+                        arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1\
                     ",
                 "stoppedAt": now,
                 "containers": [{"name": "app", "exitCode": 1, "reason": "Application error"}],
             },
             {
-                "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/task2",
+                "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/task2",
                 "taskDefinitionArn": "\
-                        arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1\
+                        arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1\
                     ",
                 "stoppedAt": now,
                 "containers": [{"name": "app", "exitCode": 137, "reason": "OOM killed"}],
@@ -219,9 +219,9 @@ class TestHelperFunctions:
         now = datetime.datetime.now(datetime.timezone.utc)
         tasks = [
             {
-                "taskArn": "arn:aws:ecs:us-west-2:123456789012:task/test-cluster/task1",
+                "taskArn": "arn:aws:ecs:us-west-2:<account-id>:task/test-cluster/task1",
                 "taskDefinitionArn": "\
-                        arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1\
+                        arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1\
                     ",
                 "stoppedAt": now,
                 "containers": [

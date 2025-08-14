@@ -38,14 +38,14 @@ def test_get_account_id():
     """Test the get_account_id function."""
     mock_session = MagicMock()
     mock_sts_client = MagicMock()
-    mock_sts_client.get_caller_identity.return_value = {'Account': '123456789012'}
+    mock_sts_client.get_caller_identity.return_value = {'Account': '<account-id>'}
     mock_session.client.return_value = mock_sts_client
 
     with patch(
         'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_aws_session',
         return_value=mock_session,
     ):
-        assert get_account_id() == '123456789012'
+        assert get_account_id() == '<account-id>'
         mock_session.client.assert_called_once_with('sts', region_name=get_region())
         mock_sts_client.get_caller_identity.assert_called_once()
 
@@ -94,11 +94,11 @@ def test_get_profile_arn():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             assert (
                 get_profile_arn()
-                == 'arn:aws:bedrock:us-west-2:123456789012:data-automation-profile/us.data-automation-v1'
+                == 'arn:aws:bedrock:us-west-2:<account-id>:data-automation-profile/us.data-automation-v1'
             )
 
     with patch(
@@ -338,7 +338,7 @@ async def test_invoke_data_automation_and_get_results():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -403,7 +403,7 @@ async def test_invoke_data_automation_and_get_results():
                                 dataAutomationConfiguration={
                                     'dataAutomationProjectArn': 'test-project-arn'
                                 },
-                                dataAutomationProfileArn='arn:aws:bedrock:us-east-1:123456789012:data-automation-profile/us.data-automation-v1',
+                                dataAutomationProfileArn='arn:aws:bedrock:us-east-1:<account-id>:data-automation-profile/us.data-automation-v1',
                             )
 
 
@@ -417,7 +417,7 @@ async def test_invoke_data_automation_and_get_results_default_project():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -477,7 +477,7 @@ async def test_invoke_data_automation_and_get_results_default_project():
                             dataAutomationConfiguration={
                                 'dataAutomationProjectArn': 'arn:aws:bedrock:us-east-1:aws:data-automation-project/public-default'
                             },
-                            dataAutomationProfileArn='arn:aws:bedrock:us-east-1:123456789012:data-automation-profile/us.data-automation-v1',
+                            dataAutomationProfileArn='arn:aws:bedrock:us-east-1:<account-id>:data-automation-profile/us.data-automation-v1',
                         )
 
 
@@ -517,7 +517,7 @@ async def test_invoke_data_automation_and_get_results_job_failed():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -545,7 +545,7 @@ async def test_invoke_data_automation_and_get_results_no_output_uri():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -576,7 +576,7 @@ async def test_invoke_data_automation_and_get_results_no_job_metadata():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -615,7 +615,7 @@ async def test_invoke_data_automation_and_get_results_invalid_metadata():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -654,7 +654,7 @@ async def test_invoke_data_automation_and_get_results_no_output_paths():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -706,7 +706,7 @@ async def test_invoke_data_automation_and_get_results_only_standard_output():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(
@@ -762,7 +762,7 @@ async def test_invoke_data_automation_and_get_results_only_custom_output():
     ):
         with patch(
             'awslabs.aws_bedrock_data_automation_mcp_server.helpers.get_account_id',
-            return_value='123456789012',
+            return_value='<account-id>',
         ):
             with patch.dict(os.environ, {'AWS_BUCKET_NAME': 'test-bucket'}):
                 with patch(

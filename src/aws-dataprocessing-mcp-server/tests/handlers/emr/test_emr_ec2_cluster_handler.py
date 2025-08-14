@@ -68,7 +68,7 @@ async def test_create_cluster_success(handler, mock_context):
     handler.emr_client = MagicMock()
     handler.emr_client.run_job_flow.return_value = {
         'JobFlowId': 'j-1234567890ABCDEF0',
-        'ClusterArn': 'arn:aws:elasticmapreduce:us-west-2:123456789012:cluster/j-1234567890ABCDEF0',
+        'ClusterArn': 'arn:aws:elasticmapreduce:us-west-2:<account-id>:cluster/j-1234567890ABCDEF0',
     }
 
     response = await handler.manage_aws_emr_clusters(
@@ -775,7 +775,7 @@ async def test_create_cluster_all_optional_params(handler, mock_context):
         name='TestCluster',
         release_label='emr-7.9.0',
         instances={'InstanceGroups': []},
-        log_encryption_kms_key_id='arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012',
+        log_encryption_kms_key_id='arn:aws:kms:us-east-1:<account-id>:key/12345678-1234-1234-1234-<account-id>',
         steps=[{'Name': 'test-step'}],
         configurations=[{'Classification': 'spark'}],
         service_role='EMR_DefaultRole',
@@ -798,7 +798,7 @@ async def test_create_cluster_all_optional_params(handler, mock_context):
     call_args = handler.emr_client.run_job_flow.call_args[1]
     assert (
         call_args['LogEncryptionKmsKeyId']
-        == 'arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012'
+        == 'arn:aws:kms:us-east-1:<account-id>:key/12345678-1234-1234-1234-<account-id>'
     )
     assert call_args['Steps'] == [{'Name': 'test-step'}]
     assert call_args['Configurations'] == [{'Classification': 'spark'}]

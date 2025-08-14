@@ -21,8 +21,8 @@ class TestGetSchemaArn:
     def test_get_schema_arn_success(self, mock_sfn_client):
         """Test successful retrieval of schema ARN from state machine tags."""
         # Set up test data
-        state_machine_arn = 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine'
-        schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry/schema'
+        state_machine_arn = 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine'
+        schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry/schema'
 
         # Set up mock response
         mock_sfn_client.list_tags_for_resource.return_value = {
@@ -45,7 +45,7 @@ class TestGetSchemaArn:
     def test_get_schema_arn_no_tag_key(self, mock_sfn_client):
         """Test when schema ARN tag key is not configured."""
         # Set up test data
-        state_machine_arn = 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine'
+        state_machine_arn = 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine'
 
         # Call the function
         result = get_schema_arn_from_state_machine_arn(state_machine_arn)
@@ -62,7 +62,7 @@ class TestGetSchemaArn:
     def test_get_schema_arn_tag_not_found(self, mock_sfn_client):
         """Test when schema ARN tag is not found on the state machine."""
         # Set up test data
-        state_machine_arn = 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine'
+        state_machine_arn = 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine'
 
         # Set up mock response with different tag
         mock_sfn_client.list_tags_for_resource.return_value = {
@@ -86,7 +86,7 @@ class TestGetSchemaArn:
     def test_get_schema_arn_error_handling(self, mock_sfn_client, caplog):
         """Test error handling during tag retrieval."""
         # Set up test data
-        state_machine_arn = 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine'
+        state_machine_arn = 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine'
 
         # Set up mock to raise an exception
         mock_sfn_client.list_tags_for_resource.side_effect = Exception('Tag retrieval error')
@@ -113,7 +113,7 @@ class TestGetSchemaArn:
     def test_get_schema_arn_empty_tags(self, mock_sfn_client):
         """Test when state machine has no tags."""
         # Set up test data
-        state_machine_arn = 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine'
+        state_machine_arn = 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine'
 
         # Set up mock response with empty tags
         mock_sfn_client.list_tags_for_resource.return_value = {'tags': []}

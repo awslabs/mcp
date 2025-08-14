@@ -30,7 +30,7 @@ class TestCreateConfiguration:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'Name': 'test-config',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'LatestRevision': {'Revision': 1, 'CreationTime': '2025-06-20T10:00:00.000Z'},
@@ -50,7 +50,7 @@ class TestCreateConfiguration:
         assert result == expected_response
         assert (
             result['Arn']
-            == 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         )
         assert result['Name'] == 'test-config'
         assert 'LatestRevision' in result
@@ -61,7 +61,7 @@ class TestCreateConfiguration:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'Name': 'test-config',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'KafkaVersions': ['2.8.1', '3.3.1'],
@@ -88,7 +88,7 @@ class TestCreateConfiguration:
         assert result == expected_response
         assert (
             result['Arn']
-            == 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         )
         assert result['Name'] == 'test-config'
         assert result['KafkaVersions'] == ['2.8.1', '3.3.1']
@@ -100,7 +100,7 @@ class TestCreateConfiguration:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'Name': 'test-config',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'LatestRevision': {'Revision': 1, 'CreationTime': '2025-06-20T10:00:00.000Z'},
@@ -120,7 +120,7 @@ class TestCreateConfiguration:
         assert result == expected_response
         assert (
             result['Arn']
-            == 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         )
         assert result['Name'] == 'test-config'
         assert 'LatestRevision' in result

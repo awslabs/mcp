@@ -187,7 +187,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         # Mock specific responses with awaitable results
         mock_ec2.describe_vpcs.return_value = {"Vpcs": [{"VpcId": "vpc-12345678"}]}
         mock_ecs.list_clusters.return_value = {
-            "clusterArns": ["arn:aws:ecs:us-west-2:123456789012:cluster/test-cluster"]
+            "clusterArns": ["arn:aws:ecs:us-west-2:<account-id>:cluster/test-cluster"]
         }
         mock_elbv2.describe_load_balancers.return_value = {"LoadBalancers": []}
 
@@ -288,7 +288,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
             # Configure mock responses
             mock_ecs.list_tasks = AsyncMock(
-                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/cluster/task1"]}
             )
             mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
             mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
@@ -362,11 +362,11 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         lb_arns = [
             (
                 "arn:aws:elasticloadbalancing:us-west-2:"
-                "123456789012:loadbalancer/app/test-app-lb/1234567890"
+                "<account-id>:loadbalancer/app/test-app-lb/1234567890"
             ),
             (
                 "arn:aws:elasticloadbalancing:us-west-2:"
-                "123456789012:loadbalancer/app/other-lb/0987654321"
+                "<account-id>:loadbalancer/app/other-lb/0987654321"
             ),
         ]
         lb_response = {
@@ -423,7 +423,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         # Mock response for load balancers
         lb_arn = (
             "arn:aws:elasticloadbalancing:us-west-2:"
-            "123456789012:loadbalancer/app/generic-lb/1234567890"
+            "<account-id>:loadbalancer/app/generic-lb/1234567890"
         )
         lb_response = {
             "LoadBalancers": [
@@ -651,10 +651,10 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
         # Configure mock responses
         tg_arn = (
-            "arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/test-app-tg/1234567890"
+            "arn:aws:elasticloadbalancing:us-west-2:<account-id>:targetgroup/test-app-tg/1234567890"
         )
         other_tg_arn = (
-            "arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/other-tg/0987654321"
+            "arn:aws:elasticloadbalancing:us-west-2:<account-id>:targetgroup/other-tg/0987654321"
         )
 
         mock_elbv2.describe_target_groups.return_value = {
@@ -824,7 +824,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
                 "TargetGroups": [
                     {
                         "TargetGroupArn": (
-                            "arn:aws:elasticloadbalancing:us-west-2:123456789012:"
+                            "arn:aws:elasticloadbalancing:us-west-2:<account-id>:"
                             "targetgroup/test-tg/1234567890"
                         ),
                         "TargetGroupName": "test-app-tg",
@@ -848,7 +848,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
         # Verify target group was returned
         self.assertEqual(len(result["TargetGroups"]), 1)
         tg_arn = (
-            "arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/test-tg/1234567890"
+            "arn:aws:elasticloadbalancing:us-west-2:<account-id>:targetgroup/test-tg/1234567890"
         )
 
         # Based on the actual implementation, the function may add an empty list for target health
@@ -868,7 +868,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
                     None,  # This tests the None check in the function
                     {
                         "TargetGroupArn": (
-                            "arn:aws:elasticloadbalancing:us-west-2:123456789012:"
+                            "arn:aws:elasticloadbalancing:us-west-2:<account-id>:"
                             "targetgroup/test-tg/1234567890"
                         ),
                         "TargetGroupName": "test-app-tg",
@@ -1063,7 +1063,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
             # Configure mock responses
             mock_ecs.list_tasks = AsyncMock(
-                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/cluster/task1"]}
             )
             mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
             mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
@@ -1122,7 +1122,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
             # Configure mock responses
             mock_ecs.list_tasks = AsyncMock(
-                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/cluster/task1"]}
             )
             mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
             mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
@@ -1300,7 +1300,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
             # Configure mock responses
             mock_ecs.list_tasks = AsyncMock(
-                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/cluster/task1"]}
             )
             mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
             mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)
@@ -1355,7 +1355,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
             # Configure mock responses
             mock_ecs.list_tasks = AsyncMock(
-                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/cluster/task1"]}
             )
             mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
 
@@ -1409,7 +1409,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
             # Configure mock responses
             mock_ecs.list_tasks = AsyncMock(
-                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/cluster/task1"]}
             )
             mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
 
@@ -1466,7 +1466,7 @@ class TestFetchNetworkConfiguration(unittest.IsolatedAsyncioTestCase):
 
             # Configure mock responses
             mock_ecs.list_tasks = AsyncMock(
-                return_value={"taskArns": ["arn:aws:ecs:us-west-2:123456789012:task/cluster/task1"]}
+                return_value={"taskArns": ["arn:aws:ecs:us-west-2:<account-id>:task/cluster/task1"]}
             )
             mock_ecs.describe_tasks = AsyncMock(return_value=task_response)
             mock_ec2.describe_network_interfaces = AsyncMock(return_value=eni_response)

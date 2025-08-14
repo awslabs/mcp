@@ -143,8 +143,8 @@ class TestLogModelsEdgeCases:
         ]
 
         anomaly = LogAnomaly(
-            anomalyDetectorArn='arn:aws:logs:us-east-1:123456789012:anomaly-detector:test',
-            logGroupArnList=['arn:aws:logs:us-east-1:123456789012:log-group:test-group'],
+            anomalyDetectorArn='arn:aws:logs:us-east-1:<account-id>:anomaly-detector:test',
+            logGroupArnList=['arn:aws:logs:us-east-1:<account-id>:log-group:test-group'],
             firstSeen='1609459200000',
             lastSeen='1609459320000',
             description='Test anomaly',
@@ -187,8 +187,8 @@ class TestLogModelsEdgeCases:
     def test_log_anomaly_histogram_conversion(self):
         """Test LogAnomaly histogram timestamp conversion."""
         anomaly = LogAnomaly(
-            anomalyDetectorArn='arn:aws:logs:us-east-1:123456789012:anomaly-detector:test',
-            logGroupArnList=['arn:aws:logs:us-east-1:123456789012:log-group:test-group'],
+            anomalyDetectorArn='arn:aws:logs:us-east-1:<account-id>:anomaly-detector:test',
+            logGroupArnList=['arn:aws:logs:us-east-1:<account-id>:log-group:test-group'],
             firstSeen='1609459200000',
             lastSeen='1609459320000',
             description='Test anomaly',

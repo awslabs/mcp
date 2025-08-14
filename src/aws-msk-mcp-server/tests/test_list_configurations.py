@@ -30,14 +30,14 @@ class TestListConfigurations:
         expected_response = {
             'ConfigurationInfoList': [
                 {
-                    'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config-1/abcdef',
+                    'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config-1/abcdef',
                     'Name': 'test-config-1',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
                     'KafkaVersions': ['2.8.1', '3.3.1'],
                     'LatestRevision': {'Revision': 1, 'CreationTime': '2025-06-20T10:00:00.000Z'},
                 },
                 {
-                    'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config-2/ghijkl',
+                    'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config-2/ghijkl',
                     'Name': 'test-config-2',
                     'CreationTime': '2025-06-20T11:00:00.000Z',
                     'KafkaVersions': ['3.3.1', '3.4.0'],
@@ -65,7 +65,7 @@ class TestListConfigurations:
         expected_response = {
             'ConfigurationInfoList': [
                 {
-                    'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config-1/abcdef',
+                    'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config-1/abcdef',
                     'Name': 'test-config-1',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
                     'KafkaVersions': ['2.8.1', '3.3.1'],

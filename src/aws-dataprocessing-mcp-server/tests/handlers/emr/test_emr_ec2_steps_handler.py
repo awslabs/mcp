@@ -197,7 +197,7 @@ class TestAddSteps:
                     'Name': 'Test Step',
                     'ActionOnFailure': 'CONTINUE',
                     'HadoopJarStep': {'Jar': 'command-runner.jar', 'Args': ['echo', 'hello']},
-                    'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/EMRStepRole',
+                    'ExecutionRoleArn': 'arn:aws:iam::<account-id>:role/EMRStepRole',
                 }
             ]
 
@@ -211,7 +211,7 @@ class TestAddSteps:
             mock_emr_client.add_job_flow_steps.assert_called_once_with(
                 JobFlowId='j-12345ABCDEF',
                 Steps=steps,
-                ExecutionRoleArn='arn:aws:iam::123456789012:role/EMRStepRole',
+                ExecutionRoleArn='arn:aws:iam::<account-id>:role/EMRStepRole',
             )
 
             assert result.isError is False

@@ -32,7 +32,7 @@ class TestLogGroupMetadata:
             'metricFilterCount': 0,
             'storedBytes': 1024,
             'logGroupClass': 'STANDARD',
-            'logGroupArn': 'arn:aws:logs:us-east-1:123456789012:log-group:/aws/test/group',
+            'logGroupArn': 'arn:aws:logs:us-east-1:<account-id>:log-group:/aws/test/group',
         }
 
         log_group = LogGroupMetadata(**log_group_data)
@@ -48,8 +48,8 @@ class TestLogAnomaly:
         """Test that string timestamps in LogAnomaly are returned unchanged (covers 'return v' line)."""
         # Test data with string timestamps (already in ISO format)
         anomaly_data = {
-            'anomalyDetectorArn': 'arn:aws:logs:us-east-1:123456789012:detector:test',
-            'logGroupArnList': ['arn:aws:logs:us-east-1:123456789012:log-group:/aws/test'],
+            'anomalyDetectorArn': 'arn:aws:logs:us-east-1:<account-id>:detector:test',
+            'logGroupArnList': ['arn:aws:logs:us-east-1:<account-id>:log-group:/aws/test'],
             'firstSeen': '2023-01-01T00:00:00+00:00',  # String timestamp
             'lastSeen': '2023-01-01T01:00:00+00:00',  # String timestamp
             'description': 'Test anomaly',

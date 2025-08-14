@@ -53,7 +53,7 @@ class TestDiscoverKnowledgeBases:
         for kb_id in ['kb-12345', 'kb-67890', 'kb-95008']:
             mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId=kb_id)
             mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
-                resourceArn=f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{kb_id}'
+                resourceArn=f'arn:aws:bedrock:us-west-2:<account-id>:knowledge-base/{kb_id}'
             )
 
         mock_bedrock_agent_client.get_paginator.assert_any_call('list_data_sources')
@@ -80,7 +80,7 @@ class TestDiscoverKnowledgeBases:
         for kb_id in ['kb-12345', 'kb-67890', 'kb-95008']:
             mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId=kb_id)
             mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
-                resourceArn=f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{kb_id}'
+                resourceArn=f'arn:aws:bedrock:us-west-2:<account-id>:knowledge-base/{kb_id}'
             )
 
         mock_bedrock_agent_client.get_paginator.assert_any_call('list_data_sources')
@@ -104,7 +104,7 @@ class TestDiscoverKnowledgeBases:
         for kb_id in ['kb-12345', 'kb-67890', 'kb-95008']:
             mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId=kb_id)
             mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
-                resourceArn=f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{kb_id}'
+                resourceArn=f'arn:aws:bedrock:us-west-2:<account-id>:knowledge-base/{kb_id}'
             )
 
         # The data sources paginator should not be called because no knowledge bases match the tag
@@ -190,6 +190,6 @@ class TestDiscoverKnowledgeBases:
         mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-12345')
         mock_bedrock_agent_client.get_knowledge_base.assert_any_call(knowledgeBaseId='kb-67890')
         mock_bedrock_agent_client.list_tags_for_resource.assert_any_call(
-            resourceArn='arn:aws:bedrock:us-west-2:123456789012:knowledge-base/kb-12345'
+            resourceArn='arn:aws:bedrock:us-west-2:<account-id>:knowledge-base/kb-12345'
         )
         mock_bedrock_agent_client.get_paginator.assert_any_call('list_data_sources')

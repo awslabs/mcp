@@ -102,7 +102,7 @@ class TestCustomTags:
             # Test with no parameters
             assert (
                 AwsHelper.is_resource_mcp_managed(
-                    mock_glue_client, 'arn:aws:glue:us-west-2:123456789012:database/test-db'
+                    mock_glue_client, 'arn:aws:glue:us-west-2:<account-id>:database/test-db'
                 )
                 is True
             )
@@ -113,7 +113,7 @@ class TestCustomTags:
             assert (
                 AwsHelper.is_resource_mcp_managed(
                     mock_glue_client,
-                    'arn:aws:glue:us-west-2:123456789012:database/test-db',
+                    'arn:aws:glue:us-west-2:<account-id>:database/test-db',
                     parameters=parameters,
                 )
                 is True

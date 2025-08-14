@@ -65,7 +65,7 @@ class TestUpdateConfiguration:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'LatestRevision': {
                 'Revision': 2,
                 'CreationTime': '2025-06-20T11:00:00.000Z',
@@ -75,7 +75,7 @@ class TestUpdateConfiguration:
         mock_client.update_configuration.return_value = expected_response
 
         # Act
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         server_properties = (
             'auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=24'
         )
@@ -86,7 +86,7 @@ class TestUpdateConfiguration:
         assert result == expected_response
         assert (
             result['Arn']
-            == 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         )
         assert 'LatestRevision' in result
         assert result['LatestRevision']['Revision'] == 2
@@ -97,13 +97,13 @@ class TestUpdateConfiguration:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'LatestRevision': {'Revision': 2, 'CreationTime': '2025-06-20T11:00:00.000Z'},
         }
         mock_client.update_configuration.return_value = expected_response
 
         # Act
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         server_properties = (
             'auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=24'
         )
@@ -117,7 +117,7 @@ class TestUpdateConfiguration:
         assert result == expected_response
         assert (
             result['Arn']
-            == 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         )
         assert 'LatestRevision' in result
         assert result['LatestRevision']['Revision'] == 2
@@ -132,7 +132,7 @@ class TestUpdateConfiguration:
         )
 
         # Act & Assert
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         server_properties = (
             'auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=24'
         )
@@ -147,7 +147,7 @@ class TestUpdateConfiguration:
     def test_update_configuration_missing_client(self):
         """Test the update_configuration function with a missing client."""
         # Act & Assert
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         server_properties = (
             'auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=24'
         )
@@ -167,7 +167,7 @@ class TestUpdateConfiguration:
             'UpdateConfiguration',
         )
 
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         server_properties = (
             'auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=24'
         )

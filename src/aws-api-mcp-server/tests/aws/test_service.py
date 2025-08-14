@@ -245,15 +245,15 @@ def test_interpret_injects_region():
     'cli, region',
     [
         (
-            'aws cloudwatch list-managed-insight-rules --resource-arn arn:aws:cloudwatch:eu-west-2:123456789012:alarm:AlarmName',
+            'aws cloudwatch list-managed-insight-rules --resource-arn arn:aws:cloudwatch:eu-west-2:<account-id>:alarm:AlarmName',
             'eu-west-2',
         ),
         (
-            'aws cloudwatch list-managed-insight-rules --resource-arn arn:aws:cloudwatch:eu-west-2:123456789012:alarm:AlarmName --region eu-central-1',
+            'aws cloudwatch list-managed-insight-rules --resource-arn arn:aws:cloudwatch:eu-west-2:<account-id>:alarm:AlarmName --region eu-central-1',
             'eu-central-1',
         ),
         (
-            'aws cloudwatch list-managed-insight-rules --resource-arn arn:aws:cloudwatch::123456789012:alarm:AlarmName',
+            'aws cloudwatch list-managed-insight-rules --resource-arn arn:aws:cloudwatch::<account-id>:alarm:AlarmName',
             'us-east-1',
         ),
     ],

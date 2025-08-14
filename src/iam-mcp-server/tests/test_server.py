@@ -114,7 +114,7 @@ async def test_list_users_mock():
             {
                 'UserName': 'test-user',
                 'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
-                'Arn': 'arn:aws:iam::123456789012:user/test-user',
+                'Arn': 'arn:aws:iam::<account-id>:user/test-user',
                 'Path': '/',
                 'CreateDate': datetime(2023, 1, 1),
             }
@@ -167,7 +167,7 @@ async def test_create_user_success():
         'User': {
             'UserName': 'new-user',
             'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
-            'Arn': 'arn:aws:iam::123456789012:user/new-user',
+            'Arn': 'arn:aws:iam::<account-id>:user/new-user',
             'Path': '/',
             'CreateDate': datetime(2023, 1, 1),
         }
@@ -306,7 +306,7 @@ async def test_list_roles():
             {
                 'RoleName': 'test-role',
                 'RoleId': 'AROA123456789EXAMPLE',
-                'Arn': 'arn:aws:iam::123456789012:role/test-role',
+                'Arn': 'arn:aws:iam::<account-id>:role/test-role',
                 'Path': '/',
                 'CreateDate': datetime(2023, 1, 1),
                 'AssumeRolePolicyDocument': '%7B%22Version%22%3A%222012-10-17%22%7D',
@@ -335,7 +335,7 @@ async def test_list_policies():
             {
                 'PolicyName': 'test-policy',
                 'PolicyId': 'ANPA123456789EXAMPLE',
-                'Arn': 'arn:aws:iam::123456789012:policy/test-policy',
+                'Arn': 'arn:aws:iam::<account-id>:policy/test-policy',
                 'Path': '/',
                 'DefaultVersionId': 'v1',
                 'AttachmentCount': 0,
@@ -384,10 +384,10 @@ async def test_get_managed_policy_document():
         mock_get_client.return_value = mock_client
 
         result = await get_managed_policy_document(
-            policy_arn='arn:aws:iam::123456789012:policy/test-policy'
+            policy_arn='arn:aws:iam::<account-id>:policy/test-policy'
         )
 
-        assert result.policy_arn == 'arn:aws:iam::123456789012:policy/test-policy'
+        assert result.policy_arn == 'arn:aws:iam::<account-id>:policy/test-policy'
         assert result.policy_name == 'test-policy'
         assert result.version_id == 'v1'
         assert result.is_default_version is True
@@ -415,7 +415,7 @@ async def test_create_role():
         'Role': {
             'RoleName': 'test-role',
             'RoleId': 'AROA123456789EXAMPLE',
-            'Arn': 'arn:aws:iam::123456789012:role/test-role',
+            'Arn': 'arn:aws:iam::<account-id>:role/test-role',
             'Path': '/',
             'CreateDate': datetime(2023, 1, 1),
             'AssumeRolePolicyDocument': '%7B%22Version%22%3A%222012-10-17%22%7D',
@@ -478,7 +478,7 @@ async def test_get_user():
         'User': {
             'UserName': 'test-user',
             'UserId': 'AIDACKCEVSQ6C2EXAMPLE',
-            'Arn': 'arn:aws:iam::123456789012:user/test-user',
+            'Arn': 'arn:aws:iam::<account-id>:user/test-user',
             'Path': '/',
             'CreateDate': datetime(2023, 1, 1),
         }
@@ -488,13 +488,13 @@ async def test_get_user():
         'AttachedPolicies': [
             {
                 'PolicyName': 'TestPolicy',
-                'PolicyArn': 'arn:aws:iam::123456789012:policy/TestPolicy',
+                'PolicyArn': 'arn:aws:iam::<account-id>:policy/TestPolicy',
             }
         ]
     }
 
     mock_groups_response = {
-        'Groups': [{'GroupName': 'TestGroup', 'Arn': 'arn:aws:iam::123456789012:group/TestGroup'}]
+        'Groups': [{'GroupName': 'TestGroup', 'Arn': 'arn:aws:iam::<account-id>:group/TestGroup'}]
     }
 
     mock_keys_response = {
@@ -665,7 +665,7 @@ async def test_attach_user_policy_with_exception():
 
         with pytest.raises(Exception):
             await attach_user_policy(
-                user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+                user_name='test-user', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
             )
 
 
@@ -681,7 +681,7 @@ async def test_detach_user_policy_with_exception():
 
         with pytest.raises(Exception):
             await detach_user_policy(
-                user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+                user_name='test-user', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
             )
 
 
@@ -741,7 +741,7 @@ async def test_simulate_principal_policy_success():
         mock_get_client.return_value = mock_client
 
         result = await simulate_principal_policy(
-            policy_source_arn='arn:aws:iam::123456789012:user/test-user',
+            policy_source_arn='arn:aws:iam::<account-id>:user/test-user',
             action_names=['s3:GetObject'],
             resource_arns=['arn:aws:s3:::my-bucket/*'],
             context_entries={'aws:RequestedRegion': 'us-east-1'},
@@ -753,7 +753,7 @@ async def test_simulate_principal_policy_success():
         assert result['EvaluationResults'][0]['EvalDecision'] == 'allowed'
         assert result['IsTruncated'] is False
         assert result['Marker'] == 'marker123'
-        assert result['PolicySourceArn'] == 'arn:aws:iam::123456789012:user/test-user'
+        assert result['PolicySourceArn'] == 'arn:aws:iam::<account-id>:user/test-user'
 
 
 @pytest.mark.asyncio
@@ -768,7 +768,7 @@ async def test_simulate_principal_policy_with_exception():
 
         with pytest.raises(Exception):
             await simulate_principal_policy(
-                policy_source_arn='arn:aws:iam::123456789012:user/test-user',
+                policy_source_arn='arn:aws:iam::<account-id>:user/test-user',
                 action_names=['s3:GetObject'],
             )
 
@@ -819,7 +819,7 @@ async def test_delete_user_force():
     Context.initialize(readonly=False)
 
     mock_policies_response = {
-        'AttachedPolicies': [{'PolicyArn': 'arn:aws:iam::123456789012:policy/TestPolicy'}]
+        'AttachedPolicies': [{'PolicyArn': 'arn:aws:iam::<account-id>:policy/TestPolicy'}]
     }
 
     mock_groups_response = {'Groups': [{'GroupName': 'TestGroup'}]}
@@ -859,7 +859,7 @@ async def test_attach_user_policy():
         mock_get_client.return_value = mock_client
 
         result = await attach_user_policy(
-            user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+            user_name='test-user', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
         )
 
         assert 'Successfully attached policy' in result['Message']
@@ -876,7 +876,7 @@ async def test_attach_user_policy_readonly():
 
     with pytest.raises(IamClientError) as exc_info:
         await attach_user_policy(
-            user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+            user_name='test-user', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
         )
 
     assert 'read-only mode' in str(exc_info.value)
@@ -896,7 +896,7 @@ async def test_detach_user_policy():
         mock_get_client.return_value = mock_client
 
         result = await detach_user_policy(
-            user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+            user_name='test-user', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
         )
 
         assert 'Successfully detached policy' in result['Message']
@@ -913,7 +913,7 @@ async def test_detach_user_policy_readonly():
 
     with pytest.raises(IamClientError) as exc_info:
         await detach_user_policy(
-            user_name='test-user', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+            user_name='test-user', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
         )
 
     assert 'read-only mode' in str(exc_info.value)
@@ -1040,14 +1040,14 @@ async def test_list_groups():
             {
                 'GroupName': 'TestGroup1',
                 'GroupId': 'AGPAI23HZ27SI6FQMGNQ2',
-                'Arn': 'arn:aws:iam::123456789012:group/TestGroup1',
+                'Arn': 'arn:aws:iam::<account-id>:group/TestGroup1',
                 'Path': '/',
                 'CreateDate': datetime(2023, 1, 1),
             },
             {
                 'GroupName': 'TestGroup2',
                 'GroupId': 'AGPAI23HZ27SI6FQMGNQ3',
-                'Arn': 'arn:aws:iam::123456789012:group/TestGroup2',
+                'Arn': 'arn:aws:iam::<account-id>:group/TestGroup2',
                 'Path': '/teams/',
                 'CreateDate': datetime(2023, 1, 2),
             },
@@ -1080,7 +1080,7 @@ async def test_list_groups_with_path_prefix():
             {
                 'GroupName': 'TeamGroup',
                 'GroupId': 'AGPAI23HZ27SI6FQMGNQ4',
-                'Arn': 'arn:aws:iam::123456789012:group/teams/TeamGroup',
+                'Arn': 'arn:aws:iam::<account-id>:group/teams/TeamGroup',
                 'Path': '/teams/',
                 'CreateDate': datetime(2023, 1, 1),
             }
@@ -1109,7 +1109,7 @@ async def test_get_group():
         'Group': {
             'GroupName': 'TestGroup',
             'GroupId': 'AGPAI23HZ27SI6FQMGNQ2',
-            'Arn': 'arn:aws:iam::123456789012:group/TestGroup',
+            'Arn': 'arn:aws:iam::<account-id>:group/TestGroup',
             'Path': '/',
             'CreateDate': datetime(2023, 1, 1),
         },
@@ -1123,7 +1123,7 @@ async def test_get_group():
         'AttachedPolicies': [
             {
                 'PolicyName': 'TestPolicy',
-                'PolicyArn': 'arn:aws:iam::123456789012:policy/TestPolicy',
+                'PolicyArn': 'arn:aws:iam::<account-id>:policy/TestPolicy',
             }
         ]
     }
@@ -1161,7 +1161,7 @@ async def test_create_group():
         'Group': {
             'GroupName': 'NewGroup',
             'GroupId': 'AGPAI23HZ27SI6FQMGNQ5',
-            'Arn': 'arn:aws:iam::123456789012:group/NewGroup',
+            'Arn': 'arn:aws:iam::<account-id>:group/NewGroup',
             'Path': '/',
             'CreateDate': datetime(2023, 1, 1),
         }
@@ -1224,7 +1224,7 @@ async def test_delete_group_force():
     }
 
     mock_attached_policies = {
-        'AttachedPolicies': [{'PolicyArn': 'arn:aws:iam::123456789012:policy/TestPolicy'}]
+        'AttachedPolicies': [{'PolicyArn': 'arn:aws:iam::<account-id>:policy/TestPolicy'}]
     }
 
     mock_inline_policies = {'PolicyNames': ['InlinePolicy1']}
@@ -1331,7 +1331,7 @@ async def test_attach_group_policy():
     # Disable readonly mode
     Context.initialize(readonly=False)
 
-    policy_arn = 'arn:aws:iam::123456789012:policy/TestPolicy'
+    policy_arn = 'arn:aws:iam::<account-id>:policy/TestPolicy'
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1345,7 +1345,7 @@ async def test_attach_group_policy():
         assert result.group_name == 'TestGroup'
         assert result.policy_arn == policy_arn
         assert (
-            'Successfully attached policy arn:aws:iam::123456789012:policy/TestPolicy to group TestGroup'
+            'Successfully attached policy arn:aws:iam::<account-id>:policy/TestPolicy to group TestGroup'
             in result.message
         )
 
@@ -1358,7 +1358,7 @@ async def test_attach_group_policy_readonly():
     with patch('awslabs.iam_mcp_server.context.Context.is_readonly', return_value=True):
         with pytest.raises(Exception) as exc_info:
             await attach_group_policy(
-                group_name='TestGroup', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+                group_name='TestGroup', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
             )
         assert 'Cannot attach policy to group in read-only mode' in str(exc_info.value)
 
@@ -1371,7 +1371,7 @@ async def test_detach_group_policy():
     # Disable readonly mode
     Context.initialize(readonly=False)
 
-    policy_arn = 'arn:aws:iam::123456789012:policy/TestPolicy'
+    policy_arn = 'arn:aws:iam::<account-id>:policy/TestPolicy'
 
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
@@ -1385,7 +1385,7 @@ async def test_detach_group_policy():
         assert result.group_name == 'TestGroup'
         assert result.policy_arn == policy_arn
         assert (
-            'Successfully detached policy arn:aws:iam::123456789012:policy/TestPolicy from group TestGroup'
+            'Successfully detached policy arn:aws:iam::<account-id>:policy/TestPolicy from group TestGroup'
             in result.message
         )
 
@@ -1398,7 +1398,7 @@ async def test_detach_group_policy_readonly():
     with patch('awslabs.iam_mcp_server.context.Context.is_readonly', return_value=True):
         with pytest.raises(Exception) as exc_info:
             await detach_group_policy(
-                group_name='TestGroup', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+                group_name='TestGroup', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
             )
         assert 'Cannot detach policy from group in read-only mode' in str(exc_info.value)
 
@@ -1516,5 +1516,5 @@ async def test_attach_group_policy_with_exception():
 
         with pytest.raises(IamValidationError):
             await attach_group_policy(
-                group_name='TestGroup', policy_arn='arn:aws:iam::123456789012:policy/TestPolicy'
+                group_name='TestGroup', policy_arn='arn:aws:iam::<account-id>:policy/TestPolicy'
             )

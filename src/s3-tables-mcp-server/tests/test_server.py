@@ -187,7 +187,7 @@ async def test_create_table_bucket(mock_table_buckets):
 async def test_create_namespace(mock_namespaces):
     """Test create_namespace tool."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     region = 'us-west-2'
     expected_response = {'status': 'success'}
@@ -208,7 +208,7 @@ async def test_create_namespace(mock_namespaces):
 async def test_create_table(mock_tables):
     """Test create_table tool."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     format = 'ICEBERG'
@@ -251,7 +251,7 @@ async def test_create_table(mock_tables):
 async def test_get_table_maintenance_config(mock_tables):
     """Test get_table_maintenance_config tool."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
@@ -273,7 +273,7 @@ async def test_get_table_maintenance_config(mock_tables):
 async def test_get_maintenance_job_status(mock_tables):
     """Test get_maintenance_job_status tool."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
@@ -295,7 +295,7 @@ async def test_get_maintenance_job_status(mock_tables):
 async def test_get_table_metadata_location(mock_tables):
     """Test get_table_metadata_location tool."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
@@ -317,7 +317,7 @@ async def test_get_table_metadata_location(mock_tables):
 async def test_rename_table(mock_tables):
     """Test rename_table tool."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     new_name = 'new-table'
@@ -354,7 +354,7 @@ async def test_rename_table(mock_tables):
 async def test_update_table_metadata_location(mock_tables):
     """Test update_table_metadata_location tool."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     metadata_location = 's3://test-bucket/metadata.json'
@@ -403,7 +403,7 @@ async def test_create_table_bucket_readonly_mode(setup_app_readonly, mock_table_
 async def test_create_namespace_readonly_mode(setup_app_readonly, mock_namespaces):
     """Test create_namespace tool when allow_write is disabled."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     region = 'us-west-2'
 
@@ -420,7 +420,7 @@ async def test_create_namespace_readonly_mode(setup_app_readonly, mock_namespace
 async def test_create_table_readonly_mode(setup_app_readonly, mock_tables):
     """Test create_table tool when allow_write is disabled."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     format = 'ICEBERG'
@@ -454,7 +454,7 @@ async def test_create_table_readonly_mode(setup_app_readonly, mock_tables):
 async def test_get_table_maintenance_config_readonly_mode(setup_app_readonly, mock_tables):
     """Test get_table_maintenance_config tool when allow_write is disabled (should still work)."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
@@ -476,7 +476,7 @@ async def test_get_table_maintenance_config_readonly_mode(setup_app_readonly, mo
 async def test_get_maintenance_job_status_readonly_mode(setup_app_readonly, mock_tables):
     """Test get_maintenance_job_status tool when allow_write is disabled (should still work)."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
@@ -498,7 +498,7 @@ async def test_get_maintenance_job_status_readonly_mode(setup_app_readonly, mock
 async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, mock_tables):
     """Test get_table_metadata_location tool when allow_write is disabled (should still work)."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     region = 'us-west-2'
@@ -520,7 +520,7 @@ async def test_get_table_metadata_location_readonly_mode(setup_app_readonly, moc
 async def test_import_csv_to_table_readonly_mode(setup_app_readonly):
     """Test import_csv_to_table tool when allow_write is disabled."""
     # Arrange
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     s3_url = 's3://test-bucket/test.csv'
@@ -545,7 +545,7 @@ async def test_import_csv_to_table_readonly_mode(setup_app_readonly):
 @pytest.mark.asyncio
 async def test_query_database(mock_database):
     """Test query_database tool."""
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     query = 'SELECT * FROM test-table'
@@ -595,7 +595,7 @@ async def test_get_bucket_metadata_config(mock_s3_operations):
 @pytest.mark.asyncio
 async def test_append_rows_to_table(mock_database):
     """Test append_rows_to_table tool."""
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -633,7 +633,7 @@ async def test_append_rows_to_table(mock_database):
 
 def test_append_rows_to_table_readonly_mode(setup_app_readonly, mock_database):
     """Test append_rows_to_table tool when allow_write is disabled."""
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -667,7 +667,7 @@ def test_append_rows_to_table_readonly_mode(setup_app_readonly, mock_database):
 @pytest.mark.asyncio
 async def test_query_database_default_uri(mock_database):
     """Test query_database uses default uri if None."""
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     query = 'SELECT * FROM test-table'
@@ -696,7 +696,7 @@ async def test_import_csv_to_table_default_uri(monkeypatch, setup_app):
         'awslabs.s3_tables_mcp_server.server.import_csv_to_table_func',
         mock_import_func,
     )
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -728,7 +728,7 @@ async def test_import_csv_to_table(monkeypatch, setup_app):
         'awslabs.s3_tables_mcp_server.server.import_csv_to_table_func',
         mock_import_func,
     )
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -776,7 +776,7 @@ async def test_import_parquet_to_table(monkeypatch, setup_app):
         'awslabs.s3_tables_mcp_server.server.import_parquet_to_table_func',
         mock_import_func,
     )
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -817,7 +817,7 @@ async def test_import_parquet_to_table(monkeypatch, setup_app):
 async def test_import_parquet_to_table_readonly_mode(setup_app_readonly):
     """Test import_parquet_to_table tool when allow_write is disabled."""
     # Arrange
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -849,7 +849,7 @@ async def test_import_parquet_to_table_default_uri(monkeypatch, setup_app):
         'awslabs.s3_tables_mcp_server.server.import_parquet_to_table_func',
         mock_import_func,
     )
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -873,7 +873,7 @@ async def test_import_parquet_to_table_default_uri(monkeypatch, setup_app):
 @pytest.mark.asyncio
 async def test_append_rows_to_table_default_uri(mock_database):
     """Test append_rows_to_table uses default uri if None."""
-    warehouse = 'arn:aws:s3tables:us-west-2:123456789012:bucket/test-bucket'
+    warehouse = 'arn:aws:s3tables:us-west-2:<account-id>:bucket/test-bucket'
     region = 'us-west-2'
     namespace = 'test-namespace'
     table_name = 'test-table'
@@ -938,7 +938,7 @@ async def test_create_table_bucket_default_region(mock_table_buckets):
 @pytest.mark.asyncio
 async def test_create_namespace_invalid_region(mock_namespaces):
     """Test create_namespace tool with invalid region_name."""
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     region = 'bad-region'
     mock_namespaces.create_namespace.side_effect = Exception('Invalid region')
@@ -951,7 +951,7 @@ async def test_create_namespace_invalid_region(mock_namespaces):
 @pytest.mark.asyncio
 async def test_create_namespace_default_region(mock_namespaces):
     """Test create_namespace tool with default (None) region_name."""
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     expected_response = {'status': 'success'}
     result = await create_namespace(
@@ -966,7 +966,7 @@ async def test_create_namespace_default_region(mock_namespaces):
 @pytest.mark.asyncio
 async def test_create_table_invalid_region(mock_tables):
     """Test create_table tool with invalid region_name."""
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     format = 'ICEBERG'
@@ -996,7 +996,7 @@ async def test_create_table_invalid_region(mock_tables):
 @pytest.mark.asyncio
 async def test_create_table_default_region(mock_tables):
     """Test create_table tool with default (None) region_name."""
-    table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+    table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
     namespace = 'test-namespace'
     name = 'test-table'
     format = 'ICEBERG'

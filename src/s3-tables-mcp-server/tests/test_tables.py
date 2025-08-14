@@ -48,7 +48,7 @@ class TestCreateTable:
     async def test_successful_table_creation(self):
         """Test successful table creation."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         format = OpenTableFormat.ICEBERG
@@ -85,7 +85,7 @@ class TestCreateTable:
     async def test_successful_table_creation_with_metadata(self):
         """Test successful table creation with metadata."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         format = OpenTableFormat.ICEBERG
@@ -122,7 +122,7 @@ class TestCreateTable:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         format = OpenTableFormat.ICEBERG
@@ -147,7 +147,7 @@ class TestDeleteTable:
     async def test_successful_table_deletion(self):
         """Test successful table deletion."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
@@ -172,7 +172,7 @@ class TestDeleteTable:
     async def test_successful_table_deletion_with_version_token(self):
         """Test successful table deletion with version token."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         version_token = 'test-version-token'
@@ -195,7 +195,7 @@ class TestDeleteTable:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         error_message = 'Table not found'
@@ -219,7 +219,7 @@ class TestGetTable:
     async def test_successful_table_retrieval(self):
         """Test successful table retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
@@ -228,7 +228,7 @@ class TestGetTable:
                 'name': 'test-table',
                 'namespace': 'test-namespace',
                 'createdAt': '2023-01-01T00:00:00Z',
-                'ownerAccountId': '123456789012',
+                'ownerAccountId': '<account-id>',
             }
         }
 
@@ -251,7 +251,7 @@ class TestGetTable:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         error_message = 'Table not found'
@@ -275,7 +275,7 @@ class TestDeleteTablePolicy:
     async def test_successful_policy_deletion(self):
         """Test successful table policy deletion."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
@@ -300,7 +300,7 @@ class TestDeleteTablePolicy:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         error_message = 'Policy not found'
@@ -324,7 +324,7 @@ class TestGetTableMaintenanceConfiguration:
     async def test_successful_maintenance_configuration_retrieval(self):
         """Test successful maintenance configuration retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
@@ -356,7 +356,7 @@ class TestGetTableMaintenanceConfiguration:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         error_message = 'Maintenance configuration not found'
@@ -383,7 +383,7 @@ class TestGetTableMaintenanceJobStatus:
     async def test_successful_job_status_retrieval(self):
         """Test successful maintenance job status retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
@@ -412,7 +412,7 @@ class TestGetTableMaintenanceJobStatus:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         error_message = 'Maintenance job not found'
@@ -436,7 +436,7 @@ class TestGetTableMetadataLocation:
     async def test_successful_metadata_location_retrieval(self):
         """Test successful metadata location retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
@@ -461,7 +461,7 @@ class TestGetTableMetadataLocation:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         error_message = 'Metadata location not found'
@@ -485,7 +485,7 @@ class TestGetTablePolicy:
     async def test_successful_policy_retrieval(self):
         """Test successful table policy retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         region = 'us-west-2'
@@ -495,7 +495,7 @@ class TestGetTablePolicy:
                 'Statement': [
                     {
                         'Effect': 'Allow',
-                        'Principal': {'AWS': 'arn:aws:iam::123456789012:root'},
+                        'Principal': {'AWS': 'arn:aws:iam::<account-id>:root'},
                         'Action': 's3tables:*',
                         'Resource': f'{table_bucket_arn}/table/{namespace}/{name}',
                     }
@@ -522,7 +522,7 @@ class TestGetTablePolicy:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         error_message = 'Policy not found'
@@ -546,7 +546,7 @@ class TestPutTableMaintenanceConfiguration:
     async def test_successful_maintenance_configuration_put(self):
         """Test successful maintenance configuration put."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         maintenance_type = TableMaintenanceType.ICEBERG_COMPACTION
@@ -579,7 +579,7 @@ class TestPutTableMaintenanceConfiguration:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         maintenance_type = TableMaintenanceType.ICEBERG_COMPACTION
@@ -610,7 +610,7 @@ class TestRenameTable:
     async def test_successful_table_rename(self):
         """Test successful table rename."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'old-table-name'
         new_name = 'new-table-name'
@@ -638,7 +638,7 @@ class TestRenameTable:
     async def test_successful_table_rename_with_new_namespace(self):
         """Test successful table rename with new namespace."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'old-namespace'
         name = 'old-table-name'
         new_name = 'new-table-name'
@@ -666,7 +666,7 @@ class TestRenameTable:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'old-table-name'
         new_name = 'new-table-name'
@@ -691,7 +691,7 @@ class TestUpdateTableMetadataLocation:
     async def test_successful_metadata_location_update(self):
         """Test successful metadata location update."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         metadata_location = 's3://test-bucket/metadata/new-metadata.json'
@@ -724,7 +724,7 @@ class TestUpdateTableMetadataLocation:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         name = 'test-table'
         metadata_location = 's3://test-bucket/metadata/new-metadata.json'

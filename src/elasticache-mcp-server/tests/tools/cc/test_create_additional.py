@@ -73,15 +73,15 @@ async def test_create_cache_cluster_all_optional_params():
             snapshot_name='snapshot-1',
             preferred_maintenance_window='sun:05:00-sun:09:00',
             port=6379,
-            notification_topic_arn='arn:aws:sns:us-west-2:123456789012:my-topic',
+            notification_topic_arn='arn:aws:sns:us-west-2:<account-id>:my-topic',
             auto_minor_version_upgrade=True,
             snapshot_retention_limit=7,
             snapshot_window='00:00-03:00',
             auth_token='password123',
             outpost_mode='single-outpost',
-            preferred_outpost_arn='arn:aws:outposts:us-west-2:123456789012:outpost/op-1234567890abcdef0',
+            preferred_outpost_arn='arn:aws:outposts:us-west-2:<account-id>:outpost/op-1234567890abcdef0',
             preferred_outpost_arns=[
-                'arn:aws:outposts:us-west-2:123456789012:outpost/op-1234567890abcdef0'
+                'arn:aws:outposts:us-west-2:<account-id>:outpost/op-1234567890abcdef0'
             ],
         )
         result = await create_cache_cluster(request)
@@ -103,15 +103,15 @@ async def test_create_cache_cluster_all_optional_params():
         SnapshotName='snapshot-1',
         PreferredMaintenanceWindow='sun:05:00-sun:09:00',
         Port=6379,
-        NotificationTopicArn='arn:aws:sns:us-west-2:123456789012:my-topic',
+        NotificationTopicArn='arn:aws:sns:us-west-2:<account-id>:my-topic',
         AutoMinorVersionUpgrade=True,
         SnapshotRetentionLimit=7,
         SnapshotWindow='00:00-03:00',
         AuthToken='password123',
         OutpostMode='single-outpost',
-        PreferredOutpostArn='arn:aws:outposts:us-west-2:123456789012:outpost/op-1234567890abcdef0',
+        PreferredOutpostArn='arn:aws:outposts:us-west-2:<account-id>:outpost/op-1234567890abcdef0',
         PreferredOutpostArns=[
-            'arn:aws:outposts:us-west-2:123456789012:outpost/op-1234567890abcdef0'
+            'arn:aws:outposts:us-west-2:<account-id>:outpost/op-1234567890abcdef0'
         ],
     )
 

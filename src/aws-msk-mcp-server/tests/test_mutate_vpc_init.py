@@ -89,9 +89,9 @@ class TestMutateVpcInit:
 
             # Mock the create_vpc_connection function
             expected_response = {
-                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
                 'VpcConnectionState': 'CREATING',
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 'CreationTime': '2025-06-20T10:00:00.000Z',
                 'VpcId': 'vpc-12345678',
             }
@@ -100,7 +100,7 @@ class TestMutateVpcInit:
             # Act
             result = create_vpc_connection_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 vpc_id='vpc-12345678',
                 subnet_ids=['subnet-1234abcd', 'subnet-5678efgh'],
                 security_groups=['sg-1234abcd'],
@@ -117,7 +117,7 @@ class TestMutateVpcInit:
             # Don't check the config object as it's created internally
 
             mock_create_vpc_connection.assert_called_once_with(
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
                 vpc_id='vpc-12345678',
                 subnet_ids=['subnet-1234abcd', 'subnet-5678efgh'],
                 security_groups=['sg-1234abcd'],
@@ -153,16 +153,16 @@ class TestMutateVpcInit:
 
             # Mock the delete_vpc_connection function
             expected_response = {
-                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
                 'VpcConnectionState': 'DELETING',
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             }
             mock_delete_vpc_connection.return_value = expected_response
 
             # Act
             result = delete_vpc_connection_tool(
                 region='us-east-1',
-                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                vpc_connection_arn='arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             )
 
             # Assert
@@ -173,7 +173,7 @@ class TestMutateVpcInit:
             # Don't check the config object as it's created internally
 
             mock_delete_vpc_connection.assert_called_once_with(
-                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                vpc_connection_arn='arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
                 client=mock_client,
             )
 
@@ -205,17 +205,17 @@ class TestMutateVpcInit:
 
             # Mock the reject_client_vpc_connection function
             expected_response = {
-                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
                 'VpcConnectionState': 'REJECTED',
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             }
             mock_reject_client_vpc_connection.return_value = expected_response
 
             # Act
             result = reject_client_vpc_connection_tool(
                 region='us-east-1',
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                vpc_connection_arn='arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             )
 
             # Assert
@@ -226,8 +226,8 @@ class TestMutateVpcInit:
             # Don't check the config object as it's created internally
 
             mock_reject_client_vpc_connection.assert_called_once_with(
-                cluster_arn='arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                vpc_connection_arn='arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+                cluster_arn='arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                vpc_connection_arn='arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
                 client=mock_client,
             )
 

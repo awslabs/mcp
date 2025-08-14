@@ -22,7 +22,7 @@ class TestDockerWithRole(unittest.TestCase):
     ):
         """Test build_and_push_image function with a role ARN."""
         # Mock get_aws_account_id
-        mock_get_aws_account_id.return_value = "123456789012"
+        mock_get_aws_account_id.return_value = "<account-id>"
 
         # Mock get_ecr_login_password
         mock_get_ecr_login_password.return_value = "rolepassword"
@@ -48,8 +48,8 @@ class TestDockerWithRole(unittest.TestCase):
         ]
 
         # Call build_and_push_image with role
-        test_role_arn = "arn:aws:iam::123456789012:role/test-role"
-        repository_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-repo"
+        test_role_arn = "arn:aws:iam::<account-id>:role/test-role"
+        repository_uri = "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-repo"
         app_path = "/path/to/app"
         tag = "1.0.0"
 
@@ -103,7 +103,7 @@ class TestDockerWithRole(unittest.TestCase):
     ):
         """Test build_and_push_image function without a role ARN."""
         # Mock get_aws_account_id
-        mock_get_aws_account_id.return_value = "123456789012"
+        mock_get_aws_account_id.return_value = "<account-id>"
 
         # Mock get_ecr_login_password
         mock_get_ecr_login_password.return_value = "ecrpassword"
@@ -129,7 +129,7 @@ class TestDockerWithRole(unittest.TestCase):
         ]
 
         # Call build_and_push_image without role
-        repository_uri = "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-repo"
+        repository_uri = "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-repo"
         app_path = "/path/to/app"
         tag = "1.0.0"
 

@@ -300,7 +300,7 @@ class TestAwsClientAsync:
     @pytest.mark.anyio
     async def test_get_aws_account_id(self):
         """Test get_aws_account_id function."""
-        expected_account_id = "123456789012"
+        expected_account_id = "<account-id>"
 
         # Create a mock that can be used as an awaitable client
         mock_sts = mock.MagicMock()
@@ -345,7 +345,7 @@ class TestAwsClientAsync:
         # pragma: allowlist secret
         # Set up test data
         # pragma: allowlist secret
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
         mock_credentials = {
             # pragma: allowlist secret
             "Credentials": {
@@ -390,7 +390,7 @@ class TestAwsClientAsync:
     @pytest.mark.anyio
     async def test_assume_ecr_role_error_handling(self):
         """Test error handling in assume_ecr_role function."""
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
 
         # Create a mock STS client that raises an exception
         mock_sts = mock.MagicMock()
@@ -415,7 +415,7 @@ class TestAwsClientAsync:
         # Set up test data
         # pragma: allowlist secret
         service_name = "s3"
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
         mock_credentials = {
             # pragma: allowlist secret
             "aws_access_key_id": "mock-access-key",
@@ -467,7 +467,7 @@ class TestAwsClientAsync:
     async def test_get_aws_client_with_role_default_region(self):
         """Test get_aws_client_with_role with default region when AWS_REGION is not set."""
         service_name = "s3"
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
         mock_credentials = {
             "aws_access_key_id": "mock-access-key",  # pragma: allowlist secret
             "aws_secret_access_key": "mock-secret-key",  # pragma: allowlist secret
@@ -651,7 +651,7 @@ class TestAwsClientAsync:
         """Test create_ecr_repository when repository exists."""
         # Set up test data
         repo_name = "test-repo"
-        repo_uri = "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo"
+        repo_uri = "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-repo"
 
         # Create a mock ECR client
         mock_ecr = mock.MagicMock()
@@ -684,7 +684,7 @@ class TestAwsClientAsync:
         """Test create_ecr_repository when repository does not exist."""
         # Set up test data
         repo_name = "test-repo"
-        repo_uri = "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-repo"
+        repo_uri = "<account-id>.dkr.ecr.us-west-2.amazonaws.com/test-repo"
 
         # Create a mock ECR client
         mock_ecr = mock.MagicMock()
@@ -757,7 +757,7 @@ class TestAwsClientAsync:
         """Test get_ecr_login_password function."""
         # pragma: allowlist secret
         # Set up test data
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
         auth_token = "QVdTOmVjcnBhc3N3b3Jk"  # Base64 encoded "AWS:ecrpassword"
 
         # Mock the necessary functions
@@ -807,7 +807,7 @@ class TestAwsClientAsync:
     async def test_get_ecr_login_password_empty_auth_data(self):
         """Test get_ecr_login_password with empty authorization data."""
         # Set up test data
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
 
         # Mock get_aws_client_with_role
         with mock.patch(
@@ -834,7 +834,7 @@ class TestAwsClientAsync:
     @pytest.mark.anyio
     async def test_get_ecr_login_password_client_error(self):
         """Test get_ecr_login_password with client error."""
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
 
         with mock.patch(
             "awslabs.ecs_mcp_server.utils.aws.get_aws_client_with_role"
@@ -857,7 +857,7 @@ class TestAwsClientAsync:
     @pytest.mark.anyio
     async def test_get_ecr_login_password_malformed_auth_token(self):
         """Test get_ecr_login_password with malformed authorization token."""
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
 
         with (
             mock.patch(
@@ -957,7 +957,7 @@ class TestAwsClientAsync:
     async def test_get_aws_client_with_role_error(self):
         """Test get_aws_client_with_role when assume_ecr_role raises an exception."""
         service_name = "s3"
-        role_arn = "arn:aws:iam::123456789012:role/ecr-role"
+        role_arn = "arn:aws:iam::<account-id>:role/ecr-role"
 
         with mock.patch("awslabs.ecs_mcp_server.utils.aws.assume_ecr_role") as mock_assume_role:
             mock_assume_role.side_effect = Exception("Failed to assume role")

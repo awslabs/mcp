@@ -30,12 +30,12 @@ class TestDescribeVpcConnection:
         # Arrange
         mock_client = MagicMock()
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         expected_response = {
             'VpcConnectionArn': vpc_connection_arn,
             'VpcConnectionState': 'ACTIVE',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'Authentication': {'Sasl': {'Scram': {'Enabled': True}}},
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'VpcId': 'vpc-12345678',
@@ -58,7 +58,7 @@ class TestDescribeVpcConnection:
         assert result['VpcConnectionState'] == 'ACTIVE'
         assert (
             result['ClusterArn']
-            == 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
         assert 'Authentication' in result
         assert 'VpcId' in result
@@ -72,7 +72,7 @@ class TestDescribeVpcConnection:
         # Arrange
         mock_client = MagicMock()
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         mock_client.describe_vpc_connection.side_effect = ClientError(
             {'Error': {'Code': 'NotFoundException', 'Message': 'VPC connection not found'}},
@@ -94,7 +94,7 @@ class TestDescribeVpcConnection:
         """Test the describe_vpc_connection function with a missing client."""
         # Arrange
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
 
         # Act & Assert

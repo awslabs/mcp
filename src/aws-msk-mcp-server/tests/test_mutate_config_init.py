@@ -82,7 +82,7 @@ class TestMutateConfigInit:
 
         # Mock the create_configuration function
         expected_response = {
-            'Arn': 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef',
+            'Arn': 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'LatestRevision': {
                 'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -166,7 +166,7 @@ class TestMutateConfigInit:
         mock_check_mcp_generated_tag.return_value = False
 
         # Act & Assert
-        arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         server_properties = (
             'auto.create.topics.enable=true\ndelete.topic.enable=true\nlog.retention.hours=168'
         )
@@ -235,7 +235,7 @@ class TestMutateConfigInit:
         mock_tag_resource.return_value = expected_response
 
         # Act
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         tags = {'Environment': 'Production', 'Owner': 'DataTeam', 'MCP Generated': 'true'}
 
         result = tag_resource_func(region='us-east-1', resource_arn=resource_arn, tags=tags)
@@ -289,7 +289,7 @@ class TestMutateConfigInit:
         mock_untag_resource.return_value = expected_response
 
         # Act
-        resource_arn = 'arn:aws:kafka:us-east-1:123456789012:configuration/test-config/abcdef'
+        resource_arn = 'arn:aws:kafka:us-east-1:<account-id>:configuration/test-config/abcdef'
         tag_keys = ['Environment', 'Owner']
 
         result = untag_resource_func(

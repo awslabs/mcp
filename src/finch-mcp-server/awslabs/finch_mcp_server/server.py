@@ -384,7 +384,7 @@ async def finch_push_image(
             - message (str): A descriptive message about the result of the operation
 
     Example response:
-        Result(status="success", message="Successfully pushed image 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:abcdef123456 to ECR.")
+        Result(status="success", message="Successfully pushed image <account-id>.dkr.ecr.us-west-2.amazonaws.com/my-repo:abcdef123456 to ECR.")
 
     """
     logger.info('tool-name: finch_push_image')
@@ -467,7 +467,7 @@ async def finch_create_ecr_repo(
 
     Example response:
         Result(status="success", message="Successfully created ECR repository 'my-app'.",
-               repository_uri="123456789012.dkr.ecr.us-west-2.amazonaws.com/my-app",
+               repository_uri="<account-id>.dkr.ecr.us-west-2.amazonaws.com/my-app",
                exists=False)
 
     """

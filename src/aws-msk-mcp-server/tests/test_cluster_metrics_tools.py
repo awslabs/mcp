@@ -126,7 +126,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -230,7 +230,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -322,7 +322,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -409,7 +409,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -474,7 +474,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -538,7 +538,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -607,7 +607,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -669,7 +669,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -721,7 +721,7 @@ class TestClusterMetricsTools:
         """Test the get_cluster_metrics function with a missing client manager."""
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -783,7 +783,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes
@@ -897,7 +897,7 @@ class TestClusterMetricsTools:
 
         # Set up parameters
         region = 'us-east-1'
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         start_time = datetime.now() - timedelta(hours=1)
         end_time = datetime.now()
         period = 300  # 5 minutes

@@ -322,7 +322,7 @@ def test_handle_iam_error_group_policy_attachment():
         error_response={
             'Error': {
                 'Code': 'InvalidInput',
-                'Message': 'Policy arn:aws:iam::123456789012:policy/TestPolicy is not attachable',
+                'Message': 'Policy arn:aws:iam::<account-id>:policy/TestPolicy is not attachable',
             }
         },
         operation_name='AttachGroupPolicy',
@@ -330,7 +330,7 @@ def test_handle_iam_error_group_policy_attachment():
 
     result = handle_iam_error(boto_error)
     assert isinstance(result, IamValidationError)
-    assert 'Policy arn:aws:iam::123456789012:policy/TestPolicy is not attachable' in str(result)
+    assert 'Policy arn:aws:iam::<account-id>:policy/TestPolicy is not attachable' in str(result)
 
 
 def test_handle_iam_error_user_not_in_group():

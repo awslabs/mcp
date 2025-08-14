@@ -109,9 +109,9 @@ def create_sample_task_data(
         started_at = stopped_at - datetime.timedelta(minutes=10)
 
     task_data = {
-        "taskArn": f"arn:aws:ecs:us-west-2:123456789012:task/{cluster_name}/{task_id}",
+        "taskArn": f"arn:aws:ecs:us-west-2:<account-id>:task/{cluster_name}/{task_id}",
         "taskDefinitionArn": f"\
-            arn:aws:ecs:us-west-2:123456789012:task-definition/{task_definition}",
+            arn:aws:ecs:us-west-2:<account-id>:task-definition/{task_definition}",
         "stoppedAt": stopped_at,
         "startedAt": started_at,
         "containers": [],
@@ -230,7 +230,7 @@ def create_sample_stack_data(
     stack_data = {
         "StackName": stack_name,
         "StackId": (
-            f"arn:aws:cloudformation:us-west-2:123456789012:stack/{stack_name}/1234567890123456"
+            f"arn:aws:cloudformation:us-west-2:<account-id>:stack/{stack_name}/<account-id>3456"
         ),
         "CreationTime": creation_time,
         "StackStatus": stack_status,
@@ -336,7 +336,7 @@ def create_sample_stack_event(
     event_data = {
         "StackName": stack_name,
         "StackId": (
-            f"arn:aws:cloudformation:us-west-2:123456789012:stack/{stack_name}/1234567890123456"
+            f"arn:aws:cloudformation:us-west-2:<account-id>:stack/{stack_name}/<account-id>3456"
         ),
         "LogicalResourceId": logical_id,
         "PhysicalResourceId": physical_id,

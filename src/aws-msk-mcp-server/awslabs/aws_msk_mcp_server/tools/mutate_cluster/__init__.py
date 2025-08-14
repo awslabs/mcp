@@ -486,12 +486,12 @@ def register_module(mcp: FastMCP) -> None:
                     "Statement": [
                         {
                             "Effect": "Allow",
-                            "Principal": {"AWS": "arn:aws:iam::123456789012:role/ExampleRole"},
+                            "Principal": {"AWS": "arn:aws:iam::<account-id>:role/ExampleRole"},
                             "Action": [
                                 "kafka:GetBootstrapBrokers",
                                 "kafka:DescribeCluster"
                             ],
-                            "Resource": "arn:aws:kafka:us-east-1:123456789012:cluster/example-cluster/*"
+                            "Resource": "arn:aws:kafka:us-east-1:<account-id>:cluster/example-cluster/*"
                         }
                     ]
                 }

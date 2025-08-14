@@ -333,7 +333,7 @@ class TestAnalyzeLogGroup:
 
     async def test_analyze_log_group(self, ctx, cloudwatch_tools):
         """Test log group analysis."""
-        log_group_arn = 'arn:aws:logs:us-west-2:123456789012:log-group:/aws/test/group1'
+        log_group_arn = 'arn:aws:logs:us-west-2:<account-id>:log-group:/aws/test/group1'
 
         # Mock anomaly detection
         cloudwatch_tools.logs_client.get_paginator = MagicMock()
@@ -344,7 +344,7 @@ class TestAnalyzeLogGroup:
             {
                 'anomalyDetectors': [
                     {
-                        'anomalyDetectorArn': 'arn:aws:logs:us-west-2:123456789012:anomaly-detector:test-detector',
+                        'anomalyDetectorArn': 'arn:aws:logs:us-west-2:<account-id>:anomaly-detector:test-detector',
                         'detectorName': 'test-detector',
                         'anomalyDetectorStatus': 'ACTIVE',
                     }
@@ -395,7 +395,7 @@ class TestAnalyzeLogGroup:
 
     async def test_analyze_log_group_region_parameter(self, ctx, cloudwatch_tools):
         """Test that analyze_log_group passes region parameter to execute_log_insights_query calls."""
-        log_group_arn = 'arn:aws:logs:eu-west-1:123456789012:log-group:/aws/test/group1'
+        log_group_arn = 'arn:aws:logs:eu-west-1:<account-id>:log-group:/aws/test/group1'
 
         # Mock anomaly detection
         cloudwatch_tools.logs_client.get_paginator = MagicMock()

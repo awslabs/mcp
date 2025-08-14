@@ -48,9 +48,9 @@ def parse_arn(arn: str) -> Optional[ParsedArn]:
     Parse an AWS ARN string into structured components.
 
     Examples:
-        - Task Definition: arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1
-        - Cluster: arn:aws:ecs:us-west-2:123456789012:cluster/test-app-cluster
-        - Service: arn:aws:ecs:us-west-2:123456789012:service/test-app-service
+        - Task Definition: arn:aws:ecs:us-west-2:<account-id>:task-definition/test-app:1
+        - Cluster: arn:aws:ecs:us-west-2:<account-id>:cluster/test-app-cluster
+        - Service: arn:aws:ecs:us-west-2:<account-id>:service/test-app-service
 
     Returns:
         ParsedArn object or None if the ARN is invalid

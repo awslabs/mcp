@@ -31,8 +31,8 @@ class TestDescribeClusterOperation:
         mock_client = MagicMock()
         expected_response = {
             'ClusterOperationInfo': {
-                'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
                 'OperationType': 'UPDATE',
                 'OperationState': 'COMPLETED',
                 'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -43,7 +43,7 @@ class TestDescribeClusterOperation:
 
         # Act
         cluster_operation_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation'
+            'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation'
         )
         result = describe_cluster_operation(cluster_operation_arn, mock_client)
 
@@ -69,7 +69,7 @@ class TestDescribeClusterOperation:
 
         # Act & Assert
         cluster_operation_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation'
+            'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation'
         )
         with pytest.raises(ClientError) as excinfo:
             describe_cluster_operation(cluster_operation_arn, mock_client)
@@ -85,7 +85,7 @@ class TestDescribeClusterOperation:
         """Test the describe_cluster_operation function with a missing client."""
         # Act & Assert
         cluster_operation_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation'
+            'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation'
         )
         with pytest.raises(ValueError) as excinfo:
             describe_cluster_operation(cluster_operation_arn, None)

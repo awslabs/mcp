@@ -30,7 +30,7 @@ class TestCreateNamespace:
     async def test_successful_namespace_creation(self):
         """Test successful namespace creation."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         region = 'us-west-2'
         expected_response = {
@@ -60,7 +60,7 @@ class TestCreateNamespace:
     async def test_successful_namespace_creation_with_default_region(self):
         """Test successful namespace creation with default region."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         expected_response = {'namespace': 'test-namespace', 'createdAt': '2023-01-01T00:00:00Z'}
 
@@ -82,7 +82,7 @@ class TestCreateNamespace:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         error_message = 'Namespace already exists'
 
@@ -103,7 +103,7 @@ class TestCreateNamespace:
     async def test_complex_namespace_name(self):
         """Test namespace creation with complex namespace name."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'complex-namespace-name-with-dashes'
         region = 'us-east-1'
 
@@ -131,7 +131,7 @@ class TestDeleteNamespace:
     async def test_successful_namespace_deletion(self):
         """Test successful namespace deletion."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         region = 'us-west-2'
         expected_response = {'status': 'success', 'message': 'Namespace deleted successfully'}
@@ -157,7 +157,7 @@ class TestDeleteNamespace:
     async def test_successful_namespace_deletion_with_default_region(self):
         """Test successful namespace deletion with default region."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         expected_response = {'status': 'success'}
 
@@ -179,7 +179,7 @@ class TestDeleteNamespace:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         error_message = 'Namespace not found'
 
@@ -200,7 +200,7 @@ class TestDeleteNamespace:
     async def test_empty_response_handling(self):
         """Test handling of empty response from delete operation."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         expected_response = {}
 
@@ -225,14 +225,14 @@ class TestGetNamespace:
     async def test_successful_namespace_retrieval(self):
         """Test successful namespace retrieval."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         region = 'us-west-2'
         expected_response = {
             'namespace': 'test-namespace',
             'createdAt': '2023-01-01T00:00:00Z',
             'createdBy': 'test-user',
-            'ownerAccountId': '123456789012',
+            'ownerAccountId': '<account-id>',
             'namespaceId': 'ns-1234567890abcdef',
         }
 
@@ -257,7 +257,7 @@ class TestGetNamespace:
     async def test_successful_namespace_retrieval_with_default_region(self):
         """Test successful namespace retrieval with default region."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         expected_response = {'namespace': 'test-namespace', 'createdAt': '2023-01-01T00:00:00Z'}
 
@@ -279,7 +279,7 @@ class TestGetNamespace:
     async def test_exception_handling(self):
         """Test that exceptions are handled by the decorator."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         error_message = 'Namespace not found'
 
@@ -300,13 +300,13 @@ class TestGetNamespace:
     async def test_complex_namespace_response(self):
         """Test handling of complex namespace response."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         expected_response = {
             'namespace': 'test-namespace',
             'createdAt': '2023-01-01T00:00:00Z',
             'createdBy': 'test-user',
-            'ownerAccountId': '123456789012',
+            'ownerAccountId': '<account-id>',
             'namespaceId': 'ns-1234567890abcdef',
             'tableBucketId': 'tb-1234567890abcdef',
             'additionalMetadata': {
@@ -334,7 +334,7 @@ class TestGetNamespace:
     async def test_empty_response_handling(self):
         """Test handling of empty response from get operation."""
         # Arrange
-        table_bucket_arn = 'arn:aws:s3tables:us-west-2:123456789012:table-bucket/test-bucket'
+        table_bucket_arn = 'arn:aws:s3tables:us-west-2:<account-id>:table-bucket/test-bucket'
         namespace = 'test-namespace'
         expected_response = {}
 

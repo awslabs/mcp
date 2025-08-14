@@ -15,22 +15,22 @@ def mock_lambda_client():
         'Functions': [
             {
                 'FunctionName': 'test-function-1',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
+                'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-1',
                 'Description': 'Test function 1 description',
             },
             {
                 'FunctionName': 'test-function-2',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-2',
+                'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-2',
                 'Description': 'Test function 2 description',
             },
             {
                 'FunctionName': 'prefix-test-function-3',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:prefix-test-function-3',
+                'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:prefix-test-function-3',
                 'Description': 'Test function 3 with prefix',
             },
             {
                 'FunctionName': 'other-function',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:other-function',
+                'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:other-function',
                 'Description': '',  # Empty description
             },
         ]

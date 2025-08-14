@@ -239,7 +239,7 @@ async def test_get_slo_success(mock_aws_clients):
     mock_slo_response = {
         'Slo': {
             'Name': 'test-slo',
-            'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/test-slo',
+            'Arn': 'arn:aws:application-signals:us-east-1:<account-id>:slo/test-slo',
             'Description': 'Test SLO for latency',
             'EvaluationType': 'REQUEST_BASED',
             'CreatedTime': '2024-01-01T00:00:00Z',
@@ -746,7 +746,7 @@ async def test_get_slo_period_based(mock_aws_clients):
     mock_slo_response = {
         'Slo': {
             'Name': 'test-slo-period',
-            'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/test-slo',
+            'Arn': 'arn:aws:application-signals:us-east-1:<account-id>:slo/test-slo',
             'EvaluationType': 'PERIOD_BASED',
             'Sli': {
                 'SliMetric': {
@@ -1468,7 +1468,7 @@ async def test_query_sampled_traces_with_defaults(mock_aws_clients):
                                 'Name': 'test-service',
                                 'Names': ['test-service'],
                                 'Type': 'AWS::ECS::Service',
-                                'AccountId': '123456789012',
+                                'AccountId': '<account-id>',
                                 'EntityPath': [
                                     {'Name': 'test-service', 'Coverage': 1.0, 'Remote': False}
                                 ],

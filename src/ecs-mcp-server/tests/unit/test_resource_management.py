@@ -236,7 +236,7 @@ async def test_ecs_api_operation_describe_task_definition(mock_get_client):
         "taskDefinition": {
             "family": "test-family",
             "revision": 1,
-            "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/test-family:1",
+            "taskDefinitionArn": "arn:aws:ecs:us-west-2:<account-id>:task-definition/test-family:1",
         }
     }
     mock_get_client.return_value = mock_ecs
@@ -329,7 +329,7 @@ async def test_ecs_api_operation_describe_capacity_providers(mock_get_client):
         "capacityProviders": [
             {
                 "capacityProviderArn": (
-                    "arn:aws:ecs:us-east-1:123456789012:capacity-provider/FARGATE"
+                    "arn:aws:ecs:us-east-1:<account-id>:capacity-provider/FARGATE"
                 ),
                 "name": "FARGATE",
                 "status": "ACTIVE",

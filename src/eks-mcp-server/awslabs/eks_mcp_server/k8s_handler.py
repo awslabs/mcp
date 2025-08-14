@@ -650,7 +650,7 @@ class K8sHandler:
         ),
         image_uri: str = Field(
             ...,
-            description="""Full ECR image URI with tag (e.g., 123456789012.dkr.ecr.region.amazonaws.com/repo:tag).
+            description="""Full ECR image URI with tag (e.g., <account-id>.dkr.ecr.region.amazonaws.com/repo:tag).
             Must include the full repository path and tag.""",
         ),
         output_dir: str = Field(

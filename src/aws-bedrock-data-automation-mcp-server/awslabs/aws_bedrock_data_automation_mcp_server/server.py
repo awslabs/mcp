@@ -99,7 +99,7 @@ async def get_project_details_tool(
     ```python
     # Get details for a specific project
     project_details = await getprojectdetails(
-        projectArn='arn:aws:bedrock:us-west-2:123456789012:data-automation-project/my-project'
+        projectArn='arn:aws:bedrock:us-west-2:<account-id>:data-automation-project/my-project'
     )
     ```
 
@@ -161,7 +161,7 @@ async def analyze_asset_tool(
     # Analyze an image using a specific project
     results = await analyzeasset(
         assetPath='/path/to/image.jpg',
-        projectArn='arn:aws:bedrock:us-west-2:123456789012:data-automation-project/my-project',
+        projectArn='arn:aws:bedrock:us-west-2:<account-id>:data-automation-project/my-project',
     )
     ```
 

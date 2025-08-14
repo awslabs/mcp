@@ -82,13 +82,13 @@ def register_module(mcp: FastMCP) -> None:
 
         Examples:
             # Get basic configuration information
-            get_configuration_info(action="describe", arn="arn:aws:kafka:us-east-1:123456789012:configuration/example-config")
+            get_configuration_info(action="describe", arn="arn:aws:kafka:us-east-1:<account-id>:configuration/example-config")
 
             # List all revisions for a configuration
-            get_configuration_info(action="revisions", arn="arn:aws:kafka:us-east-1:123456789012:configuration/example-config", max_results=20)
+            get_configuration_info(action="revisions", arn="arn:aws:kafka:us-east-1:<account-id>:configuration/example-config", max_results=20)
 
             # Get details about a specific revision
-            get_configuration_info(action="revision_details", arn="arn:aws:kafka:us-east-1:123456789012:configuration/example-config", revision=3)
+            get_configuration_info(action="revision_details", arn="arn:aws:kafka:us-east-1:<account-id>:configuration/example-config", revision=3)
         """
         # Create a boto3 client
         client = boto3.client(

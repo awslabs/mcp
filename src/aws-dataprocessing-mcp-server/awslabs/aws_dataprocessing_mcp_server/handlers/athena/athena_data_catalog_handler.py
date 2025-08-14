@@ -162,7 +162,7 @@ class AthenaDataCatalogHandler:
             'name': 'my-glue-catalog',
             'type': 'GLUE',
             'description': 'My Glue Data Catalog',
-            'parameters': {'catalog-id': '123456789012'},
+            'parameters': {'catalog-id': '<account-id>'},
         }
         ```
 

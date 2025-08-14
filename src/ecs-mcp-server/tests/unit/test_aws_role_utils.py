@@ -33,7 +33,7 @@ class TestAWSRoleUtils(unittest.TestCase):
         mock_get_client.return_value = mock_sts
 
         # Call assume_ecr_role
-        test_role_arn = "arn:aws:iam::123456789012:role/test-role"
+        test_role_arn = "arn:aws:iam::<account-id>:role/test-role"
         credentials = await assume_ecr_role(test_role_arn)
 
         # Verify get_aws_client was called with the correct parameters
@@ -67,7 +67,7 @@ class TestAWSRoleUtils(unittest.TestCase):
         mock_boto_client.return_value = mock_client
 
         # Call get_aws_client_with_role
-        test_role_arn = "arn:aws:iam::123456789012:role/test-role"
+        test_role_arn = "arn:aws:iam::<account-id>:role/test-role"
         client = await get_aws_client_with_role("ecr", test_role_arn)
 
         # Verify assume_ecr_role was called with the correct parameters
@@ -106,7 +106,7 @@ class TestAWSRoleUtils(unittest.TestCase):
         mock_b64decode.return_value = b"AWS:rolepassword"
 
         # Call get_ecr_login_password with role
-        test_role_arn = "arn:aws:iam::123456789012:role/test-role"
+        test_role_arn = "arn:aws:iam::<account-id>:role/test-role"
         password = await get_ecr_login_password(test_role_arn)
 
         # Verify get_aws_client_with_role was called with the correct parameters

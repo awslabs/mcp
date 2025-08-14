@@ -153,7 +153,7 @@ class CrawlerHandler:
             'operation': 'create-crawler',
             'crawler_name': 'my-s3-data-crawler',
             'crawler_definition': {
-                'Role': 'arn:aws:iam::123456789012:role/GlueServiceRole',
+                'Role': 'arn:aws:iam::<account-id>:role/GlueServiceRole',
                 'Targets': {'S3Targets': [{'Path': 's3://my-bucket/data/'}]},
                 'DatabaseName': 'my_catalog_db',
                 'Description': 'Crawler for S3 data files',

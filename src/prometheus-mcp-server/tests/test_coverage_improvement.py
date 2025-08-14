@@ -32,8 +32,8 @@ class TestCoverageImprovement:
     def test_extract_workspace_id_from_url(self):
         """Test extract_workspace_id_from_url function."""
         # Test with valid URL
-        url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-123456789012'
-        assert extract_workspace_id_from_url(url) == 'ws-12345678-abcd-1234-efgh-123456789012'
+        url = 'https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-12345678-abcd-1234-efgh-<account-id>'
+        assert extract_workspace_id_from_url(url) == 'ws-12345678-abcd-1234-efgh-<account-id>'
 
         # Test with URL without workspace ID
         url = 'https://aps-workspaces.us-east-1.amazonaws.com/api/v1/query'
@@ -126,7 +126,7 @@ class TestCoverageImprovement:
         mock_session.get_credentials.return_value = mock_credentials
         mock_session.client.return_value = mock_sts_client
         mock_sts_client.get_caller_identity.return_value = {
-            'Arn': 'arn:aws:iam::123456789012:user/test-user'
+            'Arn': 'arn:aws:iam::<account-id>:user/test-user'
         }
 
     @pytest.mark.asyncio

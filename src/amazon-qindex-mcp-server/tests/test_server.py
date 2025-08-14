@@ -60,7 +60,7 @@ class TestAuthorizeQIndex:
         'idc_region': 'us-west-2',
         'isv_redirect_url': 'https://example.com/callback',
         'oauth_state': 'random_state_123',
-        'idc_application_arn': 'arn:aws:idc::123456789012:application/abcd1234',
+        'idc_application_arn': 'arn:aws:idc::<account-id>:application/abcd1234',
     }
 
     @pytest.mark.asyncio
@@ -89,11 +89,11 @@ class TestCreateTokenWithIAM:
     """Tests for the create_token_with_iam MCP tool."""
 
     TEST_DATA = {
-        'idc_application_arn': 'arn:aws:idc::123456789012:application/abcd1234',
+        'idc_application_arn': 'arn:aws:idc::<account-id>:application/abcd1234',
         'redirect_uri': 'https://example.com/callback',
         'code': 'test_auth_code',
         'idc_region': 'us-west-2',
-        'role_arn': 'arn:aws:iam::123456789012:role/test-role',
+        'role_arn': 'arn:aws:iam::<account-id>:role/test-role',
     }
 
     MOCK_TOKEN_RESPONSE = {
@@ -304,7 +304,7 @@ class TestAssumeRoleWithIdentityContext:
     """Tests for the assume_role_with_identity_context MCP tool."""
 
     TEST_DATA = {
-        'role_arn': 'arn:aws:iam::123456789012:role/test-role',
+        'role_arn': 'arn:aws:iam::<account-id>:role/test-role',
         'identity_context': 'test-context',
         'idc_region': 'us-west-2',
         'role_session_name': 'test-session',

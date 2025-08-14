@@ -88,7 +88,7 @@ async def test_build_and_push_image_dockerfile_not_found(
     mock_join.return_value = "/path/to/app/Dockerfile"
     mock_exists.return_value = False
     # Skip the AWS account ID call that fails
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
 
     with pytest.raises(FileNotFoundError) as excinfo:
         await build_and_push_image(
@@ -122,7 +122,7 @@ async def test_build_and_push_image_docker_login_failure(
     """Test build_and_push_image when docker login fails."""
     # Set up mocks
     mock_exists.return_value = True
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
     mock_get_ecr_login.return_value = "test-password"
     mock_env_get.side_effect = (
         lambda key, default: "us-west-2" if key == "AWS_REGION" else "default"
@@ -164,7 +164,7 @@ async def test_build_and_push_image_docker_buildx_failure_fallback_success(
     """Test build_and_push_image when docker buildx fails but regular build succeeds."""
     # Set up mocks
     mock_exists.return_value = True
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
     mock_get_ecr_login.return_value = "test-password"
     mock_env_get.side_effect = (
         lambda key, default: "us-west-2" if key == "AWS_REGION" else "default"
@@ -226,7 +226,7 @@ async def test_build_and_push_image_docker_build_failure(
     """Test build_and_push_image when both docker buildx and regular build fail."""
     # Set up mocks
     mock_exists.return_value = True
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
     mock_get_ecr_login.return_value = "test-password"
     mock_env_get.side_effect = (
         lambda key, default: "us-west-2" if key == "AWS_REGION" else "default"
@@ -273,7 +273,7 @@ async def test_build_and_push_image_docker_push_failure(
     """Test build_and_push_image when docker push fails."""
     # Set up mocks
     mock_exists.return_value = True
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
     mock_get_ecr_login.return_value = "test-password"
     mock_env_get.side_effect = (
         lambda key, default: "us-west-2" if key == "AWS_REGION" else "default"
@@ -330,7 +330,7 @@ async def test_build_and_push_image_auto_tag_generation(
     """Test build_and_push_image with automatic tag generation."""
     # Set up mocks
     mock_exists.return_value = True
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
     mock_get_ecr_login.return_value = "test-password"
     mock_env_get.side_effect = (
         lambda key, default: "us-west-2" if key == "AWS_REGION" else "default"
@@ -372,7 +372,7 @@ async def test_build_and_push_image_verification_failure(
     """Test build_and_push_image when verification fails."""
     # Set up mocks
     mock_exists.return_value = True
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
     mock_get_ecr_login.return_value = "test-password"
     mock_env_get.side_effect = (
         lambda key, default: "us-west-2" if key == "AWS_REGION" else "default"
@@ -420,7 +420,7 @@ async def test_build_and_push_image_verification_command_failure(
     """Test build_and_push_image when verification command fails."""
     # Set up mocks
     mock_exists.return_value = True
-    mock_get_aws_account_id.return_value = "123456789012"
+    mock_get_aws_account_id.return_value = "<account-id>"
     mock_get_ecr_login.return_value = "test-password"
     mock_env_get.side_effect = (
         lambda key, default: "us-west-2" if key == "AWS_REGION" else "default"

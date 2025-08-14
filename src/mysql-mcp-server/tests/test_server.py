@@ -683,9 +683,9 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
         [
             'server.py',
             '--resource_arn',
-            'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
+            'arn:aws:rds:us-west-2:<account-id>:cluster:example-cluster-name',
             '--secret_arn',
-            'arn:aws:secretsmanager:us-west-2:123456789012:secret:my-secret-name-abc123',
+            'arn:aws:secretsmanager:us-west-2:<account-id>:secret:my-secret-name-abc123',
             '--database',
             'mysql',
             '--region',

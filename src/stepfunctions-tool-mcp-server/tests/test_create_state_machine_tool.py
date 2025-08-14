@@ -36,7 +36,7 @@ class TestCreateTool:
         # Call the function
         create_state_machine_tool(
             state_machine_name,
-            'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine',
             'STANDARD',
             description,
         )
@@ -60,7 +60,7 @@ class TestCreateTool:
         # Call the function
         create_state_machine_tool(
             state_machine_name,
-            'arn:aws:states:us-east-1:123456789012:stateMachine:prefix-test-state-machine',
+            'arn:aws:states:us-east-1:<account-id>:stateMachine:prefix-test-state-machine',
             'STANDARD',
             description,
         )
@@ -74,9 +74,9 @@ class TestCreateTool:
         """Test creating tool with valid schema."""
         # Set up test data
         state_machine_name = 'test-state-machine'
-        state_machine_arn = 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine'
+        state_machine_arn = 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine'
         description = 'Test state machine description'
-        schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry/schema'
+        schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry/schema'
         schema_content = {'type': 'object', 'properties': {'test': {'type': 'string'}}}
         mock_decorator = MagicMock()
         mock_mcp.tool.return_value = mock_decorator
@@ -100,9 +100,9 @@ class TestCreateTool:
         """Test tool creation when schema fetch fails."""
         # Set up test data
         state_machine_name = 'test-state-machine'
-        state_machine_arn = 'arn:aws:states:us-east-1:123456789012:stateMachine:test-state-machine'
+        state_machine_arn = 'arn:aws:states:us-east-1:<account-id>:stateMachine:test-state-machine'
         description = 'Test state machine description'
-        schema_arn = 'arn:aws:schemas:us-east-1:123456789012:schema/registry/schema'
+        schema_arn = 'arn:aws:schemas:us-east-1:<account-id>:schema/registry/schema'
         mock_decorator = MagicMock()
         mock_mcp.tool.return_value = mock_decorator
         mock_get_schema.return_value = None
@@ -130,7 +130,7 @@ class TestCreateTool:
         # Set up test data
         state_machine_name = 'test-standard-machine'
         state_machine_arn = (
-            f'arn:aws:states:us-east-1:123456789012:stateMachine:{state_machine_name}'
+            f'arn:aws:states:us-east-1:<account-id>:stateMachine:{state_machine_name}'
         )
         description = 'Test standard state machine'
         mock_decorator = MagicMock()
@@ -161,7 +161,7 @@ class TestCreateTool:
         # Set up test data
         state_machine_name = 'test-express-machine'
         state_machine_arn = (
-            f'arn:aws:states:us-east-1:123456789012:stateMachine:{state_machine_name}'
+            f'arn:aws:states:us-east-1:<account-id>:stateMachine:{state_machine_name}'
         )
         description = 'Test express state machine'
         mock_decorator = MagicMock()

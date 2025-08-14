@@ -28,16 +28,16 @@ class TestCreateVpcConnection:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'CREATING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'VpcId': 'vpc-12345678',
         }
         mock_client.create_vpc_connection.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_id = 'vpc-12345678'
         subnet_ids = ['subnet-12345678', 'subnet-23456789', 'subnet-34567890']
         security_groups = ['sg-12345678']
@@ -55,12 +55,12 @@ class TestCreateVpcConnection:
         assert result == expected_response
         assert (
             result['VpcConnectionArn']
-            == 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         assert result['VpcConnectionState'] == 'CREATING'
         assert (
             result['ClusterArn']
-            == 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
         assert result['VpcId'] == 'vpc-12345678'
 
@@ -69,9 +69,9 @@ class TestCreateVpcConnection:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'CREATING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'Authentication': {'Type': 'IAM'},
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'VpcId': 'vpc-12345678',
@@ -79,7 +79,7 @@ class TestCreateVpcConnection:
         mock_client.create_vpc_connection.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_id = 'vpc-12345678'
         subnet_ids = ['subnet-12345678', 'subnet-23456789', 'subnet-34567890']
         security_groups = ['sg-12345678']
@@ -104,9 +104,9 @@ class TestCreateVpcConnection:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'CREATING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'VpcId': 'vpc-12345678',
             'ClientSubnets': ['subnet-45678901', 'subnet-56789012'],
@@ -114,7 +114,7 @@ class TestCreateVpcConnection:
         mock_client.create_vpc_connection.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_id = 'vpc-12345678'
         subnet_ids = ['subnet-12345678', 'subnet-23456789', 'subnet-34567890']
         security_groups = ['sg-12345678']
@@ -144,9 +144,9 @@ class TestCreateVpcConnection:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'CREATING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'VpcId': 'vpc-12345678',
             'Tags': {'Environment': 'Production', 'Owner': 'DataTeam'},
@@ -154,7 +154,7 @@ class TestCreateVpcConnection:
         mock_client.create_vpc_connection.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_id = 'vpc-12345678'
         subnet_ids = ['subnet-12345678', 'subnet-23456789', 'subnet-34567890']
         security_groups = ['sg-12345678']
@@ -179,9 +179,9 @@ class TestCreateVpcConnection:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'CREATING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
             'Authentication': {'Type': 'IAM'},
             'CreationTime': '2025-06-20T10:00:00.000Z',
             'VpcId': 'vpc-12345678',
@@ -191,7 +191,7 @@ class TestCreateVpcConnection:
         mock_client.create_vpc_connection.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_id = 'vpc-12345678'
         subnet_ids = ['subnet-12345678', 'subnet-23456789', 'subnet-34567890']
         security_groups = ['sg-12345678']
@@ -234,7 +234,7 @@ class TestCreateVpcConnection:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_id = 'vpc-12345678'
         subnet_ids = ['subnet-12345678', 'subnet-23456789', 'subnet-34567890']
         security_groups = ['sg-12345678']
@@ -254,7 +254,7 @@ class TestCreateVpcConnection:
     def test_create_vpc_connection_missing_client(self):
         """Test the create_vpc_connection function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         vpc_id = 'vpc-12345678'
         subnet_ids = ['subnet-12345678', 'subnet-23456789', 'subnet-34567890']
         security_groups = ['sg-12345678']

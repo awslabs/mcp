@@ -456,7 +456,7 @@ class TestErrorHandlingCoverage:
 
         with pytest.raises(Exception):  # Will be handled by handle_iam_error
             await get_managed_policy_document(
-                policy_arn='arn:aws:iam::123456789012:policy/NonExistentPolicy'
+                policy_arn='arn:aws:iam::<account-id>:policy/NonExistentPolicy'
             )
 
     @patch('awslabs.iam_mcp_server.server.get_iam_client')

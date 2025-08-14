@@ -33,9 +33,9 @@ class TestGetClusterPolicy:
             'Statement': [
                 {
                     'Effect': 'Allow',
-                    'Principal': {'AWS': 'arn:aws:iam::123456789012:role/ExampleRole'},
+                    'Principal': {'AWS': 'arn:aws:iam::<account-id>:role/ExampleRole'},
                     'Action': ['kafka:GetBootstrapBrokers', 'kafka:DescribeCluster'],
-                    'Resource': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/*',
+                    'Resource': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/*',
                 }
             ],
         }
@@ -43,7 +43,7 @@ class TestGetClusterPolicy:
         mock_client.get_cluster_policy.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = get_cluster_policy(cluster_arn, mock_client)
 
         # Assert
@@ -57,7 +57,7 @@ class TestGetClusterPolicy:
         assert parsed_policy['Statement'][0]['Effect'] == 'Allow'
         assert (
             parsed_policy['Statement'][0]['Principal']['AWS']
-            == 'arn:aws:iam::123456789012:role/ExampleRole'
+            == 'arn:aws:iam::<account-id>:role/ExampleRole'
         )
         assert 'kafka:GetBootstrapBrokers' in parsed_policy['Statement'][0]['Action']
         assert 'kafka:DescribeCluster' in parsed_policy['Statement'][0]['Action']
@@ -72,7 +72,7 @@ class TestGetClusterPolicy:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             get_cluster_policy(cluster_arn, mock_client)
 
@@ -84,7 +84,7 @@ class TestGetClusterPolicy:
     def test_get_cluster_policy_missing_client(self):
         """Test the get_cluster_policy function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             get_cluster_policy(cluster_arn, None)
 
@@ -99,7 +99,7 @@ class TestGetClusterPolicy:
         mock_client.get_cluster_policy.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = get_cluster_policy(cluster_arn, mock_client)
 
         # Assert

@@ -60,15 +60,15 @@ class TestDeleteVpcConnection:
         # Arrange
         mock_client = MagicMock()
         expected_response = {
-            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef',
+            'VpcConnectionArn': 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef',
             'VpcConnectionState': 'DELETING',
-            'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
+            'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
         }
         mock_client.delete_vpc_connection.return_value = expected_response
 
         # Act
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         result = delete_vpc_connection(vpc_connection_arn, mock_client)
 
@@ -79,12 +79,12 @@ class TestDeleteVpcConnection:
         assert result == expected_response
         assert (
             result['VpcConnectionArn']
-            == 'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         assert result['VpcConnectionState'] == 'DELETING'
         assert (
             result['ClusterArn']
-            == 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+            == 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         )
 
     def test_delete_vpc_connection_error(self):
@@ -103,7 +103,7 @@ class TestDeleteVpcConnection:
 
         # Act & Assert
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         with pytest.raises(ClientError) as excinfo:
             delete_vpc_connection(vpc_connection_arn, mock_client)
@@ -119,7 +119,7 @@ class TestDeleteVpcConnection:
         """Test the delete_vpc_connection function with a missing client."""
         # Act & Assert
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
         with pytest.raises(ValueError) as excinfo:
             delete_vpc_connection(vpc_connection_arn, None)
@@ -133,7 +133,7 @@ class TestDeleteVpcConnection:
         mock_client = MagicMock()
 
         vpc_connection_arn = (
-            'arn:aws:kafka:us-east-1:123456789012:vpc-connection/test-cluster/abcdef'
+            'arn:aws:kafka:us-east-1:<account-id>:vpc-connection/test-cluster/abcdef'
         )
 
         # Use context managers for patching

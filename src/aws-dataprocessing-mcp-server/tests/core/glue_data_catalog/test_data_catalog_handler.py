@@ -79,7 +79,7 @@ class TestDataCatalogManager:
                 'PASSWORD': 'test-password',  # pragma: allowlist secret
             },
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         tags = {'tag1': 'value1', 'tag2': 'value2'}
 
         # Mock the AWS helper prepare_resource_tags method
@@ -172,7 +172,7 @@ class TestDataCatalogManager:
         """Test that delete_connection returns a successful response when the Glue API call succeeds."""
         # Setup
         connection_name = 'test-connection'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_connection response to indicate the connection is MCP managed
         mock_glue_client.get_connection.return_value = {
@@ -191,7 +191,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -236,7 +236,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -258,7 +258,7 @@ class TestDataCatalogManager:
         """Test that get_connection returns a successful response when the Glue API call succeeds."""
         # Setup
         connection_name = 'test-connection'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         connection_type = 'JDBC'
         connection_properties = {
             'JDBC_CONNECTION_URL': 'jdbc:mysql://localhost:3306/test',
@@ -311,7 +311,7 @@ class TestDataCatalogManager:
     async def test_list_connections_success(self, manager, mock_ctx, mock_glue_client):
         """Test that list_connections returns a successful response when the Glue API call succeeds."""
         # Setup
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         filter_dict = {'ConnectionType': 'JDBC'}
         hide_password = True
         next_token = 'next-token'
@@ -403,7 +403,7 @@ class TestDataCatalogManager:
                 'Location': 's3://test-bucket/test-db/test-table/year=2023/month=01/day=01/'
             }
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the AWS helper prepare_resource_tags method
         with patch(
@@ -456,7 +456,7 @@ class TestDataCatalogManager:
         database_name = 'test-db'
         table_name = 'test-table'
         partition_values = ['2023', '01', '01']
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         creation_time = datetime(2023, 1, 1, 0, 0, 0)
         last_access_time = datetime(2023, 1, 2, 0, 0, 0)
 
@@ -520,7 +520,7 @@ class TestDataCatalogManager:
         table_name = 'test-table'
         max_results = 10
         expression = "year='2023'"
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_partitions response
         creation_time = datetime(2023, 1, 1, 0, 0, 0)
@@ -791,7 +791,7 @@ class TestDataCatalogManager:
                 'PASSWORD': 'test-password-updated',  # pragma: allowlist secret
             },
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_connection response to indicate the connection is MCP managed
         mock_glue_client.get_connection.return_value = {
@@ -812,7 +812,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -884,7 +884,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -910,7 +910,7 @@ class TestDataCatalogManager:
         database_name = 'test-db'
         table_name = 'test-table'
         partition_values = ['2023', '01', '01']
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_partition response to indicate the partition is MCP managed
         mock_glue_client.get_partition.return_value = {
@@ -934,7 +934,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -979,7 +979,7 @@ class TestDataCatalogManager:
                 'Location': 's3://test-bucket/test-db/test-table/year=2023/month=01/day=01/'
             }
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_partition response to indicate the partition is MCP managed
         mock_glue_client.get_partition.return_value = {
@@ -1003,7 +1003,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -1072,7 +1072,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -1112,7 +1112,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -1181,7 +1181,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Mock the Glue client to raise an exception
@@ -1303,7 +1303,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -1383,7 +1383,7 @@ class TestDataCatalogManager:
                 'Location': 's3://test-bucket/test-db/test-table/year=2023/month=01/day=01/'
             }
         }
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_partition response to indicate the partition is MCP managed
         mock_glue_client.get_partition.return_value = {
@@ -1407,7 +1407,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Mock the Glue client to raise an exception
@@ -1469,7 +1469,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -1537,7 +1537,7 @@ class TestDataCatalogManager:
         database_name = 'test-db'
         table_name = 'test-table'
         partition_values = ['2023', '01', '01']
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_partition response to indicate the partition is MCP managed
         mock_glue_client.get_partition.return_value = {
@@ -1561,7 +1561,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Mock the Glue client to raise an exception
@@ -1597,7 +1597,7 @@ class TestDataCatalogManager:
         """Test that get_connection returns an error response when the Glue API call fails."""
         # Setup
         connection_name = 'test-connection'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the Glue client to raise an exception
         error_response = {
@@ -1625,7 +1625,7 @@ class TestDataCatalogManager:
         """Test that get_connection handles all optional parameters correctly."""
         # Setup
         connection_name = 'test-connection'
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         hide_password = True
         apply_override_for_compute_environment = 'test-env'
 
@@ -1668,7 +1668,7 @@ class TestDataCatalogManager:
     async def test_list_connections_error(self, manager, mock_ctx, mock_glue_client):
         """Test that list_connections returns an error response when the Glue API call fails."""
         # Setup
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the Glue client to raise an exception
         error_response = {
@@ -1694,7 +1694,7 @@ class TestDataCatalogManager:
     async def test_list_connections_empty_result(self, manager, mock_ctx, mock_glue_client):
         """Test that list_connections handles empty results correctly."""
         # Setup
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the get_connections response with empty list
         mock_glue_client.get_connections.return_value = {'ConnectionList': []}
@@ -1765,7 +1765,7 @@ class TestDataCatalogManager:
         database_name = 'test-db'
         table_name = 'test-table'
         partition_values = ['2023', '01', '01']
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
 
         # Mock the Glue client to raise an exception
         error_response = {
@@ -1858,7 +1858,7 @@ class TestDataCatalogManager:
         table_name = 'test-table'
         max_results = 10
         expression = "year='2023'"
-        catalog_id = '123456789012'
+        catalog_id = '<account-id>'
         segment = {'SegmentNumber': 0, 'TotalSegments': 1}
         exclude_column_schema = True
         transaction_id = 'test-transaction-id'
@@ -2033,7 +2033,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -2092,7 +2092,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method
@@ -2154,7 +2154,7 @@ class TestDataCatalogManager:
             ),
             patch(
                 'awslabs.aws_dataprocessing_mcp_server.utils.aws_helper.AwsHelper.get_aws_account_id',
-                return_value='123456789012',
+                return_value='<account-id>',
             ),
         ):
             # Call the method

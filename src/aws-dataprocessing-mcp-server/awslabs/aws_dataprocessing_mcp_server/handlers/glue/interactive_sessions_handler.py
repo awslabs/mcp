@@ -199,7 +199,7 @@ class GlueInteractiveSessionsHandler:
         {
             'operation': 'create-session',
             'session_id': 'my-spark-session',
-            'role': 'arn:aws:iam::123456789012:role/GlueInteractiveSessionRole',
+            'role': 'arn:aws:iam::<account-id>:role/GlueInteractiveSessionRole',
             'command': {'Name': 'glueetl', 'PythonVersion': '3'},
             'glue_version': '3.0',
         }

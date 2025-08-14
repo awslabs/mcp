@@ -1198,7 +1198,7 @@ class TestGetPriceListUrls:
         pricing_client.list_price_lists.return_value = {
             'PriceLists': [
                 {
-                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonEC2',
+                    'PriceListArn': 'arn:aws:pricing::<account-id>:price-list/AmazonEC2',
                     'FileFormats': ['CSV', 'JSON'],
                 }
             ]
@@ -1231,10 +1231,10 @@ class TestGetPriceListUrls:
         # Verify get_price_list_file_url was called for each format
         assert pricing_client.get_price_list_file_url.call_count == 2
         pricing_client.get_price_list_file_url.assert_any_call(
-            PriceListArn='arn:aws:pricing::123456789012:price-list/AmazonEC2', FileFormat='CSV'
+            PriceListArn='arn:aws:pricing::<account-id>:price-list/AmazonEC2', FileFormat='CSV'
         )
         pricing_client.get_price_list_file_url.assert_any_call(
-            PriceListArn='arn:aws:pricing::123456789012:price-list/AmazonEC2', FileFormat='JSON'
+            PriceListArn='arn:aws:pricing::<account-id>:price-list/AmazonEC2', FileFormat='JSON'
         )
 
     @pytest.mark.asyncio
@@ -1245,7 +1245,7 @@ class TestGetPriceListUrls:
         pricing_client.list_price_lists.return_value = {
             'PriceLists': [
                 {
-                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonS3',
+                    'PriceListArn': 'arn:aws:pricing::<account-id>:price-list/AmazonS3',
                     'FileFormats': ['CSV'],
                 }
             ]
@@ -1271,7 +1271,7 @@ class TestGetPriceListUrls:
         pricing_client.list_price_lists.return_value = {
             'PriceLists': [
                 {
-                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonEC2',
+                    'PriceListArn': 'arn:aws:pricing::<account-id>:price-list/AmazonEC2',
                     'FileFormats': ['CSV', 'JSON'],
                 }
             ]
@@ -1290,7 +1290,7 @@ class TestGetPriceListUrls:
         assert result['status'] == 'error'
         assert result['error_type'] == 'format_url_failed'
         assert 'Failed to get download URL for format "JSON"' in result['message']
-        assert result['price_list_arn'] == 'arn:aws:pricing::123456789012:price-list/AmazonEC2'
+        assert result['price_list_arn'] == 'arn:aws:pricing::<account-id>:price-list/AmazonEC2'
         assert result['file_format'] == 'json'
 
         # Verify error was logged
@@ -1319,7 +1319,7 @@ class TestGetPriceListUrls:
         pricing_client.list_price_lists.return_value = {
             'PriceLists': [
                 {
-                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonEC2',
+                    'PriceListArn': 'arn:aws:pricing::<account-id>:price-list/AmazonEC2',
                     'FileFormats': ['CSV'],  # Only CSV supported
                 }
             ]
@@ -1361,7 +1361,7 @@ class TestGetPriceListUrls:
         pricing_client.list_price_lists.return_value = {
             'PriceLists': [
                 {
-                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonEC2',
+                    'PriceListArn': 'arn:aws:pricing::<account-id>:price-list/AmazonEC2',
                     'FileFormats': ['CSV'],
                 }
             ]
@@ -1375,7 +1375,7 @@ class TestGetPriceListUrls:
         assert result['status'] == 'error'
         assert result['error_type'] == 'format_url_failed'
         assert 'Failed to get download URL for format "CSV"' in result['message']
-        assert result['price_list_arn'] == 'arn:aws:pricing::123456789012:price-list/AmazonEC2'
+        assert result['price_list_arn'] == 'arn:aws:pricing::<account-id>:price-list/AmazonEC2'
         assert result['file_format'] == 'csv'
         mock_context.error.assert_called()
 
@@ -1387,7 +1387,7 @@ class TestGetPriceListUrls:
         pricing_client.list_price_lists.return_value = {
             'PriceLists': [
                 {
-                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonEC2',
+                    'PriceListArn': 'arn:aws:pricing::<account-id>:price-list/AmazonEC2',
                     'FileFormats': ['CSV'],
                 }
             ]
@@ -1401,7 +1401,7 @@ class TestGetPriceListUrls:
         assert result['status'] == 'error'
         assert result['error_type'] == 'empty_url_response'
         assert 'AWS API returned empty URL for format "CSV"' in result['message']
-        assert result['price_list_arn'] == 'arn:aws:pricing::123456789012:price-list/AmazonEC2'
+        assert result['price_list_arn'] == 'arn:aws:pricing::<account-id>:price-list/AmazonEC2'
         assert result['file_format'] == 'csv'
         mock_context.error.assert_called()
 
@@ -1426,7 +1426,7 @@ class TestGetPriceListUrls:
         pricing_client.list_price_lists.return_value = {
             'PriceLists': [
                 {
-                    'PriceListArn': 'arn:aws:pricing::123456789012:price-list/AmazonEC2',
+                    'PriceListArn': 'arn:aws:pricing::<account-id>:price-list/AmazonEC2',
                     'FileFormats': [],  # Empty list of formats
                 }
             ]
@@ -1440,5 +1440,5 @@ class TestGetPriceListUrls:
         assert 'no file formats are available for service "AmazonEC2"' in result['message']
         assert result['service_code'] == 'AmazonEC2'
         assert result['region'] == 'us-east-1'
-        assert result['price_list_arn'] == 'arn:aws:pricing::123456789012:price-list/AmazonEC2'
+        assert result['price_list_arn'] == 'arn:aws:pricing::<account-id>:price-list/AmazonEC2'
         mock_context.error.assert_called()

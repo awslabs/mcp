@@ -10,9 +10,9 @@ def get_pages():
         'Functions': [
             {
                 'FunctionName': 'my-function-1',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:my-function-1',
+                'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:my-function-1',
                 'Runtime': 'nodejs20.x',
-                'Role': 'arn:aws:iam::123456789012:role/some-role',
+                'Role': 'arn:aws:iam::<account-id>:role/some-role',
                 'Handler': 'index.handler',
                 'CodeSize': 194,
                 'Description': '',
@@ -29,9 +29,9 @@ def get_pages():
         'Functions': [
             {
                 'FunctionName': 'my-function-2',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:my-function-2',
+                'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:my-function-2',
                 'Runtime': 'nodejs20.x',
-                'Role': 'arn:aws:iam::123456789012:role/some-role',
+                'Role': 'arn:aws:iam::<account-id>:role/some-role',
                 'Handler': 'index.handler',
                 'CodeSize': 194,
                 'Description': '',

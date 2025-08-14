@@ -32,8 +32,8 @@ class TestListClusterOperations:
         expected_response = {
             'ClusterOperationInfoList': [
                 {
-                    'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                    'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                    'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                    'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
                     'OperationType': 'UPDATE',
                     'OperationState': 'COMPLETED',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -44,7 +44,7 @@ class TestListClusterOperations:
         mock_client.list_cluster_operations_v2.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_cluster_operations(cluster_arn, mock_client)
 
         # Assert
@@ -64,8 +64,8 @@ class TestListClusterOperations:
         expected_response = {
             'ClusterOperationInfoList': [
                 {
-                    'ClusterArn': 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef',
-                    'ClusterOperationArn': 'arn:aws:kafka:us-east-1:123456789012:cluster-operation/test-cluster/abcdef/operation',
+                    'ClusterArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef',
+                    'ClusterOperationArn': 'arn:aws:kafka:us-east-1:<account-id>:cluster-operation/test-cluster/abcdef/operation',
                     'OperationType': 'UPDATE',
                     'OperationState': 'COMPLETED',
                     'CreationTime': '2025-06-20T10:00:00.000Z',
@@ -77,7 +77,7 @@ class TestListClusterOperations:
         mock_client.list_cluster_operations_v2.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         max_results = 5
         next_token = 'token'
         result = list_cluster_operations(cluster_arn, mock_client, max_results, next_token)
@@ -99,7 +99,7 @@ class TestListClusterOperations:
         mock_client.list_cluster_operations_v2.return_value = expected_response
 
         # Act
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         result = list_cluster_operations(cluster_arn, mock_client)
 
         # Assert
@@ -120,7 +120,7 @@ class TestListClusterOperations:
         )
 
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ClientError) as excinfo:
             list_cluster_operations(cluster_arn, mock_client)
 
@@ -134,7 +134,7 @@ class TestListClusterOperations:
     def test_list_cluster_operations_missing_client(self):
         """Test the list_cluster_operations function with a missing client."""
         # Act & Assert
-        cluster_arn = 'arn:aws:kafka:us-east-1:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-east-1:<account-id>:cluster/test-cluster/abcdef'
         with pytest.raises(ValueError) as excinfo:
             list_cluster_operations(cluster_arn, None)
 

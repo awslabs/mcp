@@ -55,7 +55,7 @@ class TestFetchCloudFormationStatus:
             ),
             create_sample_stack_resource(
                 logical_id="LoadBalancer",
-                physical_id="arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/test-app/1234567890123456",
+                physical_id="arn:aws:elasticloadbalancing:us-west-2:<account-id>:loadbalancer/app/test-app/<account-id>3456",
                 resource_type="AWS::ElasticLoadBalancingV2::LoadBalancer",
             ),
         ]

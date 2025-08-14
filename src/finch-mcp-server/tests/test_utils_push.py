@@ -11,14 +11,14 @@ class TestIsEcrRepository:
     def test_valid_ecr_repository(self):
         """Test valid ECR repository URLs."""
         valid_urls = [
-            '123456789012.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest',  # pragma: allowlist secret
-            '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo/nested:v1',  # pragma: allowlist secret
-            '123456789012.dkr.ecr.eu-central-1.amazonaws.com/repo',  # pragma: allowlist secret
-            '123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/my_repo:1.0.0',  # pragma: allowlist secret
-            '123456789012.dkr-ecr.us-west-2.amazonaws.com/myrepo:latest',  # pragma: allowlist secret
-            '123456789012.dkr.ecr-fips.us-east-1.amazonaws.com/my-repo:v1',  # pragma: allowlist secret
-            '123456789012.dkr.ecr.us-west-2.on.aws/myrepo:latest',  # pragma: allowlist secret
-            '123456789012.dkr.ecr.us-east-1.amazonaws.com.cn/my-repo:v1',  # pragma: allowlist secret
+            '<account-id>.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest',  # pragma: allowlist secret
+            '<account-id>.dkr.ecr.us-east-1.amazonaws.com/my-repo/nested:v1',  # pragma: allowlist secret
+            '<account-id>.dkr.ecr.eu-central-1.amazonaws.com/repo',  # pragma: allowlist secret
+            '<account-id>.dkr.ecr.ap-southeast-2.amazonaws.com/my_repo:1.0.0',  # pragma: allowlist secret
+            '<account-id>.dkr-ecr.us-west-2.amazonaws.com/myrepo:latest',  # pragma: allowlist secret
+            '<account-id>.dkr.ecr-fips.us-east-1.amazonaws.com/my-repo:v1',  # pragma: allowlist secret
+            '<account-id>.dkr.ecr.us-west-2.on.aws/myrepo:latest',  # pragma: allowlist secret
+            '<account-id>.dkr.ecr.us-east-1.amazonaws.com.cn/my-repo:v1',  # pragma: allowlist secret
         ]
 
         for url in valid_urls:
@@ -33,8 +33,8 @@ class TestIsEcrRepository:
             'localhost:5000/myimage:latest',
             'myregistry.example.com/repo:tag',
             '12345.dkr.ecr.us-west-2.amazonaws.com/myrepo:latest',
-            '123456789012.ecr.us-west-2.amazonaws.com/myrepo:latest',
-            '123456789012.dkr.ecr.invalid-region#.amazonaws.com/myrepo:latest',
+            '<account-id>.ecr.us-west-2.amazonaws.com/myrepo:latest',
+            '<account-id>.dkr.ecr.invalid-region#.amazonaws.com/myrepo:latest',
         ]
 
         for url in invalid_urls:

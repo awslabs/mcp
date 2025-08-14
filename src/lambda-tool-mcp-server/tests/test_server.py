@@ -198,15 +198,15 @@ with pytest.MonkeyPatch().context() as CTX:
                 functions = [
                     {
                         'FunctionName': 'test-function-1',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
+                        'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-1',
                     },
                     {
                         'FunctionName': 'test-function-2',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-2',
+                        'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-2',
                     },
                     {
                         'FunctionName': 'prefix-test-function-3',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:prefix-test-function-3',
+                        'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:prefix-test-function-3',
                     },
                 ]
 
@@ -223,11 +223,11 @@ with pytest.MonkeyPatch().context() as CTX:
                 functions = [
                     {
                         'FunctionName': 'test-function-1',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
+                        'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-1',
                     },
                     {
                         'FunctionName': 'test-function-2',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-2',
+                        'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-2',
                     },
                 ]
 
@@ -247,7 +247,7 @@ with pytest.MonkeyPatch().context() as CTX:
                 functions = [
                     {
                         'FunctionName': 'test-function-1',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
+                        'FunctionArn': 'arn:aws:lambda:us-east-1:<account-id>:function:test-function-1',
                     },
                 ]
 

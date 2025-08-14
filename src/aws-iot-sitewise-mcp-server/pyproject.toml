@@ -1,0 +1,109 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "awslabs.aws_iot_sitewise_mcp_server"
+version = "0.1.0"
+description = "An AWS Labs Model Context Protocol (MCP) server for AWS IoT SiteWise API integration"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "AWS IoT SiteWise MCP Contributors"}
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "boto3>=1.34.0",
+    "botocore>=1.34.0",
+    "fastmcp>=0.1.0",  # Model Context Protocol framework for server implementation
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "coverage>=7.0.0",
+    "black>=23.0.0",
+    "isort>=5.0.0",
+    "mypy>=1.0.0",
+    "flake8>=7.0.0",
+    "sphinx>=7.0.0",
+    "build",
+]
+
+[project.scripts]
+awslabs-aws-iot-sitewise-mcp-server = "awslabs.aws_iot_sitewise_mcp_server.server:main"
+
+[project.urls]
+Documentation = "https://your-docs-url.com"
+Repository = "https://github.com/awslabs/aws-iot-sitewise-mcp"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+known_first_party = ["awslabs"]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+check_untyped_defs = true
+show_error_codes = true
+pretty = true
+ignore_missing_imports = true
+
+[tool.pytest]
+testpaths = ["test"]
+xfail_strict = true
+addopts = [
+    "--verbose",
+    "--ignore=build/private",
+    "--cov=awslabs.aws_iot_sitewise_mcp_server",
+    "--cov-config=setup.cfg",
+    "--cov-report=term-missing",
+    "--cov-report=html:build/documentation/coverage",
+    "--cov-report=xml:build/documentation/coverage/coverage.xml",
+    "--durations=5",
+    "--color=yes"
+]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+omit = [
+    "awslabs/aws_iot_sitewise_mcp_server/prompts/*",
+]
+
+[tool.coverage.paths]
+source = [
+    "awslabs/",
+    "build/lib/*/site-packages/",
+]
+
+[tool.coverage.html]
+directory = "build/documentation/coverage"
+
+[tool.coverage.xml]
+output = "build/documentation/coverage/coverage.xml"
+
+[tool.flake8]
+ignore = [
+    "E203",  # Not pep8, black adds whitespace before ':'
+    "W503",  # Not pep8, black adds line break before binary operator
+    "E501",  # Once formatting is done, ignore long lines
+]
+max_line_length = 100

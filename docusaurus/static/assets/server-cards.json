@@ -1162,6 +1162,25 @@
       "workflows": [
         "autonomous"
       ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Comprehensive AWS IoT SiteWise functionality for industrial IoT asset management, data ingestion, monitoring, and analytics",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "aws-iot-sitewise-mcp-server",
+      "name": "AWS IoT SiteWise MCP Server",
+      "source_path": "src/aws-iot-sitewise-mcp-server/",
+      "subcategory": "IoT & Industrial Data",
+      "tags": [
+        "data-analytics",
+        "industrial-iot",
+        "asset-management",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous",
+        "vibe-coding"
+      ]
     }
   ],
   "workflows": [

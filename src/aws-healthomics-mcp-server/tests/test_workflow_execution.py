@@ -36,7 +36,7 @@ async def test_get_run_success():
 
     mock_response = {
         'id': 'run-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         'name': 'test-run',
         'status': 'COMPLETED',
         'workflowId': 'wfl-12345',
@@ -46,7 +46,7 @@ async def test_get_run_success():
         'startTime': start_time,
         'stopTime': stop_time,
         'outputUri': 's3://bucket/output/',
-        'roleArn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'roleArn': 'arn:aws:iam::<account-id>:role/HealthOmicsRole',
         'runOutputUri': 's3://bucket/run-output/',
         'parameters': {'param1': 'value1'},
         'uuid': 'abc-123-def-456',
@@ -69,7 +69,7 @@ async def test_get_run_success():
 
     # Verify result contains all expected fields
     assert result['id'] == 'run-12345'
-    assert result['arn'] == 'arn:aws:omics:us-east-1:123456789012:run/run-12345'
+    assert result['arn'] == 'arn:aws:omics:us-east-1:<account-id>:run/run-12345'
     assert result['name'] == 'test-run'
     assert result['status'] == 'COMPLETED'
     assert result['workflowId'] == 'wfl-12345'
@@ -79,7 +79,7 @@ async def test_get_run_success():
     assert result['startTime'] == start_time.isoformat()
     assert result['stopTime'] == stop_time.isoformat()
     assert result['outputUri'] == 's3://bucket/output/'
-    assert result['roleArn'] == 'arn:aws:iam::123456789012:role/HealthOmicsRole'
+    assert result['roleArn'] == 'arn:aws:iam::<account-id>:role/HealthOmicsRole'
     assert result['runOutputUri'] == 's3://bucket/run-output/'
     assert result['parameters'] == {'param1': 'value1'}
     assert result['uuid'] == 'abc-123-def-456'
@@ -93,14 +93,14 @@ async def test_get_run_minimal_response():
     creation_time = datetime.now(timezone.utc)
     mock_response = {
         'id': 'run-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         'name': 'test-run',
         'status': 'QUEUED',
         'workflowId': 'wfl-12345',
         'workflowType': 'WDL',
         'creationTime': creation_time,
         'outputUri': 's3://bucket/output/',
-        'roleArn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'roleArn': 'arn:aws:iam::<account-id>:role/HealthOmicsRole',
         'runOutputUri': 's3://bucket/run-output/',
     }
 
@@ -119,7 +119,7 @@ async def test_get_run_minimal_response():
     assert result['id'] == 'run-12345'
     assert result['status'] == 'QUEUED'
     assert result['creationTime'] == creation_time.isoformat()
-    assert result['roleArn'] == 'arn:aws:iam::123456789012:role/HealthOmicsRole'
+    assert result['roleArn'] == 'arn:aws:iam::<account-id>:role/HealthOmicsRole'
     assert result['runOutputUri'] == 's3://bucket/run-output/'
 
     # Verify optional fields are not present
@@ -139,7 +139,7 @@ async def test_get_run_failed_status():
         'status': 'FAILED',
         'failureReason': 'Resource quota exceeded',
         'statusMessage': 'Run failed due to resource constraints',
-        'roleArn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'roleArn': 'arn:aws:iam::<account-id>:role/HealthOmicsRole',
         'runOutputUri': 's3://bucket/run-output/',
     }
 
@@ -232,7 +232,7 @@ async def test_get_run_none_timestamps():
         'creationTime': None,
         'startTime': None,
         'stopTime': None,
-        'roleArn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'roleArn': 'arn:aws:iam::<account-id>:role/HealthOmicsRole',
         'runOutputUri': 's3://bucket/run-output/',
     }
 
@@ -268,7 +268,7 @@ async def test_list_runs_success():
         'items': [
             {
                 'id': 'run-12345',
-                'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+                'arn': 'arn:aws:omics:us-east-1:<account-id>:run/run-12345',
                 'name': 'test-run-1',
                 'status': 'COMPLETED',
                 'workflowId': 'wfl-12345',
@@ -279,7 +279,7 @@ async def test_list_runs_success():
             },
             {
                 'id': 'run-67890',
-                'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-67890',
+                'arn': 'arn:aws:omics:us-east-1:<account-id>:run/run-67890',
                 'name': 'test-run-2',
                 'status': 'RUNNING',
                 'workflowId': 'wfl-67890',
@@ -995,7 +995,7 @@ async def test_start_run_success():
     # Mock response data
     mock_response = {
         'id': 'run-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         'status': 'PENDING',
         'name': 'test-run',
         'workflowId': 'wfl-12345',
@@ -1013,7 +1013,7 @@ async def test_start_run_success():
         result = await start_run(
             mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://my-bucket/outputs/',
             parameters={'param1': 'value1'},
@@ -1027,7 +1027,7 @@ async def test_start_run_success():
     # Verify client was called correctly
     mock_client.start_run.assert_called_once_with(
         workflowId='wfl-12345',
-        roleArn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+        roleArn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
         name='test-run',
         outputUri='s3://my-bucket/outputs/',
         parameters={'param1': 'value1'},
@@ -1047,7 +1047,7 @@ async def test_start_run_with_static_storage():
     # Mock response data
     mock_response = {
         'id': 'run-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         'status': 'PENDING',
         'name': 'test-run',
         'workflowId': 'wfl-12345',
@@ -1065,7 +1065,7 @@ async def test_start_run_with_static_storage():
         await start_run(
             mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://my-bucket/outputs/',
             parameters={'param1': 'value1'},
@@ -1079,7 +1079,7 @@ async def test_start_run_with_static_storage():
     # Verify client was called with static storage parameters
     mock_client.start_run.assert_called_once_with(
         workflowId='wfl-12345',
-        roleArn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+        roleArn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
         name='test-run',
         outputUri='s3://my-bucket/outputs/',
         parameters={'param1': 'value1'},
@@ -1098,7 +1098,7 @@ async def test_start_run_static_without_capacity():
         await start_run(
             mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://my-bucket/outputs/',
             parameters={'param1': 'value1'},
@@ -1119,7 +1119,7 @@ async def test_start_run_with_cache():
     # Mock response data
     mock_response = {
         'id': 'run-12345',
-        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'arn': 'arn:aws:omics:us-east-1:<account-id>:run/run-12345',
         'status': 'PENDING',
         'name': 'test-run',
         'workflowId': 'wfl-12345',
@@ -1137,7 +1137,7 @@ async def test_start_run_with_cache():
         await start_run(
             mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://my-bucket/outputs/',
             parameters={'param1': 'value1'},
@@ -1172,7 +1172,7 @@ async def test_start_run_boto_error():
         await start_run(
             mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://my-bucket/outputs/',
             parameters={'param1': 'value1'},
@@ -1387,7 +1387,7 @@ async def test_start_run_invalid_storage_type():
         await start_run(
             ctx=mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://bucket/output/',
             parameters={'param1': 'value1'},
@@ -1414,7 +1414,7 @@ async def test_start_run_static_storage_without_capacity():
         await start_run(
             ctx=mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://bucket/output/',
             parameters={'param1': 'value1'},
@@ -1442,7 +1442,7 @@ async def test_start_run_invalid_cache_behavior():
         await start_run(
             ctx=mock_ctx,
             workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
             name='test-run',
             output_uri='s3://bucket/output/',
             parameters={'param1': 'value1'},
@@ -1472,7 +1472,7 @@ async def test_start_run_invalid_s3_uri():
             await start_run(
                 ctx=mock_ctx,
                 workflow_id='wfl-12345',
-                role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+                role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
                 name='test-run',
                 output_uri='invalid-uri',  # Invalid S3 URI
                 parameters={'param1': 'value1'},
@@ -1507,7 +1507,7 @@ async def test_start_run_boto_error_new():
                 await start_run(
                     ctx=mock_ctx,
                     workflow_id='wfl-12345',
-                    role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+                    role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
                     name='test-run',
                     output_uri='s3://bucket/output/',
                     parameters={'param1': 'value1'},
@@ -1542,7 +1542,7 @@ async def test_start_run_unexpected_error_new():
                 await start_run(
                     ctx=mock_ctx,
                     workflow_id='wfl-12345',
-                    role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+                    role_arn='arn:aws:iam::<account-id>:role/HealthOmicsRole',
                     name='test-run',
                     output_uri='s3://bucket/output/',
                     parameters={'param1': 'value1'},

@@ -102,7 +102,7 @@ class TestGetClusterTelemetry:
         # Arrange
         region = 'us-west-2'
         action = 'metrics'
-        cluster_arn = 'arn:aws:kafka:us-west-2:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-west-2:<account-id>:cluster/test-cluster/abcdef'
 
         # Mock the response from get_cluster_metrics
         mock_response = {
@@ -174,7 +174,7 @@ class TestGetClusterTelemetry:
         # Arrange
         region = 'us-west-2'
         action = 'available_metrics'
-        cluster_arn = 'arn:aws:kafka:us-west-2:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-west-2:<account-id>:cluster/test-cluster/abcdef'
 
         # Mock the client manager and kafka client
         mock_client_manager = MagicMock()
@@ -232,7 +232,7 @@ class TestGetClusterTelemetry:
         # Arrange
         region = 'us-west-2'
         action = 'invalid_action'
-        cluster_arn = 'arn:aws:kafka:us-west-2:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-west-2:<account-id>:cluster/test-cluster/abcdef'
 
         # Create a mock function for get_cluster_telemetry
         def mock_get_cluster_telemetry(region, action, cluster_arn, kwargs):
@@ -250,7 +250,7 @@ class TestGetClusterTelemetry:
         # Arrange
         region = 'us-west-2'
         action = 'metrics'
-        cluster_arn = 'arn:aws:kafka:us-west-2:123456789012:cluster/test-cluster/abcdef'
+        cluster_arn = 'arn:aws:kafka:us-west-2:<account-id>:cluster/test-cluster/abcdef'
 
         # Create a mock function for get_cluster_telemetry
         def mock_get_cluster_telemetry(region, action, cluster_arn, kwargs):

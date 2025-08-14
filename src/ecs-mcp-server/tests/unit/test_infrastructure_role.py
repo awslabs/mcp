@@ -29,13 +29,13 @@ class TestInfrastructureWithRole(unittest.TestCase):
                         {
                             "OutputKey": "ECRRepositoryURI",
                             "OutputValue": (
-                                "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app-repo"
+                                "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-app-repo"
                             ),
                         },
                         {
                             "OutputKey": "ECRPushPullRoleArn",
                             "OutputValue": (
-                                "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
+                                "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role"
                             ),
                         },
                     ]
@@ -61,11 +61,11 @@ class TestInfrastructureWithRole(unittest.TestCase):
         self.assertEqual(result["resources"]["ecr_repository"], "test-app-repo")
         self.assertEqual(
             result["resources"]["ecr_repository_uri"],
-            "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app-repo",
+            "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-app-repo",
         )
         self.assertEqual(
             result["resources"]["ecr_push_pull_role_arn"],
-            "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+            "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
         )
 
     @pytest.mark.anyio
@@ -96,9 +96,9 @@ class TestInfrastructureWithRole(unittest.TestCase):
             "operation": "create",
             "resources": {
                 "ecr_repository": "test-app-repo",
-                "ecr_repository_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app-repo",
+                "ecr_repository_uri": "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-app-repo",
                 "ecr_push_pull_role_arn": (
-                    "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
+                    "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role"
                 ),
             },
         }
@@ -134,10 +134,10 @@ class TestInfrastructureWithRole(unittest.TestCase):
         args, kwargs = mock_build_push.call_args
         self.assertEqual(kwargs["app_path"], "/path/to/app")
         self.assertEqual(
-            kwargs["repository_uri"], "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app-repo"
+            kwargs["repository_uri"], "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-app-repo"
         )
         self.assertEqual(
-            kwargs["role_arn"], "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
+            kwargs["role_arn"], "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role"
         )
 
         # Verify create_ecs_infrastructure was called
@@ -174,9 +174,9 @@ class TestInfrastructureWithRole(unittest.TestCase):
             "operation": "create",
             "resources": {
                 "ecr_repository": "test-app-repo",
-                "ecr_repository_uri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/test-app-repo",
+                "ecr_repository_uri": "<account-id>.dkr.ecr.us-east-1.amazonaws.com/test-app-repo",
                 "ecr_push_pull_role_arn": (
-                    "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role"
+                    "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role"
                 ),
             },
         }
@@ -205,7 +205,7 @@ class TestInfrastructureWithRole(unittest.TestCase):
         self.assertIn("ecr_push_pull_role_arn", result["resources"])
         self.assertEqual(
             result["resources"]["ecr_push_pull_role_arn"],
-            "arn:aws:iam::123456789012:role/test-app-ecr-pushpull-role",
+            "arn:aws:iam::<account-id>:role/test-app-ecr-pushpull-role",
         )
 
 
