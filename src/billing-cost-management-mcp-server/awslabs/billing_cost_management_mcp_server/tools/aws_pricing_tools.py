@@ -17,7 +17,6 @@
 Updated to use shared utility functions.
 """
 
-import os
 from ..utilities.aws_service_base import format_response, handle_aws_error
 
 # Import operation handlers from local module
