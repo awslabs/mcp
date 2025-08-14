@@ -1146,9 +1146,9 @@
       "category": "Cost & Operations",
       "description": "Assess AWS environments against the Well-Architected Framework Security Pillar",
       "icon": "\ud83d\udcb0",
-      "id": "aws-wa-sec-tool-mcp-server",
+      "id": "well-architected-security-mcp-server",
       "name": "AWS Well-Architected Security Assessment Tool MCP Server",
-      "source_path": "src/aws-wa-sec-tool-mcp-server/",
+      "source_path": "src/well-architected-security-mcp-server/",
       "subcategory": "Security Assessment",
       "tags": [
         "cost-operations",
