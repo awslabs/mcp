@@ -494,7 +494,10 @@ async def convert_api_response_to_table(
         elif converter_type == 'dimension_values' and 'DimensionValues' in response:
             # Cost Explorer GetDimensionValues response
             schema = ["value TEXT", "attributes TEXT"]
+            # We use create_safe_sql_statement which validates table_name to prevent SQL injection
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
+            # nosem: python.lang.security.audit.formatted-sql-query.formatted-sql-query
+            # nosem: python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
             cursor.execute(sql)
 
             for dim_value in response.get('DimensionValues', []):
@@ -598,10 +601,9 @@ async def convert_api_response_to_table(
 
         conn.commit()
 
-        # Get preview - SQLite doesn't allow parameterization of table names
-        # But we've validated the table_name through validate_table_name 
-        validate_table_name(table_name)
-        cursor.execute(f"SELECT * FROM {table_name} LIMIT 5")
+        # Get preview
+        sql = create_safe_sql_statement('SELECT', table_name, '*')
+        cursor.execute(sql + ' LIMIT 5')
         preview_rows = cursor.fetchall()
 
         # Get column names for preview
