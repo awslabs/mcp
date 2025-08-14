@@ -29,7 +29,9 @@ from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatc
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
 from awslabs.eks_mcp_server.eks_stack_handler import EksStackHandler
 from awslabs.eks_mcp_server.iam_handler import IAMHandler
+from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
+from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -149,6 +151,8 @@ def main():
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
     IAMHandler(mcp, allow_write)
     CloudWatchMetricsHandler(mcp)
+    VpcConfigHandler(mcp, allow_sensitive_data_access)
+    InsightsHandler(mcp, allow_sensitive_data_access)
 
     # Run server
     mcp.run()
