@@ -28,7 +28,9 @@ from awslabs.well_architected_security_mcp_server.util.prompt_utils import (
 
 def test_load_prompt_templates_with_missing_file():
     """Test loading prompt templates when file doesn't exist."""
-    with mock.patch("awslabs.well_architected_security_mcp_server.util.prompt_utils._is_initialized", False):
+    with mock.patch(
+        "awslabs.well_architected_security_mcp_server.util.prompt_utils._is_initialized", False
+    ):
         result = load_prompt_templates("nonexistent_file.md")
         assert result == {}
 
@@ -70,7 +72,8 @@ Check:
             "awslabs.well_architected_security_mcp_server.util.prompt_utils._is_initialized", False
         ):
             with mock.patch(
-                "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates", {}
+                "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates",
+                {},
             ):
                 result = load_prompt_templates(temp_file)
 
@@ -99,7 +102,8 @@ def test_get_prompt_template_existing():
     }
 
     with mock.patch(
-        "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates", mock_templates
+        "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates",
+        mock_templates,
     ):
         with mock.patch(
             "awslabs.well_architected_security_mcp_server.util.prompt_utils._is_initialized", True
@@ -113,7 +117,9 @@ def test_get_prompt_template_existing():
 
 def test_get_prompt_template_nonexistent():
     """Test getting a non-existent prompt template."""
-    with mock.patch("awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates", {}):
+    with mock.patch(
+        "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates", {}
+    ):
         with mock.patch(
             "awslabs.well_architected_security_mcp_server.util.prompt_utils._is_initialized", True
         ):
@@ -131,7 +137,8 @@ def test_get_all_template_names():
     }
 
     with mock.patch(
-        "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates", mock_templates
+        "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates",
+        mock_templates,
     ):
         with mock.patch(
             "awslabs.well_architected_security_mcp_server.util.prompt_utils._is_initialized", True
@@ -152,7 +159,8 @@ def test_get_template_metadata():
     }
 
     with mock.patch(
-        "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates", mock_templates
+        "awslabs.well_architected_security_mcp_server.util.prompt_utils._prompt_templates",
+        mock_templates,
     ):
         with mock.patch(
             "awslabs.well_architected_security_mcp_server.util.prompt_utils._is_initialized", True

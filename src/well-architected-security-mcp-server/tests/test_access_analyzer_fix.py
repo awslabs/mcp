@@ -18,7 +18,9 @@ from unittest import mock
 
 import pytest
 
-from awslabs.well_architected_security_mcp_server.util.security_services import check_access_analyzer
+from awslabs.well_architected_security_mcp_server.util.security_services import (
+    check_access_analyzer,
+)
 
 
 @pytest.mark.asyncio

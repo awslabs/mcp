@@ -41,7 +41,9 @@ def test_user_agent_config_is_properly_configured():
 @pytest.mark.asyncio
 async def test_security_services_uses_user_agent_config():
     """Test that security services functions use the USER_AGENT_CONFIG."""
-    from awslabs.well_architected_security_mcp_server.util.security_services import check_access_analyzer
+    from awslabs.well_architected_security_mcp_server.util.security_services import (
+        check_access_analyzer,
+    )
 
     mock_ctx = mock.AsyncMock()
     mock_session = mock.MagicMock()
@@ -63,7 +65,9 @@ async def test_security_services_uses_user_agent_config():
 @pytest.mark.asyncio
 async def test_storage_security_uses_user_agent_config():
     """Test that storage security functions use the USER_AGENT_CONFIG."""
-    from awslabs.well_architected_security_mcp_server.util.storage_security import find_storage_resources
+    from awslabs.well_architected_security_mcp_server.util.storage_security import (
+        find_storage_resources,
+    )
 
     mock_ctx = mock.AsyncMock()
     mock_session = mock.MagicMock()
@@ -86,7 +90,9 @@ async def test_storage_security_uses_user_agent_config():
 @pytest.mark.asyncio
 async def test_network_security_uses_user_agent_config():
     """Test that network security functions use the USER_AGENT_CONFIG."""
-    from awslabs.well_architected_security_mcp_server.util.network_security import find_network_resources
+    from awslabs.well_architected_security_mcp_server.util.network_security import (
+        find_network_resources,
+    )
 
     mock_ctx = mock.AsyncMock()
     mock_session = mock.MagicMock()
@@ -109,7 +115,9 @@ async def test_network_security_uses_user_agent_config():
 @pytest.mark.asyncio
 async def test_resource_utils_uses_user_agent_config():
     """Test that resource utils functions use the USER_AGENT_CONFIG."""
-    from awslabs.well_architected_security_mcp_server.util.resource_utils import list_services_in_region
+    from awslabs.well_architected_security_mcp_server.util.resource_utils import (
+        list_services_in_region,
+    )
 
     mock_ctx = mock.AsyncMock()
     mock_session = mock.MagicMock()

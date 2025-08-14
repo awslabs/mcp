@@ -18,7 +18,9 @@ from unittest import mock
 
 import pytest
 
-from awslabs.well_architected_security_mcp_server.util.resource_utils import list_services_in_region
+from awslabs.well_architected_security_mcp_server.util.resource_utils import (
+    list_services_in_region,
+)
 
 
 @pytest.mark.asyncio

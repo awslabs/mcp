@@ -22,7 +22,9 @@ from botocore.config import Config
 from mcp.server.fastmcp import Context
 
 # User agent configuration for AWS API calls
-USER_AGENT_CONFIG = Config(user_agent_extra="awslabs/mcp/well-architected-security-mcp-server/1.0.0")
+USER_AGENT_CONFIG = Config(
+    user_agent_extra="awslabs/mcp/well-architected-security-mcp-server/1.0.0"
+)
 
 
 async def check_storage_encryption(

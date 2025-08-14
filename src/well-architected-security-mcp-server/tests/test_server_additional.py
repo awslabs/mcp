@@ -39,7 +39,9 @@ async def test_check_security_services_with_debug_false(mock_ctx, mock_boto3_ses
         mock.patch(
             "awslabs.well_architected_security_mcp_server.server.check_guard_duty"
         ) as mock_guard_duty,
-        mock.patch("awslabs.well_architected_security_mcp_server.server.check_inspector") as mock_inspector,
+        mock.patch(
+            "awslabs.well_architected_security_mcp_server.server.check_inspector"
+        ) as mock_inspector,
     ):
         # Set up mock return values
         mock_guard_duty.return_value = {"enabled": True, "message": "GuardDuty is enabled"}

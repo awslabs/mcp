@@ -597,7 +597,9 @@ async def test_get_trusted_advisor_findings_with_category_filter(mock_ctx, mock_
 @pytest.mark.asyncio
 async def test_get_guardduty_findings_no_detector_id(mock_ctx, mock_boto3_session):
     """Test GuardDuty findings when no detector ID is found (lines 586-588)."""
-    from awslabs.well_architected_security_mcp_server.util.security_services import get_guardduty_findings
+    from awslabs.well_architected_security_mcp_server.util.security_services import (
+        get_guardduty_findings,
+    )
 
     # Mock check_guard_duty to return enabled but with empty detector details
     with mock.patch(
@@ -621,7 +623,9 @@ async def test_get_guardduty_findings_no_detector_id(mock_ctx, mock_boto3_sessio
 @pytest.mark.asyncio
 async def test_get_guardduty_findings_no_findings_match_filter(mock_ctx, mock_boto3_session):
     """Test GuardDuty findings when no findings match filter (lines 635-636)."""
-    from awslabs.well_architected_security_mcp_server.util.security_services import get_guardduty_findings
+    from awslabs.well_architected_security_mcp_server.util.security_services import (
+        get_guardduty_findings,
+    )
 
     # Create mock GuardDuty client
     mock_guardduty_client = mock.MagicMock()

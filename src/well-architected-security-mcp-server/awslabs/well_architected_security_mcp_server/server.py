@@ -28,8 +28,12 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
 from awslabs.well_architected_security_mcp_server.consts import INSTRUCTIONS
-from awslabs.well_architected_security_mcp_server.util.network_security import check_network_security
-from awslabs.well_architected_security_mcp_server.util.resource_utils import list_services_in_region
+from awslabs.well_architected_security_mcp_server.util.network_security import (
+    check_network_security,
+)
+from awslabs.well_architected_security_mcp_server.util.resource_utils import (
+    list_services_in_region,
+)
 from awslabs.well_architected_security_mcp_server.util.security_services import (
     check_access_analyzer,
     check_guard_duty,
@@ -44,10 +48,14 @@ from awslabs.well_architected_security_mcp_server.util.security_services import 
     get_securityhub_findings,
     get_trusted_advisor_findings,
 )
-from awslabs.well_architected_security_mcp_server.util.storage_security import check_storage_encryption
+from awslabs.well_architected_security_mcp_server.util.storage_security import (
+    check_storage_encryption,
+)
 
 # User agent configuration for AWS API calls
-USER_AGENT_CONFIG = Config(user_agent_extra="awslabs/mcp/well-architected-security-mcp-server/1.0.0")
+USER_AGENT_CONFIG = Config(
+    user_agent_extra="awslabs/mcp/well-architected-security-mcp-server/1.0.0"
+)
 
 # Set up AWS region and profile from environment variables
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")

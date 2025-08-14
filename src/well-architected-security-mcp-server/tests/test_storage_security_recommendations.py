@@ -16,7 +16,9 @@
 
 import pytest
 
-from awslabs.well_architected_security_mcp_server.util.storage_security import generate_recommendations
+from awslabs.well_architected_security_mcp_server.util.storage_security import (
+    generate_recommendations,
+)
 
 
 @pytest.mark.asyncio

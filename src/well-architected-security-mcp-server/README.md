@@ -34,7 +34,7 @@ You can also run the MCP server directly from a local clone of the GitHub reposi
 git clone https://github.com/awslabs/mcp.git
 
 # Run the server directly using uv
-uv --directory /path/to/well-architected-security-mcp-server/src/well-architected-security-mcp-server/awslabs/aws_wa_sec_tool_mcp_server run server.py
+uv --directory /path/to/well-architected-security-mcp-server/src/well-architected-security-mcp-server/awslabs/well_architected_security_mcp_server run server.py
 ```
 
 ## Usage Environments
@@ -108,7 +108,7 @@ If running from a local repository, configure the MCP client like this:
       "command": "uv",
       "args": [
         "--directory",
-        "/path/to/well-architected-security-mcp-server/src/well-architected-security-mcp-server/awslabs/aws_wa_sec_tool_mcp_server",
+        "/path/to/well-architected-security-mcp-server/src/well-architected-security-mcp-server/awslabs/well_architected_security_mcp_server",
         "run",
         "server.py"
       ],

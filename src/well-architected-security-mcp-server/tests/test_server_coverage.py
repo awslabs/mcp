@@ -88,7 +88,9 @@ def test_main():
         # Mock asyncio.run
         with mock.patch("asyncio.run") as mock_run:
             # Mock mcp.run
-            with mock.patch("awslabs.well_architected_security_mcp_server.server.mcp.run") as mock_mcp_run:
+            with mock.patch(
+                "awslabs.well_architected_security_mcp_server.server.mcp.run"
+            ) as mock_mcp_run:
                 # Call the main function
                 main()
 
@@ -109,7 +111,9 @@ def test_main_with_sse():
         # Mock asyncio.run
         with mock.patch("asyncio.run") as mock_run:
             # Mock mcp.run
-            with mock.patch("awslabs.well_architected_security_mcp_server.server.mcp.run") as mock_mcp_run:
+            with mock.patch(
+                "awslabs.well_architected_security_mcp_server.server.mcp.run"
+            ) as mock_mcp_run:
                 # Call the main function
                 main()
 

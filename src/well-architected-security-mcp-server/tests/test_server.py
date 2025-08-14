@@ -46,7 +46,9 @@ async def test_check_security_services(mock_ctx, mock_boto3_session):
         mock.patch(
             "awslabs.well_architected_security_mcp_server.server.check_guard_duty"
         ) as mock_guard_duty,
-        mock.patch("awslabs.well_architected_security_mcp_server.server.check_inspector") as mock_inspector,
+        mock.patch(
+            "awslabs.well_architected_security_mcp_server.server.check_inspector"
+        ) as mock_inspector,
         mock.patch(
             "awslabs.well_architected_security_mcp_server.server.check_access_analyzer"
         ) as mock_access_analyzer,
@@ -56,7 +58,9 @@ async def test_check_security_services(mock_ctx, mock_boto3_session):
         mock.patch(
             "awslabs.well_architected_security_mcp_server.server.check_trusted_advisor"
         ) as mock_trusted_advisor,
-        mock.patch("awslabs.well_architected_security_mcp_server.server.check_macie") as mock_macie,
+        mock.patch(
+            "awslabs.well_architected_security_mcp_server.server.check_macie"
+        ) as mock_macie,
     ):
         # Set up mock return values
         mock_guard_duty.return_value = {"enabled": True, "message": "GuardDuty is enabled"}
