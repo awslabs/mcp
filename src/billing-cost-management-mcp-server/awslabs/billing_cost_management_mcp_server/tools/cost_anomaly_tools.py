@@ -131,23 +131,23 @@ async def get_anomalies(
 
         # Add optional parameters if provided
         if monitor_arn:
-            request_params['MonitorArn'] = monitor_arn
+            request_params['MonitorArn'] = str(monitor_arn)
 
         if feedback:
-            request_params['Feedback'] = feedback
+            request_params['Feedback'] = str(feedback)
 
         if max_results:
-            request_params['MaxResults'] = max_results
+            request_params['MaxResults'] = int(max_results)
 
         # Add total impact filter if provided
         if total_impact_operator:
             total_impact = {'NumericOperator': total_impact_operator}
 
             if total_impact_start is not None:
-                total_impact['StartValue'] = total_impact_start
+                total_impact['StartValue'] = float(total_impact_start)
 
             if total_impact_end is not None:
-                total_impact['EndValue'] = total_impact_end
+                total_impact['EndValue'] = float(total_impact_end)
 
             request_params['TotalImpact'] = total_impact
 

@@ -78,16 +78,16 @@ async def list_recommendations(
         Dict containing recommendations
     """
     # Prepare the request parameters
-    request_params = {'includeAllRecommendations': include_all_recommendations or False}
+    request_params = {'includeAllRecommendations': bool(include_all_recommendations or False)}
 
     if max_results:
         request_params['maxResults'] = int(max_results)
 
     if next_token:
-        request_params['nextToken'] = next_token
+        request_params['nextToken'] = str(next_token)
 
     if filters:
-        request_params['filter'] = filters
+        request_params['filter'] = dict(filters)
 
     # Make the API call
     await ctx.info('Fetching recommendations from Cost Optimization Hub')
@@ -234,16 +234,16 @@ async def list_recommendation_summaries(
         Dict containing recommendation summaries
     """
     # Prepare the request parameters
-    request_params = {'groupBy': group_by}
+    request_params = {'groupBy': str(group_by)}
 
     if max_results:
         request_params['maxResults'] = int(max_results)
 
     if next_token:
-        request_params['nextToken'] = next_token
+        request_params['nextToken'] = str(next_token)
 
     if filters:
-        request_params['filter'] = filters
+        request_params['filter'] = dict(filters)
 
     # Make the API call
     await ctx.info(f'Fetching recommendation summaries grouped by {group_by}')

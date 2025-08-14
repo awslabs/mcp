@@ -206,7 +206,7 @@ def create_table(cursor: sqlite3.Cursor, table_name: str, schema: List[str]) -> 
     cursor.execute(sql)
 
 
-def insert_data(cursor: sqlite3.Cursor, table_name: str, data: List[List[Any]]) -> int:
+def insert_data(cursor: sqlite3.Cursor, table_name: str, data: Optional[List[List[Any]]]) -> int:
     """Insert data into a table.
 
     Args:

@@ -827,4 +827,6 @@ def test_cost_comparison_server_initialization():
     assert cost_comparison_server.name == 'cost-comparison-tools'
 
     # Verify the server instructions
-    assert 'Tools for working with AWS Cost Comparison API' in cost_comparison_server.instructions
+    instructions = cost_comparison_server.instructions
+    assert instructions is not None
+    assert 'Tools for working with AWS Cost Comparison API' in instructions if instructions else False

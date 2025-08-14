@@ -318,7 +318,7 @@ async def get_savings_plans_utilization_details(
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
         if max_results:
-            request_params['MaxResults'] = max_results
+            request_params['MaxResults'] = int(max_results)
         else:
             request_params['MaxResults'] = 20  # Default
 

@@ -488,7 +488,9 @@ def test_cost_explorer_server_initialization():
         'Server instructions should be a string'
     )
     assert len(cost_explorer_server.instructions) > 0, 'Server instructions should not be empty'
-    assert 'Tools for working with AWS Cost Explorer API' in cost_explorer_server.instructions, (
+    instructions = cost_explorer_server.instructions
+    assert instructions is not None
+    assert 'Tools for working with AWS Cost Explorer API' in instructions if instructions else False, (
         'Server instructions should mention AWS Cost Explorer API'
     )
 

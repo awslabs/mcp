@@ -499,10 +499,10 @@ async def get_tags(
 
         # Add optional parameters
         if search_string:
-            request_params['SearchString'] = search_string
+            request_params['SearchString'] = str(search_string)
 
         if tag_key:
-            request_params['TagKey'] = tag_key
+            request_params['TagKey'] = str(tag_key)
 
         # Handle pagination
         if next_token or max_pages:
@@ -575,10 +575,10 @@ async def get_cost_categories(
 
         # Add optional parameters
         if search_string:
-            request_params['SearchString'] = search_string
+            request_params['SearchString'] = str(search_string)
 
         if cost_category_name:
-            request_params['CostCategoryName'] = cost_category_name
+            request_params['CostCategoryName'] = str(cost_category_name)
 
         # Handle pagination
         if next_token or max_pages:

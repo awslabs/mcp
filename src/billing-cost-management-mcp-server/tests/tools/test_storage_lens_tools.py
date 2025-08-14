@@ -372,4 +372,6 @@ def test_server_initialization():
     assert storage_lens_server.name == 'storage-lens-tools'
 
     # Verify the server instructions
-    assert 'Tools for working with AWS S3 Storage Lens data' in storage_lens_server.instructions
+    instructions = storage_lens_server.instructions
+    assert instructions is not None
+    assert 'Tools for working with AWS S3 Storage Lens data' in instructions if instructions else False

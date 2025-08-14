@@ -125,7 +125,11 @@ async def cost_optimization_hub(
             # Parse filters if provided
             parsed_filters = parse_json(filters, 'filters') if filters else None
             return await list_recommendation_summaries(
-                ctx, coh_client, max_results, next_token, parsed_filters, group_by
+                ctx, coh_client, 
+                group_by=str(group_by) if group_by else "RECOMMENDATION_TYPE",
+                max_results=int(max_results) if max_results else None,
+                next_token=str(next_token) if next_token else None,
+                filters=parsed_filters
             )
 
         elif operation == 'list_recommendations':
@@ -141,7 +145,12 @@ async def cost_optimization_hub(
             )
 
         elif operation == 'get_recommendation':
-            return await get_recommendation(ctx, coh_client, resource_id, resource_type)
+            if not resource_id or not resource_type:
+                return format_response(
+                    'error',
+                    {'message': 'Both resource_id and resource_type are required for get_recommendation operation'},
+                )
+            return await get_recommendation(ctx, coh_client, str(resource_id), str(resource_type))
 
         else:
             # Return error for unsupported operations

@@ -548,4 +548,6 @@ def test_budget_server_initialization():
     assert budget_server.name == 'budget-tools'
 
     # Verify the server instructions
-    assert 'Tools for working with AWS Budgets API' in budget_server.instructions
+    instructions = budget_server.instructions
+    assert instructions is not None
+    assert 'Tools for working with AWS Budgets API' in instructions if instructions else False

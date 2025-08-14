@@ -149,4 +149,6 @@ def test_unified_sql_server_initialization():
     assert unified_sql_server.name == 'unified-sql-tools'
 
     # Verify the server instructions
-    assert 'Unified SQL tool' in unified_sql_server.instructions
+    instructions = unified_sql_server.instructions
+    assert instructions is not None
+    assert 'Unified SQL tool' in instructions if instructions else False

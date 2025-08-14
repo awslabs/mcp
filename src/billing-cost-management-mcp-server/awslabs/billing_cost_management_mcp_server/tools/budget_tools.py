@@ -250,22 +250,34 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             formatted_budget['time_period'] = time_period_dict
 
         # Add budget status (derived field)
+        # Safe access to potentially nested dictionaries with proper type checking for pyright
+        calculated_spend = formatted_budget.get('calculated_spend')
+        budget_limit = formatted_budget.get('budget_limit')
+        
         if (
-            'calculated_spend' in formatted_budget
-            and 'actual_spend' in formatted_budget['calculated_spend']
-            and 'budget_limit' in formatted_budget
+            calculated_spend is not None 
+            and isinstance(calculated_spend, dict)
+            and 'actual_spend' in calculated_spend
+            and budget_limit is not None
+            and isinstance(budget_limit, dict)
         ):
-            actual_amount = float(formatted_budget['calculated_spend']['actual_spend']['amount'])
-            limit_amount = float(formatted_budget['budget_limit']['amount'])
+            actual_spend = calculated_spend.get('actual_spend')
+            if actual_spend and isinstance(actual_spend, dict) and 'amount' in actual_spend:
+                actual_amount = float(actual_spend['amount'])
+                limit_amount = float(budget_limit['amount'])
 
-            if actual_amount >= limit_amount:
-                formatted_budget['status'] = 'EXCEEDED'
-            elif 'forecasted_spend' in formatted_budget['calculated_spend']:
-                forecast_amount = float(
-                    formatted_budget['calculated_spend']['forecasted_spend']['amount']
-                )
-                if forecast_amount >= limit_amount:
-                    formatted_budget['status'] = 'FORECASTED_TO_EXCEED'
+                if actual_amount >= limit_amount:
+                    formatted_budget['status'] = 'EXCEEDED'
+                elif 'forecasted_spend' in calculated_spend:
+                    forecasted_spend = calculated_spend.get('forecasted_spend')
+                    if forecasted_spend and isinstance(forecasted_spend, dict) and 'amount' in forecasted_spend:
+                        forecast_amount = float(forecasted_spend['amount'])
+                        if forecast_amount >= limit_amount:
+                            formatted_budget['status'] = 'FORECASTED_TO_EXCEED'
+                        else:
+                            formatted_budget['status'] = 'OK'
+                    else:
+                        formatted_budget['status'] = 'OK'
                 else:
                     formatted_budget['status'] = 'OK'
             else:

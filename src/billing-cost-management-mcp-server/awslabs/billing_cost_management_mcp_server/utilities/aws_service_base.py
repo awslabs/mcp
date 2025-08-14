@@ -171,7 +171,7 @@ def get_date_range(
     return start_date or days_ago, end_date or today
 
 
-def validate_date_format(date_str: str) -> bool:
+def validate_date_format(date_str: Optional[str]) -> bool:
     """Validate if a string is in YYYY-MM-DD format.
 
     Args:
@@ -239,7 +239,7 @@ async def handle_aws_error(
 async def paginate_aws_response(
     ctx: Context,
     operation_name: str,
-    api_function: callable,
+    api_function: Any,
     request_params: Dict[str, Any],
     result_key: str,
     token_param: str = 'NextToken',

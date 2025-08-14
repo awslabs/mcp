@@ -58,7 +58,10 @@ async def aws_pricing(ctx, operation, **kwargs):
             get_service_attributes,
         )
 
-        return await get_service_attributes(ctx, kwargs.get('service_code'))
+        service_code = kwargs.get('service_code')
+        if service_code is None:
+            raise ValueError('service_code is required')
+        return await get_service_attributes(ctx, str(service_code))
 
     elif operation == 'get_attribute_values':
         if not kwargs.get('service_code') or not kwargs.get('attribute_name'):
@@ -72,11 +75,18 @@ async def aws_pricing(ctx, operation, **kwargs):
             get_attribute_values,
         )
 
+        service_code = kwargs.get('service_code')
+        attribute_name = kwargs.get('attribute_name')
+        max_results = kwargs.get('max_results')
+        
+        if service_code is None or attribute_name is None:
+            raise ValueError('service_code and attribute_name are required')
+            
         return await get_attribute_values(
             ctx,
-            kwargs.get('service_code'),
-            kwargs.get('attribute_name'),
-            kwargs.get('max_results'),
+            str(service_code),
+            str(attribute_name),
+            int(max_results) if max_results is not None else None,
         )
 
     elif operation == 'get_pricing_from_api':
@@ -91,12 +101,20 @@ async def aws_pricing(ctx, operation, **kwargs):
             get_pricing_from_api,
         )
 
+        service_code = kwargs.get('service_code')
+        region = kwargs.get('region')
+        filters = kwargs.get('filters')
+        max_results = kwargs.get('max_results')
+        
+        if service_code is None or region is None:
+            raise ValueError('service_code and region are required')
+            
         return await get_pricing_from_api(
             ctx,
-            kwargs.get('service_code'),
-            kwargs.get('region'),
-            kwargs.get('filters'),
-            kwargs.get('max_results'),
+            str(service_code),
+            str(region),
+            filters,
+            int(max_results) if max_results is not None else None,
         )
 
     else:
@@ -383,4 +401,6 @@ def test_aws_pricing_server_initialization():
     assert aws_pricing_server.name == 'aws-pricing-tools'
 
     # Verify the server instructions
-    assert 'Tools for working with AWS Pricing API' in aws_pricing_server.instructions
+    instructions = aws_pricing_server.instructions
+    assert instructions is not None
+    assert 'Tools for working with AWS Pricing API' in instructions if instructions else False
