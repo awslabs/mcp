@@ -50,7 +50,8 @@ class TestCreateAwsClient:
 
         with patch.dict('os.environ', {'AWS_REGION': 'us-east-1'}, clear=True):
             # Execute
-            create_aws_client('s3')
+            # Use one of the allowed services from aws_service_base.py
+            create_aws_client('ce')
 
         # Assert with detailed validation
         mock_session.assert_called_once_with(region_name='us-east-1')
@@ -66,7 +67,7 @@ class TestCreateAwsClient:
 
         # Verify service name
         service_arg = mock_session_instance.client.call_args.args[0]
-        assert service_arg == 's3'
+        assert service_arg == 'ce'
 
     @patch('boto3.Session')
     def test_client_creation_custom_region(self, mock_session):
@@ -78,7 +79,8 @@ class TestCreateAwsClient:
         mock_session.return_value = mock_session_instance
 
         # Execute
-        create_aws_client('dynamodb', 'us-west-2')
+        # Use one of the allowed services from aws_service_base.py
+        create_aws_client('pricing', 'us-west-2')
 
         # Assert with detailed validation
         mock_session.assert_called_once_with(region_name='us-west-2')
@@ -86,7 +88,7 @@ class TestCreateAwsClient:
 
         # Verify service name
         service_arg = mock_session_instance.client.call_args.args[0]
-        assert service_arg == 'dynamodb'
+        assert service_arg == 'pricing'
 
     @patch('boto3.Session')
     def test_client_creation_with_aws_profile(self, mock_session):
@@ -99,7 +101,8 @@ class TestCreateAwsClient:
 
         # Test with AWS_PROFILE set
         with patch.dict('os.environ', {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-east-1'}):
-            create_aws_client('s3')
+            # Use one of the allowed services from aws_service_base.py
+            create_aws_client('sts')
 
         # Assert with detailed validation
         mock_session.assert_called_once_with(profile_name='test-profile', region_name='us-east-1')

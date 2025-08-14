@@ -155,28 +155,28 @@ def validate_table_name(table_name: str) -> bool:
 
 def create_safe_sql_statement(statement_type: str, table_name: str, *args) -> str:
     """Create a SQL statement with validated table name.
-    
+
     Args:
         statement_type: Type of SQL statement (CREATE, SELECT, INSERT, etc.)
         table_name: Name of the table (will be validated)
         *args: Additional SQL statement parts
-    
+
     Returns:
         str: A safe SQL statement
-        
+
     Raises:
         ValueError: If the table name is invalid
     """
     validate_table_name(table_name)
-    
+
     if statement_type.upper() == 'CREATE':
-        return f"CREATE TABLE {table_name} ({', '.join(args)})"
+        return f'CREATE TABLE {table_name} ({", ".join(args)})'
     elif statement_type.upper() == 'SELECT':
-        return f"SELECT {', '.join(args)} FROM {table_name}"
+        return f'SELECT {", ".join(args)} FROM {table_name}'
     elif statement_type.upper() == 'INSERT':
-        return f"INSERT INTO {table_name} {args[0]}"
+        return f'INSERT INTO {table_name} {args[0]}'
     else:
-        return f"{statement_type} {table_name} {' '.join(args)}"
+        return f'{statement_type} {table_name} {" ".join(args)}'
 
 
 def create_table(cursor: sqlite3.Cursor, table_name: str, schema: List[str]) -> None:
@@ -190,12 +190,12 @@ def create_table(cursor: sqlite3.Cursor, table_name: str, schema: List[str]) -> 
     Raises:
         ValueError: If the table name contains invalid characters
     """
-    # Validate table name for SQL injection prevention 
+    # Validate table name for SQL injection prevention
     validate_table_name(table_name)
-    
+
     # Create a safe SQL statement
     sql = create_safe_sql_statement('CREATE', table_name, *schema)
-    
+
     # Execute the safe SQL statement
     cursor.execute(sql)
 
@@ -397,11 +397,11 @@ async def convert_api_response_to_table(
         if converter_type == 'pricing_products' and 'PriceList' in response:
             # AWS Pricing API response
             schema = [
-                "service_code TEXT", 
-                "product_family TEXT", 
-                "sku TEXT", 
-                "attributes TEXT", 
-                "pricing_terms TEXT"
+                'service_code TEXT',
+                'product_family TEXT',
+                'sku TEXT',
+                'attributes TEXT',
+                'pricing_terms TEXT',
             ]
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
@@ -413,8 +413,13 @@ async def convert_api_response_to_table(
 
                 # Use validated table name
                 validate_table_name(table_name)
-                insert_sql = create_safe_sql_statement('INSERT', table_name, "(service_code, product_family, sku, attributes, pricing_terms) VALUES (?, ?, ?, ?, ?)")
-                cursor.execute(insert_sql,
+                insert_sql = create_safe_sql_statement(
+                    'INSERT',
+                    table_name,
+                    '(service_code, product_family, sku, attributes, pricing_terms) VALUES (?, ?, ?, ?, ?)',
+                )
+                cursor.execute(
+                    insert_sql,
                     (
                         metadata.get('service_code', ''),
                         product.get('product', {}).get('productFamily'),
@@ -428,15 +433,15 @@ async def convert_api_response_to_table(
         elif converter_type == 'cost_and_usage' and 'ResultsByTime' in response:
             # Cost Explorer GetCostAndUsage response
             schema = [
-                "time_period_start TEXT",
-                "time_period_end TEXT",
-                "estimated BOOLEAN",
-                "group_key_1 TEXT",
-                "group_key_2 TEXT",
-                "group_key_3 TEXT",
-                "metric_name TEXT",
-                "amount REAL",
-                "unit TEXT"
+                'time_period_start TEXT',
+                'time_period_end TEXT',
+                'estimated BOOLEAN',
+                'group_key_1 TEXT',
+                'group_key_2 TEXT',
+                'group_key_3 TEXT',
+                'metric_name TEXT',
+                'amount REAL',
+                'unit TEXT',
             ]
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
@@ -455,8 +460,13 @@ async def convert_api_response_to_table(
                     for metric_name, metric_data in group.get('Metrics', {}).items():
                         # Use validated table name
                         validate_table_name(table_name)
-                        insert_sql = create_safe_sql_statement('INSERT', table_name, "(time_period_start, time_period_end, estimated, group_key_1, group_key_2, group_key_3, metric_name, amount, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                        cursor.execute(insert_sql,
+                        insert_sql = create_safe_sql_statement(
+                            'INSERT',
+                            table_name,
+                            '(time_period_start, time_period_end, estimated, group_key_1, group_key_2, group_key_3, metric_name, amount, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        )
+                        cursor.execute(
+                            insert_sql,
                             (
                                 start,
                                 end,
@@ -475,8 +485,13 @@ async def convert_api_response_to_table(
                 for metric_name, metric_data in result_by_time.get('Total', {}).items():
                     # Use validated table name
                     validate_table_name(table_name)
-                    insert_sql = create_safe_sql_statement('INSERT', table_name, "(time_period_start, time_period_end, estimated, group_key_1, group_key_2, group_key_3, metric_name, amount, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                    cursor.execute(insert_sql,
+                    insert_sql = create_safe_sql_statement(
+                        'INSERT',
+                        table_name,
+                        '(time_period_start, time_period_end, estimated, group_key_1, group_key_2, group_key_3, metric_name, amount, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    )
+                    cursor.execute(
+                        insert_sql,
                         (
                             start,
                             end,
@@ -493,7 +508,7 @@ async def convert_api_response_to_table(
 
         elif converter_type == 'dimension_values' and 'DimensionValues' in response:
             # Cost Explorer GetDimensionValues response
-            schema = ["value TEXT", "attributes TEXT"]
+            schema = ['value TEXT', 'attributes TEXT']
             # We use create_safe_sql_statement which validates table_name to prevent SQL injection
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             # nosem: python.lang.security.audit.formatted-sql-query.formatted-sql-query
@@ -501,21 +516,23 @@ async def convert_api_response_to_table(
             cursor.execute(sql)
 
             for dim_value in response.get('DimensionValues', []):
-                insert_sql = create_safe_sql_statement('INSERT', table_name, "(value, attributes) VALUES (?, ?)")
-                cursor.execute(insert_sql,
+                insert_sql = create_safe_sql_statement(
+                    'INSERT', table_name, '(value, attributes) VALUES (?, ?)'
+                )
+                cursor.execute(
+                    insert_sql,
                     (dim_value.get('Value'), json.dumps(dim_value.get('Attributes', {}))),
-
                 )
                 rows_inserted += 1
 
         elif converter_type == 'forecast' and 'ForecastResultsByTime' in response:
             # Cost Explorer forecast responses
             schema = [
-                "time_period_start TEXT",
-                "time_period_end TEXT",
-                "mean_value REAL",
-                "lower_bound REAL",
-                "upper_bound REAL"
+                'time_period_start TEXT',
+                'time_period_end TEXT',
+                'mean_value REAL',
+                'lower_bound REAL',
+                'upper_bound REAL',
             ]
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
@@ -524,8 +541,13 @@ async def convert_api_response_to_table(
                 time_period = forecast.get('TimePeriod', {})
                 # Use validated table name
                 validate_table_name(table_name)
-                insert_sql = create_safe_sql_statement('INSERT', table_name, "(time_period_start, time_period_end, mean_value, lower_bound, upper_bound) VALUES (?, ?, ?, ?, ?)")
-                cursor.execute(insert_sql,
+                insert_sql = create_safe_sql_statement(
+                    'INSERT',
+                    table_name,
+                    '(time_period_start, time_period_end, mean_value, lower_bound, upper_bound) VALUES (?, ?, ?, ?, ?)',
+                )
+                cursor.execute(
+                    insert_sql,
                     (
                         time_period.get('Start'),
                         time_period.get('End'),
@@ -538,14 +560,16 @@ async def convert_api_response_to_table(
 
         elif converter_type == 'tags' and 'Tags' in response:
             # Cost Explorer GetTags response
-            schema = ["tag_value TEXT"]
+            schema = ['tag_value TEXT']
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
             # Use validated table name
             validate_table_name(table_name)
             for tag in response.get('Tags', []):
-                insert_sql = create_safe_sql_statement('INSERT', table_name, "(tag_value) VALUES (?)")
+                insert_sql = create_safe_sql_statement(
+                    'INSERT', table_name, '(tag_value) VALUES (?)'
+                )
                 cursor.execute(insert_sql, (tag,))
                 rows_inserted += 1
 
@@ -553,27 +577,31 @@ async def convert_api_response_to_table(
             'CostCategoryNames' in response or 'CostCategoryValues' in response
         ):
             # Cost Explorer GetCostCategories response
-            schema = ["category_type TEXT", "category_value TEXT"]
+            schema = ['category_type TEXT', 'category_value TEXT']
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
             for name in response.get('CostCategoryNames', []):
                 # Use validated table name
                 validate_table_name(table_name)
-                insert_sql = create_safe_sql_statement('INSERT', table_name, "(category_type, category_value) VALUES (?, ?)")
+                insert_sql = create_safe_sql_statement(
+                    'INSERT', table_name, '(category_type, category_value) VALUES (?, ?)'
+                )
                 cursor.execute(insert_sql, ('name', name))
                 rows_inserted += 1
 
             for value in response.get('CostCategoryValues', []):
                 # Use validated table name
                 validate_table_name(table_name)
-                insert_sql = create_safe_sql_statement('INSERT', table_name, "(category_type, category_value) VALUES (?, ?)")
+                insert_sql = create_safe_sql_statement(
+                    'INSERT', table_name, '(category_type, category_value) VALUES (?, ?)'
+                )
                 cursor.execute(insert_sql, ('value', value))
                 rows_inserted += 1
 
         else:
             # Generic fallback for unknown response types
-            schema = ["key TEXT", "value TEXT"]
+            schema = ['key TEXT', 'value TEXT']
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
@@ -595,7 +623,9 @@ async def convert_api_response_to_table(
             for key, value in flattened.items():
                 # Use validated table name
                 validate_table_name(table_name)
-                insert_sql = create_safe_sql_statement('INSERT', table_name, "(key, value) VALUES (?, ?)")
+                insert_sql = create_safe_sql_statement(
+                    'INSERT', table_name, '(key, value) VALUES (?, ?)'
+                )
                 cursor.execute(insert_sql, (key, value))
                 rows_inserted += 1
 
@@ -630,15 +660,23 @@ async def convert_api_response_to_table(
         sample_queries = [base_query]
 
         if converter_type == 'cost_and_usage':
-            cost_query = create_safe_sql_statement('SELECT', table_name, 'group_key_1, SUM(amount) as total_cost') + \
-                         ' GROUP BY group_key_1 ORDER BY total_cost DESC'
+            cost_query = (
+                create_safe_sql_statement(
+                    'SELECT', table_name, 'group_key_1, SUM(amount) as total_cost'
+                )
+                + ' GROUP BY group_key_1 ORDER BY total_cost DESC'
+            )
             sample_queries.append(cost_query)
         elif converter_type == 'dimension_values':
-            value_query = create_safe_sql_statement('SELECT', table_name, 'value') + ' ORDER BY value'
+            value_query = (
+                create_safe_sql_statement('SELECT', table_name, 'value') + ' ORDER BY value'
+            )
             sample_queries.append(value_query)
         elif converter_type == 'pricing_products':
-            product_query = create_safe_sql_statement('SELECT', table_name, 'product_family, COUNT(*)') + \
-                           ' GROUP BY product_family'
+            product_query = (
+                create_safe_sql_statement('SELECT', table_name, 'product_family, COUNT(*)')
+                + ' GROUP BY product_family'
+            )
             sample_queries.append(product_query)
 
         # Return info about the stored data

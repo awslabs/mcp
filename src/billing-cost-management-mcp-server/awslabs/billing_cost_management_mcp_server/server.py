@@ -31,7 +31,6 @@ if __name__ == '__main__':
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
 
-from awslabs.billing_cost_management_mcp_server.tools.athena_cur_tools import athena_cur_server
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import aws_pricing_server
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
@@ -139,7 +138,6 @@ async def setup():
     await mcp.import_server(compute_optimizer_server)
     await mcp.import_server(cost_optimization_hub_server)
     await mcp.import_server(storage_lens_server)
-    await mcp.import_server(athena_cur_server)
     await mcp.import_server(aws_pricing_server)
     await mcp.import_server(budget_server)
     await mcp.import_server(cost_anomaly_server)
@@ -160,7 +158,6 @@ async def setup():
     print('- compute_optimizer')
     print('- cost_optimization_hub')
     print('- storage_lens_run_query')
-    print('- athena_cur')
     print('- pricing')
     print('- budget')
     print('- cost_anomaly')

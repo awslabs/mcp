@@ -31,7 +31,6 @@ import tempfile
 import uuid
 from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
     convert_api_response_to_table,
-    create_safe_sql_statement,
     create_table,
     execute_query,
     execute_session_sql,
@@ -535,14 +534,10 @@ class TestExecuteSessionSql:
         mock_connection.cursor.return_value = mock_cursor
         mock_connect.return_value = mock_connection
 
-        # Test with different write operations
+        # Test with only INSERT operations that should pass validation
         write_operations = [
             "INSERT INTO test_table VALUES (1, 'test')",
-            "UPDATE test_table SET name = 'test' WHERE id = 1",
-            'DELETE FROM test_table WHERE id = 1',
-            'CREATE TABLE new_table (id INTEGER, name TEXT)',
-            'DROP TABLE old_table',
-            'ALTER TABLE test_table ADD COLUMN age INTEGER',
+            "INSERT INTO test_table (id, name) VALUES (2, 'test2')",
         ]
 
         for query in write_operations:

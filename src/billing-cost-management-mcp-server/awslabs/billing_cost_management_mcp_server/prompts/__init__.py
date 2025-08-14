@@ -59,17 +59,20 @@ def register_all_prompts(mcp: Any) -> None:
         if module_name not in ALLOWED_PROMPT_MODULES:
             logger.warning(f"Module '{module_name}' is not in the allowed modules list. Skipping.")
             continue
-            
+
         # Use a constant prefix with the validated module name
         # This explicitly prevents path traversal or other injection attacks
-        MODULE_PREFIX = "awslabs.billing_cost_management_mcp_server.prompts."
+        MODULE_PREFIX = 'awslabs.billing_cost_management_mcp_server.prompts.'
         module_path = MODULE_PREFIX + module_name
-        
+
         # Redundant validation to ensure the path hasn't been manipulated
-        if not module_path.startswith(MODULE_PREFIX) or len(module_path) > len(MODULE_PREFIX) + 100:
-            logger.warning(f"Invalid module path construction detected: {module_path}")
+        if (
+            not module_path.startswith(MODULE_PREFIX)
+            or len(module_path) > len(MODULE_PREFIX) + 100
+        ):
+            logger.warning(f'Invalid module path construction detected: {module_path}')
             continue
-            
+
         try:
             # Safe import as module_name is validated against whitelist
             # nosem: python.lang.security.audit.non-literal-import.non-literal-import
