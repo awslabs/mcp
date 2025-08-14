@@ -10,6 +10,7 @@ dependencies = [
     "mcp[cli]>=1.11.0",
     "pydantic>=2.10.6",
     "bandit>=1.7.5",
+    "sarif-om>=1.0.0",     # Fixes GitHub issue #1041: No module named 'sarif_om'
     # Security fixes for CVEs
     "setuptools>=78.1.1",  # Fixes CVE-2025-47273
     "starlette>=0.47.2",   # Fixes CVE-2025-54121
@@ -140,6 +141,14 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "asyncio: mark a test as an asyncio coroutine",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:ast",
+    "ignore:ast.Str is deprecated:DeprecationWarning",
+    "ignore:ast.Num is deprecated:DeprecationWarning",
+    "ignore:ast.NameConstant is deprecated:DeprecationWarning",
+    "ignore:ast.Ellipsis is deprecated:DeprecationWarning",
+    "ignore:Attribute s is deprecated:DeprecationWarning",
 ]
 
 [tool.coverage.run]
