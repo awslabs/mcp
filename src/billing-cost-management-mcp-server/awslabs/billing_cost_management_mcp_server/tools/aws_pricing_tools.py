@@ -17,7 +17,7 @@
 Updated to use shared utility functions.
 """
 
-from ..utilities.aws_service_base import format_response, handle_aws_error
+from ..utilities.aws_service_base import format_response, handle_aws_error, PRICING_API_REGIONS, get_pricing_region
 
 # Import operation handlers from local module
 from .aws_pricing_operations import (
