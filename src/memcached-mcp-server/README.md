@@ -97,9 +97,36 @@ For Windows users, the MCP server configuration format is slightly different:
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
-      }
+        "MEMCACHED_HOST": "your-memcached-host",
+        "MEMCACHED_PORT": "11211"
+      },
+    }
+  }
+}
+```
+
+To run in readonly mode:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.memcached-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.memcached-mcp-server@latest",
+        "awslabs.memcached-mcp-server.exe",
+        "--readonly"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MEMCACHED_HOST": "your-memcached-host",
+        "MEMCACHED_PORT": "11211"
+      },
+      "disabled": false,
+      "autoApprove": []
     }
   }
 }

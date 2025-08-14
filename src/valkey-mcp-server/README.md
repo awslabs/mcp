@@ -100,10 +100,37 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.valkey-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
-      }
+        "VALKEY_HOST": "127.0.0.1",
+        "VALKEY_PORT": "6379",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+    }
+  }
+}
+```
+
+To run in readonly mode:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.valkey-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.valkey-mcp-server@latest",
+        "awslabs.valkey-mcp-server.exe",
+        "--readonly"
+      ],
+      "env": {
+        "VALKEY_HOST": "127.0.0.1",
+        "VALKEY_PORT": "6379",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": [],
+      "disabled": false
     }
   }
 }

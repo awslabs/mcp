@@ -162,10 +162,13 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.ecs-mcp-server@latest",
         "awslabs.ecs-mcp-server.exe"
       ],
-      "env": {
+     "env": {
+        "AWS_PROFILE": "your-aws-profile", // Optional - uses your local AWS configuration if not specified
+        "AWS_REGION": "your-aws-region", // Optional - uses your local AWS configuration if not specified
         "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "FASTMCP_LOG_FILE": "/path/to/ecs-mcp-server.log",
+        "ALLOW_WRITE": "false",
+        "ALLOW_SENSITIVE_DATA": "false"
       }
     }
   }
