@@ -1,0 +1,64 @@
+{
+    "PivotTableVisual": {
+        "VisualId": "",
+        "Title": {
+            "Visibility": "VISIBLE"
+        },
+        "Subtitle": {
+            "Visibility": "VISIBLE"
+        },
+        "ChartConfiguration": {
+            "FieldWells": {
+                "PivotTableAggregatedFieldWells": {
+                    "Rows": [],
+                    "Columns": [],
+                    "Values": []
+                }
+            },
+            "SortConfiguration": {
+                "FieldSortOptions": []
+            },
+            "TableOptions": {
+                "ColumnHeaderStyle": {},
+                "CellStyle": {},
+                "RowFieldNamesStyle": {},
+                "RowAlternateColorOptions": {
+                    "Status": "DISABLED",
+                    "UsePrimaryBackgroundColor": "ENABLED"
+                },
+                "CollapsedRowDimensionsVisibility": "HIDDEN",
+                "RowsLayout": "HIERARCHY"
+            },
+            "TotalOptions": {
+                "RowSubtotalOptions": {
+                    "TotalsVisibility": "VISIBLE",
+                    "CustomLabel": "<<$aws:subtotalDimension>> Subtotal",
+                    "TotalCellStyle": {},
+                    "ValueCellStyle": {},
+                    "MetricHeaderCellStyle": {},
+                    "StyleTargets": [
+                        {
+                            "CellType": "VALUE"
+                        },
+                        {
+                            "CellType": "TOTAL"
+                        },
+                        {
+                            "CellType": "METRIC_HEADER"
+                        }
+                    ]
+                },
+                "RowTotalOptions": {
+                    "Placement": "AUTO"
+                },
+                "ColumnTotalOptions": {
+                    "Placement": "END"
+                }
+            },
+            "FieldOptions": {
+                "SelectedFieldOptions": []
+            }
+        },
+        "Actions": []
+    }
+}
