@@ -80,6 +80,62 @@ To run in readonly mode:
 }
 ```
 
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.valkey-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.valkey-mcp-server@latest",
+        "awslabs.valkey-mcp-server.exe"
+      ],
+      "env": {
+        "VALKEY_HOST": "127.0.0.1",
+        "VALKEY_PORT": "6379",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+    }
+  }
+}
+```
+
+To run in readonly mode:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.valkey-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.valkey-mcp-server@latest",
+        "awslabs.valkey-mcp-server.exe",
+        "--readonly"
+      ],
+      "env": {
+        "VALKEY_HOST": "127.0.0.1",
+        "VALKEY_PORT": "6379",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "autoApprove": [],
+      "disabled": false
+    }
+  }
+}
+```
+
 Or using Docker after a successful `docker build -t awslabs/valkey-mcp-server .`:
 
 ```json

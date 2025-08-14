@@ -53,6 +53,34 @@ Below is an example of how to configure your MCP client, although different clie
 }
 
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.amazon-neptune-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.amazon-neptune-mcp-server@latest",
+        "awslabs.amazon-neptune-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "INFO",
+        "NEPTUNE_ENDPOINT": "<INSERT NEPTUNE ENDPOINT IN FORMAT SPECIFIED BELOW>"
+      }
+    }
+  }
+}
+```
+
 ### Docker Configuration
 After building with `docker build -t awslabs/amazon-neptune-mcp-server .`:
 
