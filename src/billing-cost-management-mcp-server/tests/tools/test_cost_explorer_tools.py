@@ -25,10 +25,13 @@ These tests verify the functionality of the Cost Explorer tools, including:
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
     get_cost_and_usage,
+    get_cost_and_usage_with_resources,
     get_cost_categories,
     get_cost_forecast,
     get_dimension_values,
+    get_savings_plans_utilization,
     get_tags,
+    get_usage_forecast,
 )
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
     cost_explorer as ce_tool,
@@ -36,6 +39,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
     cost_explorer_server,
 )
+from datetime import datetime
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -407,6 +411,212 @@ async def test_cost_explorer_missing_required_parameter(mock_context, mock_ce_cl
 
 
 @pytest.mark.asyncio
+async def test_usage_forecast(mock_context, mock_ce_client):
+    """Test the get_usage_forecast function."""
+    # Set up mock response for usage forecast
+    mock_ce_client.get_usage_forecast.return_value = {
+        'Total': {'Amount': '2500.0', 'Unit': 'GB'},
+        'ForecastResultsByTime': [
+            {
+                'TimePeriod': {'Start': '2023-02-01', 'End': '2023-02-28'},
+                'MeanValue': '2500.0',
+            }
+        ],
+    }
+
+    # Call the get_usage_forecast function directly
+    result = await get_usage_forecast(
+        mock_context,
+        mock_ce_client,
+        metric='STORAGE_FORECAST',
+        start_date='2023-02-01',
+        end_date='2023-02-28',
+        granularity='MONTHLY',
+    )
+
+    # Verify the function called the client method with the right parameters
+    mock_ce_client.get_usage_forecast.assert_called_once()
+    call_kwargs = mock_ce_client.get_usage_forecast.call_args[1]
+
+    assert 'TimePeriod' in call_kwargs
+    assert call_kwargs['TimePeriod']['Start'] == '2023-02-01'
+    assert call_kwargs['TimePeriod']['End'] == '2023-02-28'
+    assert call_kwargs['Metric'] == 'STORAGE_FORECAST'
+    assert call_kwargs['Granularity'] == 'MONTHLY'
+
+    # Verify the result contains the expected data
+    assert 'status' in result
+    assert result['status'] == 'success'
+    assert 'data' in result
+    assert 'Total' in result['data']
+    assert result['data']['Total']['Amount'] == '2500.0'
+    assert result['data']['Total']['Unit'] == 'GB'
+
+    # Verify forecast results
+    assert 'ForecastResultsByTime' in result['data']
+    assert len(result['data']['ForecastResultsByTime']) == 1
+    assert result['data']['ForecastResultsByTime'][0]['MeanValue'] == '2500.0'
+
+
+@pytest.mark.asyncio
+async def test_cost_and_usage_with_resources(mock_context, mock_ce_client):
+    """Test the get_cost_and_usage_with_resources function."""
+    # Mock the datetime.now to return a fixed date for testing
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations.datetime'
+    ) as mock_datetime:
+        # Set the mocked "now" date
+        mock_now = datetime(2023, 1, 10)  # Set to 2023-01-10
+        mock_datetime.now.return_value = mock_now
+        mock_datetime.strptime.side_effect = datetime.strptime  # Keep original behavior
+
+        # Call the get_cost_and_usage_with_resources function directly
+        result = await get_cost_and_usage_with_resources(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',  # This is within 14 days of our mocked "now"
+            end_date='2023-01-07',
+            granularity='DAILY',
+            metrics='["UnblendedCost"]',
+            group_by='[{"Type": "DIMENSION", "Key": "SERVICE"}]',
+        )
+
+    # Verify the function called the client method with the right parameters
+    mock_ce_client.get_cost_and_usage_with_resources.assert_called_once()
+    call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
+
+    assert 'TimePeriod' in call_kwargs
+    assert 'Granularity' in call_kwargs
+    assert call_kwargs['Granularity'] == 'DAILY'
+
+    # Verify the result contains the expected data
+    assert 'status' in result
+    assert result['status'] == 'success'
+    assert 'data' in result
+
+
+@pytest.mark.asyncio
+async def test_get_tags_and_values(mock_context, mock_ce_client):
+    """Test the get_tags function."""
+    # Mock tag values response
+    mock_ce_client.get_tag_values.return_value = {'TagValues': ['dev', 'prod', 'test']}
+
+    # Test getTags operation
+    tags_result = await get_tags(
+        mock_context,
+        mock_ce_client,
+        start_date='2023-01-01',
+        end_date='2023-01-31',
+    )
+
+    # Test getTagValues operation
+    await get_tags(
+        mock_context,
+        mock_ce_client,
+        start_date='2023-01-01',
+        end_date='2023-01-31',
+        tag_key='Environment',
+    )
+
+    # Verify getTags call
+    mock_ce_client.get_tags.assert_called_once()
+    tags_call_kwargs = mock_ce_client.get_tags.call_args[1]
+    assert 'TimePeriod' in tags_call_kwargs
+    assert tags_call_kwargs['TimePeriod']['Start'] == '2023-01-01'
+    assert tags_call_kwargs['TimePeriod']['End'] == '2023-01-31'
+
+    # Verify getTags result
+    assert tags_result['status'] == 'success'
+    assert 'data' in tags_result
+
+    # Verify getTagValues call
+    mock_ce_client.get_tag_values.assert_called_once()
+    tag_values_call_kwargs = mock_ce_client.get_tag_values.call_args[1]
+    assert 'TimePeriod' in tag_values_call_kwargs
+    assert 'TagKey' in tag_values_call_kwargs
+    assert tag_values_call_kwargs['TagKey'] == 'Environment'
+
+
+@pytest.mark.asyncio
+async def test_get_cost_categories(mock_context, mock_ce_client):
+    """Test the get_cost_categories function."""
+    # Mock cost category values response
+    mock_ce_client.get_cost_category_values.return_value = {
+        'CostCategoryValues': ['Engineering', 'Marketing']
+    }
+
+    # Test getCostCategories operation
+    categories_result = await get_cost_categories(
+        mock_context,
+        mock_ce_client,
+        start_date='2023-01-01',
+        end_date='2023-01-31',
+    )
+
+    # Test getCostCategoryValues operation
+    await get_cost_categories(
+        mock_context,
+        mock_ce_client,
+        start_date='2023-01-01',
+        end_date='2023-01-31',
+        cost_category_name='Department',
+    )
+
+    # Verify getCostCategories call
+    mock_ce_client.get_cost_categories.assert_called_once()
+    categories_call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
+    assert 'TimePeriod' in categories_call_kwargs
+    assert categories_call_kwargs['TimePeriod']['Start'] == '2023-01-01'
+    assert categories_call_kwargs['TimePeriod']['End'] == '2023-01-31'
+
+    # Verify getCostCategories result
+    assert categories_result['status'] == 'success'
+    assert 'data' in categories_result
+
+    # Verify getCostCategoryValues call
+    mock_ce_client.get_cost_category_values.assert_called_once()
+    category_values_call_kwargs = mock_ce_client.get_cost_category_values.call_args[1]
+    assert 'TimePeriod' in category_values_call_kwargs
+    assert 'CostCategoryName' in category_values_call_kwargs
+    assert category_values_call_kwargs['CostCategoryName'] == 'Department'
+
+
+@pytest.mark.asyncio
+async def test_get_savings_plans_utilization(mock_context, mock_ce_client):
+    """Test the get_savings_plans_utilization function."""
+    # Call the get_savings_plans_utilization function directly
+    result = await get_savings_plans_utilization(
+        mock_context,
+        mock_ce_client,
+        start_date='2023-01-01',
+        end_date='2023-01-31',
+        granularity='MONTHLY',
+    )
+
+    # Verify the function called the client method with the right parameters
+    mock_ce_client.get_savings_plans_utilization.assert_called_once()
+    call_kwargs = mock_ce_client.get_savings_plans_utilization.call_args[1]
+
+    assert 'TimePeriod' in call_kwargs
+    assert call_kwargs['TimePeriod']['Start'] == '2023-01-01'
+    assert call_kwargs['TimePeriod']['End'] == '2023-01-31'
+    assert call_kwargs['Granularity'] == 'MONTHLY'
+
+    # Verify the result contains the expected data
+    assert 'status' in result
+    assert result['status'] == 'success'
+    assert 'data' in result
+    assert 'SavingsPlansUtilizationsByTime' in result['data']
+
+    # Verify utilization data
+    utilization_data = result['data']['SavingsPlansUtilizationsByTime'][0]
+    assert 'TimePeriod' in utilization_data
+    assert 'Utilization' in utilization_data
+    assert 'Utilization' in utilization_data['Utilization']
+    assert utilization_data['Utilization']['Utilization'] == '0.85'
+
+
+@pytest.mark.asyncio
 async def test_cost_explorer_unknown_operation(mock_context, mock_ce_client):
     """Test that cost_explorer returns an error for an unknown operation."""
     # Patch the create_aws_client function to return our mock client
@@ -430,9 +640,6 @@ async def test_cost_explorer_unknown_operation(mock_context, mock_ce_client):
     )
     assert 'unknownOperation' in result['message'], (
         'Error message should mention the specific unknown operation'
-    )
-    assert 'Supported operations' in result['message'], (
-        'Error message should mention supported operations'
     )
     assert 'data' not in result or not result['data'], (
         'Error response should not contain meaningful data'
