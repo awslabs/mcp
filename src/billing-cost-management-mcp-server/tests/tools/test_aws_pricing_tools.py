@@ -25,6 +25,12 @@ These tests verify the functionality of the AWS Pricing API tools, including:
 import json
 import os
 import pytest
+from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations import (
+    get_attribute_values,
+    get_pricing_from_api,
+    get_service_attributes,
+    get_service_codes,
+)
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import (
     aws_pricing_server,
 )
@@ -406,3 +412,88 @@ def test_aws_pricing_server_initialization():
     instructions = aws_pricing_server.instructions
     assert instructions is not None
     assert 'Tools for working with AWS Pricing API' in instructions if instructions else False
+
+
+# Tests for aws_pricing_operations module
+class TestAwsPricingOperations:
+    """Test AWS pricing operations."""
+
+    @pytest.mark.asyncio
+    async def test_get_service_codes_calls_api(self):
+        """Test get_service_codes calls API."""
+        from fastmcp import Context
+        from unittest.mock import MagicMock, patch
+
+        mock_context = MagicMock(spec=Context)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+        ) as mock_client:
+            mock_pricing = MagicMock()
+            mock_pricing.describe_services.return_value = {
+                'Services': [{'ServiceCode': 'AmazonEC2'}]
+            }
+            mock_client.return_value = mock_pricing
+
+            result = await get_service_codes(mock_context)
+            assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_get_service_attributes_calls_api(self):
+        """Test get_service_attributes calls API."""
+        from fastmcp import Context
+        from unittest.mock import MagicMock, patch
+
+        mock_context = MagicMock(spec=Context)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+        ) as mock_client:
+            mock_pricing = MagicMock()
+            mock_pricing.describe_services.return_value = {
+                'Services': [{'AttributeNames': ['instanceType']}]
+            }
+            mock_client.return_value = mock_pricing
+
+            result = await get_service_attributes(mock_context, 'AmazonEC2')
+            assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_get_attribute_values_calls_api(self):
+        """Test get_attribute_values calls API."""
+        from fastmcp import Context
+        from unittest.mock import MagicMock, patch
+
+        mock_context = MagicMock(spec=Context)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+        ) as mock_client:
+            mock_pricing = MagicMock()
+            mock_pricing.get_attribute_values.return_value = {
+                'AttributeValues': [{'Value': 't3.micro'}]
+            }
+            mock_client.return_value = mock_pricing
+
+            result = await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType')
+            assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_from_api_calls_api(self):
+        """Test get_pricing_from_api calls API."""
+        from fastmcp import Context
+        from unittest.mock import MagicMock, patch
+
+        mock_context = MagicMock(spec=Context)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+        ) as mock_client:
+            mock_pricing = MagicMock()
+            mock_pricing.get_products.return_value = {
+                'PriceList': ['{"product": {"sku": "test"}}']
+            }
+            mock_client.return_value = mock_pricing
+
+            result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
+            assert result is not None

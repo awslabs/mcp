@@ -23,9 +23,17 @@ These tests verify the functionality of AWS Cost Optimization Hub tools, includi
 """
 
 import pytest
+from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_helpers import (
+    format_currency_amount,
+    format_timestamp,
+    get_recommendation,
+    list_recommendation_summaries,
+    list_recommendations,
+)
 from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tools import (
     cost_optimization_hub_server,
 )
+from datetime import datetime
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock
 
@@ -297,3 +305,73 @@ def test_cost_optimization_hub_server_initialization():
         'Tools for working with AWS Cost Optimization Hub API'
         in cost_optimization_hub_server.instructions
     )
+
+
+# Tests for cost_optimization_hub_helpers module
+class TestFormatCurrencyAmount:
+    """Test format currency amount."""
+
+    def test_format_currency_amount_valid(self):
+        """Test format currency amount with valid input."""
+        amount = {'amount': '100.50', 'currency': 'USD'}
+        result = format_currency_amount(amount)
+
+        assert result is not None
+        assert result['amount'] == '100.50'
+        assert result['currency'] == 'USD'
+        assert result['formatted'] == '100.50 USD'
+
+    def test_format_currency_amount_none(self):
+        """Test format currency amount with None input."""
+        result = format_currency_amount(None)
+        assert result is None
+
+
+class TestFormatTimestamp:
+    """Test format timestamp."""
+
+    def test_format_timestamp_datetime(self):
+        """Test format timestamp with datetime input."""
+        dt = datetime(2024, 1, 15, 10, 30, 45)
+        result = format_timestamp(dt)
+
+        assert result == '2024-01-15T10:30:45'
+
+    def test_format_timestamp_none(self):
+        """Test format timestamp with None input."""
+        result = format_timestamp(None)
+        assert result is None
+
+
+class TestCostOptimizationHubHelpers:
+    """Test cost optimization hub helpers."""
+
+    @pytest.mark.asyncio
+    async def test_list_recommendation_summaries_calls_client(self):
+        """Test list_recommendation_summaries calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_coh_client = MagicMock()
+        mock_coh_client.get_recommendation_summaries.return_value = {'recommendationSummaries': []}
+
+        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'resourceType')
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_list_recommendations_calls_client(self):
+        """Test list_recommendations calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_coh_client = MagicMock()
+        mock_coh_client.list_recommendations.return_value = {'recommendations': []}
+
+        await list_recommendations(mock_context, mock_coh_client)
+        mock_coh_client.list_recommendations.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_recommendation_calls_client(self):
+        """Test get_recommendation calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_coh_client = MagicMock()
+        mock_coh_client.get_recommendation.return_value = {'recommendationId': 'rec-123'}
+
+        await get_recommendation(mock_context, mock_coh_client, 'rec-123', 'EC2Instance')
+        mock_coh_client.get_recommendation.assert_called_once()

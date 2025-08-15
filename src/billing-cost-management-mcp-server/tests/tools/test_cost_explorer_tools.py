@@ -23,6 +23,13 @@ These tests verify the functionality of the Cost Explorer tools, including:
 """
 
 import pytest
+from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
+    get_cost_and_usage,
+    get_cost_categories,
+    get_cost_forecast,
+    get_dimension_values,
+    get_tags,
+)
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
     cost_explorer as ce_tool,
 )
@@ -506,3 +513,64 @@ def test_cost_explorer_server_initialization():
     assert hasattr(cost_explorer_server, 'instructions'), (
         "Server should have 'instructions' property"
     )
+
+
+# Tests for cost_explorer_operations module
+class TestCostExplorerOperations:
+    """Test cost explorer operations."""
+
+    @pytest.mark.asyncio
+    async def test_get_cost_and_usage_calls_client(self):
+        """Test get_cost_and_usage calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_ce_client = MagicMock()
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2024-01-01', 'End': '2024-01-02'}}]
+        }
+
+        await get_cost_and_usage(mock_context, mock_ce_client)
+        mock_ce_client.get_cost_and_usage.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_dimension_values_calls_client(self):
+        """Test get_dimension_values calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_ce_client = MagicMock()
+        mock_ce_client.get_dimension_values.return_value = {
+            'DimensionValues': [{'Value': 'EC2-Instance'}]
+        }
+
+        await get_dimension_values(mock_context, mock_ce_client, 'SERVICE')
+        mock_ce_client.get_dimension_values.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_cost_forecast_calls_client(self):
+        """Test get_cost_forecast calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_ce_client = MagicMock()
+        mock_ce_client.get_cost_forecast.return_value = {
+            'Total': {'Amount': '100.00', 'Unit': 'USD'}
+        }
+
+        await get_cost_forecast(mock_context, mock_ce_client, 'UNBLENDED_COST')
+        mock_ce_client.get_cost_forecast.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_tags_calls_client(self):
+        """Test get_tags calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_ce_client = MagicMock()
+        mock_ce_client.get_tags.return_value = {'Tags': ['Environment']}
+
+        await get_tags(mock_context, mock_ce_client)
+        mock_ce_client.get_tags.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_cost_categories_calls_client(self):
+        """Test get_cost_categories calls client."""
+        mock_context = MagicMock(spec=Context)
+        mock_ce_client = MagicMock()
+        mock_ce_client.get_cost_categories.return_value = {'CostCategoryNames': ['BusinessUnit']}
+
+        await get_cost_categories(mock_context, mock_ce_client)
+        mock_ce_client.get_cost_categories.assert_called_once()

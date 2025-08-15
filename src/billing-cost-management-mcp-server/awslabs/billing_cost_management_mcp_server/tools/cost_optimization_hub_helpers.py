@@ -22,7 +22,7 @@ from fastmcp import Context
 from typing import Any, Dict, Optional
 
 
-def format_currency_amount(amount: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def format_currency_amount(amount: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Format currency amount for better readability.
 
     Args:
