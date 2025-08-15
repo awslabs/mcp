@@ -1094,6 +1094,11 @@ The project follows strict code quality standards:
 - Single responsibility principle enforced
 - Clear separation of concerns
 
+**Method Naming Convention**: Underscore prefix for private methods
+- **Private/Helper methods**: Use `_method_name()` prefix (e.g., `_extract_dependencies()`)
+- **Public methods**: No underscore prefix (e.g., `parse_code()`)
+- **Framework-specific helpers**: Each parser has unique private methods for framework-specific logic
+
 **Constants Management**: Zero magic numbers
 - All configurable values in `constants.py`
 - Centralized timeout, retry, and threshold values
@@ -1124,14 +1129,44 @@ class MyUtility:
         pass
 ```
 
-**2. Add Constants**
+**2. When to Add Helper Methods vs Abstract Methods**
+
+**Add Private Helper Methods (`_method_name`) when:**
+- Framework-specific parsing logic (e.g., `_extract_dependencies()` in Airflow parser)
+- Breaking down complex public methods into smaller pieces
+- Internal utility functions used only within one parser/generator
+- Logic specific to one framework's data structures or syntax
+
+**Add Abstract Methods to Base Classes when:**
+- **ALL parsers/generators** need to implement the same interface
+- New functionality required across **every framework**
+- Server code needs to call the method on any parser/generator
+- Ensures consistent behavior across all implementations
+
+**Examples:**
+```python
+# ✅ Good: Framework-specific helper (private)
+class AirflowParser(WorkflowParser):
+    def _extract_dag_info(self, tree: ast.AST) -> Dict[str, Any]:
+        # Airflow-specific AST parsing
+        pass
+
+# ✅ Good: Universal interface (abstract)
+class WorkflowParser(ABC):
+    @abstractmethod
+    def parse_metadata(self, source_data: Any) -> Dict[str, Any]:
+        # ALL parsers must implement this
+        pass
+```
+
+**3. Add Constants**
 ```python
 # Add to constants.py
 MY_FEATURE_TIMEOUT = 60
 MY_FEATURE_MAX_RETRIES = 3
 ```
 
-**3. Write Tests**
+**4. Write Tests**
 ```python
 # Create comprehensive test coverage
 class TestMyUtility:
@@ -1142,7 +1177,7 @@ class TestMyUtility:
         pass
 ```
 
-**4. Update Documentation**
+**5. Update Documentation**
 - Add feature description to README
 - Update architecture diagrams
 - Include usage examples
@@ -3383,98 +3418,47 @@ python -m pytest --cov=awslabs.etl_replatforming_mcp_server --cov-report=term-mi
 
 #### Integration Tests
 
-**⚠️ Throttling Warning for Integration Tests**
+**Integration tests run the complete MCP server and test all tools end-to-end.**
 
-Integration tests may run indefinitely due to Bedrock throttling with newer models. **Always use Claude 3 Sonnet for testing:**
-
+**Step 1: Set up AWS credentials (optional - for AI enhancement)**
 ```bash
-# Create config to avoid throttling
+# Configure AWS profile
+aws configure --profile your-profile
+# Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output format (json)
+
+# Set environment variables
+export AWS_PROFILE=your-profile
+export AWS_REGION=us-east-1
+```
+
+**Step 2: Create test config (optional - to avoid throttling)**
+```bash
+# Create config to use Claude 3 Sonnet (recommended for testing)
 echo '{
   "llm_config": {
-    "model_id": "anthropic.claude-3-sonnet-20240229-v1:0" // pragma: allowlist secret
+    "model_id": "anthropic.claude-3-sonnet-20240229-v1:0"
   }
 }' > tests/integration/integration_test_config.json
 ```
 
-**⚠️ AWS Credentials Setup for Integration Tests**
-
-For full integration testing with AI enhancement, you must have AWS credentials configured:
-
-**Option 1: Configure Default Profile (Recommended)**
+**Step 3: Run integration tests**
 ```bash
-# Set up default AWS profile
-aws configure
-# Enter: Access Key ID, Secret Access Key, Region (us-east-1), Output format (json)
+# Quick mode (default) - tests most complex files
+python tests/integration/test_integration.py
+
+# Full mode - tests all files
+INTEGRATION_TEST_MODE=full python tests/integration/test_integration.py
+
+# With logging
+export MCP_LOG_FILE=integration_test.log
+python tests/integration/test_integration.py
 ```
-
-**Option 2: Copy Existing Profile as Default**
-```bash
-# If you have an existing profile, copy its credentials to default
-echo -e "\n[default]\naws_access_key_id = YOUR_ACCESS_KEY\naws_secret_access_key = YOUR_SECRET_KEY\nregion = us-east-1" >> ~/.aws/credentials
-```
-
-**Option 3: Use Named Profile (May require additional config)**
-```bash
-# Ensure profile exists in both ~/.aws/credentials AND ~/.aws/config
-echo -e "\n[profile your-profile-name]\nregion = us-east-1\noutput = json" >> ~/.aws/config
-
-# Run tests with specific profile
-AWS_PROFILE=your-profile-name python -m pytest tests/integration/test_integration.py::TestIntegration::test_all_mcp_tools -v -s
-```
-
-**Required AWS Setup:**
-- **IAM Permissions**: `bedrock:InvokeModel` and `sts:GetCallerIdentity`
-- **Bedrock Model Access**: Enable Claude Sonnet 4 in AWS Console → Bedrock → Model access
-- **Region**: Model access must be granted in the same region as your AWS credentials (us-east-1)
-
-**Integration Test Commands:**
-```bash
-# Quick test mode (strategic file selection) - ALWAYS use -s to see progress
-python -m pytest tests/integration/test_integration.py::TestIntegration::test_all_mcp_tools -v -s
-
-# Full test mode (all files in each framework directory)
-INTEGRATION_TEST_MODE=full python -m pytest tests/integration/test_integration.py::TestIntegration::test_all_mcp_tools -v -s
-
-# With named profile (if properly configured)
-AWS_PROFILE=your-profile-name python -m pytest tests/integration/test_integration.py::TestIntegration::test_all_mcp_tools -v -s
-```
-
-**⚠️ Important**: Always use `-s` flag to see detailed test progress. Without `-s`, you only see the final PASSED/FAILED result.
-
-**The `-s` Option Explained:**
-- **Without `-s`**: pytest captures all output and only shows final PASSED/FAILED status
-- **With `-s`**: Shows real-time progress including:
-  - MCP server startup messages
-  - AWS configuration details
-  - Individual tool execution progress
-  - File processing status
-  - AI enhancement logs
-  - Detailed error messages if failures occur
-
-**Test Modes:**
-- **Quick Mode** (default): Tests 7 strategic files covering key patterns - fast execution with good coverage
-- **Full Mode**: Tests all files in each framework directory - comprehensive but slower
-
-**Verify AWS Setup:**
-```bash
-# Test default profile
-aws sts get-caller-identity
-
-# Test named profile
-AWS_PROFILE=your-profile-name aws sts get-caller-identity
-```
-
-**Without AWS Credentials:**
-- Tests still pass using deterministic parsing only
-- AI enhancement skipped with "Unable to locate credentials" warnings
-- Demonstrates hybrid approach: 95%+ completeness from deterministic parsing alone
 
 **What it tests:**
 - Spawns fresh MCP server process via MCP protocol
-- Tests all 6 MCP tools with most complex workflow files
-- Single workflow tools: parse-single, convert-single, generate-single
-- Directory tools: parse-to-flex, convert-etl-workflow, generate-from-flex
-- Creates organized output in outputs/integration_tests/ with clear naming
+- Tests convert-etl-workflow and convert-single-etl-workflow tools
+- Creates organized output in outputs/integration_tests/ with timestamps
+- Works without AWS credentials (uses deterministic parsing only)
 
 **See `tests/unit/README.md` and `tests/integration/README.md` for detailed testing instructions.**
 
