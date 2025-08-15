@@ -27,16 +27,18 @@ import pytest
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import CloudWatchAlarmsTools
 
 
+@pytest.fixture
+def tools():
+    """Create CloudWatchAlarmsTools instance for testing."""
+    return CloudWatchAlarmsTools()
+
+
 class TestGenerateResponseMessage:
     """Comprehensive tests for the _generate_response_message method."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.tools = CloudWatchAlarmsTools()
-
-    def test_empty_results_with_autoscaling_included(self):
+    def test_empty_results_with_autoscaling_included(self, tools):
         """Test empty results when autoscaling alarms are included."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=True,
@@ -45,9 +47,9 @@ class TestGenerateResponseMessage:
         )
         assert result == 'No active alarms found'
 
-    def test_empty_results_with_autoscaling_included_and_processed_alarms(self):
+    def test_empty_results_with_autoscaling_included_and_processed_alarms(self, tools):
         """Test empty results when autoscaling alarms are included but some alarms were processed."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=True,
@@ -56,9 +58,9 @@ class TestGenerateResponseMessage:
         )
         assert result == 'No active alarms found'
 
-    def test_empty_results_with_no_alarms_processed(self):
+    def test_empty_results_with_no_alarms_processed(self, tools):
         """Test empty results when no alarms were processed at all."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -67,9 +69,9 @@ class TestGenerateResponseMessage:
         )
         assert result == 'No active alarms found'
 
-    def test_empty_results_with_filtering_and_filtered_alarms(self):
+    def test_empty_results_with_filtering_and_filtered_alarms(self, tools):
         """Test empty results when filtering is enabled and some alarms were filtered out."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -79,9 +81,9 @@ class TestGenerateResponseMessage:
         expected = 'No non-autoscaling active alarms found. 3 autoscaling alarms were filtered out. Set include_autoscaling_alarms=True to see all alarms.'
         assert result == expected
 
-    def test_empty_results_with_filtering_and_no_filtered_alarms(self):
+    def test_empty_results_with_filtering_and_no_filtered_alarms(self, tools):
         """Test empty results when filtering is enabled but no alarms were filtered out."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -90,9 +92,9 @@ class TestGenerateResponseMessage:
         )
         assert result == 'No non-autoscaling active alarms found'
 
-    def test_results_with_autoscaling_included_and_more_results(self):
+    def test_results_with_autoscaling_included_and_more_results(self, tools):
         """Test results when autoscaling alarms are included and more results are available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=5,
             has_more_results=True,
             include_autoscaling_alarms=True,
@@ -101,9 +103,9 @@ class TestGenerateResponseMessage:
         )
         assert result == 'Showing 5 alarms (more available)'
 
-    def test_results_with_autoscaling_included_and_no_more_results(self):
+    def test_results_with_autoscaling_included_and_no_more_results(self, tools):
         """Test results when autoscaling alarms are included and no more results are available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=5,
             has_more_results=False,
             include_autoscaling_alarms=True,
@@ -112,9 +114,9 @@ class TestGenerateResponseMessage:
         )
         assert result is None
 
-    def test_results_with_filtering_and_filtered_alarms_and_more_results(self):
+    def test_results_with_filtering_and_filtered_alarms_and_more_results(self, tools):
         """Test results when filtering is enabled, alarms were filtered, and more results are available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=3,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -124,9 +126,9 @@ class TestGenerateResponseMessage:
         expected = 'Showing 3 non-autoscaling alarms (filtered out 2 autoscaling alarms, more non-autoscaling alarms available)'
         assert result == expected
 
-    def test_results_with_filtering_and_filtered_alarms_and_no_more_results(self):
+    def test_results_with_filtering_and_filtered_alarms_and_no_more_results(self, tools):
         """Test results when filtering is enabled, alarms were filtered, and no more results are available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=3,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -136,9 +138,9 @@ class TestGenerateResponseMessage:
         expected = 'Found 3 non-autoscaling alarms (filtered out 2 autoscaling alarms)'
         assert result == expected
 
-    def test_results_with_filtering_and_no_filtered_alarms_and_more_results(self):
+    def test_results_with_filtering_and_no_filtered_alarms_and_more_results(self, tools):
         """Test results when filtering is enabled, no alarms were filtered, and more results are available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=4,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -148,9 +150,9 @@ class TestGenerateResponseMessage:
         expected = 'Showing 4 alarms (no autoscaling alarms found, more alarms available)'
         assert result == expected
 
-    def test_results_with_filtering_and_no_filtered_alarms_and_no_more_results(self):
+    def test_results_with_filtering_and_no_filtered_alarms_and_no_more_results(self, tools):
         """Test results when filtering is enabled, no alarms were filtered, and no more results are available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=4,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -160,9 +162,9 @@ class TestGenerateResponseMessage:
         expected = 'Found 4 alarms (no autoscaling alarms found)'
         assert result == expected
 
-    def test_edge_case_zero_items_with_large_filtered_count(self):
+    def test_edge_case_zero_items_with_large_filtered_count(self, tools):
         """Test edge case with zero items returned but large filtered count."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -172,9 +174,9 @@ class TestGenerateResponseMessage:
         expected = 'No non-autoscaling active alarms found. 100 autoscaling alarms were filtered out. Set include_autoscaling_alarms=True to see all alarms.'
         assert result == expected
 
-    def test_edge_case_single_item_with_filtering_and_more_results(self):
+    def test_edge_case_single_item_with_filtering_and_more_results(self, tools):
         """Test edge case with single item returned, filtering enabled, and more results available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=1,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -184,9 +186,9 @@ class TestGenerateResponseMessage:
         expected = 'Showing 1 non-autoscaling alarms (filtered out 5 autoscaling alarms, more non-autoscaling alarms available)'
         assert result == expected
 
-    def test_edge_case_single_item_with_no_filtering_and_no_more_results(self):
+    def test_edge_case_single_item_with_no_filtering_and_no_more_results(self, tools):
         """Test edge case with single item returned, no filtering, and no more results available."""
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=1,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -196,10 +198,10 @@ class TestGenerateResponseMessage:
         expected = 'Found 1 alarms (no autoscaling alarms found)'
         assert result == expected
 
-    def test_parameter_boundary_conditions(self):
+    def test_parameter_boundary_conditions(self, tools):
         """Test various boundary conditions for parameters."""
         # Test with maximum reasonable values
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=1000,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -210,7 +212,7 @@ class TestGenerateResponseMessage:
         assert result == expected
 
         # Test with zero filtered count but non-zero processed
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=10,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -220,10 +222,10 @@ class TestGenerateResponseMessage:
         expected = 'Found 10 alarms (no autoscaling alarms found)'
         assert result == expected
 
-    def test_all_combinations_of_boolean_parameters(self):
+    def test_all_combinations_of_boolean_parameters(self, tools):
         """Test all combinations of boolean parameters with non-zero items."""
         # include_autoscaling_alarms=True, has_more_results=True
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=5,
             has_more_results=True,
             include_autoscaling_alarms=True,
@@ -233,7 +235,7 @@ class TestGenerateResponseMessage:
         assert result == 'Showing 5 alarms (more available)'
 
         # include_autoscaling_alarms=True, has_more_results=False
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=5,
             has_more_results=False,
             include_autoscaling_alarms=True,
@@ -243,7 +245,7 @@ class TestGenerateResponseMessage:
         assert result is None
 
         # include_autoscaling_alarms=False, has_more_results=True, filtered_count > 0
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=3,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -254,7 +256,7 @@ class TestGenerateResponseMessage:
         assert result == expected
 
         # include_autoscaling_alarms=False, has_more_results=False, filtered_count > 0
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=3,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -265,7 +267,7 @@ class TestGenerateResponseMessage:
         assert result == expected
 
         # include_autoscaling_alarms=False, has_more_results=True, filtered_count = 0
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=4,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -276,7 +278,7 @@ class TestGenerateResponseMessage:
         assert result == expected
 
         # include_autoscaling_alarms=False, has_more_results=False, filtered_count = 0
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=4,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -286,10 +288,10 @@ class TestGenerateResponseMessage:
         expected = 'Found 4 alarms (no autoscaling alarms found)'
         assert result == expected
 
-    def test_message_content_accuracy(self):
+    def test_message_content_accuracy(self, tools):
         """Test that message content accurately reflects the parameters."""
         # Test that filtered count is correctly included in message
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=2,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -302,7 +304,7 @@ class TestGenerateResponseMessage:
         assert 'more' not in result  # Should not mention more results
 
         # Test that items_to_return count is correctly included
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=15,
             has_more_results=True,
             include_autoscaling_alarms=True,
@@ -313,10 +315,10 @@ class TestGenerateResponseMessage:
         assert 'Showing 15 alarms' in result
         assert 'more available' in result
 
-    def test_return_type_consistency(self):
+    def test_return_type_consistency(self, tools):
         """Test that return types are consistent (str or None)."""
         # Test cases that should return strings
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=True,
@@ -325,7 +327,7 @@ class TestGenerateResponseMessage:
         )
         assert isinstance(result, str)
 
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=5,
             has_more_results=True,
             include_autoscaling_alarms=True,
@@ -335,7 +337,7 @@ class TestGenerateResponseMessage:
         assert isinstance(result, str)
 
         # Test case that should return None
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=5,
             has_more_results=False,
             include_autoscaling_alarms=True,
@@ -344,11 +346,11 @@ class TestGenerateResponseMessage:
         )
         assert result is None
 
-    def test_logical_consistency_of_parameters(self):
+    def test_logical_consistency_of_parameters(self, tools):
         """Test logical consistency between parameters."""
         # When items_to_return > 0 and include_autoscaling_alarms=False,
         # filtered_count should be <= total_processed - items_to_return
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=3,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -359,7 +361,7 @@ class TestGenerateResponseMessage:
         assert result == expected
 
         # Test with edge case where filtered_count equals total_processed - items_to_return
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=1,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -373,14 +375,10 @@ class TestGenerateResponseMessage:
 class TestGenerateResponseMessageIntegration:
     """Integration tests for _generate_response_message with realistic scenarios."""
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.tools = CloudWatchAlarmsTools()
-
-    def test_realistic_scenario_mixed_alarms_with_pagination(self):
+    def test_realistic_scenario_mixed_alarms_with_pagination(self, tools):
         """Test realistic scenario with mixed alarms and pagination."""
         # Scenario: 50 total alarms, 30 autoscaling, 20 non-autoscaling, requesting 10
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=10,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -390,10 +388,10 @@ class TestGenerateResponseMessageIntegration:
         expected = 'Showing 10 non-autoscaling alarms (filtered out 30 autoscaling alarms, more non-autoscaling alarms available)'
         assert result == expected
 
-    def test_realistic_scenario_all_autoscaling_alarms(self):
+    def test_realistic_scenario_all_autoscaling_alarms(self, tools):
         """Test realistic scenario where all alarms are autoscaling."""
         # Scenario: All 25 alarms are autoscaling, filtering enabled
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=0,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -403,10 +401,10 @@ class TestGenerateResponseMessageIntegration:
         expected = 'No non-autoscaling active alarms found. 25 autoscaling alarms were filtered out. Set include_autoscaling_alarms=True to see all alarms.'
         assert result == expected
 
-    def test_realistic_scenario_no_autoscaling_alarms(self):
+    def test_realistic_scenario_no_autoscaling_alarms(self, tools):
         """Test realistic scenario where no alarms are autoscaling."""
         # Scenario: 15 alarms, none are autoscaling, filtering enabled
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=15,
             has_more_results=False,
             include_autoscaling_alarms=False,
@@ -416,10 +414,10 @@ class TestGenerateResponseMessageIntegration:
         expected = 'Found 15 alarms (no autoscaling alarms found)'
         assert result == expected
 
-    def test_realistic_scenario_backward_compatibility(self):
+    def test_realistic_scenario_backward_compatibility(self, tools):
         """Test realistic scenario for backward compatibility (filtering disabled)."""
         # Scenario: 20 alarms total, filtering disabled (backward compatibility)
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=20,
             has_more_results=False,
             include_autoscaling_alarms=True,
@@ -428,10 +426,10 @@ class TestGenerateResponseMessageIntegration:
         )
         assert result is None  # No message needed for successful results without filtering
 
-    def test_realistic_scenario_large_scale_filtering(self):
+    def test_realistic_scenario_large_scale_filtering(self, tools):
         """Test realistic scenario with large-scale filtering."""
         # Scenario: 500 total alarms, 450 autoscaling, 50 non-autoscaling, requesting 25
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=25,
             has_more_results=True,
             include_autoscaling_alarms=False,
@@ -441,10 +439,10 @@ class TestGenerateResponseMessageIntegration:
         expected = 'Showing 25 non-autoscaling alarms (filtered out 450 autoscaling alarms, more non-autoscaling alarms available)'
         assert result == expected
 
-    def test_realistic_scenario_small_dataset(self):
+    def test_realistic_scenario_small_dataset(self, tools):
         """Test realistic scenario with small dataset."""
         # Scenario: 3 total alarms, 1 autoscaling, 2 non-autoscaling, requesting 10
-        result = self.tools._generate_response_message(
+        result = tools._generate_response_message(
             items_to_return=2,
             has_more_results=False,
             include_autoscaling_alarms=False,
