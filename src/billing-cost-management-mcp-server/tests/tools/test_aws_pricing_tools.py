@@ -497,3 +497,30 @@ class TestAwsPricingOperations:
 
             result = await get_pricing_from_api(mock_context, 'AmazonEC2', 'us-east-1')
             assert result is not None
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_missing_service_code_get_attributes():
+    """Test get_service_attributes without service_code."""
+    ctx = AsyncMock()
+    result = await aws_pricing(ctx=ctx, operation='get_service_attributes')
+    assert result['status'] == 'error'
+    assert 'service_code is required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_missing_params_get_attribute_values():
+    """Test get_attribute_values without required params."""
+    ctx = AsyncMock()
+    result = await aws_pricing(ctx=ctx, operation='get_attribute_values', service_code='AmazonEC2')
+    assert result['status'] == 'error'
+    assert 'service_code and attribute_name are required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_missing_params_get_pricing():
+    """Test get_pricing_from_api without required params."""
+    ctx = AsyncMock()
+    result = await aws_pricing(ctx=ctx, operation='get_pricing_from_api', service_code='AmazonEC2')
+    assert result['status'] == 'error'
+    assert 'service_code and region are required' in result['message']

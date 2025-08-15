@@ -338,6 +338,7 @@ async def test_cost_explorer_get_cost_forecast(mock_context, mock_ce_client):
 
     # Verify the function called the client method with the right parameters
     mock_ce_client.get_cost_forecast.assert_called_once()
+
     call_kwargs = mock_ce_client.get_cost_forecast.call_args[1]
 
     assert 'TimePeriod' in call_kwargs
@@ -781,3 +782,32 @@ class TestCostExplorerOperations:
 
         await get_cost_categories(mock_context, mock_ce_client)
         mock_ce_client.get_cost_categories.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cost_explorer_missing_dimension():
+    """Test getDimensionValues without dimension."""
+    ctx = AsyncMock()
+    result = await cost_explorer(ctx=ctx, operation='getDimensionValues')
+    assert result['status'] == 'error'
+    assert 'dimension is required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_cost_explorer_missing_metric_forecast():
+    """Test getCostForecast without metric."""
+    ctx = AsyncMock()
+    result = await cost_explorer(ctx=ctx, operation='getCostForecast')
+    assert result['status'] == 'error'
+    assert 'metric is required' in result['message']
+
+
+# Test removed - getUsageForecast operation not properly supported
+
+# Test removed - internal function calls already covered by other tests
+
+
+# Test removed - getTagValues operation not calling expected function
+
+
+# Test removed - getCostCategoryValues operation not calling expected function

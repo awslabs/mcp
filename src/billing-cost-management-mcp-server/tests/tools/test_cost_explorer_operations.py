@@ -15,19 +15,18 @@
 """Unit tests for the cost_explorer_operations module."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
-
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
-    get_dimension_values,
-    get_cost_forecast,
-    get_usage_forecast,
-    get_tags,
     get_cost_categories,
+    get_cost_forecast,
+    get_dimension_values,
     get_savings_plans_utilization,
+    get_tags,
+    get_usage_forecast,
 )
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
@@ -102,7 +101,9 @@ def mock_ce_client():
     mock_client.get_tag_values.return_value = {'TagValues': ['dev', 'prod', 'test']}
 
     mock_client.get_cost_categories.return_value = {'CostCategoryNames': ['Department', 'Team']}
-    mock_client.get_cost_category_values.return_value = {'CostCategoryValues': ['Engineering', 'Marketing']}
+    mock_client.get_cost_category_values.return_value = {
+        'CostCategoryValues': ['Engineering', 'Marketing']
+    }
 
     mock_client.get_savings_plans_utilization.return_value = {
         'SavingsPlansUtilizationsByTime': [
@@ -139,7 +140,7 @@ class TestGetCostAndUsage:
 
         assert result['status'] == 'success'
         assert result['data'] is not None
-        
+
         # Test passes as long as we got a valid response structure
         # We don't need to validate the specific fields since that's determined by
         # the convert_api_response_to_table function which has its own tests
@@ -208,7 +209,7 @@ class TestGetCostAndUsage:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_and_usage."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_cost_and_usage.side_effect = error
 
         # Don't mock handle_aws_error since we want to test the actual error path
@@ -228,7 +229,7 @@ class TestGetCostAndUsageWithResources:
         # We need to mock get_date_range to ensure our dates are used as is
         with patch(
             'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.get_date_range',
-            return_value=('2023-01-01', '2023-01-07')
+            return_value=('2023-01-01', '2023-01-07'),
         ):
             result = await get_cost_and_usage_with_resources(
                 mock_context,
@@ -237,7 +238,7 @@ class TestGetCostAndUsageWithResources:
                 end_date='2023-01-07',
                 granularity='DAILY',
             )
-        
+
             # Just verify that the function was called and returned success
             mock_ce_client.get_cost_and_usage_with_resources.assert_called_once()
             assert result['status'] == 'success'
@@ -248,7 +249,7 @@ class TestGetCostAndUsageWithResources:
         # Setup a date more than 14 days ago
         today = datetime.now()
         old_date = (today - timedelta(days=20)).strftime('%Y-%m-%d')
-        
+
         # Expected adjusted date (14 days ago)
         expected_start = (today - timedelta(days=14)).strftime('%Y-%m-%d')
 
@@ -302,7 +303,7 @@ class TestGetCostAndUsageWithResources:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_and_usage_with_resources."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_cost_and_usage_with_resources.side_effect = error
 
         # Test the actual error handling path
@@ -353,18 +354,21 @@ class TestGetDimensionValues:
         """Test get_dimension_values with filter expression."""
         filter_json = '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}'
         filter_dict = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
-        
+
         # Mock the parse_json function to return our dictionary
-        original_parse_json = __import__('awslabs.billing_cost_management_mcp_server.utilities.aws_service_base', fromlist=['parse_json']).parse_json
-        
+        original_parse_json = __import__(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base',
+            fromlist=['parse_json'],
+        ).parse_json
+
         def mock_parse_json(json_string, label):
             if json_string == filter_json and label == 'filter':
                 return filter_dict
             return original_parse_json(json_string, label)
-            
+
         with patch(
             'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json',
-            side_effect=mock_parse_json
+            side_effect=mock_parse_json,
         ):
             await get_dimension_values(
                 mock_context,
@@ -393,7 +397,7 @@ class TestGetDimensionValues:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_dimension_values."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_dimension_values.side_effect = error
 
         # Test the actual error handling path
@@ -449,18 +453,21 @@ class TestGetCostForecast:
         """Test get_cost_forecast with filter expression."""
         filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
         filter_dict = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}
-        
+
         # Mock the parse_json function to return our dictionary
-        original_parse_json = __import__('awslabs.billing_cost_management_mcp_server.utilities.aws_service_base', fromlist=['parse_json']).parse_json
-        
+        original_parse_json = __import__(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base',
+            fromlist=['parse_json'],
+        ).parse_json
+
         def mock_parse_json(json_string, label):
             if json_string == filter_json and label == 'filter':
                 return filter_dict
             return original_parse_json(json_string, label)
-            
+
         with patch(
             'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json',
-            side_effect=mock_parse_json
+            side_effect=mock_parse_json,
         ):
             await get_cost_forecast(
                 mock_context,
@@ -500,7 +507,7 @@ class TestGetCostForecast:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_forecast."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_cost_forecast.side_effect = error
 
         # Test the actual error handling path
@@ -556,18 +563,21 @@ class TestGetUsageForecast:
         """Test get_usage_forecast with filter expression."""
         filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon S3"]}}'
         filter_dict = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
-        
+
         # Mock the parse_json function to return our dictionary
-        original_parse_json = __import__('awslabs.billing_cost_management_mcp_server.utilities.aws_service_base', fromlist=['parse_json']).parse_json
-        
+        original_parse_json = __import__(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base',
+            fromlist=['parse_json'],
+        ).parse_json
+
         def mock_parse_json(json_string, label):
             if json_string == filter_json and label == 'filter':
                 return filter_dict
             return original_parse_json(json_string, label)
-            
+
         with patch(
             'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json',
-            side_effect=mock_parse_json
+            side_effect=mock_parse_json,
         ):
             await get_usage_forecast(
                 mock_context,
@@ -607,7 +617,7 @@ class TestGetUsageForecast:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_usage_forecast."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_usage_forecast.side_effect = error
 
         # Test the actual error handling path
@@ -670,7 +680,7 @@ class TestGetTags:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_tags."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_tags.side_effect = error
 
         # Test the actual error handling path
@@ -733,7 +743,7 @@ class TestGetCostCategories:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_categories."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_cost_categories.side_effect = error
 
         # Test the actual error handling path
@@ -771,18 +781,21 @@ class TestGetSavingsPlansUtilization:
         """Test get_savings_plans_utilization with filter expression."""
         filter_json = '{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}'
         filter_dict = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
-        
+
         # Mock the parse_json function to return our dictionary
-        original_parse_json = __import__('awslabs.billing_cost_management_mcp_server.utilities.aws_service_base', fromlist=['parse_json']).parse_json
-        
+        original_parse_json = __import__(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base',
+            fromlist=['parse_json'],
+        ).parse_json
+
         def mock_parse_json(json_string, label):
             if json_string == filter_json and label == 'filter':
                 return filter_dict
             return original_parse_json(json_string, label)
-            
+
         with patch(
             'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json',
-            side_effect=mock_parse_json
+            side_effect=mock_parse_json,
         ):
             await get_savings_plans_utilization(
                 mock_context,
@@ -797,7 +810,7 @@ class TestGetSavingsPlansUtilization:
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_savings_plans_utilization."""
         # Setup error
-        error = Exception("Test error")
+        error = Exception('Test error')
         mock_ce_client.get_savings_plans_utilization.side_effect = error
 
         # Test the actual error handling path

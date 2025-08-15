@@ -15,17 +15,16 @@
 """Unit tests for cost_optimization_hub_helpers module."""
 
 import pytest
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
-
 from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_helpers import (
     format_currency_amount,
     format_timestamp,
-    list_recommendations,
     get_recommendation,
     list_recommendation_summaries,
+    list_recommendations,
 )
+from datetime import datetime
 from fastmcp import Context
+from unittest.mock import AsyncMock, MagicMock
 
 
 @pytest.fixture
@@ -177,13 +176,13 @@ class TestListRecommendations:
 
         # Verify the context was informed
         mock_context.info.assert_called_once()
-        
+
         # Verify response structure
         assert result['status'] == 'success'
         assert 'recommendations' in result['data']
         assert 'next_token' in result['data']
         assert result['data']['next_token'] == 'next-token-123'
-        
+
         # Verify recommendation data
         recs = result['data']['recommendations']
         assert len(recs) == 1
@@ -194,7 +193,7 @@ class TestListRecommendations:
         assert rec['status'] == 'ADOPTED'
         assert rec['source'] == 'COMPUTE_OPTIMIZER'
         assert rec['lookback_period_in_days'] == 14
-        
+
         # Verify formatted currency
         assert rec['estimated_monthly_savings']['amount'] == 100.0
         assert rec['estimated_monthly_savings']['currency'] == 'USD'
@@ -203,8 +202,8 @@ class TestListRecommendations:
     async def test_with_filters_and_next_token(self, mock_context, mock_coh_client):
         """Test list_recommendations with filters and next_token."""
         filters = {'accountIds': ['123456789012']}
-        
-        result = await list_recommendations(
+
+        await list_recommendations(
             mock_context,
             mock_coh_client,
             max_results=10,
@@ -242,12 +241,12 @@ class TestGetRecommendation:
 
         # Verify the context was informed
         mock_context.info.assert_called_once()
-        
+
         # Verify response structure
         assert result['status'] == 'success'
         assert 'resource_id' in result['data']
         assert 'resource_type' in result['data']
-        
+
         # Verify basic recommendation data
         rec = result['data']
         assert rec['resource_id'] == 'i-1234567890abcdef0'
@@ -256,18 +255,21 @@ class TestGetRecommendation:
         assert rec['status'] == 'ADOPTED'
         assert rec['source'] == 'COMPUTE_OPTIMIZER'
         assert rec['lookback_period_in_days'] == 14
-        
+
         # Verify formatted currency
         assert rec['estimated_monthly_savings']['amount'] == 100.0
         assert rec['estimated_monthly_savings']['currency'] == 'USD'
         assert rec['estimated_monthly_savings']['formatted'] == '100.0 USD'
-        
+
         # Verify current resource details
         assert 'current_resource' in rec
         assert 'resource_details' in rec['current_resource']
         assert 'EC2Instance' in rec['current_resource']['resource_details']
-        assert rec['current_resource']['resource_details']['EC2Instance']['instanceType'] == 't3.large'
-        
+        assert (
+            rec['current_resource']['resource_details']['EC2Instance']['instanceType']
+            == 't3.large'
+        )
+
         # Verify recommended resources
         assert 'recommended_resources' in rec
         assert len(rec['recommended_resources']) == 1
@@ -275,14 +277,14 @@ class TestGetRecommendation:
         assert 'resource_details' in rec_resource
         assert 'EC2Instance' in rec_resource['resource_details']
         assert rec_resource['resource_details']['EC2Instance']['instanceType'] == 't3.small'
-        
+
         # Verify cost breakdown
         assert 'cost_breakdown' in rec_resource
         assert len(rec_resource['cost_breakdown']) == 1
         cost_item = rec_resource['cost_breakdown'][0]
         assert cost_item['description'] == 'Instance savings'
         assert cost_item['amount']['amount'] == 100.0
-        
+
         # Verify implementation effort
         assert 'implementation_effort' in rec
         assert rec['implementation_effort']['effort_level'] == 'MEDIUM'
@@ -309,17 +311,17 @@ class TestListRecommendationSummaries:
 
         # Verify the context was informed
         mock_context.info.assert_called_once()
-        
+
         # Verify response structure
         assert result['status'] == 'success'
         assert 'summaries' in result['data']
         assert 'next_token' in result['data']
         assert result['data']['next_token'] == 'next-token-summaries'
-        
+
         # Verify summaries data
         summaries = result['data']['summaries']
         assert len(summaries) == 2
-        
+
         # Verify first summary (EC2_INSTANCE)
         ec2_summary = summaries[0]
         assert ec2_summary['dimension_value'] == 'EC2_INSTANCE'
@@ -327,7 +329,7 @@ class TestListRecommendationSummaries:
         assert ec2_summary['estimated_monthly_savings']['amount'] == 500.0
         assert ec2_summary['estimated_monthly_savings']['currency'] == 'USD'
         assert ec2_summary['estimated_monthly_savings']['formatted'] == '500.0 USD'
-        
+
         # Verify second summary (RDS)
         rds_summary = summaries[1]
         assert rds_summary['dimension_value'] == 'RDS'
@@ -339,8 +341,8 @@ class TestListRecommendationSummaries:
     async def test_with_filters_and_pagination(self, mock_context, mock_coh_client):
         """Test list_recommendation_summaries with filters and pagination."""
         filters = {'accountIds': ['123456789012']}
-        
-        result = await list_recommendation_summaries(
+
+        await list_recommendation_summaries(
             mock_context,
             mock_coh_client,
             group_by='ACCOUNT_ID',

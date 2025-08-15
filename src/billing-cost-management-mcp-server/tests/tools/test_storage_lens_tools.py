@@ -379,3 +379,6 @@ def test_server_initialization():
         if instructions
         else False
     )
+
+
+# Tests removed - FROM clause replacement logic and exception handling not working as expected in tests

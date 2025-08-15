@@ -696,3 +696,36 @@ class TestConvertResponseIfNeeded:
         result = await convert_response_if_needed(mock_context, response, 'test_api')
 
         assert 'data' in result
+
+
+@pytest.mark.asyncio
+async def test_cleanup_session_db_with_existing_file():
+    """Test cleanup_session_db with existing file."""
+    with patch('os.path.exists') as mock_exists, patch('os.remove') as mock_remove:
+        mock_exists.return_value = True
+
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            cleanup_session_db,
+        )
+
+        cleanup_session_db()
+
+        mock_remove.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_session_db_with_remove_error():
+    """Test cleanup_session_db with remove error."""
+    with patch('os.path.exists') as mock_exists, patch('os.remove') as mock_remove:
+        mock_exists.return_value = True
+        mock_remove.side_effect = OSError('Permission denied')
+
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            cleanup_session_db,
+        )
+
+        # Should not raise exception
+        cleanup_session_db()
+
+
+# Test removed - convert_pricing_response function does not exist

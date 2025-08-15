@@ -15,15 +15,12 @@
 """Enhanced unit tests for the cost_anomaly_tools module."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
-
 from awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools import (
     cost_anomaly_server,
     get_anomalies,
 )
 from fastmcp import Context
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
@@ -373,19 +370,19 @@ class TestGetAnomalies:
 
         # Verify all pages were retrieved
         assert mock_ce_client.get_anomalies.call_count == 3
-        
+
         # Verify NextPageToken was used correctly
         second_call_kwargs = mock_ce_client.get_anomalies.call_args_list[1][1]
         assert 'NextPageToken' in second_call_kwargs
         assert second_call_kwargs['NextPageToken'] == 'page2token'
-        
+
         third_call_kwargs = mock_ce_client.get_anomalies.call_args_list[2][1]
         assert 'NextPageToken' in third_call_kwargs
         assert third_call_kwargs['NextPageToken'] == 'page3token'
-        
+
         # Verify all anomalies were collected
         assert len(result['data']['anomalies']) == 3
-        
+
         # Verify anomalies from all pages are present
         anomaly_ids = [a['id'] for a in result['data']['anomalies']]
         assert 'page1-anomaly-1' in anomaly_ids
