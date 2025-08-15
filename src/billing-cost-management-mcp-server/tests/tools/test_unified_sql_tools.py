@@ -154,7 +154,7 @@ def test_unified_sql_server_initialization():
     assert 'Unified SQL tool' in instructions if instructions else False
 
 
-# Test removed - auto table generation logic not working as expected
+# Test removed - auto table generation logic not working as expecte
 
 
 # Test removed - exception handling not working as expected
