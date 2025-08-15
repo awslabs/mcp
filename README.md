@@ -187,6 +187,10 @@ Enhance AI applications with knowledge retrieval, content generation, and ML cap
 
 Work with databases, caching systems, and data processing workflows.
 
+| Server Name | Description | Install |
+|-------------|-------------|---------|
+| [ETL Replatforming MCP Server](src/etl-replatforming-mcp-server) | Intelligent ETL framework migration with AI-enhanced parsing and universal workflow conversion between Airflow, Step Functions, and Azure Data Factory | [![Install](https://img.shields.io/badge/Install-Cursor-blue?style=flat-square&logo=cursor)](https://cursor.com/install-mcp?name=awslabs.etl-replatforming-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZXRsLXJlcGxhdGZvcm1pbmctbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)<br/>[![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=ETL%20Replatforming%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.etl-replatforming-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+
 #### SQL & NoSQL Databases
 
 | Server Name | Description | Install |

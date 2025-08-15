@@ -1,0 +1,104 @@
+[project]
+name = "awslabs.etl-replatforming-mcp-server"
+version = "0.1.0"
+description = "MCP server for converting ETL orchestration code between frameworks using generic intermediate format"
+authors = [
+    { name = "AWS Labs", email = "aws-mcp-team@amazon.com" }
+]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+keywords = ["mcp", "etl", "orchestration", "airflow", "step-functions"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=0.5.0",
+    "pydantic>=2.0.0",
+    "boto3>=1.26.0",
+    "loguru>=0.7.0",
+    "pyright>=1.1.0",
+    "ruff>=0.1.0",
+    # Type stubs for external libraries
+    "boto3-stubs[bedrock-runtime,sts]>=1.26.0",
+    "types-requests>=2.28.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    # Add airflow for test data validation
+    "apache-airflow>=2.5.0",
+]
+dev = [
+    "black>=23.3.0",
+    "isort>=5.12.0",
+    "mypy>=1.3.0",
+    # Additional type stubs for development
+    "types-setuptools>=65.0.0",
+]
+
+[project.scripts]
+"awslabs.etl-replatforming-mcp-server" = "awslabs.etl_replatforming_mcp_server.server:main"
+
+[build-system]
+requires = ["hatchling", "pip"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E203", "E501", "Q000", "Q003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["awslabs"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/etl_replatforming_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=6.2.1",
+]
+
+[tool.coverage.run]
+omit = [
+    "tests/integration/*",
+    "*/test_integration.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
