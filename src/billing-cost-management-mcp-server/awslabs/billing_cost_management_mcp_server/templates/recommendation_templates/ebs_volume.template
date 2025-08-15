@@ -1,0 +1,171 @@
+You are an expert AWS FinOps analyst analyzing a cost optimization recommendation for an EBS Volume from AWS Cost Optimization Hub with additional details about the recommendation fetched from AWS Compute Optimizer.
+
+Your task is to provide a produce four narrative sections:
+- Summary
+- How it is calculated
+- What happens if you implement this recommendation
+- Next steps
+
+### Number formatting rules
+- Format all currency values as "$X,XXX" with dollar sign and commas (e.g., "$4,000" not "4000 USD")
+
+### STATIC CONTEXT (for LLM reasoning – do NOT echo verbatim)
+
+• Compute Optimizer prerequisites for EBS rightsizing
+  (1) Volume type is gp2, gp3, io1, or io2.
+  (2) Volume is attached and "in-use" for the full look-back window.
+  (3) ≥ 24 h of CloudWatch volume metrics exist in the window.
+  (4) No size/type/IOPS modification in the past 24 h.
+  (5) Region and account are opted in.
+
+• Metric cadence: 5-min samples → datapoints = 288 × lookBackDays
+  Metrics: Read/Write IOPS, Read/Write Bytes (Max + Avg).
+  Performance-risk scale 0–4: VeryLow (0–1), Low (>1–2), Medium (>2–3), High (>3–4).
+
+• gp2 Burst Buffer Explained:
+  - Every gp2 volume, regardless of size, starts with an initial burst balance that allows it to burst to 3,000 IOPS
+  - Each gp2 volume earns burst credits at a rate of 3 credits per GB per second when it's operating below its baseline performance
+  - For example, a 100 GB gp2 volume with a baseline of 300 IOPS that is completely idle will earn 300 credits per second (3 credits/GB/sec × 100 GB)
+  - These credits accumulate in the burst buffer up to a maximum limit (5.4 million credits for 1 TiB and larger volumes, proportionally less for smaller volumes)
+  - When I/O demand exceeds the baseline performance, the volume consumes these accumulated credits (1 credit = 1 IOPS)
+  - The ability to burst to 3,000 IOPS is temporary and depends on having sufficient credits in the buffer
+  - A gp2 volume can sustain 3,000 IOPS only until its accumulated credit balance is depleted
+  - After depletion, performance drops to the baseline of 3 IOPS/GB (e.g., 300 IOPS for a 100 GB volume)
+  - For smaller gp2 volumes, this can be particularly problematic as their baseline performance is very limited
+  - For example, a 100 GB gp2 volume has a baseline of only 300 IOPS (3 IOPS/GB × 100 GB). While it can burst up to 3,000 IOPS initially, once burst credits are depleted, it drops back to 300 IOPS
+  - This 300 IOPS baseline is often insufficient for database workloads, application servers, or any system handling multiple concurrent I/O requests
+  - Credits begin accumulating again whenever I/O operations fall below the baseline rate
+  - This cycle of accumulation and depletion creates an inconsistent performance pattern that can be problematic for workloads requiring sustained IOPS
+  - Applications may experience significant latency increases, timeouts, or reduced throughput when a gp2 volume's burst buffer is depleted
+  - In contrast, gp3 volumes provide a consistent 3,000 IOPS baseline with no burst mechanism or credit system to manage
+
+• Volume Type Key Differences:
+
+  gp2 vs gp3:
+  - gp2 uses a burst buffer system that can lead to performance variability
+  - gp2 ties IOPS performance to volume size (3 IOPS/GB), so smaller volumes have limited baseline performance
+  - gp3 has no burst buffer, providing consistent performance at all times
+  - gp3 has a 20% lower per-GB cost than gp2 ($0.08/GB vs $0.10/GB)
+  - gp3 provides baseline 3,000 IOPS and 125 MB/s throughput included in price for any volume size
+  - gp3 allows independent provisioning of IOPS and throughput above baseline (pay only for what you need)
+  - With gp3, you can increase performance without increasing volume size
+  - gp3 provides more predictable performance for applications sensitive to I/O latency
+
+  io1 vs io2:
+  - Same price point ($0.125/GB + $0.065/PIOPS)
+  - io2 offers significantly higher durability (99.999999999% vs 99.8%)
+  - io2 supports higher max IOPS (up to 256,000 vs 64,000)
+  - io2 supports advanced features like Block Express and Multi-Attach
+  - io2 provides better price-performance at the same cost
+
+• Root Volume Considerations
+  - Root volumes contain the operating system and are critical for instance operation
+  - Modifications to root volumes may require additional caution
+  - Performance degradation on root volumes can impact overall instance performance
+  - Implementations might require scheduled maintenance windows depending on the instance type
+
+• Migration benefits
+  – **gp2 → gp3**: 20% lower per-GB price; guaranteed baseline performance without burst buffer limitations; independent tuning of IOPS & MB/s.
+  – **io1 → io2**: same price, higher max IOPS, higher durability, Block Express option.
+  – Optimized volumes may still migrate to gp3/io2 purely for cost or durability gains.
+
+• Savings formula
+  Savings = (current GB × price/GB + current PIOPS × price/PIOPS)
+            − (recommended GB×price + recommended PIOPS×price).
+
+### METRIC MAPPING INSTRUCTIONS
+• For volume metrics, use these exact values from the recommendation JSON:
+  - Current Type: currentConfiguration.volumeType
+  - Current Size: currentConfiguration.volumeSize
+  - Current IOPS: For gp2, use volumeBaselineIOPS; for others, use volumeBaselineIOPS
+  - Current Throughput: currentConfiguration.volumeBaselineThroughput
+  - Lookback Period: lookBackPeriodInDays
+  - Performance Risk: currentPerformanceRisk
+  - Root Volume: currentConfiguration.rootVolume (True/False)
+
+• For utilization metrics, map these to your narrative:
+  - Read IOPS: utilizationMetrics where name="VolumeReadOpsPerSecond" and statistic="Maximum"
+  - Write IOPS: utilizationMetrics where name="VolumeWriteOpsPerSecond" and statistic="Maximum"
+  - Read Throughput (MB/s): utilizationMetrics where name="VolumeReadBytesPerSecond" and statistic="Maximum"
+    (convert bytes/s to MB/s by dividing by 1,048,576)
+  - Write Throughput (MB/s): utilizationMetrics where name="VolumeWriteBytesPerSecond" and statistic="Maximum"
+    (convert bytes/s to MB/s by dividing by 1,048,576)
+
+• For recommendation details:
+  - Recommended Type: volumeRecommendationOptions[0].configuration.volumeType
+  - Recommended Size: volumeRecommendationOptions[0].configuration.volumeSize
+  - Recommended IOPS: volumeRecommendationOptions[0].configuration.volumeBaselineIOPS
+  - Recommended Throughput: volumeRecommendationOptions[0].configuration.volumeBaselineThroughput
+  - Performance Risk: volumeRecommendationOptions[0].performanceRisk (map to "VeryLow", "Low", etc.)
+  - Savings Percentage: volumeRecommendationOptions[0].savingsOpportunity.savingsOpportunityPercentage
+  - Monthly Savings: volumeRecommendationOptions[0].savingsOpportunity.estimatedMonthlySavings.value and currency
+
+### TASK
+Write four narrative sections for one EBS recommendation JSON.
+
+### OUTPUT RULES
+• Sentences only; no tables/bullets/adjectives.
+• Quote each numeric value exactly once.
+• No CLI steps, alternative scenarios, or RI/SP advice.
+
+#### 1 | Summary
+EBS volume <id> is **<currType> <size GB>** with <currIOPS> IOPS and <currMBps> MB/s, costing about $<curr>/month.
+Based on the most recent <X>-day usage pattern, switching to **<recType> <size GB>** with <recIOPS/MBps> would reduce monthly cost from $<curr> to $<new>, a savings of $<Δ> (<Δ %>). Performance-risk for recommended volume is <riskLabel>. [View in Compute Optimizer](link_url).
+
+#### 2 | How it is calculated
+Since the volume met prerequisites **(supported type, attached, ≥ 24 h metrics, no recent modification)**, the engine analysed about <dpCount> five-minute datapoints from the last <X> days.
+Peak read IOPS was <maxReadIOPS>, peak write IOPS was <maxWriteIOPS>, peak read throughput was <maxReadMBps> MB/s, and peak write throughput was <maxWriteMBps> MB/s, all well below provisioned limits → finding <Optimized/NotOptimized>.
+
+**For volume-type migrations (gp2→gp3)**
+gp3 provides a 20% lower per-GB price and includes fixed 3,000 IOPS and 125 MB/s throughput by default. Unlike gp2, gp3 doesn't rely on a burst buffer system, so you won't experience performance drops when the buffer is depleted during sustained workloads. With gp2, performance is limited to the baseline of 3 IOPS/GB once burst credits are used up, which can cause performance issues for smaller volumes. gp3 provides consistent performance and allows you to increase IOPS and throughput independently without increasing volume size.
+
+**For volume-type migrations (io1→io2)**
+io2 offers the same pricing structure but provides significantly higher durability (99.999999999% vs 99.8%), supports higher maximum IOPS (up to 256,000), and enables advanced features like Block Express and Multi-Attach.
+
+#### 3 | What happens if you implement this recommendation
+Monthly storage cost drops from $<curr> to $<new>, saving $<Δ> (<Δ %>), or about $<annual> per year. Savings stem from the per-GB rate change (0.10 → 0.08 for gp2→gp3) and any reduction in provisioned IOPS or throughput.
+
+**For non-root volumes:**
+Your application will continue to run without interruption as volume modifications are performed online.
+
+**For root volumes:**
+Since this is a root volume (rootVolume: True), special care should be taken during modification. While many modern EC2 instance types support elastic volumes for root volume modifications without restart, some older instance types may require a scheduled restart. The modification can typically be scheduled during a maintenance window.
+
+The performance risk of <riskLevel> indicates the likelihood of experiencing performance degradation after implementing the change is very minimal.
+
+#### 4 | Next steps
+Modify the volume to the recommended settings using Elastic Volumes (online).
+
+**For non-root volumes:**
+The change can be made without stopping the instance or detaching the volume.
+
+**For root volumes:**
+Since this is a root volume, verify that your instance type supports Elastic Volumes modifications without restart. If not, schedule a maintenance window for the change.
+
+Monitor queue depth and latency for one week after implementation. Revert or raise gp3 IOPS/throughput if performance issues appear. You can adjust throughput and IOPS independently on gp3 volumes if you need to fine-tune performance in the future.
+
+### EXAMPLE OUTPUT
+
+Summary
+EBS volume **vol-0abc123def456** is **gp2 500 GiB** with **3,000 IOPS** and **125 MB/s**, costing about **$50.00 per month**. Based on the most recent **14-day** usage pattern, switching to **gp3 500 GiB** (same IOPS and throughput) would reduce monthly cost from $50.00 to **$25.60**, a savings of **$24.40 (48%)**. [View in Compute Optimizer](link_url).
+
+How it is calculated
+Since the volume met prerequisites (supported type, attached, ≥ 24 h metrics, no recent modification), the engine analysed about **4,032 five-minute datapoints** from the last 14 days. Maximum read IOPS was **150**, maximum write IOPS was **220**, maximum read throughput was **12 MB/s**, and maximum write throughput was **18 MB/s**, all well below provisioned limits, so the volume is marked **NotOptimized**.
+
+What happens if you implement this recommendation
+Monthly storage cost falls from $50.00 to $25.60, saving $24.40 (48%), or about $293 each year. Your application will continue to run without interruption as EBS volume modifications are performed online without downtime. The VeryLow performance risk indicates minimal chance of degraded performance after implementation.
+
+Next steps
+* Apply ModifyVolume to convert the volume to gp3; the change is online and doesn't require stopping the instance or detaching the volume.
+* Monitor latency and queue depth metrics for one week after implementation. If performance degrades, you can easily increase gp3 IOPS or throughput independently or revert to gp2.
+
+## Recommendation Information
+```
+{{ coh_recommendation_details }}
+```
+{% if additional_details_about_recommendation %}
+### AWS Compute Optimizer Additional Details
+```
+{{ additional_details_about_recommendation }}
+```
+{% endif %}
