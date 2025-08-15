@@ -33,9 +33,10 @@ class TestReadConfigInit:
         # Verify that the tool decorators were called
         assert mock_mcp.tool.call_count == 2
 
-        # Verify that the expected tools were registered
-        mock_mcp.tool.assert_any_call(name='get_configuration_info')
-        mock_mcp.tool.assert_any_call(name='list_tags_for_resource')
+        # Verify that the expected tools were registered (check call names)
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'get_configuration_info' in call_names
+        assert 'list_tags_for_resource' in call_names
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.describe_configuration')
@@ -72,7 +73,8 @@ class TestReadConfigInit:
 
         # Assert
         # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='get_configuration_info')
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'get_configuration_info' in call_names
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.list_configuration_revisions')
@@ -112,7 +114,8 @@ class TestReadConfigInit:
 
         # Assert
         # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='get_configuration_info')
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'get_configuration_info' in call_names
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.describe_configuration_revision')
@@ -145,7 +148,8 @@ class TestReadConfigInit:
 
         # Assert
         # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='get_configuration_info')
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'get_configuration_info' in call_names
 
     def test_get_configuration_info_invalid_action(self):
         """Test the get_configuration_info function with an invalid action."""
@@ -159,7 +163,8 @@ class TestReadConfigInit:
 
         # Assert
         # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='get_configuration_info')
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'get_configuration_info' in call_names
 
     def test_get_configuration_info_missing_revision(self):
         """Test the get_configuration_info function with missing revision."""
@@ -174,7 +179,8 @@ class TestReadConfigInit:
 
         # Assert
         # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='get_configuration_info')
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'get_configuration_info' in call_names
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_config.list_tags_for_resource')
@@ -199,4 +205,5 @@ class TestReadConfigInit:
 
         # Assert
         # Verify that the tool decorator was called with the expected name
-        mock_mcp.tool.assert_any_call(name='list_tags_for_resource')
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'list_tags_for_resource' in call_names
