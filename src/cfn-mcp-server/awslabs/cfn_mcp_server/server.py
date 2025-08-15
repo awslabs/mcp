@@ -21,7 +21,14 @@ from awslabs.cfn_mcp_server.cloud_control_utils import progress_event, validate_
 from awslabs.cfn_mcp_server.context import Context
 from awslabs.cfn_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.cfn_mcp_server.iac_generator import create_template as create_template_impl
+from awslabs.cfn_mcp_server.impl.tools import (
+    handle_start_resource_scan,
+    list_related_resources_impl,
+    list_resources_by_filter_impl,
+)
 from awslabs.cfn_mcp_server.schema_manager import schema_manager
+from awslabs.cfn_mcp_server.stack_analysis.recommendation_generator import RecommendationGenerator
+from awslabs.cfn_mcp_server.stack_analysis.stack_analyzer import StackAnalyzer
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -31,9 +38,35 @@ mcp = FastMCP(
     instructions="""
     # CloudFormation MCP
 
-    This MCP allows you to:
-    1. Read and List all of your AWS resources by the CloudFormation type name (e.g. AWS::S3::Bucket)
-    2. Create/Update/Delete your AWS resources
+    This MCP provides comprehensive AWS resource management capabilities through the following tools:
+
+    ## Resource Management Tools
+    1. **get_resource_schema_information** - Get schema information for an AWS resource type (e.g., AWS::S3::Bucket)
+    2. **list_resources** - List AWS resources of a specified type across your account
+    3. **get_resource** - Get detailed information about a specific AWS resource
+    4. **create_resource** - Create new AWS resources with specified properties
+    5. **update_resource** - Update existing AWS resources using RFC 6902 JSON Patch operations
+    6. **delete_resource** - Delete AWS resources from your account
+    7. **get_resource_request_status** - Track the status of long-running resource operations
+
+    ## Template and Infrastructure Management Tools
+    8. **create_template** - Generate CloudFormation templates from existing resources using IaC Generator API
+    9. **analyze_stack** - Analyze this {stack name} and return detailed resource information
+    10. **propose_new_stacks** - Propose new stacks in your AWS account unmanaged resources and optional template generation
+
+    ## Resource Discovery and Analysis Tools
+    11. **list_resources_by_filter** - List AWS resources with advanced filtering by type, tags, and identifiers
+    12. **list_related_resources** - Find AWS resources related to specified resources using dependency analysis
+    13. **start_resource_scan** - Initiate resource scans for specific resource types or entire AWS account
+
+    ## Key Capabilities
+    - Read and manage all AWS resources by CloudFormation type name (e.g., AWS::S3::Bucket, AWS::RDS::DBInstance)
+    - Create, update, and delete AWS resources with proper error handling and progress tracking
+    - Generate CloudFormation templates from existing unmanaged resources
+    - Analyze CloudFormation stacks and discover related resources
+    - Propose optimal stack structures for better resource organization
+    - Advanced resource filtering and discovery capabilities
+    - Support for long-running operations with status tracking
     """,
     dependencies=['pydantic', 'loguru', 'boto3', 'botocore'],
 )
@@ -418,6 +451,319 @@ async def create_template(
         save_to_file=save_to_file,
         region_name=region,
     )
+
+
+@mcp.tool()
+async def list_resources_by_filter(
+    resource_identifier: str | None = Field(
+        default=None,
+        description='Filter by specific resource identifier (e.g., "my-bucket-name")',
+    ),
+    resource_scan_id: str | None = Field(
+        default=None,
+        description='Resource scan ID to use for filtering resources. If not provided, the latest completed scan will be used.',
+    ),
+    resource_type_prefix: str | None = Field(
+        default=None,
+        description='Filter by resource type prefix (e.g., "AWS::S3::" to get all S3 resources)',
+    ),
+    tag_key: str | None = Field(default=None, description='Filter resources by tag key'),
+    tag_value: str | None = Field(
+        default=None,
+        description='Filter resources by tag value (requires tag_key to be specified)',
+    ),
+    limit: int = Field(
+        default=100,
+        description='Maximum number of resources to return',
+    ),
+    next_token: str | None = Field(
+        default=None, description='Pagination token from previous response to get next page'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
+    """List AWS resources with filtering support.
+
+    To preserve tokens usage, this tool allows you to filter resources by type resourcetypeprefix,
+    tag key, and tag value. It returns a paginated list of resource identifiers. It is recommended
+    to use the filtering parameters to reduce the number of resources returned,
+    This tool uses AWS CloudFormation's resource scan API with server-side filtering.
+    Parameters:
+        resource_identifier: Filter by specific resource identifier (optional)
+        resource_scan_id: Resource scan ID to use for filtering resources. (optional)
+                           If not provided, the latest completed scan will be used even if it's partial or full scan.
+        resource_type_prefix: Filter by resource type prefix (optional)
+        tag_key: Filter resources by tag key (optional)
+        tag_value: Filter resources by tag value (optional, requires tag_key)
+        limit: Maximum number of resources to return (1-100, AWS API limit)
+        next_token: AWS pagination token from previous response (optional)
+        region: AWS region to use (optional)
+
+    Returns:
+        Resource identifiers with filtering applied at the AWS API level and pagination metadata
+    """
+    return await list_resources_by_filter_impl(
+        resource_identifier=resource_identifier,
+        resource_scan_id=resource_scan_id,
+        resource_type_prefix=resource_type_prefix,
+        tag_key=tag_key,
+        tag_value=tag_value,
+        limit=limit,
+        next_token=next_token,
+        region=region,
+    )
+
+
+@mcp.tool()
+async def list_related_resources(
+    resources: list = Field(
+        description='List of resources to find related resources for. Each resource should have resource_type and resource_identifier keys.'
+    ),
+    resource_scan_id: str | None = Field(
+        default=None,
+        description='Resource scan ID to use for finding related resources. If not provided, the latest completed scan will be used.',
+    ),
+    max_results: int = Field(
+        default=100,
+        description='Maximum number of related resources to return (default: 100, max: 100 due to AWS API limits)',
+    ),
+    next_token: str | None = Field(
+        default=None, description='Pagination token from previous response to get next page'
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
+    """List AWS resources related to the specified list of resources or resource.
+
+    This tool uses AWS CloudFormation's list_resource_scan_related_resources API
+    to find resources that are related to the specified input resources.
+
+    Note: Call with one resource at a time if you want explicitly related resources
+    Parameters:
+        resources: List of resources to find related resources for. Each resource should have
+                  'resource_type' and 'resource_identifier' keys. Maximum 100 resources.
+        resource_scan_id: Resource scan ID to use for finding related resources.
+                         If not provided, the latest completed scan will be used even if it's partial or full scan.
+        max_results: Maximum number of related resources to return (1-100, AWS API limit)
+        next_token: AWS pagination token from previous response (optional)
+        region: AWS region to use (optional)
+
+    Returns:
+        Related resources grouped by managed/unmanaged status with pagination metadata
+    Example:
+        resources = [
+            {
+                "resource_type": "AWS::S3::Bucket",
+                "resource_identifier": {"BucketName": "my-bucket"}
+            }
+        ]
+    """
+    return await list_related_resources_impl(
+        resources=resources,
+        resource_scan_id=resource_scan_id,
+        max_results=max_results,
+        next_token=next_token,
+        region=region,
+    )
+
+
+@mcp.tool()
+async def start_resource_scan(
+    resource_types: list | None = Field(
+        default=None,
+        description='The AWS resource types to scan (e.g., "AWS::S3::Bucket", "AWS::RDS::DBInstance")',
+    ),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
+    """Start a resource scan for a specific AWS resource types or the entire account.
+
+    Parameters:
+        resource_type: The AWS resource types to scan (e.g., "AWS::S3::Bucket", "AWS::EC2::*", or a list of resource types)
+        Provide an empty list [] to scan the entire account
+        region: AWS region to use (e.g., "us-east-1", "us-west-2")
+
+    Returns:
+        Information about the started scan with a consistent structure:
+        {
+            "scan_id": The unique identifier for the started scan
+        }
+    """
+    return await handle_start_resource_scan(
+        resource_types=resource_types,
+        region=region,
+    )
+
+
+@mcp.tool()
+async def analyze_stack(
+    stack_name: str = Field(description='The name of the CloudFormation stack to analyze'),
+    region: str | None = Field(
+        description='The AWS region that the operation should be performed in', default=None
+    ),
+) -> dict:
+    """Analyze a CloudFormation stack and return detailed information about its resources and a generated template of related unmanaged resources augmented to the stack.
+
+    Parameters:
+        stack_name: The name of the CloudFormation stack to analyze
+        region: AWS region to use (e.g., "us-east-1", "us-west-2")
+
+    Returns:
+        Complete stack analysis results including account summary, related resources summary,
+        generated template of related unmanaged resources that could be part of the stack, and best practices for the stack.
+        The results are summarized by managed/unmanaged resources and by product type.
+
+
+    Raises:
+        ClientError: If the stack name is not provided or if the stack does not exist in the specified region.
+        ClientError: If there is an error during the analysis process.
+
+    """
+    if not stack_name:
+        raise ClientError('Please provide a stack name')
+
+    try:
+        target_region = region or 'us-east-1'
+
+        # Initialize the stack analyzer
+        analyzer = StackAnalyzer(target_region)
+
+        # Get stack analysis
+        stack_analysis = analyzer.analyze_stack(stack_name)
+
+        # Check if there was an error in the analysis
+        if 'error' in stack_analysis:
+            error_message = stack_analysis['error']
+            if 'not found' in error_message.lower() or 'does not exist' in error_message.lower():
+                raise ClientError(
+                    f'Stack "{stack_name}" was not found. Please check the stack name and region.'
+                )
+            else:
+                raise ClientError(error_message)
+
+        # Get best practices
+        best_practices = StackAnalyzer.get_best_cfn_practices()
+
+        # Return the summarized stack analysis results
+        return {
+            'message': f'Stack analysis for **{stack_name}** completed successfully.',
+            'stack_info': stack_analysis.get('stack_info', {}),
+            'stack_status': stack_analysis.get('stack_status'),
+            'creation_time': stack_analysis.get('creation_time'),
+            'last_updated_time': stack_analysis.get('last_updated_time'),
+            'outputs': stack_analysis.get('outputs', []),
+            'parameters': stack_analysis.get('parameters', []),
+            'resource_summary': stack_analysis.get(
+                'resource_summary',
+                {'total_resources': 0, 'managed_resources': 0, 'unmanaged_resources': 0},
+            ),
+            'related_resources_summary': stack_analysis.get(
+                'related_resources_summary',
+                {
+                    'total_resources': 0,
+                    'managed_resources': 0,
+                    'unmanaged_resources': 0,
+                    'by_product_type': [],
+                },
+            ),
+            'account_summary': {
+                'overall_summary': stack_analysis.get('account_summary', {}).get(
+                    'overall_summary', {}
+                ),
+                'scan_metadata': stack_analysis.get('account_summary', {}).get(
+                    'scan_metadata', {}
+                ),
+            },
+            'template_generation_info': {
+                'message': 'IMPORTANT: Template Generated for Unmanaged Resources',
+                'template_id': stack_analysis.get('augment_recommendation', ''),
+                'location_info': ' Generated in your AWS account and available in your directory',
+                'action_required': 'Check your directory and AWS Console to review the generated template for augmenting related unmanaged resources into CloudFormation management',
+            },
+            'augment_recommendation': stack_analysis.get('augment_recommendation', ''),
+            'related_unmanaged_count': stack_analysis.get('related_unmanaged_count', 0),
+            'best_practices': best_practices,
+        }
+
+    except Exception as e:
+        raise ClientError(f'Error analyzing stack "{stack_name}": {str(e)}')
+
+
+@mcp.tool()
+async def propose_new_stacks(
+    product_type: str | None = Field(
+        default=None,
+        description='The AWS product type to filter resources by (e.g., "Compute", "Storage", "Networking"). If not provided, all product types will be included.',
+    ),
+    create_templates: bool = Field(
+        default=False,
+        description='Whether to create actual CloudFormation templates for the proposal',
+    ),
+    region: str | None = Field(
+        default=None, description='The AWS region that the operation should be performed in'
+    ),
+) -> dict:
+    """Propose new stacks with resource limits and template generation.
+
+    This tool categorizes unmanaged resources using AWS service categories,
+    enforces a 450 resource limit per stack (AWS template generation API limit), and optionally
+    creates actual CloudFormation templates for the proposed stack.
+
+    To get resource distribution among new stacks proposals, this tool will return:
+    1. Resource counts and distribution when create_templates=False
+    2. Generated CloudFormation templates when create_templates=True
+
+    This tool is useful for managing unmanaged resources and creating templates for
+    new stacks.
+    Parameters:
+        product_type: The AWS product type to filter resources by (e.g., "Compute", "Storage", "Networking", "Security").
+                      If not provided, resources will be grouped and separated by all available product types.
+        create_templates: Whether to create actual CloudFormation templates for the proposal
+        region: AWS region to use (e.g., "us-east-1", "us-west-2")
+
+    Returns:
+        Dict containing summary statistics and the stack proposals grouped by product type with optional templates
+
+    """
+    try:
+        # Initialize the stack analyzer and recommendation generator
+        target_region = region or 'us-east-1'
+
+        # Initialize recommendation generator
+        recommendation_generator = RecommendationGenerator(region=target_region)
+
+        # Generate stack proposals for the specified product type
+        result = recommendation_generator.propose_new_stacks_by_product_type(
+            product_type=product_type, create_templates=create_templates
+        )
+
+        # Highlight template generation if enabled
+        if create_templates:
+            successful_templates = 0
+            if 'summary' in result:
+                successful_templates = result['summary'].get('successful_templates', 0)
+            elif 'grouped_proposals' in result:
+                # Count successful templates across all product types
+                for product_proposals in result['grouped_proposals'].values():
+                    successful_templates += sum(
+                        1 for p in product_proposals if p.get('template_status') == 'COMPLETE'
+                    )
+
+            # Add template generation highlight to result
+            result['template_generation_info'] = {
+                'message': ' CloudFormation Templates Generated!',
+                'successful_templates': successful_templates,
+                'location_info': ' Templates saved to your working directory',
+                'action_required': ' Review generated templates and deploy using AWS CLI or Console',
+            }
+
+        return result
+
+    except Exception as e:
+        raise ClientError(f'Error creating stack proposals: {str(e)}')
 
 
 def main():
