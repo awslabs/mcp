@@ -374,4 +374,8 @@ def test_server_initialization():
     # Verify the server instructions
     instructions = storage_lens_server.instructions
     assert instructions is not None
-    assert 'Tools for working with AWS S3 Storage Lens data' in instructions if instructions else False
+    assert (
+        'Tools for working with AWS S3 Storage Lens data' in instructions
+        if instructions
+        else False
+    )

@@ -78,7 +78,9 @@ async def list_recommendations(
         Dict containing recommendations
     """
     # Prepare the request parameters
-    request_params = {'includeAllRecommendations': bool(include_all_recommendations or False)}
+    request_params: dict = {
+        'includeAllRecommendations': bool(include_all_recommendations or False)
+    }
 
     if max_results:
         request_params['maxResults'] = int(max_results)
@@ -234,7 +236,7 @@ async def list_recommendation_summaries(
         Dict containing recommendation summaries
     """
     # Prepare the request parameters
-    request_params = {'groupBy': str(group_by)}
+    request_params: dict = {'groupBy': str(group_by)}
 
     if max_results:
         request_params['maxResults'] = int(max_results)

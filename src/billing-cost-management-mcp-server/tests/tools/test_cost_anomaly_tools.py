@@ -385,6 +385,6 @@ def test_cost_anomaly_server_initialization():
     assert cost_anomaly_server.name == 'cost-anomaly-tools'
 
     # Verify the server instructions
-    assert (
+    assert cost_anomaly_server.instructions and (
         'Tools for working with AWS Cost Anomaly Detection API' in cost_anomaly_server.instructions
     )

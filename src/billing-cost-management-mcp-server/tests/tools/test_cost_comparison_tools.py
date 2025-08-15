@@ -829,4 +829,6 @@ def test_cost_comparison_server_initialization():
     # Verify the server instructions
     instructions = cost_comparison_server.instructions
     assert instructions is not None
-    assert 'Tools for working with AWS Cost Comparison API' in instructions if instructions else False
+    assert (
+        'Tools for working with AWS Cost Comparison API' in instructions if instructions else False
+    )

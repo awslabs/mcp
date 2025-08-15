@@ -366,4 +366,6 @@ def test_free_tier_usage_server_initialization():
     # Verify the server instructions
     instructions = free_tier_usage_server.instructions
     assert instructions is not None
-    assert 'Tools for working with AWS Free Tier Usage API' in instructions if instructions else False
+    assert (
+        'Tools for working with AWS Free Tier Usage API' in instructions if instructions else False
+    )

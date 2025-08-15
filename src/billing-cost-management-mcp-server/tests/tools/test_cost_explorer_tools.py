@@ -452,7 +452,7 @@ async def test_cost_explorer_handle_exception(mock_context, mock_ce_client):
         )
 
     # Verify the function logged the error
-    mock_context.error.assert_called(), 'Error should be logged via context.error'
+    mock_context.error.assert_called()  # Error should be logged via context.error
 
     # Verify the result is an error
     assert 'status' in result, 'Result should contain a status field'
@@ -490,9 +490,9 @@ def test_cost_explorer_server_initialization():
     assert len(cost_explorer_server.instructions) > 0, 'Server instructions should not be empty'
     instructions = cost_explorer_server.instructions
     assert instructions is not None
-    assert 'Tools for working with AWS Cost Explorer API' in instructions if instructions else False, (
-        'Server instructions should mention AWS Cost Explorer API'
-    )
+    assert (
+        'Tools for working with AWS Cost Explorer API' in instructions if instructions else False
+    ), 'Server instructions should mention AWS Cost Explorer API'
 
     # Check that the cost_explorer tool was imported correctly
     assert hasattr(ce_tool, 'name'), 'The imported cost_explorer tool should have a name attribute'

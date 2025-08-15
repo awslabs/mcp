@@ -26,8 +26,10 @@ import json
 import os
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import (
-    PRICING_API_REGIONS,
     aws_pricing_server,
+)
+from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
+    PRICING_API_REGIONS,
     get_pricing_region,
 )
 from fastmcp import Context
@@ -78,10 +80,10 @@ async def aws_pricing(ctx, operation, **kwargs):
         service_code = kwargs.get('service_code')
         attribute_name = kwargs.get('attribute_name')
         max_results = kwargs.get('max_results')
-        
+
         if service_code is None or attribute_name is None:
             raise ValueError('service_code and attribute_name are required')
-            
+
         return await get_attribute_values(
             ctx,
             str(service_code),
@@ -105,10 +107,10 @@ async def aws_pricing(ctx, operation, **kwargs):
         region = kwargs.get('region')
         filters = kwargs.get('filters')
         max_results = kwargs.get('max_results')
-        
+
         if service_code is None or region is None:
             raise ValueError('service_code and region are required')
-            
+
         return await get_pricing_from_api(
             ctx,
             str(service_code),

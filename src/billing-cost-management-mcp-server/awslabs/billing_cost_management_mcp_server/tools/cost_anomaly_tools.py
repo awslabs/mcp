@@ -127,7 +127,7 @@ async def get_anomalies(
     """
     try:
         # Prepare the request parameters
-        request_params = {'DateInterval': {'StartDate': start_date, 'EndDate': end_date}}
+        request_params: dict = {'DateInterval': {'StartDate': start_date, 'EndDate': end_date}}
 
         # Add optional parameters if provided
         if monitor_arn:
@@ -141,7 +141,7 @@ async def get_anomalies(
 
         # Add total impact filter if provided
         if total_impact_operator:
-            total_impact = {'NumericOperator': total_impact_operator}
+            total_impact: dict = {'NumericOperator': total_impact_operator}
 
             if total_impact_start is not None:
                 total_impact['StartValue'] = float(total_impact_start)

@@ -311,7 +311,7 @@ async def get_savings_plans_utilization_details(
         await ctx.info(f'Analyzing detailed Savings Plans utilization from {start} to {end}')
 
         # Create request parameters
-        request_params = {'TimePeriod': {'Start': start, 'End': end}}
+        request_params: dict = {'TimePeriod': {'Start': start, 'End': end}}
 
         # Add optional parameters if provided
         if filter_expr:

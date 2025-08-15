@@ -190,6 +190,6 @@ def test_compute_optimizer_server_initialization():
     assert compute_optimizer_server.name == 'compute-optimizer-tools'
 
     # Verify the server instructions
-    assert (
+    assert compute_optimizer_server.instructions and (
         'Tools for working with AWS Compute Optimizer API' in compute_optimizer_server.instructions
     )

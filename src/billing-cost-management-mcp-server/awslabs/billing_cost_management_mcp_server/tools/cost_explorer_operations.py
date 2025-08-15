@@ -495,7 +495,7 @@ async def get_tags(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Build request parameters
-        request_params = {'TimePeriod': {'Start': start, 'End': end}}
+        request_params: dict = {'TimePeriod': {'Start': start, 'End': end}}
 
         # Add optional parameters
         if search_string:
@@ -571,7 +571,7 @@ async def get_cost_categories(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Build request parameters
-        request_params = {'TimePeriod': {'Start': start, 'End': end}}
+        request_params: dict = {'TimePeriod': {'Start': start, 'End': end}}
 
         # Add optional parameters
         if search_string:

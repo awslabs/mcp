@@ -608,7 +608,10 @@ class TestRIPerformance:
         assert result['status'] == 'success'
         assert 'coverages_by_time' in result['data']
         assert 'total' in result['data']
-        assert 'coverage_hours' in result['data']['total']
+        data = result['data']
+        assert isinstance(data, dict)
+        total_data = data['total']
+        assert isinstance(total_data, dict) and 'coverage_hours' in total_data
 
     async def test_ri_performance_utilization(self, mock_context):
         """Test ri_performance with get_reservation_utilization operation."""
@@ -625,7 +628,10 @@ class TestRIPerformance:
         assert result['status'] == 'success'
         assert 'utilizations_by_time' in result['data']
         assert 'total' in result['data']
-        assert 'utilization_percentage' in result['data']['total']
+        data = result['data']
+        assert isinstance(data, dict)
+        total_data = data['total']
+        assert isinstance(total_data, dict) and 'utilization_percentage' in total_data
 
     async def test_ri_performance_with_all_params(self, mock_context):
         """Test ri_performance with all parameters."""
@@ -677,7 +683,7 @@ def test_ri_performance_server_initialization():
     assert ri_performance_server.name == 'ri-performance-tools'
 
     # Verify the server instructions
-    assert (
+    assert ri_performance_server.instructions and (
         'Tools for working with AWS Reserved Instance Performance'
         in ri_performance_server.instructions
     )

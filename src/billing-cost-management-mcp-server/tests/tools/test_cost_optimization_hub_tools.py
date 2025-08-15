@@ -293,7 +293,7 @@ def test_cost_optimization_hub_server_initialization():
     assert cost_optimization_hub_server.name == 'cost-optimization-hub-tools'
 
     # Verify the server instructions
-    assert (
+    assert cost_optimization_hub_server.instructions and (
         'Tools for working with AWS Cost Optimization Hub API'
         in cost_optimization_hub_server.instructions
     )

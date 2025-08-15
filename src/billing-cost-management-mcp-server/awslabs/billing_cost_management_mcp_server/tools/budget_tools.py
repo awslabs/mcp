@@ -253,9 +253,9 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # Safe access to potentially nested dictionaries with proper type checking for pyright
         calculated_spend = formatted_budget.get('calculated_spend')
         budget_limit = formatted_budget.get('budget_limit')
-        
+
         if (
-            calculated_spend is not None 
+            calculated_spend is not None
             and isinstance(calculated_spend, dict)
             and 'actual_spend' in calculated_spend
             and budget_limit is not None
@@ -270,7 +270,11 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                     formatted_budget['status'] = 'EXCEEDED'
                 elif 'forecasted_spend' in calculated_spend:
                     forecasted_spend = calculated_spend.get('forecasted_spend')
-                    if forecasted_spend and isinstance(forecasted_spend, dict) and 'amount' in forecasted_spend:
+                    if (
+                        forecasted_spend
+                        and isinstance(forecasted_spend, dict)
+                        and 'amount' in forecasted_spend
+                    ):
                         forecast_amount = float(forecasted_spend['amount'])
                         if forecast_amount >= limit_amount:
                             formatted_budget['status'] = 'FORECASTED_TO_EXCEED'

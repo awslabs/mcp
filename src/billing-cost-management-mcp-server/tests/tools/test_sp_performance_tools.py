@@ -664,7 +664,10 @@ class TestSPPerformance:
         assert result['status'] == 'success'
         assert 'savings_plans_coverages' in result['data']
         assert 'total' in result['data']
-        assert 'SpendCoveredBySavingsPlans' in result['data']['total']
+        data = result['data']
+        assert isinstance(data, dict)
+        total_data = data['total']
+        assert isinstance(total_data, dict) and 'SpendCoveredBySavingsPlans' in total_data
 
     async def test_sp_performance_utilization(self, mock_context):
         """Test sp_performance with get_savings_plans_utilization operation."""
@@ -681,7 +684,10 @@ class TestSPPerformance:
         assert result['status'] == 'success'
         assert 'savings_plans_utilizations' in result['data']
         assert 'total' in result['data']
-        assert 'utilization_percentage' in result['data']['total']
+        data = result['data']
+        assert isinstance(data, dict)
+        total_data = data['total']
+        assert isinstance(total_data, dict) and 'utilization_percentage' in total_data
 
     async def test_sp_performance_utilization_details(self, mock_context):
         """Test sp_performance with get_savings_plans_utilization_details operation."""
@@ -722,7 +728,7 @@ def test_sp_performance_server_initialization():
     assert sp_performance_server.name == 'sp-performance-tools'
 
     # Verify the server instructions
-    assert (
+    assert sp_performance_server.instructions and (
         'Tools for working with AWS Savings Plans Performance'
         in sp_performance_server.instructions
     )

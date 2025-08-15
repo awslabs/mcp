@@ -176,7 +176,9 @@ class TestGetDbConnection:
 
         # Verify schema_info table creation
         assert getattr(cursor.execute, 'call_count', 0) == 1
-        execute_call = getattr(cursor.execute, 'call_args_list', [])[min(0, len(getattr(cursor.execute, 'call_args_list', [])) - 1)][0][0]
+        execute_call = getattr(cursor.execute, 'call_args_list', [])[
+            min(0, len(getattr(cursor.execute, 'call_args_list', [])) - 1)
+        ][0][0]
         assert 'CREATE TABLE IF NOT EXISTS schema_info' in execute_call
         assert 'table_name TEXT PRIMARY KEY' in execute_call
         assert 'created_at TEXT' in execute_call
@@ -239,7 +241,9 @@ class TestInsertData:
         assert rows_inserted == 3
 
         # Check the first call to validate parameter binding
-        first_call = getattr(mock_cursor.execute, 'call_args_list', [])[min(0, len(getattr(mock_cursor.execute, 'call_args_list', [])) - 1)]
+        first_call = getattr(mock_cursor.execute, 'call_args_list', [])[
+            min(0, len(getattr(mock_cursor.execute, 'call_args_list', [])) - 1)
+        ]
         assert first_call[0][0] == 'INSERT INTO test_table VALUES (?, ?, ?)'
         assert first_call[0][1] == [1, 'Alice', 42.0]
 
@@ -327,7 +331,9 @@ class TestExecuteQuery:
         )  # But this function doesn't handle params
 
         # Assert with detailed validation
-        assert getattr(mock_cursor.execute, 'call_count', 0) >= 1  # Called at least once (by us manually)
+        assert (
+            getattr(mock_cursor.execute, 'call_count', 0) >= 1
+        )  # Called at least once (by us manually)
         assert columns == ['id', 'name']
         assert rows == [(1, 'Alice')]
 
