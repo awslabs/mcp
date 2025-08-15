@@ -67,6 +67,7 @@ class TestServer:
     @patch('awslabs.aws_serverless_mcp_server.server.GetLambdaGuidanceTool')
     @patch('awslabs.aws_serverless_mcp_server.server.GetServerlessTemplatesTool')
     @patch('awslabs.aws_serverless_mcp_server.server.SamBuildTool')
+    @patch('awslabs.aws_serverless_mcp_server.server.SamDeleteTool')
     @patch('awslabs.aws_serverless_mcp_server.server.SamDeployTool')
     @patch('awslabs.aws_serverless_mcp_server.server.SamInitTool')
     @patch('awslabs.aws_serverless_mcp_server.server.SamLocalInvokeTool')
@@ -93,6 +94,7 @@ class TestServer:
         mock_sam_local_invoke,
         mock_sam_init,
         mock_sam_deploy,
+        mock_sam_delete,
         mock_sam_build,
         mock_get_serverless_templates,
         mock_get_lambda_guidance,
@@ -147,6 +149,7 @@ class TestServer:
         mock_get_serverless_templates.assert_called_once_with(mock_mcp)
 
         mock_sam_build.assert_called_once_with(mock_mcp)
+        mock_sam_delete.assert_called_once_with(mock_mcp, True)  # allow_write=True
         mock_sam_deploy.assert_called_once_with(mock_mcp, True)  # allow_write=True
         mock_sam_init.assert_called_once_with(mock_mcp)
         mock_sam_local_invoke.assert_called_once_with(mock_mcp)
@@ -200,6 +203,7 @@ class TestServer:
     @patch('awslabs.aws_serverless_mcp_server.server.logger')
     @patch('awslabs.aws_serverless_mcp_server.server.argparse.ArgumentParser')
     @patch('awslabs.aws_serverless_mcp_server.server.SamDeployTool')
+    @patch('awslabs.aws_serverless_mcp_server.server.SamDeleteTool')
     @patch('awslabs.aws_serverless_mcp_server.server.SamLogsTool')
     @patch('awslabs.aws_serverless_mcp_server.server.DeployWebAppTool')
     @patch('awslabs.aws_serverless_mcp_server.server.mcp')
@@ -208,6 +212,7 @@ class TestServer:
         mock_mcp,
         mock_deploy_webapp,
         mock_sam_logs,
+        mock_sam_delete,
         mock_sam_deploy,
         mock_arg_parser,
         mock_logger,
@@ -229,6 +234,7 @@ class TestServer:
 
         # Verify tools are initialized with correct flags
         mock_sam_deploy.assert_called_once_with(mock_mcp, False)  # allow_write=False
+        mock_sam_delete.assert_called_once_with(mock_mcp, False)  # allow_write=False
         mock_sam_logs.assert_called_once_with(mock_mcp, False)  # allow_sensitive_data_access=False
         mock_deploy_webapp.assert_called_once_with(mock_mcp, False)  # allow_write=False
 
