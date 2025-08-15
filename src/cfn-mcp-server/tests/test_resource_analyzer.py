@@ -127,16 +127,19 @@ class TestResourceAnalyzer(unittest.TestCase):
     def test_get_related_resources(self):
         """Test get_related_resources method."""
         # Mock list_resource_scan_related_resources
-        self.mock_cf_utils.list_resource_scan_related_resources.return_value = [
-            {
-                'ResourceType': 'AWS::S3::Bucket',
-                'ResourceIdentifier': {'BucketName': 'related-bucket'},
-            },
-            {
-                'ResourceType': 'AWS::Lambda::Function',
-                'ResourceIdentifier': {'FunctionName': 'related-function'},
-            },
-        ]
+        self.mock_cf_utils.list_resource_scan_related_resources.return_value = {
+            'RelatedResources': [
+                {
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceIdentifier': {'BucketName': 'related-bucket'},
+                },
+                {
+                    'ResourceType': 'AWS::Lambda::Function',
+                    'ResourceIdentifier': {'FunctionName': 'related-function'},
+                },
+            ],
+            'NextToken': None,
+        }
 
         # Resources to find related resources for
         resources = [

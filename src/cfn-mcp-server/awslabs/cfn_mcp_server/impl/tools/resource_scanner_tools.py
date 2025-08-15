@@ -73,7 +73,6 @@ async def list_resources_by_filter_impl(
         limit: Maximum number of resources to return (1-100) (Optional)
         next_token: AWS pagination token from previous response
         region: AWS region to use
-
     Returns:
         Dict containing filtered resources and pagination info
     """
@@ -170,7 +169,6 @@ async def list_related_resources_impl(
         max_results: Maximum number of related resources to return (1-100)
         next_token: AWS pagination token from previous response
         region: AWS region to use
-
     Returns:
         Dict containing related resources and pagination info
     """
@@ -221,12 +219,19 @@ async def list_related_resources_impl(
                 {'ResourceType': resource_type, 'ResourceIdentifier': resource_identifier}
             )
 
+        # Build API parameters
+        api_params = {
+            'ResourceScanId': scan_id,
+            'Resources': formatted_resources,
+            'MaxResults': max_results,
+        }
+
+        # Add next_token if provided
+        if next_token:
+            api_params['NextToken'] = next_token
+
         # Call AWS API
-        response = cfn_utils.cfn_client.list_resource_scan_related_resources(
-            ResourceScanId=scan_id,
-            Resources=formatted_resources,
-            MaxResults=max_results,
-        )
+        response = cfn_utils.cfn_client.list_resource_scan_related_resources(**api_params)
         related_resources = response.get('RelatedResources', [])
 
         managed_resources = []

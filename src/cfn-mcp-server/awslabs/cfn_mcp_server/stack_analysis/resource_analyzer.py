@@ -176,12 +176,24 @@ class ResourceAnalyzer:
                 logger.warning('No resource scan ID available for related resources lookup')
                 return []
 
-            # Call the CloudFormation utils method
-            related_resources = self.cfn_utils.list_resource_scan_related_resources(
-                resources, resource_scan_id
-            )
-            logger.info(f'Found {len(related_resources)} related resources')
-            return related_resources
+            # Handle pagination here without changing cloudformation_utils
+            all_related_resources = []
+            next_token = None
+
+            while True:
+                response = self.cfn_utils.list_resource_scan_related_resources(
+                    resources=resources, scan_id=resource_scan_id, next_token=next_token
+                )
+
+                related_resources = response.get('RelatedResources', [])
+                all_related_resources.extend(related_resources)
+
+                next_token = response.get('NextToken')
+                if not next_token:
+                    break
+
+            logger.info(f'Found {len(all_related_resources)} related resources')
+            return all_related_resources
 
         except ServerError as e:
             logger.error(f'Error getting related resources: {str(e)}')

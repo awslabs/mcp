@@ -81,6 +81,22 @@ def handle_aws_api_error(e: Exception) -> Exception:
         return ClientError(
             'Resource scan limit exceeded. You have reached the maximum number of concurrent resource scans allowed.'
         )
+    elif 'GeneratedTemplateNotFoundException' in error_message:
+        return ClientError(
+            'Generated template not found. Please ensure that the template has been generated successfully.'
+        )
+    elif 'AlreadyExistsException' in error_message:
+        return ClientError(
+            'Resource already exists. The resource you are trying to create already exists in the specified location.'
+        )
+    elif 'InsufficientCapabilitiesException' in error_message:
+        return ClientError(
+            'Insufficient capabilities. The stack you are trying to create or update requires capabilities that you have not acknowledged.'
+        )
+    elif 'LimitExceededException' in error_message:
+        return ClientError(
+            'Limit exceeded. You have reached the maximum number of resources allowed for this operation.'
+        )
     else:
         # Generic error handling - we might shift to this for everything eventually since it gives more context to the LLM, will have to test
         return ClientError(f'An error occurred: {error_message}')
