@@ -1,0 +1,26 @@
+# Python virtual environments
+.venv/
+.venv
+venv/
+venv
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Development files
+.git
+.github
+.gitignore
+.pytest_cache
+tests/
+*.md
+!README.md
+
+# Docker files
+Dockerfile*
+docker-compose*
+
+# python files
+.coverage
+.ruff_cache/
+.pytest_cache/
