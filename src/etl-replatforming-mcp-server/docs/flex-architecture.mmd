@@ -1,0 +1,28 @@
+graph TD
+    subgraph "Input Sources"
+        I1[Azure Data Factory<br/>📄 JSON Pipelines]
+        I2[AWS Step Functions<br/>📄 JSON Pipelines]
+        I3[Apache Airflow<br/>🐍 Python DAGs]
+    end
+
+    FLEX[🎯 FLEX Universal Hub<br/>JSON Intermediate Format<br/>🧠 AI-Enhanced Parsing<br/>✅ Semantic Validation]
+
+    subgraph "Output Targets"
+        O1[AWS Step Functions<br/>☁️ JSON Pipelines]
+        O2[Apache Airflow<br/>🚀 Python DAGs]
+    end
+
+    I1 -->|Parse & Convert| FLEX
+    I2 -->|Parse & Convert| FLEX
+    I3 -->|Parse & Convert| FLEX
+
+    FLEX -->|Generate & Deploy| O1
+    FLEX -->|Generate & Deploy| O2
+
+    classDef input fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef hub fill:#e8f5e8,stroke:#388e3c,stroke-width:4px
+    classDef output fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+
+    class I1,I2,I3 input
+    class FLEX hub
+    class O1,O2 output

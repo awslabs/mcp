@@ -1,0 +1,16 @@
+{
+  "exclude": [
+    "outputs/**",
+    "tests/integration/test_data/**",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/node_modules"
+  ],
+  "include": [
+    "awslabs"
+  ],
+  "pythonVersion": "3.12",
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": "warning",
+  "reportUnusedExpression": "none"
+}
