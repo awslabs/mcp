@@ -113,36 +113,35 @@ class CloudWatchAlarmsTools:
         """
         # Handle empty results
         if items_to_return == 0:
+            if include_autoscaling_alarms or total_processed == 0:
+                return 'No active alarms found'
+
             if not include_autoscaling_alarms:
-                if total_processed == 0:
-                    return 'No active alarms found in the specified region'
-                elif filtered_count > 0:
+                if filtered_count > 0:
                     return f'No non-autoscaling active alarms found. {filtered_count} autoscaling alarms were filtered out. Set include_autoscaling_alarms=True to see all alarms.'
                 else:
                     return 'No non-autoscaling active alarms found'
-            else:
-                return 'No active alarms found'
 
         # Handle cases with results
-        if not include_autoscaling_alarms and filtered_count > 0:
-            # Filtering occurred - provide informative message
-            if has_more_results:
-                return f'Showing {items_to_return} non-autoscaling alarms (filtered out {filtered_count} autoscaling alarms, more non-autoscaling alarms available)'
-            else:
-                return f'Found {items_to_return} non-autoscaling alarms (filtered out {filtered_count} autoscaling alarms)'
-        elif not include_autoscaling_alarms and filtered_count == 0:
-            # Filtering enabled but no autoscaling alarms found
-            if has_more_results:
-                return f'Showing {items_to_return} alarms (no autoscaling alarms found, more alarms available)'
-            else:
-                return f'Found {items_to_return} alarms (no autoscaling alarms found)'
-        else:
-            # No filtering or filtering disabled
+        if include_autoscaling_alarms:
             if has_more_results:
                 return f'Showing {items_to_return} alarms (more available)'
             else:
                 # No message needed for successful results without filtering
                 return None
+        else:
+            if filtered_count > 0:
+                # Filtering occurred - provide informative message
+                if has_more_results:
+                    return f'Showing {items_to_return} non-autoscaling alarms (filtered out {filtered_count} autoscaling alarms, more non-autoscaling alarms available)'
+                else:
+                    return f'Found {items_to_return} non-autoscaling alarms (filtered out {filtered_count} autoscaling alarms)'
+            else:
+                # Filtering enabled but no autoscaling alarms found
+                if has_more_results:
+                    return f'Showing {items_to_return} alarms (no autoscaling alarms found, more alarms available)'
+                else:
+                    return f'Found {items_to_return} alarms (no autoscaling alarms found)'
 
     def _should_include_alarm(
         self, alarm: Dict[str, Any], include_autoscaling_alarms: bool, alarm_type: str

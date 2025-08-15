@@ -616,3 +616,78 @@ class TestGetActiveAlarmsFiltering:
             mock_paginator.paginate.assert_called_with(
                 StateValue='ALARM', AlarmTypes=['CompositeAlarm', 'MetricAlarm']
             )
+
+    @pytest.mark.asyncio
+    async def test_early_termination_after_composite_alarms_processing(self, mock_context):
+        """Test early termination optimization after processing composite alarms (line 341)."""
+        # Create test data where we reach max_items after processing composite alarms
+        metric_alarms = [
+            {
+                'AlarmName': 'metric-alarm-1',
+                'StateValue': 'ALARM',
+                'StateReason': 'Test reason',
+                'MetricName': 'CPUUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 80.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': [],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+        ]
+
+        composite_alarms = [
+            {
+                'AlarmName': 'composite-alarm-1',
+                'StateValue': 'ALARM',
+                'StateReason': 'Composite alarm triggered',
+                'AlarmRule': 'ALARM("test-alarm")',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': [],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            },
+            {
+                'AlarmName': 'composite-alarm-2',
+                'StateValue': 'ALARM',
+                'StateReason': 'Another composite alarm',
+                'AlarmRule': 'ALARM("test-alarm-2")',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': [],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            },
+        ]
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+            # Return data where we have 1 metric alarm and 2 composite alarms
+            # With max_items=2, we should process 1 metric + 1 composite, then terminate
+            mock_paginator.paginate.return_value = [
+                {
+                    'MetricAlarms': metric_alarms,
+                    'CompositeAlarms': composite_alarms,
+                }
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+            result = await alarms_tools.get_active_alarms(
+                mock_context,
+                max_items=2,  # This should trigger early termination after composite alarm processing
+                include_autoscaling_alarms=False,
+            )
+
+            # Should have exactly 2 alarms (1 metric + 1 composite)
+            assert len(result.metric_alarms) + len(result.composite_alarms) == 2
+            assert len(result.metric_alarms) == 1
+            assert len(result.composite_alarms) == 1
+
+            # Should indicate more results are available due to early termination
+            assert result.has_more_results
