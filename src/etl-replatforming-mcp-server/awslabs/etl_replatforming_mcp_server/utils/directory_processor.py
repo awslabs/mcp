@@ -89,16 +89,7 @@ class DirectoryProcessor:
             except Exception as e:
                 logger.debug(f'Error detecting framework in JSON {file_path}: {e}')
 
-        elif path.suffix == '.yaml' or path.suffix == '.yml':
-            # Future: Add YAML-based framework detection
-            # try:
-            #     with open(file_path, 'r') as f:
-            #         content = f.read()
-            #     if 'apiVersion: argoproj.io' in content:
-            #         return 'argo_workflows'
-            # except:
-            #     pass
-            pass
+        # Future: Add YAML-based framework detection for Argo Workflows, etc.
 
         return None
 
