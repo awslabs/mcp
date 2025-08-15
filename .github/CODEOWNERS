@@ -42,6 +42,7 @@ NOTICE                                                                    @awsla
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                         @awslabs/mcp-admins
 /src/cfn-mcp-server                     @karamvsingh                      @awslabs/mcp-admins
+/src/ccapi-mcp-server                   @novekm                           @awslabs/mcp-admins
 /src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque   @awslabs/mcp-admins
 /src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe               @awslabs/mcp-admins
 /src/cloudwatch_mcp_server              @gcacace @shri-tambe @agiuliano @goranmod     @awslabs/mcp-admins
@@ -51,7 +52,7 @@ NOTICE                                                                    @awsla
 /src/aws-dataprocessing-mcp-server          @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun                      @awslabs/mcp-admins
 #/src/documentdb-mcp-server             @awslabs/mcp-maintainers          @awslabs/mcp-admin
 /src/dynamodb-mcp-server                @erbenmo                          @awslabs/mcp-admins
-/src/ecs-mcp-server                     @karanbokil @matthewgoodman13     @awslabs/mcp-admins
+/src/ecs-mcp-server                     @vibhav-ag @matthewgoodman13      @awslabs/mcp-admins
 /src/eks-mcp-server                     @patrick-yu-amzn @srhsrhsrhsrh    @awslabs/mcp-admins
 /src/elasticache-mcp-server             @seaofawareness                   @awslabs/mcp-admins
 /src/finch-mcp-server                   @Shubhranshu153 @pendo324         @awslabs/mcp-admins
