@@ -20,6 +20,7 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import parse
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -633,7 +634,8 @@ def test_invalid_expand_user_home_directory():
     assert any(param.startswith('~') for param in result.parameters['--paths'])
 
 
-def test_profile():
+@patch('awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1')
+def test_profile(mock_get_region):
     """Test that the profile is correctly extracted."""
     result = parse(cli_command='aws s3api list-buckets --profile test-profile')
     assert result.profile == 'test-profile'
