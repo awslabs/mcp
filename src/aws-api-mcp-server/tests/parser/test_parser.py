@@ -634,8 +634,12 @@ def test_invalid_expand_user_home_directory():
     assert any(param.startswith('~') for param in result.parameters['--paths'])
 
 
-@patch('awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1')
-def test_profile(mock_get_region):
+@patch('boto3.Session')
+def test_profile(mock_boto3_session):
     """Test that the profile is correctly extracted."""
+    mock_session_instance = mock_boto3_session.return_value
+    mock_session_instance.region_name = 'us-east-1'
+
     result = parse(cli_command='aws s3api list-buckets --profile test-profile')
     assert result.profile == 'test-profile'
+    mock_boto3_session.assert_called_with(profile_name='test-profile')
