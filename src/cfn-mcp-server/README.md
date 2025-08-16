@@ -103,45 +103,63 @@ NOTE: Your credentials will need to be kept refreshed from your host
 
 ## Tools
 
-### create_resource
+### Resource Management Tools
 
-Creates an AWS resource using the AWS Cloud Control API with a declarative approach.
-**Example**: Create an S3 bucket with versioning and encryption enabled.
-
-### get_resource
-
-Gets details of a specific AWS resource using the AWS Cloud Control API.
-**Example**: Get the configuration of an EC2 instance.
-
-### update_resource
-
-Updates an AWS resource using the AWS Cloud Control API with a declarative approach.
-**Example**: Update an RDS instance's storage capacity.
-
-### delete_resource
-
-Deletes an AWS resource using the AWS Cloud Control API.
-**Example**: Remove an unused NAT gateway.
-
-### list_resources
-
-Lists AWS resources of a specified type using AWS Cloud Control API.
-**Example**: List all EC2 instances in a region.
-
-### get_resource_schema_information
-
-Get schema information for an AWS CloudFormation resource.
+#### get_resource_schema_information
+Get schema information for an AWS resource type.
 **Example**: Get the schema for AWS::S3::Bucket to understand all available properties.
 
-### get_request_status
+#### list_resources
+Lists AWS resources of a specified type across your AWS account.
+**Example**: List all EC2 instances in a region.
 
-Get the status of a mutation that was initiated by create/update/delete resource.
-**Example**: Give me the status of the last request I made.
+#### get_resource
+Gets detailed information about a specific AWS resource.
+**Example**: Get the configuration of an EC2 instance.
 
-### create_template
+#### create_resource
+Creates an AWS resource with specified properties using a declarative approach.
+**Example**: Create an S3 bucket with versioning and encryption enabled.
 
-Create a Cloudformation template from created or listed resources.
-**Example**: Create a YAML template for those resources.
+#### update_resource
+Updates existing AWS resources using RFC 6902 JSON Patch operations.
+**Example**: Update an RDS instance's storage capacity.
+
+#### delete_resource
+Deletes AWS resources from your account with proper validation.
+**Example**: Remove an unused NAT gateway.
+
+#### get_resource_request_status
+Track the status of long-running resource operations.
+**Example**: Check the status of a long-running RDS instance update operation.
+
+### Template and Infrastructure Management Tools
+
+#### create_template
+Generate CloudFormation templates from existing resources using IaC Generator API.
+**Example**: Create a YAML template for my S3 buckets and their associated resources.
+
+#### analyze_stack
+Analyze this {stack name} and return detailed resource information.
+**Example**: Analyze this production-stack
+
+#### propose_new_stacks
+Propose new stacks in your AWS account with resource limits and optional template generation.
+**Example**: Propose new stacks for my unmanaged resources in my AWS account.
+
+### Resource Discovery and Analysis Tools
+
+#### list_resources_by_filter
+List AWS resources with resources from a resource scan with  filtering by type, tags, and identifiers.
+**Example**: Show me all resources tagged with "environment=production".
+
+#### list_related_resources
+Find AWS resources related to specified resources using dependency analysis.
+**Example**: Show me all resources related to these resource {list}
+
+#### start_resource_scan
+Initiate resource scans for specific resource types or the entire AWS account.
+**Example**: Scan my AWS account.
 
 ## Basic Usage
 
@@ -189,6 +207,11 @@ Ensure your AWS credentials have the following minimum permissions:
                 "cloudcontrol:CreateResource",
                 "cloudcontrol:DeleteResource",
                 "cloudcontrol:UpdateResource",
+                "cloudformation:DescribeStacks",
+                "cloudformation:ListStackResources",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:ListResourceScanResources",
+                "cloudformation:ListResourceScanRelatedResources",
                 "cloudformation:CreateGeneratedTemplate",
                 "cloudformation:DescribeGeneratedTemplate",
                 "cloudformation:GetGeneratedTemplate"
