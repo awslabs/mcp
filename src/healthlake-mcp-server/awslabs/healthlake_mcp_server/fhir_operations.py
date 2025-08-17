@@ -381,7 +381,6 @@ class HealthLakeClient:
                     if end:
                         params['end'] = end
 
-                    logger.debug(f'Patient everything URL: {url}')
                     logger.debug(f'Query params: {params}')
 
                     response = await client.get(url, params=params, auth=auth)
