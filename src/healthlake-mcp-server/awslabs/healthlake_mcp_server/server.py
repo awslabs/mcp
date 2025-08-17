@@ -34,6 +34,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime
 from mcp.server import Server
 from mcp.types import Resource, TextContent, Tool
+from pydantic import AnyUrl
 from typing import Any, Dict, List, Sequence
 
 
@@ -558,7 +559,7 @@ def create_healthlake_server() -> Server:
 
                 resources.append(
                     Resource(
-                        uri=f'healthlake://datastore/{datastore["DatastoreId"]}',
+                        uri=AnyUrl(f'healthlake://datastore/{datastore["DatastoreId"]}'),
                         name=f'{status_emoji} {datastore.get("DatastoreName", "Unnamed")} ({datastore["DatastoreStatus"]})',
                         description=f'FHIR {datastore["DatastoreTypeVersion"]} datastore\n'
                         f'Created: {created_date}\n'
@@ -574,12 +575,13 @@ def create_healthlake_server() -> Server:
             return []
 
     @server.read_resource()
-    async def handle_read_resource(uri: str) -> str:
+    async def handle_read_resource(uri: AnyUrl) -> str:
         """Read detailed datastore information."""
-        if not uri.startswith('healthlake://datastore/'):
-            raise ValueError(f'Unknown resource URI: {uri}')
+        uri_str = str(uri)
+        if not uri_str.startswith('healthlake://datastore/'):
+            raise ValueError(f'Unknown resource URI: {uri_str}')
 
-        datastore_id = uri.split('/')[-1]
+        datastore_id = uri_str.split('/')[-1]
         details = await healthlake_client.get_datastore_details(datastore_id)
 
         return json.dumps(details, indent=2, cls=DateTimeEncoder)
