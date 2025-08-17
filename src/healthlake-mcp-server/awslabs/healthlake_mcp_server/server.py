@@ -43,11 +43,11 @@ logger = logging.getLogger(__name__)
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
 
-    def default(self, obj):
+    def default(self, o):
         """Convert datetime objects to ISO format strings."""
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
+        if isinstance(o, datetime):
+            return o.isoformat()
+        return super().default(o)
 
 
 class InputValidationError(Exception):
