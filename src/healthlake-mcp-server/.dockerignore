@@ -24,7 +24,6 @@ tests/results/
 .idea/
 
 # Documentation
-README.md
 docs/
 
 # Build artifacts
