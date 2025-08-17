@@ -41,7 +41,7 @@ dev = [
 ]
 
 [project.scripts]
-cloudwan-mcp-server = "awslabs.cloudwan_mcp_server.server:main"
+cloudwan-mcp-server = "awslabs.cloudwan_mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
