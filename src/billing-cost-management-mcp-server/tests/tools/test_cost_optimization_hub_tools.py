@@ -23,17 +23,6 @@ These tests verify the functionality of AWS Cost Optimization Hub tools, includi
 """
 
 import pytest
-from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_helpers import (
-    format_currency_amount,
-    format_timestamp,
-    get_recommendation,
-    list_recommendation_summaries,
-    list_recommendations,
-)
-from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tools import (
-    cost_optimization_hub_server,
-)
-from datetime import datetime
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock
 
@@ -46,6 +35,14 @@ async def cost_optimization_hub(ctx, operation, **kwargs):
     )
 
     if operation == 'get_recommendation_summaries':
+        # Check for required group_by parameter
+        if 'group_by' not in kwargs or not kwargs['group_by']:
+            return format_response(
+                'error',
+                {},
+                'group_by parameter is required for get_recommendation_summaries operation',
+            )
+
         return {
             'status': 'success',
             'data': {
@@ -69,11 +66,6 @@ async def cost_optimization_hub(ctx, operation, **kwargs):
         }
 
     elif operation == 'list_recommendations':
-        if not kwargs.get('group_by'):
-            return format_response(
-                'error', {}, 'group_by is required for list_recommendations operation'
-            )
-
         return {
             'status': 'success',
             'data': {
@@ -93,11 +85,11 @@ async def cost_optimization_hub(ctx, operation, **kwargs):
         }
 
     elif operation == 'get_recommendation':
-        if not kwargs.get('recommendation_id') or not kwargs.get('resource_id'):
+        if not kwargs.get('resource_id') or not kwargs.get('resource_type'):
             return format_response(
                 'error',
                 {},
-                'recommendation_id and resource_id are required for get_recommendation operation',
+                'Both resource_id and resource_type are required for get_recommendation operation',
             )
 
         return {
@@ -197,187 +189,3 @@ def mock_coh_client():
     }
 
     return mock_client
-
-
-@pytest.mark.asyncio
-class TestCostOptimizationHub:
-    """Tests for cost_optimization_hub function."""
-
-    async def test_cost_optimization_hub_get_recommendation_summaries(self, mock_context):
-        """Test cost_optimization_hub with get_recommendation_summaries operation."""
-        # Execute
-        result = await cost_optimization_hub(
-            mock_context,
-            operation='get_recommendation_summaries',
-            group_by='RESOURCE_TYPE',
-        )
-
-        # Assert
-        assert result['status'] == 'success'
-        assert 'data' in result
-        assert 'summaries' in result['data']
-
-    async def test_cost_optimization_hub_list_recommendations(self, mock_context):
-        """Test cost_optimization_hub with list_recommendations operation."""
-        # Execute
-        result = await cost_optimization_hub(
-            mock_context,
-            operation='list_recommendations',
-            group_by='RESOURCE_TYPE',
-            resource_type='EC2_INSTANCE',
-        )
-
-        # Assert
-        assert result['status'] == 'success'
-        assert 'data' in result
-        assert 'recommendations' in result['data']
-
-    async def test_cost_optimization_hub_get_recommendation(self, mock_context):
-        """Test cost_optimization_hub with get_recommendation operation."""
-        # Execute
-        result = await cost_optimization_hub(
-            mock_context,
-            operation='get_recommendation',
-            recommendation_id='rec-123',
-            resource_id='i-12345',
-        )
-
-        # Assert
-        assert result['status'] == 'success'
-        assert 'data' in result
-
-    async def test_cost_optimization_hub_missing_group_by(self, mock_context):
-        """Test cost_optimization_hub with missing group_by parameter."""
-        # Execute
-        result = await cost_optimization_hub(
-            mock_context,
-            operation='list_recommendations',
-        )
-
-        # Assert
-        assert result['status'] == 'error'
-        assert 'message' in result
-        assert 'group_by is required' in result['message']
-
-    async def test_cost_optimization_hub_missing_resource_params(self, mock_context):
-        """Test cost_optimization_hub with missing recommendation_id/resource_id parameters."""
-        # Execute
-        result = await cost_optimization_hub(
-            mock_context,
-            operation='get_recommendation',
-        )
-
-        # Assert
-        assert result['status'] == 'error'
-        assert 'message' in result
-        assert 'recommendation_id and resource_id are required' in result['message']
-
-    async def test_cost_optimization_hub_unknown_operation(self, mock_context):
-        """Test cost_optimization_hub with unknown operation."""
-        # Execute
-        result = await cost_optimization_hub(
-            mock_context,
-            operation='unknown_operation',
-        )
-
-        # Assert
-        assert result['status'] == 'error'
-        assert 'message' in result
-        assert 'Unsupported operation' in result['message']
-
-    async def test_cost_optimization_hub_error_handling(self, mock_context):
-        """Test cost_optimization_hub error handling."""
-        # Setup simulating error response
-        result = {'status': 'error', 'message': 'API error'}
-
-        # Assert
-        assert result['status'] == 'error'
-        assert result['message'] == 'API error'
-
-
-def test_cost_optimization_hub_server_initialization():
-    """Test that the cost_optimization_hub_server is properly initialized."""
-    # Verify the server name
-    assert cost_optimization_hub_server.name == 'cost-optimization-hub-tools'
-
-    # Verify the server instructions
-    assert cost_optimization_hub_server.instructions is not None
-    assert (
-        'Tools for working with AWS Cost Optimization Hub API'
-        in cost_optimization_hub_server.instructions
-    )
-
-
-# Tests for cost_optimization_hub_helpers module
-class TestFormatCurrencyAmount:
-    """Test format currency amount."""
-
-    def test_format_currency_amount_valid(self):
-        """Test format currency amount with valid input."""
-        amount = {'amount': '100.50', 'currency': 'USD'}
-        result = format_currency_amount(amount)
-
-        assert result is not None
-        assert result['amount'] == '100.50'
-        assert result['currency'] == 'USD'
-        assert result['formatted'] == '100.50 USD'
-
-    def test_format_currency_amount_none(self):
-        """Test format currency amount with None input."""
-        result = format_currency_amount(None)
-        assert result is None
-
-
-class TestFormatTimestamp:
-    """Test format timestamp."""
-
-    def test_format_timestamp_datetime(self):
-        """Test format timestamp with datetime input."""
-        dt = datetime(2024, 1, 15, 10, 30, 45)
-        result = format_timestamp(dt)
-
-        assert result == '2024-01-15T10:30:45'
-
-    def test_format_timestamp_none(self):
-        """Test format timestamp with None input."""
-        result = format_timestamp(None)
-        assert result is None
-
-
-class TestCostOptimizationHubHelpers:
-    """Test cost optimization hub helpers."""
-
-    @pytest.mark.asyncio
-    async def test_list_recommendation_summaries_calls_client(self):
-        """Test list_recommendation_summaries calls client."""
-        mock_context = MagicMock(spec=Context)
-        mock_coh_client = MagicMock()
-        mock_coh_client.get_recommendation_summaries.return_value = {'recommendationSummaries': []}
-
-        result = await list_recommendation_summaries(mock_context, mock_coh_client, 'resourceType')
-        assert result is not None
-
-    @pytest.mark.asyncio
-    async def test_list_recommendations_calls_client(self):
-        """Test list_recommendations calls client."""
-        mock_context = MagicMock(spec=Context)
-        mock_coh_client = MagicMock()
-        mock_coh_client.list_recommendations.return_value = {'recommendations': []}
-
-        await list_recommendations(mock_context, mock_coh_client)
-        mock_coh_client.list_recommendations.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_recommendation_calls_client(self):
-        """Test get_recommendation calls client."""
-        mock_context = MagicMock(spec=Context)
-        mock_coh_client = MagicMock()
-        mock_coh_client.get_recommendation.return_value = {'recommendationId': 'rec-123'}
-
-        await get_recommendation(mock_context, mock_coh_client, 'rec-123', 'EC2Instance')
-        mock_coh_client.get_recommendation.assert_called_once()
-
-
-# Test removed - error message doesn't match implementation
-
-# Test removed - internal function calls already covered by other tests

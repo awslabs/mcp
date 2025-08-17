@@ -800,14 +800,3 @@ async def test_cost_explorer_missing_metric_forecast():
     result = await cost_explorer(ctx=ctx, operation='getCostForecast')
     assert result['status'] == 'error'
     assert 'metric is required' in result['message']
-
-
-# Test removed - getUsageForecast operation not properly supported
-
-# Test removed - internal function calls already covered by other tests
-
-
-# Test removed - getTagValues operation not calling expected function
-
-
-# Test removed - getCostCategoryValues operation not calling expected function

@@ -524,3 +524,52 @@ async def test_aws_pricing_missing_params_get_pricing():
     result = await aws_pricing(ctx=ctx, operation='get_pricing_from_api', service_code='AmazonEC2')
     assert result['status'] == 'error'
     assert 'service_code and region are required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_main_function_get_service_codes():
+    """Test main aws_pricing function with get_service_codes operation."""
+    mock_context = MagicMock(spec=Context)
+    mock_context.info = AsyncMock()
+
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_service_codes'
+    ) as mock_get_service_codes:
+        mock_get_service_codes.return_value = {'status': 'success', 'data': {'Services': []}}
+
+        result = await aws_pricing(mock_context, 'get_service_codes')
+        assert result['status'] == 'success'
+        mock_get_service_codes.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_main_function_missing_service_code():
+    """Test main aws_pricing function with missing service_code."""
+    mock_context = MagicMock(spec=Context)
+    mock_context.info = AsyncMock()
+
+    result = await aws_pricing(mock_context, 'get_service_attributes')
+    assert result['status'] == 'error'
+    assert 'service_code is required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_main_function_missing_params():
+    """Test main aws_pricing function with missing parameters."""
+    mock_context = MagicMock(spec=Context)
+    mock_context.info = AsyncMock()
+
+    result = await aws_pricing(mock_context, 'get_attribute_values', service_code='EC2')
+    assert result['status'] == 'error'
+    assert 'attribute_name are required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_aws_pricing_main_function_get_pricing_missing_region():
+    """Test main aws_pricing function with missing region."""
+    mock_context = MagicMock(spec=Context)
+    mock_context.info = AsyncMock()
+
+    result = await aws_pricing(mock_context, 'get_pricing_from_api', service_code='EC2')
+    assert result['status'] == 'error'
+    assert 'region are required' in result['message']
