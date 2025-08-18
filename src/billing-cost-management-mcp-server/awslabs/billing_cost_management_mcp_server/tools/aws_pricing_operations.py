@@ -25,9 +25,10 @@ from ..utilities.aws_service_base import (
     get_pricing_region,
     parse_json,
 )
+from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_api_response_to_table
 from fastmcp import Context
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> Dict[str, Any]:
@@ -356,55 +357,104 @@ async def get_pricing_from_api(
             len(all_price_list), max_results if max_results else 100
         )  # Limit to 100 by default
         processed_products = []
+        
+        # Get context logger for consistent logging
+        ctx_logger = get_context_logger(ctx, __name__)
 
-        for product_json in all_price_list[:display_limit]:
-            product = json.loads(product_json)
-            processed_product = {
-                'sku': product.get('product', {}).get('sku'),
-                'productFamily': product.get('product', {}).get('productFamily'),
-                'attributes': product.get('product', {}).get('attributes', {}),
-            }
+        # Keep track of products that fail to parse
+        failed_products = 0
+        
+        for i, product_json in enumerate(all_price_list[:display_limit]):
+            try:
+                # Wrap the JSON parsing in a try-except block
+                product = json.loads(product_json)
+                
+                # Process the product data
+                processed_product = {
+                    'sku': product.get('product', {}).get('sku'),
+                    'productFamily': product.get('product', {}).get('productFamily'),
+                    'attributes': product.get('product', {}).get('attributes', {}),
+                }
 
-            # Process terms in a more readable format
-            terms = product.get('terms', {})
-            processed_terms = {}
+                # Process terms in a more readable format
+                terms = product.get('terms', {})
+                processed_terms = {}
 
-            for term_type, term_values in terms.items():
-                processed_terms[term_type] = []
-                for _, term_details in term_values.items():
-                    price_dimensions = []
+                for term_type, term_values in terms.items():
+                    processed_terms[term_type] = []
+                    for _, term_details in term_values.items():
+                        price_dimensions = []
 
-                    for _, dimension in term_details.get('priceDimensions', {}).items():
-                        price_dimensions.append(
+                        for _, dimension in term_details.get('priceDimensions', {}).items():
+                            price_dimensions.append(
+                                {
+                                    'description': dimension.get('description'),
+                                    'unit': dimension.get('unit'),
+                                    'pricePerUnit': dimension.get('pricePerUnit'),
+                                }
+                            )
+
+                        processed_terms[term_type].append(
                             {
-                                'description': dimension.get('description'),
-                                'unit': dimension.get('unit'),
-                                'pricePerUnit': dimension.get('pricePerUnit'),
+                                'effectiveDate': term_details.get('effectiveDate'),
+                                'priceDimensions': price_dimensions,
                             }
                         )
 
-                    processed_terms[term_type].append(
-                        {
-                            'effectiveDate': term_details.get('effectiveDate'),
-                            'priceDimensions': price_dimensions,
-                        }
-                    )
-
-            processed_product['terms'] = processed_terms
-            processed_products.append(processed_product)
+                processed_product['terms'] = processed_terms
+                processed_products.append(processed_product)
+                
+            except json.JSONDecodeError as e:
+                # Log the error but continue processing other products
+                failed_products += 1
+                await ctx_logger.error(
+                    f"Failed to parse product JSON at index {i}: {str(e)}. "
+                    f"First 100 chars: {product_json[:100] if len(product_json) > 100 else product_json}"
+                )
+                
+                # Add a placeholder for the failed product to maintain count
+                processed_products.append({
+                    'sku': f'parsing_failed_{i}',
+                    'productFamily': 'Unknown',
+                    'attributes': {'error': f'Failed to parse JSON: {str(e)}'},
+                    'terms': {}
+                })
+            except Exception as e:
+                # Handle any other exceptions
+                failed_products += 1
+                await ctx_logger.error(f"Error processing product at index {i}: {str(e)}")
+                
+                # Add a placeholder for the failed product
+                processed_products.append({
+                    'sku': f'processing_failed_{i}',
+                    'productFamily': 'Unknown',
+                    'attributes': {'error': f'Processing error: {str(e)}'},
+                    'terms': {}
+                })
+                
+        # Log summary of parsing failures if any
+        if failed_products > 0:
+            await ctx_logger.warning(
+                f"Failed to parse {failed_products} out of {display_limit} products. "
+                f"These products will have placeholder entries in the results."
+            )
 
         # Use shared format_response utility
-        return format_response(
-            'success',
-            {
-                'service_code': service_code,
-                'region': region,
-                'filter_count': len(api_filters),
-                'total_products_found': len(all_price_list),
-                'products_returned': len(processed_products),
-                'products': processed_products,
-            },
-        )
+        result = {
+            'service_code': service_code,
+            'region': region,
+            'filter_count': len(api_filters),
+            'total_products_found': len(all_price_list),
+            'products_returned': len(processed_products),
+            'products': processed_products,
+        }
+        
+        # Add parsing failure information if applicable
+        if failed_products > 0:
+            result['parsing_failures'] = failed_products
+            result['parsing_success_rate'] = f"{((display_limit - failed_products) / display_limit) * 100:.1f}%"
+            
+        return format_response('success', result)
 
     except Exception as e:
         # Use standard error format

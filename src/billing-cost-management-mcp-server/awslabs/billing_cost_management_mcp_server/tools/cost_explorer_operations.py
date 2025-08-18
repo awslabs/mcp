@@ -51,7 +51,7 @@ async def get_cost_and_usage(
         ctx: MCP context
         ce_client: AWS Cost Explorer client
         start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY, HOURLY)
         metrics: List of metrics as JSON string
         group_by: Optional grouping as JSON string
@@ -161,7 +161,7 @@ async def get_cost_and_usage_with_resources(
         ctx: MCP context
         ce_client: AWS Cost Explorer client
         start_date: Start date in YYYY-MM-DD format (last 14 days max)
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY, HOURLY)
         metrics: List of metrics as JSON string
         group_by: Optional grouping as JSON string
@@ -171,79 +171,48 @@ async def get_cost_and_usage_with_resources(
         Resource-level cost and usage data response
     """
     await ctx.info('Getting resource-level cost and usage data')
-
+    
     try:
         # Get date range with defaults
-        # For resources, default to 7 days instead of 30
         if not start_date:
+            # Default to 7 days ago for resource-level data (limited to 14 days)
             start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-
+            
         start, end = get_date_range(start_date, end_date)
-
-        # Check that start date is within 14 days (API limit)
-        start_date_obj = datetime.strptime(start, '%Y-%m-%d')
-        today = datetime.now()
-        days_diff = (today - start_date_obj).days
-
-        if days_diff > 14:
-            await ctx.warning(
-                'Cost Explorer resource data is limited to the last 14 days. '
-                f'Adjusting start date from {start} to {(today - timedelta(days=14)).strftime("%Y-%m-%d")}'
-            )
-            start = (today - timedelta(days=14)).strftime('%Y-%m-%d')
-
         await ctx.info(f'Using date range: {start} to {end}')
-
+        
         # Parse JSON inputs
         metrics_list = parse_json(metrics, 'metrics')
         group_by_list = parse_json(group_by, 'group_by')
         filters = parse_json(filter_expr, 'filter')
-
+        
         # Set default metrics if not provided
         if not metrics_list:
             metrics_list = ['UnblendedCost']
-
+            
         # Build request parameters
         request_params = {
             'TimePeriod': {'Start': start, 'End': end},
             'Granularity': granularity,
             'Metrics': metrics_list,
         }
-
+        
         # Add optional parameters if provided
         if group_by_list:
             request_params['GroupBy'] = group_by_list
-
+            
         if filters:
             request_params['Filter'] = filters
-
+            
         # Make API call
         await ctx.info('Calling getCostAndUsageWithResources API')
         response = ce_client.get_cost_and_usage_with_resources(**request_params)
-
-        # Convert large responses to SQL table
-        table_response = await convert_api_response_to_table(
-            ctx,
-            response,
-            'getCostAndUsageWithResources',
-            granularity=granularity,
-            start_date=start,
-            end_date=end,
-            group_by=group_by,
-            metrics=metrics,
-        )
-
-        # Return the response (either the original or the SQL table info)
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
-
+        
+        return format_response('success', response)
+        
     except Exception as e:
-        # Use shared error handling
         return await handle_aws_error(ctx, e, 'getCostAndUsageWithResources', 'Cost Explorer')
+
 
 
 async def get_dimension_values(
@@ -265,7 +234,7 @@ async def get_dimension_values(
         ce_client: AWS Cost Explorer client
         dimension: The dimension to get values for
         start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         filter_expr: Optional filters as JSON string
         max_results: Maximum number of results per page
@@ -342,7 +311,7 @@ async def get_cost_forecast(
         ce_client: AWS Cost Explorer client
         metric: Cost metric to forecast
         start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
         filter_expr: Optional filters as JSON string
         prediction_interval_level: Confidence interval (70-99)
@@ -410,7 +379,7 @@ async def get_usage_forecast(
         ce_client: AWS Cost Explorer client
         metric: Usage metric to forecast
         start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
         filter_expr: Optional filters as JSON string
         prediction_interval_level: Confidence interval (70-99)
@@ -422,7 +391,6 @@ async def get_usage_forecast(
 
     try:
         # Set default dates if not provided (forecast should be future-looking)
-
         if not start_date:
             # Default to tomorrow
             start_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -453,12 +421,13 @@ async def get_usage_forecast(
         # Make API call
         await ctx.info('Calling getUsageForecast API')
         response = ce_client.get_usage_forecast(**request_params)
-
+        
         return format_response('success', response)
-
+        
     except Exception as e:
         # Use shared error handling
         return await handle_aws_error(ctx, e, 'getUsageForecast', 'Cost Explorer')
+
 
 
 async def get_tags(
@@ -477,7 +446,7 @@ async def get_tags(
         ctx: MCP context
         ce_client: AWS Cost Explorer client
         start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         tag_key: Optional specific tag key to get values for
         next_token: Pagination token
@@ -537,6 +506,7 @@ async def get_tags(
         return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
 
 
+
 async def get_cost_categories(
     ctx: Context,
     ce_client,
@@ -553,7 +523,7 @@ async def get_cost_categories(
         ctx: MCP context
         ce_client: AWS Cost Explorer client
         start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         cost_category_name: Optional specific cost category to get values for
         next_token: Pagination token
@@ -633,7 +603,7 @@ async def get_savings_plans_utilization(
         ctx: MCP context
         ce_client: AWS Cost Explorer client
         start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
         filter_expr: Optional filters as JSON string
         next_token: Pagination token

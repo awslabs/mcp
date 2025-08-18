@@ -35,6 +35,11 @@ from datetime import datetime, timedelta
 from fastmcp import Context
 from typing import Any, Dict, List, Optional, Tuple
 
+from .logging_utils import get_logger, get_context_logger
+
+# Configure logger for this module
+logger = get_logger(__name__)
+
 
 # Version for user agent tracking
 __version__ = '1.0.0'
@@ -159,7 +164,7 @@ def get_date_range(
 
     Args:
         start_date: Optional start date in YYYY-MM-DD format
-        end_date: Optional end date in YYYY-MM-DD format
+        end_date: Optional end date in YYYY-MM-DD format (exclusive)
         default_days_ago: Default number of days to look back if start_date is not provided
 
     Returns:
@@ -195,7 +200,8 @@ def validate_date_format(date_str: Optional[str]) -> bool:
 
 
 async def handle_aws_error(
-    ctx: Context, error: Exception, operation: str, service_name: str
+    ctx: Context, error: Exception, operation: str, service_name: str, 
+    debug: bool = False
 ) -> Dict[str, Any]:
     """Handle AWS service errors in a standardized way.
 
@@ -208,32 +214,95 @@ async def handle_aws_error(
     Returns:
         Dict containing the error response
     """
+    # Get context logger for consistent logging
+    ctx_logger = get_context_logger(ctx, __name__)
+    
     # Log detailed error for debugging
     error_message = str(error)
-    await ctx.error(f"Error in {service_name} operation '{operation}': {error_message}")
+    error_context = f"Error in {service_name} operation '{operation}': {error_message}"
 
-    # Create user-friendly error response
+    if debug:
+        # Print more detailed diagnostic information
+        await ctx_logger.warning(f"DEBUG - Error type: {type(error)}")
+        await ctx_logger.warning(f"DEBUG - Error dir: {dir(error)}")
+        await ctx_logger.warning(f"DEBUG - Error repr: {repr(error)}")
+
+    # Initialize error response
+    error_response = {
+        'status': 'error',
+        'service': service_name,
+        'operation': operation,
+    }
+    
+    # Log with appropriate level and context
     if isinstance(error, ClientError):
-        error_code = error.response.get('Error', {}).get('Code', 'UnknownError')
-        error_type = 'service_error'
-        user_message = f'AWS service error: {error_code}'
+        # Get AWS error details
+        aws_error = error.response.get('Error', {})
+        error_code = aws_error.get('Code', 'UnknownError')
+        aws_message = aws_error.get('Message', 'No error message provided')
+        request_id = error.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
+        http_status = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
+        
+        # Just pass through the AWS error code and message directly
+        error_response.update({
+            'error_type': error_code,  # Use the actual AWS error code as the error_type
+            'message': aws_message,    # Use the actual AWS error message
+            'request_id': request_id,
+            'http_status': http_status,
+            'full_error': str(error),
+            'full_response': str(getattr(error, 'response', '{}'))
+        })
+        
+        # Log with appropriate severity based on error code
+        if error_code in ('AccessDenied', 'UnauthorizedOperation', 'AuthFailure'):
+            await ctx_logger.error(f"Access error: {error_context}", exc_info=True)
+        else:
+            await ctx_logger.error(error_context, exc_info=True)
+            
     elif isinstance(error, ValueError):
         error_type = 'validation_error'
         user_message = str(error)
+        await ctx_logger.warning(f"Validation error: {error_context}")
+        
+        error_response.update({
+            'error_type': error_type,
+            'message': user_message,
+            'details': str(error)
+        })
+        
     elif isinstance(error, BotoCoreError):
-        error_type = 'service_error'
-        user_message = 'AWS service connection error'
+        error_type = 'aws_connection_error'
+        error_code = error.__class__.__name__
+        user_message = f'AWS service connection error: {error_code}'
+        await ctx_logger.error(f"Connection error: {error_context}", exc_info=True)
+        
+        error_response.update({
+            'error_type': error_type,
+            'boto_error_type': error_code,
+            'message': user_message,
+            'details': str(error)
+        })
+        
     else:
         error_type = 'unknown_error'
-        user_message = 'An unexpected error occurred'
+        error_class = error.__class__.__name__
+        error_message = str(error)
+        
+        # Preserve the actual error message instead of generic text
+        user_message = error_message if error_message else f'An unexpected error occurred: {error_class}'
+        
+        await ctx_logger.error(f"Unexpected error: {error_context}\nError type: {type(error)}\nError attributes: {dir(error)}", exc_info=True)
+        
+        # Create a more detailed response that shows the actual exception type and details
+        error_response.update({
+            'error_type': f'unknown_{error_class.lower()}',
+            'exception_type': error_class,
+            'message': user_message,  # Use the actual error message
+            'details': str(error),
+            'full_error_context': error_context
+        })
 
-    return {
-        'status': 'error',
-        'error_type': error_type,
-        'service': service_name,
-        'operation': operation,
-        'message': user_message,
-    }
+    return error_response
 
 
 async def paginate_aws_response(
@@ -261,9 +330,15 @@ async def paginate_aws_response(
     Returns:
         Tuple of (combined_results, pagination_metadata)
     """
+    # Get context logger for consistent logging
+    ctx_logger = get_context_logger(ctx, __name__)
+    
     all_results = []
     current_token = None
     pages_fetched = 0
+    
+    # For performance timing
+    start_time = datetime.now()
 
     # Fetch all pages
     while True:
@@ -272,31 +347,43 @@ async def paginate_aws_response(
             request_params[token_param] = current_token
 
         # Make API call for current page
-        await ctx.info(
-            f'Fetching {operation_name} page {pages_fetched + 1}{" using next_token" if current_token else ""}'
-        )
-        response = api_function(**request_params)
+        page_info = f'Fetching {operation_name} page {pages_fetched + 1}{" using next_token" if current_token else ""}'
+        await ctx_logger.info(page_info)
+        
+        try:
+            # Make the API call
+            response = api_function(**request_params)
+            
+            # Get the results and add to combined list
+            results = response.get(result_key, [])
+            all_results.extend(results)
 
-        # Get the results and add to combined list
-        results = response.get(result_key, [])
-        all_results.extend(results)
+            # Count pages
+            pages_fetched += 1
+            await ctx_logger.info(f'Received {len(results)} results (total: {len(all_results)})')
 
-        # Count pages
-        pages_fetched += 1
-        await ctx.info(f'Received {len(results)} results (total: {len(all_results)})')
+            # Check if we have more pages
+            current_token = response.get(token_key)
 
-        # Check if we have more pages
-        current_token = response.get(token_key)
+            # Stop conditions
+            if not current_token:
+                await ctx_logger.info('No more pages available')
+                break
 
-        # Stop conditions
-        if not current_token:
-            await ctx.info('No more pages available')
-            break
+            if max_pages and pages_fetched >= max_pages:
+                await ctx_logger.info(f'Reached maximum pages limit ({max_pages})')
+                break
+                
+        except Exception as e:
+            # Log error with both context and Loguru for consistent handling
+            error_msg = f"Error fetching page {pages_fetched + 1} of {operation_name}: {str(e)}"
+            await ctx_logger.error(error_msg, exc_info=True)
+            raise
 
-        if max_pages and pages_fetched >= max_pages:
-            await ctx.info(f'Reached maximum pages limit ({max_pages})')
-            break
-
+    # Log performance information
+    end_time = datetime.now()
+    duration_ms = (end_time - start_time).total_seconds() * 1000
+    
     # Create pagination metadata
     pagination_metadata = {
         'complete_dataset': current_token is None,
@@ -304,7 +391,13 @@ async def paginate_aws_response(
         'total_results': len(all_results),
         'has_more': current_token is not None,
         'next_token': current_token,
+        'duration_ms': int(duration_ms)
     }
+    
+    # Log completion with timing info
+    await ctx_logger.info(
+        f"Completed {operation_name} pagination: {pages_fetched} pages, {len(all_results)} results in {duration_ms:.1f}ms"
+    )
 
     return all_results, pagination_metadata
 

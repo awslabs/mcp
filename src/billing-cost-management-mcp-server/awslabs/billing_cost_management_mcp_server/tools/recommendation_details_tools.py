@@ -19,6 +19,14 @@ Updated to use shared utility functions.
 
 import os
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.constants import (
+    ACTION_TYPE_PURCHASE_SAVINGS_PLAN, ACTION_TYPE_PURCHASE_RESERVED_INSTANCE,
+    ACTION_TYPE_STOP, ACTION_TYPE_DELETE,
+    RESOURCE_TYPE_EC2_INSTANCE, RESOURCE_TYPE_EC2_ASG, RESOURCE_TYPE_EBS_VOLUME,
+    RESOURCE_TYPE_ECS_SERVICE, RESOURCE_TYPE_LAMBDA_FUNCTION, RESOURCE_TYPE_RDS,
+    TERM_MAP, PAYMENT_OPTION_MAP, ACCOUNT_SCOPE_MAP, LOOKBACK_PERIOD_MAP,
+    SERVICE_MAP, SAVINGS_PLANS_TYPE_MAP
+)
 from datetime import datetime
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -29,53 +37,7 @@ recommendation_details_server = FastMCP(
     instructions='Tools for working with AWS Cost Optimization Hub enhanced recommendation details',
 )
 
-# Constants for resource types and action types
-ACTION_TYPE_PURCHASE_SAVINGS_PLAN = 'PurchaseSavingsPlans'
-ACTION_TYPE_PURCHASE_RESERVED_INSTANCE = 'PurchaseReservedInstances'
-ACTION_TYPE_STOP = 'Stop'
-ACTION_TYPE_DELETE = 'Delete'
-
-RESOURCE_TYPE_EC2_INSTANCE = 'Ec2Instance'
-RESOURCE_TYPE_EC2_ASG = 'Ec2AutoScalingGroup'
-RESOURCE_TYPE_EBS_VOLUME = 'EbsVolume'
-RESOURCE_TYPE_ECS_SERVICE = 'EcsService'
-RESOURCE_TYPE_LAMBDA_FUNCTION = 'LambdaFunction'
-RESOURCE_TYPE_RDS = 'RdsDbInstance'
-
-# Constants for mapping COH values to AWS API parameters
-TERM_MAP = {'OneYear': 'ONE_YEAR', 'ThreeYear': 'THREE_YEARS'}
-
-PAYMENT_OPTION_MAP = {
-    'AllUpfront': 'ALL_UPFRONT',
-    'PartialUpfront': 'PARTIAL_UPFRONT',
-    'NoUpfront': 'NO_UPFRONT',
-}
-
-ACCOUNT_SCOPE_MAP = {'Linked': 'LINKED', 'Payer': 'PAYER'}
-
-LOOKBACK_PERIOD_MAP = {
-    7: 'SEVEN_DAYS',
-    30: 'THIRTY_DAYS',
-    60: 'SIXTY_DAYS',
-    90: 'NINETY_DAYS',
-    180: 'SIX_MONTHS',
-    365: 'ONE_YEAR',
-}
-
-SERVICE_MAP = {
-    'ec2ReservedInstances': 'Amazon Elastic Compute Cloud - Compute',
-    'rdsReservedInstances': 'Amazon Relational Database Service',
-    'redshiftReservedInstances': 'Amazon Redshift',
-    'elastiCacheReservedInstances': 'Amazon ElastiCache',
-    'openSearchReservedInstances': 'Amazon OpenSearch Service',
-    'memoryDbReservedInstances': 'Amazon MemoryDB',
-}
-
-SAVINGS_PLANS_TYPE_MAP = {
-    'ec2InstanceSavingsPlans': 'EC2_INSTANCE_SP',
-    'computeSavingsPlans': 'COMPUTE_SP',
-    'sageMakerSavingsPlans': 'SAGEMAKER_SP',
-}
+# Constants are now imported from utilities.constants
 
 
 @recommendation_details_server.tool(
@@ -222,7 +184,7 @@ async def get_savings_plans_recommendation(
     ctx: Context, recommendation: Dict[str, Any], ce_client
 ) -> Dict[str, Any]:
     """Get Savings Plans recommendation details from Cost Explorer."""
-    # Debug: Log the full recommendation structure
+    # Get recommendation details
     recommended_details = recommendation.get('recommendedResourceDetails', {})
 
     # Find the Savings Plans key in recommended details
@@ -291,7 +253,7 @@ async def get_reserved_instances_recommendation(
     ctx: Context, recommendation: Dict[str, Any], ce_client
 ) -> Dict[str, Any]:
     """Get Reserved Instance recommendation details from Cost Explorer."""
-    # Debug: Log the full recommendation structure
+    # Get recommendation details
     recommended_details = recommendation.get('recommendedResourceDetails', {})
 
     # Find the Reserved Instances key in recommended details
@@ -464,6 +426,7 @@ def get_template_for_recommendation(
             with open(template_path, 'r') as f:
                 return f.read()
     except Exception as e:
-        print(f'Warning: Failed to load template {template_file}: {str(e)}')
+        # Template loading is optional, so we'll silently continue if not found
+        pass
 
     return None

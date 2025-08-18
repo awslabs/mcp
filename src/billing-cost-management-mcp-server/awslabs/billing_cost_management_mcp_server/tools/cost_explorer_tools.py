@@ -28,6 +28,7 @@ from .cost_explorer_operations import (
     get_tags,
     get_usage_forecast,
 )
+from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -42,7 +43,6 @@ cost_explorer_server = FastMCP(
     description="""Retrieves AWS cost and usage data using the Cost Explorer API.
 
 IMPORTANT USAGE GUIDELINES:
-- Before using this tool, provide a 1-3 sentence explanation starting with "EXPLANATION:"
 - Use UnblendedCost metric by default (not BlendedCost) unless user specifies otherwise
 - Exclude record_types 'Credit' and 'Refund' by default unless user requests inclusion
 - Choose DAILY granularity for periods <3 months, MONTHLY for longer periods
@@ -149,7 +149,7 @@ async def cost_explorer(
         ctx: MCP context
         operation: The operation to perform
         start_date: Start date for cost data in YYYY-MM-DD format
-        end_date: End date for cost data in YYYY-MM-DD format
+        end_date: End date for cost data in YYYY-MM-DD format (exclusive)
         granularity: Granularity of the returned data (DAILY, MONTHLY, etc.)
         metrics: Metrics to include in the response
         group_by: How to group the results
@@ -170,10 +170,20 @@ async def cost_explorer(
     await ctx.info(f'Cost Explorer operation: {operation}')
 
     # Create Cost Explorer client
-    ce_client = create_aws_client('ce')
+    try:
+        ce_client = create_aws_client('ce')
+    except Exception as client_error:
+        await ctx.error(f'Failed to create AWS client: {str(client_error)}')
+        return format_response('error', {
+            'error_type': 'client_creation_error',
+            'message': f'Failed to create AWS client: {str(client_error)}',
+            'details': repr(client_error)
+        })
 
     # Route to the appropriate operation handler
     try:
+        await ctx.info(f"Routing to operation: {operation}")
+        
         if operation == 'getCostAndUsage':
             return await get_cost_and_usage(
                 ctx,
@@ -192,6 +202,7 @@ async def cost_explorer(
             return await get_cost_and_usage_with_resources(
                 ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter
             )
+        
 
         elif operation == 'getDimensionValues':
             if not dimension:
@@ -278,5 +289,9 @@ async def cost_explorer(
         else:
             return format_response('error', {'message': f'Unknown operation: {operation}'})
 
+    except ClientError as e:
+        # Let the shared handler take care of this
+        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
     except Exception as e:
+        # For all other exceptions, use the shared error handler
         return await handle_aws_error(ctx, e, operation, 'Cost Explorer')

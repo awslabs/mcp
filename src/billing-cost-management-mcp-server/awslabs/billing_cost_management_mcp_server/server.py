@@ -22,6 +22,11 @@ import asyncio
 import os
 import sys
 
+from .utilities.logging_utils import get_logger
+
+# Configure logger for server
+logger = get_logger(__name__)
+
 
 # Add necessary directories to Python path when running directly
 if __name__ == '__main__':
@@ -126,9 +131,9 @@ async def register_prompts():
         from awslabs.billing_cost_management_mcp_server.prompts import register_all_prompts
 
         register_all_prompts(mcp)
-        print('Registered all prompts')
+        logger.info('Registered all prompts')
     except Exception as e:
-        print(f'Error registering prompts: {e}')
+        logger.error(f'Error registering prompts: {e}')
 
 
 async def setup():
@@ -152,33 +157,30 @@ async def setup():
     await register_prompts()
 
     # Log server initialization
-    print('AWS Billing and Cost Management MCP Server initialized successfully')
-    print('\nAvailable tools:')
-    print('- cost_explorer')
-    print('- compute_optimizer')
-    print('- cost_optimization_hub')
-    print('- storage_lens_run_query')
-    print('- pricing')
-    print('- budget')
-    print('- cost_anomaly')
-    print('- cost_comparison')
-    print('- free_tier_usage')
-    print('- get_recommendation_details')
-    print('- ri_performance')
-    print('- sp_performance')
-    print('- session_sql')
+    logger.info('AWS Billing and Cost Management MCP Server initialized successfully')
+    
+    # Log available tools
+    logger.info('Available tools:')
+    tools = [
+        'cost_explorer', 'compute_optimizer', 'cost_optimization_hub',
+        'storage_lens_run_query', 'pricing', 'budget', 'cost_anomaly',
+        'cost_comparison', 'free_tier_usage', 'get_recommendation_details',
+        'ri_performance', 'sp_performance', 'session_sql'
+    ]
+    for tool in tools:
+        logger.info(f'- {tool}')
 
-    print('\nAvailable prompts:')
-    print('- cost_analysis')
-    print('- cost_optimization_recommendations')
-    print('- reserved_capacity_analysis')
-    print('- cost_anomaly_investigation')
-    print('- budget_planning')
-    print('- free_tier_optimization')
-    print('- cost_breakdown_analysis')
-    print('- cost_trend_analysis')
-    print('- cur_sql_analysis')
-    print('- multi_account_cost_analysis')
+    # Log available prompts
+    logger.info('Available prompts:')
+    prompts = [
+        'cost_analysis', 'cost_optimization_recommendations', 
+        'reserved_capacity_analysis', 'cost_anomaly_investigation',
+        'budget_planning', 'free_tier_optimization',
+        'cost_breakdown_analysis', 'cost_trend_analysis',
+        'cur_sql_analysis', 'multi_account_cost_analysis'
+    ]
+    for prompt in prompts:
+        logger.info(f'- {prompt}')
 
 
 def main():

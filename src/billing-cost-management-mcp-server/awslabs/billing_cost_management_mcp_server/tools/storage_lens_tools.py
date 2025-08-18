@@ -41,7 +41,6 @@ DEFAULT_TABLE = 'storage_lens_metrics'
     description="""Query S3 Storage Lens metrics data using Athena SQL.
 
 IMPORTANT USAGE GUIDELINES:
-- Before using this tool, provide a 1-3 sentence explanation starting with "EXPLANATION:"
 - Use standard SQL syntax for Athena queries
 - Use {table} as a placeholder for the Storage Lens metrics table name
 - Perform aggregations (GROUP BY) when analyzing data across multiple dimensions

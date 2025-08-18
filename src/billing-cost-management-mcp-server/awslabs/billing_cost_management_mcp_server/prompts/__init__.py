@@ -15,15 +15,15 @@
 import os
 import importlib
 import inspect
-import logging
 from typing import Set, Any
 
 # Import FastMCP as Any to avoid type issues
 
 from .types import is_prompt_function, as_prompt_function
+from ..utilities.logging_utils import get_logger
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Define a whitelist of allowed prompt modules
 ALLOWED_PROMPT_MODULES: Set[str] = set()
