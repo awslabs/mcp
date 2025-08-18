@@ -197,7 +197,7 @@ async def setup():
 
 def main():
     """Main entry point for the server."""
-    # Run the setup function to initialize the serve
+    # Run the setup function to initialize the server
     asyncio.run(setup())
 
     # Start the MCP server
