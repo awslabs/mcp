@@ -25,6 +25,9 @@ A Model Context Protocol (MCP) server for Amazon Athena.
 
 Note that all of the below options include setting the environment variable `AWS_PROFILE`. You'll need to change the example value of `the-aws-profile-name` to the actual name of the AWS profile you want the Athena MCP server to use.
 
+[![Install](https://img.shields.io/badge/Install-Cursor-blue?style=flat-square&logo=cursor)](https://cursor.com/en/install-mcp?name=awslabs.athena-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXRoZW5hLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkFXU19QUk9GSUxFIjoidGhlLWF3cy1wcm9maWxlLW5hbWUifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119)
+[![Install on VS Code](https://img.shields.io/badge/Install-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20Athena%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.athena-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22the-aws-profile-name%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D)
+
 ### JSON
 Configure the MCP server in your MCP client configuration, for example:
 
@@ -49,10 +52,6 @@ Run:
 ```sh
 claude mcp add awslabs.athena-mcp-server -e AWS_PROFILE=the-aws-profile-name -- uvx awslabs.athena-mcp-server@latest
 ```
-
-### Cursor
-You can use the following button to install into Cursor, but remember that **afterward you'll need to edit your `.cursor/mcp.json` file and replace `the-aws-profile-name` with the actual AWS profile name you want the server to use**.
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=awslabs.athena-mcp-server&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyJhd3NsYWJzLmF0aGVuYS1tY3Atc2VydmVyQGxhdGVzdCJdLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ0aGUtYXdzLXByb2ZpbGUtbmFtZSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0=)
 
 ## Tools
 
