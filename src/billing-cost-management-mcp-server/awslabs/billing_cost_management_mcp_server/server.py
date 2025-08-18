@@ -23,14 +23,12 @@ import os
 import sys
 
 
-# Add necessary directories to Python path when running directly
 if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(os.path.dirname(current_dir))
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
 
-# Import all modules after path setup
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import aws_pricing_server
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
@@ -125,7 +123,6 @@ For multi-account environments:
 async def register_prompts():
     """Register all prompts with the MCP server."""
     try:
-        # Use absolute import instead of relative import
         from awslabs.billing_cost_management_mcp_server.prompts import register_all_prompts
 
         register_all_prompts(mcp)
@@ -136,7 +133,6 @@ async def register_prompts():
 
 async def setup():
     """Initialize the MCP server by importing all tool servers."""
-    # Import all tool servers
     await mcp.import_server(cost_explorer_server)
     await mcp.import_server(compute_optimizer_server)
     await mcp.import_server(cost_optimization_hub_server)
@@ -151,13 +147,10 @@ async def setup():
     await mcp.import_server(sp_performance_server)
     await mcp.import_server(unified_sql_server)
 
-    # Register all prompts
     await register_prompts()
 
-    # Log server initialization
     logger.info('AWS Billing and Cost Management MCP Server initialized successfully')
 
-    # Log available tools
     logger.info('Available tools:')
     tools = [
         'cost-explorer',
@@ -177,19 +170,10 @@ async def setup():
     for tool in tools:
         logger.info(f'- {tool}')
 
-    # Log available prompts
     logger.info('Available prompts:')
     prompts = [
-        'cost_analysis',
-        'cost_optimization_recommendations',
-        'reserved_capacity_analysis',
-        'cost_anomaly_investigation',
-        'budget_planning',
-        'free_tier_optimization',
-        'cost_breakdown_analysis',
-        'cost_trend_analysis',
-        'cur_sql_analysis',
-        'multi_account_cost_analysis',
+       'savings_plans_analysis',
+        'graviton_analysis'
     ]
     for prompt in prompts:
         logger.info(f'- {prompt}')
