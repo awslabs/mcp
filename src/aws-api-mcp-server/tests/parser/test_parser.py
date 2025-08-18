@@ -20,6 +20,7 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import parse
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -250,7 +251,7 @@ def test_command_validation_error_for_parameter(command, message):
             + "--sort-criteria 'field=AWS_ACCOUNT_ID,_sortOrder=desc'",
             [
                 "The parameter '--filter-criteria' received an invalid input: "
-                + 'Unknown parameter in input: "myKey", must be one of: awsAccountId,',
+                + 'Unknown parameter in input: "myKey", must be one of: findingArn, awsAccountId,',
                 "\nThe parameter '--sort-criteria' received an invalid input: "
                 + 'Missing required parameter in input: "sortOrder"',
             ],
@@ -633,7 +634,12 @@ def test_invalid_expand_user_home_directory():
     assert any(param.startswith('~') for param in result.parameters['--paths'])
 
 
-def test_profile():
+@patch('boto3.Session')
+def test_profile(mock_boto3_session):
     """Test that the profile is correctly extracted."""
+    mock_session_instance = mock_boto3_session.return_value
+    mock_session_instance.region_name = 'us-east-1'
+
     result = parse(cli_command='aws s3api list-buckets --profile test-profile')
     assert result.profile == 'test-profile'
+    mock_boto3_session.assert_called_with(profile_name='test-profile')
