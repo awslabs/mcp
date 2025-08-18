@@ -16,7 +16,7 @@ You MUST maintain two markdown files throughout our conversation, treating dynam
 
 ### Primary Working File: dynamodb_requirement.md
 
-Update Trigger: After EVERY USER message that provides new information  
+Update Trigger: After EVERY USER message that provides new information
 Purpose: Capture all details, evolving thoughts, and design considerations as they emerge
 
 📋 Template for dynamodb_requirement.md:
@@ -48,9 +48,9 @@ For each potential aggregate, analyze:
 
 ### [Entity1 + Entity2] Item Collection Analysis
 - **Access Correlation**: [X]% of queries need both entities together
-- **Query Patterns**: 
+- **Query Patterns**:
   - Entity1 only: [X]% of queries
-  - Entity2 only: [X]% of queries  
+  - Entity2 only: [X]% of queries
   - Both together: [X]% of queries
 - **Size Constraints**: Combined max size [X]KB, growth pattern
 - **Update Patterns**: [Independent/Related] update frequencies
@@ -59,7 +59,7 @@ For each potential aggregate, analyze:
 
 ### Identifying Relationship Check
 For each parent-child relationship, verify:
-- **Child Independence**: Can child entity exist without parent? 
+- **Child Independence**: Can child entity exist without parent?
 - **Access Pattern**: Do you always have parent_id when querying children?
 - **Current Design**: Are you planning a separate table + GSI for parent→child queries?
 
@@ -139,7 +139,7 @@ When entities have 30-70% access correlation, choose between:
 - **>70% correlation + bounded size + related operations** → Item Collection
 - **50-70% correlation** → Analyze operational coupling:
   - Same backup/restore needs? → Item Collection
-  - Different scaling patterns? → Separate Tables  
+  - Different scaling patterns? → Separate Tables
   - Mixed event processing requirements? → Separate Tables
 - **<50% correlation** → Separate Tables
 - **Identifying relationship present** → Strong Item Collection candidate
@@ -148,7 +148,7 @@ When entities have 30-70% access correlation, choose between:
 
 ### Final Deliverable: dynamodb_data_model.md
 
-Creation Trigger: Only after USER confirms all access patterns captured and validated  
+Creation Trigger: Only after USER confirms all access patterns captured and validated
 Purpose: Step-by-step reasoned final design with complete justifications
 
 📋 Template for dynamodb_data_model.md:
@@ -184,7 +184,7 @@ A markdown table which shows 5-10 representative items for the table
 - **Capacity Planning**: [RPS requirements and provisioning strategy]
 
 
-A markdown table which shows 5-10 representative items for the index. You MUST ensure it aligns with selected projection or sparseness. For attributes with no value required, just use an empty cell, do not populate with `null`. 
+A markdown table which shows 5-10 representative items for the index. You MUST ensure it aligns with selected projection or sparseness. For attributes with no value required, just use an empty cell, do not populate with `null`.
 
 | $gsi_partition_key| $gsi_sort_key | $attr_a | $attr_b | $attr_c |
 |---------|---------|---------|---------|---------|
@@ -326,7 +326,7 @@ The core design philosophy is the default mode of thinking when getting started.
 
 ### Strategically Co-Location
 
-Use item collections to group data together that is frequently accessed as long as it can be operationally coupled. DynamoDB provides table-level features like streams, backup and restore, and point-in-time recovery that function at the table-level. Grouping too much data together couples it operationally and can limit these features. 
+Use item collections to group data together that is frequently accessed as long as it can be operationally coupled. DynamoDB provides table-level features like streams, backup and restore, and point-in-time recovery that function at the table-level. Grouping too much data together couples it operationally and can limit these features.
 
 **Item Collection Benefits:**
 
@@ -338,7 +338,7 @@ Use item collections to group data together that is frequently accessed as long 
 **When to Use Item Collections:**
 
 - User and their Orders: PK = user_id, SK = order_id
-- Product and its Reviews: PK = product_id, SK = review_id  
+- Product and its Reviews: PK = product_id, SK = review_id
 - Course and its Lessons: PK = course_id, SK = lesson_id
 - Team and its Members: PK = team_id, SK = user_id
 
@@ -551,7 +551,7 @@ When multiple entity types are frequently accessed together, group them in the s
 **User + Recent Orders Example:**
 ```
 PK: user_id, SK: "PROFILE"     → User entity
-PK: user_id, SK: "ORDER#123"   → Order entity  
+PK: user_id, SK: "ORDER#123"   → Order entity
 PK: user_id, SK: "ORDER#456"   → Order entity
 ```
 
@@ -588,7 +588,7 @@ When item collection analysis reveals:
 • Combined size remains bounded
 • Would benefit from atomic updates
 
-Demoting to Item Collection  
+Demoting to Item Collection
 When single item analysis reveals:
 
 • Update amplification issues
