@@ -1,0 +1,320 @@
+---
+name: Release Branch (initiated)
+description: |
+  This workflow initiates a release branch when changes are detected in the source directory.
+  It finds changed directories since the last published release, creates a new branch,
+  bumps versions in changed directories, and creates a pull request for the changes.
+on:
+  workflow_dispatch:
+env:
+  BOT_USER_EMAIL: ${{ vars.BOT_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
+  BOT_USER_NAME: ${{ vars.BOT_USER_NAME || 'awslabs-mcp' }}
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  discussions: none
+  id-token: none
+  issues: none
+  models: none
+  packages: none
+  pages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+jobs:
+  look-for-changes:
+    name: Changes Since Last Release
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || 'src' }}
+    outputs:
+      changed-directories: ${{ steps.find-changed-directories.outputs.changed-directories }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Validate source directory
+        run: |
+          set -euo pipefail
+
+          SRC_DIR="${{ env.SRC_DIRECTORY }}"
+          echo "::debug::Validating source directory: $SRC_DIR"
+
+          # Validate directory name format
+          if [[ ! "$SRC_DIR" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid source directory format: $SRC_DIR" >&2
+            exit 1
+          fi
+
+          # Check if directory exists
+          if [[ ! -d "$SRC_DIR" ]]; then
+            echo "::error::Source directory does not exist: $SRC_DIR" >&2
+            exit 1
+          fi
+
+          echo "::debug::Source directory validated: $SRC_DIR"
+
+      - name: Find Changed Directories Since Last Release
+        id: find-changed-directories
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          echo "::debug::Finding changed directories since last release"
+
+          # Get last release with validation
+          SINCE="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName | jq -r '.[].tagName // empty')"
+
+          if [[ -z "$SINCE" ]]; then
+            echo "::warning::No previous release found, using initial commit"
+            SINCE="$(git rev-list --max-parents=0 HEAD)"
+          else
+            echo "::debug::Comparing against release: $SINCE"
+
+            # Validate tag exists
+            if ! git rev-parse "$SINCE" >/dev/null 2>&1; then
+              echo "::error::Release tag does not exist in repository: $SINCE" >&2
+              exit 1
+            fi
+          fi
+
+          # Get changed files
+          CHANGED_FILES="$(git diff --name-only "$SINCE" HEAD | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')"
+
+          # Filter and validate source directories
+          SRC_DIRECTORIES="$(echo "$CHANGED_FILES" | jq -r --arg src "${{ env.SRC_DIRECTORY }}" \
+            '.[] | select(. | startswith($src + "/"))' | \
+            cut -d'/' -f2 | \
+            sort -u | \
+            while IFS= read -r dir; do
+              # Validate directory name format
+              if [[ "$dir" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ -n "$dir" ]]; then
+                echo "$dir"
+              else
+                echo "::warning::Skipping invalid directory name: $dir" >&2
+              fi
+            done | \
+            jq -R -s -c 'split("\n")[:-1] | map(select(length > 0))')"
+
+          echo "changed-directories=$SRC_DIRECTORIES" >> $GITHUB_OUTPUT
+          echo "::debug::Found changed directories: $SRC_DIRECTORIES"
+  create-branch:
+    name: Create Release Branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # SECURITY: Only for branch creation
+    outputs:
+      release-branch: ${{ steps.make-a-branch.outputs.release-branch }}
+    needs: [look-for-changes]
+    if: ${{ needs.look-for-changes.outputs.changed-directories != '[]' && needs.look-for-changes.outputs.changed-directories != '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+      - name: Create release branch
+        id: make-a-branch
+        run: |
+          set -euo pipefail
+
+          # Generate release identifier with validation
+          RELEASE="$(date +'%Y.%m.%Y%m%d%H%M%S')"
+          RELEASE_BRANCH="release/$RELEASE"
+
+          echo "::debug::Creating release branch: $RELEASE_BRANCH"
+
+          # Validate release format
+          if [[ ! "$RELEASE" =~ ^[0-9]{4}\.[0-9]+\.[0-9]{14}$ ]]; then
+            echo "::error::Invalid release format generated: $RELEASE" >&2
+            exit 1
+          fi
+
+          # Check if branch already exists
+          if git ls-remote --heads origin "$RELEASE_BRANCH" | grep -q "$RELEASE_BRANCH"; then
+            echo "::error::Release branch already exists: $RELEASE_BRANCH" >&2
+            exit 1
+          fi
+
+          # Configure git user
+          git config --local user.email "${{ env.BOT_USER_EMAIL }}"
+          git config --local user.name "${{ env.BOT_USER_NAME }}"
+
+          # Create and push branch
+          git checkout -b "$RELEASE_BRANCH"
+          git push --set-upstream origin "$RELEASE_BRANCH"
+
+          # Verify branch was created
+          if ! git ls-remote --heads origin "$RELEASE_BRANCH" | grep -q "$RELEASE_BRANCH"; then
+            echo "::error::Failed to verify branch creation: $RELEASE_BRANCH" >&2
+            exit 1
+          fi
+
+          echo "release-branch=$RELEASE_BRANCH" >> $GITHUB_OUTPUT
+          echo "::debug::Successfully created release branch: $RELEASE_BRANCH"
+  bump-changed-directories:
+    name: Bump Versions
+    env:
+      SRC_DIRECTORY: ${{ vars.SRC_DIRECTORY || secrets.SRC_DIRECTORY || 'src' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    needs: [look-for-changes, create-branch]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          ref: ${{ needs.create-branch.outputs.release-branch }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
+      - name: Bump package version
+        run: |
+          set -euo pipefail
+          echo "${{ toJson(needs.look-for-changes.outputs.changed-directories) }}" | \
+            jq -r '.[]' | \
+            xargs -I{} \
+            uv run --script .github/workflows/release.py bump-package --directory="$SRC_DIRECTORY/{}"
+          echo "::debug::Version bumps completed"
+      - name: Configure Git and GPG securely
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          set -euo pipefail  # SECURITY: Strict error handling
+
+          # Create secure temporary directory for GPG
+          export GNUPGHOME=$(mktemp -d)
+          chmod 700 "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> $GITHUB_ENV
+
+          echo "::debug::Setting up secure GPG environment"
+
+          # Configure git user
+          git config --local user.email "${{ env.BOT_USER_EMAIL }}"
+          git config --local user.name "${{ env.BOT_USER_NAME }}"
+
+          # Import GPG key without exposing secrets in command line
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import --quiet
+          echo "$GPG_KEY_ID:6:" | gpg --import-ownertrust --quiet
+
+          # Configure git GPG settings
+          git config --global user.signingkey "$GPG_KEY_ID"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+          # Test GPG functionality
+          echo "test" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
+            --sign --armor --local-user "$GPG_KEY_ID" <<< "$GPG_PASSPHRASE" > /dev/null
+
+          echo "::debug::GPG configuration completed successfully"
+      - name: Commit and push changes
+        env:
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          echo "::debug::Committing changes"
+
+          # Add only the source directory
+          git add "$SRC_DIRECTORY"
+
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "::warning::No changes to commit for: $SRC_DIRECTORY"
+          else
+            # Cache GPG signature
+            echo "commit" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
+            --sign --armor --local-user "$GPG_KEY_ID" <<< "$GPG_PASSPHRASE" > /dev/null
+
+            # Create signed commit
+            git commit -m "chore: bump packages for ${{ needs.create-branch.outputs.release-branch }}" --sign
+
+            # Pull with rebase to maintain linear history
+            git pull --rebase origin "${{ needs.create-branch.outputs.release-branch }}"
+
+            # Push changes
+            git push origin "${{ needs.create-branch.outputs.release-branch }}"
+
+            echo "::debug::Successfully committed and pushed changes for: $SRC_DIRECTORY"
+          fi
+      - name: Secure GPG cleanup
+        if: always()
+        run: |
+          set +e  # Don't fail on cleanup errors
+          echo "::debug::Performing secure cleanup"
+          if [[ -n "${GNUPGHOME:-}" && -d "$GNUPGHOME" ]]; then
+            rm -rf "$GNUPGHOME"
+            echo "::debug::Cleaned up GPG directory"
+          fi
+          gpgconf --kill gpg-agent 2>/dev/null || true
+          unset GPG_PRIVATE_KEY GPG_PASSPHRASE GPG_KEY_ID GNUPGHOME 2>/dev/null || true
+          echo "::debug::Secure cleanup completed"
+  create_pr:
+    name: Create Pull Request
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      contents: read
+    needs: [look-for-changes, create-branch, bump-changed-directories]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          ref: ${{ needs.create-branch.outputs.release-branch }}
+      - name: Create pull request
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_BRANCH="${{ needs.create-branch.outputs.release-branch }}"
+          BASE_BRANCH="${{ github.ref_name }}"
+
+          echo "::debug::Creating PR from $RELEASE_BRANCH to $BASE_BRANCH"
+
+          # Validate branch names
+          if [[ ! "$RELEASE_BRANCH" =~ ^release/[0-9]{4}\.[0-9]+\.[0-9]{14}$ ]]; then
+            echo "::error::Invalid release branch format: $RELEASE_BRANCH" >&2
+            exit 1
+          fi
+
+          CHANGED_ITEMS="$(echo '${{ needs.look-for-changes.outputs.changed-directories }}' | jq -r '"* " + .[]')"
+
+          # Create PR with validated content
+          PR_URL="$(gh pr create \
+            --base "$BASE_BRANCH" \
+            --head "$RELEASE_BRANCH" \
+            --title "chore: $RELEASE_BRANCH" \
+            --body "# $RELEASE_BRANCH
+
+          Triggered ${{ github.workflow }} by @${{ github.triggering_actor }} for @${{ github.actor }}
+
+          ## Changes
+          $CHANGED_ITEMS
+
+          ## Checklist
+          - [ ] Code changes have been reviewed
+          - [ ] Distribution packages have been built and tested
+          - [ ] Documentation has been updated if applicable
+
+          ## Acknowledgment
+          By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of the [project license](https://github.com/awslabs/mcp/blob/main/LICENSE).")"
+
+          echo "::debug::Successfully created pull request $PR_URL"
+          echo "### :ship: Ready for Review" >> $GITHUB_STEP_SUMMARY
+          echo "Pull request $PR_URL created for [$RELEASE_BRANCH](https://github.com/${{ github.repository }}/tree/$RELEASE_BRANCH) branch" >> $GITHUB_STEP_SUMMARY

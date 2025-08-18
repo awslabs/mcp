@@ -96,9 +96,6 @@ class DataCatalogDatabaseManager:
                 for k, v in parameters.items():
                     database_input[k] = v
 
-            # Remove complex types for now as they're causing type errors
-            # We can add them back with proper handling if needed
-
             # Add MCP management tags
             resource_tags = AwsHelper.prepare_resource_tags('GlueDatabase')
 
@@ -335,6 +332,7 @@ class DataCatalogDatabaseManager:
 
             response = self.glue_client.get_databases(**kwargs)
             databases = response.get('DatabaseList', [])
+            next_token = response.get('NextToken', None)  # Capture the next token for paginatio
 
             log_with_request_id(
                 ctx, LogLevel.INFO, f'Successfully listed {len(databases)} databases'
@@ -358,6 +356,7 @@ class DataCatalogDatabaseManager:
                 count=len(databases),
                 catalog_id=catalog_id,
                 operation='list-databases',
+                next_token=next_token,
                 content=[TextContent(type='text', text=success_msg)],
             )
 

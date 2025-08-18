@@ -19,6 +19,8 @@ import botocore.session
 import inspect
 import os
 import sys
+from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
+from botocore.config import Config
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -58,6 +60,9 @@ class AWSToolGenerator:
         self.clients: Dict[str, Any] = {}
         self.tool_configuration = tool_configuration or {}
         self.skip_param_documentation = skip_param_documentation
+        self.config = Config(
+            user_agent_extra=f'awslabs/mcp/{self.service_name}/{MCP_SERVER_VERSION}'
+        )
         self.__validate_tool_configuration()
 
     def generate(self):
@@ -99,7 +104,7 @@ class AWSToolGenerator:
             aws_profile = os.environ.get('AWS_PROFILE', 'default')
             self.clients[client_key] = boto3.Session(
                 profile_name=aws_profile, region_name=region
-            ).client(self.service_name)
+            ).client(self.service_name, config=self.config)
         return self.clients[client_key]
 
     def __get_operations(self) -> List[str]:
@@ -118,7 +123,9 @@ class AWSToolGenerator:
         # A getter for the boto3 client
         def boto3_client_getter(region: str, service_name: str = self.service_name):
             aws_profile = os.environ.get('AWS_PROFILE', 'default')
-            return boto3.Session(profile_name=aws_profile, region_name=region).client(service_name)
+            return boto3.Session(profile_name=aws_profile, region_name=region).client(
+                service_name=self.service_name, config=self.config
+            )
 
         func_override(self.mcp, boto3_client_getter, operation)
 
@@ -172,15 +179,15 @@ class AWSToolGenerator:
                         )
                     )
             # Add region to dynamically change region such that one MCP server can interact with multiple region
-            parameters.append(
+            parameters.insert(
+                0,
                 inspect.Parameter(
                     name='region',
                     kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
                     annotation=Annotated[
                         str, Field(description='AWS region on which the broker is in')
                     ],
-                    default='us-east-1',
-                )
+                ),
             )
         except Exception:
             print(
@@ -202,16 +209,16 @@ class AWSToolGenerator:
                 if validator is not None:
                     status, msg = validator(self.mcp, client, kwargs)
                     if status is False:
-                        return {'error': msg}
+                        raise Exception(msg)
                 response = method(**kwargs)
                 if 'ResponseMetadata' in response:
                     del response['ResponseMetadata']
                 return response
             except ClientError as e:
-                error_message = e.response.get('Error', {}).get('Message', str(e))
-                return {'error': error_message, 'code': e.response.get('Error', {}).get('Code')}
+                error_response = e.response['Error']
+                return {'error': error_response['Message'], 'code': error_response['Code']}
             except Exception as e:
-                return {'error': str(e)}
+                raise e
 
         # Set function metadata
         operation_function.__name__ = f'{operation}'

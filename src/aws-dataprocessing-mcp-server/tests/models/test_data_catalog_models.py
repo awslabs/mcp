@@ -318,7 +318,7 @@ class TestCatalogSummary:
         assert catalog_summary.name is None
         assert catalog_summary.description is None
         assert catalog_summary.parameters == {}
-        assert catalog_summary.creation_time is None
+        assert catalog_summary.create_time is None
 
     def test_create_with_all_fields(self):
         """Test creating a CatalogSummary with all fields."""
@@ -327,20 +327,20 @@ class TestCatalogSummary:
             name='Test Catalog',
             description='Test catalog description',
             parameters={'key1': 'value1', 'key2': 'value2'},
-            creation_time='2023-01-01T00:00:00Z',
+            create_time='2023-01-01T00:00:00Z',
         )
         assert catalog_summary.catalog_id == 'test-catalog'
         assert catalog_summary.name == 'Test Catalog'
         assert catalog_summary.description == 'Test catalog description'
         assert catalog_summary.parameters == {'key1': 'value1', 'key2': 'value2'}
-        assert catalog_summary.creation_time == '2023-01-01T00:00:00Z'
+        assert catalog_summary.create_time == '2023-01-01T00:00:00Z'
 
     def test_missing_required_fields(self):
         """Test that creating a CatalogSummary without required fields raises an error."""
         with pytest.raises(ValidationError):
             # Missing catalog_id parameter
             CatalogSummary(
-                name='Test Catalog', description='Test description', creation_time='2023-01-01'
+                name='Test Catalog', description='Test description', create_time='2023-01-01'
             )
 
 
