@@ -131,13 +131,11 @@ def execute_awscli_customization(
 
 def interpret_command(
     cli_command: str,
-    default_region: str,
     max_results: int | None = None,
 ) -> ProgramInterpretationResponse:
     """Interpret the given CLI command and return an interpretation response."""
     interpreted_program = _interpret_command(
         cli_command,
-        default_region=default_region,
         max_results=max_results,
     )
 

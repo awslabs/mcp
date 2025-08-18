@@ -900,9 +900,9 @@ async def test_dynamodb_data_modeling():
 
     expected_sections = [
         'DynamoDB Data Modeling Expert System Prompt',
-        'Multi-Table First',
-        'Denormalization',
-        'Sparse GSI',
+        'Access Patterns Analysis',
+        'Enhanced Aggregate Analysis',
+        'Important DynamoDB Context',
     ]
 
     for section in expected_sections:

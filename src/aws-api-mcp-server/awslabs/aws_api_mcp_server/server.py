@@ -32,6 +32,7 @@ from .core.common.config import (
     get_server_directory,
 )
 from .core.common.errors import AwsApiMcpError
+from .core.common.helpers import validate_aws_region
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
@@ -39,13 +40,12 @@ from .core.common.models import (
 )
 from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
-from awslabs.aws_api_mcp_server.core.common.helpers import validate_aws_region
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any, Optional
 
 
 logger.remove()
@@ -247,7 +247,6 @@ async def call_aws(
 
         return interpret_command(
             cli_command=cli_command,
-            default_region=cast(str, DEFAULT_REGION),
             max_results=max_results,
         )
     except NoCredentialsError:

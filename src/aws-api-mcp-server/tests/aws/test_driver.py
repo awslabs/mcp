@@ -107,6 +107,7 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             IRTranslation(
                 command=IRCommand(
                     command_metadata=CommandMetadata('s3', None, 'ls'),
+                    region='us-east-1',
                     parameters={},
                     is_awscli_customization=True,
                 ),
@@ -118,6 +119,7 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             IRTranslation(
                 command=IRCommand(
                     command_metadata=CommandMetadata('s3', None, 'ls'),
+                    region='us-east-1',
                     parameters={},
                     is_awscli_customization=True,
                 ),
@@ -129,6 +131,7 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             IRTranslation(
                 command=IRCommand(
                     command_metadata=CommandMetadata('dynamodb', None, 'wait table-exists'),
+                    region='us-east-1',
                     parameters={'--table-name': 'MyTable'},
                     is_awscli_customization=True,
                 ),
