@@ -174,16 +174,19 @@ async def cost_explorer(
         ce_client = create_aws_client('ce')
     except Exception as client_error:
         await ctx.error(f'Failed to create AWS client: {str(client_error)}')
-        return format_response('error', {
-            'error_type': 'client_creation_error',
-            'message': f'Failed to create AWS client: {str(client_error)}',
-            'details': repr(client_error)
-        })
+        return format_response(
+            'error',
+            {
+                'error_type': 'client_creation_error',
+                'message': f'Failed to create AWS client: {str(client_error)}',
+                'details': repr(client_error),
+            },
+        )
 
     # Route to the appropriate operation handler
     try:
-        await ctx.info(f"Routing to operation: {operation}")
-        
+        await ctx.info(f'Routing to operation: {operation}')
+
         if operation == 'getCostAndUsage':
             return await get_cost_and_usage(
                 ctx,
@@ -202,7 +205,6 @@ async def cost_explorer(
             return await get_cost_and_usage_with_resources(
                 ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter
             )
-        
 
         elif operation == 'getDimensionValues':
             if not dimension:

@@ -22,9 +22,12 @@ These tests verify the functionality of AWS Cost Optimization Hub tools, includi
 - Error handling for invalid recommendation filters and hub configuration
 """
 
+import fastmcp
+import importlib
+import json
 import pytest
 from fastmcp import Context
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # Create a mock implementation for testing
@@ -189,3 +192,286 @@ def mock_coh_client():
     }
 
     return mock_client
+
+
+@pytest.mark.asyncio
+async def test_invalid_operation(mock_context):
+    """Test invalid operation."""
+    result = await cost_optimization_hub(mock_context, operation='invalid_operation')
+
+    assert result['status'] == 'error'
+    assert 'Unsupported operation' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_missing_operation(mock_context):
+    """Test missing operation parameter."""
+    result = await cost_optimization_hub(mock_context, operation='')
+
+    assert result['status'] == 'error'
+
+
+@pytest.mark.asyncio
+async def test_missing_group_by_for_summaries(mock_context):
+    """Test missing group_by for list_recommendation_summaries."""
+    result = await cost_optimization_hub(mock_context, operation='list_recommendation_summaries')
+
+    assert result['status'] == 'error'
+    assert 'group_by parameter is required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_missing_resource_params_for_get_recommendation(mock_context):
+    """Test missing resource parameters for get_recommendation."""
+    result = await cost_optimization_hub(mock_context, operation='get_recommendation')
+
+    assert result['status'] == 'error'
+    assert 'resource_id and resource_type are required' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_get_recommendation_summaries_success(mock_context):
+    """Test successful list_recommendation_summaries."""
+    result = await cost_optimization_hub(
+        mock_context, operation='list_recommendation_summaries', group_by='ResourceType'
+    )
+
+    assert result['status'] == 'success'
+    assert 'summaries' in result['data']
+    assert result['data']['total_recommendations'] == 15
+    assert result['data']['total_estimated_monthly_savings'] == 800.0
+
+
+@pytest.mark.asyncio
+async def test_list_recommendations_success(mock_context):
+    """Test successful list_recommendations."""
+    result = await cost_optimization_hub(mock_context, operation='list_recommendations')
+
+    assert result['status'] == 'success'
+    assert 'recommendations' in result['data']
+    assert len(result['data']['recommendations']) == 1
+    assert result['data']['recommendations'][0]['id'] == 'rec-1'
+
+
+@pytest.mark.asyncio
+async def test_get_recommendation_success(mock_context):
+    """Test successful get_recommendation."""
+    result = await cost_optimization_hub(
+        mock_context,
+        operation='get_recommendation',
+        resource_id='i-12345',
+        resource_type='EC2_INSTANCE',
+        recommendation_id='rec-1',
+    )
+
+    assert result['status'] == 'success'
+    assert result['data']['resource_id'] == 'i-12345'
+    assert result['data']['resource_type'] == 'EC2_INSTANCE'
+
+
+def _reload_coh_with_identity_decorator():
+    """Reload cost_optimization_hub_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
+
+    This exposes a callable 'cost_optimization_hub' we can invoke to cover lines 99–174.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    # Patch fastmcp.FastMCP.tool so the decorator returns the function unchanged
+    def _identity_tool(self, *args, **kwargs):
+        def _decorator(fn):
+            return fn
+
+        return _decorator
+
+    with patch.object(fastmcp.FastMCP, 'tool', _identity_tool):
+        importlib.reload(coh_mod)  # cost_optimization_hub becomes callable
+        return coh_mod
+
+
+@pytest.mark.asyncio
+async def test_coh_real_summaries_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub summaries with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # now a callable coroutine
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'parse_json') as mock_parse_json,
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_list_summaries,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+
+        filters_str = '{"implementationEffort":["LOW"],"savingsPct":{"gte":10}}'
+        parsed = {'implementationEffort': ['LOW'], 'savingsPct': {'gte': 10}}
+        mock_parse_json.return_value = parsed
+        mock_list_summaries.return_value = {'status': 'success', 'data': {'ok': True}}
+
+        # Mock the context methods to avoid errors
+        mock_context.info = AsyncMock()
+        mock_context.error = AsyncMock()
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ResourceType',
+            max_results=50,
+            filters=filters_str,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        mock_parse_json.assert_called_once_with(filters_str, 'filters')
+        mock_list_summaries.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            group_by='ResourceType',
+            max_results=50,
+            filters=parsed,
+        )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_list_recommendations_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub list_recommendations with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'parse_json') as mock_parse_json,
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+
+        filters_str = '{"savings":{"gte":25},"service":["EC2_INSTANCE"]}'
+        parsed = {'savings': {'gte': 25}, 'service': ['EC2_INSTANCE']}
+        mock_parse_json.return_value = parsed
+        mock_list_recs.return_value = {'status': 'success', 'data': {'items': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            max_results=25,
+            filters=filters_str,
+            include_all_recommendations=True,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        mock_parse_json.assert_called_once_with(filters_str, 'filters')
+        mock_list_recs.assert_awaited_once_with(mock_context, fake_client, 25, parsed, True)
+
+
+@pytest.mark.asyncio
+async def test_coh_real_get_recommendation_success_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub get_recommendation success with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'get_recommendation', new_callable=AsyncMock) as mock_get_rec,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_get_rec.return_value = {'status': 'success', 'data': {'id': 'rec-123'}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='get_recommendation',
+            resource_id='i-abc',
+            resource_type='EC2_INSTANCE',
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        mock_get_rec.assert_awaited_once_with(mock_context, fake_client, 'i-abc', 'EC2_INSTANCE')
+
+
+@pytest.mark.asyncio
+async def test_coh_real_get_recommendation_missing_params_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub get_recommendation missing params with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    res = await real_fn(  # type: ignore
+        mock_context,
+        operation='get_recommendation',
+        # missing resource_id/resource_type
+    )
+    assert res['status'] == 'error'
+    blob = json.dumps(res)
+    assert 'resource_id' in blob
+    assert 'resource_type' in blob
+
+
+@pytest.mark.asyncio
+async def test_coh_real_unsupported_operation_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub unsupported operation with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
+    assert res['status'] == 'error'
+    blob = json.dumps(res)
+    assert 'list_recommendation_summaries' in blob
+    assert 'list_recommendations' in blob
+    assert 'get_recommendation' in blob
+
+
+@pytest.mark.asyncio
+async def test_coh_real_summaries_default_group_by_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub summaries default group_by with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    res = await real_fn(  # type: ignore
+        mock_context,
+        operation='list_recommendation_summaries',
+        # group_by intentionally omitted
+    )
+
+    assert res['status'] == 'error'
+    # Verify the validation message mentions group_by
+    assert 'group_by' in json.dumps(res).lower()
+
+
+@pytest.mark.asyncio
+async def test_coh_real_list_recommendations_no_filters_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub list_recommendations no filters with identity decorator."""
+    # Covers list_recommendations branch without filters/parse_json and with default include_all_recommendations=None
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+        patch.object(coh_mod, 'parse_json') as mock_parse_json,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_recs.return_value = {'status': 'success', 'data': {'items': ['x']}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            # No filters, no max_results, no next_token, no include_all_recommendations
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        # parse_json should not be called when filters is None
+        mock_parse_json.assert_not_called()
+        mock_list_recs.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            None,  # max_results
+            None,  # filters
+            None,  # include_all_recommendations
+        )

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for server.py."""
+
 import os
 from unittest.mock import AsyncMock, patch
 
@@ -20,6 +21,7 @@ from unittest.mock import AsyncMock, patch
 def test_server_imports():
     """Test that server imports work correctly."""
     from awslabs.billing_cost_management_mcp_server import server
+
     assert hasattr(server, 'main')
 
 
@@ -114,7 +116,7 @@ async def test_register_prompts_error(mock_register_all_prompts):
     """Test prompt registration error handling."""
     from awslabs.billing_cost_management_mcp_server.server import register_prompts
 
-    mock_register_all_prompts.side_effect = Exception("Test error")
+    mock_register_all_prompts.side_effect = Exception('Test error')
 
     await register_prompts()
 

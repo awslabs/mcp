@@ -255,10 +255,10 @@ class TestHandleAwsError:
 
         # Verify response structure
         assert result['status'] == 'error'
-        assert result['error_type'] == 'service_error'
+        assert result['error_type'] == 'ResourceNotFoundException'
         assert result['service'] == 'DynamoDB'
         assert result['operation'] == 'ListItems'
-        assert 'AWS service error: ResourceNotFoundException' == result['message']
+        assert result['message'] == 'Resource not found'
 
     @pytest.mark.asyncio
     async def test_handle_value_error(self):
@@ -271,8 +271,8 @@ class TestHandleAwsError:
         result = await handle_aws_error(ctx, error, 'ParseInput', 'InputProcessor')
 
         # Assert with detailed validation
-        ctx.error.assert_called_once()
-        error_msg = ctx.error.call_args.args[0]
+        ctx.warning.assert_called_once()
+        error_msg = ctx.warning.call_args.args[0]
         assert "Error in InputProcessor operation 'ParseInput'" in error_msg
         assert 'Invalid parameter' in error_msg
 
@@ -301,10 +301,10 @@ class TestHandleAwsError:
 
         # Verify response structure
         assert result['status'] == 'error'
-        assert result['error_type'] == 'unknown_error'
+        assert result['error_type'] == 'unknown_exception'
         assert result['service'] == 'DataService'
         assert result['operation'] == 'ProcessData'
-        assert result['message'] == 'An unexpected error occurred'
+        assert result['message'] == 'Unexpected error'
 
     @pytest.mark.asyncio
     async def test_handle_boto_core_error(self):
@@ -326,10 +326,10 @@ class TestHandleAwsError:
 
         # Verify response structure
         assert result['status'] == 'error'
-        assert result['error_type'] == 'service_error'
+        assert result['error_type'] == 'aws_connection_error'
         assert result['service'] == 'EC2'
         assert result['operation'] == 'Connect'
-        assert result['message'] == 'AWS service connection error'
+        assert result['message'] == 'AWS service connection error: BotoCoreError'
 
 
 class TestFormatResponse:

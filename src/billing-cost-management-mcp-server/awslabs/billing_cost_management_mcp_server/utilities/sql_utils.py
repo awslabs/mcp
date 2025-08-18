@@ -31,18 +31,20 @@ import os
 import re
 import sqlite3
 import uuid
+from .logging_utils import get_context_logger, get_logger
 from datetime import datetime
 from fastmcp import Context
 from typing import Any, Dict, List, Optional, Tuple
 
-from .logging_utils import get_logger, get_context_logger
 
 # Configure logger for this module
 logger = get_logger(__name__)
 
 
 # Constants for SQL conversion
-SQL_CONVERSION_THRESHOLD = int(os.getenv('MCP_SQL_THRESHOLD', 25 * 1024))  # 25KB default (lowered from 50KB)
+SQL_CONVERSION_THRESHOLD = int(
+    os.getenv('MCP_SQL_THRESHOLD', 25 * 1024)
+)  # 25KB default (lowered from 50KB)
 FORCE_SQL_CONVERSION = os.getenv('MCP_FORCE_SQL', 'false').lower() == 'true'
 
 # Session database path singleton
@@ -51,16 +53,16 @@ _SESSION_DB_PATH = None
 
 def should_convert_to_sql(response_size: int) -> bool:
     """Determine if response should be converted to SQL based on config.
-    
-    Converts responses larger than SQL_CONVERSION_THRESHOLD (default 25KB) to SQL 
+
+    Converts responses larger than SQL_CONVERSION_THRESHOLD (default 25KB) to SQL
     to prevent context window overflow and improve performance.
-    
+
     Args:
         response_size: Size of the response in bytes
-        
+
     Returns:
         bool: True if the response should be converted to SQL
-        
+
     Environment Variables:
         MCP_SQL_THRESHOLD: Override the default threshold (in bytes)
         MCP_FORCE_SQL: If 'true', always convert to SQL regardless of size
@@ -108,10 +110,10 @@ def cleanup_session_db() -> None:
     if _SESSION_DB_PATH and os.path.exists(_SESSION_DB_PATH):
         try:
             os.remove(_SESSION_DB_PATH)
-            logger.debug(f"Removed session database: {_SESSION_DB_PATH}")
+            logger.debug(f'Removed session database: {_SESSION_DB_PATH}')
         except Exception as e:
             # Log cleanup errors but don't fail
-            logger.warning(f"Failed to remove session database: {str(e)}")
+            logger.warning(f'Failed to remove session database: {str(e)}')
 
 
 def get_db_connection() -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
@@ -369,28 +371,32 @@ async def convert_response_if_needed(
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
-    
+
     try:
         # Calculate response size
         response_size = len(json.dumps(response).encode('utf-8'))
 
         if should_convert_to_sql(response_size):
             # Convert large response to SQL
-            await ctx_logger.info(f"Response size {response_size/1024:.2f}KB exceeds threshold, converting to SQL")
+            await ctx_logger.info(
+                f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
+            )
             return await convert_api_response_to_table(ctx, response, api_name, **metadata)
         else:
             # Return original response with size info
-            await ctx_logger.debug(f"Response size {response_size/1024:.2f}KB below threshold, returning directly")
+            await ctx_logger.debug(
+                f'Response size {response_size / 1024:.2f}KB below threshold, returning directly'
+            )
             return {'status': 'success', 'data': response, 'response_size_bytes': response_size}
     except Exception as e:
-        error_message = f"Error processing response for {api_name}: {str(e)}"
+        error_message = f'Error processing response for {api_name}: {str(e)}'
         await ctx_logger.error(error_message, exc_info=True)
         # Return error response with original data to ensure no data loss
         return {
             'status': 'error',
             'message': error_message,
             'data': response,
-            'response_size_bytes': len(json.dumps(response).encode('utf-8'))
+            'response_size_bytes': len(json.dumps(response).encode('utf-8')),
         }
 
 
@@ -696,14 +702,14 @@ async def convert_api_response_to_table(
             {
                 'name': 'Basic query',
                 'description': 'Retrieve the first 10 rows from the table',
-                'sql': base_query
+                'sql': base_query,
             }
         ]
-        
+
         # Add specialized queries based on table type
         if converter_type == 'cost_and_usage':
             # Cost Explorer cost_and_usage queries
-            
+
             # Total cost by service/dimension
             cost_query = (
                 create_safe_sql_statement(
@@ -711,12 +717,14 @@ async def convert_api_response_to_table(
                 )
                 + ' GROUP BY group_key_1, unit ORDER BY total_cost DESC'
             )
-            sample_queries.append({
-                'name': 'Total cost by service/dimension',
-                'description': 'Summarizes costs by the primary dimension (usually service)',
-                'sql': cost_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Total cost by service/dimension',
+                    'description': 'Summarizes costs by the primary dimension (usually service)',
+                    'sql': cost_query,
+                }
+            )
+
             # Cost trends over time
             trend_query = (
                 create_safe_sql_statement(
@@ -724,12 +732,14 @@ async def convert_api_response_to_table(
                 )
                 + ' GROUP BY time_period_start ORDER BY time_period_start'
             )
-            sample_queries.append({
-                'name': 'Cost trend over time',
-                'description': 'Shows cost pattern across the time period',
-                'sql': trend_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Cost trend over time',
+                    'description': 'Shows cost pattern across the time period',
+                    'sql': trend_query,
+                }
+            )
+
             # Top 5 services/resources
             top_items_query = (
                 create_safe_sql_statement(
@@ -737,41 +747,45 @@ async def convert_api_response_to_table(
                 )
                 + ' GROUP BY group_key_1 ORDER BY total_cost DESC LIMIT 5'
             )
-            sample_queries.append({
-                'name': 'Top 5 cost items',
-                'description': 'Shows the 5 highest-cost items',
-                'sql': top_items_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Top 5 cost items',
+                    'description': 'Shows the 5 highest-cost items',
+                    'sql': top_items_query,
+                }
+            )
+
         elif converter_type == 'dimension_values':
             # DimensionValues queries
-            
+
             # Basic alphabetical list
             value_query = (
                 create_safe_sql_statement('SELECT', table_name, 'value') + ' ORDER BY value'
             )
-            sample_queries.append({
-                'name': 'Values in alphabetical order',
-                'description': 'Lists all dimension values alphabetically',
-                'sql': value_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Values in alphabetical order',
+                    'description': 'Lists all dimension values alphabetically',
+                    'sql': value_query,
+                }
+            )
+
             # Values with attributes
             attr_query = (
-                create_safe_sql_statement(
-                    'SELECT', table_name, "value, attributes"
-                )
+                create_safe_sql_statement('SELECT', table_name, 'value, attributes')
                 + ' ORDER BY value'
             )
-            sample_queries.append({
-                'name': 'Values with attributes',
-                'description': 'Shows values with their attributes as JSON',
-                'sql': attr_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Values with attributes',
+                    'description': 'Shows values with their attributes as JSON',
+                    'sql': attr_query,
+                }
+            )
+
         elif converter_type == 'pricing_products':
             # AWS Pricing queries
-            
+
             # Count by product family
             product_query = (
                 create_safe_sql_statement(
@@ -779,28 +793,30 @@ async def convert_api_response_to_table(
                 )
                 + ' GROUP BY product_family ORDER BY product_count DESC'
             )
-            sample_queries.append({
-                'name': 'Products by family',
-                'description': 'Counts products in each product family',
-                'sql': product_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Products by family',
+                    'description': 'Counts products in each product family',
+                    'sql': product_query,
+                }
+            )
+
             # EC2 instance types (if applicable)
             ec2_query = (
-                create_safe_sql_statement(
-                    'SELECT', table_name, 'sku, attributes, pricing_terms'
-                )
+                create_safe_sql_statement('SELECT', table_name, 'sku, attributes, pricing_terms')
                 + " WHERE attributes LIKE '%instanceType%' LIMIT 10"
             )
-            sample_queries.append({
-                'name': 'EC2 instance types',
-                'description': 'Shows EC2 instance types with pricing data',
-                'sql': ec2_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'EC2 instance types',
+                    'description': 'Shows EC2 instance types with pricing data',
+                    'sql': ec2_query,
+                }
+            )
+
         elif converter_type == 'forecast':
             # Cost Explorer forecast queries
-            
+
             # Forecast trend
             forecast_query = (
                 create_safe_sql_statement(
@@ -808,35 +824,41 @@ async def convert_api_response_to_table(
                 )
                 + ' ORDER BY time_period_start'
             )
-            sample_queries.append({
-                'name': 'Forecast trend',
-                'description': 'Shows forecast values with confidence bounds over time',
-                'sql': forecast_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Forecast trend',
+                    'description': 'Shows forecast values with confidence bounds over time',
+                    'sql': forecast_query,
+                }
+            )
+
         elif converter_type == 'tags':
             # Tags-related queries
             tags_query = (
-                create_safe_sql_statement('SELECT', table_name, 'tag_value') + 
-                " WHERE tag_value LIKE '%env%' OR tag_value LIKE '%project%' OR tag_value LIKE '%name%'"
+                create_safe_sql_statement('SELECT', table_name, 'tag_value')
+                + " WHERE tag_value LIKE '%env%' OR tag_value LIKE '%project%' OR tag_value LIKE '%name%'"
             )
-            sample_queries.append({
-                'name': 'Common tags',
-                'description': 'Finds common tags like environment, project, or name',
-                'sql': tags_query
-            })
-            
+            sample_queries.append(
+                {
+                    'name': 'Common tags',
+                    'description': 'Finds common tags like environment, project, or name',
+                    'sql': tags_query,
+                }
+            )
+
         else:
             # Generic key-value pair queries for other types
             key_query = (
-                create_safe_sql_statement('SELECT', table_name, 'key, value') + 
-                " WHERE key LIKE '%total%' OR key LIKE '%cost%' OR key LIKE '%amount%'"
+                create_safe_sql_statement('SELECT', table_name, 'key, value')
+                + " WHERE key LIKE '%total%' OR key LIKE '%cost%' OR key LIKE '%amount%'"
             )
-            sample_queries.append({
-                'name': 'Cost-related fields',
-                'description': 'Finds key-value pairs related to costs or totals',
-                'sql': key_query
-            })
+            sample_queries.append(
+                {
+                    'name': 'Cost-related fields',
+                    'description': 'Finds key-value pairs related to costs or totals',
+                    'sql': key_query,
+                }
+            )
 
         # Return info about the stored data
         db_path = get_session_db_path()
@@ -864,9 +886,9 @@ async def convert_api_response_to_table(
         if 'conn' in locals() and conn is not None:
             try:
                 conn.close()
-                logger.debug("Closed database connection")
+                logger.debug('Closed database connection')
             except Exception as e:
-                logger.warning(f"Error closing database connection: {str(e)}")
+                logger.warning(f'Error closing database connection: {str(e)}')
 
 
 async def execute_session_sql(
@@ -973,7 +995,7 @@ async def execute_session_sql(
         if conn is not None:
             try:
                 conn.close()
-                logger.debug("Closed database connection")
+                logger.debug('Closed database connection')
             except Exception as e:
                 error_message = f'Error closing database connection: {str(e)}'
                 # Use context logger for consistent error reporting

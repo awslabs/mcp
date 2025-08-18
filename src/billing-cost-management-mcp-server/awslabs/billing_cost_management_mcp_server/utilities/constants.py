@@ -19,87 +19,77 @@ and make maintenance easier across the codebase.
 """
 
 # ===== AWS Regions =====
-REGION_US_EAST_1 = "us-east-1"
+REGION_US_EAST_1 = 'us-east-1'
 
 # ===== Cost Optimization Hub Operation Types =====
-OPERATION_LIST_RECOMMENDATION_SUMMARIES = "list_recommendation_summaries"
-OPERATION_LIST_RECOMMENDATIONS = "list_recommendations" 
-OPERATION_GET_RECOMMENDATION = "get_recommendation"
+OPERATION_LIST_RECOMMENDATION_SUMMARIES = 'list_recommendation_summaries'
+OPERATION_LIST_RECOMMENDATIONS = 'list_recommendations'
+OPERATION_GET_RECOMMENDATION = 'get_recommendation'
 
 # ===== Cost Optimization Hub Group By Values =====
-GROUP_BY_ACCOUNT_ID = "ACCOUNT_ID"
-GROUP_BY_RECOMMENDATION_TYPE = "RECOMMENDATION_TYPE"
-GROUP_BY_RESOURCE_TYPE = "RESOURCE_TYPE"
-GROUP_BY_TAG = "TAG"
-GROUP_BY_USAGE_TYPE = "USAGE_TYPE"
+GROUP_BY_ACCOUNT_ID = 'AccountId'
+GROUP_BY_RESOURCE_TYPE = 'ResourceType'
+GROUP_BY_TAG = 'Tag'
 
 COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES = [
     GROUP_BY_ACCOUNT_ID,
-    GROUP_BY_RECOMMENDATION_TYPE,
-    GROUP_BY_RESOURCE_TYPE, 
+    GROUP_BY_RESOURCE_TYPE,
     GROUP_BY_TAG,
-    GROUP_BY_USAGE_TYPE
 ]
 
 # ===== Recommendation Details - Action Types =====
-ACTION_TYPE_PURCHASE_SAVINGS_PLAN = "PurchaseSavingsPlans"
-ACTION_TYPE_PURCHASE_RESERVED_INSTANCE = "PurchaseReservedInstances"
-ACTION_TYPE_STOP = "Stop"
-ACTION_TYPE_DELETE = "Delete"
+ACTION_TYPE_PURCHASE_SAVINGS_PLAN = 'PurchaseSavingsPlans'
+ACTION_TYPE_PURCHASE_RESERVED_INSTANCE = 'PurchaseReservedInstances'
+ACTION_TYPE_STOP = 'Stop'
+ACTION_TYPE_DELETE = 'Delete'
 
 # ===== Recommendation Details - Resource Types =====
-RESOURCE_TYPE_EC2_INSTANCE = "Ec2Instance"
-RESOURCE_TYPE_EC2_ASG = "Ec2AutoScalingGroup"
-RESOURCE_TYPE_EBS_VOLUME = "EbsVolume"
-RESOURCE_TYPE_ECS_SERVICE = "EcsService"
-RESOURCE_TYPE_LAMBDA_FUNCTION = "LambdaFunction"
-RESOURCE_TYPE_RDS = "RdsDbInstance"
+RESOURCE_TYPE_EC2_INSTANCE = 'Ec2Instance'
+RESOURCE_TYPE_EC2_ASG = 'Ec2AutoScalingGroup'
+RESOURCE_TYPE_EBS_VOLUME = 'EbsVolume'
+RESOURCE_TYPE_ECS_SERVICE = 'EcsService'
+RESOURCE_TYPE_LAMBDA_FUNCTION = 'LambdaFunction'
+RESOURCE_TYPE_RDS = 'RdsDbInstance'
 
 # ===== Recommendation Details - Mapping Constants =====
 # Maps COH values to AWS API parameters
 
 # Term mapping (1-year, 3-year)
-TERM_MAP = {
-    "OneYear": "ONE_YEAR", 
-    "ThreeYear": "THREE_YEARS"
-}
+TERM_MAP = {'OneYear': 'ONE_YEAR', 'ThreeYear': 'THREE_YEARS'}
 
 # Payment option mapping
 PAYMENT_OPTION_MAP = {
-    "AllUpfront": "ALL_UPFRONT",
-    "PartialUpfront": "PARTIAL_UPFRONT",
-    "NoUpfront": "NO_UPFRONT"
+    'AllUpfront': 'ALL_UPFRONT',
+    'PartialUpfront': 'PARTIAL_UPFRONT',
+    'NoUpfront': 'NO_UPFRONT',
 }
 
 # Account scope mapping
-ACCOUNT_SCOPE_MAP = {
-    "Linked": "LINKED", 
-    "Payer": "PAYER"
-}
+ACCOUNT_SCOPE_MAP = {'Linked': 'LINKED', 'Payer': 'PAYER'}
 
 # Lookback period mapping
 LOOKBACK_PERIOD_MAP = {
-    7: "SEVEN_DAYS",
-    30: "THIRTY_DAYS",
-    60: "SIXTY_DAYS",
-    90: "NINETY_DAYS",
-    180: "SIX_MONTHS",
-    365: "ONE_YEAR"
+    7: 'SEVEN_DAYS',
+    30: 'THIRTY_DAYS',
+    60: 'SIXTY_DAYS',
+    90: 'NINETY_DAYS',
+    180: 'SIX_MONTHS',
+    365: 'ONE_YEAR',
 }
 
 # Service name mapping
 SERVICE_MAP = {
-    "ec2ReservedInstances": "Amazon Elastic Compute Cloud - Compute",
-    "rdsReservedInstances": "Amazon Relational Database Service",
-    "redshiftReservedInstances": "Amazon Redshift",
-    "elastiCacheReservedInstances": "Amazon ElastiCache",
-    "openSearchReservedInstances": "Amazon OpenSearch Service",
-    "memoryDbReservedInstances": "Amazon MemoryDB"
+    'ec2ReservedInstances': 'Amazon Elastic Compute Cloud - Compute',
+    'rdsReservedInstances': 'Amazon Relational Database Service',
+    'redshiftReservedInstances': 'Amazon Redshift',
+    'elastiCacheReservedInstances': 'Amazon ElastiCache',
+    'openSearchReservedInstances': 'Amazon OpenSearch Service',
+    'memoryDbReservedInstances': 'Amazon MemoryDB',
 }
 
 # Savings Plans type mapping
 SAVINGS_PLANS_TYPE_MAP = {
-    "ec2InstanceSavingsPlans": "EC2_INSTANCE_SP",
-    "computeSavingsPlans": "COMPUTE_SP",
-    "sageMakerSavingsPlans": "SAGEMAKER_SP"
+    'ec2InstanceSavingsPlans': 'EC2_INSTANCE_SP',
+    'computeSavingsPlans': 'COMPUTE_SP',
+    'sageMakerSavingsPlans': 'SAGEMAKER_SP',
 }

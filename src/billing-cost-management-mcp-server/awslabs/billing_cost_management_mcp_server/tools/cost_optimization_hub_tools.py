@@ -17,7 +17,6 @@
 Updated to use shared utility functions.
 """
 
-import os
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
@@ -25,11 +24,11 @@ from ..utilities.aws_service_base import (
     parse_json,
 )
 from ..utilities.constants import (
-    REGION_US_EAST_1,
-    OPERATION_LIST_RECOMMENDATION_SUMMARIES,
-    OPERATION_LIST_RECOMMENDATIONS, 
+    COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
     OPERATION_GET_RECOMMENDATION,
-    COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES
+    OPERATION_LIST_RECOMMENDATION_SUMMARIES,
+    OPERATION_LIST_RECOMMENDATIONS,
+    REGION_US_EAST_1,
 )
 from .cost_optimization_hub_helpers import (
     get_recommendation,
@@ -100,7 +99,7 @@ async def cost_optimization_hub(
 
     Returns:
         Dict containing the Cost Optimization Hub recommendations
-        
+
     Note:
         This function automatically fetches all pages of results and combines them into
         a single response when multiple pages are available.
@@ -119,19 +118,17 @@ async def cost_optimization_hub(
             if not group_by:
                 return format_response(
                     'error',
-                    {
-                        'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES
-                    },
+                    {'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES},
                     'group_by parameter is required for list_recommendation_summaries operation. Must be one of: ACCOUNT_ID, RECOMMENDATION_TYPE, RESOURCE_TYPE, TAG, USAGE_TYPE',
                 )
-            
+
             # Validate the group_by value is one of the allowed values
             if group_by not in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES:
                 return format_response(
                     'error',
                     {
                         'provided_group_by': group_by,
-                        'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES
+                        'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
                     },
                     f'Invalid group_by value: {group_by}. Must be one of: {", ".join(COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES)}',
                 )
@@ -149,33 +146,35 @@ async def cost_optimization_hub(
             try:
                 # Parse filters if provided
                 parsed_filters = parse_json(filters, 'filters') if filters else None
-                
+
                 # Set a default group_by if not provided - IMPORTANT: must be one of the allowed values
                 # Valid values: ACCOUNT_ID, RECOMMENDATION_TYPE, RESOURCE_TYPE, TAG, USAGE_TYPE
                 effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
                 await ctx.info(f'Using group_by: {effective_group_by}')
-                
+
                 result = await list_recommendation_summaries(
                     ctx,
                     coh_client,
                     group_by=effective_group_by,
                     max_results=int(max_results) if max_results else None,
-                    filters=parsed_filters
+                    filters=parsed_filters,
                 )
-                
+
                 # Add the operation parameters to the response for diagnostics
                 if result.get('status') == 'success' and isinstance(result.get('data'), dict):
                     result['data']['operation_parameters'] = {
                         'group_by': effective_group_by,
                         'max_results': max_results,
-                        'filters': filters
+                        'filters': filters,
                     }
-                    
+
                 return result
-                
+
             except Exception as recommendation_error:
-                await ctx.error(f"Error in list_recommendation_summaries: {str(recommendation_error)}")
-                
+                await ctx.error(
+                    f'Error in list_recommendation_summaries: {str(recommendation_error)}'
+                )
+
                 # Create a detailed error response
                 return format_response(
                     'error',
@@ -184,37 +183,33 @@ async def cost_optimization_hub(
                         'service': 'Cost Optimization Hub',
                         'operation': 'list_recommendation_summaries',
                         'message': str(recommendation_error),
-                        'group_by': group_by or 'RESOURCE_TYPE'
+                        'group_by': group_by or 'RESOURCE_TYPE',
                     },
-                    'Error fetching recommendation summaries from Cost Optimization Hub.'
+                    'Error fetching recommendation summaries from Cost Optimization Hub.',
                 )
 
         elif operation == OPERATION_LIST_RECOMMENDATIONS:
             try:
                 # Parse filters if provided
                 parsed_filters = parse_json(filters, 'filters') if filters else None
-                
+
                 result = await list_recommendations(
-                    ctx,
-                    coh_client,
-                    max_results,
-                    parsed_filters,
-                    include_all_recommendations
+                    ctx, coh_client, max_results, parsed_filters, include_all_recommendations
                 )
-                
+
                 # Add the operation parameters to the response for diagnostics
                 if result.get('status') == 'success' and isinstance(result.get('data'), dict):
                     result['data']['operation_parameters'] = {
                         'max_results': max_results,
                         'filters': filters,
-                        'include_all_recommendations': include_all_recommendations
+                        'include_all_recommendations': include_all_recommendations,
                     }
-                    
+
                 return result
-                
+
             except Exception as recommendation_error:
-                await ctx.error(f"Error in list_recommendations: {str(recommendation_error)}")
-                
+                await ctx.error(f'Error in list_recommendations: {str(recommendation_error)}')
+
                 # Create a detailed error response
                 return format_response(
                     'error',
@@ -224,7 +219,7 @@ async def cost_optimization_hub(
                         'operation': 'list_recommendations',
                         'message': str(recommendation_error),
                     },
-                    'Error fetching recommendations from Cost Optimization Hub.'
+                    'Error fetching recommendations from Cost Optimization Hub.',
                 )
 
         elif operation == OPERATION_GET_RECOMMENDATION:
@@ -253,5 +248,5 @@ async def cost_optimization_hub(
 
     except Exception as e:
         # Use shared error handler
-        await ctx.error(f"Error in Cost Optimization Hub operation {operation}: {str(e)}")
+        await ctx.error(f'Error in Cost Optimization Hub operation {operation}: {str(e)}')
         return await handle_aws_error(ctx, e, operation, 'Cost Optimization Hub')

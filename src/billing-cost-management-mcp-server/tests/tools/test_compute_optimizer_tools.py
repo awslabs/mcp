@@ -23,6 +23,8 @@ These tests verify the functionality of the AWS Compute Optimizer tools, includi
 - Error handling for API exceptions and invalid parameters
 """
 
+import fastmcp
+import importlib
 import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
@@ -37,6 +39,7 @@ from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools im
 )
 from datetime import datetime
 from fastmcp import Context, FastMCP
+from typing import Any, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -528,3 +531,257 @@ def test_compute_optimizer_server_initialization():
     # For FastMCP, we can simply verify that the object exists
     # and has the expected name and instructions
     assert isinstance(compute_optimizer_server, FastMCP)
+
+
+def _reload_compute_optimizer_with_identity_decorator() -> Any:
+    """Reload compute_optimizer_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
+
+    This exposes a callable 'compute_optimizer' we can invoke directly to cover routing branches.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import compute_optimizer_tools as co_mod
+
+    def _identity_tool(self, *args, **kwargs):
+        def _decorator(fn):
+            return fn
+
+        return _decorator
+
+    with patch.object(fastmcp.FastMCP, 'tool', _identity_tool):
+        importlib.reload(co_mod)
+        return co_mod
+
+
+@pytest.mark.asyncio
+class TestComputeOptimizerFastMCP:
+    """Test the actual FastMCP-wrapped compute_optimizer function directly."""
+
+    async def test_co_real_get_ec2_recommendations_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer get_ec2_instance_recommendations with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn: Callable[..., Any] = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(
+                co_mod, 'get_ec2_instance_recommendations', new_callable=AsyncMock
+            ) as mock_get,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_get.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            res = await real_fn(
+                mock_context,
+                operation='get_ec2_instance_recommendations',
+                max_results=100,
+                filters='[{"Name":"Finding","Values":["OVERPROVISIONED"]}]',
+                account_ids='["123456789012"]',
+            )
+            assert res['status'] == 'success'
+            mock_get.assert_awaited_once()
+
+    async def test_co_real_get_auto_scaling_group_recommendations_reload_identity_decorator(
+        self, mock_context
+    ):
+        """Test real compute_optimizer get_auto_scaling_group_recommendations with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(
+                co_mod, 'get_auto_scaling_group_recommendations', new_callable=AsyncMock
+            ) as mock_impl,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['autoScalingGroup'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            res = await real_fn(
+                mock_context, operation='get_auto_scaling_group_recommendations', max_results=50
+            )
+            assert res['status'] == 'success'
+            mock_impl.assert_awaited_once()
+
+    async def test_co_real_invalid_operation_error_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer invalid operation error with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+            mock_create_client.return_value = mock_client
+
+            res = await real_fn(mock_context, operation='definitely_not_supported')
+            assert res['status'] == 'error'
+            assert res['data']['error_type'] == 'invalid_operation'
+            assert 'Unsupported operation' in res['message']
+
+    async def test_co_real_enrollment_error_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer enrollment error with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'INACTIVE',
+                'resourceTypes': [],
+            }
+            mock_create_client.return_value = mock_client
+
+            res = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+            assert res['status'] == 'error'
+            assert res['data']['error_type'] == 'enrollment_error'
+            assert 'not active' in res['message']
+
+    async def test_co_real_resource_not_enrolled_error_reload_identity_decorator(
+        self, mock_context
+    ):
+        """Test real compute_optimizer resource not enrolled error with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['lambdaFunction'],  # Missing ec2Instance
+            }
+            mock_create_client.return_value = mock_client
+
+            res = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+            assert res['status'] == 'error'
+            assert res['data']['error_type'] == 'resource_not_enrolled'
+            assert 'EC2 instances are not enrolled' in res['message']
+
+    async def test_co_real_access_denied_error_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer access denied error with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+
+            from botocore.exceptions import ClientError
+
+            mock_client.get_ec2_instance_recommendations.side_effect = ClientError(
+                error_response={
+                    'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'},
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 403},
+                },
+                operation_name='GetEC2InstanceRecommendations',
+            )
+            mock_create_client.return_value = mock_client
+
+            res = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+            assert res['status'] == 'error'
+            assert res['error_type'] == 'access_denied'
+            assert 'Access denied' in res['message']
+
+    async def test_co_real_exception_flow_calls_handle_error_reload_identity_decorator(
+        self, mock_context
+    ):
+        """Test real compute_optimizer exception flow calls handle_error with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(
+                co_mod, 'get_ec2_instance_recommendations', new_callable=AsyncMock
+            ) as mock_impl,
+            patch.object(co_mod, 'handle_aws_error', new_callable=AsyncMock) as mock_handle,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_impl.side_effect = RuntimeError('boom')
+            mock_handle.return_value = {'status': 'error', 'message': 'boom'}
+
+            res = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+            assert res['status'] == 'error'
+            assert 'boom' in res.get('message', '')
+            mock_handle.assert_awaited_once()
+
+    async def test_co_real_value_error_handling_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer ValueError handling with identity decorator."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+            mock_client.get_ec2_instance_recommendations.side_effect = ValueError(
+                'Invalid parameter'
+            )
+            mock_create_client.return_value = mock_client
+
+            res = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+            assert res['status'] == 'error'
+            assert res['error_type'] == 'validation_error'
+            assert 'Invalid parameter' in res['message']

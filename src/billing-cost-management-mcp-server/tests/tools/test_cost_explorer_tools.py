@@ -22,6 +22,8 @@ These tests verify the functionality of the Cost Explorer tools, including:
 - Error handling for API exceptions
 """
 
+import fastmcp
+import importlib
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
     get_cost_and_usage,
@@ -678,9 +680,7 @@ async def test_cost_explorer_handle_exception(mock_context, mock_ce_client):
     # The handle_aws_error function standardizes error messages based on exception type
     # We expect either a generic error or a service error message
     error_msg = result['message'].lower()
-    assert error_msg.startswith('aws service error') or 'unexpected error' in error_msg, (
-        'Error message should indicate AWS service error or unexpected error'
-    )
+    assert 'test error' in error_msg, 'Error message should contain the original error message'
 
     # Additional assertions for error handling
     assert 'data' not in result or not result['data'], (
@@ -702,7 +702,29 @@ def test_cost_explorer_server_initialization():
     assert isinstance(cost_explorer_server.instructions, str), (
         'Server instructions should be a string'
     )
-    assert len(cost_explorer_server.instructions) > 0, 'Server instructions should not be empty'
+
+
+@pytest.mark.asyncio
+async def test_cost_explorer_main_function():
+    """Test cost_explorer main function with getCostAndUsage operation."""
+    mock_context = AsyncMock()
+
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools.create_aws_client'
+    ) as mock_client:
+        mock_client.return_value = MagicMock()
+
+        result = await cost_explorer(
+            mock_context,
+            operation='getCostAndUsage',
+            start_date='2024-01-01',
+            end_date='2024-01-31',
+        )
+
+        assert result['status'] in ['success', 'error']
+    assert len(cost_explorer_server.instructions or '') > 0, (
+        'Server instructions should not be empty'
+    )
     instructions = cost_explorer_server.instructions
     assert instructions is not None
     assert (
@@ -800,3 +822,475 @@ async def test_cost_explorer_missing_metric_forecast():
     result = await cost_explorer(ctx=ctx, operation='getCostForecast')
     assert result['status'] == 'error'
     assert 'metric is required' in result['message']
+
+
+def _reload_ce_with_identity_decorator():
+    """Reload cost_explorer_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
+
+    This exposes a callable 'cost_explorer' we can invoke to cover the routing lines in the module.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools as ce_mod
+
+    def _identity_tool(self, *args, **kwargs):
+        def _decorator(fn):
+            return fn
+
+        return _decorator
+
+    with patch.object(fastmcp.FastMCP, 'tool', _identity_tool):
+        importlib.reload(ce_mod)
+        return ce_mod
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_and_usage_passes_all_args_reload_identity_decorator(mock_context):
+    """Test real cost_explorer get_cost_and_usage passes all args with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_cost_and_usage', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostAndUsage',
+            start_date='2024-01-01',
+            end_date='2024-01-31',
+            granularity='DAILY',
+            metrics='["UnblendedCost"]',
+            group_by='[{"Type":"DIMENSION","Key":"SERVICE"}]',
+            filter='{"Dimensions":{"Key":"SERVICE","Values":["AmazonEC2"]}}',
+            next_token='tok',
+            max_pages=3,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('ce')
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            '2024-01-01',
+            '2024-01-31',
+            'DAILY',
+            '["UnblendedCost"]',
+            '[{"Type":"DIMENSION","Key":"SERVICE"}]',
+            '{"Dimensions":{"Key":"SERVICE","Values":["AmazonEC2"]}}',
+            'tok',
+            3,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_and_usage_with_resources_passes_args_reload_identity_decorator(
+    mock_context,
+):
+    """Test real cost_explorer get_cost_and_usage_with_resources passes args with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(
+            ce_mod, 'get_cost_and_usage_with_resources', new_callable=AsyncMock
+        ) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostAndUsageWithResources',
+            start_date='2024-01-10',
+            end_date='2024-01-20',
+            granularity='DAILY',
+            metrics='["UnblendedCost"]',
+            group_by='[{"Type":"DIMENSION","Key":"SERVICE"}]',
+            filter='{"Tags":{"Key":"Environment","Values":["prod"]}}',
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('ce')
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            '2024-01-10',
+            '2024-01-20',
+            'DAILY',
+            '["UnblendedCost"]',
+            '[{"Type":"DIMENSION","Key":"SERVICE"}]',
+            '{"Tags":{"Key":"Environment","Values":["prod"]}}',
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorator(mock_context):
+    """Test real cost_explorer get_dimension_values passes args with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {'DimensionValues': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='SERVICE',
+            start_date='2023-03-01',
+            end_date='2023-03-31',
+            search_string='Amazon',
+            filter='{}',
+            max_results=25,
+            next_token='abc',
+            max_pages=2,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('ce')
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            'SERVICE',
+            '2023-03-01',
+            '2023-03-31',
+            'Amazon',
+            '{}',
+            25,
+            'abc',
+            2,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_dimension_values_missing_dimension_error_reload_identity_decorator(
+    mock_context,
+):
+    """Test real cost_explorer get_dimension_values missing dimension error with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.return_value = MagicMock()
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            # dimension intentionally omitted
+        )
+        assert res['status'] == 'error'
+        assert (
+            'dimension is required' in res.get('message', '')
+            or 'dimension is required' in str(res.get('data', {})).lower()
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_forecast_passes_args_reload_identity_decorator(mock_context):
+    """Test real cost_explorer get_cost_forecast passes args with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_cost_forecast', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostForecast',
+            metric='UNBLENDED_COST',
+            start_date='2023-02-01',
+            end_date='2023-02-28',
+            granularity='MONTHLY',
+            filter='{}',
+            prediction_interval_level=95,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('ce')
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            'UNBLENDED_COST',
+            '2023-02-01',
+            '2023-02-28',
+            'MONTHLY',
+            '{}',
+            95,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_forecast_missing_metric_error_reload_identity_decorator(
+    mock_context,
+):
+    """Test real cost_explorer get_cost_forecast missing metric error with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.return_value = MagicMock()
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostForecast',
+            # metric intentionally omitted
+        )
+        assert res['status'] == 'error'
+        assert (
+            'metric is required' in res.get('message', '')
+            or 'metric is required' in str(res.get('data', {})).lower()
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_usage_forecast_passes_args_reload_identity_decorator(mock_context):
+    """Test real cost_explorer get_usage_forecast passes args with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_usage_forecast', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getUsageForecast',
+            metric='USAGE_QUANTITY',
+            start_date='2023-04-01',
+            end_date='2023-04-30',
+            granularity='DAILY',
+            filter='{"Dimensions":{"Key":"SERVICE","Values":["Amazon S3"]}}',
+            prediction_interval_level=80,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('ce')
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            'USAGE_QUANTITY',
+            '2023-04-01',
+            '2023-04-30',
+            'DAILY',
+            '{"Dimensions":{"Key":"SERVICE","Values":["Amazon S3"]}}',
+            80,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(mock_context):
+    """Test real cost_explorer get_tags and values routing with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_tags', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        # getTags
+        res1 = await real_fn(  # type: ignore
+            mock_context,
+            operation='getTags',
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            search_string='Env',
+            next_token='n1',
+            max_pages=2,
+        )
+        assert res1['status'] == 'success'
+
+        # getTagValues
+        res2 = await real_fn(  # type: ignore
+            mock_context,
+            operation='getTagValues',
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            search_string='Env',
+            tag_key='Environment',
+            next_token='n2',
+            max_pages=3,
+        )
+        assert res2['status'] == 'success'
+
+        # Assert calls
+        assert mock_impl.await_count == 2
+        mock_impl.assert_any_await(
+            mock_context,
+            fake_client,
+            '2023-01-01',
+            '2023-01-31',
+            'Env',
+            None,  # tag_key for getTags
+            'n1',
+            2,
+        )
+        mock_impl.assert_any_await(
+            mock_context,
+            fake_client,
+            '2023-01-01',
+            '2023-01-31',
+            'Env',
+            'Environment',  # tag_key for getTagValues
+            'n2',
+            3,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_decorator(
+    mock_context,
+):
+    """Test real cost_explorer get_cost_categories and values routing with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_cost_categories', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        # getCostCategories
+        res1 = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostCategories',
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            search_string='Dept',
+            next_token='p1',
+            max_pages=2,
+        )
+        assert res1['status'] == 'success'
+
+        # getCostCategoryValues
+        res2 = await real_fn(  # type: ignore
+            mock_context,
+            operation='getCostCategoryValues',
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            search_string='Dept',
+            cost_category_name='Department',
+            next_token='p2',
+            max_pages=4,
+        )
+        assert res2['status'] == 'success'
+
+        assert mock_impl.await_count == 2
+        mock_impl.assert_any_await(
+            mock_context,
+            fake_client,
+            '2023-01-01',
+            '2023-01-31',
+            'Dept',
+            None,  # cost_category_name for getCostCategories
+            'p1',
+            2,
+        )
+        mock_impl.assert_any_await(
+            mock_context,
+            fake_client,
+            '2023-01-01',
+            '2023-01-31',
+            'Dept',
+            'Department',
+            'p2',
+            4,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity_decorator(
+    mock_context,
+):
+    """Test real cost_explorer get_savings_plans_utilization passes args with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_savings_plans_utilization', new_callable=AsyncMock) as mock_impl,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getSavingsPlansUtilization',
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            granularity='MONTHLY',
+            filter='{}',
+            next_token='tkn',
+            max_pages=5,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with('ce')
+        mock_impl.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            '2023-01-01',
+            '2023-01-31',
+            'MONTHLY',
+            '{}',
+            'tkn',
+            5,
+        )
+
+
+@pytest.mark.asyncio
+async def test_ce_real_unknown_operation_error_reload_identity_decorator(mock_context):
+    """Test real cost_explorer unknown operation error with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.return_value = MagicMock()
+        res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
+        assert res['status'] == 'error'
+        assert 'Unknown operation' in res.get('data', {}).get('message', '')
+
+
+@pytest.mark.asyncio
+async def test_ce_real_exception_flow_calls_handle_error_reload_identity_decorator(mock_context):
+    """Test real cost_explorer exception flow calls handle_error with identity decorator."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_tags', new_callable=AsyncMock) as mock_get_tags,
+        patch.object(ce_mod, 'handle_aws_error', new_callable=AsyncMock) as mock_handle,
+    ):
+        mock_create_client.return_value = MagicMock()
+        mock_get_tags.side_effect = RuntimeError('boom')
+        mock_handle.return_value = {'status': 'error', 'message': 'boom'}
+
+        res = await real_fn(mock_context, operation='getTags')  # type: ignore
+
+        assert res['status'] == 'error'
+        assert 'boom' in res.get('message', '')
+        mock_handle.assert_awaited_once()

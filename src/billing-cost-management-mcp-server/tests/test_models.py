@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for models.py."""
+
 import pytest
 from awslabs.billing_cost_management_mcp_server.models import (
     APIStatus,
@@ -106,8 +107,7 @@ def test_schema_info():
 def test_storage_lens_query_request():
     """Test StorageLensQueryRequest model."""
     request = StorageLensQueryRequest(
-        manifest_location='s3://bucket/manifest/',
-        query='SELECT * FROM table'
+        manifest_location='s3://bucket/manifest/', query='SELECT * FROM table'
     )
     assert request.manifest_location == 's3://bucket/manifest/'
     assert request.query == 'SELECT * FROM table'

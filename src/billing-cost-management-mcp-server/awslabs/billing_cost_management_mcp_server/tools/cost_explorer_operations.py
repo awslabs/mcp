@@ -171,48 +171,47 @@ async def get_cost_and_usage_with_resources(
         Resource-level cost and usage data response
     """
     await ctx.info('Getting resource-level cost and usage data')
-    
+
     try:
         # Get date range with defaults
         if not start_date:
             # Default to 7 days ago for resource-level data (limited to 14 days)
             start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-            
+
         start, end = get_date_range(start_date, end_date)
         await ctx.info(f'Using date range: {start} to {end}')
-        
+
         # Parse JSON inputs
         metrics_list = parse_json(metrics, 'metrics')
         group_by_list = parse_json(group_by, 'group_by')
         filters = parse_json(filter_expr, 'filter')
-        
+
         # Set default metrics if not provided
         if not metrics_list:
             metrics_list = ['UnblendedCost']
-            
+
         # Build request parameters
         request_params = {
             'TimePeriod': {'Start': start, 'End': end},
             'Granularity': granularity,
             'Metrics': metrics_list,
         }
-        
+
         # Add optional parameters if provided
         if group_by_list:
             request_params['GroupBy'] = group_by_list
-            
+
         if filters:
             request_params['Filter'] = filters
-            
+
         # Make API call
         await ctx.info('Calling getCostAndUsageWithResources API')
         response = ce_client.get_cost_and_usage_with_resources(**request_params)
-        
+
         return format_response('success', response)
-        
+
     except Exception as e:
         return await handle_aws_error(ctx, e, 'getCostAndUsageWithResources', 'Cost Explorer')
-
 
 
 async def get_dimension_values(
@@ -421,13 +420,12 @@ async def get_usage_forecast(
         # Make API call
         await ctx.info('Calling getUsageForecast API')
         response = ce_client.get_usage_forecast(**request_params)
-        
+
         return format_response('success', response)
-        
+
     except Exception as e:
         # Use shared error handling
         return await handle_aws_error(ctx, e, 'getUsageForecast', 'Cost Explorer')
-
 
 
 async def get_tags(
@@ -504,7 +502,6 @@ async def get_tags(
     except Exception as e:
         # Use shared error handling
         return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
-
 
 
 async def get_cost_categories(

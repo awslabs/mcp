@@ -22,20 +22,15 @@ import asyncio
 import os
 import sys
 
-from .utilities.logging_utils import get_logger
-
-# Configure logger for server
-logger = get_logger(__name__)
-
 
 # Add necessary directories to Python path when running directly
 if __name__ == '__main__':
-    # Add the parent directory to sys.path (up two levels only since we're in billing-cost-management-mcp-server)
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(os.path.dirname(current_dir))
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
 
+# Import all modules after path setup
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import aws_pricing_server
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
@@ -45,8 +40,6 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools import 
 from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools import (
     cost_comparison_server,
 )
-
-# Import tool servers directly - always use absolute imports for running as script
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
     cost_explorer_server,
 )
@@ -67,7 +60,12 @@ from awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools impor
 )
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import storage_lens_server
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
+from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
+
+
+# Configure logger for server
+logger = get_logger(__name__)
 
 
 # Main MCP server instance
@@ -158,14 +156,23 @@ async def setup():
 
     # Log server initialization
     logger.info('AWS Billing and Cost Management MCP Server initialized successfully')
-    
+
     # Log available tools
     logger.info('Available tools:')
     tools = [
-        'cost_explorer', 'compute_optimizer', 'cost_optimization_hub',
-        'storage_lens_run_query', 'pricing', 'budget', 'cost_anomaly',
-        'cost_comparison', 'free_tier_usage', 'get_recommendation_details',
-        'ri_performance', 'sp_performance', 'session_sql'
+        'cost_explorer',
+        'compute_optimizer',
+        'cost_optimization_hub',
+        'storage_lens_run_query',
+        'pricing',
+        'budget',
+        'cost_anomaly',
+        'cost_comparison',
+        'free_tier_usage',
+        'get_recommendation_details',
+        'ri_performance',
+        'sp_performance',
+        'session_sql',
     ]
     for tool in tools:
         logger.info(f'- {tool}')
@@ -173,11 +180,16 @@ async def setup():
     # Log available prompts
     logger.info('Available prompts:')
     prompts = [
-        'cost_analysis', 'cost_optimization_recommendations', 
-        'reserved_capacity_analysis', 'cost_anomaly_investigation',
-        'budget_planning', 'free_tier_optimization',
-        'cost_breakdown_analysis', 'cost_trend_analysis',
-        'cur_sql_analysis', 'multi_account_cost_analysis'
+        'cost_analysis',
+        'cost_optimization_recommendations',
+        'reserved_capacity_analysis',
+        'cost_anomaly_investigation',
+        'budget_planning',
+        'free_tier_optimization',
+        'cost_breakdown_analysis',
+        'cost_trend_analysis',
+        'cur_sql_analysis',
+        'multi_account_cost_analysis',
     ]
     for prompt in prompts:
         logger.info(f'- {prompt}')

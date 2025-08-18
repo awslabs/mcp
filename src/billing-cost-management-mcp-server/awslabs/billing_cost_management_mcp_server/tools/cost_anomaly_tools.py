@@ -21,13 +21,13 @@ from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
     handle_aws_error,
-    validate_date_format
+    validate_date_format,
 )
 from ..utilities.logging_utils import get_context_logger
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 
 cost_anomaly_server = FastMCP(
@@ -82,91 +82,95 @@ async def cost_anomaly(
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
-    
+
     try:
         # Validate date formats first
         if not validate_date_format(start_date):
             return format_response(
                 'error',
                 {'invalid_parameter': 'start_date'},
-                f'Invalid start_date format: {start_date}. Date must be in YYYY-MM-DD format.'
+                f'Invalid start_date format: {start_date}. Date must be in YYYY-MM-DD format.',
             )
-        
+
         if not validate_date_format(end_date):
             return format_response(
                 'error',
                 {'invalid_parameter': 'end_date'},
-                f'Invalid end_date format: {end_date}. Date must be in YYYY-MM-DD format.'
+                f'Invalid end_date format: {end_date}. Date must be in YYYY-MM-DD format.',
             )
-            
+
         # Parse dates for validation
         start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
         end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
-        
+
         # Cost Anomaly Detection has a 90-day lookback limitation
         today = datetime.now()
         max_lookback = today - timedelta(days=90)
-        
+
         # Check if date range is valid
         if start_date_obj > end_date_obj:
             return format_response(
                 'error',
                 {'start_date': start_date, 'end_date': end_date},
-                'Invalid date range: start_date must be before or equal to end_date.'
+                'Invalid date range: start_date must be before or equal to end_date.',
             )
-            
+
         # Check if dates are in the future
         if end_date_obj > today:
             return format_response(
                 'error',
                 {'end_date': end_date},
-                'Invalid end_date: Cannot request anomalies for future dates.'
+                'Invalid end_date: Cannot request anomalies for future dates.',
             )
-            
+
         # Check if dates are beyond the 90-day lookback period
         if start_date_obj < max_lookback:
             await ctx_logger.warning(
-                f"Requested start_date {start_date} is more than 90 days in the past. "
-                f"Cost Anomaly Detection has a 90-day data retention period. "
-                f"Some data may not be available."
+                f'Requested start_date {start_date} is more than 90 days in the past. '
+                f'Cost Anomaly Detection has a 90-day data retention period. '
+                f'Some data may not be available.'
             )
-            
+
         # For 2024 data specifically (reported issue)
         current_year = today.year
         if start_date_obj.year == current_year or end_date_obj.year == current_year:
             # Check if we're in early January and querying current year data
             if today.month == 1 and today.day < 15:
                 await ctx_logger.warning(
-                    f"Querying data for {current_year} in early January may return incomplete results "
-                    f"as Cost Anomaly Detection may still be processing recent data."
+                    f'Querying data for {current_year} in early January may return incomplete results '
+                    f'as Cost Anomaly Detection may still be processing recent data.'
                 )
 
         # Validate feedback parameter if provided
-        if feedback and feedback not in ["YES", "NO", "PLANNED_ACTIVITY"]:
+        if feedback and feedback not in ['YES', 'NO', 'PLANNED_ACTIVITY']:
             return format_response(
                 'error',
                 {'invalid_parameter': 'feedback', 'value': feedback},
-                f'Invalid feedback value: {feedback}. Must be one of: YES, NO, PLANNED_ACTIVITY.'
+                f'Invalid feedback value: {feedback}. Must be one of: YES, NO, PLANNED_ACTIVITY.',
             )
-            
+
         # Validate total impact operator if provided
         valid_operators = [
-            "EQUAL", "GREATER_THAN", "LESS_THAN", 
-            "GREATER_THAN_OR_EQUAL", "LESS_THAN_OR_EQUAL", "BETWEEN"
+            'EQUAL',
+            'GREATER_THAN',
+            'LESS_THAN',
+            'GREATER_THAN_OR_EQUAL',
+            'LESS_THAN_OR_EQUAL',
+            'BETWEEN',
         ]
         if total_impact_operator and total_impact_operator not in valid_operators:
             return format_response(
                 'error',
                 {'invalid_parameter': 'total_impact_operator', 'value': total_impact_operator},
-                f'Invalid total_impact_operator: {total_impact_operator}. Must be one of: {", ".join(valid_operators)}'
+                f'Invalid total_impact_operator: {total_impact_operator}. Must be one of: {", ".join(valid_operators)}',
             )
-            
+
         # Validate total_impact_end is provided when using BETWEEN operator
-        if total_impact_operator == "BETWEEN" and total_impact_end is None:
+        if total_impact_operator == 'BETWEEN' and total_impact_end is None:
             return format_response(
                 'error',
                 {'missing_parameter': 'total_impact_end'},
-                'When using BETWEEN operator for total_impact, both total_impact_start and total_impact_end must be provided.'
+                'When using BETWEEN operator for total_impact, both total_impact_start and total_impact_end must be provided.',
             )
 
         await ctx_logger.info(f'Retrieving cost anomalies from {start_date} to {end_date}')
@@ -190,15 +194,13 @@ async def cost_anomaly(
     except ValueError as e:
         # Handle date parsing errors
         return format_response(
-            'error',
-            {'error_type': 'validation_error'},
-            f'Date validation error: {str(e)}'
+            'error', {'error_type': 'validation_error'}, f'Date validation error: {str(e)}'
         )
     except ClientError as e:
         # Handle AWS service-specific errors
         error_code = e.response.get('Error', {}).get('Code')
         error_message = e.response.get('Error', {}).get('Message')
-        
+
         if error_code == 'ValidationException' and '2024' in error_message:
             # Special handling for 2024 data issues
             return format_response(
@@ -206,13 +208,13 @@ async def cost_anomaly(
                 {'error_code': error_code},
                 f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
                 f'Note that cost anomalies may not be available yet for very recent data. '
-                f'Try querying a date range that ends at least 24-48 hours in the past.'
+                f'Try querying a date range that ends at least 24-48 hours in the past.',
             )
         elif error_code == 'ValidationException':
             return format_response(
                 'error',
                 {'error_code': error_code},
-                f'Cost Anomaly Detection validation error: {error_message}'
+                f'Cost Anomaly Detection validation error: {error_message}',
             )
         else:
             # Use shared error handler for other AWS errors

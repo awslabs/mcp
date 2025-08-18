@@ -28,7 +28,7 @@ from ..utilities.aws_service_base import (
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_api_response_to_table
 from fastmcp import Context
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> Dict[str, Any]:
@@ -357,18 +357,18 @@ async def get_pricing_from_api(
             len(all_price_list), max_results if max_results else 100
         )  # Limit to 100 by default
         processed_products = []
-        
+
         # Get context logger for consistent logging
         ctx_logger = get_context_logger(ctx, __name__)
 
         # Keep track of products that fail to parse
         failed_products = 0
-        
+
         for i, product_json in enumerate(all_price_list[:display_limit]):
             try:
                 # Wrap the JSON parsing in a try-except block
                 product = json.loads(product_json)
-                
+
                 # Process the product data
                 processed_product = {
                     'sku': product.get('product', {}).get('sku'),
@@ -403,40 +403,44 @@ async def get_pricing_from_api(
 
                 processed_product['terms'] = processed_terms
                 processed_products.append(processed_product)
-                
+
             except json.JSONDecodeError as e:
                 # Log the error but continue processing other products
                 failed_products += 1
                 await ctx_logger.error(
-                    f"Failed to parse product JSON at index {i}: {str(e)}. "
-                    f"First 100 chars: {product_json[:100] if len(product_json) > 100 else product_json}"
+                    f'Failed to parse product JSON at index {i}: {str(e)}. '
+                    f'First 100 chars: {product_json[:100] if len(product_json) > 100 else product_json}'
                 )
-                
+
                 # Add a placeholder for the failed product to maintain count
-                processed_products.append({
-                    'sku': f'parsing_failed_{i}',
-                    'productFamily': 'Unknown',
-                    'attributes': {'error': f'Failed to parse JSON: {str(e)}'},
-                    'terms': {}
-                })
+                processed_products.append(
+                    {
+                        'sku': f'parsing_failed_{i}',
+                        'productFamily': 'Unknown',
+                        'attributes': {'error': f'Failed to parse JSON: {str(e)}'},
+                        'terms': {},
+                    }
+                )
             except Exception as e:
                 # Handle any other exceptions
                 failed_products += 1
-                await ctx_logger.error(f"Error processing product at index {i}: {str(e)}")
-                
+                await ctx_logger.error(f'Error processing product at index {i}: {str(e)}')
+
                 # Add a placeholder for the failed product
-                processed_products.append({
-                    'sku': f'processing_failed_{i}',
-                    'productFamily': 'Unknown',
-                    'attributes': {'error': f'Processing error: {str(e)}'},
-                    'terms': {}
-                })
-                
+                processed_products.append(
+                    {
+                        'sku': f'processing_failed_{i}',
+                        'productFamily': 'Unknown',
+                        'attributes': {'error': f'Processing error: {str(e)}'},
+                        'terms': {},
+                    }
+                )
+
         # Log summary of parsing failures if any
         if failed_products > 0:
             await ctx_logger.warning(
-                f"Failed to parse {failed_products} out of {display_limit} products. "
-                f"These products will have placeholder entries in the results."
+                f'Failed to parse {failed_products} out of {display_limit} products. '
+                f'These products will have placeholder entries in the results.'
             )
 
         # Use shared format_response utility
@@ -448,12 +452,14 @@ async def get_pricing_from_api(
             'products_returned': len(processed_products),
             'products': processed_products,
         }
-        
+
         # Add parsing failure information if applicable
         if failed_products > 0:
             result['parsing_failures'] = failed_products
-            result['parsing_success_rate'] = f"{((display_limit - failed_products) / display_limit) * 100:.1f}%"
-            
+            result['parsing_success_rate'] = (
+                f'{((display_limit - failed_products) / display_limit) * 100:.1f}%'
+            )
+
         return format_response('success', result)
 
     except Exception as e:

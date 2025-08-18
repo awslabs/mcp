@@ -22,6 +22,8 @@ These tests verify the functionality of the S3 Storage Lens query tools, includi
 - Query execution, monitoring, and result processing
 """
 
+import fastmcp
+import importlib
 import json
 import os
 import pytest
@@ -381,4 +383,266 @@ def test_server_initialization():
     )
 
 
-# Tests removed - FROM clause replacement logic and exception handling not working as expected in tests
+def _reload_storage_lens_with_identity_decorator():
+    """Reload storage_lens_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
+
+    This exposes a callable 'storage_lens_run_query' we can invoke directly.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import storage_lens_tools as stl_mod
+
+    def _identity_tool(self, *args, **kwargs):
+        def _decorator(fn):
+            return fn
+
+        return _decorator
+
+    with patch.object(fastmcp.FastMCP, 'tool', _identity_tool):
+        importlib.reload(stl_mod)
+        return stl_mod
+
+
+@pytest.mark.asyncio
+async def test_storage_lens_real_missing_manifest_reload_identity_decorator(mock_context):
+    """Test storage_lens_run_query missing manifest with identity decorator."""
+    # Ensure no env var leaks in
+    os.environ.pop('STORAGE_LENS_MANIFEST_LOCATION', None)
+
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
+    res = await real_fn(mock_context, query='SELECT 1')  # type: ignore
+    assert res['status'] == 'error'
+    assert 'Missing manifest location' in res.get('message', '')
+
+
+@pytest.mark.asyncio
+async def test_storage_lens_real_placeholder_replacement_reload_identity_decorator(mock_context):
+    """Test storage_lens_run_query placeholder replacement with identity decorator."""
+    os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
+    with patch.object(stl_mod, 'execute_athena_query', new_callable=AsyncMock) as mock_exec:
+        mock_exec.return_value = {'status': 'success', 'data': {'ok': True}}
+        q = "SELECT * FROM {table} WHERE metric_name='StorageBytes'"
+        res = await real_fn(mock_context, query=q)  # type: ignore
+        assert res['status'] == 'success'
+
+        # Args: (ctx, formatted_query, manifest_loc, output_loc, db_name, tbl_name)
+        assert mock_exec.await_args is not None
+        _, formatted_query, manifest_loc, output_loc, db_name, tbl_name = mock_exec.await_args.args
+        assert f'{db_name}.{tbl_name}' in formatted_query
+        assert manifest_loc == 's3://bucket/prefix/'
+        assert (
+            output_loc == ''
+        )  # comes from env var default path logic inside execute_athena_query
+        # Default names when none provided
+        assert db_name == 'storage_lens_db'
+        assert tbl_name == 'storage_lens_metrics'
+
+
+@pytest.mark.asyncio
+async def test_storage_lens_real_from_insertion_reload_identity_decorator(mock_context):
+    """Test storage_lens_run_query from insertion with identity decorator."""
+    os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
+    with patch.object(stl_mod, 'execute_athena_query', new_callable=AsyncMock) as mock_exec:
+        mock_exec.return_value = {'status': 'success', 'data': {'ok': True}}
+        # No {table}, but has a FROM clause -> tool injects db.table
+        q = "SELECT * from something WHERE region='us-east-1'"
+        res = await real_fn(mock_context, query=q)  # type: ignore
+        assert res['status'] == 'success'
+
+        assert mock_exec.await_args is not None
+        formatted_query = mock_exec.await_args.args[1]
+        # The code lower-cases and injects " FROM <db>.<table> "
+        assert ' FROM storage_lens_db.storage_lens_metrics ' in formatted_query
+
+
+@pytest.mark.asyncio
+async def test_storage_lens_real_query_missing_table_reference_error_reload_identity_decorator(
+    mock_context,
+):
+    """Test storage_lens_run_query missing table reference error with identity decorator."""
+    os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
+    res = await real_fn(mock_context, query='SELECT 42')  # type: ignore
+    assert res['status'] == 'error'
+    assert 'must either contain {table} placeholder' in res.get('message', '')
+
+
+# --- execute_athena_query default output-location branches ---
+
+
+@pytest.mark.asyncio
+async def test_execute_athena_query_default_output_trailing_slash(
+    mock_context, mock_athena_client
+):
+    """Test execute_athena_query default output with trailing slash."""
+    # manifest ends with '/'
+    with (
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
+            return_value=mock_athena_client,
+        ),
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_or_update_table',
+            AsyncMock(),
+        ),
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.poll_query_status',
+            AsyncMock(return_value={'status': 'success', 'data': {}}),
+        ),
+    ):
+        from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
+            execute_athena_query,
+        )
+
+        await execute_athena_query(
+            mock_context,
+            'SELECT 1',
+            's3://my-bucket/prefix/',
+            None,
+            'db',
+            'tbl',
+        )
+
+    # Validate OutputLocation default
+    kwargs = mock_athena_client.start_query_execution.call_args.kwargs
+    assert (
+        kwargs['ResultConfiguration']['OutputLocation'] == 's3://my-bucket/prefix/query-results/'
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_athena_query_default_output_no_trailing_slash(
+    mock_context, mock_athena_client
+):
+    """Test execute_athena_query default output without trailing slash."""
+    # manifest does not end with '/'
+    with (
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
+            return_value=mock_athena_client,
+        ),
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_or_update_table',
+            AsyncMock(),
+        ),
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.poll_query_status',
+            AsyncMock(return_value={'status': 'success', 'data': {}}),
+        ),
+    ):
+        from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
+            execute_athena_query,
+        )
+
+        await execute_athena_query(
+            mock_context,
+            'SELECT 1',
+            's3://my-bucket/manifest.json',
+            None,
+            'db',
+            'tbl',
+        )
+
+    kwargs = mock_athena_client.start_query_execution.call_args.kwargs
+    assert (
+        kwargs['ResultConfiguration']['OutputLocation']
+        == 's3://my-bucket/manifest.json/query-results/'
+    )
+
+
+# --- create_or_update_table exception path (logs + raises) ---
+
+
+@pytest.mark.asyncio
+async def test_create_or_update_table_exception_path_logs_and_raises(mock_context):
+    """Test create_or_update_table exception path logs and raises."""
+    from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
+        create_or_update_table,
+    )
+
+    athena = MagicMock()
+    # First call (CREATE DATABASE) raises
+    athena.start_query_execution.side_effect = Exception('oops db')
+
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.wait_for_query_completion',
+        AsyncMock(return_value='FAILED'),
+    ):
+        with pytest.raises(Exception, match='oops db'):
+            await create_or_update_table(
+                mock_context,
+                athena,
+                's3://test-bucket/manifest.json',
+                'dbx',
+                'tblx',
+            )
+
+    mock_context.error.assert_awaited()
+    # Ensure we attempted the first start_query_execution
+    athena.start_query_execution.assert_called()
+
+
+# --- poll_query_status: NextToken + exception path ---
+
+
+@pytest.mark.asyncio
+async def test_poll_query_status_success_with_next_token(mock_context, mock_athena_client):
+    """Test poll_query_status success with next token."""
+    # Add NextToken to exercise has_more=True
+    mock_athena_client.get_query_results.return_value['NextToken'] = 'next-1'
+
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.wait_for_query_completion',
+        AsyncMock(return_value='SUCCEEDED'),
+    ):
+        from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
+            poll_query_status,
+        )
+
+        result = await poll_query_status(mock_context, mock_athena_client, 'qid-123')
+
+    assert result['status'] == 'success'
+    assert result['data']['has_more'] is True
+    assert 'columns' in result['data']
+    assert 'results' in result['data']
+
+
+@pytest.mark.asyncio
+async def test_poll_query_status_exception_flow_calls_handle_error(
+    mock_context, mock_athena_client
+):
+    """Test poll_query_status exception flow calls handle_error."""
+    # Cause an exception after wait_for_query_completion
+    with (
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.wait_for_query_completion',
+            AsyncMock(return_value='SUCCEEDED'),
+        ),
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.handle_aws_error',
+            new_callable=AsyncMock,
+        ) as mock_handle,
+    ):
+        mock_handle.return_value = {'status': 'error', 'message': 'boom'}  # <-- add this
+        mock_athena_client.get_query_execution.side_effect = RuntimeError('boom')
+
+        from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
+            poll_query_status,
+        )
+
+        res = await poll_query_status(mock_context, mock_athena_client, 'qid-err')
+
+        assert res['status'] == 'error'
+        assert 'boom' in res.get('message', '')
+        mock_handle.assert_awaited_once()

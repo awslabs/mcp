@@ -256,8 +256,12 @@ class TestGetSavingsPlansUtilizationDetails:
         assert 'savings' in detail
 
         # Check nested values
-        assert detail['utilization']['utilization_percentage'] == '95.0'
-        assert detail['savings']['net_savings'] == '10.0'
+        assert detail['utilization']['utilization_percentage'] == 95.0
+        assert detail['savings']['net_savings'] == {
+            'amount': 0.0,
+            'currency': 'USD',
+            'formatted': '0.0 USD',
+        }
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
@@ -418,15 +422,31 @@ class TestGetSavingsPlansUtilization:
 
         # Check total utilization data
         assert 'total' in result['data']
-        assert result['data']['total']['utilization_percentage'] == '95.0'
-        assert result['data']['total']['total_commitment'] == '100.0'
+        assert result['data']['total']['utilization_percentage'] == 95.0
+        assert result['data']['total']['total_commitment'] == {
+            'amount': 0.0,
+            'currency': 'USD',
+            'formatted': '0.0 USD',
+        }
 
         # Check utilization details
         utilization = result['data']['savings_plans_utilizations'][0]
-        assert utilization['total_commitment'] == '100.0'
-        assert utilization['used_commitment'] == '95.0'
-        assert utilization['unused_commitment'] == '5.0'
-        assert utilization['utilization_percentage'] == '95.0'
+        assert utilization['total_commitment'] == {
+            'amount': 0.0,
+            'currency': 'USD',
+            'formatted': '0.0 USD',
+        }
+        assert utilization['used_commitment'] == {
+            'amount': 0.0,
+            'currency': 'USD',
+            'formatted': '0.0 USD',
+        }
+        assert utilization['unused_commitment'] == {
+            'amount': 0.0,
+            'currency': 'USD',
+            'formatted': '0.0 USD',
+        }
+        assert utilization['utilization_percentage'] == 95.0
         assert utilization['savings_plans_count'] == 5
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
