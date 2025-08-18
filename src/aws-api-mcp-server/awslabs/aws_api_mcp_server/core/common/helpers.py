@@ -82,7 +82,7 @@ def download_embedding_model(model_name: str):
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         logger.debug('Dowloading embedding model {} to {}', model_name, tmp_dir)
-        response = requests.get(download_url, stream=True)
+        response = requests.get(download_url, stream=True, timeout=15)
         response.raise_for_status()
 
         zip_path = os.path.join(tmp_dir, f'{model_name}.zip')

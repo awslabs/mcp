@@ -117,7 +117,7 @@ def test_download_embedding_model_success(
             download_embedding_model('test-model')
 
     mock_requests_get.assert_called_once_with(
-        'https://models.knowledge-mcp.global.api.aws/test-model.zip', stream=True
+        'https://models.knowledge-mcp.global.api.aws/test-model.zip', stream=True, timeout=15
     )
     mock_response.raise_for_status.assert_called_once()
     mock_file.assert_called_once_with('/tmp/test_dir/test-model.zip', 'wb')
@@ -149,6 +149,8 @@ def test_download_embedding_model_http_error(mock_logger, mock_temp_dir, mock_re
         download_embedding_model('nonexistent-model')
 
     mock_requests_get.assert_called_once_with(
-        'https://models.knowledge-mcp.global.api.aws/nonexistent-model.zip', stream=True
+        'https://models.knowledge-mcp.global.api.aws/nonexistent-model.zip',
+        stream=True,
+        timeout=15,
     )
     mock_response.raise_for_status.assert_called_once()
