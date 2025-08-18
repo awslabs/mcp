@@ -321,12 +321,14 @@ class TestListTables:
         assert isinstance(result, ListTablesResponse)
         assert len(result.tables) == 2
         assert result.tables[0].name == 'users'
+        assert result.tables[0].table_type is not None
         assert result.tables[0].table_type.value == 'EXTERNAL_TABLE'
         assert result.tables[0].create_time == datetime(2024, 1, 1)
         assert result.tables[0].last_access_time is None
         assert result.tables[0].columns_count == 1
         assert result.tables[0].partition_keys_count == 0
         assert result.tables[1].name == 'orders'
+        assert result.tables[1].table_type is not None
         assert result.tables[1].table_type.value == 'EXTERNAL_TABLE'
         assert result.tables[1].create_time == datetime(2024, 1, 2)
         assert result.tables[1].last_access_time is None
@@ -369,6 +371,7 @@ class TestGetTableMetadata:
         assert result.last_access_time is None
 
         # Verify columns
+        assert result.columns is not None
         assert len(result.columns) == 2
         assert result.columns[0].name == 'id'
         assert result.columns[0].type == 'bigint'
@@ -378,6 +381,7 @@ class TestGetTableMetadata:
         assert result.columns[1].nullable is True
 
         # Verify partition keys
+        assert result.partition_keys is not None
         assert len(result.partition_keys) == 1
         assert result.partition_keys[0].name == 'year'
         assert result.partition_keys[0].type == 'string'
