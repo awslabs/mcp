@@ -15,7 +15,11 @@
 import json
 import os
 import re
+import requests
+import tempfile
 import time
+import zipfile
+from .config import EMBEDDING_MODEL_DIR
 from botocore.response import StreamingBody
 from contextlib import contextmanager
 from datetime import datetime
@@ -70,3 +74,24 @@ def validate_aws_region(region: str):
         error_message = f'{region} is not a valid AWS Region'
         logger.error(error_message)
         raise ValueError(error_message)
+
+
+def download_embedding_model(model_name: str):
+    """Download embedding model from AWS."""
+    download_url = f'https://models.knowledge-mcp.global.api.aws/{model_name}.zip'
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        logger.debug('Dowloading embedding model {} to {}', model_name, tmp_dir)
+        response = requests.get(download_url, stream=True)
+        response.raise_for_status()
+
+        zip_path = os.path.join(tmp_dir, f'{model_name}.zip')
+
+        with open(zip_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        extract_dir = os.path.join(EMBEDDING_MODEL_DIR, 'bge-base-en-v1.5')
+        logger.debug('Extracting embedding model from {} to {}', zip_path, extract_dir)
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_dir)

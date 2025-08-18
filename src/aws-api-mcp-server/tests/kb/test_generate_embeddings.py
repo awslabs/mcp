@@ -24,7 +24,7 @@ def test_generate_embeddings_handles_exceptions(mock_logger, mock_get_command_ta
     """Test that exceptions during document retrieval are handled gracefully."""
     with tempfile.TemporaryDirectory() as temp_dir:
         cache_dir = Path(temp_dir)
-        model_name = 'BAAI/bge-base-en-v1.5'
+        model_name = 'bge-base-en-v1.5'
         cache_file = cache_dir / f'{KNOWLEDGE_BASE_SUFFIX}-{awscli_version}.npz'
 
         # Create a dummy cache file
@@ -48,7 +48,7 @@ def test_generate_embeddings_cache_exists_no_overwrite():
     """Test generate_embeddings when cache exists and overwrite is False."""
     with tempfile.TemporaryDirectory() as temp_dir:
         cache_dir = Path(temp_dir)
-        model_name = 'BAAI/bge-base-en-v1.5'
+        model_name = 'bge-base-en-v1.5'
         cache_file = cache_dir / f'{KNOWLEDGE_BASE_SUFFIX}-{awscli_version}.npz'
 
         # Create a dummy cache file
@@ -72,7 +72,7 @@ def test_generate_embeddings_overwrite_existing(
     """Test generate_embeddings with overwrite=True."""
     with tempfile.TemporaryDirectory() as temp_dir:
         cache_dir = Path(temp_dir)
-        model_name = 'BAAI/bge-base-en-v1.5'
+        model_name = 'bge-base-en-v1.5'
         cache_file = cache_dir / f'{KNOWLEDGE_BASE_SUFFIX}-{awscli_version}.npz'
 
         # Create a dummy cache file
@@ -108,7 +108,7 @@ def test_generate_embeddings_with_document_details(
     """Test generate_embeddings() processes document correctly."""
     with tempfile.TemporaryDirectory() as temp_dir:
         cache_dir = Path(temp_dir)
-        model_name = 'BAAI/bge-base-en-v1.5'
+        model_name = 'bge-base-en-v1.5'
         cache_file = cache_dir / f'{KNOWLEDGE_BASE_SUFFIX}-{awscli_version}.npz'
 
         # Create a dummy cache file
@@ -157,7 +157,7 @@ def test_argument_parser_defaults():
     parser.add_argument(
         '--model-name',
         type=str,
-        default='BAAI/bge-base-en-v1.5',
+        default='bge-base-en-v1.5',
         help='Name or path of the model to load',
     )
     parser.add_argument(
@@ -172,7 +172,7 @@ def test_argument_parser_defaults():
 
     args = parser.parse_args([])
 
-    assert args.model_name == 'BAAI/bge-base-en-v1.5'
+    assert args.model_name == 'bge-base-en-v1.5'
     assert args.overwrite is False
     assert 'embeddings' in args.cache_dir
 
@@ -326,9 +326,7 @@ def test_main_default_args(mock_generate):
     """Test main function with default arguments."""
     with patch.object(sys, 'argv', ['generate_embeddings.py']):
         main()
-        mock_generate.assert_called_once_with(
-            'BAAI/bge-base-en-v1.5', Path(DEFAULT_CACHE_DIR), False
-        )
+        mock_generate.assert_called_once_with('bge-base-en-v1.5', Path(DEFAULT_CACHE_DIR), False)
 
 
 @patch('awslabs.aws_api_mcp_server.scripts.generate_embeddings.generate_embeddings')
