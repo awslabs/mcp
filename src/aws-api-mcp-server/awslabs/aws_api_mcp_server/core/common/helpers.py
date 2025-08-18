@@ -24,6 +24,7 @@ from botocore.response import StreamingBody
 from contextlib import contextmanager
 from datetime import datetime
 from loguru import logger
+from pathlib import Path
 from typing import Any
 
 
@@ -82,16 +83,19 @@ def download_embedding_model(model_name: str):
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         logger.debug('Dowloading embedding model {} to {}', model_name, tmp_dir)
-        response = requests.get(download_url, stream=True, timeout=15)
+        response = requests.get(download_url, stream=True, timeout=30)
         response.raise_for_status()
 
         zip_path = os.path.join(tmp_dir, f'{model_name}.zip')
+        Path(zip_path).parent.mkdir()
 
         with open(zip_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        extract_dir = os.path.join(EMBEDDING_MODEL_DIR, 'bge-base-en-v1.5')
-        logger.debug('Extracting embedding model from {} to {}', zip_path, extract_dir)
+        extract_dir = os.path.join(EMBEDDING_MODEL_DIR, model_name)
+        logger.debug(
+            'Extracting embedding model from {} to {}', zip_path, os.path.abspath(extract_dir)
+        )
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)

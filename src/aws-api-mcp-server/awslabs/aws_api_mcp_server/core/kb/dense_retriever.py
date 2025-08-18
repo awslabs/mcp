@@ -25,7 +25,7 @@ from sentence_transformers import SentenceTransformer
 
 
 DEFAULT_TOP_K = 5
-DEFAULT_EMBEDDING_MODEL = 'bge-base-en-v1.5'
+DEFAULT_EMBEDDING_MODEL = 'BAAI/bge-base-en-v1.5'
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parent.parent / 'data' / 'embeddings'
 KNOWLEDGE_BASE_SUFFIX = 'knowledge-base-awscli'
 
