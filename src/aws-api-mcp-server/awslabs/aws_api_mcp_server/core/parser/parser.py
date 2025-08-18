@@ -24,6 +24,7 @@ from ..aws.services import (
 )
 from ..common.command import IRCommand
 from ..common.command_metadata import CommandMetadata
+from ..common.config import AWS_API_MCP_PROFILE_NAME, get_region
 from ..common.errors import (
     AwsApiMcpError,
     ClientSideFilterError,
@@ -49,6 +50,7 @@ from ..common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
+from ..common.helpers import expand_user_home_directory
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
 from .custom_validators.ssm_validator import perform_ssm_validations
@@ -58,7 +60,6 @@ from awscli.argparser import ArgTableArgParser, CommandAction, MainArgParser
 from awscli.argprocess import ParamError
 from awscli.arguments import BaseCLIArgument, CLIArgument
 from awscli.clidriver import ServiceCommand
-from awslabs.aws_api_mcp_server.core.common.helpers import expand_user_home_directory
 from botocore.exceptions import ParamValidationError, UndefinedModelAttributeError
 from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
@@ -722,10 +723,12 @@ def _construct_command(
     parameters: dict[str, Any],
     is_awscli_customization: bool = False,
 ) -> IRCommand:
-    # Verify the service actually exists in this region
-    region = getattr(global_args, 'region', None)
-    if region is None:
-        region = _fetch_region_from_arn(parameters)
+    profile = getattr(global_args, 'profile', None)
+    region = (
+        getattr(global_args, 'region', None)
+        or _fetch_region_from_arn(parameters)
+        or get_region(profile or AWS_API_MCP_PROFILE_NAME)
+    )
 
     client_side_query = getattr(global_args, 'query', None)
     client_side_filter = None
@@ -745,7 +748,7 @@ def _construct_command(
         command_metadata=command_metadata,
         parameters=parameters,
         region=region,
-        profile=getattr(global_args, 'profile', None),
+        profile=profile,
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
     )

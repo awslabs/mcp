@@ -55,9 +55,7 @@ def test_get_server_directory_windows_macos(
     ],
 )
 @patch('awslabs.aws_api_mcp_server.core.common.config.boto3.Session')
-@patch('awslabs.aws_api_mcp_server.core.common.config.os.getenv')
 def test_get_region_parametrized(
-    mock_getenv: MagicMock,
     mock_session_class: MagicMock,
     aws_region: str,
     profile_name: str,
@@ -66,8 +64,6 @@ def test_get_region_parametrized(
     expected_region: str,
 ):
     """Parametrized test for various combinations of region sources."""
-    mock_getenv.return_value = aws_region
-
     profile_session = MagicMock()
     profile_session.region_name = profile_region
 
@@ -82,10 +78,7 @@ def test_get_region_parametrized(
 
     mock_session_class.side_effect = session_side_effect
 
-    with patch(
-        'awslabs.aws_api_mcp_server.core.common.config.AWS_API_MCP_PROFILE_NAME', profile_name
-    ):
-        result = get_region()
+    with patch('awslabs.aws_api_mcp_server.core.common.config.AWS_REGION', aws_region):
+        result = get_region(profile_name)
 
     assert result == expected_region
-    mock_getenv.assert_called_once_with('AWS_REGION')
