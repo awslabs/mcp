@@ -69,6 +69,37 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       }
 }
 ```
+
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.amazon-kendra-index-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.amazon-kendra-index-mcp-server@latest",
+        "awslabs.amazon-kendra-index-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "KENDRA_INDEX_ID": "[Your Kendra Index Id]",
+        "AWS_PROFILE": "[Your AWS Profile Name]",
+        "AWS_REGION": "[Region where your Kendra Index resides]"
+      }
+    }
+  }
+}
+```
+
 or docker after a successful `docker build -t awslabs/amazon-kendra-index-mcp-server.`:
 
 ```file

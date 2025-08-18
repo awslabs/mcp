@@ -71,6 +71,35 @@ This MCP server can be added to your AWS AI assistants via the appropriate MCP c
   }
 }
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.code-doc-gen-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.code-doc-gen-mcp-server@latest",
+        "awslabs.code-doc-gen-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 
 ## Core Concepts
 

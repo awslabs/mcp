@@ -59,6 +59,39 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 }
 ```
 
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.lambda-tool-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.lambda-tool-mcp-server@latest",
+        "awslabs.lambda-tool-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1",
+        "FUNCTION_PREFIX": "your-function-prefix",
+        "FUNCTION_LIST": "your-first-function, your-second-function",
+        "FUNCTION_TAG_KEY": "your-tag-key",
+        "FUNCTION_TAG_VALUE": "your-tag-value",
+        "FUNCTION_INPUT_SCHEMA_ARN_TAG_KEY": "your-function-tag-for-input-schema"
+      }
+    }
+  }
+}
+```
+
 or docker after a successful `docker build -t awslabs/bedrock-kb-retrieval-mcp-server .`:
 
 ```file

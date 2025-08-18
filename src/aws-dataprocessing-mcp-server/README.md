@@ -166,6 +166,36 @@ This quickstart guide walks you through the steps to configure the Amazon Data P
   }
 }
 ```
+
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-dataprocessing-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.aws-dataprocessing-mcp-server@latest",
+        "awslabs.aws-dataprocessing-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 After a few minutes, you should see a green indicator if your MCP server definition is valid.
 
 4. Open a chat panel in Cursor (e.g., `Ctrl/⌘ + L`).  In your Cursor chat window, enter your prompt. For example, "Look at all the tables from my account federated across GDC"
