@@ -47,6 +47,30 @@ class TestGenerateResponseMessage:
         )
         assert result == 'No active alarms found'
 
+    def test_empty_results_with_autoscaling_not_included_with_no_filtered_items(self, tools):
+        """Test empty results when autoscaling alarms are not included and there are no filtered items."""
+        result = tools._generate_response_message(
+            items_to_return=0,
+            has_more_results=False,
+            include_autoscaling_alarms=False,
+            filtered_count=0,
+            total_processed=5,
+        )
+        assert result == 'No non-autoscaling active alarms found'
+
+    def test_empty_results_with_autoscaling_not_included_with_filtered_items(self, tools):
+        """Test empty results when autoscaling alarms are not included and there are filtered items present."""
+        result = tools._generate_response_message(
+            items_to_return=0,
+            has_more_results=False,
+            include_autoscaling_alarms=False,
+            filtered_count=5,
+            total_processed=5,
+        )
+
+        expected = 'No non-autoscaling active alarms found. 5 autoscaling alarms were filtered out. Set include_autoscaling_alarms=True to see all alarms.'
+        assert result == expected
+
     def test_empty_results_with_autoscaling_included_and_processed_alarms(self, tools):
         """Test empty results when autoscaling alarms are included but some alarms were processed."""
         result = tools._generate_response_message(
