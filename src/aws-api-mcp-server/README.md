@@ -103,6 +103,31 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
 }
 ```
 
+### 🐳 Using Docker
+
+You can isolate the MCP server by running it in a Docker container. The Docker image is available on the [public AWS ECR registry](https://gallery.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server).
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "AWS_REGION=us-east-1",
+        "--volume",
+        "/full/path/to/.aws:/app/.aws",
+        "public.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server:latest"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
 ### 🔧 Using Cloned Repository
 
 For detailed instructions on setting up your local development environment and running the server from source, please see the CONTRIBUTING.md file.
