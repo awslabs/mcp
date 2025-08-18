@@ -36,7 +36,7 @@ ri_performance_server = FastMCP(
 
 
 @ri_performance_server.tool(
-    name='ri_performance',
+    name='ri-performance',
     description="""Retrieves AWS Reserved Instance (RI) coverage and utilization data using the Cost Explorer API.
 
 This tool provides insights into your Reserved Instance (RI) and Savings Plans usage patterns through two main operations:

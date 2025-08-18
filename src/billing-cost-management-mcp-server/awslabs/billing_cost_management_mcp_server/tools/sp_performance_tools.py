@@ -37,7 +37,7 @@ sp_performance_server = FastMCP(
 
 
 @sp_performance_server.tool(
-    name='sp_performance',
+    name='sp-performance',
     description="""Tool that retrieves AWS Savings Plans coverage and utilization data using the Cost Explorer API.
 
 This tool provides insights into your Savings Plans usage patterns through three main operations:

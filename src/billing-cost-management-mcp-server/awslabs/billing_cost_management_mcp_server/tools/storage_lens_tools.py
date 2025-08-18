@@ -37,7 +37,7 @@ DEFAULT_TABLE = 'storage_lens_metrics'
 
 
 @storage_lens_server.tool(
-    name='storage_lens_run_query',
+    name='storage-lens-run-query',
     description="""Query S3 Storage Lens metrics data using Athena SQL.
 
 IMPORTANT USAGE GUIDELINES:

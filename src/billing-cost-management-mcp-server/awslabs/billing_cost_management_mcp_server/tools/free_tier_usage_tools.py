@@ -33,7 +33,7 @@ free_tier_usage_server = FastMCP(
 
 
 @free_tier_usage_server.tool(
-    name='free_tier_usage',
+    name='free-tier-usage',
     description="""Retrieves AWS Free Tier usage information using the Free Tier Usage API.
 
 This tool provides insights into your AWS Free Tier usage across services:

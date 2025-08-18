@@ -35,7 +35,7 @@ compute_optimizer_server = FastMCP(
 
 
 @compute_optimizer_server.tool(
-    name='compute_optimizer',
+    name='compute-optimizer',
     description="""Retrieves recommendations from AWS Compute Optimizer.
 
 IMPORTANT USAGE GUIDELINES:

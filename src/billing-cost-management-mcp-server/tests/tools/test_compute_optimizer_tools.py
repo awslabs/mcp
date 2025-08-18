@@ -785,3 +785,541 @@ class TestComputeOptimizerFastMCP:
             assert res['status'] == 'error'
             assert res['error_type'] == 'validation_error'
             assert 'Invalid parameter' in res['message']
+
+
+@pytest.mark.asyncio
+class TestComputeOptimizerCoverageGaps:
+    """Tests targeting specific uncovered lines."""
+
+    async def test_enrollment_status_access_denied_warning(self, mock_context):
+        """Test enrollment status check with access denied - covers lines 148-158."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_get_logger.return_value = mock_logger_instance
+
+            mock_client = MagicMock()
+            # Make enrollment status check fail with AccessDeniedException
+            mock_client.get_enrollment_status.side_effect = ClientError(
+                error_response={
+                    'Error': {
+                        'Code': 'AccessDeniedException',
+                        'Message': 'Access denied for enrollment',
+                    },
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 403},
+                },
+                operation_name='GetEnrollmentStatus',
+            )
+
+            # But make the actual operation succeed so we test the warning path
+            mock_client.get_ec2_instance_recommendations.return_value = {
+                'instanceRecommendations': [],
+                'nextToken': None,
+            }
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+
+            # Should succeed despite enrollment check failure
+            assert result['status'] == 'success'
+            # Should log the access denied warning
+            mock_logger_instance.warning.assert_called_with(
+                'Access denied for enrollment status check: An error occurred (AccessDeniedException) when calling the GetEnrollmentStatus operation: Access denied for enrollment'
+            )
+
+    async def test_enrollment_status_other_error_warning(self, mock_context):
+        """Test enrollment status check with other error - covers lines 170, 174."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_get_logger.return_value = mock_logger_instance
+
+            mock_client = MagicMock()
+            # Make enrollment status check fail with a different error
+            mock_client.get_enrollment_status.side_effect = ClientError(
+                error_response={
+                    'Error': {
+                        'Code': 'ServiceUnavailableException',
+                        'Message': 'Service unavailable',
+                    },
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 503},
+                },
+                operation_name='GetEnrollmentStatus',
+            )
+
+            # Make the actual operation succeed
+            mock_client.get_ec2_instance_recommendations.return_value = {
+                'instanceRecommendations': [],
+                'nextToken': None,
+            }
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+
+            # Should succeed despite enrollment check failure
+            assert result['status'] == 'success'
+            # Should log the generic enrollment warning
+            mock_logger_instance.warning.assert_called_with(
+                'Could not check Compute Optimizer enrollment: An error occurred (ServiceUnavailableException) when calling the GetEnrollmentStatus operation: Service unavailable'
+            )
+
+    async def test_operation_opt_in_required_error(self, mock_context):
+        """Test operation with OptInRequiredException - covers lines 230-280."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_get_logger.return_value = mock_logger_instance
+
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+
+            # Make the operation fail with OptInRequiredException
+            mock_client.get_ec2_instance_recommendations.side_effect = ClientError(
+                error_response={
+                    'Error': {'Code': 'OptInRequiredException', 'Message': 'Opt-in required'},
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 400},
+                },
+                operation_name='GetEC2InstanceRecommendations',
+            )
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'opt_in_required'
+            assert 'Compute Optimizer requires opt-in' in result['message']
+            assert 'Enable Compute Optimizer in the AWS Console' in result['resolution']
+            mock_logger_instance.error.assert_called()
+
+    async def test_operation_validation_exception_error(self, mock_context):
+        """Test operation with ValidationException - covers lines 230-280."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_get_logger.return_value = mock_logger_instance
+
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+
+            # Make the operation fail with ValidationException
+            mock_client.get_ec2_instance_recommendations.side_effect = ClientError(
+                error_response={
+                    'Error': {'Code': 'ValidationException', 'Message': 'Invalid parameter value'},
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 400},
+                },
+                operation_name='GetEC2InstanceRecommendations',
+            )
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'validation_error'
+            assert 'Compute Optimizer validation error' in result['message']
+            assert 'Check your request parameters' in result['resolution']
+
+    async def test_operation_throttling_exception_error(self, mock_context):
+        """Test operation with ThrottlingException - covers lines 230-280."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_get_logger.return_value = mock_logger_instance
+
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+
+            # Make the operation fail with ThrottlingException
+            mock_client.get_ec2_instance_recommendations.side_effect = ClientError(
+                error_response={
+                    'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'},
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 429},
+                },
+                operation_name='GetEC2InstanceRecommendations',
+            )
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'throttling_error'
+            assert 'API is throttling your requests' in result['message']
+            assert 'Implement backoff retry logic' in result['resolution']
+
+    async def test_operation_service_unavailable_exception_error(self, mock_context):
+        """Test operation with ServiceUnavailableException - covers lines 230-280."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_get_logger.return_value = mock_logger_instance
+
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+
+            # Make the operation fail with ServiceUnavailableException
+            mock_client.get_ec2_instance_recommendations.side_effect = ClientError(
+                error_response={
+                    'Error': {
+                        'Code': 'ServiceUnavailableException',
+                        'Message': 'Service unavailable',
+                    },
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 503},
+                },
+                operation_name='GetEC2InstanceRecommendations',
+            )
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'service_unavailable'
+            assert 'service is temporarily unavailable' in result['message']
+            assert 'Retry after a brief wait' in result['resolution']
+
+    async def test_operation_resource_not_found_exception_error(self, mock_context):
+        """Test operation with ResourceNotFoundException - covers lines 230-280."""
+        from botocore.exceptions import ClientError
+
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_get_logger.return_value = mock_logger_instance
+
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ec2Instance'],
+            }
+
+            # Make the operation fail with ResourceNotFoundException
+            mock_client.get_ec2_instance_recommendations.side_effect = ClientError(
+                error_response={
+                    'Error': {
+                        'Code': 'ResourceNotFoundException',
+                        'Message': 'Resource not found',
+                    },
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 404},
+                },
+                operation_name='GetEC2InstanceRecommendations',
+            )
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
+
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'resource_not_found'
+            assert 'The requested resource was not found' in result['message']
+            assert 'Verify resource identifiers' in result['resolution']
+
+    async def test_rds_recommendations_no_data_found(self, mock_context):
+        """Test RDS recommendations when no data is found - covers lines 635-691."""
+        mock_co_client = MagicMock()
+
+        # Mock the response to have no recommendations
+        mock_co_client.get_rds_instance_recommendations.return_value = {
+            'instanceRecommendations': [],  # Empty recommendations
+            'nextToken': None,
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.debug = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_rds_recommendations(
+                mock_context, mock_co_client, 10, None, None, None
+            )
+
+            assert result['status'] == 'success'
+            assert result['data']['recommendations'] == []
+            assert result['data']['next_token'] is None
+            assert 'No RDS instance recommendations found' in result['message']
+
+            # Should log that no recommendations were found
+            mock_logger_instance.info.assert_any_call('No RDS recommendations found')
+
+    async def test_rds_recommendations_access_denied_error(self, mock_context):
+        """Test RDS recommendations with access denied - covers lines 635-691."""
+        from botocore.exceptions import ClientError
+
+        mock_co_client = MagicMock()
+
+        # Make the RDS call fail with AccessDeniedException
+        mock_co_client.get_rds_instance_recommendations.side_effect = ClientError(
+            error_response={
+                'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied for RDS'},
+                'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 403},
+            },
+            operation_name='GetRDSInstanceRecommendations',
+        )
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.debug = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_rds_recommendations(
+                mock_context, mock_co_client, 10, None, None, None
+            )
+
+            assert result['status'] == 'error'
+            assert result['data']['error_type'] == 'access_denied'
+            assert 'Access denied when accessing RDS recommendations' in result['message']
+            assert 'compute-optimizer:GetRDSInstanceRecommendations' in result['message']
+
+            # Should log the detailed error
+            mock_logger_instance.error.assert_called()
+
+    async def test_rds_recommendations_resource_not_found_error(self, mock_context):
+        """Test RDS recommendations with resource not found - covers lines 635-691."""
+        from botocore.exceptions import ClientError
+
+        mock_co_client = MagicMock()
+
+        # Make the RDS call fail with ResourceNotFoundException
+        mock_co_client.get_rds_instance_recommendations.side_effect = ClientError(
+            error_response={
+                'Error': {
+                    'Code': 'ResourceNotFoundException',
+                    'Message': 'RDS resources not found',
+                },
+                'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 404},
+            },
+            operation_name='GetRDSInstanceRecommendations',
+        )
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.debug = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_rds_recommendations(
+                mock_context, mock_co_client, 10, None, None, None
+            )
+
+            assert result['status'] == 'error'
+            assert result['data']['error_type'] == 'resource_not_found'
+            assert 'RDS resources not found' in result['message']
+            assert 'Ensure you have RDS instances' in result['message']
+
+    async def test_rds_recommendations_opt_in_required_error(self, mock_context):
+        """Test RDS recommendations with opt-in required - covers lines 635-691."""
+        from botocore.exceptions import ClientError
+
+        mock_co_client = MagicMock()
+
+        # Make the RDS call fail with OptInRequiredException
+        mock_co_client.get_rds_instance_recommendations.side_effect = ClientError(
+            error_response={
+                'Error': {'Code': 'OptInRequiredException', 'Message': 'Opt-in required for RDS'},
+                'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 400},
+            },
+            operation_name='GetRDSInstanceRecommendations',
+        )
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.debug = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_rds_recommendations(
+                mock_context, mock_co_client, 10, None, None, None
+            )
+
+            assert result['status'] == 'error'
+            assert result['data']['error_type'] == 'opt_in_required'
+            assert 'Compute Optimizer requires opt-in' in result['message']
+            assert 'enable Compute Optimizer in the AWS Console' in result['message']
+
+    async def test_rds_recommendations_unexpected_error_reraise(self, mock_context):
+        """Test RDS recommendations with unexpected error that gets re-raised - covers lines 695-696."""
+        mock_co_client = MagicMock()
+
+        # Make the RDS call fail with an unexpected error that should be re-raised
+        mock_co_client.get_rds_instance_recommendations.side_effect = Exception('Unexpected error')
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.debug = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            with pytest.raises(Exception, match='Unexpected error'):
+                await get_rds_recommendations(mock_context, mock_co_client, 10, None, None, None)
+
+            # Should log the unexpected error
+            mock_logger_instance.error.assert_called()
+
+    async def test_rds_recommendations_value_error_handling(self, mock_context):
+        """Test RDS recommendations with ValueError - covers lines 749-758."""
+        mock_co_client = MagicMock()
+
+        # Use patch to make parse_json raise ValueError
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.parse_json'
+        ) as mock_parse_json:
+            mock_parse_json.side_effect = ValueError('Invalid JSON format')
+
+            result = await get_rds_recommendations(
+                mock_context, mock_co_client, 10, '{"invalid": json}', None, None
+            )
+
+            assert result['status'] == 'error'
+            assert result['data']['error_type'] == 'validation_error'
+            assert 'Invalid parameters for RDS recommendations' in result['message']
+            assert 'Invalid JSON format' in result['message']
+
+    async def test_rds_recommendations_success_with_data(self, mock_context):
+        """Test RDS recommendations success case to cover count logging - covers recommendation_count logic."""
+        mock_co_client = MagicMock()
+
+        # Mock successful response with recommendations
+        mock_co_client.get_rds_instance_recommendations.return_value = {
+            'instanceRecommendations': [
+                {
+                    'instanceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
+                    'instanceName': 'test-db',
+                    'accountId': '123456789012',
+                    'currentInstanceClass': 'db.r5.large',
+                    'finding': 'OVER_PROVISIONED',
+                    'lastRefreshTimestamp': None,
+                    'recommendationOptions': [
+                        {
+                            'instanceClass': 'db.r5.medium',
+                            'performanceRisk': 'LOW',
+                            'savingsOpportunity': {
+                                'savingsPercentage': 35.0,
+                                'estimatedMonthlySavings': {
+                                    'currency': 'USD',
+                                    'value': 25.80,
+                                },
+                            },
+                        }
+                    ],
+                }
+            ],
+            'nextToken': None,
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.debug = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger_instance.error = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_rds_recommendations(
+                mock_context, mock_co_client, 10, None, None, None
+            )
+
+            assert result['status'] == 'success'
+            assert len(result['data']['recommendations']) == 1
+
+            # Should log the count of recommendations retrieved
+            mock_logger_instance.info.assert_any_call('Retrieved 1 RDS instance recommendations')

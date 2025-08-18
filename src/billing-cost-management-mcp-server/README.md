@@ -57,27 +57,27 @@ The AWS Billing and Cost Management MCP Server provides several benefits:
 The server currently supports the following AWS services:
 
 1. **Cost Optimization Hub**
-   - get_recommendation
-   - list_recommendations
-   - list_recommendation_summaries
+   - get-recommendation
+   - list-recommendations
+   - list-recommendation-summaries
 
 2. **Compute Optimizer**
-   - get_auto_scaling_group_recommendations
-   - get_ebs_volume_recommendations
-   - get_ec2_instance_recommendations
-   - get_ecs_service_recommendations
-   - get_rds_database_recommendations
-   - get_lambda_function_recommendations
-   - get_idle_recommendations
-   - get_effective_recommendation_preferences
+   - get-auto-scaling-group-recommendations
+   - get-ebs-volume-recommendations
+   - get-ec2-instance-recommendations
+   - get-ecs-service-recommendations
+   - get-rds-database-recommendations
+   - get-lambda-function-recommendations
+   - get-idle-recommendations
+   - get-effective-recommendation-preferences
 
 3. **Cost Explorer**
-   - get_reservation_purchase_recommendation
-   - get_savings_plans_purchase_recommendation
-   - get_cost_and_usage
+   - get-reservation-purchase-recommendation
+   - get-savings-plans-purchase-recommendation
+   - get-cost-and-usage
 
 4. **S3 Storage Lens**
-   - storage_lens_run_query (custom implementation using Athena)
+   - storage-lens-run-query (custom implementation using Athena)
 
 ## Usage
 To connect to your account using this MCP server, configure AWS credentials using standard AWS methods (environment variables, config files, IAM roles, etc.)
@@ -135,7 +135,7 @@ async def main():
     client = Client("path/to/awslabs/billing_cost_management_mcp_server/server.py")
     async with client:
         # Call a tool
-        result = await client.call_tool("cost_explorer_get_cost_and_usage", {
+        result = await client.call_tool("cost-explorer", {
             "params": {
                 "TimePeriod": {
                     "Start": "2023-01-01",

@@ -83,37 +83,37 @@ When using these tools, always:
 Available components:
 
 TOOLS:
-- cost_explorer: Historical cost and usage data with flexible filtering
-- compute_optimizer: Recommendations for AWS compute resources like EC2, Lambda, ASG
-- cost_optimization_hub: Cost optimization recommendations across AWS services
-- storage_lens_run_query: Query S3 Storage Lens metrics data using Athena SQL
-- athena_cur: Query Cost and Usage Report data through Athena
+- cost-explorer: Historical cost and usage data with flexible filtering
+- compute-optimizer: Recommendations for AWS compute resources like EC2, Lambda, ASG
+- cost-optimization-hub: Cost optimization recommendations across AWS services
+- storage-lens-run-query: Query S3 Storage Lens metrics data using Athena SQL
+- athena-cur: Query Cost and Usage Report data through Athena
 - pricing: Access AWS service pricing information
 - budget: Retrieve AWS budget information
-- cost_anomaly: Identify cost anomalies in AWS accounts
-- cost_comparison: Compare costs between time periods
-- free_tier_usage: Monitor AWS Free Tier usage
-- get_recommendation_details: Get enhanced cost optimization recommendations
-- ri_performance: Analyze Reserved Instance coverage and utilization
-- sp_performance: Analyze Savings Plans coverage and utilization
-- session_sql: Execute SQL queries on the session database
+- cost-anomaly: Identify cost anomalies in AWS accounts
+- cost-comparison: Compare costs between time periods
+- free-tier-usage: Monitor AWS Free Tier usage
+- get-recommendation-details: Get enhanced cost optimization recommendations
+- ri-performance: Analyze Reserved Instance coverage and utilization
+- sp-performance: Analyze Savings Plans coverage and utilization
+- session-sql: Execute SQL queries on the session database
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
 - graviton_migration: Analyzes EC2 instances and identifies opportunities to migrate to AWS Graviton processors
 
 For financial analysis:
-1. Start with a high-level view of costs using cost_explorer with SERVICE dimension
-2. Look for cost optimization opportunities with compute_optimizer or cost_optimization_hub
-3. For S3-specific optimizations, use storage_lens_run_query
+1. Start with a high-level view of costs using cost-explorer with SERVICE dimension
+2. Look for cost optimization opportunities with compute-optimizer or cost-optimization-hub
+3. For S3-specific optimizations, use storage-lens-run-query
 4. For budget monitoring, use the budget tool
-5. For anomaly detection, use the cost_anomaly tool
+5. For anomaly detection, use the cost-anomaly tool
 
 For cost optimization recommendations:
-1. Use cost_optimization_hub to get broad recommendations across services
-2. Use compute_optimizer for compute-specific recommendations
-3. Use get_recommendation_details for enhanced recommendation analysis
-4. Use ri_performance and sp_performance to analyze purchase programs
+1. Use cost-optimization-hub to get broad recommendations across services
+2. Use compute-optimizer for compute-specific recommendations
+3. Use get-recommendation-details for enhanced recommendation analysis
+4. Use ri-performance and sp-performance to analyze purchase programs
 
 For multi-account environments:
 - Include the LINKED_ACCOUNT dimension in cost_explorer queries
@@ -160,19 +160,19 @@ async def setup():
     # Log available tools
     logger.info('Available tools:')
     tools = [
-        'cost_explorer',
-        'compute_optimizer',
-        'cost_optimization_hub',
-        'storage_lens_run_query',
+        'cost-explorer',
+        'compute-optimizer',
+        'cost-optimization-hub',
+        'storage-lens-run-query',
         'pricing',
         'budget',
-        'cost_anomaly',
-        'cost_comparison',
-        'free_tier_usage',
-        'get_recommendation_details',
-        'ri_performance',
-        'sp_performance',
-        'session_sql',
+        'cost-anomaly',
+        'cost-comparison',
+        'free-tier-usage',
+        'get-recommendation-details',
+        'ri-performance',
+        'sp-performance',
+        'session-sql',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

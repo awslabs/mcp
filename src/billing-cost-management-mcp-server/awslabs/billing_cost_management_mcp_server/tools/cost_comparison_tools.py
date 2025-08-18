@@ -33,7 +33,7 @@ cost_comparison_server = FastMCP(
 
 
 @cost_comparison_server.tool(
-    name='cost_comparison',
+    name='cost-comparison',
     description="""Retrieves AWS cost comparisons between two one-month periods.
 
 Do not use this tool except for comparing the costs of one month to the costs of another month. This tool should not be used for week-over-week or quarter-over-quarter (e.g., comparing Q2 vs. Q1) analysis.

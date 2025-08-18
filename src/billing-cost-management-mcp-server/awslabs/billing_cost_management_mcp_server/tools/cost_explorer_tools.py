@@ -39,7 +39,7 @@ cost_explorer_server = FastMCP(
 
 
 @cost_explorer_server.tool(
-    name='cost_explorer',
+    name='cost-explorer',
     description="""Retrieves AWS cost and usage data using the Cost Explorer API.
 
 IMPORTANT USAGE GUIDELINES:

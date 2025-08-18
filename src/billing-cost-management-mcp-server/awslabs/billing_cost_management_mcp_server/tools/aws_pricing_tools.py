@@ -36,7 +36,7 @@ aws_pricing_server = FastMCP(
 
 
 @aws_pricing_server.tool(
-    name='aws_pricing',
+    name='aws-pricing',
     description="""Comprehensive AWS pricing analysis tool that provides access to AWS service pricing information and cost analysis capabilities.
 
 This tool supports four main operations:

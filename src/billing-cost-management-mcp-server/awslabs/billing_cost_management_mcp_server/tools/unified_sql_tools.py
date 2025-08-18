@@ -34,7 +34,7 @@ unified_sql_server = FastMCP(
 
 
 @unified_sql_server.tool(
-    name='session_sql',
+    name='session-sql',
     description="""Execute SQL queries on the persistent session database.
 
 This tool queries tables created by other tools (like cost_explorer_sql) within the current session.

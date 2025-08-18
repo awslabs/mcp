@@ -752,3 +752,400 @@ def test_sp_performance_server_initialization():
         'Tools for working with AWS Savings Plans Performance'
         in sp_performance_server.instructions
     )
+
+
+@pytest.fixture
+def mock_context_async():
+    """Create a proper async mock context."""
+    context = MagicMock()
+    context.info = AsyncMock()
+    context.error = AsyncMock()
+    context.warning = AsyncMock()
+    return context
+
+
+@pytest.mark.asyncio
+class TestCoverageGaps:
+    """Tests targeting specific uncovered lines."""
+
+    async def test_sp_performance_unsupported_operation(self, mock_context_async):
+        """Test sp_performance with unsupported operation - covers error path."""
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.create_aws_client'
+        ):
+            result = await sp_performance(mock_context_async, operation='unsupported_operation')
+
+            assert result['status'] == 'error'
+            assert 'Unsupported operation' in result['message']
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_empty_data(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization with empty data - covers lines 250-253."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+        mock_paginate.return_value = ([], {'NextToken': None})  # Empty data
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_savings_plans_utilization(
+                mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', 'DAILY', None
+            )
+
+            assert result['status'] == 'success'
+            assert result['data']['savings_plans_utilizations'] == []
+            assert 'No Savings Plans utilization data found' in result['data']['message']
+            mock_logger_instance.warning.assert_called_once()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_malformed_data(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization with malformed data - covers monetary parsing edge cases."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+
+        # Malformed utilization data that tests edge cases
+        malformed_data = [
+            {
+                'TimePeriod': {},  # Empty time period - covers line 290
+                'TotalCommitment': None,  # None value - covers lines 273-281
+                'UsedCommitment': {'Amount': 'invalid'},  # Invalid amount, missing Unit
+                'UnusedCommitment': {},  # Empty dict
+                'UtilizationPercentage': 'not_a_number',  # Invalid percentage - covers lines 299-300
+                'SavingsPlansCount': None,  # None count
+            }
+        ]
+
+        mock_paginate.return_value = (malformed_data, {'NextToken': None})
+        mock_ce_client.get_savings_plans_utilization.return_value = {
+            'Total': None  # No total data
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_savings_plans_utilization(
+                mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', 'DAILY', None
+            )
+
+            assert result['status'] == 'success'
+            utilization = result['data']['savings_plans_utilizations'][0]
+
+            # Check default values are applied for malformed data
+            assert utilization['total_commitment']['amount'] == 0.0
+            assert utilization['used_commitment']['amount'] == 0.0
+            assert utilization['unused_commitment']['amount'] == 0.0
+            assert utilization['utilization_percentage'] == 0.0
+            assert utilization['time_period'] == {'Start': '2023-01-01', 'End': '2023-01-31'}
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_total_error(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization when getting total data fails - covers lines 334-342."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+
+        utilization_data = [
+            {
+                'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'},
+                'TotalCommitment': {'Amount': '100.0', 'Unit': 'USD'},
+                'UsedCommitment': {'Amount': '95.0', 'Unit': 'USD'},
+                'UnusedCommitment': {'Amount': '5.0', 'Unit': 'USD'},
+                'UtilizationPercentage': '95.0',
+                'SavingsPlansCount': 1,
+            }
+        ]
+
+        mock_paginate.return_value = (utilization_data, {'NextToken': None})
+        mock_ce_client.get_savings_plans_utilization.side_effect = Exception('API Error')
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_savings_plans_utilization(
+                mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', 'DAILY', None
+            )
+
+            assert result['status'] == 'success'
+            # Should have estimated total based on individual data - covers lines 351, 355-356
+            assert 'total' in result['data']
+            assert result['data']['total']['utilization_percentage'] == 95.0
+            mock_logger_instance.warning.assert_called_once()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_details_empty_data(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization details with empty data - covers lines 447-450."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+        mock_paginate.return_value = ([], {'NextToken': None})  # Empty data
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_savings_plans_utilization_details(
+                mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', None, None
+            )
+
+            assert result['status'] == 'success'
+            assert result['data']['savings_plans_utilization_details'] == []
+            assert result['data']['total_count'] == 0
+            assert 'No Savings Plans utilization details found' in result['data']['message']
+            mock_logger_instance.warning.assert_called_once()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_details_malformed_data(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization details with malformed data - covers monetary parsing lines."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+
+        # Malformed details data
+        malformed_details = [
+            {
+                'SavingsPlanArn': 'arn:aws:savingsplans:us-east-1:123456789012:savingsplan/sp-test',
+                'Attributes': None,  # None attributes - covers line 523
+                'TotalCommitment': {},  # Empty monetary value
+                'UsedCommitment': {'Amount': None, 'Unit': 'USD'},  # None amount
+                'UnusedCommitment': {'Amount': '5.0'},  # Missing unit
+                'UtilizationPercentage': 'invalid',  # Invalid percentage
+                'NetSavings': None,
+                'OnDemandCostEquivalent': {'Amount': 'not_a_number', 'Unit': 'USD'},
+                'AmortizedUpfrontFee': {'Unit': 'USD'},  # Missing amount
+                'RecurringCommitment': {'Amount': '95.0', 'Unit': 'USD'},
+            }
+        ]
+
+        mock_paginate.return_value = (malformed_details, {'NextToken': None})
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_savings_plans_utilization_details(
+                mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', None, None
+            )
+
+            assert result['status'] == 'success'
+            detail = result['data']['savings_plans_utilization_details'][0]
+
+            # Check default values are applied
+            assert detail['utilization']['utilization_percentage'] == 0.0
+            assert detail['utilization']['total_commitment']['amount'] == 0.0
+            assert detail['savings']['net_savings']['amount'] == 0.0
+            # Attributes stays None when input is None (code doesn't convert it)
+            assert detail['attributes'] is None
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_details_with_valid_attributes(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization details with valid attributes - covers attribute parsing lines."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+
+        # Details with valid attributes
+        details_data = [
+            {
+                'SavingsPlanArn': 'arn1',
+                'Attributes': {
+                    'region': 'us-east-1',
+                    'instanceFamily': 'm5',
+                    'savingsPlanType': 'EC2InstanceSavingsPlans',
+                },
+                'TotalCommitment': {'Amount': '100.0', 'Unit': 'USD'},
+                'UsedCommitment': {'Amount': '95.0', 'Unit': 'USD'},
+                'UnusedCommitment': {'Amount': '5.0', 'Unit': 'USD'},
+                'UtilizationPercentage': '95.0',
+                'NetSavings': {'Amount': '10.0', 'Unit': 'USD'},
+                'OnDemandCostEquivalent': {'Amount': '110.0', 'Unit': 'USD'},
+                'AmortizedUpfrontFee': {'Amount': '1.0', 'Unit': 'USD'},
+                'RecurringCommitment': {'Amount': '94.0', 'Unit': 'USD'},
+            }
+        ]
+
+        mock_paginate.return_value = (details_data, {'NextToken': None})
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_savings_plans_utilization_details(
+                mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', None, None
+            )
+
+            assert result['status'] == 'success'
+            detail = result['data']['savings_plans_utilization_details'][0]
+
+            # Check that summary is added when attributes are present
+            assert 'summary' in detail
+            assert detail['summary']['region'] == 'us-east-1'
+            assert detail['summary']['instance_family'] == 'm5'
+            assert detail['summary']['savings_plan_type'] == 'EC2InstanceSavingsPlans'
+
+            # Check that summary stats are calculated
+            assert result['data']['average_utilization_percentage'] == 95.0
+            assert result['data']['total_savings_plans'] == 1
+            assert result['data']['fully_utilized_plans'] == 1  # 95% >= 95%
+            assert result['data']['under_utilized_plans'] == 0  # 95% >= 80%
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_details_summary_stats_error(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization details when summary stats calculation fails - covers lines 566-567."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+
+        # Create details data that will cause a division by zero or other calculation error
+        # by making the list access fail in some way
+        details_data = [
+            {
+                'SavingsPlanArn': 'arn1',
+                'Attributes': {'region': 'us-east-1'},
+                'TotalCommitment': {'Amount': '100.0', 'Unit': 'USD'},
+                'UsedCommitment': {'Amount': '95.0', 'Unit': 'USD'},
+                'UnusedCommitment': {'Amount': '5.0', 'Unit': 'USD'},
+                'UtilizationPercentage': '95.0',
+                'NetSavings': {'Amount': '10.0', 'Unit': 'USD'},
+                'OnDemandCostEquivalent': {'Amount': '110.0', 'Unit': 'USD'},
+                'AmortizedUpfrontFee': {'Amount': '1.0', 'Unit': 'USD'},
+                'RecurringCommitment': {'Amount': '94.0', 'Unit': 'USD'},
+            }
+        ]
+
+        mock_paginate.return_value = (details_data, {'NextToken': None})
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            # Mock the calculation to raise an exception
+            with patch('builtins.sum', side_effect=Exception('Calculation error')):
+                result = await get_savings_plans_utilization_details(
+                    mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', None, None
+                )
+
+                assert result['status'] == 'success'
+                # Summary stats should not be present due to calculation error
+                assert 'average_utilization_percentage' not in result['data']
+                mock_logger_instance.warning.assert_called_once()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+    )
+    async def test_savings_plans_utilization_total_with_none_value(
+        self, mock_paginate, mock_get_date_range, mock_context_async
+    ):
+        """Test utilization when total data has None values - covers lines 365-379."""
+        mock_ce_client = MagicMock()
+
+        mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+
+        utilization_data = [
+            {
+                'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'},
+                'TotalCommitment': {'Amount': '100.0', 'Unit': 'USD'},
+                'UsedCommitment': {'Amount': '95.0', 'Unit': 'USD'},
+                'UnusedCommitment': {'Amount': '5.0', 'Unit': 'USD'},
+                'UtilizationPercentage': '95.0',
+                'SavingsPlansCount': 1,
+            }
+        ]
+
+        mock_paginate.return_value = (utilization_data, {'NextToken': None})
+
+        # Return total data but with None values to test the edge case handling
+        mock_ce_client.get_savings_plans_utilization.return_value = {
+            'Total': {
+                'TotalCommitment': None,  # None total commitment
+                'UsedCommitment': {'Amount': None, 'Unit': 'USD'},  # None amount
+                'UnusedCommitment': {},  # Empty dict
+                'UtilizationPercentage': None,  # None percentage
+            }
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
+        ) as mock_logger:
+            mock_logger_instance = MagicMock()
+            mock_logger_instance.info = AsyncMock()
+            mock_logger_instance.warning = AsyncMock()
+            mock_logger.return_value = mock_logger_instance
+
+            result = await get_savings_plans_utilization(
+                mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', 'DAILY', None
+            )
+
+            assert result['status'] == 'success'
+            # Should have total with default values
+            assert 'total' in result['data']
+            assert result['data']['total']['utilization_percentage'] == 0.0
+            assert result['data']['total']['total_commitment']['amount'] == 0.0

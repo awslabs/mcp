@@ -36,7 +36,7 @@ cost_anomaly_server = FastMCP(
 
 
 @cost_anomaly_server.tool(
-    name='cost_anomaly',
+    name='cost-anomaly',
     description="""Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API.
 
 This tool allows you to retrieve cost anomalies detected on your AWS account during a specified time period.

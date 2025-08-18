@@ -733,7 +733,7 @@ async def test_cost_explorer_main_function():
 
     # Check that the cost_explorer tool was imported correctly
     assert hasattr(ce_tool, 'name'), 'The imported cost_explorer tool should have a name attribute'
-    assert ce_tool.name == 'cost_explorer', (
+    assert ce_tool.name == 'cost-explorer', (
         'The imported cost_explorer tool should have the right name'
     )
 
