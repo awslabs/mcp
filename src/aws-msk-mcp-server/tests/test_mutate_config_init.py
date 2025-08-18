@@ -40,7 +40,7 @@ class TestMutateConfigInit:
         # Verify that the expected tools were registered (check call names)
         call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
         assert 'create_configuration' in call_names
-        assert 'update_configuration' in call_names  
+        assert 'update_configuration' in call_names
         assert 'tag_resource' in call_names
         assert 'untag_resource' in call_names
 

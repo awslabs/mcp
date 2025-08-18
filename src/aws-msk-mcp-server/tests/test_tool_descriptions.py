@@ -14,11 +14,9 @@
 
 """Tests to ensure all MCP tools have descriptions."""
 
-from unittest.mock import MagicMock
-
 from awslabs.aws_msk_mcp_server.tools import (
     logs_and_telemetry,
-    mutate_cluster, 
+    mutate_cluster,
     mutate_config,
     mutate_vpc,
     read_cluster,
@@ -27,6 +25,7 @@ from awslabs.aws_msk_mcp_server.tools import (
     read_vpc,
     static_tools,
 )
+from unittest.mock import MagicMock
 
 
 class TestToolDescriptions:
@@ -46,30 +45,30 @@ class TestToolDescriptions:
             read_vpc,
             static_tools,
         ]
-        
+
         tools_without_descriptions = []
         tools_with_descriptions = []
-        
+
         for module in modules_to_test:
             module_name = module.__name__.split('.')[-1]
-            
+
             # Create a mock MCP instance to capture tool calls
             mock_mcp = MagicMock()
-            
+
             # Register the module's tools
             module.register_module(mock_mcp)
-            
+
             # Check each tool decorator call
             for call in mock_mcp.tool.call_args_list:
                 tool_name = call.kwargs.get('name')
                 tool_description = call.kwargs.get('description')
-                
+
                 if tool_name:
                     if tool_description and tool_description.strip():
                         tools_with_descriptions.append(f"{module_name}.{tool_name}")
                     else:
                         tools_without_descriptions.append(f"{module_name}.{tool_name}")
-        
+
         # Assert that all tools have descriptions
         if tools_without_descriptions:
             missing_tools_message = '\n'.join(
@@ -80,12 +79,12 @@ class TestToolDescriptions:
                 f"All MCP tools must have a 'description' parameter in their @mcp.tool decorator. "
                 f"This description helps Claude/q understand the tool's purpose."
             )
-        
+
         # Verify we found some tools (sanity check)
         assert len(tools_with_descriptions) > 0, (
             "No tools with descriptions were found. This indicates a problem with the test."
         )
-        
+
         print(f"✅ All {len(tools_with_descriptions)} tools have descriptions:")
         for tool in sorted(tools_with_descriptions):
             print(f"  - {tool}")
@@ -103,23 +102,23 @@ class TestToolDescriptions:
             read_vpc,
             static_tools,
         ]
-        
+
         tools_with_poor_descriptions = []
-        
+
         for module in modules_to_test:
             module_name = module.__name__.split('.')[-1]
-            
+
             # Create a mock MCP instance to capture tool calls
             mock_mcp = MagicMock()
-            
+
             # Register the module's tools
             module.register_module(mock_mcp)
-            
+
             # Check each tool decorator call
             for call in mock_mcp.tool.call_args_list:
                 tool_name = call.kwargs.get('name')
                 tool_description = call.kwargs.get('description')
-                
+
                 if tool_name and tool_description:
                     # Check if description is meaningful (more than 10 characters, contains actual words)
                     if (
@@ -129,7 +128,7 @@ class TestToolDescriptions:
                         tools_with_poor_descriptions.append(
                             f"{module_name}.{tool_name}: '{tool_description}'"
                         )
-        
+
         # Assert that all descriptions are meaningful
         if tools_with_poor_descriptions:
             poor_descriptions_message = '\n'.join(
