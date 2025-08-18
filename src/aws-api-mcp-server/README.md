@@ -18,6 +18,10 @@ This MCP server is meant for testing, development, and evaluation purposes.
 
 ## 📦 Installation Methods
 
+> [!IMPORTANT]
+> Getting server timeouts? Add `"timeout": 60` (or `60000`, depending on your client) to your MCP client config file.
+> The server startup time varies based on your system's performance, and default timeouts may be too short.
+
 Choose the installation method that best fits your workflow and get started with your favorite assistant with MCP support, like Q CLI, Cursor or Cline.
 
 | Cursor | VS Code |
@@ -94,6 +98,31 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
       },
       "disabled": false,
       "autoApprove": []
+    }
+  }
+}
+```
+
+### 🐳 Using Docker
+
+You can isolate the MCP server by running it in a Docker container. The Docker image is available on the [public AWS ECR registry](https://gallery.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server).
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "AWS_REGION=us-east-1",
+        "--volume",
+        "/full/path/to/.aws:/app/.aws",
+        "public.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server:latest"
+      ],
+      "env": {}
     }
   }
 }
