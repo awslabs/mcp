@@ -34,13 +34,13 @@ async def cost_optimization_hub(ctx, operation, **kwargs):
         format_response,
     )
 
-    if operation == 'get_recommendation_summaries':
+    if operation == 'list_recommendation_summaries':
         # Check for required group_by parameter
         if 'group_by' not in kwargs or not kwargs['group_by']:
             return format_response(
                 'error',
                 {},
-                'group_by parameter is required for get_recommendation_summaries operation',
+                'group_by parameter is required for list_recommendation_summaries operation',
             )
 
         return {
