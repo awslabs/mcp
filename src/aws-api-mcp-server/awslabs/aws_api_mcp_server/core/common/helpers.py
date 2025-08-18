@@ -16,6 +16,7 @@ import json
 import os
 import re
 import requests
+import shutil
 import tempfile
 import time
 import zipfile
@@ -97,5 +98,11 @@ def download_embedding_model(model_name: str):
         logger.debug(
             'Extracting embedding model from {} to {}', zip_path, os.path.abspath(extract_dir)
         )
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_dir)
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+        except Exception as e:
+            logger.error('Failed to extract embedding model: {}', str(e))
+            if os.path.exists(extract_dir):
+                shutil.rmtree(extract_dir)
+            raise
