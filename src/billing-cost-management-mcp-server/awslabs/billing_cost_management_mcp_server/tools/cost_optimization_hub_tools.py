@@ -28,7 +28,6 @@ from ..utilities.constants import (
     OPERATION_GET_RECOMMENDATION,
     OPERATION_LIST_RECOMMENDATION_SUMMARIES,
     OPERATION_LIST_RECOMMENDATIONS,
-    REGION_US_EAST_1,
 )
 from .cost_optimization_hub_helpers import (
     get_recommendation,
@@ -110,7 +109,7 @@ async def cost_optimization_hub(
 
         # Initialize Cost Optimization Hub client using shared utility
         # Note: Cost Optimization Hub is only available in us-east-1 region
-        coh_client = create_aws_client('cost-optimization-hub', REGION_US_EAST_1)
+        coh_client = create_aws_client('cost-optimization-hub', region_name='us-east-1')
         await ctx.info('Created Cost Optimization Hub client in region us-east-1')
 
         # Validate operation-specific requirements

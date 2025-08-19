@@ -20,27 +20,9 @@ These functions handle the specific operations for the Cost Optimization Hub too
 from ..utilities.aws_service_base import format_response
 from ..utilities.logging_utils import get_context_logger
 from botocore.exceptions import ClientError
+from datetime import datetime
 from fastmcp import Context
 from typing import Any, Dict, Optional
-
-
-def format_currency_amount(amount: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Format currency amount for better readability.
-
-    Args:
-        amount: Currency amount from Cost Optimization Hub API
-
-    Returns:
-        Formatted currency amount dictionary
-    """
-    if not amount:
-        return None
-
-    return {
-        'amount': amount.get('amount'),
-        'currency': amount.get('currency'),
-        'formatted': f'{amount.get("amount")} {amount.get("currency")}',
-    }
 
 
 def format_timestamp(timestamp: Any) -> Optional[str]:
@@ -55,7 +37,15 @@ def format_timestamp(timestamp: Any) -> Optional[str]:
     if not timestamp:
         return None
 
-    return timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+    try:
+        # Check if it's already a datetime object
+        if isinstance(timestamp, datetime):
+            return timestamp.isoformat()
+        else:
+            # Assume it's a Unix timestamp in milliseconds
+            return datetime.fromtimestamp(timestamp / 1000).isoformat()
+    except Exception as e:
+        return str(f'Error: {e}, Timestamp: {timestamp}')
 
 
 async def list_recommendations(
@@ -86,45 +76,8 @@ async def list_recommendations(
             'includeAllRecommendations': bool(include_all_recommendations or False)
         }
 
-        # For pagination, we'll use a reasonable page size to fetch data in chunks
-        # The actual max_results parameter is used to limit the total results returned
-        page_size = min(100, max_results if max_results else 100)
-        request_params['maxResults'] = page_size
-
         if filters:
             request_params['filter'] = dict(filters)
-
-        # Check if Cost Optimization Hub is enabled
-        try:
-            # Make a test call to check if the service is available
-            await ctx_logger.info('Checking Cost Optimization Hub service status')
-            service_status = coh_client.get_enrollment_status()
-            enrollment_status = service_status.get('status', 'UNKNOWN')
-
-            if enrollment_status != 'ENROLLED':
-                await ctx_logger.warning(
-                    f'Cost Optimization Hub is not enrolled. Status: {enrollment_status}'
-                )
-                return format_response(
-                    'warning',
-                    {
-                        'enrollment_status': enrollment_status,
-                        'recommendations': [],
-                        'message': 'Cost Optimization Hub is not enrolled for this account.',
-                    },
-                    'Cost Optimization Hub is not enrolled. Please enroll in the AWS Console first.',
-                )
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'AccessDeniedException':
-                await ctx_logger.warning(
-                    'Access denied when checking Cost Optimization Hub enrollment status'
-                )
-            else:
-                # For other client errors, continue - the service might still work
-                await ctx_logger.warning(f"Couldn't check enrollment status: {str(e)}")
-        except Exception as e:
-            # Non-ClientError exceptions when checking enrollment - log but continue
-            await ctx_logger.warning(f'Error checking enrollment status: {str(e)}')
 
         # Initialize collection for all recommendations across pages
         all_recommendations = []
@@ -137,6 +90,15 @@ async def list_recommendations(
             if current_token:
                 request_params['nextToken'] = current_token
 
+            # Add max_results for this page
+            if max_results:
+                remaining_results = max_results - len(all_recommendations)
+                if remaining_results <= 0:
+                    break
+                request_params['maxResults'] = min(100, remaining_results)
+            else:
+                request_params['maxResults'] = 100
+
             # Make the API call for this page
             page_count += 1
             await ctx_logger.info(
@@ -145,7 +107,7 @@ async def list_recommendations(
             response = coh_client.list_recommendations(**request_params)
 
             # Process this page of recommendations
-            recommendations = response.get('recommendations', [])
+            recommendations = response.get('items', [])
             await ctx_logger.info(
                 f'Retrieved {len(recommendations)} recommendations on page {page_count}'
             )
@@ -167,11 +129,6 @@ async def list_recommendations(
             if not current_token:
                 break
 
-            # Log that we're continuing to next page
-            await ctx_logger.info(
-                f'Moving to page {page_count + 1} with token: {current_token[:10]}... (truncated)'
-            )
-
         # Format all collected recommendations
         formatted_recommendations = []
 
@@ -186,42 +143,37 @@ async def list_recommendations(
                 'success',
                 {
                     'recommendations': [],
-                    'page_count': page_count,
-                    'message': 'No recommendations found. This could be because there are no optimization opportunities, or because Cost Optimization Hub has not yet generated recommendations.',
                 },
             )
 
         # Process all recommendations
-        for rec in all_recommendations:
-            formatted_rec = {
-                'resource_id': rec.get('resourceId'),
-                'resource_type': rec.get('resourceType'),
-                'account_id': rec.get('accountId'),
-                'estimated_monthly_savings': format_currency_amount(
-                    rec.get('estimatedMonthlySavings')
-                ),
-                'status': rec.get('status'),
-                'last_refresh_timestamp': format_timestamp(rec.get('lastRefreshTimestamp')),
-                'recommendation_id': rec.get('recommendationId'),
+        for item in all_recommendations:
+            recommendation = {
+                'recommendation_id': item.get('recommendationId'),
+                'account_id': item.get('accountId'),
+                'region': item.get('region'),
+                'resource_id': item.get('resourceId'),
+                'resource_arn': item.get('resourceArn'),
+                'action_type': item.get('actionType'),
+                'current_resource_type': item.get('currentResourceType'),
+                'recommended_resource_type': item.get('recommendedResourceType'),
+                'current_resource_summary': item.get('currentResourceSummary'),
+                'recommended_resource_summary': item.get('recommendedResourceSummary'),
+                'estimated_monthly_savings': item.get('estimatedMonthlySavings'),
+                'estimated_savings_percentage': item.get('estimatedSavingsPercentage'),
+                'estimated_monthly_cost': item.get('estimatedMonthlyCost'),
+                'currency_code': item.get('currencyCode'),
+                'implementation_effort': item.get('implementationEffort'),
+                'last_refresh_timestamp': format_timestamp(item.get('lastRefreshTimestamp')),
+                'lookback_period_in_days': item.get('recommendationLookbackPeriodInDays'),
             }
+            formatted_recommendations.append(recommendation)
 
-            # Add source if present
-            if 'source' in rec:
-                formatted_rec['source'] = rec.get('source')
-
-            # Add lookback period if present
-            if 'lookbackPeriodInDays' in rec:
-                formatted_rec['lookback_period_in_days'] = rec.get('lookbackPeriodInDays')
-
-            formatted_recommendations.append(formatted_rec)
-
-        # Return formatted response with pagination information
+        # Return formatted response
         return format_response(
             'success',
             {
                 'recommendations': formatted_recommendations,
-                'page_count': page_count,
-                'total_recommendations': len(formatted_recommendations),
             },
         )
 
@@ -268,8 +220,8 @@ async def get_recommendation(
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        resource_id: Resource ID
-        resource_type: Resource type
+        resource_id: Recommendation ID to retrieve
+        resource_type: Resource type (for compatibility, not used in API call)
 
     Returns:
         Dict containing detailed recommendation information
@@ -279,16 +231,14 @@ async def get_recommendation(
 
     try:
         # Prepare the request parameters
-        request_params = {'resourceId': resource_id, 'resourceType': resource_type}
+        request_params = {'recommendationId': resource_id}
 
         # Make the API call
-        await ctx_logger.info(
-            f'Fetching recommendation for resource {resource_id} of type {resource_type}'
-        )
+        await ctx_logger.info(f'Fetching recommendation {resource_id}')
         response = coh_client.get_recommendation(**request_params)
 
-        # Format the recommendation for better readability
-        recommendation = response.get('recommendation', {})
+        # The response IS the recommendation data
+        recommendation = response
 
         if not recommendation:
             await ctx_logger.warning(
@@ -304,67 +254,39 @@ async def get_recommendation(
                 'No recommendation found. The resource may not have optimization opportunities, or the resource ID/type may be incorrect.',
             )
 
+        # Build response using actual API fields
         formatted_response = {
-            'resource_id': recommendation.get('resourceId'),
-            'resource_type': recommendation.get('resourceType'),
-            'account_id': recommendation.get('accountId'),
-            'estimated_monthly_savings': format_currency_amount(
-                recommendation.get('estimatedMonthlySavings')
-            ),
-            'status': recommendation.get('status'),
-            'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
             'recommendation_id': recommendation.get('recommendationId'),
+            'account_id': recommendation.get('accountId'),
+            'resource_id': recommendation.get('resourceId'),
+            'resource_arn': recommendation.get('resourceArn'),
+            'current_resource_type': recommendation.get('currentResourceType'),
+            'recommended_resource_type': recommendation.get('recommendedResourceType'),
+            'region': recommendation.get('region'),
+            'action_type': recommendation.get('actionType'),
+            'estimated_monthly_savings': recommendation.get('estimatedMonthlySavings'),
+            'estimated_savings_percentage': recommendation.get('estimatedSavingsPercentage'),
+            'estimated_monthly_cost': recommendation.get('estimatedMonthlyCost'),
+            'currency_code': recommendation.get('currencyCode'),
+            'implementation_effort': recommendation.get('implementationEffort'),
+            'source': recommendation.get('source'),
+            'last_refresh_timestamp': str(recommendation.get('lastRefreshTimestamp')),
+            'lookback_period_in_days': recommendation.get('recommendationLookbackPeriodInDays'),
+            'cost_calculation_lookback_period_in_days': recommendation.get(
+                'costCalculationLookbackPeriodInDays'
+            ),
+            'restart_needed': recommendation.get('restartNeeded'),
+            'rollback_possible': recommendation.get('rollbackPossible'),
         }
 
-        # Add source if present
-        if 'source' in recommendation:
-            formatted_response['source'] = recommendation.get('source')
-
-        # Add lookback period if present
-        if 'lookbackPeriodInDays' in recommendation:
-            formatted_response['lookback_period_in_days'] = recommendation.get(
-                'lookbackPeriodInDays'
+        # Add complex nested fields if they exist
+        if 'recommendedResourceDetails' in recommendation:
+            formatted_response['recommended_resource_details'] = recommendation.get(
+                'recommendedResourceDetails'
             )
 
-        # Add current resource details
-        current_resource = recommendation.get('currentResource', {})
-        formatted_response['current_resource'] = {
-            'resource_details': current_resource.get('resourceDetails', {})
-        }
-
-        # Add recommended resource details
-        recommended_resources = []
-        for recommended in recommendation.get('recommendedResources', []):
-            recommended_resource = {
-                'resource_details': recommended.get('resourceDetails', {}),
-                'estimated_monthly_savings': format_currency_amount(
-                    recommended.get('estimatedMonthlySavings')
-                ),
-            }
-
-            # Add cost breakdown if present
-            if 'costBreakdown' in recommended:
-                cost_breakdown = []
-                for breakdown in recommended.get('costBreakdown', []):
-                    cost_breakdown.append(
-                        {
-                            'description': breakdown.get('description'),
-                            'amount': format_currency_amount(breakdown.get('amount')),
-                        }
-                    )
-                recommended_resource['cost_breakdown'] = cost_breakdown
-
-            recommended_resources.append(recommended_resource)
-
-        formatted_response['recommended_resources'] = recommended_resources
-
-        # Add implementation steps if present
-        if 'implementationEffort' in recommendation:
-            implementation = recommendation.get('implementationEffort', {})
-            formatted_response['implementation_effort'] = {
-                'effort_level': implementation.get('effortLevel'),
-                'required_actions': implementation.get('requiredActions', []),
-            }
+        if 'tags' in recommendation:
+            formatted_response['tags'] = recommendation.get('tags')
 
         # Return formatted response
         return format_response('success', formatted_response)
@@ -435,11 +357,6 @@ async def list_recommendation_summaries(
         # Prepare the request parameters
         request_params: Dict[str, Any] = {'groupBy': str(group_by)}
 
-        # For pagination, we'll use a reasonable page size to fetch data in chunks
-        # The actual max_results parameter is used to limit the total results returned
-        page_size = min(100, max_results if max_results else 100)
-        request_params['maxResults'] = page_size
-
         if filters:
             request_params['filter'] = dict(filters)
 
@@ -447,12 +364,22 @@ async def list_recommendation_summaries(
         all_summaries = []
         current_token = None
         page_count = 0
+        response = None  # Initialize to store last response
 
         # Loop to handle pagination automatically
         while True:
             # Update token if we're on a subsequent page
             if current_token:
                 request_params['nextToken'] = current_token
+
+            # Add max_results for this page
+            if max_results:
+                remaining_results = max_results - len(all_summaries)
+                if remaining_results <= 0:
+                    break
+                request_params['maxResults'] = min(100, remaining_results)
+            else:
+                request_params['maxResults'] = 100
 
             # Make the API call for this page
             page_count += 1
@@ -462,7 +389,7 @@ async def list_recommendation_summaries(
             response = coh_client.list_recommendation_summaries(**request_params)
 
             # Process this page of summaries
-            summaries = response.get('summaries', [])
+            summaries = response.get('items', [])
             await ctx_logger.info(
                 f'Retrieved {len(summaries)} recommendation summaries on page {page_count}'
             )
@@ -484,11 +411,6 @@ async def list_recommendation_summaries(
             if not current_token:
                 break
 
-            # Log that we're continuing to next page
-            await ctx_logger.info(
-                f'Moving to page {page_count + 1} with token: {current_token[:10]}... (truncated)'
-            )
-
         # Format all collected summaries
         formatted_summaries = []
 
@@ -499,36 +421,41 @@ async def list_recommendation_summaries(
         # Handle empty summaries
         if not all_summaries:
             await ctx_logger.info('No recommendation summaries found across any pages')
-            return format_response(
-                'success',
-                {
-                    'summaries': [],
-                    'page_count': page_count,
-                    'message': 'No recommendation summaries found. This could be because there are no optimization opportunities.',
-                },
-            )
+            formatted_response = {
+                'group_by': group_by,
+                'currency_code': 'USD',
+                'estimated_total_savings': 0,
+                'summaries': [],
+            }
+            return format_response('success', formatted_response)
 
         # Process all summaries
-        for summary in all_summaries:
+        for item in all_summaries:
             formatted_summary = {
-                'dimension_value': summary.get('dimensionValue'),
-                'recommendation_count': summary.get('recommendationCount'),
-                'estimated_monthly_savings': format_currency_amount(
-                    summary.get('estimatedMonthlySavings')
-                ),
+                'group': item.get('group'),
+                'estimated_monthly_savings': item.get('estimatedMonthlySavings'),
+                'recommendation_count': item.get('recommendationCount'),
             }
             formatted_summaries.append(formatted_summary)
 
-        # Return formatted response with pagination information
-        return format_response(
-            'success',
-            {
-                'summaries': formatted_summaries,
-                'page_count': page_count,
-                'total_summaries': len(formatted_summaries),
-                'group_by': group_by,
-            },
-        )
+        # Format response
+        formatted_response = {
+            'group_by': response.get('groupBy') if response else group_by,
+            'currency_code': response.get('currencyCode', 'USD') if response else 'USD',
+            'estimated_total_savings': response.get('estimatedTotalDedupedSavings')
+            if response
+            else None,
+            'summaries': formatted_summaries,
+        }
+
+        # Add metrics if present
+        if response and 'metrics' in response:
+            formatted_response['metrics'] = {
+                'savings_percentage': response['metrics'].get('savingsPercentage')
+            }
+
+        # Return formatted response
+        return format_response('success', formatted_response)
 
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')

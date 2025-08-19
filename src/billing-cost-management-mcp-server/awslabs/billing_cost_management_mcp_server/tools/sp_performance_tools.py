@@ -367,16 +367,13 @@ async def get_savings_plans_utilization(
             await ctx_logger.warning(f'Could not retrieve total utilization data: {str(e)}')
             # Provide default total based on summing values if possible
             if formatted_utilizations:
-                try:
-                    total_util_pct = sum(
-                        item['utilization_percentage'] for item in formatted_utilizations
-                    ) / len(formatted_utilizations)
-                    formatted_response['total'] = {
-                        'utilization_percentage': total_util_pct,
-                        'note': 'Estimated from individual utilization data',
-                    }
-                except Exception:
-                    pass
+                total_util_pct = sum(
+                    item['utilization_percentage'] for item in formatted_utilizations
+                ) / len(formatted_utilizations)
+                formatted_response['total'] = {
+                    'utilization_percentage': total_util_pct,
+                    'note': 'Estimated from individual utilization data',
+                }
 
         return format_response('success', formatted_response)
 

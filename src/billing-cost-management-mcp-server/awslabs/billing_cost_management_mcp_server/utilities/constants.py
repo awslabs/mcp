@@ -28,13 +28,21 @@ OPERATION_GET_RECOMMENDATION = 'get_recommendation'
 
 # ===== Cost Optimization Hub Group By Values =====
 GROUP_BY_ACCOUNT_ID = 'AccountId'
+GROUP_BY_REGION = 'Region'
+GROUP_BY_ACTION_TYPE = 'ActionType'
 GROUP_BY_RESOURCE_TYPE = 'ResourceType'
-GROUP_BY_TAG = 'Tag'
+GROUP_BY_RESTART_NEEDED = 'RestartNeeded'
+GROUP_BY_ROLLBACK_POSSIBLE = 'RollbackPossible'
+GROUP_BY_IMPLEMENTATION_EFFORT = 'ImplementationEffort'
 
 COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES = [
     GROUP_BY_ACCOUNT_ID,
+    GROUP_BY_REGION,
+    GROUP_BY_ACTION_TYPE,
     GROUP_BY_RESOURCE_TYPE,
-    GROUP_BY_TAG,
+    GROUP_BY_RESTART_NEEDED,
+    GROUP_BY_ROLLBACK_POSSIBLE,
+    GROUP_BY_IMPLEMENTATION_EFFORT,
 ]
 
 # ===== Recommendation Details - Action Types =====

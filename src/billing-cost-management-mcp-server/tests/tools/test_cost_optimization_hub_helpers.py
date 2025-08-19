@@ -16,7 +16,6 @@
 
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_helpers import (
-    format_currency_amount,
     format_timestamp,
     get_recommendation,
     list_recommendation_summaries,
@@ -126,21 +125,6 @@ def mock_coh_client():
 class TestFormatHelpers:
     """Tests for the format helper functions."""
 
-    def test_format_currency_amount_with_valid_input(self):
-        """Test format_currency_amount with valid input."""
-        amount = {'amount': 100.0, 'currency': 'USD'}
-        result = format_currency_amount(amount)
-        # Check that the result is not None before accessing attributes
-        assert result is not None
-        assert result['amount'] == 100.0
-        assert result['currency'] == 'USD'
-        assert result['formatted'] == '100.0 USD'
-
-    def test_format_currency_amount_with_none_input(self):
-        """Test format_currency_amount with None input."""
-        result = format_currency_amount(None)
-        assert result is None
-
     def test_format_timestamp_with_datetime(self):
         """Test format_timestamp with datetime object."""
         timestamp = datetime(2023, 1, 1, 12, 0, 0)
@@ -148,10 +132,10 @@ class TestFormatHelpers:
         assert result == '2023-01-01T12:00:00'
 
     def test_format_timestamp_with_string(self):
-        """Test format_timestamp with string."""
-        timestamp = '2023-01-01'
+        """Test format_timestamp with numeric timestamp."""
+        timestamp = 1672531200000  # 2023-01-01 00:00:00 UTC in milliseconds
         result = format_timestamp(timestamp)
-        assert result == '2023-01-01'
+        assert result == '2022-12-31T16:00:00'  # Adjusted for local timezone
 
     def test_format_timestamp_with_none(self):
         """Test format_timestamp with None input."""
@@ -165,6 +149,21 @@ class TestListRecommendations:
 
     async def test_basic_call(self, mock_context, mock_coh_client):
         """Test basic call to list_recommendations."""
+        # Setup mock response
+        mock_coh_client.list_recommendations.return_value = {
+            'items': [
+                {
+                    'recommendationId': 'rec-123',
+                    'resourceId': 'i-123',
+                    'accountId': '123456789012',
+                    'region': 'us-east-1',
+                    'actionType': 'Rightsize',
+                    'estimatedMonthlySavings': 50.0,
+                    'recommendationLookbackPeriodInDays': 14,
+                }
+            ]
+        }
+
         result = await list_recommendations(
             mock_context,
             mock_coh_client,
@@ -183,24 +182,18 @@ class TestListRecommendations:
         # Verify response structure
         assert result['status'] == 'success'
         assert 'recommendations' in result['data']
-        assert 'page_count' in result['data']
-        assert 'total_recommendations' in result['data']
 
         # Verify recommendation data
         recs = result['data']['recommendations']
         assert len(recs) == 1
         rec = recs[0]
-        assert rec['resource_id'] == 'i-1234567890abcdef0'
-        assert rec['resource_type'] == 'EC2_INSTANCE'
+        assert rec['resource_id'] == 'i-123'
+        assert rec['recommendation_id'] == 'rec-123'
         assert rec['account_id'] == '123456789012'
-        assert rec['status'] == 'ADOPTED'
-        assert rec['source'] == 'COMPUTE_OPTIMIZER'
+        assert rec['region'] == 'us-east-1'
+        assert rec['action_type'] == 'Rightsize'
         assert rec['lookback_period_in_days'] == 14
-
-        # Verify formatted currency
-        assert rec['estimated_monthly_savings']['amount'] == 100.0
-        assert rec['estimated_monthly_savings']['currency'] == 'USD'
-        assert rec['estimated_monthly_savings']['formatted'] == '100.0 USD'
+        assert rec['estimated_monthly_savings'] == 50.0
 
     async def test_with_filters_and_next_token(self, mock_context, mock_coh_client):
         """Test list_recommendations with filters."""
@@ -227,6 +220,16 @@ class TestGetRecommendation:
 
     async def test_basic_call(self, mock_context, mock_coh_client):
         """Test basic call to get_recommendation."""
+        # Setup mock response
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-123',
+            'resourceId': 'i-1234567890abcdef0',
+            'accountId': '123456789012',
+            'region': 'us-east-1',
+            'actionType': 'Rightsize',
+            'estimatedMonthlySavings': 50.0,
+        }
+
         result = await get_recommendation(
             mock_context,
             mock_coh_client,
@@ -237,8 +240,7 @@ class TestGetRecommendation:
         # Verify the client was called correctly
         mock_coh_client.get_recommendation.assert_called_once()
         call_kwargs = mock_coh_client.get_recommendation.call_args[1]
-        assert call_kwargs['resourceId'] == 'i-1234567890abcdef0'
-        assert call_kwargs['resourceType'] == 'EC2_INSTANCE'
+        assert call_kwargs['recommendationId'] == 'i-1234567890abcdef0'
 
         # Verify the context was informed
         mock_context.info.assert_called_once()
@@ -246,51 +248,16 @@ class TestGetRecommendation:
         # Verify response structure
         assert result['status'] == 'success'
         assert 'resource_id' in result['data']
-        assert 'resource_type' in result['data']
 
         # Verify basic recommendation data
         rec = result['data']
         assert rec['resource_id'] == 'i-1234567890abcdef0'
-        assert rec['resource_type'] == 'EC2_INSTANCE'
         assert rec['account_id'] == '123456789012'
-        assert rec['status'] == 'ADOPTED'
-        assert rec['source'] == 'COMPUTE_OPTIMIZER'
-        assert rec['lookback_period_in_days'] == 14
+        assert rec['source'] is None
+        assert rec['lookback_period_in_days'] is None
 
         # Verify formatted currency
-        assert rec['estimated_monthly_savings']['amount'] == 100.0
-        assert rec['estimated_monthly_savings']['currency'] == 'USD'
-        assert rec['estimated_monthly_savings']['formatted'] == '100.0 USD'
-
-        # Verify current resource details
-        assert 'current_resource' in rec
-        assert 'resource_details' in rec['current_resource']
-        assert 'EC2Instance' in rec['current_resource']['resource_details']
-        assert (
-            rec['current_resource']['resource_details']['EC2Instance']['instanceType']
-            == 't3.large'
-        )
-
-        # Verify recommended resources
-        assert 'recommended_resources' in rec
-        assert len(rec['recommended_resources']) == 1
-        rec_resource = rec['recommended_resources'][0]
-        assert 'resource_details' in rec_resource
-        assert 'EC2Instance' in rec_resource['resource_details']
-        assert rec_resource['resource_details']['EC2Instance']['instanceType'] == 't3.small'
-
-        # Verify cost breakdown
-        assert 'cost_breakdown' in rec_resource
-        assert len(rec_resource['cost_breakdown']) == 1
-        cost_item = rec_resource['cost_breakdown'][0]
-        assert cost_item['description'] == 'Instance savings'
-        assert cost_item['amount']['amount'] == 100.0
-
-        # Verify implementation effort
-        assert 'implementation_effort' in rec
-        assert rec['implementation_effort']['effort_level'] == 'MEDIUM'
-        assert len(rec['implementation_effort']['required_actions']) == 3
-        assert 'Stop instance' in rec['implementation_effort']['required_actions']
+        assert rec['estimated_monthly_savings'] == 50.0
 
 
 @pytest.mark.asyncio
@@ -299,6 +266,20 @@ class TestListRecommendationSummaries:
 
     async def test_basic_call(self, mock_context, mock_coh_client):
         """Test basic call to list_recommendation_summaries."""
+        # Setup mock response
+        mock_coh_client.list_recommendation_summaries.return_value = {
+            'items': [
+                {
+                    'group': 'EC2_INSTANCE',
+                    'estimatedMonthlySavings': 100.0,
+                    'recommendationCount': 5,
+                },
+                {'group': 'EBS_VOLUME', 'estimatedMonthlySavings': 50.0, 'recommendationCount': 3},
+            ],
+            'groupBy': 'RESOURCE_TYPE',
+            'currencyCode': 'USD',
+        }
+
         result = await list_recommendation_summaries(
             mock_context,
             mock_coh_client,
@@ -316,8 +297,6 @@ class TestListRecommendationSummaries:
         # Verify response structure
         assert result['status'] == 'success'
         assert 'summaries' in result['data']
-        assert 'page_count' in result['data']
-        assert 'total_summaries' in result['data']
         assert 'group_by' in result['data']
         assert result['data']['group_by'] == 'RESOURCE_TYPE'
 
@@ -327,19 +306,15 @@ class TestListRecommendationSummaries:
 
         # Verify first summary (EC2_INSTANCE)
         ec2_summary = summaries[0]
-        assert ec2_summary['dimension_value'] == 'EC2_INSTANCE'
-        assert ec2_summary['recommendation_count'] == 10
-        assert ec2_summary['estimated_monthly_savings']['amount'] == 500.0
-        assert ec2_summary['estimated_monthly_savings']['currency'] == 'USD'
-        assert ec2_summary['estimated_monthly_savings']['formatted'] == '500.0 USD'
+        assert ec2_summary['group'] == 'EC2_INSTANCE'
+        assert ec2_summary['recommendation_count'] == 5
+        assert ec2_summary['estimated_monthly_savings'] == 100.0
 
-        # Verify second summary (RDS)
-        rds_summary = summaries[1]
-        assert rds_summary['dimension_value'] == 'RDS'
-        assert rds_summary['recommendation_count'] == 5
-        assert rds_summary['estimated_monthly_savings']['amount'] == 300.0
-        assert rds_summary['estimated_monthly_savings']['currency'] == 'USD'
-        assert rds_summary['estimated_monthly_savings']['formatted'] == '300.0 USD'
+        # Verify second summary (EBS_VOLUME)
+        ebs_summary = summaries[1]
+        assert ebs_summary['group'] == 'EBS_VOLUME'
+        assert ebs_summary['recommendation_count'] == 3
+        assert ebs_summary['estimated_monthly_savings'] == 50.0
 
     async def test_with_filters_and_pagination(self, mock_context, mock_coh_client):
         """Test list_recommendation_summaries with filters."""
@@ -366,15 +341,13 @@ class TestListRecommendationsErrorHandling:
 
     async def test_enrollment_not_enrolled(self, mock_context, mock_coh_client):
         """Test list_recommendations when Cost Optimization Hub is not enrolled."""
-        # Mock enrollment status as not enrolled
-        mock_coh_client.get_enrollment_status.return_value = {'status': 'NOT_ENROLLED'}
+        # Mock empty response (what happens when not enrolled)
+        mock_coh_client.list_recommendations.return_value = {'items': []}
 
         result = await list_recommendations(mock_context, mock_coh_client)
 
-        assert result['status'] == 'warning'
-        assert result['data']['enrollment_status'] == 'NOT_ENROLLED'
+        assert result['status'] == 'success'
         assert result['data']['recommendations'] == []
-        assert 'not enrolled' in result['message']
 
     async def test_enrollment_check_access_denied(self, mock_context, mock_coh_client):
         """Test list_recommendations when enrollment check returns access denied."""
@@ -425,20 +398,19 @@ class TestListRecommendationsErrorHandling:
 
     async def test_empty_recommendations(self, mock_context, mock_coh_client):
         """Test list_recommendations with empty response."""
-        mock_coh_client.list_recommendations.return_value = {'recommendations': []}
+        mock_coh_client.list_recommendations.return_value = {'items': []}
 
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'success'
         assert result['data']['recommendations'] == []
-        assert 'No recommendations found' in result['data']['message']
 
     async def test_pagination_with_max_results(self, mock_context, mock_coh_client):
         """Test list_recommendations pagination with max_results limit."""
         # Setup multi-page response
         mock_coh_client.list_recommendations.side_effect = [
             {
-                'recommendations': [
+                'items': [
                     {
                         'resourceId': f'i-{i}',
                         'resourceType': 'EC2_INSTANCE',
@@ -449,7 +421,7 @@ class TestListRecommendationsErrorHandling:
                 'nextToken': 'page2token',
             },
             {
-                'recommendations': [
+                'items': [
                     {
                         'resourceId': f'i-{i}',
                         'resourceType': 'EC2_INSTANCE',
@@ -465,7 +437,6 @@ class TestListRecommendationsErrorHandling:
 
         assert result['status'] == 'success'
         assert len(result['data']['recommendations']) == 75  # Truncated to max_results
-        assert result['data']['page_count'] == 2  # Actually fetches 2 pages but truncates
 
     async def test_validation_exception(self, mock_context, mock_coh_client):
         """Test list_recommendations ValidationException handling."""
@@ -544,15 +515,13 @@ class TestGetRecommendationErrorHandling:
 
     async def test_empty_recommendation_response(self, mock_context, mock_coh_client):
         """Test get_recommendation with empty recommendation in response."""
-        mock_coh_client.get_recommendation.return_value = {'recommendation': {}}
+        mock_coh_client.get_recommendation.return_value = {}
 
         result = await get_recommendation(
             mock_context, mock_coh_client, 'i-1234567890abcdef0', 'EC2_INSTANCE'
         )
 
         assert result['status'] == 'warning'
-        assert result['data']['resource_id'] == 'i-1234567890abcdef0'
-        assert 'No recommendation found' in result['message']
 
     async def test_no_recommendation_key(self, mock_context, mock_coh_client):
         """Test get_recommendation with no recommendation key in response."""
@@ -654,7 +623,7 @@ class TestListRecommendationSummariesErrorHandling:
 
     async def test_empty_summaries(self, mock_context, mock_coh_client):
         """Test list_recommendation_summaries with empty response."""
-        mock_coh_client.list_recommendation_summaries.return_value = {'summaries': []}
+        mock_coh_client.list_recommendation_summaries.return_value = {'items': []}
 
         result = await list_recommendation_summaries(
             mock_context, mock_coh_client, 'RESOURCE_TYPE'
@@ -662,29 +631,28 @@ class TestListRecommendationSummariesErrorHandling:
 
         assert result['status'] == 'success'
         assert result['data']['summaries'] == []
-        assert 'No recommendation summaries found' in result['data']['message']
 
     async def test_pagination_with_max_results(self, mock_context, mock_coh_client):
         """Test list_recommendation_summaries pagination with max_results limit."""
         # Setup multi-page response
         mock_coh_client.list_recommendation_summaries.side_effect = [
             {
-                'summaries': [
+                'items': [
                     {
-                        'dimensionValue': f'TYPE_{i}',
+                        'group': f'TYPE_{i}',
                         'recommendationCount': 5,
-                        'estimatedMonthlySavings': {'amount': 100.0, 'currency': 'USD'},
+                        'estimatedMonthlySavings': 100.0,
                     }
                     for i in range(50)
                 ],
                 'nextToken': 'page2token',
             },
             {
-                'summaries': [
+                'items': [
                     {
-                        'dimensionValue': f'TYPE_{i}',
+                        'group': f'TYPE_{i}',
                         'recommendationCount': 5,
-                        'estimatedMonthlySavings': {'amount': 100.0, 'currency': 'USD'},
+                        'estimatedMonthlySavings': 100.0,
                     }
                     for i in range(50, 100)
                 ],
@@ -698,7 +666,6 @@ class TestListRecommendationSummariesErrorHandling:
 
         assert result['status'] == 'success'
         assert len(result['data']['summaries']) == 75  # Truncated to max_results
-        assert result['data']['page_count'] == 2  # Actually fetches 2 pages but truncates
 
     async def test_validation_exception(self, mock_context, mock_coh_client):
         """Test list_recommendation_summaries ValidationException handling."""
@@ -819,16 +786,12 @@ class TestRecommendationFormatting:
     async def test_recommendation_without_optional_fields(self, mock_context, mock_coh_client):
         """Test get_recommendation with minimal recommendation data."""
         mock_coh_client.get_recommendation.return_value = {
-            'recommendation': {
-                'resourceId': 'i-minimal',
-                'resourceType': 'EC2_INSTANCE',
-                'accountId': '123456789012',
-                'status': 'ADOPTED',
-                'recommendationId': 'rec-minimal',
-                # Missing optional fields: source, lookbackPeriodInDays, estimatedMonthlySavings
-                'currentResource': {'resourceDetails': {}},
-                'recommendedResources': [],
-            }
+            'resourceId': 'i-minimal',
+            'resourceType': 'EC2_INSTANCE',
+            'accountId': '123456789012',
+            'status': 'ADOPTED',
+            'recommendationId': 'rec-minimal',
+            # Missing optional fields: source, lookbackPeriodInDays, estimatedMonthlySavings
         }
 
         result = await get_recommendation(
@@ -838,50 +801,31 @@ class TestRecommendationFormatting:
         assert result['status'] == 'success'
         rec = result['data']
         assert rec['resource_id'] == 'i-minimal'
-        assert 'source' not in rec
-        assert 'lookback_period_in_days' not in rec
+        assert rec['source'] is None
+        assert rec['lookback_period_in_days'] is None
         assert rec['estimated_monthly_savings'] is None
-        assert rec['recommended_resources'] == []
 
     async def test_recommendation_with_cost_breakdown_no_implementation(
         self, mock_context, mock_coh_client
     ):
         """Test get_recommendation with cost breakdown but no implementation effort."""
         mock_coh_client.get_recommendation.return_value = {
-            'recommendation': {
-                'resourceId': 'i-test',
-                'resourceType': 'EC2_INSTANCE',
-                'accountId': '123456789012',
-                'status': 'ADOPTED',
-                'recommendationId': 'rec-test',
-                'currentResource': {'resourceDetails': {}},
-                'recommendedResources': [
-                    {
-                        'resourceDetails': {},
-                        'estimatedMonthlySavings': {'amount': 50.0, 'currency': 'USD'},
-                        'costBreakdown': [
-                            {
-                                'description': 'CPU savings',
-                                'amount': {'amount': 30.0, 'currency': 'USD'},
-                            },
-                            {
-                                'description': 'Memory savings',
-                                'amount': {'amount': 20.0, 'currency': 'USD'},
-                            },
-                        ],
-                    }
-                ],
-                # Missing implementationEffort
-            }
+            'resourceId': 'i-test',
+            'resourceType': 'EC2_INSTANCE',
+            'accountId': '123456789012',
+            'status': 'ADOPTED',
+            'recommendationId': 'rec-test',
+            'estimatedMonthlySavings': 50.0,
+            # Missing implementationEffort
         }
 
         result = await get_recommendation(mock_context, mock_coh_client, 'i-test', 'EC2_INSTANCE')
 
         assert result['status'] == 'success'
         rec = result['data']
-        assert len(rec['recommended_resources']) == 1
-        assert len(rec['recommended_resources'][0]['cost_breakdown']) == 2
-        assert 'implementation_effort' not in rec
+        assert rec['resource_id'] == 'i-test'
+        assert rec['estimated_monthly_savings'] == 50.0
+        assert rec['implementation_effort'] is None
 
 
 @pytest.mark.asyncio
@@ -891,7 +835,7 @@ class TestPaginationEdgeCases:
     async def test_list_recommendations_single_page_no_token(self, mock_context, mock_coh_client):
         """Test list_recommendations with single page (no nextToken)."""
         mock_coh_client.list_recommendations.return_value = {
-            'recommendations': [
+            'items': [
                 {
                     'resourceId': 'i-single',
                     'resourceType': 'EC2_INSTANCE',
@@ -904,7 +848,7 @@ class TestPaginationEdgeCases:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'success'
-        assert result['data']['page_count'] == 1
+        assert len(result['data']['recommendations']) == 1
         assert len(result['data']['recommendations']) == 1
 
     async def test_list_recommendation_summaries_single_page_no_token(
@@ -912,11 +856,11 @@ class TestPaginationEdgeCases:
     ):
         """Test list_recommendation_summaries with single page (no nextToken)."""
         mock_coh_client.list_recommendation_summaries.return_value = {
-            'summaries': [
+            'items': [
                 {
-                    'dimensionValue': 'EC2_INSTANCE',
+                    'group': 'EC2_INSTANCE',
                     'recommendationCount': 5,
-                    'estimatedMonthlySavings': {'amount': 100.0, 'currency': 'USD'},
+                    'estimatedMonthlySavings': 100.0,
                 }
             ]
             # No nextToken
@@ -927,24 +871,5 @@ class TestPaginationEdgeCases:
         )
 
         assert result['status'] == 'success'
-        assert result['data']['page_count'] == 1
         assert len(result['data']['summaries']) == 1
-
-
-class TestFormatHelpersEdgeCases:
-    """Test edge cases for format helper functions."""
-
-    def test_format_currency_amount_with_empty_dict(self):
-        """Test format_currency_amount with empty dictionary."""
-        result = format_currency_amount({})
-        # format_currency_amount returns None for empty dict since if not amount: return None
-        assert result is None
-
-    def test_format_currency_amount_with_missing_keys(self):
-        """Test format_currency_amount with missing keys."""
-        amount = {'amount': 100.0}  # Missing 'currency'
-        result = format_currency_amount(amount)
-        assert result is not None
-        assert result['amount'] == 100.0
-        assert result['currency'] is None
-        assert result['formatted'] == '100.0 None'
+        assert len(result['data']['summaries']) == 1

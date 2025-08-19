@@ -324,7 +324,9 @@ async def test_coh_real_summaries_reload_identity_decorator(mock_context):
         )
 
         assert res['status'] == 'success'
-        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        mock_create_client.assert_called_once_with(
+            'cost-optimization-hub', region_name='us-east-1'
+        )
         mock_parse_json.assert_called_once_with(filters_str, 'filters')
         mock_list_summaries.assert_awaited_once_with(
             mock_context,
@@ -363,7 +365,9 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
         )
 
         assert res['status'] == 'success'
-        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        mock_create_client.assert_called_once_with(
+            'cost-optimization-hub', region_name='us-east-1'
+        )
         mock_parse_json.assert_called_once_with(filters_str, 'filters')
         mock_list_recs.assert_awaited_once_with(mock_context, fake_client, 25, parsed, True)
 
@@ -390,7 +394,9 @@ async def test_coh_real_get_recommendation_success_reload_identity_decorator(moc
         )
 
         assert res['status'] == 'success'
-        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        mock_create_client.assert_called_once_with(
+            'cost-optimization-hub', region_name='us-east-1'
+        )
         mock_get_rec.assert_awaited_once_with(mock_context, fake_client, 'i-abc', 'EC2_INSTANCE')
 
 
@@ -465,7 +471,9 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
         )
 
         assert res['status'] == 'success'
-        mock_create_client.assert_called_once_with('cost-optimization-hub', 'us-east-1')
+        mock_create_client.assert_called_once_with(
+            'cost-optimization-hub', region_name='us-east-1'
+        )
         # parse_json should not be called when filters is None
         mock_parse_json.assert_not_called()
         mock_list_recs.assert_awaited_once_with(
