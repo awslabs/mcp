@@ -1,0 +1,22 @@
+{
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    "dist",
+    "build"
+  ],
+  "pythonPath": "python",
+  "pythonVersion": "3.10",
+  "pythonPlatform": "Linux",
+  "extraPaths": [
+    "../../../"
+  ],
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": false
+}
