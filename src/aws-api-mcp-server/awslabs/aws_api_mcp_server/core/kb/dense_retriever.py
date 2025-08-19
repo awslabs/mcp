@@ -14,7 +14,9 @@
 
 import json
 import numpy as np
-from ...core.common.config import get_server_directory
+import os
+from ...core.common.config import EMBEDDING_MODEL_DIR
+from ...core.common.helpers import download_embedding_model
 from awscli.clidriver import __version__ as awscli_version
 from copy import deepcopy
 from loguru import logger
@@ -23,7 +25,7 @@ from sentence_transformers import SentenceTransformer
 
 
 DEFAULT_TOP_K = 5
-DEFAULT_EMBEDDINGS_MODEL = 'BAAI/bge-base-en-v1.5'
+DEFAULT_EMBEDDING_MODEL = 'BAAI/bge-base-en-v1.5'
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parent.parent / 'data' / 'embeddings'
 KNOWLEDGE_BASE_SUFFIX = 'knowledge-base-awscli'
 
@@ -37,7 +39,7 @@ class DenseRetriever:
     def __init__(
         self,
         top_k: int = DEFAULT_TOP_K,
-        model_name: str = DEFAULT_EMBEDDINGS_MODEL,
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
         cache_dir: Path = DEFAULT_CACHE_DIR,
     ):
         """Initializes the retriever.
@@ -57,10 +59,14 @@ class DenseRetriever:
     def model(self):
         """Return the sentence transformer model."""
         if self._model is None:
-            logger.info('Loading embedding model...')
-
-            models_dir = get_server_directory() / 'models' / self.model_name
-            self._model = SentenceTransformer(self.model_name, cache_folder=str(models_dir))
+            logger.info('Loading embedding model {} ...', self.model_name)
+            model_dir = Path(os.path.join(EMBEDDING_MODEL_DIR, self.model_name))
+            if not model_dir.exists():
+                download_embedding_model(self.model_name)
+            logger.debug('Embedding model is cached at {}', model_dir)
+            self._model = SentenceTransformer(
+                model_name_or_path=str(model_dir), local_files_only=True
+            )
             self._model_ready = True
             logger.info('Embedding model loaded!')
         return self._model

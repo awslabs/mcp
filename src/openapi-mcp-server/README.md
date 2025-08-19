@@ -90,6 +90,40 @@ Here are some ways you can work with MCP across AWS (e.g. for Amazon Q Developer
 }
 ```
 
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.openapi-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.openapi-mcp-server@latest",
+        "awslabs.openapi-mcp-server.exe"
+      ],
+      "env": {
+          "API_NAME": "your-api-name",
+          "API_BASE_URL": "https://api.example.com",
+          "API_SPEC_URL": "https://api.example.com/openapi.json",
+          "LOG_LEVEL": "ERROR",
+          "ENABLE_PROMETHEUS": "false",
+          "ENABLE_OPERATION_PROMPTS": "true",
+          "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN": "5.0",
+          "UVICORN_GRACEFUL_SHUTDOWN": "true"
+      },
+    }
+  }
+}
+```
+
 ## Usage
 
 ### Basic Usage
