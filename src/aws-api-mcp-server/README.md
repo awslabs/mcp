@@ -145,6 +145,7 @@ For detailed instructions on setting up your local development environment and r
 | `REQUIRE_MUTATION_CONSENT`                                        | ❌ No     | `"false"`                                                | When set to "true", the MCP server will ask explicit consent before executing any operations that are **NOT** read-only. This safety mechanism uses [elicitation](https://modelcontextprotocol.io/docs/concepts/elicitation) so it requires a [client that supports elicitation](https://modelcontextprotocol.io/clients).                                                                                                                                                                                                                                                                                                   |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | ❌ No     | -                                                        | Use environment variables to configure AWS credentials                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `AWS_API_MCP_TELEMETRY`                                           | ❌ No     | `"true"`                                                 | Allow sending additional telemetry data to AWS related to the server configuration. This includes Whether the `call_aws()` tool is used with `READ_OPERATIONS_ONLY` set to true or false. Note: Regardless of this setting, AWS obtains information about which operations were invoked and the server version as part of normal AWS service interactions; no additional telemetry calls are made by the server for this purpose.                                                                                                                                                                                            |
+| `AWS_API_MCP_CLOUDWATCH_LOG_GROUP`                                | ❌ No     | -                                                        | When set to a CloudWatch Logs group name (e.g., `/aws/mcp/aws-api-mcp-server`), the server forwards all logs to that group in addition to local file and stderr. The server will create the log group/stream if missing and use the current `AWS_REGION` for publishing. Requires IAM permissions for `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`. |
 
 ### 🚀 Quick Start
 
@@ -222,6 +223,15 @@ This MCP server executes AWS CLI commands as instructed by an AI model, which ca
 ### Logging
 
 Logs of the MCP server are stored in the system's temporary directory, under **aws-api-mcp** subfolder - on Windows and macOS, this is the system temp directory, while on Linux it uses `XDG_RUNTIME_DIR`, `TMPDIR`, or `/tmp` as fallback. The logs contain MCP server operational data including command executions, errors, and debugging information to help users monitor and perform forensics of the MCP server.
+
+If you want logs in CloudWatch Logs, set the environment variable `AWS_API_MCP_CLOUDWATCH_LOG_GROUP` to your desired log group name. Example MCP client config env section:
+
+```json
+"env": {
+  "AWS_REGION": "us-east-1",
+  "AWS_API_MCP_CLOUDWATCH_LOG_GROUP": "/aws/mcp/aws-api-mcp-server"
+}
+```
 
 ### Security Best Practices
 
