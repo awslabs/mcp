@@ -41,8 +41,8 @@ Create a test file following the naming convention `<test_name>.py`:
 ```python
 import pytest
 from testing.pytest_utils import (
-    MCPTestBase, 
-    create_test_config, 
+    MCPTestBase,
+    create_test_config,
     create_tool_test_config,
     assert_test_results,
     TestType
@@ -59,7 +59,7 @@ class TestMyMCPServer:
         yield
         if self.test_instance:
             asyncio.run(self.test_instance.teardown())
-    
+
     @pytest.mark.asyncio
     async def test_basic_protocol(self):
         expected_config = create_test_config(
@@ -67,15 +67,15 @@ class TestMyMCPServer:
             expected_resources={"count": 0},
             expected_prompts={"count": 0}
         )
-        
+
         await self.test_instance.setup()
         results = await self.test_instance.run_basic_tests(expected_config)
         assert_test_results(results, expected_success_count=6)
-    
+
     @pytest.mark.asyncio
     async def test_tool_call(self):
         await self.test_instance.setup()
-        
+
         test_config = create_tool_test_config(
             tool_name="my_tool",
             arguments={"param": "value"},
@@ -83,7 +83,7 @@ class TestMyMCPServer:
                 {"type": "contains", "pattern": "expected_text", "field": "content"}
             ]
         )
-        
+
         result = await self.test_instance.run_custom_test(test_config)
         assert result.success
 ```
