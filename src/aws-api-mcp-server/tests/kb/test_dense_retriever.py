@@ -6,7 +6,7 @@ from awscli.clidriver import __version__ as awscli_version
 from awslabs.aws_api_mcp_server.core.kb import knowledge_base
 from awslabs.aws_api_mcp_server.core.kb.dense_retriever import (
     DEFAULT_CACHE_DIR,
-    DEFAULT_EMBEDDINGS_MODEL,
+    DEFAULT_EMBEDDING_MODEL,
     DEFAULT_TOP_K,
     KNOWLEDGE_BASE_SUFFIX,
     DenseRetriever,
@@ -27,7 +27,7 @@ def test_simple_initialization():
     assert rag.top_k == DEFAULT_TOP_K
     assert rag.cache_dir == Path(DEFAULT_CACHE_DIR)
     assert rag.get_cache_file_with_version() is not None
-    assert rag.model_name == DEFAULT_EMBEDDINGS_MODEL
+    assert rag.model_name == DEFAULT_EMBEDDING_MODEL
     assert isinstance(rag.model, SentenceTransformer)
     assert rag._model is not None
     assert rag._index is None

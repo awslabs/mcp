@@ -19,7 +19,7 @@ import time
 from ..core.aws.services import driver
 from ..core.kb.dense_retriever import (
     DEFAULT_CACHE_DIR,
-    DEFAULT_EMBEDDINGS_MODEL,
+    DEFAULT_EMBEDDING_MODEL,
     KNOWLEDGE_BASE_SUFFIX,
     DenseRetriever,
 )
@@ -153,7 +153,7 @@ def main():
     parser.add_argument(
         '--model-name',
         type=str,
-        default=DEFAULT_EMBEDDINGS_MODEL,
+        default=DEFAULT_EMBEDDING_MODEL,
         help='Name or path of the model to load',
     )
     parser.add_argument(
