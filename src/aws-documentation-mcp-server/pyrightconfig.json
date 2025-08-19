@@ -1,7 +1,4 @@
 {
-  "include": [
-    "."
-  ],
   "exclude": [
     "**/node_modules",
     "**/__pycache__",
@@ -9,14 +6,17 @@
     "dist",
     "build"
   ],
-  "pythonPath": "python",
-  "pythonVersion": "3.10",
-  "pythonPlatform": "Linux",
   "extraPaths": [
     "../../../"
   ],
-  "typeCheckingMode": "basic",
-  "useLibraryCodeForTypes": true,
+  "include": [
+    "."
+  ],
+  "pythonPath": "python",
+  "pythonPlatform": "Linux",
+  "pythonVersion": "3.10",
   "reportMissingImports": "none",
-  "reportMissingTypeStubs": false
+  "reportMissingTypeStubs": false,
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true
 }
