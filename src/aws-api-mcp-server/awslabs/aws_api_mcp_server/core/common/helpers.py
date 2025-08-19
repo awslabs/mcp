@@ -88,7 +88,9 @@ def download_embedding_model(model_name: str):
         response.raise_for_status()
 
         zip_path = os.path.join(tmp_dir, f'{model_name}.zip')
-        Path(zip_path).parent.mkdir()
+        Path(
+            zip_path
+        ).parent.mkdir()  # HF models are structured as '<org_name>/<model>' so we have to create the parent folder
 
         with open(zip_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
