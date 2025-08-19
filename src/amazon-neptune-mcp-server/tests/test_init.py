@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for the awslabs.amazon-neptune-mcp-server package."""
 
+import awslabs.amazon_neptune_mcp_server
 import importlib
 import re
 
@@ -50,3 +51,31 @@ class TestInit:
 
         # Check that the version is still the same
         assert awslabs.amazon_neptune_mcp_server.__version__ == original_version
+
+    def test_version_format(self):
+        """Test that the package version follows semantic versioning.
+
+        This test verifies that:
+        1. The __version__ attribute exists
+        2. The version follows the semantic versioning format (MAJOR.MINOR.PATCH)
+        """
+        # Arrange
+        version = awslabs.amazon_neptune_mcp_server.__version__
+        semver_pattern = r'^\d+\.\d+\.\d+$'
+
+        # Act & Assert
+        assert hasattr(awslabs.amazon_neptune_mcp_server, '__version__')
+        assert re.match(semver_pattern, version) is not None, (
+            f'Version {version} does not follow semantic versioning'
+        )
+
+    def test_package_docstring(self):
+        """Test that the package has a docstring.
+
+        This test verifies that:
+        1. The package has a docstring
+        2. The docstring is not empty
+        """
+        # Act & Assert
+        assert awslabs.amazon_neptune_mcp_server.__doc__ is not None
+        assert len(awslabs.amazon_neptune_mcp_server.__doc__) > 0
