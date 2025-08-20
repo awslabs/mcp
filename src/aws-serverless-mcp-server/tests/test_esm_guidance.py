@@ -279,7 +279,9 @@ class TestEsmGuidanceTool:
     async def test_esm_deployment_precheck_tool_no_deploy_intent(self, esm_guidance_tool):
         """Test precheck tool with no deploy intent."""
         result = await esm_guidance_tool.esm_deployment_precheck_tool(
-            AsyncMock(), prompt='Just checking the configuration', project_directory='/tmp/test'
+            AsyncMock(),
+            prompt='Just checking the configuration',
+            project_directory=tempfile.mkdtemp(),
         )
 
         assert result['deploy_intent_detected'] is False

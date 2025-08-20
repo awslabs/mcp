@@ -507,6 +507,13 @@ Generates SAM template with security group rules for MSK.
 **Parameters:**
 - `security_group_id` (required): Security group ID for MSK cluster
 
+#### esm_deployment_precheck
+Confirms ESM deployment when deploy intent is detected in prompt and validates SAM template existence.
+
+**Parameters:**
+- prompt (required): User prompt to check for deploy intent
+- project_directory (required): Path to SAM project directory
+
 ### ESM Diagnosis Tools
 
 #### esm_kafka_diagnosis
@@ -587,7 +594,7 @@ Example user prompt:
 I have a VPC named <your-vpc-name> in <your-aws-region>. Refer to ESM guidance for Kafka and use aws-serverless-mcp-server. Create a script to build a new cluster in the VPC's private subnet by a SAM template. Then, create a lambda function to consumer the stream from the cluster. Prefix created resources with <your prefix>.
 ```
 
-This prompt trigger LLM to initial ESM setup:
+This prompt triggers LLM to initial ESM setup:
 1. Use `esm_guidance` to get step-by-step deployment instructions
 2. Generate required IAM policies and security group configurations
 3. Deploy infrastructure using generated SAM templates
@@ -601,25 +608,23 @@ Example user prompt:
 I have a cluster called <your-cluster-name> and a consumer lambda function named <your-lambda-function-name> in <your-aws-region>. Look for ESM diagnosis tool to investigate on why I cannot get my ESM trigger working and create a SAM template to update the configurations.
 ```
 
-This prompt trigger LLM to troubleshoot ESM issues:
+This prompt triggers LLM to troubleshoot ESM issues:
 1. Use `esm_kafka_diagnosis` to identify timeout scenarios
 2. Get targeted resolution steps with `esm_kafka_resolution`
 3. Apply fixes to network, security, or authentication configurations
-4. Verify resolution with test scripts
 
 ### Optimizing ESM Configurations:
 
 Example user prompt:
 
 ```
-I have an ESM with UUID <your-esm-uuid> in us-west-2. My target throughput is around 10 MB/s to 100 MB/s, create a script to update the ESM configuration using a SAM template such that the cost from the event pollers is optimized.
+I have an ESM with UUID <your-esm-uuid> in <your-aws-region>. My target throughput is around 10 MB/s to 100 MB/s, create a script to update the ESM configuration using a SAM template such that the cost from the event pollers is optimized.
 ```
 
-This prompt trigger LLM to optimize ESM:
+This prompt triggers LLM to optimize ESM:
 1. Analyze current configuration trade-offs with `esm_get_config_tradeoff`
 2. Identify optimization opportunities based on your goals
-3. Validate proposed changes before deployment by `esm_validate_config`
-4. Monitor performance improvements
+3. Validate proposed changes before deployment by `esm_validate_configs`
 
 ## Security features
 1. **AWS Authentication**: Uses AWS credentials from the environment for secure authentication
