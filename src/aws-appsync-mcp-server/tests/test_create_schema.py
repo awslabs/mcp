@@ -19,6 +19,7 @@ from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
 from awslabs.aws_appsync_mcp_server.operations.create_schema import create_schema_operation
 from awslabs.aws_appsync_mcp_server.tools.create_schema import register_create_schema_tool
 from mcp.server.fastmcp import FastMCP
+from typing import Any, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -397,7 +398,7 @@ async def test_create_schema_tool_write_protection():
     mock_mcp = MagicMock(spec=FastMCP)
 
     # Capture the decorated function
-    decorated_func = None
+    decorated_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -416,6 +417,7 @@ async def test_create_schema_tool_write_protection():
     set_write_allowed(False)
 
     # Test that the tool raises an error when write is disabled
+    assert decorated_func is not None
     with pytest.raises(
         ValueError, match='Operation not permitted: Server is configured in read-only mode'
     ):
@@ -428,7 +430,7 @@ async def test_create_schema_tool_success():
     mock_mcp = MagicMock(spec=FastMCP)
 
     # Capture the decorated function
-    decorated_func = None
+    decorated_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -452,6 +454,7 @@ async def test_create_schema_tool_success():
     ) as mock_op:
         mock_op.return_value = {'status': 'SUCCESS', 'details': 'Schema created successfully'}
 
+        assert decorated_func is not None
         result = await decorated_func(
             api_id='test-api-id', definition='type Query { hello: String }'
         )
@@ -466,7 +469,7 @@ async def test_create_schema_tool_with_complex_schema():
     mock_mcp = MagicMock(spec=FastMCP)
 
     # Capture the decorated function
-    decorated_func = None
+    decorated_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -523,6 +526,7 @@ async def test_create_schema_tool_with_complex_schema():
             'details': 'Complex schema created successfully',
         }
 
+        assert decorated_func is not None
         result = await decorated_func(api_id='complex-api-id', definition=complex_schema)
 
         mock_op.assert_called_once_with('complex-api-id', complex_schema)

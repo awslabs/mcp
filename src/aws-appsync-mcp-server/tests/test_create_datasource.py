@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_datasource import create_datasource_operation
+from awslabs.aws_appsync_mcp_server.tools.create_datasource import register_create_datasource_tool
 from unittest.mock import MagicMock, patch
 
 
@@ -502,3 +503,40 @@ async def test_create_datasource_empty_response():
             apiId='test-api-id', name='test-datasource', type='NONE'
         )
         assert result == mock_response
+
+
+def test_register_create_datasource_tool():
+    """Test that create_datasource tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_datasource_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_datasource_tool_execution():
+    """Test create_datasource tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_datasource_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_datasource.create_datasource_operation'
+    ) as mock_op:
+        mock_op.return_value = {'dataSource': {'name': 'test-ds'}}
+        result = await captured_func('test-api', 'test-ds', 'NONE')
+        mock_op.assert_called_once()
+        assert result == {'dataSource': {'name': 'test-ds'}}

@@ -18,6 +18,9 @@ import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_graphql_api import (
     create_graphql_api_operation,
 )
+from awslabs.aws_appsync_mcp_server.tools.create_graphql_api import (
+    register_create_graphql_api_tool,
+)
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -509,3 +512,40 @@ async def test_create_graphql_api_api_key_empty_response():
         # Verify result contains empty apiKey
         expected_result = {'graphqlApi': mock_graphql_response['graphqlApi'], 'apiKey': {}}
         assert result == expected_result
+
+
+def test_register_create_graphql_api_tool():
+    """Test that create_graphql_api tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_graphql_api_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_graphql_api_tool_execution():
+    """Test create_graphql_api tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_graphql_api_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_graphql_api.create_graphql_api_operation'
+    ) as mock_op:
+        mock_op.return_value = {'graphqlApi': {'name': 'test-api'}}
+        result = await captured_func('test-api', 'API_KEY')
+        mock_op.assert_called_once()
+        assert result == {'graphqlApi': {'name': 'test-api'}}

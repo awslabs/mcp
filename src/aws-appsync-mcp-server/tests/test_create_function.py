@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_function import create_function_operation
+from awslabs.aws_appsync_mcp_server.tools.create_function import register_create_function_tool
 from unittest.mock import MagicMock, patch
 
 
@@ -457,3 +458,40 @@ async def test_create_function_with_javascript_runtime():
             code=js_code,
         )
         assert result == mock_response
+
+
+def test_register_create_function_tool():
+    """Test that create_function tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_function_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_function_tool_execution():
+    """Test create_function tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_function_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_function.create_function_operation'
+    ) as mock_op:
+        mock_op.return_value = {'functionConfiguration': {'name': 'test-fn'}}
+        result = await captured_func('test-api', 'test-ds', 'test-fn')
+        mock_op.assert_called_once()
+        assert result == {'functionConfiguration': {'name': 'test-fn'}}

@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_resolver import create_resolver_operation
+from awslabs.aws_appsync_mcp_server.tools.create_resolver import register_create_resolver_tool
 from unittest.mock import MagicMock, patch
 
 
@@ -414,3 +415,40 @@ async def test_create_resolver_empty_response():
             apiId='abcdefghijklmnopqrstuvwxyz', typeName='Query', fieldName='getUser'
         )
         assert result == {'resolver': {}}
+
+
+def test_register_create_resolver_tool():
+    """Test that create_resolver tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_resolver_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_resolver_tool_execution():
+    """Test create_resolver tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_resolver_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_resolver.create_resolver_operation'
+    ) as mock_op:
+        mock_op.return_value = {'resolver': {'typeName': 'Query'}}
+        result = await captured_func('test-api', 'Query', 'getUser')
+        mock_op.assert_called_once()
+        assert result == {'resolver': {'typeName': 'Query'}}

@@ -17,7 +17,7 @@
 import re
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
 from loguru import logger
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 def _validate_service_role_arn(arn: str) -> bool:
@@ -50,7 +50,7 @@ async def create_datasource_operation(
 
     client = get_appsync_client()
 
-    params = {'apiId': api_id, 'name': name, 'type': type}
+    params: Dict[str, Any] = {'apiId': api_id, 'name': name, 'type': type}
 
     if description is not None:
         params['description'] = description

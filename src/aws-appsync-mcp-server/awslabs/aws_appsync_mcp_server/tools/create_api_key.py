@@ -62,15 +62,5 @@ def register_create_api_key_tool(mcp):
         Returns:
             A dictionary containing information about the created API key, including:
             - apiKey: The API key object with details like id, description, expires, etc.
-
-        Example response:
-            {
-                "apiKey": {
-                    "id": "da2-abcdefghijklmnopqrstuvwxyz", # pragma: allowlist secret
-                    "description": "My API Key",
-                    "expires": 1640995200,
-                    "deletes": 1641081600
-                }
-            }
         """
         return await create_api_key_operation(api_id, description, expires)

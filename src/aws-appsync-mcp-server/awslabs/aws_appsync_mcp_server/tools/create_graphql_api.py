@@ -150,7 +150,7 @@ def register_create_graphql_api_tool(mcp):
             - graphqlApi: The GraphQL API object with details like apiId, name, etc.
             - apiKey: (Only when authentication_type is API_KEY) The auto-generated API key with 7-day expiry
 
-        Example response for API_KEY authentication:
+        Example response for API_KEY authentication with the apiKey config ommitted:
             {
                 "graphqlApi": {
                     "name": "my-graphql-api",
@@ -163,11 +163,6 @@ def register_create_graphql_api_tool(mcp):
                     "tags": {},
                     "creationTime": "2024-01-01T00:00:00Z",
                     "xrayEnabled": false
-                },
-                "apiKey": {
-                    "id": "da2-abcdefghijklmnopqrstuvwxyz", # pragma: allowlist secret
-                    "description": "Auto-generated API key",
-                    "expires": 1640995200
                 }
             }
         """

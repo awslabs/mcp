@@ -15,7 +15,7 @@
 """Create Channel Namespace operation for AWS AppSync MCP Server."""
 
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @handle_exceptions
@@ -31,7 +31,7 @@ async def create_channel_namespace_operation(
     """Execute create_channel_namespace operation."""
     client = get_appsync_client()
 
-    params = {'apiId': api_id, 'name': name}
+    params: Dict[str, Any] = {'apiId': api_id, 'name': name}
 
     if subscribe_auth_modes is not None:
         params['subscribeAuthModes'] = subscribe_auth_modes

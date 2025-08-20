@@ -18,6 +18,9 @@ import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_domain_name import (
     create_domain_name_operation,
 )
+from awslabs.aws_appsync_mcp_server.tools.create_domain_name import (
+    register_create_domain_name_tool,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -139,3 +142,40 @@ async def test_create_domain_name_empty_response():
             certificateArn='arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012',
         )
         assert result == {'domainNameConfig': {}}
+
+
+def test_register_create_domain_name_tool():
+    """Test that create_domain_name tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_domain_name_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_domain_name_tool_execution():
+    """Test create_domain_name tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_domain_name_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_domain_name.create_domain_name_operation'
+    ) as mock_op:
+        mock_op.return_value = {'domainNameConfig': {'domainName': 'test.com'}}
+        result = await captured_func('test.com', 'cert-arn')
+        mock_op.assert_called_once_with('test.com', 'cert-arn', None, None)
+        assert result == {'domainNameConfig': {'domainName': 'test.com'}}

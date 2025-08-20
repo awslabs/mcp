@@ -15,7 +15,7 @@
 """Create Resolver operation for AWS AppSync MCP Server."""
 
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 @handle_exceptions
@@ -38,7 +38,7 @@ async def create_resolver_operation(
     """Execute create_resolver operation."""
     client = get_appsync_client()
 
-    params = {'apiId': api_id, 'typeName': type_name, 'fieldName': field_name}
+    params: Dict[str, Any] = {'apiId': api_id, 'typeName': type_name, 'fieldName': field_name}
 
     if data_source_name is not None:
         params['dataSourceName'] = data_source_name

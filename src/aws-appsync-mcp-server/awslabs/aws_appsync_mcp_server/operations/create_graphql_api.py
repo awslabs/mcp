@@ -16,7 +16,7 @@
 
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
 from awslabs.aws_appsync_mcp_server.operations.create_api_key import create_api_key_operation
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @handle_exceptions
@@ -42,7 +42,7 @@ async def create_graphql_api_operation(
     """Execute create_graphql_api operation."""
     client = get_appsync_client()
 
-    params = {'name': name, 'authenticationType': authentication_type}
+    params: Dict[str, Any] = {'name': name, 'authenticationType': authentication_type}
 
     if log_config is not None:
         params['logConfig'] = log_config

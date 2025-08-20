@@ -18,6 +18,9 @@ import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_channel_namespace import (
     create_channel_namespace_operation,
 )
+from awslabs.aws_appsync_mcp_server.tools.create_channel_namespace import (
+    register_create_channel_namespace_tool,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -245,3 +248,40 @@ async def test_create_channel_namespace_empty_response():
             apiId='test-api-id', name='test-namespace'
         )
         assert result == mock_response
+
+
+def test_register_create_channel_namespace_tool():
+    """Test that create_channel_namespace tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_channel_namespace_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_channel_namespace_tool_execution():
+    """Test create_channel_namespace tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_channel_namespace_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_channel_namespace.create_channel_namespace_operation'
+    ) as mock_op:
+        mock_op.return_value = {'channelNamespace': {'name': 'test-ns'}}
+        result = await captured_func('test-api', 'test-ns')
+        mock_op.assert_called_once_with('test-api', 'test-ns', None, None, None, None, None)
+        assert result == {'channelNamespace': {'name': 'test-ns'}}

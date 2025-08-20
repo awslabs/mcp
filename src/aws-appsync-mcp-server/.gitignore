@@ -23,10 +23,13 @@ share/python-wheels/
 MANIFEST
 
 # Virtual environments
+.env
 .venv
 env/
 venv/
 ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .idea/
@@ -34,11 +37,17 @@ ENV/
 *.swp
 *.swo
 
-# Testing
+# Unit test / coverage reports
+htmlcov/
 .tox/
+.nox/
 .coverage
 .coverage.*
-htmlcov/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
 .pytest_cache/
 
 # Ruff
@@ -50,10 +59,9 @@ htmlcov/
 .pybuilder/
 target/
 
-# Environments
-.env
-.env.local
-.env.*.local
+# OS specific
+.DS_Store
+Thumbs.db
 
 # PyPI
 .pypirc

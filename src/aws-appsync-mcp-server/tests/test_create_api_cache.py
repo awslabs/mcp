@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_api_cache import create_api_cache_operation
+from awslabs.aws_appsync_mcp_server.tools.create_api_cache import register_create_api_cache_tool
 from unittest.mock import MagicMock, patch
 
 
@@ -312,3 +313,42 @@ async def test_create_api_cache_large_instance():
             healthMetricsConfig='ENABLED',
         )
         assert result == mock_response
+
+
+def test_register_create_api_cache_tool():
+    """Test that create_api_cache tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_api_cache_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_api_cache_tool_execution():
+    """Test create_api_cache tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_api_cache_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_api_cache.create_api_cache_operation'
+    ) as mock_op:
+        mock_op.return_value = {'apiCache': {'status': 'CREATING'}}
+        result = await captured_func('test-api', 300, 'FULL_REQUEST_CACHING', 'SMALL')
+        mock_op.assert_called_once_with(
+            'test-api', 300, 'FULL_REQUEST_CACHING', 'SMALL', None, None, None
+        )
+        assert result == {'apiCache': {'status': 'CREATING'}}

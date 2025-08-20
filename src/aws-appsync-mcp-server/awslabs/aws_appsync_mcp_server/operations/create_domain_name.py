@@ -15,7 +15,7 @@
 """Create Domain Name operation for AWS AppSync MCP Server."""
 
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 @handle_exceptions
@@ -28,7 +28,7 @@ async def create_domain_name_operation(
     """Execute create_domain_name operation."""
     client = get_appsync_client()
 
-    params = {'domainName': domain_name, 'certificateArn': certificate_arn}
+    params: Dict[str, Any] = {'domainName': domain_name, 'certificateArn': certificate_arn}
 
     if description is not None:
         params['description'] = description

@@ -15,7 +15,7 @@
 """Create Function operation for AWS AppSync MCP Server."""
 
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 @handle_exceptions
@@ -35,7 +35,7 @@ async def create_function_operation(
     """Execute create_function operation."""
     client = get_appsync_client()
 
-    params = {'apiId': api_id, 'name': name, 'dataSourceName': data_source_name}
+    params: Dict[str, Any] = {'apiId': api_id, 'name': name, 'dataSourceName': data_source_name}
 
     if description is not None:
         params['description'] = description

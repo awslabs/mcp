@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_api_key import create_api_key_operation
+from awslabs.aws_appsync_mcp_server.tools.create_api_key import register_create_api_key_tool
 from unittest.mock import MagicMock, patch
 
 
@@ -140,3 +141,40 @@ async def test_create_api_key_empty_response():
 
         mock_client.create_api_key.assert_called_once_with(apiId='test-api-id')
         assert result == {'apiKey': {}}
+
+
+def test_register_create_api_key_tool():
+    """Test that create_api_key tool is registered correctly."""
+    mock_mcp = MagicMock()
+    register_create_api_key_tool(mock_mcp)
+    mock_mcp.tool.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_api_key_tool_execution():
+    """Test create_api_key tool execution through MCP."""
+    from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+
+    mock_mcp = MagicMock()
+    captured_func = None
+
+    def capture_tool(**kwargs):
+        def decorator(func):
+            nonlocal captured_func
+            captured_func = func
+            return func
+
+        return decorator
+
+    mock_mcp.tool = capture_tool
+    set_write_allowed(True)
+
+    register_create_api_key_tool(mock_mcp)
+
+    with patch(
+        'awslabs.aws_appsync_mcp_server.tools.create_api_key.create_api_key_operation'
+    ) as mock_op:
+        mock_op.return_value = {'apiKey': {'id': 'test-key'}}
+        result = await captured_func('test-api')
+        mock_op.assert_called_once_with('test-api', None, None)
+        assert result == {'apiKey': {'id': 'test-key'}}
