@@ -18,7 +18,9 @@ import asyncio
 import boto3
 import json
 import os
+import shutil
 import sys
+import tempfile
 from . import __version__
 from .sli_report_client import AWSConfig, SLIReportClient
 from botocore.config import Config
@@ -28,7 +30,7 @@ from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from time import perf_counter as timer
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 
 # Initialize FastMCP server
@@ -88,22 +90,432 @@ def remove_null_values(data: dict) -> dict:
     return {k: v for k, v in data.items() if v is not None}
 
 
+def parse_timestamp(timestamp_str: str, default_hours: int = 24) -> datetime:
+    """Parse timestamp string into datetime object.
+    
+    Args:
+        timestamp_str: Timestamp in unix seconds or 'YYYY-MM-DD HH:MM:SS' format
+        default_hours: Default hours to subtract from now if parsing fails
+        
+    Returns:
+        datetime object in UTC timezone
+    """
+    try:
+        # Try parsing as unix timestamp first
+        if timestamp_str.isdigit():
+            return datetime.fromtimestamp(int(timestamp_str), tz=timezone.utc)
+        
+        # Try parsing as ISO format
+        if 'T' in timestamp_str:
+            return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        
+        # Try parsing as 'YYYY-MM-DD HH:MM:SS' format
+        return datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        # Fallback to default
+        return datetime.now(timezone.utc) - timedelta(hours=default_hours)
+
+
+@mcp.tool()
+async def investigate_service_anomaly(
+    audit_targets: str = Field(..., description="REQUIRED. JSON array (1–10) of AuditTargets (service, slo, or service_operation). Shorthand forms accepted and auto-normalized."),
+    breaching_slos: str = Field(default=None, description="Optional. Comma-separated SLO identifiers; appended as additional SLO targets."),
+    metric_name: str = Field(default=None, description="Optional hint used as MetricType for service_operation targets when needed."),
+    operation_name: str = Field(default=None, description="Optional hint used as Operation for service_operation targets when needed."),
+    start_time: str = Field(default=None, description="Start time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now-24h UTC."),
+    end_time: str = Field(default=None, description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC."),
+    auditors: str = Field(default=None, description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). If omitted, API runs all."),
+    aws_region: str = Field(default=None, description="AWS region. Defaults to us-east-2 (CMH)."),
+    endpoint_url: str = Field(default=None, description="Endpoint override. Defaults to CMH gamma: https://application-signals-gamma.us-east-2.api.aws")
+) -> str:
+    """🎯 PRIMARY DIAGNOSTIC TOOL - Investigate anomalies and performance issues for specific scoped targets via Application Signals audit findings.
+
+    **WHEN TO USE (Primary Entry Point):**
+    - 🚨 **System-wide health check**: Start here for any investigation or monitoring task
+    - 🔍 **Issue investigation**: First tool to use when problems are detected anywhere
+    - 🎯 **Targeted diagnosis**: Focus on specific services, SLOs, or operations when issues are isolated
+    - 🔬 **Root cause analysis**: Use with traces/logs auditors for detailed error information
+
+    **WHEN NOT TO USE:**
+    - Account-level scans (unsupported - use list_monitored_services first to discover targets)
+    - Raw metric streaming (use specialized tools only if this doesn't provide sufficient detail)
+
+    **AUDITOR SELECTION (Smart Defaults):**
+    - **Lightweight investigation** (default): Uses 'slo,operation_metric' auditors for quick health overview
+    - **Root cause analysis**: Pass `auditors="all"` for comprehensive investigation with traces/logs
+    - **Custom**: Specify exact auditors: 'slo,trace,log,critical_path,top_contributors,service_quota'
+
+    **TARGET TYPES (1-10 targets required):**
+    - **Service**: `[{"Type":"service","Data":{"Service":{"Name":"my-service","Environment":"prod"}}}]`
+    - **SLO**: `[{"Type":"slo","Data":{"SloName":"my-slo"}}]`
+    - **Service Operation**: `[{"Type":"service_operation","Data":{"Service":{...},"Operation":"GET /api","MetricType":"Latency"}}]`
+
+    **WORKFLOW INTEGRATION:**
+    1. **Daily Health**: `investigate_service_anomaly(audit_targets='[{"Type":"service","Data":{"Service":{"Name":"all-services"}}}]')`
+    2. **Issue Detection**: Results show which services/SLOs need attention
+    3. **Deep Dive**: `investigate_service_anomaly(audit_targets='[{"Type":"service","Data":{"Service":{"Name":"problem-service"}}}]', auditors="all")`
+    4. **Use specialized tools only if this tool doesn't provide sufficient detail**
+
+    **RETURNS:**
+    - Prioritized findings by severity (critical, warning, info)
+    - Service-specific health status with detailed analysis
+    - Root cause analysis when traces/logs auditors are used
+    - Actionable recommendations for issue resolution
+    - Performance optimized for fast execution across multiple targets
+
+    **Note**: This tool provides comprehensive coverage that may eliminate the need for individual specialized tools.
+    """
+    start_time_perf = timer()
+    logger.debug("Starting investigate_service_anomaly (PRIMARY DIAGNOSTIC TOOL)")
+
+    try:
+        # ---------- Region/endpoint defaults (CMH gamma) ----------
+        region = (aws_region or os.environ.get("AWS_REGION") or "us-east-2").strip()
+        endpoint = (
+            endpoint_url
+            or os.environ.get("MCP_APPSIGNALS_ENDPOINT")
+            or "https://application-signals-gamma.us-east-2.api.aws"
+        ).strip()
+
+        # ---------- Time range (fill missing with defaults) ----------
+        start_dt = parse_timestamp(start_time) if start_time else (datetime.now(timezone.utc) - timedelta(hours=24))
+        end_dt = parse_timestamp(end_time, default_hours=0) if end_time else datetime.now(timezone.utc)
+        unix_start, unix_end = int(start_dt.timestamp()), int(end_dt.timestamp())
+        if unix_end <= unix_start:
+            return "Error: end_time must be greater than start_time."
+
+        # ---------- Helpers ----------
+        def _ci_get(d: dict, *names):
+            for n in names:
+                if n in d: return d[n]
+            lower = {k.lower(): v for k, v in d.items()}
+            for n in names:
+                if n.lower() in lower: return lower[n.lower()]
+            return None
+
+        def _need(d: dict, *names):
+            v = _ci_get(d, *names)
+            if v is None:
+                raise ValueError(f"Missing required field: one of {', '.join(names)}")
+            return v
+
+        # ---------- Tolerant coercion for service targets (handles shorthands) ----------
+        def _coerce_service_target(t: dict) -> dict:
+            """
+            Convert common shorthand inputs into canonical service target with union wrapper:
+              Emits: {"Type":"service","Data":{"Service":{"Type":"Service","Name":...,"Environment":...,"AwsAccountId?":...}}}
+              Shorthands accepted:
+                {"Type":"service","Service":"<name>"}
+                {"Type":"service","Data":{"Service":"<name>"}}
+                {"Type":"service","Data":{"Service":{"Name":"<name>"}}}
+                {"target_type":"service","service":"<name>"}
+            """
+            ttype = (_ci_get(t, "Type", "type", "target_type") or "").lower()
+            if ttype != "service":
+                raise ValueError("not a service target")
+
+            data = _ci_get(t, "Data", "data") or {}
+            service = _ci_get(data, "Service", "service") or _ci_get(t, "Service", "service")
+
+            if isinstance(service, str):
+                entity = {"Name": service}
+            elif isinstance(service, dict):
+                entity = dict(service)
+            elif isinstance(data, dict) and _ci_get(data, "Name", "name"):
+                entity = {"Name": _ci_get(data, "Name", "name")}
+            else:
+                raise ValueError("service target missing 'Service' payload")
+
+            if "Type" not in entity and "type" not in entity:
+                entity["Type"] = "Service"
+
+            name = _ci_get(entity, "Name", "name")
+            env  = _ci_get(entity, "Environment", "environment")
+            acct = _ci_get(entity, "AwsAccountId", "awsAccountId", "aws_account_id")
+
+            out = {"Type": "Service"}
+            if name: out["Name"] = name
+            if env:  out["Environment"] = env
+            if acct: out["AwsAccountId"] = acct
+
+            return {"Type": "service", "Data": {"Service": out}}
+
+        # ---------- Strict normalizers (emit lowercase wrapper keys for outer type/data) ----------
+        def _normalize_service_entity(entity: dict) -> dict:
+            out = {
+                "Type": _ci_get(entity, "Type", "type") or "Service",
+                "Name": _need(entity, "Name", "name"),
+                "Environment": _ci_get(entity, "Environment", "environment"),  # validated later if present
+            }
+            acct = _ci_get(entity, "AwsAccountId", "awsAccountId", "aws_account_id")
+            if acct: out["AwsAccountId"] = acct
+            return out
+
+        def _normalize_service(item: dict) -> dict:
+            data = _need(item, "Data", "data")
+            svc = _ci_get(data, "Service", "service")
+            svc_entity = _normalize_service_entity(svc if isinstance(svc, dict) else data)
+            return {"type": "service", "data": {"service": svc_entity}}
+
+        def _normalize_slo(item: dict) -> dict:
+            data = _need(item, "Data", "data")
+            # Accept string or object with SloArn/SloName
+            if isinstance(data, str):
+                slo_obj = {"SloName": data}
+            elif isinstance(data, dict):
+                slo_arn = _ci_get(data, "SloArn", "sloArn", "sloarn")
+                slo_name = _ci_get(data, "SloName", "sloName", "sloname")
+                if not (slo_arn or slo_name):
+                    raise ValueError("SLO target must include SloArn or SloName")
+                slo_obj = {"SloArn": slo_arn} if slo_arn else {"SloName": slo_name}
+            else:
+                raise ValueError("SLO Data must be a string or object")
+            # Union wrapper REQUIRED by the API: data.slo = {...}
+            return {"type": "slo", "data": {"slo": slo_obj}}
+
+        def _normalize_service_op(item: dict) -> dict:
+            data = _need(item, "Data", "data")
+            svc = _need(data, "Service", "service")
+            svc_entity = _normalize_service_entity(svc)
+            op = _ci_get(data, "Operation", "operation") or operation_name
+            if not op:
+                raise ValueError("service_operation requires Operation (or pass operation_name)")
+            metric_type = _ci_get(data, "MetricType", "metricType") or (metric_name or "Latency")
+            # Union wrapper REQUIRED: data.ServiceOperation = {...}
+            return {
+                "type": "service_operation",
+                "data": {
+                    "ServiceOperation": {
+                        "Service": svc_entity,
+                        "Operation": op,
+                        "MetricType": metric_type
+                    }
+                }
+            }
+
+        def _normalize_targets(raw: list) -> list:
+            if not isinstance(raw, list):
+                raise ValueError("`audit_targets` must be a JSON array")
+            if not (1 <= len(raw) <= 10):
+                raise ValueError("`audit_targets` must contain between 1 and 10 items")
+            out = []
+            for i, t in enumerate(raw, 1):
+                if not isinstance(t, dict):
+                    raise ValueError(f"audit_targets[{i}] must be an object")
+
+                maybe_type = (_ci_get(t, "Type", "type", "target_type") or "").lower()
+                if maybe_type == "service":
+                    try:
+                        t = _coerce_service_target(t)  # tolerant upgrade
+                    except ValueError as e:
+                        raise ValueError(f"audit_targets[{i}] invalid service target: {e}")
+
+                ttype = (_ci_get(t, "Type", "type") or "").lower()
+                if ttype == "service":
+                    out.append(_normalize_service(t))
+                elif ttype == "slo":
+                    out.append(_normalize_slo(t))
+                elif ttype == "service_operation":
+                    out.append(_normalize_service_op(t))
+                else:
+                    raise ValueError(f"audit_targets[{i}].type must be 'service'|'slo'|'service_operation'")
+            return out
+
+        def _validate_targets(normalized_targets: list):
+            """If a service target exists, ensure it has Environment."""
+            for idx, t in enumerate(normalized_targets, 1):
+                if (t.get("type") or "").lower() == "service":
+                    svc = ((t.get("data") or {}).get("service") or {})
+                    if not svc.get("Environment"):
+                        raise ValueError(
+                            f"audit_targets[{idx}].data.service.Environment is required for service targets. "
+                            f"Provide Environment (e.g., 'eks:top-observations/default')."
+                        )
+
+        # ---------- Parse & normalize REQUIRED audit_targets ----------
+        try:
+            provided = json.loads(audit_targets)
+        except json.JSONDecodeError:
+            return "Error: `audit_targets` must be valid JSON (array)."
+        normalized_targets = _normalize_targets(provided)
+
+        # ---------- Append SLOs from breaching_slos (optional) ----------
+        if breaching_slos:
+            for slo in [s.strip() for s in breaching_slos.split(",") if s.strip()]:
+                normalized_targets.append({"type": "slo", "data": {"slo": {"SloName": slo}}})
+
+        # Validate after any additions
+        try:
+            _validate_targets(normalized_targets)
+        except ValueError as ve:
+            return f"Error in audit_targets: {ve}"
+
+        # ---------- Auditors (explicit or auto; integrated rule) ----------
+        auditors_list = None
+
+        # If the caller didn't pass auditors, infer intent from MCP_USER_PROMPT
+        # Rule: no explicit "root cause" → restrict to slo + operation_metric
+        if auditors is None:
+            user_prompt_text = os.environ.get("MCP_USER_PROMPT", "") or ""
+            wants_root_cause = "root cause" in user_prompt_text.lower()
+            inferred = None if wants_root_cause else ["slo", "operation_metric"]
+            raw_a = inferred
+        else:
+            raw_a = [a.strip() for a in auditors.split(",") if a.strip()]
+
+        if raw_a is not None:
+            allowed = {
+                "slo", "operation_metric", "trace", "log",
+                "critical_path", "top_contributors", "service_quota"
+            }
+            invalid = [a for a in raw_a if a not in allowed]
+            if invalid:
+                return (
+                    f"Invalid auditor(s): {', '.join(invalid)}. "
+                    f"Allowed: {', '.join(sorted(allowed))}"
+                )
+            auditors_list = raw_a or None
+        # else: auditors_list remains None → CLI uses all auditors by default
+
+        # ---------- Build CLI input (SCOPED: AuditTargets MUST be non-empty) ----------
+        input_obj = {"StartTime": unix_start, "EndTime": unix_end, "AuditTargets": normalized_targets}
+        if auditors_list:
+            input_obj["Auditors"] = auditors_list
+
+        banner = (
+            "[MCP-PRIMARY] Application Signals Comprehensive Audit\n"
+            f"🎯 Scope: {len(normalized_targets)} target(s) | Region: {region}\n"
+            f"⏰ Time: {input_obj['StartTime']}–{input_obj['EndTime']} | Endpoint: {endpoint}\n\n"
+        )
+
+        # ---------- Execute CLI (CMH gamma by default) ----------
+        aws_bin = os.environ.get("MCP_AWS_CLI", "aws")
+        if shutil.which(aws_bin) is None:
+            pretty_input = json.dumps(input_obj, indent=2)
+            logger.error(
+                banner +
+                "Result: FAILED to execute AWS CLI (binary not found).\n"
+                "Action: Install or set MCP_AWS_CLI to the full path of your aws binary.\n"
+                "---- CLI PARAMETERS (JSON) ----\n" + pretty_input + "\n---- END ----\n"
+            )
+            return (
+                banner +
+                "Result: FAILED to execute AWS CLI (binary not found). "
+                "Install or set MCP_AWS_CLI to the full path of your aws binary."
+            )
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tf:
+            json.dump(input_obj, tf); tf.flush()
+            cli_input_arg = f"file://{tf.name}"
+
+        cmd = [
+            aws_bin, "application-signals-demo", "list-audit-findings",
+            "--cli-input-json", cli_input_arg, "--region", region, "--endpoint-url", endpoint
+        ]
+
+        # File log path
+        desired_log_path = os.environ.get("AUDITOR_LOG_PATH", "/tmp")
+        try:
+            if desired_log_path.endswith(os.sep) or os.path.isdir(desired_log_path):
+                os.makedirs(desired_log_path, exist_ok=True)
+                log_path = os.path.join(desired_log_path, "aws_cli.log")
+            else:
+                os.makedirs(os.path.dirname(desired_log_path) or ".", exist_ok=True)
+                log_path = desired_log_path
+        except Exception:
+            os.makedirs("/tmp", exist_ok=True); log_path = "/tmp/aws_cli.log"
+
+        # ---------- Pretty log: command + params (file + stderr) ----------
+        cli_pretty_cmd = " ".join(cmd)
+        cli_pretty_input = json.dumps(input_obj, indent=2)
+
+        with open(log_path, "a") as f:
+            f.write("\n" + "═" * 80 + "\n")
+            f.write(banner)
+            f.write("---- CLI INVOCATION ----\n")
+            f.write(cli_pretty_cmd + "\n\n")
+            f.write("---- CLI PARAMETERS (JSON) ----\n")
+            f.write(cli_pretty_input + "\n")
+            f.write("---- END PARAMETERS ----\n")
+
+        logger.info("\n" + "═" * 80)
+        logger.info(banner.strip("\n"))
+        logger.info("---- CLI INVOCATION ----")
+        logger.info(cli_pretty_cmd)
+        logger.info("---- CLI PARAMETERS (JSON) ----")
+        logger.info("\n" + cli_pretty_input)
+        logger.info("---- END PARAMETERS ----")
+
+        # Run the CLI
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout_b, stderr_b = await proc.communicate()
+        stdout, stderr = stdout_b.decode("utf-8", errors="replace"), stderr_b.decode("utf-8", errors="replace")
+
+        # ---------- Handle CLI execution result ----------
+        if proc.returncode != 0:
+            with open(log_path, "a") as f:
+                f.write("---- CLI RESPONSE (stderr/stdout) ----\n")
+                f.write((stderr or stdout) + "\n")
+                f.write("---- END RESPONSE ----\n\n")
+            logger.error("---- CLI RESPONSE (stderr/stdout) ----\n" + (stderr or stdout) + "\n---- END RESPONSE ----")
+            return (
+                banner +
+                "❌ Result: FAILED to retrieve audit findings.\n"
+                f"CLI exit code: {proc.returncode}\n"
+                f"stderr/stdout:\n{stderr or stdout}\n"
+            )
+
+        # ---------- Format and log output ----------
+        try:
+            observation_text = json.dumps(json.loads(stdout), indent=2)
+        except json.JSONDecodeError:
+            observation_text = stdout or "<empty>"
+
+        if not observation_text.strip():
+            with open(log_path, "a") as f:
+                f.write("📭 No findings returned.\n")
+                f.write("---- END RESPONSE ----\n\n")
+            logger.info("📭 No findings returned.\n---- END RESPONSE ----")
+            return banner + "Result: No findings."
+
+        with open(log_path, "a") as f:
+            f.write("---- CLI RESPONSE (stdout pretty) ----\n")
+            f.write(observation_text + "\n")
+            f.write("---- END RESPONSE ----\n\n")
+
+        logger.info("---- CLI RESPONSE (stdout pretty) ----\n" + observation_text + "\n---- END RESPONSE ----")
+
+        elapsed = timer() - start_time_perf
+        logger.debug(f"investigate_service_anomaly completed in {elapsed:.3f}s (region={region})")
+
+        return banner + observation_text
+
+    except Exception as e:
+        logger.error(f"Unexpected error in investigate_service_anomaly: {e}", exc_info=True)
+        return f"Error: {str(e)}"
+
+
 @mcp.tool()
 async def list_monitored_services() -> str:
-    """List all services monitored by AWS Application Signals.
+    """SPECIALIZED TOOL - Use investigate_service_anomaly() first for comprehensive analysis.
 
-    Use this tool to:
-    - Get an overview of all monitored services
-    - See service names, types, and key attributes
-    - Identify which services are being tracked
-    - Count total number of services in your environment
+    Use this tool when investigate_service_anomaly() doesn't provide sufficient detail for:
+    - Getting a simple overview of all monitored services
+    - Discovering service names and types for building audit targets
+    - Identifying which services are being tracked in your environment
+    - Getting service key attributes needed for the primary diagnostic tool
 
     Returns a formatted list showing:
     - Service name and type
     - Key attributes (Environment, Platform, etc.)
     - Total count of services
 
-    This is typically the first tool to use when starting monitoring or investigation.
+    **Recommended workflow**: Use this tool to discover services, then use investigate_service_anomaly() 
+    with specific service targets for comprehensive health analysis.
     """
     start_time_perf = timer()
     logger.debug('Starting list_application_signals_services request')
@@ -950,47 +1362,28 @@ async def list_slis(
         description='Number of hours to look back (default 24, typically use 24 for daily checks)',
     ),
 ) -> str:
-    """Get SLI (Service Level Indicator) status and SLO compliance for all services.
+    """SPECIALIZED TOOL - Use investigate_service_anomaly() first for comprehensive health analysis.
 
-    Use this tool to:
-    - Check overall system health at a glance
-    - Identify services with breached SLOs (Service Level Objectives)
-    - See which specific SLOs are failing
-    - Prioritize which services need immediate attention
-    - Monitor SLO compliance trends
+    Use this tool when investigate_service_anomaly() doesn't provide sufficient detail for:
+    - Getting a simple SLI status overview across all services
+    - Legacy SLO compliance reporting format
+    - Basic health monitoring without detailed audit findings
 
-    Returns a comprehensive report showing:
+    **Recommended workflow**: Use investigate_service_anomaly() with SLO auditors for comprehensive 
+    health analysis that includes root cause information and actionable recommendations.
+
+    Returns a basic report showing:
     - Summary counts (total, healthy, breached, insufficient data)
-    - Detailed list of breached services with:
-      - Service name and environment
-      - Number and names of breached SLOs
-      - Specific SLO violations
-    - List of healthy services
-    - Services with insufficient data
-
-    This is the primary tool for health monitoring and should be used:
-    - At the start of each day
-    - During incident response
-    - For regular health checks
-    - When investigating "what is the root cause of breaching SLO" questions
+    - Simple list of breached services with SLO names
+    - Basic healthy services list
 
     Status meanings:
     - OK: All SLOs are being met
     - BREACHED: One or more SLOs are violated
     - INSUFFICIENT_DATA: Not enough data to determine status
 
-    To investigate breached SLOs, follow these steps:
-    1. Call get_service_level_objective() with SLO name to get the detailed SLI data including Metric statistics
-    2. Find the fault metrics from SLI under the breached SLO
-    3. Build trace query filters using metric dimensions (Operation, RemoteOperation, etc.):
-        - For availability: `service("service-name"){fault = true} AND annotation[aws.local.operation]="operation-name"`
-        - For latency: `service("service-name") AND annotation[aws.local.operation]="operation-name" AND duration > threshold`
-    4. Query traces:
-        - If Transaction Search is enabled: Use search_transaction_spans() for 100% trace visibility
-        - If not enabled: Use query_sampled_traces() with X-Ray (only 5% sampled data - may miss issues)
-    5. The query time window should default to last 3 hours if not specified. Max query time window length is 6 hours
-    6. Analyze the root causes from Exception data in traces
-    7. Include findings in the report and give fix and mitigation suggestions
+    **Note**: For detailed investigation of breached SLOs, use investigate_service_anomaly() 
+    with specific service targets and 'slo,trace,log' auditors for comprehensive analysis.
     """
     start_time_perf = timer()
     logger.info(f'Starting get_sli_status request for last {hours} hours')
