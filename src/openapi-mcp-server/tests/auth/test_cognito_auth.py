@@ -40,7 +40,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         config.auth_cognito_password = 'test_password'
 
         # Mock boto3 to avoid actual API calls
-        with patch('boto3.client'):
+        with patch('boto3.client', return_value=MagicMock()):
             with self.assertRaises(MissingCredentialsError):
                 CognitoAuthProvider(config)
 
@@ -52,7 +52,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         config.auth_cognito_password = 'test_password'
 
         # Mock boto3 to avoid actual API calls
-        with patch('boto3.client'):
+        with patch('boto3.client', return_value=MagicMock()):
             with self.assertRaises(MissingCredentialsError):
                 CognitoAuthProvider(config)
 
@@ -64,7 +64,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         config.auth_cognito_username = 'test_user'
 
         # Mock boto3 to avoid actual API calls
-        with patch('boto3.client'):
+        with patch('boto3.client', return_value=MagicMock()):
             with self.assertRaises(MissingCredentialsError):
                 CognitoAuthProvider(config)
 
@@ -223,6 +223,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._client_id = 'test_client_id'
         provider._user_pool_id = ''  # Empty string instead of None
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -277,6 +278,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._client_id = 'test_client_id'
         provider._user_pool_id = 'test_user_pool_id'
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -331,6 +333,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._client_id = 'test_client_id'
         provider._user_pool_id = 'test_user_pool_id'
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -387,6 +390,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._client_id = 'test_client_id'
         provider._user_pool_id = ''  # Empty string instead of None
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -430,6 +434,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._refresh_token_value = 'test_refresh_token'
         provider._user_pool_id = ''  # Empty string instead of None
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -479,6 +484,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._refresh_token_value = 'test_refresh_token'
         provider._user_pool_id = 'test_user_pool_id'
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -526,6 +532,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._refresh_token_value = 'test_refresh_token'
         provider._user_pool_id = ''  # Empty string instead of None
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -563,6 +570,7 @@ class TestCognitoAuthProvider(unittest.TestCase):
         provider._refresh_token_value = 'test_refresh_token'
         provider._user_pool_id = ''  # Empty string instead of None
         provider._region = 'us-east-1'
+        provider._grant_type = 'password'  # Add grant type
 
         # Create exception classes that inherit from Exception
         class NotAuthorizedException(Exception):
@@ -588,3 +596,35 @@ class TestCognitoAuthProvider(unittest.TestCase):
                 # in the _refresh_token method
                 token = provider._refresh_cognito_token()
                 self.assertIsNone(token)
+
+
+class TestCognitoAuthProviderHeaders(unittest.TestCase):
+    """Tests for the Cognito authentication provider headers methods."""
+
+    def test_get_auth_headers(self):
+        """Test getting auth headers."""
+        # Create a provider instance without calling __init__
+        provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
+        provider._is_valid = True
+        provider._token_lock = MagicMock()
+        provider._auth_headers = {'Authorization': 'Bearer test_token'}
+
+        # Mock the token expiry check
+        with patch.object(provider, '_is_token_expired_or_expiring_soon', return_value=False):
+            headers = provider.get_auth_headers()
+            self.assertEqual(headers, {'Authorization': 'Bearer test_token'})
+
+    def test_get_auth_headers_no_token(self):
+        """Test getting auth headers when no token is available."""
+        # Create a provider instance without calling __init__
+        provider = CognitoAuthProvider.__new__(CognitoAuthProvider)
+        provider._is_valid = False
+        provider._token_lock = MagicMock()
+        provider._auth_headers = None
+        provider._token_expires_at = float(
+            'inf'
+        )  # Set to infinity to avoid expiration check issues
+
+        # Test the method - should return empty dict when _is_valid is False
+        headers = provider.get_auth_headers()
+        self.assertEqual(headers, {})

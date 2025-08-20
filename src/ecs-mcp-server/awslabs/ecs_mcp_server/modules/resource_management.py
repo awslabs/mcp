@@ -47,6 +47,7 @@ def register_module(mcp: FastMCP) -> None:
 
         This tool allows direct execution of ECS API operations using boto3.
 
+
         PERMISSIONS:
         - Operations starting with "Describe" or "List" are read-only
         - All other operations require WRITE permission (ALLOW_WRITE=true)

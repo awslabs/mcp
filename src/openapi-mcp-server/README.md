@@ -27,6 +27,10 @@ This project is a server that dynamically creates Model Context Protocol (MCP) t
 
 ## Installation
 
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.openapi-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMub3BlbmFwaS1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBUElfTkFNRSI6InlvdXItYXBpLW5hbWUiLCJBUElfQkFTRV9VUkwiOiJodHRwczovL2FwaS5leGFtcGxlLmNvbSIsIkFQSV9TUEVDX1VSTCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL29wZW5hcGkuanNvbiIsIkxPR19MRVZFTCI6IkVSUk9SIiwiRU5BQkxFX1BST01FVEhFVVMiOiJmYWxzZSIsIkVOQUJMRV9PUEVSQVRJT05fUFJPTVBUUyI6InRydWUiLCJVVklDT1JOX1RJTUVPVVRfR1JBQ0VGVUxfU0hVVERPV04iOiI1LjAiLCJVVklDT1JOX0dSQUNFRlVMX1NIVVRET1dOIjoidHJ1ZSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=OpenAPI%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.openapi-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22API_NAME%22%3A%22your-api-name%22%2C%22API_BASE_URL%22%3A%22https%3A%2F%2Fapi.example.com%22%2C%22API_SPEC_URL%22%3A%22https%3A%2F%2Fapi.example.com%2Fopenapi.json%22%2C%22LOG_LEVEL%22%3A%22ERROR%22%2C%22ENABLE_PROMETHEUS%22%3A%22false%22%2C%22ENABLE_OPERATION_PROMPTS%22%3A%22true%22%2C%22UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN%22%3A%225.0%22%2C%22UVICORN_GRACEFUL_SHUTDOWN%22%3A%22true%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+
 ### From PyPI
 
 ```bash
@@ -86,6 +90,40 @@ Here are some ways you can work with MCP across AWS (e.g. for Amazon Q Developer
 }
 ```
 
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.openapi-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.openapi-mcp-server@latest",
+        "awslabs.openapi-mcp-server.exe"
+      ],
+      "env": {
+          "API_NAME": "your-api-name",
+          "API_BASE_URL": "https://api.example.com",
+          "API_SPEC_URL": "https://api.example.com/openapi.json",
+          "LOG_LEVEL": "ERROR",
+          "ENABLE_PROMETHEUS": "false",
+          "ENABLE_OPERATION_PROMPTS": "true",
+          "UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN": "5.0",
+          "UVICORN_GRACEFUL_SHUTDOWN": "true"
+      },
+    }
+  }
+}
+```
+
 ## Usage
 
 ### Basic Usage
@@ -115,7 +153,7 @@ awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://
 awslabs.openapi-mcp-server --api-url https://api.example.com --spec-url https://api.example.com/openapi.json --auth-type api_key --auth-api-key YOUR_API_KEY --auth-api-key-name X-API-Key --auth-api-key-in header # pragma: allowlist secret
 ```
 
-For detailed information about authentication methods, configuration options, and examples, see [AUTHENTICATION.md](AUTHENTICATION.md).
+For detailed information about authentication methods, configuration options, and examples, see [AUTHENTICATION.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AUTHENTICATION.md).
 
 ### Local OpenAPI Specification
 
@@ -200,11 +238,11 @@ export AUTH_API_KEY_IN="header"  # Where to place the API key (options: header, 
 
 The OpenAPI MCP Server includes comprehensive documentation to help you get started and make the most of its features:
 
-- [**AUTHENTICATION.md**](AUTHENTICATION.md): Detailed information about authentication methods, configuration options, and troubleshooting
-- [**DEPLOYMENT.md**](DEPLOYMENT.md): Guidelines for deploying the server in various environments, including Docker and AWS
-- [**AWS_BEST_PRACTICES.md**](AWS_BEST_PRACTICES.md): AWS best practices implemented in the server for resilience, caching, and efficiency
-- [**OBSERVABILITY.md**](OBSERVABILITY.md): Information about metrics, logging, and monitoring capabilities
-- [**tests/README.md**](tests/README.md): Overview of the test structure and strategy
+- [**AUTHENTICATION.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AUTHENTICATION.md): Detailed information about authentication methods, configuration options, and troubleshooting
+- [**DEPLOYMENT.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/DEPLOYMENT.md): Guidelines for deploying the server in various environments, including Docker and AWS
+- [**AWS_BEST_PRACTICES.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AWS_BEST_PRACTICES.md): AWS best practices implemented in the server for resilience, caching, and efficiency
+- [**OBSERVABILITY.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/OBSERVABILITY.md): Information about metrics, logging, and monitoring capabilities
+- [**tests/README.md**](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/tests/README.md): Overview of the test structure and strategy
 
 ## AWS Best Practices
 
@@ -214,7 +252,7 @@ The OpenAPI MCP Server implements AWS best practices for building resilient, obs
 - **Resilience**: Patterns to handle transient failures and ensure high availability
 - **Observability**: Comprehensive monitoring, metrics, and logging features
 
-For detailed information about these features, including implementation details and configuration options, see [AWS_BEST_PRACTICES.md](AWS_BEST_PRACTICES.md).
+For detailed information about these features, including implementation details and configuration options, see [AWS_BEST_PRACTICES.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/AWS_BEST_PRACTICES.md).
 
 ## Docker Deployment
 
@@ -240,7 +278,7 @@ docker run -p 8000:8000 \
   openapi-mcp-server:latest
 ```
 
-For detailed information about Docker deployment, AWS service integration, and transport considerations, see the [DEPLOYMENT.md](DEPLOYMENT.md) file.
+For detailed information about Docker deployment, AWS service integration, and transport considerations, see the [DEPLOYMENT.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/DEPLOYMENT.md) file.
 
 ## Testing
 
@@ -272,7 +310,7 @@ The test suite covers:
 5. **Metrics**: Tests for metrics collection and reporting
 6. **OpenAPI Validation**: Tests for OpenAPI specification validation
 
-For more information about the test structure and strategy, see the [tests/README.md](tests/README.md) file.
+For more information about the test structure and strategy, see the [tests/README.md](https://github.com/awslabs/mcp/blob/main/src/openapi-mcp-server/tests/README.md) file.
 
 ## Instructions
 
