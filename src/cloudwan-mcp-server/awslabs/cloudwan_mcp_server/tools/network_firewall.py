@@ -34,7 +34,11 @@ import boto3
 from botocore.exceptions import ClientError
 from loguru import logger
 
-from ..server import mcp, get_aws_client, handle_aws_error, safe_json_dumps, sanitize_error_message
+from ..server import mcp
+from ..utils.aws_client_factory import get_aws_client
+from ..utils.response_formatter import safe_json_dumps
+from ..utils.validation import sanitize_error_message
+from ..server import handle_aws_error
 from ..models.network_models import NetworkFirewall, FirewallPolicy, SuricataRule, FlowLog
 from ..utils.aws_config_manager import get_aws_config
 

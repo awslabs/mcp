@@ -5,21 +5,8 @@
       "reason": "syntax error while parsing AST from file"
     }
   ],
-  "generated_at": "2025-08-07T13:17:44Z",
+  "generated_at": "2025-08-18T13:37:19Z",
   "metrics": {
-    "././awslabs/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 2,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
     "././awslabs/cloudwan_mcp_server/__init__.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -29,7 +16,59 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
+      "loc": 7,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/__main__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
       "loc": 4,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/config/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/config/cache_config.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 22,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/config/tool_config.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 27,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -46,7 +85,7 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "././awslabs/cloudwan_mcp_server/factory/__init__.py": {
+    "././awslabs/cloudwan_mcp_server/factory.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
@@ -55,20 +94,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 9,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././awslabs/cloudwan_mcp_server/factory/tool_factory.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 256,
+      "loc": 20,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -124,6 +150,97 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "././awslabs/cloudwan_mcp_server/monitoring/metrics.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 48,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/monitoring/service_monitor.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 24,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/plugins/plugin_system.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 23,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/registry/dependency_manager.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 22,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/registry/health_check_registry.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 25,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/registry/tool_factory.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 17,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/registry/tool_registry.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 69,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "././awslabs/cloudwan_mcp_server/server.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -133,7 +250,33 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1066,
+      "loc": 1068,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/server_compat/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/server_compat/server.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 1,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -190,7 +333,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 189,
+      "loc": 101,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -203,7 +346,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 221,
+      "loc": 226,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -281,7 +424,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 766,
+      "loc": 679,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -320,7 +463,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 226,
+      "loc": 213,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -337,6 +480,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "././awslabs/cloudwan_mcp_server/utils/async_aws_client_factory.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 59,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "././awslabs/cloudwan_mcp_server/utils/aws_client_cache.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -346,7 +502,20 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 104,
+      "loc": 82,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/utils/aws_client_factory.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 15,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -359,7 +528,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 228,
+      "loc": 75,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -372,7 +541,20 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 219,
+      "loc": 45,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "././awslabs/cloudwan_mcp_server/utils/client_pool.py": {
+      "CONFIDENCE.HIGH": 2,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 2,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 83,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -389,6 +571,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "././awslabs/cloudwan_mcp_server/utils/connection_optimizer.py": {
+      "CONFIDENCE.HIGH": 6,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 6,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 239,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "././awslabs/cloudwan_mcp_server/utils/logger.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -402,6 +597,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "././awslabs/cloudwan_mcp_server/utils/memory_manager.py": {
+      "CONFIDENCE.HIGH": 1,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 62,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "././awslabs/cloudwan_mcp_server/utils/metrics.py": {
       "CONFIDENCE.HIGH": 1,
       "CONFIDENCE.LOW": 0,
@@ -411,7 +619,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 166,
+      "loc": 156,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -441,224 +649,16 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 39,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/config_manager.py": {
-      "CONFIDENCE.HIGH": 1,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 1,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 265,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/server.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 952,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/static/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 3,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/tools/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 1,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/tools/base.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 94,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/tools/network_firewall.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 1619,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/utils/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 1,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/utils/aws_client_cache.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 118,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/utils/aws_config_manager.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 33,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/utils/config.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 62,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/utils/logger.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 31,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/utils/response_formatter.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 59,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/utils/validation.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 82,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././integration_test_endpoints.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 233,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "././setup.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 6,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
     "_totals": {
-      "CONFIDENCE.HIGH": 3,
+      "CONFIDENCE.HIGH": 11,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 3,
+      "SEVERITY.LOW": 11,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 9067,
+      "loc": 5427,
       "nosec": 0,
       "skipped_tests": 0
     }
@@ -687,7 +687,197 @@
       "test_name": "try_except_pass"
     },
     {
-      "code": "208                                     break\n209                     except:\n210                         pass  # Ignore JSON parsing errors\n211                 \n",
+      "code": "63                 await client.close()\n64             except:\n65                 pass\n66 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/client_pool.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 64,
+      "line_range": [
+        64,
+        65
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "99                 await client.close()\n100             except:\n101                 pass\n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/client_pool.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 100,
+      "line_range": [
+        100,
+        101
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "92                             await client.close()\n93                         except:\n94                             pass\n95 \n",
+      "col_offset": 24,
+      "end_col_offset": 32,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/connection_optimizer.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 93,
+      "line_range": [
+        93,
+        94
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "132                 await client.close()\n133             except:\n134                 pass\n135             return\n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/connection_optimizer.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 133,
+      "line_range": [
+        133,
+        134
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "161                 await client.close()\n162             except:\n163                 pass\n164 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/connection_optimizer.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 162,
+      "line_range": [
+        162,
+        163
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "244                                 self._connection_stats[pool_key].active_connections -= 1\n245                         except:\n246                             pass\n247 \n",
+      "col_offset": 24,
+      "end_col_offset": 32,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/connection_optimizer.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 245,
+      "line_range": [
+        245,
+        246
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "313                     await client.close()\n314                 except:\n315                     pass\n316 \n",
+      "col_offset": 16,
+      "end_col_offset": 24,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/connection_optimizer.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 314,
+      "line_range": [
+        314,
+        315
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "320                 await client.close()\n321             except:\n322                 pass\n323 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/connection_optimizer.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 321,
+      "line_range": [
+        321,
+        322
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "69                 break\n70             except Exception:\n71                 # Log error but continue monitoring\n72                 pass\n73 \n",
+      "col_offset": 12,
+      "end_col_offset": 20,
+      "filename": "././awslabs/cloudwan_mcp_server/utils/memory_manager.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 70,
+      "line_range": [
+        70,
+        71,
+        72
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "207                                     break\n208                     except:\n209                         pass  # Ignore JSON parsing errors\n210 \n",
       "col_offset": 20,
       "end_col_offset": 28,
       "filename": "././awslabs/cloudwan_mcp_server/utils/metrics.py",
@@ -698,32 +888,10 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 209,
+      "line_number": 208,
       "line_range": [
-        209,
-        210
-      ],
-      "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
-      "test_id": "B110",
-      "test_name": "try_except_pass"
-    },
-    {
-      "code": "275 \n276         except Exception:\n277             # Don't fail the main operation if history save fails\n278             pass\n279 \n",
-      "col_offset": 8,
-      "end_col_offset": 16,
-      "filename": "././cloudwan-mcp-server/awslabs/cloudwan_mcp_server/config_manager.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 703,
-        "link": "https://cwe.mitre.org/data/definitions/703.html"
-      },
-      "issue_severity": "LOW",
-      "issue_text": "Try, Except, Pass detected.",
-      "line_number": 276,
-      "line_range": [
-        276,
-        277,
-        278
+        208,
+        209
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b110_try_except_pass.html",
       "test_id": "B110",

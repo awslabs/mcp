@@ -218,7 +218,7 @@ The CloudWAN MCP Server provides 17 specialized tools:
 
 ### Network Analysis Tools
 - **`trace_network_path`** - Trace network paths between IP addresses
-- **`discover_ip_details`** - Analyze IP address details and network context
+- **`discover_ip_details`** - Enhanced IP address analysis with comprehensive AWS networking context including ENI associations, subnet/VPC details, routing tables, security groups, and associated resources
 - **`validate_ip_cidr`** - Validate IP addresses and CIDR blocks
 
 ### Core Network Management
@@ -263,13 +263,18 @@ The following AWS IAM permissions are required:
         "ec2:DescribeRegions",
         "ec2:DescribeTransitGateways",
         "ec2:DescribeTransitGatewayRouteTables",
-        "ec2:DescribeTransitGatewayPeeringAttachments"
+        "ec2:DescribeTransitGatewayPeeringAttachments",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeInstances"
       ],
       "Resource": "*"
     }
   ]
 }
 ```
+
+**Enhanced Permissions Note**: The additional EC2 permissions (`DescribeRouteTables`, `DescribeSecurityGroups`, `DescribeInstances`) are required for the enhanced `discover_ip_details` function to provide comprehensive networking context including route table analysis, security group rules, and associated AWS resource details.
 
 ## Environment Variables
 
@@ -304,6 +309,192 @@ The following AWS IAM permissions are required:
 ```
 "Discover all VPCs in us-west-2 and us-east-1 regions and show their CloudWAN attachments"
 ```
+
+### Enhanced IP Details Discovery
+```
+"Analyze IP address 10.1.51.65 and provide comprehensive AWS networking context"
+```
+
+**Enhanced Response Example:**
+The `discover_ip_details` function now returns comprehensive networking information:
+
+```json
+{
+  "success": true,
+  "ip_address": "10.1.51.65",
+  "region": "us-west-2",
+  "ip_version": 4,
+  "is_private": true,
+  "is_multicast": false,
+  "is_loopback": false,
+  "timestamp": "2025-01-15T10:30:45.123456",
+  "aws_networking_context": {
+    "eni_details": {
+      "eni_found": true,
+      "eni_id": "eni-0123456789abcdef0",
+      "eni_type": "interface",
+      "subnet_id": "subnet-0abcdef1234567890",
+      "vpc_id": "vpc-0123456789abcdef0",
+      "availability_zone": "us-west-2a",
+      "security_groups": ["sg-0123456789abcdef0", "sg-0987654321fedcba0"],
+      "attachment": {
+        "AttachmentId": "eni-attach-0123456789abcdef0",
+        "InstanceId": "i-0123456789abcdef0",
+        "Status": "attached"
+      },
+      "status": "in-use"
+    },
+    "routing_context": {
+      "route_table_found": true,
+      "route_table_id": "rtb-0123456789abcdef0",
+      "routes": [
+        {
+          "DestinationCidrBlock": "10.0.0.0/16",
+          "GatewayId": "local",
+          "State": "active"
+        },
+        {
+          "DestinationCidrBlock": "0.0.0.0/0",
+          "TransitGatewayId": "tgw-0123456789abcdef0",
+          "State": "active"
+        }
+      ]
+    },
+    "security_groups": {
+      "security_groups_found": true,
+      "security_groups": [
+        {
+          "group_id": "sg-0123456789abcdef0",
+          "group_name": "web-tier-sg",
+          "description": "Security group for web tier",
+          "ingress_rules": [
+            {
+              "IpProtocol": "tcp",
+              "FromPort": 80,
+              "ToPort": 80,
+              "IpRanges": [{"CidrIp": "0.0.0.0/0"}]
+            }
+          ],
+          "egress_rules": [
+            {
+              "IpProtocol": "-1",
+              "IpRanges": [{"CidrIp": "0.0.0.0/0"}]
+            }
+          ]
+        }
+      ],
+      "total_count": 2
+    },
+    "associated_resources": {
+      "resources_found": true,
+      "instance_id": "i-0123456789abcdef0",
+      "instance_type": "t3.medium",
+      "instance_state": "running",
+      "platform": "linux",
+      "launch_time": "2025-01-15T09:00:00.000000",
+      "tags": [
+        {
+          "Key": "Name",
+          "Value": "WebServer-01"
+        },
+        {
+          "Key": "Environment",
+          "Value": "Production"
+        }
+      ]
+    }
+  },
+  "services_queried": 4,
+  "services_successful": 4
+}
+```
+
+**Key Enhanced Features:**
+- **Parallel Execution**: Uses `asyncio.gather()` for optimal performance
+- **Comprehensive Context**: ENI details, routing tables, security groups, and associated resources
+- **Graceful Degradation**: Returns partial results if some services are unavailable
+- **Detailed Diagnostics**: Includes service query metrics and error details
+
+## API Reference
+
+### `discover_ip_details` Enhanced Response Schema
+
+The enhanced `discover_ip_details` function returns a comprehensive JSON response with the following structure:
+
+#### Base Response Fields
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Whether the operation completed successfully |
+| `ip_address` | string | The analyzed IP address |
+| `region` | string | AWS region used for the analysis |
+| `ip_version` | integer | IP version (4 or 6) |
+| `is_private` | boolean | Whether the IP is in private address space |
+| `is_multicast` | boolean | Whether the IP is a multicast address |
+| `is_loopback` | boolean | Whether the IP is a loopback address |
+| `timestamp` | string | ISO 8601 timestamp when analysis was performed |
+
+#### AWS Networking Context Fields
+The `aws_networking_context` object contains four main sections:
+
+##### ENI Details (`eni_details`)
+| Field | Type | Description |
+|-------|------|-------------|
+| `eni_found` | boolean | Whether an ENI was found for this IP |
+| `eni_id` | string | ENI identifier (if found) |
+| `eni_type` | string | Type of network interface |
+| `subnet_id` | string | Associated subnet ID |
+| `vpc_id` | string | Associated VPC ID |
+| `availability_zone` | string | AZ where the ENI is located |
+| `security_groups` | array | List of security group IDs |
+| `attachment` | object | ENI attachment details |
+| `status` | string | Current ENI status |
+
+##### Routing Context (`routing_context`)
+| Field | Type | Description |
+|-------|------|-------------|
+| `route_table_found` | boolean | Whether route table was found |
+| `route_table_id` | string | Route table identifier |
+| `routes` | array | Array of route entries |
+| `associations` | array | Route table associations |
+| `propagating_vgws` | array | Virtual gateways propagating routes |
+
+##### Security Groups (`security_groups`)
+| Field | Type | Description |
+|-------|------|-------------|
+| `security_groups_found` | boolean | Whether security groups were found |
+| `security_groups` | array | Array of security group details |
+| `total_count` | integer | Number of security groups |
+
+Each security group object contains:
+- `group_id`: Security group ID
+- `group_name`: Human-readable name
+- `description`: Security group description  
+- `ingress_rules`: Array of inbound rules
+- `egress_rules`: Array of outbound rules
+- `vpc_id`: Associated VPC ID
+
+##### Associated Resources (`associated_resources`)
+| Field | Type | Description |
+|-------|------|-------------|
+| `resources_found` | boolean | Whether associated resources were found |
+| `instance_id` | string | EC2 instance ID (if attached) |
+| `instance_type` | string | EC2 instance type |
+| `instance_state` | string | Current instance state |
+| `platform` | string | Operating system platform |
+| `launch_time` | string | Instance launch timestamp |
+| `tags` | array | Array of instance tags |
+
+#### Service Query Metrics
+| Field | Type | Description |
+|-------|------|-------------|
+| `services_queried` | integer | Total number of AWS services queried |
+| `services_successful` | integer | Number of successful service responses |
+
+#### Error Handling
+When IP discovery fails or no AWS resources are found, the response includes:
+- Descriptive error messages in the `message` field
+- `possible_reasons` array explaining potential causes
+- Partial results from successful service queries (graceful degradation)
 
 ## Troubleshooting
 
@@ -349,6 +540,57 @@ export CLOUDWAN_AWS_CUSTOM_ENDPOINTS='{"networkmanager": "https://networkmanager
 
 # Solution 2: Check network connectivity and AWS service health
 aws networkmanager list-core-networks --region us-west-2
+```
+
+#### IP Discovery Issues
+
+##### ENI Not Found for IP Address
+```bash
+# Problem: "No AWS network interface found for this IP address"
+# Possible Causes:
+# 1. IP is not associated with an AWS resource
+# 2. Insufficient permissions to view network interfaces  
+# 3. IP is from a different AWS account or region
+
+# Solutions:
+# Check if IP exists in current region
+aws ec2 describe-network-interfaces --filters "Name=addresses.private-ip-address,Values=10.1.51.65"
+
+# Check public IP associations
+aws ec2 describe-network-interfaces --filters "Name=association.public-ip,Values=203.0.113.1"
+
+# Verify in different regions
+for region in us-east-1 us-west-2 eu-west-1; do
+  echo "Checking region: $region"
+  aws ec2 describe-network-interfaces --region $region --filters "Name=addresses.private-ip-address,Values=10.1.51.65"
+done
+```
+
+##### Partial Context Information
+```bash
+# Problem: "Some services returned incomplete information"
+# This indicates graceful degradation - some AWS services responded but others failed
+
+# Check specific service permissions:
+# For routing context:
+aws ec2 describe-route-tables --region us-west-2
+
+# For security groups:
+aws ec2 describe-security-groups --region us-west-2  
+
+# For instance details:
+aws ec2 describe-instances --region us-west-2
+```
+
+##### Permission Denied for Enhanced Features
+```bash
+# Problem: "User is not authorized to perform ec2:DescribeRouteTables/DescribeSecurityGroups/DescribeInstances"
+# Solution: Ensure your IAM policy includes the enhanced permissions listed in the IAM Permissions section
+
+# Test individual permissions:
+aws ec2 describe-route-tables --region us-west-2 --dry-run
+aws ec2 describe-security-groups --region us-west-2 --dry-run  
+aws ec2 describe-instances --region us-west-2 --dry-run
 ```
 
 ### Debug Mode

@@ -28,7 +28,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from awslabs.cloudwan_mcp_server.config_manager import ConfigPersistenceManager
+from awslabs.cloudwan_mcp_server.config_manager import ConfigPersistence
 from awslabs.cloudwan_mcp_server.server import sanitize_error_message, secure_environment_update
 
 

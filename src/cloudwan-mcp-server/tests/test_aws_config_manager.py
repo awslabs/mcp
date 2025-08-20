@@ -20,9 +20,8 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
 from awslabs.cloudwan_mcp_server.utils.aws_config_manager import (
-    AWSConfigManager,
     get_aws_config,
-    aws_config_manager
+    get_aws_client
 )
 
 

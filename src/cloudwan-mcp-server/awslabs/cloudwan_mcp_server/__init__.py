@@ -16,10 +16,13 @@
 
 __version__ = "0.1.0"
 
+
 # Export main entry point
 def main():
     """Main entry point that imports and calls the server main function."""
     from .server import main as server_main
+
     return server_main()
+
 
 __all__ = ["main", "__version__"]
