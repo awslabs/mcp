@@ -27,6 +27,7 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
+from awslabs.well_architected_security_mcp_server import __version__
 from awslabs.well_architected_security_mcp_server.consts import INSTRUCTIONS
 from awslabs.well_architected_security_mcp_server.util.network_security import (
     check_network_security,
@@ -54,7 +55,7 @@ from awslabs.well_architected_security_mcp_server.util.storage_security import (
 
 # User agent configuration for AWS API calls
 USER_AGENT_CONFIG = Config(
-    user_agent_extra="awslabs/mcp/well-architected-security-mcp-server/1.0.0"
+    user_agent_extra=f"awslabs/mcp/well-architected-security-mcp-server/{__version__}"
 )
 
 # Set up AWS region and profile from environment variables

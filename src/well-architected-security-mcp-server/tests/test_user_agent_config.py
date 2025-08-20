@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 from botocore.config import Config
 
+from awslabs.well_architected_security_mcp_server import __version__
 from awslabs.well_architected_security_mcp_server.util.network_security import (
     USER_AGENT_CONFIG as NETWORK_USER_AGENT_CONFIG,
 )
@@ -19,7 +20,7 @@ from awslabs.well_architected_security_mcp_server.util.storage_security import (
 
 def test_user_agent_config_is_properly_configured():
     """Test that USER_AGENT_CONFIG is properly configured with the correct user agent string."""
-    expected_user_agent = "awslabs/mcp/well-architected-security-mcp-server/1.0.0"
+    expected_user_agent = f"awslabs/mcp/well-architected-security-mcp-server/{__version__}"
 
     # Test security_services config
     assert isinstance(USER_AGENT_CONFIG, Config)
