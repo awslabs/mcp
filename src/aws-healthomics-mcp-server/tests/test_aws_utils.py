@@ -46,7 +46,7 @@ class TestGetRegion:
     def test_get_region_default(self):
         """Test get_region returns default region when no environment variable."""
         result = get_region()
-        assert result == 'us-west-2'
+        assert result == 'us-east-1'
 
     @patch.dict(os.environ, {'AWS_REGION': ''})
     def test_get_region_empty_env_var(self):
@@ -89,7 +89,7 @@ class TestGetAwsSession:
         result = get_aws_session()
 
         mock_boto3_session.assert_called_once_with(
-            region_name='us-west-2', botocore_session=mock_botocore_instance
+            region_name='us-east-1', botocore_session=mock_botocore_instance
         )
         assert result == mock_boto3_instance
 
