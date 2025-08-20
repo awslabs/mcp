@@ -72,7 +72,10 @@ Each recommendation includes:
 - The estimated monthly savings
 - The current state of the resource
 - The recommended state of the resource
-- Implementation steps""",
+- Implementation steps
+
+When passing max_result parameter for any of the operations ensure its a integer
+""",
 )
 async def cost_optimization_hub(
     ctx: Context,

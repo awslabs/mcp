@@ -167,6 +167,33 @@ def mock_co_client():
         'nextToken': 'next-token-lambda',
     }
 
+    mock_client.get_rds_database_recommendations.return_value = {
+        'rdsDBRecommendations': [
+            {
+                'accountId': '123456789012',
+                'instanceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
+                'instanceName': 'test-db',
+                'currentInstanceClass': 'db.r5.large',
+                'finding': 'OVER_PROVISIONED',
+                'lastRefreshTimestamp': datetime(2023, 1, 1),
+                'recommendationOptions': [
+                    {
+                        'instanceClass': 'db.r5.medium',
+                        'performanceRisk': 'LOW',
+                        'savingsOpportunity': {
+                            'savingsPercentage': 35.0,
+                            'estimatedMonthlySavings': {
+                                'currency': 'USD',
+                                'value': 25.80,
+                            },
+                        },
+                    }
+                ],
+            }
+        ],
+        'nextToken': 'next-token-rds',
+    }
+
     mock_client.get_rds_instance_recommendations.return_value = {
         'instanceRecommendations': [
             {
@@ -417,8 +444,8 @@ class TestGetRDSRecommendations:
         )
 
         # Verify the client was called correctly
-        mock_co_client.get_rds_instance_recommendations.assert_called_once()
-        call_kwargs = mock_co_client.get_rds_instance_recommendations.call_args[1]
+        mock_co_client.get_rds_database_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_rds_database_recommendations.call_args[1]
         assert call_kwargs['maxResults'] == 10
 
         # Verify response format
@@ -472,8 +499,8 @@ class TestGetRDSRecommendations:
             )
 
             # Assert
-            mock_co_client.get_rds_instance_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_rds_instance_recommendations.call_args[1]
+            mock_co_client.get_rds_database_recommendations.assert_called_once()
+            call_kwargs = mock_co_client.get_rds_database_recommendations.call_args[1]
 
             # Verify that the parsed parameters were passed to the client
             assert 'filters' in call_kwargs
@@ -1095,8 +1122,8 @@ class TestComputeOptimizerCoverageGaps:
         mock_co_client = MagicMock()
 
         # Mock the response to have no recommendations
-        mock_co_client.get_rds_instance_recommendations.return_value = {
-            'instanceRecommendations': [],  # Empty recommendations
+        mock_co_client.get_rds_database_recommendations.return_value = {
+            'rdsDBRecommendations': [],  # Empty recommendations
             'nextToken': None,
         }
 
@@ -1129,12 +1156,12 @@ class TestComputeOptimizerCoverageGaps:
         mock_co_client = MagicMock()
 
         # Make the RDS call fail with AccessDeniedException
-        mock_co_client.get_rds_instance_recommendations.side_effect = ClientError(
+        mock_co_client.get_rds_database_recommendations.side_effect = ClientError(
             error_response={
                 'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied for RDS'},
                 'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 403},
             },
-            operation_name='GetRDSInstanceRecommendations',
+            operation_name='GetRDSDatabaseRecommendations',
         )
 
         with patch(
@@ -1154,7 +1181,6 @@ class TestComputeOptimizerCoverageGaps:
             assert result['status'] == 'error'
             assert result['data']['error_type'] == 'access_denied'
             assert 'Access denied when accessing RDS recommendations' in result['message']
-            assert 'compute-optimizer:GetRDSInstanceRecommendations' in result['message']
 
             # Should log the detailed error
             mock_logger_instance.error.assert_called()
@@ -1166,7 +1192,7 @@ class TestComputeOptimizerCoverageGaps:
         mock_co_client = MagicMock()
 
         # Make the RDS call fail with ResourceNotFoundException
-        mock_co_client.get_rds_instance_recommendations.side_effect = ClientError(
+        mock_co_client.get_rds_database_recommendations.side_effect = ClientError(
             error_response={
                 'Error': {
                     'Code': 'ResourceNotFoundException',
@@ -1174,7 +1200,7 @@ class TestComputeOptimizerCoverageGaps:
                 },
                 'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 404},
             },
-            operation_name='GetRDSInstanceRecommendations',
+            operation_name='GetRDSDatabaseRecommendations',
         )
 
         with patch(
@@ -1203,12 +1229,12 @@ class TestComputeOptimizerCoverageGaps:
         mock_co_client = MagicMock()
 
         # Make the RDS call fail with OptInRequiredException
-        mock_co_client.get_rds_instance_recommendations.side_effect = ClientError(
+        mock_co_client.get_rds_database_recommendations.side_effect = ClientError(
             error_response={
                 'Error': {'Code': 'OptInRequiredException', 'Message': 'Opt-in required for RDS'},
                 'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 400},
             },
-            operation_name='GetRDSInstanceRecommendations',
+            operation_name='GetRDSDatabaseRecommendations',
         )
 
         with patch(
@@ -1235,7 +1261,7 @@ class TestComputeOptimizerCoverageGaps:
         mock_co_client = MagicMock()
 
         # Make the RDS call fail with an unexpected error that should be re-raised
-        mock_co_client.get_rds_instance_recommendations.side_effect = Exception('Unexpected error')
+        mock_co_client.get_rds_database_recommendations.side_effect = Exception('Unexpected error')
 
         with patch(
             'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
@@ -1277,8 +1303,8 @@ class TestComputeOptimizerCoverageGaps:
         mock_co_client = MagicMock()
 
         # Mock successful response with recommendations
-        mock_co_client.get_rds_instance_recommendations.return_value = {
-            'instanceRecommendations': [
+        mock_co_client.get_rds_database_recommendations.return_value = {
+            'rdsDBRecommendations': [
                 {
                     'instanceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
                     'instanceName': 'test-db',

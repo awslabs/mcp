@@ -108,6 +108,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'compute-optimizer',  # Compute Optimizer
         'cost-optimization-hub',  # Cost Optimization Hub
         'sts',  # STS (for account validation)
+        'freetier',  # AWS Free Tier Usage
     ]
 
     # Validate requested service

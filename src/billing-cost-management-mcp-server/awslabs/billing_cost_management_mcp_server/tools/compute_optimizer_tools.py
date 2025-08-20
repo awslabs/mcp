@@ -93,7 +93,6 @@ async def compute_optimizer(
         try:
             enrollment_status = co_client.get_enrollment_status()
             status = enrollment_status.get('status', '')
-            resource_types = enrollment_status.get('resourceTypes', [])
 
             # Map operations to required resource types
             resource_type_mapping = {
@@ -110,7 +109,7 @@ async def compute_optimizer(
             # If we have a valid operation, check enrollment
             if required_resource_type:
                 # Check overall enrollment status
-                if status != 'ACTIVE':
+                if status.upper() != 'ACTIVE':
                     return format_response(
                         'error',
                         {
@@ -123,28 +122,32 @@ async def compute_optimizer(
                         'Compute Optimizer is not active. Please activate the service in the AWS Console first.',
                     )
 
-                # Check resource-specific enrollment
-                if required_resource_type not in resource_types:
-                    resource_type_human_readable = {
+                # Check if the specific resource type is enrolled
+                enrolled_resource_types = enrollment_status.get('resourceTypes', [])
+                if required_resource_type not in enrolled_resource_types:
+                    resource_name_mapping = {
                         'ec2Instance': 'EC2 instances',
                         'autoScalingGroup': 'Auto Scaling groups',
                         'ebsVolume': 'EBS volumes',
                         'lambdaFunction': 'Lambda functions',
                         'rdsDBInstance': 'RDS instances',
-                    }.get(required_resource_type, required_resource_type)
-
+                    }
+                    resource_name = resource_name_mapping.get(
+                        required_resource_type, required_resource_type
+                    )
                     return format_response(
                         'error',
                         {
                             'error_type': 'resource_not_enrolled',
                             'enrollment_status': status,
-                            'enrolled_resource_types': resource_types,
-                            'required_resource_type': required_resource_type,
                             'operation': operation,
+                            'required_resource_type': required_resource_type,
+                            'enrolled_resource_types': enrolled_resource_types,
                             'aws_region': 'us-east-1',
                         },
-                        f'{resource_type_human_readable} are not enrolled in Compute Optimizer. Please enroll this resource type in the AWS Console.',
+                        f'{resource_name} are not enrolled in Compute Optimizer. Please enable {resource_name} recommendations in the AWS Console.',
                     )
+
         except ClientError as e:
             # Specific error handling for enrollment status checking
             aws_error = e.response.get('Error', {})
@@ -206,12 +209,16 @@ async def compute_optimizer(
         # Create detailed error response
         error_response = {
             'status': 'error',
-            'service': 'Compute Optimizer',
-            'operation': operation,
-            'aws_error_code': error_code,
-            'aws_error_message': aws_message,
-            'request_id': request_id,
-            'http_status': http_status,
+            'error_type': 'access_denied',  # Default, will be overridden
+            'message': 'An error occurred',  # Default, will be overridden
+            'data': {
+                'service': 'Compute Optimizer',
+                'operation': operation,
+                'aws_error_code': error_code,
+                'aws_error_message': aws_message,
+                'request_id': request_id,
+                'http_status': http_status,
+            },
         }
 
         # Handle specific error codes with improved messages
@@ -624,13 +631,14 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
 
         # Make the API call
         await ctx_logger.info(
-            f'Calling get_rds_instance_recommendations with parameters: {request_params}'
+            f'Calling get_rds_database_recommendations with parameters: {request_params}'
         )
         try:
-            response = co_client.get_rds_instance_recommendations(**request_params)
+            response = co_client.get_rds_database_recommendations(**request_params)
+            await ctx_logger.info(f'THIS_IS_RDS_OUTPUT: {response}')
             # Log successful response info for debugging
             await ctx_logger.debug(
-                f'RDS API response received: {len(response.get("instanceRecommendations", []))} recommendations'
+                f'RDS API response received: {len(response.get("rdsDBRecommendations", []))} recommendations'
             )
         except ClientError as e:
             # Capture and log detailed AWS API errors
@@ -646,38 +654,38 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
 
             # Handle specific RDS-related errors directly without re-raising
             if error_code == 'AccessDeniedException' or error_code == 'AccessDenied':
-                return format_response(
-                    'error',
-                    {
-                        'error_code': error_code,
+                return {
+                    'status': 'error',
+                    'message': 'Access denied when accessing RDS recommendations. Ensure you have the necessary permissions.',
+                    'data': {
                         'error_type': 'access_denied',
+                        'error_code': error_code,
                         'request_id': request_id,
                         'http_status': http_status,
                     },
-                    'Access denied when accessing RDS recommendations. Ensure you have the necessary permissions: compute-optimizer:GetRDSInstanceRecommendations.',
-                )
+                }
             elif error_code == 'ResourceNotFoundException':
-                return format_response(
-                    'error',
-                    {
-                        'error_code': error_code,
+                return {
+                    'status': 'error',
+                    'message': 'RDS resources not found. Ensure you have RDS instances and that Compute Optimizer is enabled for your account.',
+                    'data': {
                         'error_type': 'resource_not_found',
-                        'request_id': request_id,
-                        'http_status': http_status,
-                    },
-                    'RDS resources not found. Ensure you have RDS instances and that Compute Optimizer is enabled for your account.',
-                )
-            elif error_code == 'OptInRequiredException':
-                return format_response(
-                    'error',
-                    {
                         'error_code': error_code,
-                        'error_type': 'opt_in_required',
                         'request_id': request_id,
                         'http_status': http_status,
                     },
-                    'Compute Optimizer requires opt-in. Please enable Compute Optimizer in the AWS Console.',
-                )
+                }
+            elif error_code == 'OptInRequiredException':
+                return {
+                    'status': 'error',
+                    'message': 'Compute Optimizer requires opt-in. Please enable Compute Optimizer in the AWS Console.',
+                    'data': {
+                        'error_type': 'opt_in_required',
+                        'error_code': error_code,
+                        'request_id': request_id,
+                        'http_status': http_status,
+                    },
+                }
             else:
                 # Re-raise for all other errors to be handled by the main error handler
                 raise
@@ -691,13 +699,13 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
             raise
 
         # Check if we got any recommendations
-        if not response.get('instanceRecommendations'):
+        if not response.get('rdsDBRecommendations'):
             await ctx_logger.info('No RDS recommendations found')
-            return format_response(
-                'success',
-                {'recommendations': [], 'next_token': None},
-                'No RDS instance recommendations found. This could be because there are no RDS instances in the account, or because Compute Optimizer has not yet generated recommendations.',
-            )
+            return {
+                'status': 'success',
+                'data': {'recommendations': [], 'next_token': None},
+                'message': 'No RDS instance recommendations found. This could be because there are no RDS instances in the account, or because Compute Optimizer has not yet generated recommendations.',
+            }
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
@@ -707,11 +715,15 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
 
         # Parse the recommendations
         recommendation_count = 0
-        for recommendation in response.get('instanceRecommendations', []):
+        for recommendation in response.get('rdsDBRecommendations', []):
             # Get the current configuration
             current_config = {
                 'instance_class': recommendation.get('currentInstanceClass'),
                 'finding': recommendation.get('finding'),
+                'engine': recommendation.get('engine'),
+                'engine_version': recommendation.get('engineVersion'),
+                'storage_finding': recommendation.get('storageFinding'),
+                'current_storage_configuration': recommendation.get('currentStorageConfiguration'),
             }
 
             # Get the recommended options
@@ -742,17 +754,17 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
             recommendation_count += 1
 
         await ctx_logger.info(f'Retrieved {recommendation_count} RDS instance recommendations')
-        return format_response('success', formatted_response)
+        return {'status': 'success', 'data': formatted_response}
 
     # This outer ClientError handler is no longer needed since we handle ClientErrors in the inner try block
 
     except ValueError as e:
         # Handle parameter validation errors
-        return format_response(
-            'error',
-            {'error_type': 'validation_error'},
-            f'Invalid parameters for RDS recommendations: {str(e)}',
-        )
+        return {
+            'status': 'error',
+            'message': f'Invalid parameters for RDS recommendations: {str(e)}',
+            'data': {'error_type': 'validation_error'},
+        }
     except Exception:
         # Let the shared error handler deal with other unexpected errors
         raise

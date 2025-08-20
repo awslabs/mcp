@@ -47,6 +47,7 @@ IMPORTANT USAGE GUIDELINES:
 - Exclude record_types 'Credit' and 'Refund' by default unless user requests inclusion
 - Choose DAILY granularity for periods <3 months, MONTHLY for longer periods
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones
+- Always remember that the end_date is exclusive
 
 ## OPERATIONS
 
@@ -57,8 +58,9 @@ IMPORTANT USAGE GUIDELINES:
    Returns: Grouped cost data with metrics by time period with automatic pagination
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
-   Required: operation="getCostAndUsageWithResources"
-   Optional: start_date, end_date, granularity, metrics, group_by, filter
+   Required: operation="getCostAndUsageWithResources", filter
+   Optional: start_date, end_date, granularity, metrics, group_by
+   Notes: RESOURCE_ID must be included in either filter OR group_by parameters, limited to last 14 days of data only
    Example: {"operation": "getCostAndUsageWithResources", "granularity": "DAILY"}
    Returns: Cost data with resource-level granularity
 
