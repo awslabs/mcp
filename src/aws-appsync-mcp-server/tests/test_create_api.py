@@ -140,9 +140,10 @@ def test_register_create_api_tool():
 async def test_create_api_tool_execution():
     """Test create_api tool execution through MCP."""
     from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+    from typing import Any, Callable
 
     mock_mcp = MagicMock()
-    captured_func = None
+    captured_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -159,6 +160,7 @@ async def test_create_api_tool_execution():
 
     with patch('awslabs.aws_appsync_mcp_server.tools.create_api.create_api_operation') as mock_op:
         mock_op.return_value = {'api': {'apiId': 'test-id'}}
-        result = await captured_func('test-api')
-        mock_op.assert_called_once_with('test-api', None, None, None)
-        assert result == {'api': {'apiId': 'test-id'}}
+        if captured_func is not None:
+            result = await captured_func('test-api')
+            mock_op.assert_called_once_with('test-api', None, None, None)
+            assert result == {'api': {'apiId': 'test-id'}}

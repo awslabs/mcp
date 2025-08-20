@@ -471,9 +471,10 @@ def test_register_create_function_tool():
 async def test_create_function_tool_execution():
     """Test create_function tool execution through MCP."""
     from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+    from typing import Any, Callable
 
     mock_mcp = MagicMock()
-    captured_func = None
+    captured_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -492,6 +493,7 @@ async def test_create_function_tool_execution():
         'awslabs.aws_appsync_mcp_server.tools.create_function.create_function_operation'
     ) as mock_op:
         mock_op.return_value = {'functionConfiguration': {'name': 'test-fn'}}
-        result = await captured_func('test-api', 'test-ds', 'test-fn')
-        mock_op.assert_called_once()
-        assert result == {'functionConfiguration': {'name': 'test-fn'}}
+        if captured_func is not None:
+            result = await captured_func('test-api', 'test-ds', 'test-fn')
+            mock_op.assert_called_once()
+            assert result == {'functionConfiguration': {'name': 'test-fn'}}

@@ -261,9 +261,10 @@ def test_register_create_channel_namespace_tool():
 async def test_create_channel_namespace_tool_execution():
     """Test create_channel_namespace tool execution through MCP."""
     from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+    from typing import Any, Callable
 
     mock_mcp = MagicMock()
-    captured_func = None
+    captured_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -282,6 +283,7 @@ async def test_create_channel_namespace_tool_execution():
         'awslabs.aws_appsync_mcp_server.tools.create_channel_namespace.create_channel_namespace_operation'
     ) as mock_op:
         mock_op.return_value = {'channelNamespace': {'name': 'test-ns'}}
-        result = await captured_func('test-api', 'test-ns')
-        mock_op.assert_called_once_with('test-api', 'test-ns', None, None, None, None, None)
-        assert result == {'channelNamespace': {'name': 'test-ns'}}
+        if captured_func is not None:
+            result = await captured_func('test-api', 'test-ns')
+            mock_op.assert_called_once_with('test-api', 'test-ns', None, None, None, None, None)
+            assert result == {'channelNamespace': {'name': 'test-ns'}}

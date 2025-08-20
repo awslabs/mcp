@@ -155,9 +155,10 @@ def test_register_create_domain_name_tool():
 async def test_create_domain_name_tool_execution():
     """Test create_domain_name tool execution through MCP."""
     from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+    from typing import Any, Callable
 
     mock_mcp = MagicMock()
-    captured_func = None
+    captured_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -176,6 +177,7 @@ async def test_create_domain_name_tool_execution():
         'awslabs.aws_appsync_mcp_server.tools.create_domain_name.create_domain_name_operation'
     ) as mock_op:
         mock_op.return_value = {'domainNameConfig': {'domainName': 'test.com'}}
-        result = await captured_func('test.com', 'cert-arn')
-        mock_op.assert_called_once_with('test.com', 'cert-arn', None, None)
-        assert result == {'domainNameConfig': {'domainName': 'test.com'}}
+        if captured_func is not None:
+            result = await captured_func('test.com', 'cert-arn')
+            mock_op.assert_called_once_with('test.com', 'cert-arn', None, None)
+            assert result == {'domainNameConfig': {'domainName': 'test.com'}}

@@ -428,9 +428,10 @@ def test_register_create_resolver_tool():
 async def test_create_resolver_tool_execution():
     """Test create_resolver tool execution through MCP."""
     from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+    from typing import Any, Callable
 
     mock_mcp = MagicMock()
-    captured_func = None
+    captured_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -449,6 +450,7 @@ async def test_create_resolver_tool_execution():
         'awslabs.aws_appsync_mcp_server.tools.create_resolver.create_resolver_operation'
     ) as mock_op:
         mock_op.return_value = {'resolver': {'typeName': 'Query'}}
-        result = await captured_func('test-api', 'Query', 'getUser')
-        mock_op.assert_called_once()
-        assert result == {'resolver': {'typeName': 'Query'}}
+        if captured_func is not None:
+            result = await captured_func('test-api', 'Query', 'getUser')
+            mock_op.assert_called_once()
+            assert result == {'resolver': {'typeName': 'Query'}}

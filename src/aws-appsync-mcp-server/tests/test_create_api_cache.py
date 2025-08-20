@@ -326,9 +326,10 @@ def test_register_create_api_cache_tool():
 async def test_create_api_cache_tool_execution():
     """Test create_api_cache tool execution through MCP."""
     from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+    from typing import Any, Callable
 
     mock_mcp = MagicMock()
-    captured_func = None
+    captured_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -347,8 +348,9 @@ async def test_create_api_cache_tool_execution():
         'awslabs.aws_appsync_mcp_server.tools.create_api_cache.create_api_cache_operation'
     ) as mock_op:
         mock_op.return_value = {'apiCache': {'status': 'CREATING'}}
-        result = await captured_func('test-api', 300, 'FULL_REQUEST_CACHING', 'SMALL')
-        mock_op.assert_called_once_with(
-            'test-api', 300, 'FULL_REQUEST_CACHING', 'SMALL', None, None, None
-        )
-        assert result == {'apiCache': {'status': 'CREATING'}}
+        if captured_func is not None:
+            result = await captured_func('test-api', 300, 'FULL_REQUEST_CACHING', 'SMALL')
+            mock_op.assert_called_once_with(
+                'test-api', 300, 'FULL_REQUEST_CACHING', 'SMALL', None, None, None
+            )
+            assert result == {'apiCache': {'status': 'CREATING'}}

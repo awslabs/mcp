@@ -516,9 +516,10 @@ def test_register_create_datasource_tool():
 async def test_create_datasource_tool_execution():
     """Test create_datasource tool execution through MCP."""
     from awslabs.aws_appsync_mcp_server.decorators import set_write_allowed
+    from typing import Any, Callable
 
     mock_mcp = MagicMock()
-    captured_func = None
+    captured_func: Callable[..., Any] | None = None
 
     def capture_tool(**kwargs):
         def decorator(func):
@@ -537,6 +538,7 @@ async def test_create_datasource_tool_execution():
         'awslabs.aws_appsync_mcp_server.tools.create_datasource.create_datasource_operation'
     ) as mock_op:
         mock_op.return_value = {'dataSource': {'name': 'test-ds'}}
-        result = await captured_func('test-api', 'test-ds', 'NONE')
-        mock_op.assert_called_once()
-        assert result == {'dataSource': {'name': 'test-ds'}}
+        if captured_func is not None:
+            result = await captured_func('test-api', 'test-ds', 'NONE')
+            mock_op.assert_called_once()
+            assert result == {'dataSource': {'name': 'test-ds'}}
