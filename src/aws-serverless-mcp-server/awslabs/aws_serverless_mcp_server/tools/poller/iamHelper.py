@@ -181,7 +181,7 @@ class IAMHelper:
             return json.loads(response['SecretString'])
         except ClientError as e:
             if prompt_if_failed:
-                print(f"Cannot access secret {secret_arn}: {e.response['Error']['Code']}")
+                print(f"Cannot access secret: {e.response['Error']['Code']}")
                 return self.prompt_for_credentials()
             return None
 

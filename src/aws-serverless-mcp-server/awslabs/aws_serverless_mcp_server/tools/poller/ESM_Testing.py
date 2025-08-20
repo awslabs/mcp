@@ -251,7 +251,8 @@ class ESMTesting:
                 result = False
             
             full_output = "\n".join(output)
-            print(full_output)
+            # Log completion without sensitive data
+            print(f"Test execution completed: {test_name}")
             return result, full_output
             
         except Exception as e:
