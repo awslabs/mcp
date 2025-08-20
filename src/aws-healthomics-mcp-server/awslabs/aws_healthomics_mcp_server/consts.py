@@ -15,7 +15,7 @@
 """Defines constants used across the server."""
 
 # Service constants
-DEFAULT_REGION = 'us-west-2'
+DEFAULT_REGION = 'us-east-1'
 DEFAULT_STORAGE_TYPE = 'DYNAMIC'
 DEFAULT_MAX_RESULTS = 10
 
