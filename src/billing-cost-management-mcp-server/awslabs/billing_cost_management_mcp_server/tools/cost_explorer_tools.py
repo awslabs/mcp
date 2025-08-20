@@ -58,10 +58,9 @@ IMPORTANT USAGE GUIDELINES:
    Returns: Grouped cost data with metrics by time period with automatic pagination
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
-   Required: operation="getCostAndUsageWithResources", filter
-   Optional: start_date, end_date, granularity, metrics, group_by
-   Notes: RESOURCE_ID must be included in either filter OR group_by parameters, limited to last 14 days of data only
-   Example: {"operation": "getCostAndUsageWithResources", "granularity": "DAILY"}
+   Required: operation="getCostAndUsageWithResources", Filter, Granularity, Start, End
+   Optional: metrics, group_by
+   Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to last 14 days of data only.
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
@@ -77,22 +76,15 @@ IMPORTANT USAGE GUIDELINES:
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
-   Required: operation="getUsageForecast", metric
-   Optional: start_date, end_date, granularity, filter, prediction_interval_level
-   Example: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY"}
+   Required: operation="getUsageForecast", metric, granularity, start, end
+   Optional: filter, prediction_interval_level
+   Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT
    Returns: Usage forecast for specified time period and granularity
 
-6. getTags - Available cost allocation tags
-   Required: operation="getTags"
+6. getTagsOrValues - Available cost allocation tags or values
+   Required: operation="getTagsOrValues"
    Optional: start_date, end_date, search_string, next_token, max_pages
-   Example: {"operation": "getTags"}
-   Returns: List of available cost allocation tags with automatic pagination
-
-7. getTagValues - Values for a specific cost allocation tag
-   Required: operation="getTagValues", tag_key
-   Optional: start_date, end_date, search_string, next_token, max_pages
-   Example: {"operation": "getTagValues", "tag_key": "Environment"}
-   Returns: List of values for the specified tag key with automatic pagination
+   Returns: List of available cost allocation tags with automatic pagination. If tag values for a particular key are needed, pass the tag key as a parameter.
 
 8. getCostCategories - Available cost categories
    Required: operation="getCostCategories"
@@ -261,14 +253,14 @@ async def cost_explorer(
                 prediction_interval_level,
             )
 
-        elif operation == 'getTags' or operation == 'getTagValues':
+        elif operation == 'getTagsOrValues':
             return await get_tags(
                 ctx,
                 ce_client,
                 start_date,
                 end_date,
                 search_string,
-                tag_key if operation == 'getTagValues' else None,
+                tag_key,
                 next_token,
                 max_pages,
             )

@@ -57,7 +57,7 @@ Supported Operations:
 2. list_recommendations: Detailed list of specific recommendations
 3. get_recommendation: Get detailed information about a specific recommendation
 
-IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter.
+IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter. Valid 'group_by' parameter for list_recommendation_summaries is: AccountId, Region, ActionType, ResourceType, RestartNeeded, RollbackPossible, ImplementationEffort
 
 Cost Optimization Hub provides recommendations across multiple AWS services, including:
 - EC2 instances (right-sizing, Graviton migration)

@@ -242,8 +242,6 @@ def generate_create_table_query(manifest_location, database_name, table_name):
     if not prefix.endswith('/'):
         prefix = prefix + '/'
 
-    # Create the table query with all Storage Lens metrics columns
-    # This is a simplified schema - actual Storage Lens metrics have many more columns
     query = f"""
     CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
         region string,
@@ -280,8 +278,6 @@ def generate_create_table_query(manifest_location, database_name, table_name):
 async def wait_for_query_completion(ctx, athena_client, query_execution_id):
     """Wait for an Athena query to complete."""
     max_retries = 30
-    # retry_delay is commented out as it's not used in the current implementation
-
     for _ in range(max_retries):
         # Get the query execution status
         response = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
@@ -293,8 +289,6 @@ async def wait_for_query_completion(ctx, athena_client, query_execution_id):
 
         # Wait before checking again
         await ctx.info(f'Query status: {status}, waiting...')
-        # In a real async environment, we'd use await asyncio.sleep(retry_delay)
-        # But for simplicity, we'll just continue
 
     return 'TIMEOUT'
 
@@ -315,7 +309,7 @@ async def poll_query_status(ctx, athena_client, query_execution_id):
             # Get the query results
             results_response = athena_client.get_query_results(
                 QueryExecutionId=query_execution_id,
-                MaxResults=100,  # Limit to 100 rows for the API response
+                MaxResults=100,
             )
 
             # Process the results
@@ -323,7 +317,7 @@ async def poll_query_status(ctx, athena_client, query_execution_id):
             columns = [col['Name'] for col in column_info]
 
             rows = []
-            for row_data in results_response['ResultSet']['Rows'][1:]:  # Skip the header row
+            for row_data in results_response['ResultSet']['Rows'][1:]:
                 row = {}
                 for i, value in enumerate(row_data['Data']):
                     if 'VarCharValue' in value:

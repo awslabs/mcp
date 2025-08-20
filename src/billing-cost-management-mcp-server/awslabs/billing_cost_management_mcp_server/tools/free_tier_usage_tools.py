@@ -41,7 +41,10 @@ This tool provides insights into your AWS Free Tier usage across services:
 1. get_free_tier_usage: Shows your current Free Tier usage across AWS services
    - Helps identify where you are approaching Free Tier limits
    - Shows actual usage against Free Tier allocations
-   - Supports filtering by service, region, or usage type""",
+   - Supports filtering by service, region, or usage type
+   - Possible Dimensions values are: 'SERVICE'|'OPERATION'|'USAGE_TYPE'|'REGION'|'FREE_TIER_TYPE'|'DESCRIPTION'|'USAGE_PERCENTAGE'
+   - Possible MatchOptions are: 'EQUALS'|'STARTS_WITH'|'ENDS_WITH'|'CONTAINS'|'GREATER_THAN_OR_EQUAL'
+   """,
 )
 async def free_tier_usage(
     ctx: Context,

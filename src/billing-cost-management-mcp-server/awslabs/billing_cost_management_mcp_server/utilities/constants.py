@@ -60,7 +60,6 @@ RESOURCE_TYPE_LAMBDA_FUNCTION = 'LambdaFunction'
 RESOURCE_TYPE_RDS = 'RdsDbInstance'
 
 # ===== Recommendation Details - Mapping Constants =====
-# Maps COH values to AWS API parameters
 
 # Term mapping (1-year, 3-year)
 TERM_MAP = {'OneYear': 'ONE_YEAR', 'ThreeYear': 'THREE_YEARS'}

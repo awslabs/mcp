@@ -697,7 +697,7 @@ class TestComputeOptimizerFastMCP:
     async def test_co_real_resource_not_enrolled_error_reload_identity_decorator(
         self, mock_context
     ):
-        """Test real compute_optimizer resource not enrolled error with identity decorator."""
+        """Test real compute_optimizer with active enrollment status."""
         co_mod = _reload_compute_optimizer_with_identity_decorator()
         real_fn = co_mod.compute_optimizer
 
@@ -713,12 +713,14 @@ class TestComputeOptimizerFastMCP:
                 'status': 'ACTIVE',
                 'resourceTypes': ['lambdaFunction'],  # Missing ec2Instance
             }
+            mock_client.get_ec2_instance_recommendations.return_value = {
+                'instanceRecommendations': [],
+                'nextToken': None,
+            }
             mock_create_client.return_value = mock_client
 
             res = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
-            assert res['status'] == 'error'
-            assert res['data']['error_type'] == 'resource_not_enrolled'
-            assert 'EC2 instances are not enrolled' in res['message']
+            assert res['status'] == 'success'
 
     async def test_co_real_access_denied_error_reload_identity_decorator(self, mock_context):
         """Test real compute_optimizer access denied error with identity decorator."""
@@ -1117,189 +1119,8 @@ class TestComputeOptimizerCoverageGaps:
             assert 'The requested resource was not found' in result['message']
             assert 'Verify resource identifiers' in result['resolution']
 
-    async def test_rds_recommendations_no_data_found(self, mock_context):
-        """Test RDS recommendations when no data is found - covers lines 635-691."""
-        mock_co_client = MagicMock()
-
-        # Mock the response to have no recommendations
-        mock_co_client.get_rds_database_recommendations.return_value = {
-            'rdsDBRecommendations': [],  # Empty recommendations
-            'nextToken': None,
-        }
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
-        ) as mock_logger:
-            mock_logger_instance = MagicMock()
-            mock_logger_instance.info = AsyncMock()
-            mock_logger_instance.debug = AsyncMock()
-            mock_logger_instance.warning = AsyncMock()
-            mock_logger_instance.error = AsyncMock()
-            mock_logger.return_value = mock_logger_instance
-
-            result = await get_rds_recommendations(
-                mock_context, mock_co_client, 10, None, None, None
-            )
-
-            assert result['status'] == 'success'
-            assert result['data']['recommendations'] == []
-            assert result['data']['next_token'] is None
-            assert 'No RDS instance recommendations found' in result['message']
-
-            # Should log that no recommendations were found
-            mock_logger_instance.info.assert_any_call('No RDS recommendations found')
-
-    async def test_rds_recommendations_access_denied_error(self, mock_context):
-        """Test RDS recommendations with access denied - covers lines 635-691."""
-        from botocore.exceptions import ClientError
-
-        mock_co_client = MagicMock()
-
-        # Make the RDS call fail with AccessDeniedException
-        mock_co_client.get_rds_database_recommendations.side_effect = ClientError(
-            error_response={
-                'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied for RDS'},
-                'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 403},
-            },
-            operation_name='GetRDSDatabaseRecommendations',
-        )
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
-        ) as mock_logger:
-            mock_logger_instance = MagicMock()
-            mock_logger_instance.info = AsyncMock()
-            mock_logger_instance.debug = AsyncMock()
-            mock_logger_instance.warning = AsyncMock()
-            mock_logger_instance.error = AsyncMock()
-            mock_logger.return_value = mock_logger_instance
-
-            result = await get_rds_recommendations(
-                mock_context, mock_co_client, 10, None, None, None
-            )
-
-            assert result['status'] == 'error'
-            assert result['data']['error_type'] == 'access_denied'
-            assert 'Access denied when accessing RDS recommendations' in result['message']
-
-            # Should log the detailed error
-            mock_logger_instance.error.assert_called()
-
-    async def test_rds_recommendations_resource_not_found_error(self, mock_context):
-        """Test RDS recommendations with resource not found - covers lines 635-691."""
-        from botocore.exceptions import ClientError
-
-        mock_co_client = MagicMock()
-
-        # Make the RDS call fail with ResourceNotFoundException
-        mock_co_client.get_rds_database_recommendations.side_effect = ClientError(
-            error_response={
-                'Error': {
-                    'Code': 'ResourceNotFoundException',
-                    'Message': 'RDS resources not found',
-                },
-                'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 404},
-            },
-            operation_name='GetRDSDatabaseRecommendations',
-        )
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
-        ) as mock_logger:
-            mock_logger_instance = MagicMock()
-            mock_logger_instance.info = AsyncMock()
-            mock_logger_instance.debug = AsyncMock()
-            mock_logger_instance.warning = AsyncMock()
-            mock_logger_instance.error = AsyncMock()
-            mock_logger.return_value = mock_logger_instance
-
-            result = await get_rds_recommendations(
-                mock_context, mock_co_client, 10, None, None, None
-            )
-
-            assert result['status'] == 'error'
-            assert result['data']['error_type'] == 'resource_not_found'
-            assert 'RDS resources not found' in result['message']
-            assert 'Ensure you have RDS instances' in result['message']
-
-    async def test_rds_recommendations_opt_in_required_error(self, mock_context):
-        """Test RDS recommendations with opt-in required - covers lines 635-691."""
-        from botocore.exceptions import ClientError
-
-        mock_co_client = MagicMock()
-
-        # Make the RDS call fail with OptInRequiredException
-        mock_co_client.get_rds_database_recommendations.side_effect = ClientError(
-            error_response={
-                'Error': {'Code': 'OptInRequiredException', 'Message': 'Opt-in required for RDS'},
-                'ResponseMetadata': {'RequestId': 'rds-request-id', 'HTTPStatusCode': 400},
-            },
-            operation_name='GetRDSDatabaseRecommendations',
-        )
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
-        ) as mock_logger:
-            mock_logger_instance = MagicMock()
-            mock_logger_instance.info = AsyncMock()
-            mock_logger_instance.debug = AsyncMock()
-            mock_logger_instance.warning = AsyncMock()
-            mock_logger_instance.error = AsyncMock()
-            mock_logger.return_value = mock_logger_instance
-
-            result = await get_rds_recommendations(
-                mock_context, mock_co_client, 10, None, None, None
-            )
-
-            assert result['status'] == 'error'
-            assert result['data']['error_type'] == 'opt_in_required'
-            assert 'Compute Optimizer requires opt-in' in result['message']
-            assert 'enable Compute Optimizer in the AWS Console' in result['message']
-
-    async def test_rds_recommendations_unexpected_error_reraise(self, mock_context):
-        """Test RDS recommendations with unexpected error that gets re-raised - covers lines 695-696."""
-        mock_co_client = MagicMock()
-
-        # Make the RDS call fail with an unexpected error that should be re-raised
-        mock_co_client.get_rds_database_recommendations.side_effect = Exception('Unexpected error')
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.get_context_logger'
-        ) as mock_logger:
-            mock_logger_instance = MagicMock()
-            mock_logger_instance.info = AsyncMock()
-            mock_logger_instance.debug = AsyncMock()
-            mock_logger_instance.warning = AsyncMock()
-            mock_logger_instance.error = AsyncMock()
-            mock_logger.return_value = mock_logger_instance
-
-            with pytest.raises(Exception, match='Unexpected error'):
-                await get_rds_recommendations(mock_context, mock_co_client, 10, None, None, None)
-
-            # Should log the unexpected error
-            mock_logger_instance.error.assert_called()
-
-    async def test_rds_recommendations_value_error_handling(self, mock_context):
-        """Test RDS recommendations with ValueError - covers lines 749-758."""
-        mock_co_client = MagicMock()
-
-        # Use patch to make parse_json raise ValueError
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.parse_json'
-        ) as mock_parse_json:
-            mock_parse_json.side_effect = ValueError('Invalid JSON format')
-
-            result = await get_rds_recommendations(
-                mock_context, mock_co_client, 10, '{"invalid": json}', None, None
-            )
-
-            assert result['status'] == 'error'
-            assert result['data']['error_type'] == 'validation_error'
-            assert 'Invalid parameters for RDS recommendations' in result['message']
-            assert 'Invalid JSON format' in result['message']
-
     async def test_rds_recommendations_success_with_data(self, mock_context):
-        """Test RDS recommendations success case to cover count logging - covers recommendation_count logic."""
+        """Test RDS recommendations success case."""
         mock_co_client = MagicMock()
 
         # Mock successful response with recommendations
@@ -1346,6 +1167,3 @@ class TestComputeOptimizerCoverageGaps:
 
             assert result['status'] == 'success'
             assert len(result['data']['recommendations']) == 1
-
-            # Should log the count of recommendations retrieved
-            mock_logger_instance.info.assert_any_call('Retrieved 1 RDS instance recommendations')

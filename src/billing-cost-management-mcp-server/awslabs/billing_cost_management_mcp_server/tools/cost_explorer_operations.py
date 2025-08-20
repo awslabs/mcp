@@ -453,7 +453,7 @@ async def get_tags(
     Returns:
         Tags response
     """
-    operation = 'getTags' if not tag_key else 'getTagValues'
+    operation = 'getTagsOrValues'
     await ctx.info(f'Calling {operation} API')
 
     try:
@@ -473,7 +473,7 @@ async def get_tags(
 
         # Handle pagination
         if next_token or max_pages:
-            api_function = ce_client.get_tags if not tag_key else ce_client.get_tag_values
+            api_function = ce_client.get_tags
             result_key = 'Tags' if not tag_key else 'TagValues'
 
             # For paginated requests, use the paginate utility
@@ -492,10 +492,7 @@ async def get_tags(
             response = {result_key: results, 'Pagination': pagination_metadata}
         else:
             # For single page, make direct call
-            if tag_key:
-                response = ce_client.get_tag_values(**request_params)
-            else:
-                response = ce_client.get_tags(**request_params)
+            response = ce_client.get_tags(**request_params)
 
         return format_response('success', response)
 

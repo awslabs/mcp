@@ -122,32 +122,6 @@ async def compute_optimizer(
                         'Compute Optimizer is not active. Please activate the service in the AWS Console first.',
                     )
 
-                # Check if the specific resource type is enrolled
-                enrolled_resource_types = enrollment_status.get('resourceTypes', [])
-                if required_resource_type not in enrolled_resource_types:
-                    resource_name_mapping = {
-                        'ec2Instance': 'EC2 instances',
-                        'autoScalingGroup': 'Auto Scaling groups',
-                        'ebsVolume': 'EBS volumes',
-                        'lambdaFunction': 'Lambda functions',
-                        'rdsDBInstance': 'RDS instances',
-                    }
-                    resource_name = resource_name_mapping.get(
-                        required_resource_type, required_resource_type
-                    )
-                    return format_response(
-                        'error',
-                        {
-                            'error_type': 'resource_not_enrolled',
-                            'enrollment_status': status,
-                            'operation': operation,
-                            'required_resource_type': required_resource_type,
-                            'enrolled_resource_types': enrolled_resource_types,
-                            'aws_region': 'us-east-1',
-                        },
-                        f'{resource_name} are not enrolled in Compute Optimizer. Please enable {resource_name} recommendations in the AWS Console.',
-                    )
-
         except ClientError as e:
             # Specific error handling for enrollment status checking
             aws_error = e.response.get('Error', {})
@@ -606,168 +580,73 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
 
-    try:
-        await ctx_logger.info('Retrieving RDS instance recommendations')
-        # Prepare the request parameters
-        request_params = {}
+    # Prepare the request parameters
+    request_params = {}
 
-        if max_results:
-            request_params['maxResults'] = int(max_results)
+    if max_results:
+        request_params['maxResults'] = int(max_results)
 
-        # Parse the filters if provided
-        if filters:
-            request_params['filters'] = parse_json(filters, 'filters')
+    # Parse the filters if provided
+    if filters:
+        request_params['filters'] = parse_json(filters, 'filters')
 
-        # Parse the account IDs if provided
-        if account_ids:
-            request_params['accountIds'] = parse_json(account_ids, 'account_ids')
+    # Parse the account IDs if provided
+    if account_ids:
+        request_params['accountIds'] = parse_json(account_ids, 'account_ids')
 
-        # Add the next token if provided
-        if next_token:
-            request_params['nextToken'] = next_token
+    # Add the next token if provided
+    if next_token:
+        request_params['nextToken'] = next_token
 
-        # Enrollment checking is now handled in the main compute_optimizer function
-        # so we don't need to duplicate it here
+    # Make the API call
+    await ctx_logger.info(
+        f'Calling get_rds_database_recommendations with parameters: {request_params}'
+    )
+    response = co_client.get_rds_database_recommendations(**request_params)
 
-        # Make the API call
-        await ctx_logger.info(
-            f'Calling get_rds_database_recommendations with parameters: {request_params}'
-        )
-        try:
-            response = co_client.get_rds_database_recommendations(**request_params)
-            await ctx_logger.info(f'THIS_IS_RDS_OUTPUT: {response}')
-            # Log successful response info for debugging
-            await ctx_logger.debug(
-                f'RDS API response received: {len(response.get("rdsDBRecommendations", []))} recommendations'
-            )
-        except ClientError as e:
-            # Capture and log detailed AWS API errors
-            aws_error = e.response.get('Error', {})
-            error_code = aws_error.get('Code', 'UnknownError')
-            error_message = aws_error.get('Message', 'No error message provided')
-            request_id = e.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
-            http_status = e.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
-            await ctx_logger.error(
-                f'RDS recommendations ClientError: {error_code} - {error_message} (RequestId: {request_id})',
-                exc_info=True,
-            )
+    # Format the response for better readability
+    formatted_response: Dict[str, Any] = {
+        'recommendations': [],
+        'next_token': response.get('nextToken'),
+    }
 
-            # Handle specific RDS-related errors directly without re-raising
-            if error_code == 'AccessDeniedException' or error_code == 'AccessDenied':
-                return {
-                    'status': 'error',
-                    'message': 'Access denied when accessing RDS recommendations. Ensure you have the necessary permissions.',
-                    'data': {
-                        'error_type': 'access_denied',
-                        'error_code': error_code,
-                        'request_id': request_id,
-                        'http_status': http_status,
-                    },
-                }
-            elif error_code == 'ResourceNotFoundException':
-                return {
-                    'status': 'error',
-                    'message': 'RDS resources not found. Ensure you have RDS instances and that Compute Optimizer is enabled for your account.',
-                    'data': {
-                        'error_type': 'resource_not_found',
-                        'error_code': error_code,
-                        'request_id': request_id,
-                        'http_status': http_status,
-                    },
-                }
-            elif error_code == 'OptInRequiredException':
-                return {
-                    'status': 'error',
-                    'message': 'Compute Optimizer requires opt-in. Please enable Compute Optimizer in the AWS Console.',
-                    'data': {
-                        'error_type': 'opt_in_required',
-                        'error_code': error_code,
-                        'request_id': request_id,
-                        'http_status': http_status,
-                    },
-                }
-            else:
-                # Re-raise for all other errors to be handled by the main error handler
-                raise
-        except Exception as e:
-            # Log any other exceptions
-            await ctx_logger.error(
-                f'Unexpected error in RDS recommendations: {e.__class__.__name__}: {str(e)}',
-                exc_info=True,
-            )
-            # Re-raise to be handled by the main error handler
-            raise
-
-        # Check if we got any recommendations
-        if not response.get('rdsDBRecommendations'):
-            await ctx_logger.info('No RDS recommendations found')
-            return {
-                'status': 'success',
-                'data': {'recommendations': [], 'next_token': None},
-                'message': 'No RDS instance recommendations found. This could be because there are no RDS instances in the account, or because Compute Optimizer has not yet generated recommendations.',
-            }
-
-        # Format the response for better readability
-        formatted_response: Dict[str, Any] = {
-            'recommendations': [],
-            'next_token': response.get('nextToken'),
+    # Parse the recommendations
+    for recommendation in response.get('rdsDBRecommendations', []):
+        # Get the current configuration
+        current_config = {
+            'instance_class': recommendation.get('currentInstanceClass'),
+            'finding': recommendation.get('finding'),
+            'engine': recommendation.get('engine'),
+            'engine_version': recommendation.get('engineVersion'),
+            'storage_finding': recommendation.get('storageFinding'),
+            'current_storage_configuration': recommendation.get('currentStorageConfiguration'),
         }
 
-        # Parse the recommendations
-        recommendation_count = 0
-        for recommendation in response.get('rdsDBRecommendations', []):
-            # Get the current configuration
-            current_config = {
-                'instance_class': recommendation.get('currentInstanceClass'),
-                'finding': recommendation.get('finding'),
-                'engine': recommendation.get('engine'),
-                'engine_version': recommendation.get('engineVersion'),
-                'storage_finding': recommendation.get('storageFinding'),
-                'current_storage_configuration': recommendation.get('currentStorageConfiguration'),
-            }
-
-            # Get the recommended options
-            recommended_options = []
-            for option in recommendation.get('recommendationOptions', []):
-                recommended_option = {
-                    'instance_class': option.get('instanceClass'),
-                    'performance_risk': option.get('performanceRisk'),
-                    'savings_opportunity': format_savings_opportunity(
-                        option.get('savingsOpportunity', {})
-                    ),
-                }
-                recommended_options.append(recommended_option)
-
-            # Create the formatted recommendation
-            formatted_recommendation = {
-                'instance_arn': recommendation.get('instanceArn'),
-                'instance_name': recommendation.get('instanceName'),
-                'account_id': recommendation.get('accountId'),
-                'current_configuration': current_config,
-                'recommendation_options': recommended_options,
-                'last_refresh_timestamp': format_timestamp(
-                    recommendation.get('lastRefreshTimestamp')
+        # Get the recommended options
+        recommended_options = []
+        for option in recommendation.get('recommendationOptions', []):
+            recommended_option = {
+                'instance_class': option.get('instanceClass'),
+                'performance_risk': option.get('performanceRisk'),
+                'savings_opportunity': format_savings_opportunity(
+                    option.get('savingsOpportunity', {})
                 ),
             }
+            recommended_options.append(recommended_option)
 
-            formatted_response['recommendations'].append(formatted_recommendation)
-            recommendation_count += 1
-
-        await ctx_logger.info(f'Retrieved {recommendation_count} RDS instance recommendations')
-        return {'status': 'success', 'data': formatted_response}
-
-    # This outer ClientError handler is no longer needed since we handle ClientErrors in the inner try block
-
-    except ValueError as e:
-        # Handle parameter validation errors
-        return {
-            'status': 'error',
-            'message': f'Invalid parameters for RDS recommendations: {str(e)}',
-            'data': {'error_type': 'validation_error'},
+        # Create the formatted recommendation
+        formatted_recommendation = {
+            'instance_arn': recommendation.get('instanceArn'),
+            'instance_name': recommendation.get('instanceName'),
+            'account_id': recommendation.get('accountId'),
+            'current_configuration': current_config,
+            'recommendation_options': recommended_options,
+            'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
         }
-    except Exception:
-        # Let the shared error handler deal with other unexpected errors
-        raise
+
+        formatted_response['recommendations'].append(formatted_recommendation)
+
+    return {'status': 'success', 'data': formatted_response}
 
 
 def format_savings_opportunity(savings_opportunity):

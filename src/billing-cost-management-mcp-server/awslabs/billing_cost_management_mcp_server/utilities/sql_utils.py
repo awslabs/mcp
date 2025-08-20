@@ -112,7 +112,6 @@ def cleanup_session_db() -> None:
             os.remove(_SESSION_DB_PATH)
             logger.debug(f'Removed session database: {_SESSION_DB_PATH}')
         except Exception as e:
-            # Log cleanup errors but don't fail
             logger.warning(f'Failed to remove session database: {str(e)}')
 
 

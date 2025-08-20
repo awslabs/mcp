@@ -67,7 +67,6 @@ def get_pricing_region(requested_region: Optional[str] = None) -> str:
     if not requested_region:
         requested_region = os.environ.get('AWS_REGION', 'us-east-1')
 
-    # If the requested region is a pricing API region, use it directly
     all_pricing_regions = PRICING_API_REGIONS['classic'] + PRICING_API_REGIONS['china']
     if requested_region in all_pricing_regions:
         return requested_region
@@ -249,8 +248,8 @@ async def handle_aws_error(
         # Just pass through the AWS error code and message directly
         error_response.update(
             {
-                'error_type': error_code,  # Use the actual AWS error code as the error_type
-                'message': aws_message,  # Use the actual AWS error message
+                'error_type': error_code,
+                'message': aws_message,
                 'request_id': request_id,
                 'http_status': http_status,
                 'full_error': str(error),
@@ -308,7 +307,7 @@ async def handle_aws_error(
             {
                 'error_type': f'unknown_{error_class.lower()}',
                 'exception_type': error_class,
-                'message': user_message,  # Use the actual error message
+                'message': user_message,
                 'details': str(error),
                 'full_error_context': error_context,
             }

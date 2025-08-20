@@ -501,8 +501,8 @@ async def test_cost_and_usage_with_resources(mock_context, mock_ce_client):
 @pytest.mark.asyncio
 async def test_get_tags_and_values(mock_context, mock_ce_client):
     """Test the get_tags function."""
-    # Mock tag values response
-    mock_ce_client.get_tag_values.return_value = {'TagValues': ['dev', 'prod', 'test']}
+    # Mock responses
+    mock_ce_client.get_tags.return_value = {'Tags': ['Environment', 'Project']}
 
     # Test getTags operation
     tags_result = await get_tags(
@@ -521,23 +521,25 @@ async def test_get_tags_and_values(mock_context, mock_ce_client):
         tag_key='Environment',
     )
 
-    # Verify getTags call
-    mock_ce_client.get_tags.assert_called_once()
-    tags_call_kwargs = mock_ce_client.get_tags.call_args[1]
-    assert 'TimePeriod' in tags_call_kwargs
-    assert tags_call_kwargs['TimePeriod']['Start'] == '2023-01-01'
-    assert tags_call_kwargs['TimePeriod']['End'] == '2023-01-31'
+    # Verify both calls were made to get_tags
+    assert mock_ce_client.get_tags.call_count == 2
+
+    # Verify first call (without tag_key)
+    first_call_kwargs = mock_ce_client.get_tags.call_args_list[0][1]
+    assert 'TimePeriod' in first_call_kwargs
+    assert first_call_kwargs['TimePeriod']['Start'] == '2023-01-01'
+    assert first_call_kwargs['TimePeriod']['End'] == '2023-01-31'
+    assert 'TagKey' not in first_call_kwargs
 
     # Verify getTags result
     assert tags_result['status'] == 'success'
     assert 'data' in tags_result
 
-    # Verify getTagValues call
-    mock_ce_client.get_tag_values.assert_called_once()
-    tag_values_call_kwargs = mock_ce_client.get_tag_values.call_args[1]
-    assert 'TimePeriod' in tag_values_call_kwargs
-    assert 'TagKey' in tag_values_call_kwargs
-    assert tag_values_call_kwargs['TagKey'] == 'Environment'
+    # Verify second call (with tag_key)
+    second_call_kwargs = mock_ce_client.get_tags.call_args_list[1][1]
+    assert 'TimePeriod' in second_call_kwargs
+    assert 'TagKey' in second_call_kwargs
+    assert second_call_kwargs['TagKey'] == 'Environment'
 
 
 @pytest.mark.asyncio
@@ -1107,10 +1109,10 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
         mock_create_client.return_value = fake_client
         mock_impl.return_value = {'status': 'success', 'data': {}}
 
-        # getTags
+        # getTagsOrValues
         res1 = await real_fn(  # type: ignore
             mock_context,
-            operation='getTags',
+            operation='getTagsOrValues',
             start_date='2023-01-01',
             end_date='2023-01-31',
             search_string='Env',
@@ -1119,10 +1121,10 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
         )
         assert res1['status'] == 'success'
 
-        # getTagValues
+        # getTagsOrValues with tag_key
         res2 = await real_fn(  # type: ignore
             mock_context,
-            operation='getTagValues',
+            operation='getTagsOrValues',
             start_date='2023-01-01',
             end_date='2023-01-31',
             search_string='Env',
@@ -1289,7 +1291,7 @@ async def test_ce_real_exception_flow_calls_handle_error_reload_identity_decorat
         mock_get_tags.side_effect = RuntimeError('boom')
         mock_handle.return_value = {'status': 'error', 'message': 'boom'}
 
-        res = await real_fn(mock_context, operation='getTags')  # type: ignore
+        res = await real_fn(mock_context, operation='getTagsOrValues')  # type: ignore
 
         assert res['status'] == 'error'
         assert 'boom' in res.get('message', '')

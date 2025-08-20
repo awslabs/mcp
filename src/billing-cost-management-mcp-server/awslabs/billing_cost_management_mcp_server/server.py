@@ -171,10 +171,7 @@ async def setup():
         logger.info(f'- {tool}')
 
     logger.info('Available prompts:')
-    prompts = [
-       'savings_plans_analysis',
-        'graviton_analysis'
-    ]
+    prompts = ['savings_plans_analysis', 'graviton_analysis']
     for prompt in prompts:
         logger.info(f'- {prompt}')
 

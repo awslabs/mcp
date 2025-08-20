@@ -653,8 +653,8 @@ class TestGetTags:
             tag_key='Environment',
         )
 
-        mock_ce_client.get_tag_values.assert_called_once()
-        call_kwargs = mock_ce_client.get_tag_values.call_args[1]
+        mock_ce_client.get_tags.assert_called_once()
+        call_kwargs = mock_ce_client.get_tags.call_args[1]
         assert 'TagKey' in call_kwargs
         assert call_kwargs['TagKey'] == 'Environment'
 

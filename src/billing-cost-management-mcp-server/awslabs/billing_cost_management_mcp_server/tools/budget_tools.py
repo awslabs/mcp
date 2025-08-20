@@ -66,8 +66,6 @@ async def budgets(
             f'Retrieving budgets (budget_name={budget_name}, max_results={max_results})'
         )
 
-        # Budgets client will be initialized in describe_budgets function
-
         # Get the AWS account ID dynamically or use provided one
         if not account_id:
             account_id = await get_aws_account_id(ctx)
@@ -136,6 +134,11 @@ async def describe_budgets(
             page_count += 1
             if next_token:
                 request_params['NextToken'] = next_token
+
+            remaining = max_results - len(all_budgets)
+            if remaining <= 0:
+                break
+            request_params['MaxResults'] = min(100, remaining)
 
             await ctx.info(f'Fetching budgets page {page_count}')
             response = budgets_client.describe_budgets(**request_params)
@@ -250,7 +253,6 @@ def format_budgets(budgets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             formatted_budget['time_period'] = time_period_dict
 
         # Add budget status (derived field)
-        # Safe access to potentially nested dictionaries with proper type checking for pyright
         calculated_spend = formatted_budget.get('calculated_spend')
         budget_limit = formatted_budget.get('budget_limit')
 
