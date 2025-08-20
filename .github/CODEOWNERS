@@ -4,8 +4,6 @@
 
 *                                     @awslabs/mcp-maintainers            @awslabs/mcp-admins
 
-## Secure specific files and directories
-
 CODE_OF_CONDUCT.md                                                        @awslabs/mcp-admins
 CONTRIBUTING.md                                                           @awslabs/mcp-admins
 LICENSE                                                                   @awslabs/mcp-admins
@@ -39,6 +37,7 @@ NOTICE                                                                    @awsla
 /src/aws-pricing-mcp-server             @nspring00 @aytech-in @s12v       @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                           @awslabs/mcp-admins
 /src/aws-support-mcp-server             @Wook133                          @awslabs/mcp-admins
+/src/well-architected-security-mcp-server @juntinyeh                        @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                         @awslabs/mcp-admins
 /src/cfn-mcp-server                     @karamvsingh                      @awslabs/mcp-admins
