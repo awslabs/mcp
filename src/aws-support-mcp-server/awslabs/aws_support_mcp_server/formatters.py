@@ -14,8 +14,6 @@
 """Response formatting utilities for the AWS Support MCP Server."""
 
 import json
-from typing import Any, Dict, List, Optional
-
 from awslabs.aws_support_mcp_server.consts import (
     CASE_SUMMARY_TEMPLATE,
 )
@@ -28,6 +26,7 @@ from awslabs.aws_support_mcp_server.models import (
     SeverityLevel,
     SupportCase,
 )
+from typing import Any, Dict, List, Optional
 
 
 def format_case(case_data: Dict[str, Any], include_communications: bool = True) -> Dict[str, Any]:
@@ -42,49 +41,49 @@ def format_case(case_data: Dict[str, Any], include_communications: bool = True) 
     """
     # Create a SupportCase model from the raw data
     case = SupportCase(
-        caseId=case_data.get("caseId", ""),
-        displayId=case_data.get("displayId", None),
-        subject=case_data.get("subject", ""),
-        status=case_data.get("status", ""),
-        serviceCode=case_data.get("serviceCode", ""),
-        categoryCode=case_data.get("categoryCode", ""),
-        severityCode=case_data.get("severityCode", ""),
-        submittedBy=case_data.get("submittedBy", ""),
-        timeCreated=case_data.get("timeCreated", ""),
-        ccEmailAddresses=case_data.get("ccEmailAddresses"),
-        language=case_data.get("language"),
+        caseId=case_data.get('caseId', ''),
+        displayId=case_data.get('displayId', None),
+        subject=case_data.get('subject', ''),
+        status=case_data.get('status', ''),
+        serviceCode=case_data.get('serviceCode', ''),
+        categoryCode=case_data.get('categoryCode', ''),
+        severityCode=case_data.get('severityCode', ''),
+        submittedBy=case_data.get('submittedBy', ''),
+        timeCreated=case_data.get('timeCreated', ''),
+        ccEmailAddresses=case_data.get('ccEmailAddresses'),
+        language=case_data.get('language'),
         recentCommunications=None,  # Initialize as None, will be set later if needed
     )
 
     # Format recent communications if present and requested
-    if include_communications and "recentCommunications" in case_data:
-        recent_comms = case_data["recentCommunications"]
+    if include_communications and 'recentCommunications' in case_data:
+        recent_comms = case_data['recentCommunications']
         communications = []
 
-        for comm_data in recent_comms.get("communications", []):
+        for comm_data in recent_comms.get('communications', []):
             # Format attachments if present
             attachmentSet = None
-            if "attachmentSet" in comm_data:
+            if 'attachmentSet' in comm_data:
                 attachmentSet = [
                     AttachmentDetails(
-                        attachmentId=att.get("attachmentId", ""), fileName=att.get("fileName", "")
+                        attachmentId=att.get('attachmentId', ''), fileName=att.get('fileName', '')
                     )
-                    for att in comm_data.get("attachmentSet", [])
+                    for att in comm_data.get('attachmentSet', [])
                 ]
 
             # Create a Communication model
             comm = Communication(
-                body=comm_data.get("body", ""),
-                caseId=comm_data.get("caseId"),
-                submittedBy=comm_data.get("submittedBy"),
-                timeCreated=comm_data.get("timeCreated"),
+                body=comm_data.get('body', ''),
+                caseId=comm_data.get('caseId'),
+                submittedBy=comm_data.get('submittedBy'),
+                timeCreated=comm_data.get('timeCreated'),
                 attachmentSet=attachmentSet,
             )
             communications.append(comm)
 
         # Create a RecentCommunications model
         case.recent_communications = RecentCommunications(
-            communications=communications, nextToken=recent_comms.get("nextToken")
+            communications=communications, nextToken=recent_comms.get('nextToken')
         )
 
     # Convert the model to a dictionary
@@ -115,30 +114,30 @@ def format_communications(communications_data: Dict[str, Any]) -> Dict[str, Any]
     Returns:
         A dictionary with formatted communications
     """
-    result = {"communications": [], "nextToken": communications_data.get("nextToken")}
+    result = {'communications': [], 'nextToken': communications_data.get('nextToken')}
 
-    for comm_data in communications_data.get("communications", []):
+    for comm_data in communications_data.get('communications', []):
         # Format attachments if present
         attachmentSet = None
-        if "attachmentSet" in comm_data and comm_data["attachmentSet"]:
+        if 'attachmentSet' in comm_data and comm_data['attachmentSet']:
             attachmentSet = [
                 AttachmentDetails(
-                    attachmentId=att.get("attachmentId", ""), fileName=att.get("fileName", "")
+                    attachmentId=att.get('attachmentId', ''), fileName=att.get('fileName', '')
                 )
-                for att in comm_data.get("attachmentSet", [])
+                for att in comm_data.get('attachmentSet', [])
             ]
 
         # Create a Communication model
         comm = Communication(
-            body=comm_data.get("body", ""),
-            caseId=comm_data.get("caseId"),
-            submittedBy=comm_data.get("submittedBy"),
-            timeCreated=comm_data.get("timeCreated"),
+            body=comm_data.get('body', ''),
+            caseId=comm_data.get('caseId'),
+            submittedBy=comm_data.get('submittedBy'),
+            timeCreated=comm_data.get('timeCreated'),
             attachmentSet=attachmentSet,
         )
 
         # Convert the model to a dictionary
-        result["communications"].append(comm.model_dump())
+        result['communications'].append(comm.model_dump())
 
     return result
 
@@ -157,11 +156,11 @@ def format_services(services_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     for service_data in services_data:
         # Create a Service model
         service = Service(
-            code=service_data.get("code", ""),
-            name=service_data.get("name", ""),
+            code=service_data.get('code', ''),
+            name=service_data.get('name', ''),
             categories=[
-                Category(code=cat.get("code", ""), name=cat.get("name", ""))
-                for cat in service_data.get("categories", [])
+                Category(code=cat.get('code', ''), name=cat.get('name', ''))
+                for cat in service_data.get('categories', [])
             ],
         )
 
@@ -185,8 +184,8 @@ def format_severity_levels(severity_levels_data: List[Dict[str, Any]]) -> Dict[s
     for severity_data in severity_levels_data:
         # Create a SeverityLevel model
         severity = SeverityLevel(
-            code=severity_data.get("code", ""),
-            name=severity_data.get("name", ""),
+            code=severity_data.get('code', ''),
+            name=severity_data.get('name', ''),
         )
 
         # Add the severity level to the result dictionary
@@ -218,33 +217,33 @@ def format_markdown_case_summary(case: Dict[str, Any]) -> str:
         A Markdown string
     """
     case_details = [
-        f"- **Case ID**: {case['caseId']}",
-        f"- **Display ID**: {case.get('displayId', 'N/A')}",
-        f"- **Subject**: {case['subject']}",
-        f"- **Status**: {case['status']}",
-        f"- **Service**: {case['serviceCode']}",
-        f"- **Category**: {case['categoryCode']}",
-        f"- **Severity**: {case['severityCode']}",
-        f"- **Created By**: {case['submittedBy']}",
-        f"- **Created On**: {case['timeCreated']}",
+        f'- **Case ID**: {case["caseId"]}',
+        f'- **Display ID**: {case.get("displayId", "N/A")}',
+        f'- **Subject**: {case["subject"]}',
+        f'- **Status**: {case["status"]}',
+        f'- **Service**: {case["serviceCode"]}',
+        f'- **Category**: {case["categoryCode"]}',
+        f'- **Severity**: {case["severityCode"]}',
+        f'- **Created By**: {case["submittedBy"]}',
+        f'- **Created On**: {case["timeCreated"]}',
     ]
 
-    markdown = CASE_SUMMARY_TEMPLATE.format(case_details="\n".join(case_details))
+    markdown = CASE_SUMMARY_TEMPLATE.format(case_details='\n'.join(case_details))
 
-    if case.get("recentCommunications"):
-        markdown += "\n## Recent Communications\n\n"
-        for comm in case["recentCommunications"].get("communications", []):
-            comm_header = f"### {comm['submittedBy']} - {comm['timeCreated']}"
-            comm_body = comm["body"]
-            markdown += f"{comm_header}\n\n{comm_body}\n\n"
+    if case.get('recentCommunications'):
+        markdown += '\n## Recent Communications\n\n'
+        for comm in case['recentCommunications'].get('communications', []):
+            comm_header = f'### {comm["submittedBy"]} - {comm["timeCreated"]}'
+            comm_body = comm['body']
+            markdown += f'{comm_header}\n\n{comm_body}\n\n'
 
-            if comm.get("attachmentSet"):
-                markdown += "**Attachments**:\n\n"
+            if comm.get('attachmentSet'):
+                markdown += '**Attachments**:\n\n'
                 attachments = [
-                    f"- {att['fileName']} (ID: {att['attachmentId']})"
-                    for att in comm["attachmentSet"]
+                    f'- {att["fileName"]} (ID: {att["attachmentId"]})'
+                    for att in comm['attachmentSet']
                 ]
-                markdown += "\n".join(attachments) + "\n\n"
+                markdown += '\n'.join(attachments) + '\n\n'
     return markdown
 
 
@@ -257,22 +256,22 @@ def format_markdown_services(services: Dict[str, Any]) -> str:
     Returns:
         A Markdown string
     """
-    sections = ["# AWS Services\n"]
+    sections = ['# AWS Services\n']
 
     for code, service in sorted(services.items()):
-        section = [f"## {service['name']} (`{code}`)\n"]
+        section = [f'## {service["name"]} (`{code}`)\n']
 
-        if service.get("categories"):
-            section.append("### Categories\n")
+        if service.get('categories'):
+            section.append('### Categories\n')
             categories = [
-                f"- {category['name']} (`{category['code']}`)"
-                for category in sorted(service["categories"], key=lambda x: x["name"])
+                f'- {category["name"]} (`{category["code"]}`)'
+                for category in sorted(service['categories'], key=lambda x: x['name'])
             ]
-            section.extend(categories + [""])
+            section.extend(categories + [''])
 
         sections.extend(section)
 
-    return "\n".join(sections)
+    return '\n'.join(sections)
 
 
 def format_markdown_severity_levels(severity_levels: Dict[str, Any]) -> str:
@@ -284,9 +283,9 @@ def format_markdown_severity_levels(severity_levels: Dict[str, Any]) -> str:
     Returns:
         A Markdown string
     """
-    sections = ["# AWS Support Severity Levels\n"]
+    sections = ['# AWS Support Severity Levels\n']
 
     for code, severity in sorted(severity_levels.items()):
-        sections.append(f"- **{severity['name']}** (`{code}`)")
+        sections.append(f'- **{severity["name"]}** (`{code}`)')
 
-    return "\n".join(sections)
+    return '\n'.join(sections)

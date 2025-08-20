@@ -1,0 +1,184 @@
+---
+name: Release Merged (automatic)
+description: |
+  This workflow creates a tag on the `main` branch when a pull request is merged from a `release/**` branch.
+  It is triggered by the `pull_request` event with the `closed` type, specifically when the PR is merged.
+  The tag will be signed using GPG and pushed to the repository.
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+env:
+  BOT_USER_EMAIL: ${{ vars.BOT_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
+  BOT_USER_NAME: ${{ vars.BOT_USER_NAME || 'awslabs-mcp' }}
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  discussions: none
+  id-token: none
+  issues: none
+  models: none
+  packages: none
+  pages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+jobs:
+  tag_on_release_merge:
+    name: Tag the Merged Release
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.BOT_GITHUB_TOKEN }}
+          fetch-depth: 0
+      - name: Validate release branch and extract tag
+        env:
+          BRANCH_REF: ${{ github.event.pull_request.head.ref }}
+        id: validate-and-extract-tag
+        run: |
+          set -euo pipefail
+
+          # Use environment variable safely
+          BRANCH_REF_SAFE="$BRANCH_REF"
+
+          echo "::debug::Processing release branch: $BRANCH_REF_SAFE"
+
+          # Validate branch format (YYYY.MM.YYYYMMDDHHIISS)
+          if [[ ! "$BRANCH_REF_SAFE" =~ ^release/[0-9]{4}\.[0-9]+\.[0-9]{14}$ ]]; then
+            echo "::error::Invalid release branch format: $BRANCH_REF_SAFE" >&2
+            echo "::error::Expected format: release/YYYY.MM.YYYYMMDDHHIISS" >&2
+            exit 1
+          fi
+
+          # Extract and validate tag
+          TAG=$(echo "$BRANCH_REF_SAFE" | cut -d'/' -f2)
+
+          # Additional tag format validation
+          if [[ -z "$TAG" ]]; then
+            echo "::error::Tag cannot be empty" >&2
+            exit 1
+          fi
+
+          # Check if tag already exists
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists" >&2
+            exit 1
+          fi
+
+          # Validate tag length (prevent excessively long tags)
+          if [[ ${#TAG} -gt 50 ]]; then
+            echo "::error::Tag length exceeds maximum allowed (50 characters): $TAG" >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "::debug::Validated tag: $TAG"
+      - name: Configure Git and GPG securely
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          set -euo pipefail  # SECURITY: Strict error handling
+
+          # Create secure temporary directory for GPG
+          export GNUPGHOME=$(mktemp -d)
+          chmod 700 "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> $GITHUB_ENV
+
+          echo "::debug::Setting up secure GPG environment"
+
+          # Configure git user (non-sensitive information)
+          git config --local user.email "${{ env.BOT_USER_EMAIL }}"
+          git config --local user.name "${{ env.BOT_USER_NAME }}"
+
+          # Import GPG key without exposing secrets in command line
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import --quiet
+          echo "$GPG_KEY_ID:6:" | gpg --import-ownertrust --quiet
+
+          # Configure git GPG settings
+          git config --global user.signingkey "$GPG_KEY_ID"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+          # Test GPG functionality without exposing passphrase
+          echo "test" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
+            --sign --armor --local-user "$GPG_KEY_ID" <<< "$GPG_PASSPHRASE" > /dev/null
+
+          echo "::debug::GPG configuration completed successfully"
+      - name: Create and push signed tag
+        id: create-tag
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          TAG: ${{ steps.validate-and-extract-tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          echo "::debug::Creating signed tag: $TAG"
+
+          # SECURITY: Validate tag variable is set
+          if [[ -z "$TAG" ]]; then
+            echo "::error::TAG variable is not set" >&2
+            exit 1
+          fi
+
+          # Create signed tag with proper message
+          git tag -a "$TAG" -m "Release $TAG" --sign
+
+          # Verify tag was created and is signed
+          if ! git tag -v "$TAG" 2>/dev/null; then
+            echo "::error::Failed to verify signed tag: $TAG" >&2
+            exit 1
+          fi
+
+          # Cache GPG signature
+          echo "commit" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback \
+          --sign --armor --local-user "$GPG_KEY_ID" <<< "$GPG_PASSPHRASE" > /dev/null
+
+          # Push tag with verification
+          git push origin "$TAG"
+
+          # Verify tag was pushed successfully
+          if [[ $(git ls-remote --tags origin "$TAG" | wc -l) -eq 0 ]]; then
+            echo "::error::Failed to verify tag was pushed: $TAG" >&2
+            exit 1
+          fi
+
+          echo "tag-created=true" >> $GITHUB_OUTPUT
+          echo "::debug::Successfully created and pushed signed tag: $TAG"
+          echo "### :pushpin: Merge Tagged" >> $GITHUB_STEP_SUMMARY
+          echo "[$TAG](https://github.com/${{ github.repository }}/releases/tag/$TAG) create so watch the [workflow](https://github.com/${{ github.repository }}/actions/workflows/release.yml)" >> $GITHUB_STEP_SUMMARY
+      - name: Secure cleanup
+        if: always()
+        run: |
+          set +e
+
+          echo "::debug::Performing secure cleanup"
+
+          # Clean up GPG directory
+          if [[ -n "${GNUPGHOME:-}" && -d "$GNUPGHOME" ]]; then
+            rm -rf "$GNUPGHOME"
+            echo "::debug::Cleaned up GPG directory"
+          fi
+
+          # Kill GPG agent
+          gpgconf --kill gpg-agent 2>/dev/null || true
+
+          # Clear environment variables
+          unset GPG_PRIVATE_KEY GPG_PASSPHRASE GPG_KEY_ID GNUPGHOME 2>/dev/null || true
+
+          echo "::debug::Secure cleanup completed"

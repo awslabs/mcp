@@ -24,6 +24,19 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 ## Installation
 
+### Prerequisites
+
+Before installing the ECS MCP Server, ensure you have the following prerequisites installed:
+
+1. **Docker or Finch**: Required for containerization and local testing
+   - [Docker](https://docs.docker.com/get-docker/) for container management
+   - [Finch](https://github.com/runfinch/finch) as a Docker alternative
+
+2. **UV**: Required for package management and running MCP servers
+   - Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
+
+### Installation Steps
+
 ```bash
 # Install using uv
 uv pip install awslabs.ecs-mcp-server
@@ -41,6 +54,8 @@ git clone https://github.com/awslabs/mcp.git
 # Run the server directly using uv
 uv --directory /path/to/ecs-mcp-server/src/ecs-mcp-server/awslabs/ecs_mcp_server run main.py
 ```
+
+To setup your preferred MCP client (ie. Amazon Q Developer CLI, Cline, Cursor, VS Code, etc.) with the ECS MCP Server, proceed to the [Configuration](#configuration) section.
 
 ## Usage Environments
 
@@ -66,8 +81,8 @@ The following operations are read-only and relatively safe for production enviro
 
 | Tool | Operation | Production Safety |
 |------|-----------|-------------------|
-| `ecs_resource_management` | `list` operations (clusters, services, tasks) | ✅ Safe - Read-only |
-| `ecs_resource_management` | `describe` operations (clusters, services, tasks) | ✅ Safe - Read-only |
+| `ecs_resource_management` | List operations (clusters, services, tasks) | ✅ Safe - Read-only |
+| `ecs_resource_management` | Describe operations (clusters, services, tasks) | ✅ Safe - Read-only |
 | `ecs_troubleshooting_tool` | `fetch_service_events` | ✅ Safe - Read-only |
 | `ecs_troubleshooting_tool` | `get_ecs_troubleshooting_guidance` | ✅ Safe - Read-only |
 | `get_deployment_status` | Status checking | ✅ Safe - Read-only |
@@ -79,6 +94,10 @@ The following operations modify resources and should be used with extreme cautio
 | `create_ecs_infrastructure` | Creating resources | ⚠️ High Risk - Creates infrastructure |
 | `delete_ecs_infrastructure` | Deleting resources | 🛑 Dangerous - Deletes infrastructure |
 | `containerize_app` | Generate container configs | 🟡 Medium Risk - Local changes only |
+| `ecs_resource_management` | Create operations (clusters, services, tasks) | ⚠️ High Risk - Creates resources |
+| `ecs_resource_management` | Update operations (services, tasks, settings) | ⚠️ High Risk - Modifies resources |
+| `ecs_resource_management` | Delete operations (clusters, services, tasks) | 🛑 Dangerous - Deletes resources |
+| `ecs_resource_management` | Run/Start/Stop task operations | ⚠️ High Risk - Affects running workloads |
 
 ### When to Consider Production Use
 
@@ -100,7 +119,9 @@ Avoid using ECS MCP Server in production for:
 
 ## Configuration
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.ecs-mcp-server&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBhd3NsYWJzLWVjcy1tY3Atc2VydmVyIGVjcy1tY3Atc2VydmVyIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ5b3VyLWF3cy1yZWdpb24iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiRkFTVE1DUF9MT0dfRklMRSI6Ii9wYXRoL3RvL2Vjcy1tY3Atc2VydmVyLmxvZyIsIkFMTE9XX1dSSVRFIjoiZmFsc2UiLCJBTExPV19TRU5TSVRJVkVfREFUQSI6ImZhbHNlIn19)
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.ecs-mcp-server&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBhd3NsYWJzLWVjcy1tY3Atc2VydmVyIGVjcy1tY3Atc2VydmVyIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ5b3VyLWF3cy1yZWdpb24iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiRkFTVE1DUF9MT0dfRklMRSI6Ii9wYXRoL3RvL2Vjcy1tY3Atc2VydmVyLmxvZyIsIkFMTE9XX1dSSVRFIjoiZmFsc2UiLCJBTExPV19TRU5TSVRJVkVfREFUQSI6ImZhbHNlIn19) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=ECS%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--from%22%2C%22awslabs-ecs-mcp-server%22%2C%22ecs-mcp-server%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22your-aws-region%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22FASTMCP_LOG_FILE%22%3A%22%2Fpath%2Fto%2Fecs-mcp-server.log%22%2C%22ALLOW_WRITE%22%3A%22false%22%2C%22ALLOW_SENSITIVE_DATA%22%3A%22false%22%7D%7D) |
 
 Add the ECS MCP Server to your MCP client configuration:
 
@@ -122,6 +143,38 @@ Add the ECS MCP Server to your MCP client configuration:
   }
 }
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.ecs-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.ecs-mcp-server@latest",
+        "awslabs.ecs-mcp-server.exe"
+      ],
+     "env": {
+        "AWS_PROFILE": "your-aws-profile", // Optional - uses your local AWS configuration if not specified
+        "AWS_REGION": "your-aws-region", // Optional - uses your local AWS configuration if not specified
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "FASTMCP_LOG_FILE": "/path/to/ecs-mcp-server.log",
+        "ALLOW_WRITE": "false",
+        "ALLOW_SENSITIVE_DATA": "false"
+      }
+    }
+  }
+}
+```
+
 
 If running from a local repository, configure the MCP client like this:
 
@@ -186,7 +239,7 @@ We strongly recommend creating dedicated IAM roles with least-privilege permissi
 3. **Use scoped-down resource policies** whenever possible
 4. **Apply a permission boundary** to limit the maximum permissions
 
-For detailed example IAM policies tailored for different ECS MCP Server use cases (read-only monitoring, troubleshooting, deployment, and service-specific access), see [EXAMPLE_IAM_POLICIES.md](EXAMPLE_IAM_POLICIES.md).
+For detailed example IAM policies tailored for different ECS MCP Server use cases (read-only monitoring, troubleshooting, deployment, and service-specific access), see [EXAMPLE_IAM_POLICIES.md](https://github.com/awslabs/mcp/blob/main/src/ecs-mcp-server/EXAMPLE_IAM_POLICIES.md).
 
 
 ## MCP Tools
@@ -224,16 +277,26 @@ The troubleshooting tool helps diagnose and resolve common ECS deployment issues
 
 ### Resource Management
 
-This tool provides read-only access to Amazon ECS resources to help you monitor and understand your deployment environment.
+This tool provides comprehensive access to Amazon ECS resources to help you monitor, understand, and manage your deployment environment.
 
-- **ecs_resource_management**: List and describe ECS resources including:
-  - Clusters: List all clusters, describe specific cluster details
-  - Services: List services in a cluster, describe service configuration
-  - Tasks: List running or stopped tasks, describe task details and status
-  - Task Definitions: List task definition families, describe specific task definition revisions
-  - Container Instances: List container instances, describe instance health and capacity
-  - Capacity Providers: List and describe capacity providers associated with clusters
-  - ECR repositories and container images
+- **ecs_resource_management**: Execute operations on ECS resources with a consistent interface:
+  - **Read Operations** (always available):
+    - Clusters: List all clusters, describe specific cluster details
+    - Services: List services in a cluster, describe service configuration
+    - Tasks: List running or stopped tasks, describe task details and status
+    - Task Definitions: List task definition families, describe specific task definition revisions
+    - Container Instances: List container instances, describe instance health and capacity
+    - Capacity Providers: List and describe capacity providers associated with clusters
+    - ECR repositories and container images
+  - **Write Operations** (requires ALLOW_WRITE=true):
+    - Create resources: Create clusters, services, task sets, and capacity providers
+    - Update resources: Update service configurations, task protection settings, and cluster settings
+    - Delete resources: Delete clusters, services, task definitions, and capacity providers
+    - Register/Deregister: Register and deregister task definitions and container instances
+    - Task Management: Run tasks, start tasks, stop tasks, and execute commands on running tasks
+    - Tag Management: Tag and untag resources
+
+The resource management tool enforces permission checks for write operations. Operations that modify resources require the ALLOW_WRITE environment variable to be set to true.
 
 ## Example Prompts
 
@@ -260,6 +323,12 @@ This tool provides read-only access to Amazon ECS resources to help you monitor 
 - "List all running tasks in my ECS cluster"
 - "Describe my ECS service configuration"
 - "Get information about my task definition"
+- "Create a new ECS cluster"
+- "Update my service configuration"
+- "Register a new task definition"
+- "Delete an unused task definition"
+- "Run a task in my cluster"
+- "Stop a running task"
 
 ## Requirements
 
