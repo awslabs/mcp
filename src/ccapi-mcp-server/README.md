@@ -198,6 +198,36 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.ccapi-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.ccapi-mcp-server@latest",
+        "awslabs.ccapi-mcp-server.exe"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-named-profile",
+        "DEFAULT_TAGS": "enabled",
+        "SECURITY_SCANNING": "enabled",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
 
 _Note: Uses the default region from your AWS profile. Add `"AWS_REGION": "us-west-2"` (or other desired AWS Region) to override._
 
