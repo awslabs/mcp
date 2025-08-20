@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Fetch embedding model from AWS instead of Hugging Face (#1127)
+
+### Fixed
+
+- Use region from profile specified in cli command (#1123)
+
+## [0.2.5] - 2025-08-11
+
+### Changed
+
 - Validate `AWS_REGION` environment variable (#1030)
 
 ## [0.2.4] - 2025-08-07

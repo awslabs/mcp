@@ -144,6 +144,36 @@ Edit the Q configuration file at `~/.aws/amazonq/mcp.json`:
 }
 ```
 
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different. Edit your MCP configuration file (e.g., `~/.aws/amazonq/mcp.json` for Amazon Q CLI) with the following format:
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "keyspaces-mcp",
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.amazon-keyspaces-mcp-server@latest",
+        "awslabs.amazon-keyspaces-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  ]
+}
+```
+
 If the file doesn't exist yet or doesn't have an `mcpServers` section, create it with the structure shown above.
 
 Now when you use Q Chat by running `q chat`, it will automatically connect to your Keyspaces MCP server.
