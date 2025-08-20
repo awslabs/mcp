@@ -15,7 +15,6 @@
 """AWS Well-Architected Security Assessment Tool MCP Server"""
 
 import argparse
-import asyncio
 import datetime
 import os
 import sys
@@ -135,33 +134,6 @@ FIELD_INCLUDE_NON_COMPLIANT_ONLY = Field(
 
 # Global context storage for sharing data between tool calls
 context_storage = {}
-
-
-async def initialize():
-    """Initialize shared components on startup.
-
-    This function loads and initializes the security pattern catalog and rule catalog
-    that will be used throughout the server's operation. If initialization fails,
-    the components will be loaded on demand when needed.
-    """
-    global security_pattern_catalog, rule_catalog
-
-    try:
-        # Import core components
-        # from knowledge.security_patterns import SecurityPatternCatalog
-        # from rules.rule_catalog import RuleCatalog
-
-        # These components will be implemented later
-        # security_pattern_catalog = SecurityPatternCatalog()
-        # await security_pattern_catalog.initialize()
-
-        # rule_catalog = RuleCatalog()
-        # await rule_catalog.initialize()
-
-        logger.info("AWS Security Pillar MCP Server initialized successfully")
-    except Exception as e:
-        logger.error(f"Error initializing AWS Security Pillar MCP Server: {e}")
-        # Continue without initialization - components will be loaded on demand
 
 
 @mcp.tool(name="CheckSecurityServices")
@@ -1185,9 +1157,6 @@ def main():
     parser.add_argument("--port", type=int, default=8888, help="Port to run the server on")
 
     args = parser.parse_args()
-
-    # Initialize shared components
-    asyncio.run(initialize())
 
     logger.info("Starting AWS Security Pillar MCP Server")
 

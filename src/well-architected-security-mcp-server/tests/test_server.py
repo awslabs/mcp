@@ -24,18 +24,9 @@ from awslabs.well_architected_security_mcp_server.server import (
     check_storage_encryption_tool,
     context_storage,
     get_stored_security_context,
-    initialize,
     list_services_in_region_tool,
     main,
 )
-
-
-@pytest.mark.asyncio
-async def test_initialize():
-    """Test the initialize function."""
-    # Call the initialize function
-    await initialize()
-    # Since initialize doesn't return anything, we just verify it doesn't raise an exception
 
 
 @pytest.mark.asyncio
@@ -552,8 +543,8 @@ def test_main():
         # Call the function
         main()
 
-        # Verify that initialize was called
-        mock_run.assert_called_once()
+        # Verify that asyncio.run was not called since initialize was removed
+        mock_run.assert_not_called()
 
         # Verify that mcp.run was called
         mock_mcp.run.assert_called_once_with()
@@ -578,8 +569,8 @@ def test_main_with_sse():
         # Call the function
         main()
 
-        # Verify that initialize was called
-        mock_run.assert_called_once()
+        # Verify that asyncio.run was not called since initialize was removed
+        mock_run.assert_not_called()
 
         # Verify that mcp.settings.port was set
         assert mock_mcp.settings.port == 9999
