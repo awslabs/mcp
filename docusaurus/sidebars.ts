@@ -122,6 +122,7 @@ const sidebars: SidebarsConfig = {
             'servers/cloudwatch-mcp-server',
             'servers/cloudwatch-appsignals-mcp-server',
             'servers/well-architected-security-mcp-server',
+            'servers/billing-cost-management-mcp-server',
           ],
         },
         {
