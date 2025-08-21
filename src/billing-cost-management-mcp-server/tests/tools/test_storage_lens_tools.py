@@ -27,24 +27,22 @@ import importlib
 import json
 import os
 import pytest
-import asyncio
-from tests.tools.fixtures import CSV_MANIFEST, PARQUET_MANIFEST
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import (
-    storage_lens_server,
-    storage_lens_run_query,
-    ManifestHandler,
     AthenaHandler,
-    StorageLensQueryTool,
-    SchemaFormat,
     ColumnDefinition,
-    SchemaInfo
+    ManifestHandler,
+    SchemaFormat,
+    SchemaInfo,
+    StorageLensQueryTool,
+    storage_lens_server,
 )
 from fastmcp import Context
+from tests.tools.fixtures import CSV_MANIFEST, PARQUET_MANIFEST
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # Create a mock implementation for testing
-async def storage_lens_run_query(ctx, query, **kwargs):
+async def mock_storage_lens_run_query(ctx, query, **kwargs):
     """Mock implementation of storage_lens_run_query for testing."""
     # Simple mock implementation
 
@@ -71,8 +69,11 @@ def storage_lens_query_tool(mock_context):
     """Create a StorageLensQueryTool instance for testing."""
     with (
         patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.ManifestHandler') as mock_manifest_cls,
-        patch('awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.AthenaHandler') as mock_athena_cls
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.ManifestHandler'
+        ) as mock_manifest_cls,
+        patch(
+            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.AthenaHandler'
+        ) as mock_athena_cls,
     ):
         # Create the tool
         tool = StorageLensQueryTool(mock_context)
@@ -158,7 +159,8 @@ def mock_context():
 def manifest_handler(mock_context):
     """Create a ManifestHandler instance for testing."""
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client') as mock_client_fn:
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ) as mock_client_fn:
         handler = ManifestHandler(mock_context)
         # Replace the real S3 client with our mock
         handler.s3_client = mock_client_fn.return_value
@@ -169,7 +171,8 @@ def manifest_handler(mock_context):
 def athena_handler(mock_context):
     """Create an AthenaHandler instance for testing."""
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client') as mock_client_fn:
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ) as mock_client_fn:
         handler = AthenaHandler(mock_context)
         # Replace the real Athena client with our mock
         handler.athena_client = mock_client_fn.return_value
@@ -184,12 +187,22 @@ async def test_storage_lens_run_query(mock_context):
 
     os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://test-bucket/manifest.json'
 
-    # Call the function
-    result = await storage_lens_run_query(
-        mock_context,
-        query="SELECT * FROM {table} WHERE metric_name = 'StorageBytes'",
-        output_location='s3://test-bucket/athena-results/',
-    )
+    # Use the reload pattern to get the actual function
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
+    # Mock the StorageLensQueryTool to avoid real AWS calls
+    with patch.object(
+        stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock
+    ) as mock_exec:
+        mock_exec.return_value = {'status': 'success', 'data': {'ok': True}}
+
+        # Call the function
+        result = await real_fn(  # type: ignore
+            mock_context,
+            query="SELECT * FROM {table} WHERE metric_name = 'StorageBytes'",
+            output_location='s3://test-bucket/athena-results/',
+        )
 
     # Verify function behavior
     mock_context.info.assert_called_with(
@@ -210,8 +223,12 @@ async def test_storage_lens_run_query_missing_manifest(mock_context):
     if 'STORAGE_LENS_MANIFEST_LOCATION' in os.environ:
         del os.environ['STORAGE_LENS_MANIFEST_LOCATION']
 
+    # Use the reload pattern to get the actual function
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
     # Call the function without manifest_location parameter
-    result = await storage_lens_run_query(
+    result = await real_fn(  # type: ignore
         mock_context,
         query='SELECT * FROM {table}',
     )
@@ -229,22 +246,37 @@ async def test_storage_lens_run_query_table_replacement(mock_context):
 
     os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://test-bucket/manifest.json'
 
-    # Call with {table} placeholder
-    result1 = await storage_lens_run_query(
-        mock_context,
-        query='SELECT * FROM {table}',
-        database_name='custom_db',
-        table_name='custom_table',
-    )
+    # Use the reload pattern to get the actual function
+    stl_mod = _reload_storage_lens_with_identity_decorator()
+    real_fn = stl_mod.storage_lens_run_query  # type: ignore
+
+    # Mock the StorageLensQueryTool to avoid real AWS calls
+    with patch.object(
+        stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock
+    ) as mock_exec:
+        mock_exec.return_value = {'status': 'success', 'data': {'ok': True}}
+
+        # Call with {table} placeholder
+        result1 = await real_fn(  # type: ignore
+            mock_context,
+            query='SELECT * FROM {table}',
+            database_name='custom_db',
+            table_name='custom_table',
+        )
 
     # Verify success
     assert result1['status'] == 'success'
 
     # Call with explicit FROM clause but no placeholder
-    result2 = await storage_lens_run_query(
-        mock_context,
-        query='SELECT * FROM custom_db.custom_table',
-    )
+    with patch.object(
+        stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock
+    ) as mock_exec2:
+        mock_exec2.return_value = {'status': 'success', 'data': {'ok': True}}
+
+        result2 = await real_fn(  # type: ignore
+            mock_context,
+            query='SELECT * FROM custom_db.custom_table',
+        )
 
     # Verify success
     assert result2['status'] == 'success'
@@ -254,8 +286,8 @@ async def test_storage_lens_run_query_table_replacement(mock_context):
 async def test_athena_handler_execute_query_integration(mock_context, mock_athena_client):
     """Test the AthenaHandler execute_query method integration."""
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
-            return_value=mock_athena_client,
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
+        return_value=mock_athena_client,
     ):
         athena_handler = AthenaHandler(mock_context)
 
@@ -276,8 +308,8 @@ async def test_athena_handler_execute_query_integration(mock_context, mock_athen
 async def test_athena_handler_setup_table_integration(mock_context, mock_athena_client):
     """Test the AthenaHandler setup_table method integration."""
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
-            return_value=mock_athena_client,
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
+        return_value=mock_athena_client,
     ):
         athena_handler = AthenaHandler(mock_context)
 
@@ -371,7 +403,9 @@ async def test_storage_lens_real_placeholder_replacement_reload_identity_decorat
     stl_mod = _reload_storage_lens_with_identity_decorator()
     real_fn = stl_mod.storage_lens_run_query  # type: ignore
 
-    with patch.object(stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock) as mock_exec:
+    with patch.object(
+        stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock
+    ) as mock_exec:
         mock_exec.return_value = {'status': 'success', 'data': {'ok': True}}
         q = "SELECT * FROM {table} WHERE metric_name='StorageBytes'"
         res = await real_fn(mock_context, query=q)  # type: ignore
@@ -389,7 +423,9 @@ async def test_storage_lens_real_from_insertion_reload_identity_decorator(mock_c
     stl_mod = _reload_storage_lens_with_identity_decorator()
     real_fn = stl_mod.storage_lens_run_query  # type: ignore
 
-    with patch.object(stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock) as mock_exec:
+    with patch.object(
+        stl_mod.StorageLensQueryTool, 'query_storage_lens', new_callable=AsyncMock
+    ) as mock_exec:
         mock_exec.return_value = {'status': 'success', 'data': {'ok': True}}
         # No {table}, but has a FROM clause -> tool injects db.table
         q = "SELECT * from something WHERE region='us-east-1'"
@@ -402,7 +438,7 @@ async def test_storage_lens_real_from_insertion_reload_identity_decorator(mock_c
 
 @pytest.mark.asyncio
 async def test_storage_lens_real_query_missing_table_reference_error_reload_identity_decorator(
-        mock_context,
+    mock_context,
 ):
     """Test storage_lens_run_query missing table reference error with identity decorator."""
     os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
@@ -411,12 +447,14 @@ async def test_storage_lens_real_query_missing_table_reference_error_reload_iden
     real_fn = stl_mod.storage_lens_run_query  # type: ignore
 
     # Mock the ManifestHandler to avoid real S3 calls and allow the test to reach table validation
-    with patch.object(stl_mod.ManifestHandler, 'get_manifest', new_callable=AsyncMock) as mock_get_manifest:
+    with patch.object(
+        stl_mod.ManifestHandler, 'get_manifest', new_callable=AsyncMock
+    ) as mock_get_manifest:
         mock_get_manifest.return_value = {
             'reportFiles': [{'key': 'test/data/file.csv'}],
             'destinationBucket': 'test-bucket',
             'reportFormat': 'CSV',
-            'reportSchema': 'col1,col2'
+            'reportSchema': 'col1,col2',
         }
 
         with patch.object(stl_mod.ManifestHandler, 'extract_data_location') as mock_extract:
@@ -426,7 +464,7 @@ async def test_storage_lens_real_query_missing_table_reference_error_reload_iden
                 mock_parse.return_value = {
                     'format': stl_mod.SchemaFormat.CSV,
                     'columns': [{'name': 'col1', 'type': 'STRING'}],
-                    'skip_header': True
+                    'skip_header': True,
                 }
 
                 # Mock the AthenaHandler to avoid real Athena calls
@@ -440,9 +478,7 @@ async def test_storage_lens_real_query_missing_table_reference_error_reload_iden
 
 
 @pytest.mark.asyncio
-async def test_athena_handler_determine_output_location_trailing_slash(
-        mock_context
-):
+async def test_athena_handler_determine_output_location_trailing_slash(mock_context):
     """Test AthenaHandler determine_output_location with trailing slash."""
     athena_handler = AthenaHandler(mock_context)
 
@@ -452,9 +488,7 @@ async def test_athena_handler_determine_output_location_trailing_slash(
 
 
 @pytest.mark.asyncio
-async def test_athena_handler_determine_output_location_no_trailing_slash(
-        mock_context
-):
+async def test_athena_handler_determine_output_location_no_trailing_slash(mock_context):
     """Test AthenaHandler determine_output_location without trailing slash."""
     athena_handler = AthenaHandler(mock_context)
 
@@ -470,7 +504,7 @@ async def test_athena_handler_determine_output_location_no_trailing_slash(
 async def test_athena_handler_execute_query_exception_logs_and_raises(mock_context):
     """Test AthenaHandler execute_query exception path logs and raises."""
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
     ) as mock_create_client:
         mock_athena_client = MagicMock()
         mock_athena_client.start_query_execution.side_effect = Exception('oops db')
@@ -490,6 +524,7 @@ async def test_athena_handler_execute_query_exception_logs_and_raises(mock_conte
 
 
 # --- ManifestHandler tests ---
+
 
 @pytest.mark.asyncio
 async def test_manifest_handler_get_manifest_exact_path(mock_context, manifest_handler):
@@ -556,9 +591,7 @@ async def test_manifest_handler_find_latest_manifest(mock_context, manifest_hand
 
     # Assertions
     manifest_handler.s3_client.get_paginator.assert_called_once_with('list_objects_v2')
-    mock_paginator.paginate.assert_called_once_with(
-        Bucket='my-bucket', Prefix='path/to/folder/'
-    )
+    mock_paginator.paginate.assert_called_once_with(Bucket='my-bucket', Prefix='path/to/folder/')
     manifest_handler.s3_client.get_object.assert_called_once()
     assert result == CSV_MANIFEST
 
@@ -678,6 +711,7 @@ def test_manifest_handler_parse_schema_parquet_unknown_type(manifest_handler):
 
 # --- AthenaHandler tests ---
 
+
 @pytest.mark.asyncio
 async def test_athena_handler_execute_query(mock_context, athena_handler):
     """Test executing an Athena query."""
@@ -770,7 +804,7 @@ def test_athena_handler_determine_output_location(athena_handler):
 async def test_athena_handler_create_database(mock_context, athena_handler):
     """Test creating a database."""
     with patch.object(
-            athena_handler, 'execute_query', new_callable=AsyncMock
+        athena_handler, 'execute_query', new_callable=AsyncMock
     ) as mock_execute_query:
         mock_execute_query.return_value = {'query_execution_id': 'test-id', 'status': 'STARTED'}
 
@@ -779,9 +813,7 @@ async def test_athena_handler_create_database(mock_context, athena_handler):
 
         # Check that execute_query was called with the right arguments
         mock_execute_query.assert_awaited_once_with(
-            'CREATE DATABASE IF NOT EXISTS test_db',
-            'default',
-            's3://test-bucket/athena-results/'
+            'CREATE DATABASE IF NOT EXISTS test_db', 'default', 's3://test-bucket/athena-results/'
         )
 
 
@@ -789,7 +821,7 @@ async def test_athena_handler_create_database(mock_context, athena_handler):
 async def test_athena_handler_create_table_for_csv(mock_context, athena_handler):
     """Test creating a table for CSV data."""
     with patch.object(
-            athena_handler, 'execute_query', new_callable=AsyncMock
+        athena_handler, 'execute_query', new_callable=AsyncMock
     ) as mock_execute_query:
         mock_execute_query.return_value = {'query_execution_id': 'test-id', 'status': 'STARTED'}
 
@@ -827,7 +859,7 @@ async def test_athena_handler_create_table_for_csv(mock_context, athena_handler)
 async def test_athena_handler_create_table_for_parquet(mock_context, athena_handler):
     """Test creating a table for Parquet data."""
     with patch.object(
-            athena_handler, 'execute_query', new_callable=AsyncMock
+        athena_handler, 'execute_query', new_callable=AsyncMock
     ) as mock_execute_query:
         mock_execute_query.return_value = {'query_execution_id': 'test-id', 'status': 'STARTED'}
 
@@ -858,7 +890,7 @@ async def test_athena_handler_create_table_for_parquet(mock_context, athena_hand
         assert 'CREATE EXTERNAL TABLE IF NOT EXISTS test_db.test_table' in call_args
         assert '`column1` STRING' in call_args
         assert '`column2` BIGINT' in call_args
-        assert "STORED AS PARQUET" in call_args
+        assert 'STORED AS PARQUET' in call_args
         assert "LOCATION 's3://test-bucket/data/'" in call_args
 
 
@@ -868,7 +900,8 @@ async def test_athena_handler_setup_table_csv(mock_context):
     # In this test, we'll use our own execute_query implementation to verify the table is created properly
     # Create a fresh athena handler instance
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client') as mock_client_fn:
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+    ):
         athena_handler = AthenaHandler(mock_context)
 
     # Track what queries were executed
@@ -882,11 +915,11 @@ async def test_athena_handler_setup_table_csv(mock_context):
     # Apply the mock
     with patch.object(athena_handler, 'execute_query', side_effect=mock_execute_query):
         # Create schema info for test
-        schema_info = {
-            'format': 'CSV',  # Use string value, not Enum directly
+        schema_info: SchemaInfo = {
+            'format': SchemaFormat.CSV,
             'columns': [
-                {'name': 'column1', 'type': 'STRING'},
-                {'name': 'column2', 'type': 'BIGINT'},
+                ColumnDefinition(name='column1', type='STRING'),
+                ColumnDefinition(name='column2', type='BIGINT'),
             ],
             'skip_header': True,
         }
@@ -918,8 +951,12 @@ async def test_athena_handler_setup_table_parquet(mock_context, athena_handler):
     """Test setup_table for Parquet format."""
     with (
         patch.object(athena_handler, 'create_database', new_callable=AsyncMock) as mock_create_db,
-        patch.object(athena_handler, 'create_table_for_csv', new_callable=AsyncMock) as mock_create_csv,
-        patch.object(athena_handler, 'create_table_for_parquet', new_callable=AsyncMock) as mock_create_parquet
+        patch.object(
+            athena_handler, 'create_table_for_csv', new_callable=AsyncMock
+        ) as mock_create_csv,
+        patch.object(
+            athena_handler, 'create_table_for_parquet', new_callable=AsyncMock
+        ) as mock_create_parquet,
     ):
         # Create schema info for test - use dict format like the implementation expects
         schema_info = {
@@ -947,6 +984,7 @@ async def test_athena_handler_setup_table_parquet(mock_context, athena_handler):
 
 
 # --- StorageLensQueryTool tests ---
+
 
 @pytest.mark.asyncio
 async def test_storage_lens_query_tool_query_storage_lens(mock_context, storage_lens_query_tool):
@@ -1026,7 +1064,7 @@ async def test_storage_lens_query_tool_query_storage_lens(mock_context, storage_
 
 @pytest.mark.asyncio
 async def test_storage_lens_query_tool_query_storage_lens_with_default_params(
-        mock_context, storage_lens_query_tool
+    mock_context, storage_lens_query_tool
 ):
     """Test the query_storage_lens method with default parameters."""
     # Unpack the fixture
@@ -1093,25 +1131,35 @@ async def test_storage_lens_query_tool_query_storage_lens_with_default_params(
 
 @pytest.mark.asyncio
 async def test_storage_lens_query_tool_table_placeholder_replacement(
-        mock_context, storage_lens_query_tool
+    mock_context, storage_lens_query_tool
 ):
     """Test the query_storage_lens table name replacement logic."""
     # Unpack the fixture
     query_tool, mock_manifest_cls, mock_athena_cls = storage_lens_query_tool
 
     # Setup mocks - simplify by patching the query method itself
-    with patch.object(
-            query_tool, 'query_storage_lens', side_effect=query_tool.query_storage_lens
-    ) as spy_method:
+    with patch.object(query_tool, 'query_storage_lens', side_effect=query_tool.query_storage_lens):
         with (
-            patch.object(query_tool.manifest_handler, 'get_manifest', new_callable=AsyncMock) as mock_get_manifest,
-            patch.object(query_tool.manifest_handler, 'extract_data_location') as mock_extract_location,
+            patch.object(
+                query_tool.manifest_handler, 'get_manifest', new_callable=AsyncMock
+            ) as mock_get_manifest,
+            patch.object(
+                query_tool.manifest_handler, 'extract_data_location'
+            ) as mock_extract_location,
             patch.object(query_tool.manifest_handler, 'parse_schema') as mock_parse_schema,
-            patch.object(query_tool.athena_handler, 'setup_table', new_callable=AsyncMock) as mock_setup_table,
-            patch.object(query_tool.athena_handler, 'execute_query', new_callable=AsyncMock) as mock_execute_query,
-            patch.object(query_tool.athena_handler, 'wait_for_query_completion', new_callable=AsyncMock) as mock_wait,
-            patch.object(query_tool.athena_handler, 'get_query_results', new_callable=AsyncMock) as mock_get_results,
-            patch.object(query_tool.athena_handler, 'determine_output_location') as mock_determine_output
+            patch.object(query_tool.athena_handler, 'setup_table', new_callable=AsyncMock),
+            patch.object(
+                query_tool.athena_handler, 'execute_query', new_callable=AsyncMock
+            ) as mock_execute_query,
+            patch.object(
+                query_tool.athena_handler, 'wait_for_query_completion', new_callable=AsyncMock
+            ) as mock_wait,
+            patch.object(
+                query_tool.athena_handler, 'get_query_results', new_callable=AsyncMock
+            ) as mock_get_results,
+            patch.object(
+                query_tool.athena_handler, 'determine_output_location'
+            ) as mock_determine_output,
         ):
             # Set up return values
             mock_get_manifest.return_value = CSV_MANIFEST
@@ -1122,7 +1170,10 @@ async def test_storage_lens_query_tool_table_placeholder_replacement(
                 skip_header=True,
             )
             mock_determine_output.return_value = 's3://test-bucket/athena-results/'
-            mock_execute_query.return_value = {'query_execution_id': 'test-id', 'status': 'STARTED'}
+            mock_execute_query.return_value = {
+                'query_execution_id': 'test-id',
+                'status': 'STARTED',
+            }
             mock_wait.return_value = {
                 'Status': {'State': 'SUCCEEDED'},
                 'Statistics': {
@@ -1145,8 +1196,10 @@ async def test_storage_lens_query_tool_table_placeholder_replacement(
             )
 
             # Check replacement with table placeholder
-            assert mock_execute_query.call_args_list[0][0][
-                       0] == 'SELECT * FROM custom_db.custom_table WHERE metric_name = "StorageBytes"'
+            assert (
+                mock_execute_query.call_args_list[0][0][0]
+                == 'SELECT * FROM custom_db.custom_table WHERE metric_name = "StorageBytes"'
+            )
 
             # Test case 2: Query with explicit FROM clause but no placeholder
             mock_execute_query.reset_mock()
@@ -1159,7 +1212,9 @@ async def test_storage_lens_query_tool_table_placeholder_replacement(
 
             # The implementation checks if 'storage_lens_db.storage_lens_metrics' is in the query
             # Since it's not, it will transform the query by injecting the table name after 'from'
-            expected_query = 'select * FROM storage_lens_db.storage_lens_metrics custom_db.custom_table'
+            expected_query = (
+                'select * FROM storage_lens_db.storage_lens_metrics custom_db.custom_table'
+            )
             assert mock_execute_query.call_args_list[0][0][0] == expected_query
 
             # Test case 3: Query with no placeholder and lowercase from clause
@@ -1170,8 +1225,10 @@ async def test_storage_lens_query_tool_table_placeholder_replacement(
             )
 
             # Should inject table name after from (implementation converts to lowercase)
-            assert mock_execute_query.call_args_list[0][0][
-                       0] == 'select * FROM storage_lens_db.storage_lens_metrics something'
+            assert (
+                mock_execute_query.call_args_list[0][0][0]
+                == 'select * FROM storage_lens_db.storage_lens_metrics something'
+            )
 
 
 # --- poll_query_status: NextToken + exception path ---
@@ -1184,8 +1241,8 @@ async def test_athena_handler_get_query_results_with_next_token(mock_context, mo
     mock_athena_client.get_query_results.return_value['NextToken'] = 'next-1'
 
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
-            return_value=mock_athena_client,
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client',
+        return_value=mock_athena_client,
     ):
         athena_handler = AthenaHandler(mock_context)
         result = await athena_handler.get_query_results('qid-123')
@@ -1199,7 +1256,7 @@ async def test_athena_handler_get_query_results_with_next_token(mock_context, mo
 async def test_athena_handler_get_query_results_exception_flow(mock_context):
     """Test AthenaHandler get_query_results exception flow."""
     with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
     ) as mock_create_client:
         mock_athena_client = MagicMock()
         mock_athena_client.get_query_results.side_effect = RuntimeError('boom')
@@ -1211,4 +1268,3 @@ async def test_athena_handler_get_query_results_exception_flow(mock_context):
             await athena_handler.get_query_results('qid-err')
 
         mock_context.error.assert_awaited()
-

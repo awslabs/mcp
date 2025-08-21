@@ -48,5 +48,3 @@ PARQUET_MANIFEST = {
         }
     ],
 }
-
-

@@ -102,7 +102,6 @@ SAVINGS_PLANS_TYPE_MAP = {
 }
 
 
-
 # Storage Lens configuration
 STORAGE_LENS_DEFAULT_DATABASE = 'storage_lens_db'  # Default database name for Storage Lens data
 STORAGE_LENS_DEFAULT_TABLE = 'storage_lens_metrics'  # Default table name for Storage Lens data

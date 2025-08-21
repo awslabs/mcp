@@ -18,24 +18,25 @@ This module provides functionality to create and query Athena tables for S3 Stor
 See the resources/storage_lens_metrics_reference.md file for detailed metrics information and sample queries.
 """
 
+import asyncio
+import json
 import os
 import re
-import json
-from typing import Any, Dict, List, Optional, TypedDict
-from enum import Enum
-from urllib.parse import urlparse
-from datetime import datetime
-
-from fastmcp import Context, FastMCP
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from ..utilities.constants import (
-    STORAGE_LENS_DEFAULT_DATABASE,
-    STORAGE_LENS_DEFAULT_TABLE,
     ATHENA_MAX_RETRIES,
     ATHENA_RETRY_DELAY_SECONDS,
     ENV_STORAGE_LENS_MANIFEST_LOCATION,
-    ENV_STORAGE_LENS_OUTPUT_LOCATION
+    ENV_STORAGE_LENS_OUTPUT_LOCATION,
+    STORAGE_LENS_DEFAULT_DATABASE,
+    STORAGE_LENS_DEFAULT_TABLE,
 )
+from datetime import datetime
+from enum import Enum
+from fastmcp import Context, FastMCP
+from typing import Any, Dict, List, Optional, TypedDict
+from urllib.parse import urlparse
+
 
 # FastMCP server instance
 storage_lens_server = FastMCP(
@@ -55,6 +56,7 @@ storage_lens_server = FastMCP(
 # Schema format enum
 class SchemaFormat(Enum):
     """Storage Lens data format."""
+
     CSV = 'CSV'
     PARQUET = 'PARQUET'
 
@@ -62,12 +64,14 @@ class SchemaFormat(Enum):
 # Helper classes for typed data
 class ColumnDefinition(TypedDict):
     """Column definition for Athena tables."""
+
     name: str
     type: str
 
 
 class SchemaInfo(TypedDict):
     """Schema information for Storage Lens data."""
+
     format: SchemaFormat
     columns: List[ColumnDefinition]
     skip_header: bool
@@ -75,12 +79,14 @@ class SchemaInfo(TypedDict):
 
 class ManifestFile(TypedDict):
     """Manifest file information."""
+
     key: str
     last_modified: datetime
 
 
 class AthenaQueryExecution(TypedDict):
     """Athena query execution information."""
+
     query_execution_id: str
     status: str
 
@@ -179,7 +185,9 @@ class ManifestHandler:
                 raise Exception(f'No manifest.json files found at s3://{bucket}/{key}')
 
             # Sort by last modified date to get the latest
-            latest_manifest = sorted(manifest_files, key=lambda x: x['last_modified'], reverse=True)[0]
+            latest_manifest = sorted(
+                manifest_files, key=lambda x: x['last_modified'], reverse=True
+            )[0]
 
             # Log only the selected latest manifest file
             await self.ctx.info(
@@ -188,10 +196,12 @@ class ManifestHandler:
             )
 
             # Get the content of the latest manifest file
-            return await self._read_manifest_file(bucket, latest_manifest["key"])
+            return await self._read_manifest_file(bucket, latest_manifest['key'])
 
         except Exception as e:
-            await self.ctx.error(f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}')
+            await self.ctx.error(
+                f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}'
+            )
             raise Exception(f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}')
 
     def extract_data_location(self, manifest: Dict[str, Any]) -> str:
@@ -303,12 +313,12 @@ class AthenaHandler:
         await self.execute_query(create_db_query, 'default', output_location)
 
     async def create_table_for_csv(
-            self,
-            database_name: str,
-            table_name: str,
-            schema_info: SchemaInfo,
-            data_location: str,
-            output_location: str,
+        self,
+        database_name: str,
+        table_name: str,
+        schema_info: SchemaInfo,
+        data_location: str,
+        output_location: str,
     ) -> None:
         """Create an Athena table for CSV data.
 
@@ -337,12 +347,12 @@ class AthenaHandler:
         await self.execute_query(create_table_query, database_name, output_location)
 
     async def create_table_for_parquet(
-            self,
-            database_name: str,
-            table_name: str,
-            schema_info: SchemaInfo,
-            data_location: str,
-            output_location: str,
+        self,
+        database_name: str,
+        table_name: str,
+        schema_info: SchemaInfo,
+        data_location: str,
+        output_location: str,
     ) -> None:
         """Create an Athena table for Parquet data.
 
@@ -368,12 +378,12 @@ class AthenaHandler:
         await self.execute_query(create_table_query, database_name, output_location)
 
     async def setup_table(
-            self,
-            database_name: str,
-            table_name: str,
-            schema_info: SchemaInfo,
-            data_location: str,
-            output_location: str,
+        self,
+        database_name: str,
+        table_name: str,
+        schema_info: SchemaInfo,
+        data_location: str,
+        output_location: str,
     ) -> None:
         """Set up an Athena table based on the schema information.
 
@@ -405,7 +415,7 @@ class AthenaHandler:
             )
 
     async def execute_query(
-            self, query: str, database_name: str, output_location: str
+        self, query: str, database_name: str, output_location: str
     ) -> AthenaQueryExecution:
         """Execute an Athena query.
 
@@ -440,7 +450,7 @@ class AthenaHandler:
             raise Exception(f'Error starting Athena query: {str(e)}')
 
     async def wait_for_query_completion(
-            self, query_execution_id: str, max_retries: int = ATHENA_MAX_RETRIES
+        self, query_execution_id: str, max_retries: int = ATHENA_MAX_RETRIES
     ) -> Dict[str, Any]:
         """Wait for an Athena query to complete.
 
@@ -458,7 +468,9 @@ class AthenaHandler:
             await self.ctx.info(f'Waiting for Athena query {query_execution_id} to complete...')
 
             while (state == 'RUNNING' or state == 'QUEUED') and retries < max_retries:
-                response = self.athena_client.get_query_execution(QueryExecutionId=query_execution_id)
+                response = self.athena_client.get_query_execution(
+                    QueryExecutionId=query_execution_id
+                )
                 state = response['QueryExecution']['Status']['State']
 
                 await self.ctx.info(f'Query state: {state} (retry {retries}/{max_retries})')
@@ -523,10 +535,7 @@ class AthenaHandler:
                     values.append(item.get('VarCharValue', ''))
                 rows.append(dict(zip(columns, values)))
 
-            return {
-                'columns': columns,
-                'rows': rows
-            }
+            return {'columns': columns, 'rows': rows}
 
         except Exception as e:
             # Use shared error handler for consistent error reporting
@@ -534,7 +543,7 @@ class AthenaHandler:
             raise
 
     def determine_output_location(
-            self, data_location: str, output_location: Optional[str] = None
+        self, data_location: str, output_location: Optional[str] = None
     ) -> str:
         """Determine the output location for Athena query results.
 
@@ -568,12 +577,12 @@ class StorageLensQueryTool:
         self.athena_handler = AthenaHandler(ctx)
 
     async def query_storage_lens(
-            self,
-            query: str,
-            manifest_location: str,
-            database_name: str = STORAGE_LENS_DEFAULT_DATABASE,
-            table_name: str = STORAGE_LENS_DEFAULT_TABLE,
-            output_location: Optional[str] = None,
+        self,
+        query: str,
+        manifest_location: str,
+        database_name: str = STORAGE_LENS_DEFAULT_DATABASE,
+        table_name: str = STORAGE_LENS_DEFAULT_TABLE,
+        output_location: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Query S3 Storage Lens metrics using Athena.
 
@@ -607,16 +616,18 @@ class StorageLensQueryTool:
             # 5. Replace {table} placeholder in query with actual table name
             formatted_query = query
             if '{table}' in query:
-                formatted_query = query.replace(
-                    '{table}', f'{database_name}.{table_name}'
-                )
+                formatted_query = query.replace('{table}', f'{database_name}.{table_name}')
             elif f'{database_name}.{table_name}' not in query:
                 # If query doesn't contain the full table name and doesn't have the placeholder
                 # then prepend the database and table name to the FROM clause
                 if ' from ' in query.lower():
-                    formatted_query = query.lower().replace(' from ', f' FROM {database_name}.{table_name} ')
+                    formatted_query = query.lower().replace(
+                        ' from ', f' FROM {database_name}.{table_name} '
+                    )
                 else:
-                    raise Exception('Query must either contain {table} placeholder or explicitly reference the table.')
+                    raise Exception(
+                        'Query must either contain {table} placeholder or explicitly reference the table.'
+                    )
 
             # 6. Execute query
             query_result = await self.athena_handler.execute_query(
@@ -651,10 +662,6 @@ class StorageLensQueryTool:
         except Exception as e:
             # Use shared error handler for consistent error reporting
             return await handle_aws_error(self.ctx, e, 'query_storage_lens', 'Storage Lens')
-
-
-# Import asyncio for sleep function
-import asyncio
 
 
 @storage_lens_server.tool(
@@ -728,12 +735,12 @@ Example queries:
    ORDER BY transition_lifecycle_rule_count ASC, total_bytes DESC""",
 )
 async def storage_lens_run_query(
-        ctx: Context,
-        query: str,
-        manifest_location: Optional[str] = None,
-        output_location: Optional[str] = None,
-        database_name: Optional[str] = None,
-        table_name: Optional[str] = None,
+    ctx: Context,
+    query: str,
+    manifest_location: Optional[str] = None,
+    output_location: Optional[str] = None,
+    database_name: Optional[str] = None,
+    table_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Query S3 Storage Lens metrics data using Athena SQL.
 
@@ -777,7 +784,7 @@ async def storage_lens_run_query(
             manifest_location=manifest_loc,
             database_name=db_name,
             table_name=tbl_name,
-            output_location=output_loc
+            output_location=output_loc,
         )
 
         return result
