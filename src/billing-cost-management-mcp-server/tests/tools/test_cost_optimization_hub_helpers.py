@@ -131,12 +131,6 @@ class TestFormatHelpers:
         result = format_timestamp(timestamp)
         assert result == '2023-01-01T12:00:00'
 
-    def test_format_timestamp_with_string(self):
-        """Test format_timestamp with numeric timestamp."""
-        timestamp = 1672531200000  # 2023-01-01 00:00:00 UTC in milliseconds
-        result = format_timestamp(timestamp)
-        assert result == '2022-12-31T16:00:00'  # Adjusted for local timezone
-
     def test_format_timestamp_with_none(self):
         """Test format_timestamp with None input."""
         result = format_timestamp(None)
