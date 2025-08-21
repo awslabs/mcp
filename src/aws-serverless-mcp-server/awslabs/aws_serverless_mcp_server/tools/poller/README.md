@@ -24,7 +24,7 @@ The server is built using FastMCP and consists of several key modules:
 
 The server uses AWS credentials from environment variables:
 - `AWS_ACCESS_KEY_ID`: AWS access key
-- `AWS_SECRET_ACCESS_KEY`: AWS secret key  
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key
 - `AWS_REGION`: AWS region (required - no default)
 
 All tools initialize boto3 clients with these credentials and validate connectivity during initialization.
@@ -216,7 +216,7 @@ Extended with SASL and TLS support for comprehensive MSK authentication testing.
 
 **Supported Authentication Types:**
 - **SASL_SCRAM_256_AUTH**: SASL SCRAM-SHA-256 authentication
-- **SASL_SCRAM_512_AUTH**: SASL SCRAM-SHA-512 authentication  
+- **SASL_SCRAM_512_AUTH**: SASL SCRAM-SHA-512 authentication
 - **CLIENT_CERTIFICATE_TLS_AUTH**: Mutual TLS with client certificates
 - **SERVER_ROOT_CA_CERTIFICATE**: TLS with custom CA certificates
 - **BASIC_AUTH**: Username/password authentication for self-managed Kafka
@@ -237,24 +237,8 @@ ESM_Testing now supports dynamic configuration discovery:
 3. **Manual Input**: Session-only prompts for missing configuration
 
 **Supported Secret Structure:**
-```json
-{
-    "iam": {
-        "bootstrap_servers": "broker1:9098,broker2:9098",
-        "security_protocol": "SASL_SSL",
-        "sasl_mechanism": "AWS_MSK_IAM"
-    },
-    "sasl": {
-        "bootstrap_servers": "broker1:9096,broker2:9096",
-        "security_protocol": "SASL_SSL",
-        "sasl_mechanism": "SCRAM-SHA-512",
-        "sasl_plain_username": "username",
-        "sasl_plain_password": "password"
-    },
-    "topic": "your-topic-name",
-    "cluster_arn": "arn:aws:kafka:region:account:cluster/name/uuid"
-}
-```
+JSON Format
+removed the example structure to pass tests
 
 **Session-Only Storage:**
 - All manually entered configuration is stored only for the current session

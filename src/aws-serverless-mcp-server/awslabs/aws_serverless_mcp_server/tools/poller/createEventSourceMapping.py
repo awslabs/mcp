@@ -18,51 +18,60 @@ import boto3
 import logging
 import os
 from botocore.exceptions import ClientError, NoCredentialsError
-from typing import Dict, List, Optional, Union
 from dataclasses import dataclass, field
+from typing import Dict, List, Optional
+
 
 @dataclass
 class MetricsConfig:
+    """Configuration for metrics collection."""
+
     metrics: List[str] = field(default_factory=list)
+
 
 @dataclass
 class ProvisionedPollerConfig:
+    """Configuration for provisioned pollers."""
+
     maximum_pollers: Optional[int] = None
     minimum_pollers: Optional[int] = None
 
+
 class CreateEventSourceMapping:
-    """
-    Tool for creating an Event Source Mapping (ESM) between an Amazon MSK cluster or Self-Managed Kafka and an AWS Lambda function.
+    """Tool for creating an Event Source Mapping (ESM) between an Amazon MSK cluster or Self-Managed Kafka and an AWS Lambda function.
+
     This implementation is inspired by the AWS CDK EventSourceMapping construct but uses boto3 for direct API calls.
     """
 
     def __init__(self):
+        """Initialize the CreateEventSourceMapping tool."""
         # this just reads from the config file
         region = os.environ.get('AWS_REGION')
         aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
         aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
-        
+
         try:
             if aws_access_key and aws_secret_key:
                 self.lambda_client = boto3.client(
                     'lambda',
                     region_name=region,
                     aws_access_key_id=aws_access_key,
-                    aws_secret_access_key=aws_secret_key
+                    aws_secret_access_key=aws_secret_key,
                 )
             else:
                 self.lambda_client = boto3.client('lambda', region_name=region)
-            
+
             # testing the credentials
             self.lambda_client.list_functions(MaxItems=1)
         except NoCredentialsError:
-            raise Exception("AWS credentials not found in MCP config")
+            raise Exception('AWS credentials not found in MCP config')
         except Exception as e:
-            raise Exception(f"Failed to initialize with MCP config credentials: {str(e)}")
-        
+            raise Exception(f'Failed to initialize with MCP config credentials: {str(e)}')
+
         self.logger = logging.getLogger(__name__)
 
-    def create_esm(self,
+    def create_esm(
+        self,
         target: str,
         event_source_arn: str,
         kafka_topic: str,
@@ -79,11 +88,10 @@ class CreateEventSourceMapping:
         starting_position_timestamp: Optional[int] = None,
         tumbling_window: Optional[int] = None,
         min_pollers: Optional[int] = 1,
-        max_pollers: Optional[int] = 2
+        max_pollers: Optional[int] = 2,
     ) -> Dict:
-        """
-        Creates an Event Source Mapping for an MSK cluster to a Lambda function.
-        
+        """Creates an Event Source Mapping for an MSK cluster to a Lambda function.
+
         Args:
             target (str): Name or ARN of the Lambda function
             event_source_arn (str): ARN of the event source (MSK cluster)
@@ -102,35 +110,47 @@ class CreateEventSourceMapping:
             starting_position (str, optional): Starting position (LATEST, TRIM_HORIZON, AT_TIMESTAMP)
             starting_position_timestamp (int, optional): Starting position timestamp
             tumbling_window (int, optional): Tumbling window in seconds
-            
+
         Returns:
             Dict: Created Event Source Mapping details
         """
         try:
             # validate required parameters with better error handling
             if not target or not isinstance(target, str) or target.strip() == '':
-                raise ValueError(f"Invalid target parameter: '{target}' - Lambda function name is required and must be a non-empty string")
-            if not event_source_arn or not isinstance(event_source_arn, str) or event_source_arn.strip() == '':
-                raise ValueError(f"Invalid event_source_arn parameter: '{event_source_arn}' - Event source ARN is required and must be a non-empty string")
+                raise ValueError(
+                    f"Invalid target parameter: '{target}' - Lambda function name is required and must be a non-empty string"
+                )
+            if (
+                not event_source_arn
+                or not isinstance(event_source_arn, str)
+                or event_source_arn.strip() == ''
+            ):
+                raise ValueError(
+                    f"Invalid event_source_arn parameter: '{event_source_arn}' - Event source ARN is required and must be a non-empty string"
+                )
             if not kafka_topic or not isinstance(kafka_topic, str) or kafka_topic.strip() == '':
-                raise ValueError(f"Invalid kafka_topic parameter: '{kafka_topic}' - Kafka topic name is required and must be a non-empty string")
-            
+                raise ValueError(
+                    f"Invalid kafka_topic parameter: '{kafka_topic}' - Kafka topic name is required and must be a non-empty string"
+                )
+
             # Debug logging
-            print(f"DEBUG: Creating ESM with target='{target}', event_source_arn='{event_source_arn}', kafka_topic='{kafka_topic}'")
+            print(
+                f"DEBUG: Creating ESM with target='{target}', event_source_arn='{event_source_arn}', kafka_topic='{kafka_topic}'"
+            )
 
             # Ensure parameters are properly formatted
             target = target.strip()
             event_source_arn = event_source_arn.strip()
             kafka_topic = kafka_topic.strip()
-            
+
             create_params = {
                 'FunctionName': target,
                 'EventSourceArn': event_source_arn,
                 'Topics': [kafka_topic],
                 'Enabled': enabled if enabled is not None else True,
             }
-            
-            print(f"DEBUG: create_params before API call: {create_params}")
+
+            print(f'DEBUG: create_params before API call: {create_params}')
 
             # optional parameters only if they have values
             optional_params = {
@@ -155,36 +175,36 @@ class CreateEventSourceMapping:
                     'ConsumerGroupId': kafka_consumer_group_id
                 }
 
-
             if report_batch_item_failures:
                 create_params['FunctionResponseTypes'] = ['ReportBatchItemFailures']
 
             # this gave errors often so here we do provisioned poller config with the provided values or defaults
             create_params['ProvisionedPollerConfig'] = {
                 'MinimumPollers': min_pollers,
-                'MaximumPollers': max_pollers
+                'MaximumPollers': max_pollers,
             }
 
-            self.logger.info(f"Creating Event Source Mapping with params: {create_params}")
-            print(f"DEBUG: About to call create_event_source_mapping with params: {create_params}")
+            self.logger.info(f'Creating Event Source Mapping with params: {create_params}')
+            print(f'DEBUG: About to call create_event_source_mapping with params: {create_params}')
             response = self.lambda_client.create_event_source_mapping(**create_params)
-            print(f"DEBUG: Successfully created ESM with UUID: {response.get('UUID', 'Unknown')}")
-            
-            self.logger.info(f"Successfully created MSK Event Source Mapping: {response['UUID']}")
+            print(f'DEBUG: Successfully created ESM with UUID: {response.get("UUID", "Unknown")}')
+
+            self.logger.info(f'Successfully created MSK Event Source Mapping: {response["UUID"]}')
             return response
 
         except ClientError as e:
-            error_msg = f"AWS API Error creating Event Source Mapping: {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            error_msg = f'AWS API Error creating Event Source Mapping: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
             self.logger.error(error_msg)
             raise Exception(error_msg)
         except Exception as e:
-            error_msg = f"Error creating Event Source Mapping: {str(e)}"
-            print(f"DEBUG: Exception occurred: {error_msg}")
-            print(f"DEBUG: Exception type: {type(e).__name__}")
+            error_msg = f'Error creating Event Source Mapping: {str(e)}'
+            print(f'DEBUG: Exception occurred: {error_msg}')
+            print(f'DEBUG: Exception type: {type(e).__name__}')
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-    def create_smk_esm(self,
+    def create_smk_esm(
+        self,
         target: str,
         kafka_bootstrap_servers: List[str],
         kafka_topic: str,
@@ -199,38 +219,46 @@ class CreateEventSourceMapping:
         starting_position: Optional[str] = None,
         starting_position_timestamp: Optional[int] = None,
         min_pollers: Optional[int] = 1,
-        max_pollers: Optional[int] = 2
+        max_pollers: Optional[int] = 2,
     ) -> Dict:
-        """
-        Creates an Event Source Mapping for a Self-Managed Kafka cluster to a Lambda function.
+        """Creates an Event Source Mapping for a Self-Managed Kafka cluster to a Lambda function.
+
         Note: SMK supports most MSK parameters except TumblingWindow, MaximumRecordAge, BisectBatchOnError.
         """
         try:
             if not target or not isinstance(target, str) or target.strip() == '':
-                raise ValueError(f"Invalid target parameter: '{target}' - Lambda function name is required")
+                raise ValueError(
+                    f"Invalid target parameter: '{target}' - Lambda function name is required"
+                )
             if not kafka_bootstrap_servers or not isinstance(kafka_bootstrap_servers, list):
-                raise ValueError(f"Invalid kafka_bootstrap_servers parameter - Bootstrap servers list is required")
+                raise ValueError(
+                    'Invalid kafka_bootstrap_servers parameter - Bootstrap servers list is required'
+                )
             if not kafka_topic or not isinstance(kafka_topic, str) or kafka_topic.strip() == '':
-                raise ValueError(f"Invalid kafka_topic parameter: '{kafka_topic}' - Kafka topic name is required")
-            
+                raise ValueError(
+                    f"Invalid kafka_topic parameter: '{kafka_topic}' - Kafka topic name is required"
+                )
+
             for server in kafka_bootstrap_servers:
                 if not isinstance(server, str) or ':' not in server:
-                    raise ValueError(f"Invalid bootstrap server format: '{server}' - Expected format: 'host:port'")
-            
-            print(f"DEBUG: Creating SMK ESM with target='{target}', bootstrap_servers='{kafka_bootstrap_servers}', kafka_topic='{kafka_topic}'")
+                    raise ValueError(
+                        f"Invalid bootstrap server format: '{server}' - Expected format: 'host:port'"
+                    )
+
+            print(
+                f"DEBUG: Creating SMK ESM with target='{target}', bootstrap_servers='{kafka_bootstrap_servers}', kafka_topic='{kafka_topic}'"
+            )
 
             target = target.strip()
             kafka_topic = kafka_topic.strip()
-            
+
             create_params = {
                 'FunctionName': target,
                 'Topics': [kafka_topic],
                 'Enabled': enabled if enabled is not None else True,
                 'SelfManagedEventSource': {
-                    'Endpoints': {
-                        'KAFKA_BOOTSTRAP_SERVERS': kafka_bootstrap_servers
-                    }
-                }
+                    'Endpoints': {'KAFKA_BOOTSTRAP_SERVERS': kafka_bootstrap_servers}
+                },
             }
 
             # SMK optional parameters
@@ -259,32 +287,31 @@ class CreateEventSourceMapping:
 
             # MaxConcurrency goes in ScalingConfig for SMK
             if max_concurrency is not None:
-                create_params['ScalingConfig'] = {
-                    'MaximumConcurrency': max_concurrency
-                }
+                create_params['ScalingConfig'] = {'MaximumConcurrency': max_concurrency}
 
             # ProvisionedPollerConfig is supported for both MSK and SMK
             if min_pollers is not None or max_pollers is not None:
                 create_params['ProvisionedPollerConfig'] = {
                     'MinimumPollers': min_pollers or 1,
-                    'MaximumPollers': max_pollers or 2
+                    'MaximumPollers': max_pollers or 2,
                 }
 
             # Note: TumblingWindow, MaximumRecordAge, BisectBatchOnError are NOT supported for SMK
 
-            self.logger.info(f"Creating SMK Event Source Mapping with params: {create_params}")
+            self.logger.info(f'Creating SMK Event Source Mapping with params: {create_params}')
             response = self.lambda_client.create_event_source_mapping(**create_params)
-            print(f"DEBUG: Successfully created SMK ESM with UUID: {response.get('UUID', 'Unknown')}")
-            
-            self.logger.info(f"Successfully created SMK Event Source Mapping: {response['UUID']}")
+            print(
+                f'DEBUG: Successfully created SMK ESM with UUID: {response.get("UUID", "Unknown")}'
+            )
+
+            self.logger.info(f'Successfully created SMK Event Source Mapping: {response["UUID"]}')
             return response
 
         except ClientError as e:
-            error_msg = f"AWS API Error creating SMK Event Source Mapping: {e.response['Error']['Code']} - {e.response['Error']['Message']}"
+            error_msg = f'AWS API Error creating SMK Event Source Mapping: {e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
             self.logger.error(error_msg)
             raise Exception(error_msg)
         except Exception as e:
-            error_msg = f"Error creating SMK Event Source Mapping: {str(e)}"
+            error_msg = f'Error creating SMK Event Source Mapping: {str(e)}'
             self.logger.error(error_msg)
             raise Exception(error_msg)
-
