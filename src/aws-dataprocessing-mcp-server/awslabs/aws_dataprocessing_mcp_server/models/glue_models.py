@@ -13,8 +13,8 @@
 # limitations under the License.
 
 
-from mcp.types import CallToolResult
-from pydantic import Field
+from mcp.types import CallToolResult, ContentBlock
+from pydantic import BaseModel, Field, field_validator
 from typing import Any, Dict, List, Optional
 
 
@@ -540,3 +540,173 @@ class UpdateClassifierResponse(CallToolResult):
 
     classifier_name: str = Field(..., description='Name of the updated classifier')
     operation: str = Field(default='update', description='Operation performed')
+
+# Data Quality Models
+
+class RulesetSummary(BaseModel):
+    """Summary information for a data quality ruleset."""
+    
+    name: str = Field(description='Name of the ruleset')
+    description: Optional[str] = Field(default='', description='Description of the ruleset')
+    target_table: Optional[str] = Field(default='', description='Target table for the ruleset')
+    created_on: Optional[str] = Field(default='', description='Creation timestamp')
+    last_modified_on: Optional[str] = Field(default='', description='Last modification timestamp')
+    ruleset_definition: Optional[str] = Field(default='', description='DQDL ruleset definition')
+    rule_count: Optional[int] = Field(default=0, description='Number of rules in the ruleset')
+    error: Optional[str] = Field(default='', description='Error message if any')
+
+
+class EvaluationRunSummary(BaseModel):
+    """Summary information for a data quality evaluation run."""
+    
+    run_id: str = Field(description='Run ID')
+    status: str = Field(description='Status of the run')
+    database_name: Optional[str] = Field(default='', description='Database name')
+    table_name: Optional[str] = Field(default='', description='Table name')
+    started_on: Optional[str] = Field(default='', description='Start timestamp')
+    completed_on: Optional[str] = Field(default='', description='Completion timestamp')
+    execution_time: Optional[int] = Field(default=0, description='Execution time in seconds')
+    
+    @field_validator('execution_time', mode='before')
+    @classmethod
+    def validate_execution_time(cls, v):
+        """Convert None to 0 for execution_time."""
+        return v if v is not None else 0
+
+
+class RecommendationRunSummary(BaseModel):
+    """Summary information for a data quality recommendation run."""
+    
+    run_id: str = Field(description='Run ID')
+    status: str = Field(description='Status of the run')
+    database_name: Optional[str] = Field(default='', description='Database name')
+    table_name: Optional[str] = Field(default='', description='Table name')
+    started_on: Optional[str] = Field(default='', description='Start timestamp')
+    completed_on: Optional[str] = Field(default='', description='Completion timestamp')
+    execution_time: Optional[int] = Field(default=0, description='Execution time in seconds')
+    recommendation_count: Optional[int] = Field(default=0, description='Number of recommended rules')
+    
+    @field_validator('execution_time', mode='before')
+    @classmethod
+    def validate_execution_time(cls, v):
+        """Convert None to 0 for execution_time."""
+        return v if v is not None else 0
+
+
+class DataQualityResult(BaseModel):
+    """Data quality rule result."""
+    
+    name: str = Field(description='Rule name')
+    description: Optional[str] = Field(default='', description='Rule description')
+    evaluation_message: Optional[str] = Field(default='', description='Evaluation message')
+    result: str = Field(description='Rule result (PASS/FAIL/ERROR)')
+
+
+class DataQualityRulesetResponse(CallToolResult):
+    """Response model for data quality ruleset operations."""
+    
+    content: List[ContentBlock] = Field(default_factory=list, description='Response content')
+    ruleset_name: Optional[str] = Field(default='', description='Name of the ruleset')
+    description: Optional[str] = Field(default='', description='Description of the ruleset')
+    ruleset_definition: Optional[str] = Field(default='', description='DQDL ruleset definition')
+    target_table: Optional[str] = Field(default='', description='Target table for the ruleset')
+    created_on: Optional[str] = Field(default='', description='Creation timestamp')
+    last_modified_on: Optional[str] = Field(default='', description='Last modification timestamp')
+    rulesets: Optional[List[RulesetSummary]] = Field(default=[], description='List of rulesets')
+    ruleset_count: Optional[int] = Field(default=0, description='Number of rulesets')
+    status: str = Field(description='Operation status')
+    message: str = Field(description='Operation message')
+    
+    def __init__(self, **data):
+        # Auto-populate content field from message if not provided
+        if 'content' not in data and 'message' in data:
+            from mcp.types import TextContent
+            data['content'] = [TextContent(type='text', text=data['message'])]
+        super().__init__(**data)
+
+
+class DataQualityEvaluationRunResponse(CallToolResult):
+    """Response model for data quality evaluation run operations."""
+    
+    content: List[ContentBlock] = Field(default_factory=list, description='Response content')
+    run_id: Optional[str] = Field(default='', description='Run ID')
+    status: str = Field(description='Run status')
+    database_name: Optional[str] = Field(default='', description='Database name')
+    table_name: Optional[str] = Field(default='', description='Table name')
+    ruleset_names: Optional[List[str]] = Field(default=[], description='List of ruleset names')
+    role_arn: Optional[str] = Field(default='', description='IAM role ARN')
+    number_of_workers: Optional[int] = Field(default=0, description='Number of workers')
+    timeout: Optional[int] = Field(default=0, description='Timeout in minutes')
+    started_on: Optional[str] = Field(default='', description='Start timestamp')
+    completed_on: Optional[str] = Field(default='', description='Completion timestamp')
+    execution_time: Optional[int] = Field(default=0, description='Execution time in seconds')
+    result_ids: Optional[List[str]] = Field(default=[], description='List of result IDs')
+    error_string: Optional[str] = Field(default='', description='Error message if any')
+    evaluation_runs: Optional[List[EvaluationRunSummary]] = Field(default=[], description='List of evaluation runs')
+    run_count: Optional[int] = Field(default=0, description='Number of runs')
+    message: str = Field(description='Operation message')
+    
+    def __init__(self, **data):
+        # Auto-populate content field from message if not provided
+        if 'content' not in data and 'message' in data:
+            from mcp.types import TextContent
+            data['content'] = [TextContent(type='text', text=data['message'])]
+        super().__init__(**data)
+
+
+class DataQualityRecommendationRunResponse(CallToolResult):
+    """Response model for data quality recommendation run operations."""
+    
+    content: List[ContentBlock] = Field(default_factory=list, description='Response content')
+    run_id: Optional[str] = Field(default='', description='Run ID')
+    status: str = Field(description='Run status')
+    database_name: Optional[str] = Field(default='', description='Database name')
+    table_name: Optional[str] = Field(default='', description='Table name')
+    role_arn: Optional[str] = Field(default='', description='IAM role ARN')
+    number_of_workers: Optional[int] = Field(default=0, description='Number of workers')
+    timeout: Optional[int] = Field(default=0, description='Timeout in minutes')
+    started_on: Optional[str] = Field(default='', description='Start timestamp')
+    completed_on: Optional[str] = Field(default='', description='Completion timestamp')
+    execution_time: Optional[int] = Field(default=0, description='Execution time in seconds')
+    created_ruleset_name: Optional[str] = Field(default='', description='Name of created ruleset')
+    recommended_ruleset: Optional[str] = Field(default='', description='Recommended DQDL ruleset')
+    recommendation_count: Optional[int] = Field(default=0, description='Number of recommended rules')
+    error_string: Optional[str] = Field(default='', description='Error message if any')
+    recommendation_runs: Optional[List[RecommendationRunSummary]] = Field(default=[], description='List of recommendation runs')
+    run_count: Optional[int] = Field(default=0, description='Number of runs')
+    message: str = Field(description='Operation message')
+    
+    def __init__(self, **data):
+        # Auto-populate content field from message if not provided
+        if 'content' not in data and 'message' in data:
+            from mcp.types import TextContent
+            data['content'] = [TextContent(type='text', text=data['message'])]
+        super().__init__(**data)
+
+
+class DataQualityMetricsResponse(CallToolResult):
+    """Response model for data quality metrics and results operations."""
+    
+    content: List[ContentBlock] = Field(default_factory=list, description='Response content')
+    result_id: Optional[str] = Field(default='', description='Result ID')
+    ruleset_name: Optional[str] = Field(default='', description='Ruleset name')
+    evaluation_context: Optional[str] = Field(default='', description='Evaluation context')
+    started_on: Optional[str] = Field(default='', description='Start timestamp')
+    completed_on: Optional[str] = Field(default='', description='Completion timestamp')
+    job_name: Optional[str] = Field(default='', description='Job name')
+    job_run_id: Optional[str] = Field(default='', description='Job run ID')
+    ruleset_evaluation_run_id: Optional[str] = Field(default='', description='Ruleset evaluation run ID')
+    data_source: Optional[Dict[str, Any]] = Field(default={}, description='Data source information')
+    role_arn: Optional[str] = Field(default='', description='IAM role ARN')
+    score: Optional[float] = Field(default=0.0, description='Data quality score')
+    rule_results: Optional[List[DataQualityResult]] = Field(default=[], description='List of rule results')
+    result_ids: Optional[List[str]] = Field(default=[], description='List of result IDs')
+    result_count: Optional[int] = Field(default=0, description='Number of results')
+    message: str = Field(description='Operation message')
+    
+    def __init__(self, **data):
+        # Auto-populate content field from message if not provided
+        if 'content' not in data and 'message' in data:
+            from mcp.types import TextContent
+            data['content'] = [TextContent(type='text', text=data['message'])]
+        super().__init__(**data)

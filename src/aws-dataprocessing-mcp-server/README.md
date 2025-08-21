@@ -15,6 +15,7 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 * Commons: Enables users to create and manage usage profiles, security configurations, catalog encryption settings and resource policies, which provide users with the ability to manage the configuration and encryption of several Glue resources like ETL jobs, catalogs, etc.
 * ETL Job Orchestration: Provides the ability to create, monitor, and manage Glue ETL jobs with automatic script generation, job scheduling, and workflow coordination based on user-defined data transformation requirements.
 * Crawler Management: Enables intelligent data discovery through automated crawler configuration, scheduling, and metadata extraction from various data sources.
+* Data Quality Management: Provides comprehensive data quality validation through automated rule generation, custom ruleset creation, evaluation runs, and metrics collection to ensure data integrity across your data processing pipelines.
 
 ### Amazon EMR Integration
 
@@ -416,6 +417,15 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 | manage_aws_glue_crawlers | Manage AWS Glue crawlers to discover and catalog data sources | create-crawler, delete-crawler, get-crawler, get-crawlers, start-crawler, stop-crawler, batch-get-crawlers, list-crawlers, update-crawler | --allow-write flag for create/delete/start/stop/update operations, appropriate AWS permissions |
 | manage_aws_glue_classifiers | Manage AWS Glue classifiers to determine data formats and schemas | create-classifier, delete-classifier, get-classifier, get-classifiers, update-classifier | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
 | manage_aws_glue_crawler_management | Manage AWS Glue crawler schedules and monitor performance metrics | get-crawler-metrics, start-crawler-schedule, stop-crawler-schedule, update-crawler-schedule | --allow-write flag for schedule operations, appropriate AWS permissions |
+
+### Glue Data Quality Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_glue_data_quality_rulesets | Manage AWS Glue Data Quality rulesets | create-ruleset, get-ruleset, list-rulesets, update-ruleset, delete-ruleset, append-ruleset, get-table-rulesets | --allow-write flag for create/update/delete/append operations, appropriate AWS permissions |
+| manage_aws_glue_data_quality_evaluation_runs | Manage AWS Glue Data Quality evaluation runs | start-evaluation-run, get-evaluation-run, list-evaluation-runs, cancel-evaluation-run | --allow-write flag for start/cancel operations, role_arn parameter required for start operations, appropriate AWS permissions |
+| manage_aws_glue_data_quality_recommendation_runs | Manage AWS Glue Data Quality recommendation runs | start-recommendation-run, get-recommendation-run, cancel-recommendation-run | --allow-write flag for start/cancel operations, role_arn parameter required for start operations, appropriate AWS permissions |
+| manage_aws_glue_data_quality_metrics | Manage AWS Glue Data Quality metrics and results | get-result, list-results | Appropriate AWS permissions for Glue Data Quality operations |
 
 
 ### Common Resource Handler Tools

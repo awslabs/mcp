@@ -63,6 +63,9 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.interactive_sessions_ha
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.worklows_handler import (
     GlueWorkflowAndTriggerHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_quality_handler import (
+    GlueDataQualityHandler,
+)
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
@@ -80,6 +83,8 @@ It enables you to create, manage, and monitor data processing workflows.
 - Access to sensitive data requires the `--allow-sensitive-data-access` flag.
 - When creating or updating resources, always check for existing resources first to avoid conflicts.
 - IAM roles and permissions are critical for data processing services to access data sources and targets.
+- For Glue Data Quality operations, set the GLUE_ROLE_ARN environment variable to a valid IAM role ARN.
+- Run `python validate_glue_dq_config.py` to validate your Glue Data Quality configuration.
 
 ## Common Workflows
 
@@ -225,6 +230,23 @@ It enables you to create, manage, and monitor data processing workflows.
 9. Manage crawler schedules: `manage_aws_glue_crawler_management(operation='update-crawler-schedule', crawler_name='my-crawler', schedule='cron(0 0 * * ? *)')`
 10. Get crawler metrics: `manage_aws_glue_crawler_management(operation='get-crawler-metrics', crawler_name_list=['my-crawler'])`
 
+### Glue Data Quality
+1. Create a data quality ruleset: `manage_aws_glue_data_quality_rulesets(operation='create-ruleset', ruleset_name='my-ruleset', database_name='my-database', table_name='my-table', ruleset_definition='Rules = [IsComplete "column1", IsUnique "column2"]')`
+2. Get a data quality ruleset: `manage_aws_glue_data_quality_rulesets(operation='get-ruleset', ruleset_name='my-ruleset')`
+3. List data quality rulesets: `manage_aws_glue_data_quality_rulesets(operation='list-rulesets')`
+4. Update a data quality ruleset: `manage_aws_glue_data_quality_rulesets(operation='update-ruleset', ruleset_name='my-ruleset', ruleset_definition='Rules = [IsComplete "column1", IsUnique "column2", Mean "column3" > 0]')`
+5. Delete a data quality ruleset: `manage_aws_glue_data_quality_rulesets(operation='delete-ruleset', ruleset_name='my-ruleset')`
+6. Get rulesets for a table: `manage_aws_glue_data_quality_rulesets(operation='get-table-rulesets', database_name='my-database', table_name='my-table')`
+7. Start a data quality evaluation run: `manage_aws_glue_data_quality_evaluation_runs(operation='start-evaluation-run', database_name='my-database', table_name='my-table', ruleset_names=['my-ruleset'], role_arn='arn:aws:iam::123456789012:role/GlueDataQualityRole')`
+8. Get evaluation run details: `manage_aws_glue_data_quality_evaluation_runs(operation='get-evaluation-run', run_id='dqrun-123')`
+9. List evaluation runs: `manage_aws_glue_data_quality_evaluation_runs(operation='list-evaluation-runs', database_name='my-database', table_name='my-table')`
+10. Cancel an evaluation run: `manage_aws_glue_data_quality_evaluation_runs(operation='cancel-evaluation-run', run_id='dqrun-123')`
+11. Start a rule recommendation run: `manage_aws_glue_data_quality_recommendation_runs(operation='start-recommendation-run', database_name='my-database', table_name='my-table', role_arn='arn:aws:iam::123456789012:role/GlueDataQualityRole', created_ruleset_name='recommended-rules')`
+12. Get recommendation run details: `manage_aws_glue_data_quality_recommendation_runs(operation='get-recommendation-run', run_id='dqrecommend-123')`
+13. Cancel a recommendation run: `manage_aws_glue_data_quality_recommendation_runs(operation='cancel-recommendation-run', run_id='dqrecommend-123')`
+14. Get data quality results: `manage_aws_glue_data_quality_metrics(operation='get-result', result_id='dqresult-123')`
+15. List data quality results: `manage_aws_glue_data_quality_metrics(operation='list-results', database_name='my-database', table_name='my-table')`
+
 ### IAM Role Management
 1. Create a role for data processing: `create_data_processing_role(role_name='my-glue-role', service_type='glue', description='Role for Glue jobs')`
 2. View role permissions: `get_policies_for_role(role_name='my-glue-role')`
@@ -330,6 +352,11 @@ def main():
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
     GlueCommonsHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+    GlueDataQualityHandler(
         mcp,
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
