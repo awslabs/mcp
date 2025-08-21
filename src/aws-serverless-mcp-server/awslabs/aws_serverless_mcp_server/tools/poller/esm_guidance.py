@@ -20,13 +20,27 @@ from typing import Any, Dict, Literal, Optional
 
 
 class EsmGuidanceTool:
-    """Tool to provide guidance on EventSourceMapping(ESM) setup."""
+    """Tool to provide comprehensive guidance on AWS Lambda Event Source Mapping (ESM) setup.
+
+    This class provides step-by-step instructions for configuring ESM with different event sources
+    including DynamoDB streams, Kinesis streams, and MSK Kafka clusters. It handles IAM policies,
+    security groups, and deployment validation for proper ESM configuration.
+    """
 
     def __init__(self, mcp: FastMCP):
-        """Initialize the ESM guidance tool."""
+        """Initialize the ESM guidance tool and register all available tools.
+
+        Args:
+            mcp: FastMCP instance for tool registration
+        """
+        # Register core guidance tool for general ESM setup instructions
         mcp.tool(name='esm_guidance')(self.esm_guidance_tool)
+
+        # Register MSK-specific tools for Kafka event sources
         mcp.tool(name='esm_msk_policy')(self.esm_msk_policy_tool)
         mcp.tool(name='esm_msk_security_group')(self.esm_msk_security_group_tool)
+
+        # Register deployment validation tool
         mcp.tool(name='esm_deployment_precheck')(self.esm_deployment_precheck_tool)
 
     async def esm_guidance_tool(
@@ -51,10 +65,12 @@ class EsmGuidanceTool:
         """
         await ctx.info(f'Getting deployment steps for {event_source} event source')
 
+        # Common requirements that apply to all ESM configurations regardless of event source type
+        # These ensure proper resource management, security, and maintainability
         common_requirements = [
             '# You MUST also do:',
             '## Before you start:',
-            '   - Check the existance of the event source and the Lambda function. \
+            '   - Check the existence of the event source and the Lambda function. \
                 If they exist, skip the creation of the event source and Lambda function. \
                 Otherwise, create a SAM template for the missing Lambda function or prompt the \
                 user to provide the correct event source name.',
@@ -71,9 +87,10 @@ class EsmGuidanceTool:
             '   - Use SAM template as much as possible when deploying resources.',
             '   - Confirm the syntax is correct among all generated scripts.',
             '   - Validate the template to prevent circular dependency.',
-            '   - Summerize what you have done in a README.md file.',
+            '   - Summarize what you have done in a README.md file.',
         ]
 
+        # DynamoDB Streams configuration - handles real-time data changes from DynamoDB tables
         if event_source == 'dynamodb':
             steps = [
                 '1. Create a DynamoDB table, if not provided by the user.',
@@ -81,21 +98,24 @@ class EsmGuidanceTool:
                 '3. Enable Streams on the DynamoDB table, if needed.',
                 '4. Ask for the name or create a Lambda function to process the stream, if needed.',
                 '5. Attach AWS policy AWSLambdaDynamoDBExecutionRole to the Lambda function if the function is newly created.',
-                '6. Attach inline policy with requied permissions if the function alreday exists.',
+                '6. Attach inline policy with required permissions if the function already exists.',
                 '7. Create Event Source Mapping with the following guidelines:',
                 '   - Use exact resource ARNs instead of asterisks in the template.',
                 '   - Make the ESM depend on the permission created in the template.',
             ]
+        # Kinesis Streams configuration - handles real-time streaming data processing
         elif event_source == 'kinesis':
             steps = [
                 '1. Create a Kinesis stream, if needed.',
                 '2. Create a Lambda function to process the stream, if needed.',
                 '3. Attach AWS policy `AWSLambdaKinesisExecutionRole` to the Lambda function if the function is newly created.',
-                '4. Attach inline policy with requied permissions if the function alreday exists.',
+                '4. Attach inline policy with required permissions if the function already exists.',
                 '5. Create Event Source Mapping with the following guidelines: ',
                 '   - Use exact resource ARNs instead of asterisks in the template.',
                 '   - Make the ESM depend on the permission created in the template.',
             ]
+        # MSK Kafka configuration - most complex setup requiring VPC, security groups, and IAM
+        # Kafka ESM requires careful network configuration since it operates within a VPC
         elif event_source == 'kafka':
             steps = [
                 'You MUST follow the steps to create the three main components:',
@@ -144,6 +164,7 @@ class EsmGuidanceTool:
                 '   - Validate the template to prevent circular dependency.',
                 '   - Validate ESM configurations using `esm_validate_configs` tool.',
             ]
+        # Fallback case when event source is not specified or unrecognized
         else:
             steps = [
                 'Use solicit prompt to user to specify an event source type.',
@@ -161,30 +182,45 @@ class EsmGuidanceTool:
     def _validate_aws_parameters(
         self, region: str, account: str, cluster_name: str, cluster_uuid: str, partition: str
     ) -> Dict[str, str]:
-        """Validate AWS parameters and return error messages if invalid."""
+        """Validate AWS parameters for MSK policy generation.
+
+        Ensures all AWS identifiers follow proper formatting rules to prevent
+        policy generation errors and security issues.
+
+        Args:
+            region: AWS region identifier (e.g., 'us-east-1')
+            account: 12-digit AWS account ID
+            cluster_name: MSK cluster name (1-64 alphanumeric chars, hyphens, underscores)
+            cluster_uuid: MSK cluster UUID or '*' wildcard
+            partition: AWS partition (aws, aws-cn, aws-us-gov)
+
+        Returns:
+            Dict mapping parameter names to error messages for invalid parameters
+        """
         errors = {}
 
-        # AWS Region: format like us-east-1, eu-west-1, ap-southeast-2
+        # Validate AWS Region format: two lowercase letters, dash, region name, dash, number
+        # Examples: us-east-1, eu-west-1, ap-southeast-2
         if not re.match(r'^[a-z]{2}-[a-z]+-\d+$', region):
             errors['region'] = f'Invalid AWS region format: {region}. Expected format: us-east-1'
 
-        # AWS Account ID: exactly 12 digits
+        # Validate AWS Account ID: must be exactly 12 digits (no letters or special chars)
         if not re.match(r'^\d{12}$', account):
             errors['account'] = f'Invalid AWS account ID: {account}. Must be exactly 12 digits'
 
-        # Cluster name: alphanumeric, hyphens, underscores (1-64 chars)
+        # Validate MSK cluster name: 1-64 characters, alphanumeric plus hyphens and underscores
         if not re.match(r'^[a-zA-Z0-9_-]{1,64}$', cluster_name):
             errors['cluster_name'] = (
                 f'Invalid cluster name: {cluster_name}. Use alphanumeric, hyphens, underscores (1-64 chars)'
             )
 
-        # Cluster UUID: alphanumeric or "*" wildcard
+        # Validate cluster UUID: either '*' wildcard for all clusters or specific UUID format
         if cluster_uuid != '*' and not re.match(r'^[a-zA-Z0-9-]{1,64}$', cluster_uuid):
             errors['cluster_uuid'] = (
                 f"Invalid cluster UUID: {cluster_uuid}. Use alphanumeric/hyphens or '*'"
             )
 
-        # AWS Partition: aws, aws-cn, aws-us-gov
+        # Validate AWS partition: must be one of the three supported partitions
         if partition not in ['aws', 'aws-cn', 'aws-us-gov']:
             errors['partition'] = (
                 f'Invalid partition: {partition}. Must be: aws, aws-cn, or aws-us-gov'
@@ -203,11 +239,25 @@ class EsmGuidanceTool:
             description='AWS partition (aws, aws-cn, aws-us-gov)', default='aws'
         ),
     ) -> Dict[str, Any]:
-        """Generate IAM policy for MSK cluster access.
+        """Generate comprehensive IAM policy for MSK cluster access with ESM.
+
+        Creates an IAM policy document that grants the necessary permissions for
+        Lambda Event Source Mapping to connect to and consume from MSK Kafka clusters.
+        Includes permissions for cluster operations, topic access, consumer groups,
+        and VPC networking.
+
+        Args:
+            ctx: MCP context for logging
+            region: AWS region where the MSK cluster is located
+            account: AWS account ID that owns the MSK cluster
+            cluster_name: Name of the MSK cluster
+            cluster_uuid: UUID of the MSK cluster (use '*' for wildcard)
+            partition: AWS partition (standard, China, or GovCloud)
 
         Returns:
-            Dict containing IAM policy document for MSK access
+            Dict containing complete IAM policy document with all required permissions
         """
+        # Validate all AWS parameters before generating policy to prevent malformed ARNs
         errors = self._validate_aws_parameters(
             region, account, cluster_name, cluster_uuid, partition
         )
@@ -216,25 +266,30 @@ class EsmGuidanceTool:
 
         await ctx.info(f'Generating Kafka policy for cluster {cluster_name}')
 
+        # Return comprehensive IAM policy with all necessary permissions for MSK ESM
         return {
             'Version': '2012-10-17',
             'Statement': [
                 {
+                    # Basic cluster connectivity permissions - required to establish connection
                     'Effect': 'Allow',
                     'Action': ['kafka-cluster:Connect', 'kafka-cluster:DescribeCluster'],
                     'Resource': f'arn:{partition}:kafka:{region}:{account}:cluster/{cluster_name}/{cluster_uuid}',
                 },
                 {
+                    # Topic-level permissions - required to read messages from Kafka topics
                     'Effect': 'Allow',
                     'Action': ['kafka-cluster:DescribeTopic', 'kafka-cluster:ReadData'],
                     'Resource': f'arn:{partition}:kafka:{region}:{account}:topic/{cluster_name}/*',
                 },
                 {
+                    # Consumer group permissions - required for ESM to manage consumer offsets
                     'Effect': 'Allow',
                     'Action': ['kafka-cluster:AlterGroup', 'kafka-cluster:DescribeGroup'],
                     'Resource': f'arn:{partition}:kafka:{region}:{account}:group/{cluster_name}/*',
                 },
                 {
+                    # MSK service-level permissions - required for cluster metadata and bootstrap brokers
                     'Effect': 'Allow',
                     'Action': ['kafka:DescribeClusterV2', 'kafka:GetBootstrapBrokers'],
                     'Resource': [
@@ -244,6 +299,8 @@ class EsmGuidanceTool:
                     ],
                 },
                 {
+                    # VPC networking permissions - required for ESM to operate within VPC
+                    # ESM needs to create/manage network interfaces to connect to MSK in VPC
                     'Effect': 'Allow',
                     'Action': [
                         'ec2:CreateNetworkInterface',
@@ -253,7 +310,7 @@ class EsmGuidanceTool:
                         'ec2:DescribeSubnets',
                         'ec2:DescribeSecurityGroups',
                     ],
-                    'Resource': '*',
+                    'Resource': '*',  # VPC operations require wildcard resource
                 },
             ],
         }
@@ -263,12 +320,21 @@ class EsmGuidanceTool:
         ctx: Context,
         security_group_id: str = Field(description='Security group ID for MSK cluster'),
     ) -> Dict[str, Any]:
-        """Generate the ingress and egress rules in SAM template for MSK ESM security group.
+        """Generate SAM template with security group rules for MSK ESM connectivity.
+
+        Creates CloudFormation resources for security group ingress and egress rules
+        that allow proper communication between Lambda ESM and MSK cluster.
+        The rules enable HTTPS (443) and Kafka broker (9092-9098) traffic.
+
+        Args:
+            ctx: MCP context for logging
+            security_group_id: ID of the security group attached to MSK cluster
 
         Returns:
-            Dict containing SAM template with necessary security group rules
+            Dict containing complete SAM template with security group rules
         """
-        # Checking for valid secruity ID format
+        # Validate security group ID format to prevent template generation errors
+        # AWS security group IDs follow specific patterns: sg-xxxxxxxx or sg-xxxxxxxxxxxxxxxxx
         if not re.match(r'^sg-[0-9a-f]{8}([0-9a-f]{9})?$', security_group_id):
             return {
                 'error': f'Invalid security group ID format: {security_group_id}',
@@ -277,8 +343,10 @@ class EsmGuidanceTool:
 
         await ctx.info(f'Generating SAM template for security group {security_group_id}')
 
-        # Returns the required rule by filling in the security group ID and pre-defined rules
-        # Rules: ingress 9092:9098 and 443; egress all-trafiic;
+        # Generate SAM template with security group rules for MSK ESM connectivity
+        # Required rules:
+        # - Ingress: HTTPS (443) for cluster management, Kafka brokers (9092-9098) for data
+        # - Egress: All traffic within security group for internal communication
         return {
             'AWSTemplateFormatVersion': '2010-09-09',
             'Transform': 'AWS::Serverless-2016-10-31',
@@ -290,6 +358,7 @@ class EsmGuidanceTool:
                 }
             },
             'Resources': {
+                # HTTPS ingress rule - allows secure communication for cluster management
                 'MSKIngressHTTPS': {
                     'Type': 'AWS::EC2::SecurityGroupIngress',
                     'Properties': {
@@ -297,10 +366,14 @@ class EsmGuidanceTool:
                         'IpProtocol': 'tcp',
                         'FromPort': 443,
                         'ToPort': 443,
-                        'SourceSecurityGroupId': {'Ref': 'SecurityGroupId'},
-                        'Description': 'HTTPS access for MSK cluster',
+                        'SourceSecurityGroupId': {
+                            'Ref': 'SecurityGroupId'
+                        },  # Self-referencing for internal traffic
+                        'Description': 'HTTPS access for MSK cluster management',
                     },
                 },
+                # Kafka broker ingress rule - allows data plane communication
+                # Port range 9092-9098 covers all Kafka broker protocols (plaintext, TLS, SASL)
                 'MSKIngressKafka': {
                     'Type': 'AWS::EC2::SecurityGroupIngress',
                     'Properties': {
@@ -308,23 +381,29 @@ class EsmGuidanceTool:
                         'IpProtocol': 'tcp',
                         'FromPort': 9092,
                         'ToPort': 9098,
-                        'SourceSecurityGroupId': {'Ref': 'SecurityGroupId'},
-                        'Description': 'Kafka broker access for MSK cluster',
+                        'SourceSecurityGroupId': {
+                            'Ref': 'SecurityGroupId'
+                        },  # Self-referencing for internal traffic
+                        'Description': 'Kafka broker access for MSK cluster data plane',
                     },
                 },
+                # Egress rule - allows all outbound traffic within the security group
+                # Required for ESM to communicate back to MSK cluster and other services
                 'MSKEgressAll': {
                     'Type': 'AWS::EC2::SecurityGroupEgress',
                     'Properties': {
                         'GroupId': {'Ref': 'SecurityGroupId'},
-                        'IpProtocol': '-1',
-                        'DestinationSecurityGroupId': {'Ref': 'SecurityGroupId'},
+                        'IpProtocol': '-1',  # All protocols
+                        'DestinationSecurityGroupId': {
+                            'Ref': 'SecurityGroupId'
+                        },  # Self-referencing
                         'Description': 'All outbound traffic within security group',
                     },
                 },
             },
             'Outputs': {
                 'SecurityGroupId': {
-                    'Description': 'Security group ID with MSK rules',
+                    'Description': 'Security group ID with MSK ESM connectivity rules applied',
                     'Value': {'Ref': 'SecurityGroupId'},
                 }
             },
@@ -336,12 +415,23 @@ class EsmGuidanceTool:
         prompt: str = Field(description='User prompt to check for deploy intent'),
         project_directory: str = Field(description='Path to SAM project directory'),
     ) -> Dict[str, Any]:
-        """Confirm ESM deployment when deploy intent is detected in prompt.
+        """Validate deployment readiness and confirm user intent before ESM deployment.
 
-        This tool checks if the prompt contains deploy intent and ensures
-        ESM configuration is deployed through sam_deploy tool.
+        This tool performs pre-deployment validation by:
+        1. Analyzing user prompt for deployment keywords
+        2. Verifying SAM template exists in project directory
+        3. Ensuring proper deployment workflow is followed
+
+        Args:
+            ctx: MCP context for logging
+            prompt: User's input text to analyze for deployment intent
+            project_directory: Path to SAM project containing template files
+
+        Returns:
+            Dict with deployment validation results and recommended actions
         """
-        # Check for deploy intent
+        # Analyze user prompt for deployment-related keywords
+        # This prevents accidental deployments and ensures user explicitly wants to deploy
         deploy_keywords = ['deploy', 'deployment', 'deploying']
         has_deploy_intent = any(keyword in prompt.lower() for keyword in deploy_keywords)
 
@@ -353,7 +443,8 @@ class EsmGuidanceTool:
 
         await ctx.info('Deploy intent detected, checking for template files')
 
-        # Check for template files in project directory
+        # Verify SAM template exists in project directory
+        # SAM supports multiple template file formats - check for all supported types
         template_files = ['template.yaml', 'template.yml', 'template.json']
         template_found = False
 
@@ -363,12 +454,14 @@ class EsmGuidanceTool:
                 template_found = True
                 break
 
+        # Enforce SAM template usage for proper infrastructure as code practices
         if not template_found:
             return {
                 'deploy_intent_detected': True,
                 'error': 'No SAM template found in project directory. You must use a SAM template (template.yaml/yml/json) to deploy instead of using AWS CLI directly.',
             }
 
+        # All validation checks passed - ready for deployment
         return {
             'deploy_intent_detected': True,
             'template_found': True,

@@ -18,10 +18,20 @@ from typing import Any, Dict, Literal, Optional
 
 
 class EsmDiagnosisTool:
-    """Tool to provide diagnosis on EventSourceMapping(ESM) setup."""
+    """Comprehensive diagnostic tool for AWS Lambda Event Source Mapping (ESM) troubleshooting.
+
+    This class provides specialized diagnostic capabilities for identifying and resolving
+    issues in Kafka Event Source Mappings. It analyzes connection patterns, authentication failures,
+    and network connectivity problems to pinpoint root causes and provide targeted resolution strategies.
+    """
 
     def __init__(self, mcp: FastMCP):
-        """Initialize the ESM diagnosis tool."""
+        """Initialize the ESM diagnosis tool and register diagnostic capabilities.
+
+        Args:
+            mcp: FastMCP instance for tool registration
+        """
+        # Register Kafka-specific diagnostic tools
         mcp.tool(name='esm_kafka_diagnosis')(self.esm_kafka_diagnosis_tool)
         mcp.tool(name='esm_kafka_resolution')(self.esm_kafka_resolution_tool)
 
@@ -43,6 +53,8 @@ class EsmDiagnosisTool:
         """
         await ctx.info('Getting self-diagnosis steps for MSK Kafka event source')
 
+        # Critical architectural facts about MSK ESM that affect troubleshooting approach
+        # Understanding these concepts is essential for proper diagnosis
         important_facts = [
             "- Lambda event source mappings don't inherit the virtual private \
             cloud (VPC) network configuration of the Lambda function. This is true for \
@@ -51,7 +63,7 @@ class EsmDiagnosisTool:
             on the target MSK cluster.",
             '- The security group of ESM is equal to the one of the MSK cluster.',
             '- The lambda consumer function need not to be inside the cluster VPC.',
-            '- Any VPC endpoints is unneccessary because we assume provisioned mode ESM is used.',
+            '- Any VPC endpoints is unnecessary because we assume provisioned mode ESM is used.',
             '- Refer to the following documentations for troubleshooting detail:',
             'https://docs.aws.amazon.com/lambda/latest/dg/with-msk-permissions.html,',
             'https://repost.aws/knowledge-center/lambda-trigger-msk-kafka-cluster,',
@@ -60,7 +72,10 @@ class EsmDiagnosisTool:
 
         issues = ['To determine when a timeout occurs, analyze these indicators:']
 
+        # Categorized timeout scenarios with specific diagnostic indicators
+        # Each category represents a different failure point in the ESM-MSK communication chain
         timeout_indicators = {
+            # Timeout occurs before ESM reaches Kafka brokers - network/security issue
             'pre-broker-timeout': [
                 'PROBLEM: Connection error. Please check your event source connection \
                     configuration.',
@@ -69,39 +84,43 @@ class EsmDiagnosisTool:
                 "Network and security group settings block the event source mapping's requests to \
                     the broker endpoints.",
             ],
+            # Timeout occurs after ESM reaches brokers but before completion - broker issue
             'post-broker-timeout': [
                 'PROBLEM: Connection error. Please check your event source connection \
                     configuration.',
-                'Some transactions earily has completed successfully.',
+                'Some transactions earlier has completed successfully.',
                 'The Kafka cluster was offline when the issue occurred.',
                 'The Kafka cluster experienced high CPU or high memory when the issue occurred.',
                 "The broker receives the event source mapping's request, but it can't complete \
                     the request.",
             ],
+            # ESM can reach Kafka but cannot invoke Lambda function - Lambda/IAM issue
             'lambda-unreachable': [
                 'PROBLEM: SASL authentication failed.',
                 'PROBLEM: Cluster failed to authorize Lambda.',
                 'PROBLEM: Connection error. Your event source VPC must be able to connect to \
                     Lambda and STS, Secrets Manager (if event source authentication is required), \
                     and the OnFailure Destination (if one is configured).',
-                'The ESM has polled the Kafka cluster and called the Lamdbda API.'
+                'The ESM has polled the Kafka cluster and called the Lambda API.',
                 'The Lambda function or its API endpoint did not receive any records from the ESM \
                     side.',
                 'The event source mapping can access your Kafka cluster and poll records \
                     successfully, but calls to the Lambda API fail or time out.',
             ],
+            # ESM cannot reach configured failure destination - destination connectivity issue
             'on-failure-destination-unreachable': [
                 'PROBLEM: Connection error. Your event source VPC must be able to connect to \
                     Lambda and STS, Secrets Manager (if event source authentication is required), \
                     and the OnFailure Destination (if one is configured).',
-                'There were error(s) during the Lambda function was processing the data.'
-                'The service used for the on-dailure destiation did not received any records from \
+                'There were error(s) during the Lambda function was processing the data.',
+                'The service used for the on-failure destination did not received any records from \
                     the ESM side.',
                 'On-failure destination, such as Amazon Simple Storage Service (Amazon S3) or \
                     Amazon Simple Notification Service (Amazon SNS) is configured. However, when \
                     your function invocations end with an error, calls to the API of the \
                     on-failure destination fail or time out.',
             ],
+            # ESM cannot reach AWS STS for role assumption - STS connectivity/IAM issue
             'sts-unreachable': [
                 'PROBLEM: Connection error. Your event source VPC must be able to connect to \
                     Lambda and STS, Secrets Manager (if event source authentication is required), \
@@ -116,6 +135,7 @@ class EsmDiagnosisTool:
             ],
         }
 
+        # General diagnostic steps to identify the specific timeout scenario
         resolutions = [
             'Use AWS CLI to get the error message (LastProcessingResult) from ESM: \
                 aws lambda get-event-source-mapping --uuid <ESM UUID>.',
@@ -123,6 +143,7 @@ class EsmDiagnosisTool:
                 appropriate issue_type:',
         ]
 
+        # Available resolution tools for each identified timeout scenario
         next_actions = [
             "esm_kafka_resolution_tool(issue_type='pre-broker-timeout')",
             "esm_kafka_resolution_tool(issue_type='post-broker-timeout')",
@@ -176,6 +197,8 @@ class EsmDiagnosisTool:
         issues = []
         resolutions = {}
 
+        # Standard requirements that apply to all resolution scenarios
+        # These ensure proper deployment practices and maintainability
         base_requirements = [
             '# You MUST also do:',
             '- Follow the steps and rules in the resolutions.',
@@ -194,6 +217,7 @@ class EsmDiagnosisTool:
             '- Summarize what you have done in a README.md file.',
         ]
 
+        # Handle network connectivity issues - ESM cannot reach Kafka brokers
         if issue_type == 'pre-broker-timeout':
             issues.append(
                 "Network and security group settings block the event source mapping's requests to "
@@ -214,12 +238,14 @@ class EsmDiagnosisTool:
                 '## To update the inbound/outbound configurations, refer to `esm_security_group_tool`.',
                 '## Reactivate the ESM after the security group is updated.',
             ]
+            # Strict rules to prevent unintended changes that could break other components
             resolutions['rules'] = [
                 "Don't modify any resources other than security groups.",
                 "Don't modify the Lambda function, its security group, policies, and IAM role.",
                 'Call AWS CLI and fill in the security group IDs on users behalf.',
                 'You MUST only update the security groups associated with the MSK cluster.',
             ]
+        # Handle broker-side issues - ESM reaches brokers but they cannot complete requests
         elif issue_type == 'post-broker-timeout':
             issues.append(
                 "The broker receives the event source mapping's request, but it can't complete "
@@ -234,6 +260,7 @@ class EsmDiagnosisTool:
                 "mapping's batch size to 1, and then re-activate the trigger.",
                 "Examine the broker's access logs and system logs for more information.",
             ]
+        # Handle IAM and authentication issues - ESM cannot invoke Lambda or access services
         elif issue_type == 'lambda-unreachable':
             issues += [
                 'The event source mapping can access your Kafka cluster and poll records '
@@ -246,7 +273,7 @@ class EsmDiagnosisTool:
                 '## To check whether the lambda function has sufficient permissions to poll records:',
                 '1. Get the ARN of the cluster and the ARN of the lambda execution role.',
                 '2. Get the current configurations of the ESM.',
-                '3. Create a new policy using `esm_msk_policy_tool`and attach it to the lambda execution role.',
+                '3. Create a new policy using `esm_msk_policy_tool` and attach it to the lambda execution role.',
                 "4. Also check if the cluster's security group allows inbound port 9092-9098. "
                 'If there is one already, then do NOT to make changes for security group. '
                 'Otherwise, fix the security group using `esm_msk_security_group_tool.`',
@@ -258,11 +285,13 @@ class EsmDiagnosisTool:
                 '- Use exact resource ARNs instead of asterisks in the template.',
                 '- The ESM must depend on the policy deployment.',
             ]
+            # Strict rules to prevent breaking existing Lambda functions or creating circular dependencies
             resolutions['rules'] = [
                 '- Do NOT create/modify anything other than the policies and IAM roles.',
                 '- Do NOT use AWS::CloudFormation::CustomResource because CloudFormation will not be able to catch the response.',
                 '- Do NOT create/modify any Lambda function, build local script instead.',
             ]
+        # Handle failure destination connectivity issues
         elif issue_type == 'on-failure-destination-unreachable':
             issues.append(
                 'On-failure destination, such as Amazon Simple Storage Service (Amazon S3) or '
@@ -275,6 +304,7 @@ class EsmDiagnosisTool:
                 'include Amazon SNS or Amazon S3. This VPC endpoint must be in the VPC that '
                 'contains the MSK cluster.',
             ]
+        # Handle STS connectivity issues - ESM cannot assume IAM roles
         elif issue_type == 'sts-unreachable':
             issues.append(
                 'The event source mapping is configured in a VPC, and calls to the AWS STS API '
@@ -288,6 +318,7 @@ class EsmDiagnosisTool:
                 'principal to call the sts:AssumeRole. For more information about how to '
                 'configure your VPC, see Configure network security.',
             ]
+        # Fallback case for unrecognized or general issues
         else:
             issues.append(f'Unknown issue type: {issue_type}')
             resolutions['steps'] = [
@@ -296,6 +327,7 @@ class EsmDiagnosisTool:
                 'and https://repost.aws/knowledge-center/lambda-trigger-msk-kafka-cluster',
             ]
 
+        # Always require user confirmation before making changes to prevent accidental modifications
         next_actions = ['Confirm with the user before deployment using `esm_deployment_precheck`.']
 
         response = {
