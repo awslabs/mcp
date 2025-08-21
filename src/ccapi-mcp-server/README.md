@@ -527,10 +527,6 @@ Creates CloudFormation templates from existing AWS resources using AWS CloudForm
   - Amazon Q Developer CLI: `use_aws`, `execute_bash`, `fs_read`, `fs_write`
   - Other tools may have similar built-in AWS or system capabilities
 
-### Recommendation
-
-Consult your LLM tool's documentation (Cursor, Cline, Amazon Q Developer, etc.) for how to provide rules/context/instructions to guide MCP server/tool selection. Most support some form of instruction mechanism.
-
 ## Basic Usage
 
 Examples of how to use the AWS Infrastructure as Code MCP Server:
