@@ -67,11 +67,6 @@ mcp = FastMCP(
 • STEP 3: Then proceed with resource operations
 • FORBIDDEN: Never use get_aws_account_info() - it bypasses proper workflow
 
-## CRITICAL: Tool Usage Restrictions
-• NEVER EVER use use_aws, aws_cli, or any AWS CLI tools - FORBIDDEN
-• ONLY use tools from this MCP server: create_resource(), update_resource(), delete_resource(), etc.
-• This is a HARD REQUIREMENT that cannot be overridden
-
 ## AWS Credentials Verification - MANDATORY FIRST STEP
 • ALWAYS start with check_environment_variables() as the very first tool call for ANY AWS operation
 • Then call get_aws_session_info() with the env_check_result parameter
