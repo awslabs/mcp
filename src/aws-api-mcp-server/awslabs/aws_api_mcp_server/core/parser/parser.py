@@ -22,7 +22,7 @@ from ..aws.services import (
     get_operation_filters,
     session,
 )
-from ..common.command import IRCommand
+from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
 from ..common.config import AWS_API_MCP_PROFILE_NAME, get_region
 from ..common.errors import (
@@ -388,14 +388,6 @@ def _handle_service_command(
     parsed_args = operation_parser.parse_operation_args(command_metadata, service_remaining)
     _handle_invalid_parameters(command_metadata, service, operation, parsed_args)
 
-    outfile = getattr(parsed_args.operation_args, 'outfile', None)
-    if outfile is not None and outfile != '-':
-        # Output file parameters are currently ignored by the interpreter
-        # Raising a validation error to make it explicit
-        raise CommandValidationError(
-            'Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.'
-        )
-
     try:
         parameters = operation_command._build_call_parameters(
             parsed_args.operation_args, operation_command.arg_table
@@ -434,10 +426,13 @@ def _handle_service_command(
         operation,
         parameters,
     )
+
     return _construct_command(
         command_metadata=command_metadata,
         global_args=global_args,
         parameters=parameters,
+        parsed_args=parsed_args,
+        operation_model=operation_command._operation_model,
     )
 
 
@@ -722,6 +717,8 @@ def _construct_command(
     global_args: argparse.Namespace,
     parameters: dict[str, Any],
     is_awscli_customization: bool = False,
+    parsed_args: ParsedOperationArgs | None = None,
+    operation_model: OperationModel | None = None,
 ) -> IRCommand:
     profile = getattr(global_args, 'profile', None)
     region = (
@@ -744,6 +741,12 @@ def _construct_command(
                 msg=str(error),
             )
 
+    output_file = (
+        OutputFile.from_operation(parsed_args.operation_args.outfile, operation_model)
+        if command_metadata.has_streaming_output and parsed_args and operation_model
+        else None
+    )
+
     return IRCommand(
         command_metadata=command_metadata,
         parameters=parameters,
@@ -751,6 +754,7 @@ def _construct_command(
         profile=profile,
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
+        output_file=output_file,
     )
 
 

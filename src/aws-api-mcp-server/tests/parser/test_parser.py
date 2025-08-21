@@ -606,22 +606,6 @@ def test_client_side_filter_error():
         parse(command)
 
 
-@pytest.mark.parametrize(
-    'command',
-    [
-        'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template myfile.template',
-        'aws lambda invoke --function-name my-function response.json',
-    ],
-)
-def test_outfile_parameter_not_supported(command):
-    """Test that outfile parameters raise a validation error."""
-    with pytest.raises(
-        CommandValidationError,
-        match='Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.',
-    ):
-        parse(command)
-
-
 def test_valid_expand_user_home_directory():
     """Test that tilde is replaced with user home directory."""
     result = parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
