@@ -65,14 +65,15 @@ IDLE_TIMEOUT_SECONDS = 3600  # 1 hour timer for auto shut down of server
 class AutoShutdownServer(FastMCP):
     """FastMCP server with automatic shutdown after idle timeout."""
 
-    def __init__(self, name, idle_timeout=IDLE_TIMEOUT_SECONDS):
+    def __init__(self, name, idle_timeout=IDLE_TIMEOUT_SECONDS, **kwargs):
         """Initialize the auto-shutdown server.
 
         Args:
             name: Server name
             idle_timeout: Timeout in seconds before shutdown
+            **kwargs: Additional arguments passed to FastMCP
         """
-        super().__init__(name)
+        super().__init__(name, **kwargs)
         self.last_activity_time = time.time()
         self.idle_timeout = idle_timeout
         self.shutdown_thread = threading.Thread(target=self._monitor_idle_time, daemon=True)
