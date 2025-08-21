@@ -14,26 +14,647 @@
 
 """AWS S3 Storage Lens tools for the AWS Billing and Cost Management MCP server.
 
-Updated to use shared utility functions.
+This module provides functionality to create and query Athena tables for S3 Storage Lens data.
+See the resources/storage_lens_metrics_reference.md file for detailed metrics information and sample queries.
 """
 
 import os
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+import re
+import json
+from typing import Any, Dict, List, Optional, TypedDict
+from enum import Enum
+from urllib.parse import urlparse
+from datetime import datetime
+
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.constants import (
+    STORAGE_LENS_DEFAULT_DATABASE,
+    STORAGE_LENS_DEFAULT_TABLE,
+    ATHENA_MAX_RETRIES,
+    ATHENA_RETRY_DELAY_SECONDS,
+    ENV_STORAGE_LENS_MANIFEST_LOCATION,
+    ENV_STORAGE_LENS_OUTPUT_LOCATION
+)
 
-
+# FastMCP server instance
 storage_lens_server = FastMCP(
     name='storage-lens-tools', instructions='Tools for working with AWS S3 Storage Lens data'
 )
 
-# Environment variable names
-ENV_STORAGE_LENS_MANIFEST_LOCATION = 'STORAGE_LENS_MANIFEST_LOCATION'
-ENV_STORAGE_LENS_OUTPUT_LOCATION = 'STORAGE_LENS_OUTPUT_LOCATION'
 
-# Default database and table names
-DEFAULT_DATABASE = 'storage_lens_db'
-DEFAULT_TABLE = 'storage_lens_metrics'
+# Using constants from centralized constants.py file
+# STORAGE_LENS_DEFAULT_DATABASE: Default database name for Storage Lens data
+# STORAGE_LENS_DEFAULT_TABLE: Default table name for Storage Lens data
+# ATHENA_MAX_RETRIES: Maximum number of retries for Athena query completion
+# ATHENA_RETRY_DELAY_SECONDS: Delay between retries in seconds
+# ENV_STORAGE_LENS_MANIFEST_LOCATION: Environment variable for S3 URI to manifest file
+# ENV_STORAGE_LENS_OUTPUT_LOCATION: Environment variable for S3 location for Athena query results
+
+
+# Schema format enum
+class SchemaFormat(Enum):
+    """Storage Lens data format."""
+    CSV = 'CSV'
+    PARQUET = 'PARQUET'
+
+
+# Helper classes for typed data
+class ColumnDefinition(TypedDict):
+    """Column definition for Athena tables."""
+    name: str
+    type: str
+
+
+class SchemaInfo(TypedDict):
+    """Schema information for Storage Lens data."""
+    format: SchemaFormat
+    columns: List[ColumnDefinition]
+    skip_header: bool
+
+
+class ManifestFile(TypedDict):
+    """Manifest file information."""
+    key: str
+    last_modified: datetime
+
+
+class AthenaQueryExecution(TypedDict):
+    """Athena query execution information."""
+    query_execution_id: str
+    status: str
+
+
+class ManifestHandler:
+    """Handler for S3 Storage Lens manifest files."""
+
+    def __init__(self, ctx: Context):
+        """Initialize the S3 client.
+
+        Args:
+            ctx: MCP context for logging
+        """
+        self.ctx = ctx
+        self.s3_client = create_aws_client('s3')
+
+    async def get_manifest(self, manifest_location: str) -> Dict[str, Any]:
+        """Locate and parse the manifest file from S3.
+
+        Args:
+            manifest_location: S3 URI to manifest file or folder containing manifest files
+                (e.g., 's3://bucket-name/path/to/manifest.json' or 's3://bucket-name/path/to/folder/')
+
+        Returns:
+            Dict[str, Any]: Parsed manifest JSON content
+        """
+        try:
+            # Parse the S3 URI to get bucket and key
+            parsed_uri = urlparse(manifest_location)
+            bucket = parsed_uri.netloc
+            key = parsed_uri.path.lstrip('/')
+
+            await self.ctx.info(f'Looking for manifest at s3://{bucket}/{key}')
+
+            if key.endswith('manifest.json'):
+                return await self._read_manifest_file(bucket, key)
+            else:
+                return await self._find_latest_manifest(bucket, key)
+
+        except Exception as e:
+            await self.ctx.error(f'Failed to get manifest: {str(e)}')
+            raise
+
+    async def _read_manifest_file(self, bucket: str, key: str) -> Dict[str, Any]:
+        """Read and parse a manifest file from S3.
+
+        Args:
+            bucket: S3 bucket name
+            key: S3 object key for the manifest file
+
+        Returns:
+            Dict[str, Any]: Parsed manifest JSON content
+        """
+        try:
+            response = self.s3_client.get_object(Bucket=bucket, Key=key)
+            manifest_content = json.loads(response['Body'].read().decode('utf-8'))
+            await self.ctx.info(f'Successfully read manifest file at s3://{bucket}/{key}')
+            return manifest_content
+        except Exception as e:
+            await self.ctx.error(f'Failed to read manifest file at s3://{bucket}/{key}: {str(e)}')
+            raise Exception(f'Failed to read manifest file at s3://{bucket}/{key}: {str(e)}')
+
+    async def _find_latest_manifest(self, bucket: str, key: str) -> Dict[str, Any]:
+        """Find the latest manifest.json file in the specified S3 location.
+
+        Args:
+            bucket: S3 bucket name
+            key: S3 prefix to search for manifest files
+
+        Returns:
+            Dict[str, Any]: Parsed manifest JSON content
+        """
+        # Ensure key ends with a slash
+        if not key.endswith('/'):
+            key += '/'
+
+        await self.ctx.info(f'Searching for manifest.json files in s3://{bucket}/{key}')
+
+        try:
+            # List objects with the prefix and filter for manifest.json files
+            manifest_files = []
+
+            # Use pagination to handle large directories
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=bucket, Prefix=key):
+                if 'Contents' in page:
+                    for obj in page['Contents']:
+                        if obj['Key'].endswith('manifest.json'):
+                            # Use the ManifestFile structure
+                            manifest_file = ManifestFile(
+                                key=obj['Key'], last_modified=obj['LastModified']
+                            )
+                            manifest_files.append(manifest_file)
+
+            if not manifest_files:
+                raise Exception(f'No manifest.json files found at s3://{bucket}/{key}')
+
+            # Sort by last modified date to get the latest
+            latest_manifest = sorted(manifest_files, key=lambda x: x['last_modified'], reverse=True)[0]
+
+            # Log only the selected latest manifest file
+            await self.ctx.info(
+                f'Selected latest manifest: s3://{bucket}/{latest_manifest["key"]} '
+                f'(Last Modified: {latest_manifest["last_modified"]})'
+            )
+
+            # Get the content of the latest manifest file
+            return await self._read_manifest_file(bucket, latest_manifest["key"])
+
+        except Exception as e:
+            await self.ctx.error(f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}')
+            raise Exception(f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}')
+
+    def extract_data_location(self, manifest: Dict[str, Any]) -> str:
+        """Extract the S3 location of the data files from the manifest.
+
+        Args:
+            manifest: Parsed manifest JSON content
+
+        Returns:
+            str: S3 URI to the data files
+        """
+        report_files = manifest.get('reportFiles', [])
+
+        if not report_files:
+            raise Exception('No report files found in manifest')
+
+        # Determine the S3 location of the report files
+        sample_file = report_files[0]['key']
+        parsed_uri = urlparse(sample_file)
+
+        if not parsed_uri.netloc:
+            # If the key is relative, construct the full path
+            destination_bucket = manifest.get('destinationBucket', '')
+            if destination_bucket.startswith('arn:aws:s3:::'):
+                bucket_name = destination_bucket.replace('arn:aws:s3:::', '')
+            else:
+                bucket_name = destination_bucket
+
+            data_location = f's3://{bucket_name}/{sample_file}'
+        else:
+            data_location = sample_file
+
+        # Return the directory containing the data files
+        return '/'.join(data_location.split('/')[:-1])
+
+    def parse_schema(self, manifest: Dict[str, Any]) -> SchemaInfo:
+        """Parse the schema information from the manifest.
+
+        Args:
+            manifest: Parsed manifest JSON content
+
+        Returns:
+            SchemaInfo: Schema information including format, column definitions, etc.
+        """
+        report_format = manifest.get('reportFormat', 'CSV')
+        report_schema = manifest.get('reportSchema', '')
+
+        if report_format.upper() == 'CSV':
+            # For CSV, the schema is a comma-separated list of column names
+            columns = report_schema.split(',')
+            column_definitions = []
+
+            for column in columns:
+                # Default to string type for all columns
+                column_definitions.append(ColumnDefinition(name=column.strip(), type='STRING'))
+
+            return SchemaInfo(
+                format=SchemaFormat.CSV, columns=column_definitions, skip_header=True
+            )
+        else:  # Parquet format
+            # For Parquet, we need to parse the message schema
+            schema_str = report_schema
+
+            # Extract field definitions from the Parquet message schema
+            field_pattern = r'required\s+(\w+)\s+(\w+);'
+            matches = re.findall(field_pattern, schema_str)
+
+            column_definitions = []
+            for match in matches:
+                data_type, field_name = match
+                # Map Parquet types to Athena types
+                if data_type.lower() == 'string':
+                    athena_type = 'STRING'
+                elif data_type.lower() == 'long':
+                    athena_type = 'BIGINT'
+                elif data_type.lower() == 'double':
+                    athena_type = 'DOUBLE'
+                else:
+                    athena_type = 'STRING'  # Default to STRING for unknown types
+
+                column_definitions.append(ColumnDefinition(name=field_name, type=athena_type))
+
+            return SchemaInfo(
+                format=SchemaFormat.PARQUET, columns=column_definitions, skip_header=False
+            )
+
+
+class AthenaHandler:
+    """Handler for Athena operations on S3 Storage Lens data."""
+
+    def __init__(self, ctx: Context):
+        """Initialize the Athena client.
+
+        Args:
+            ctx: MCP context for logging
+        """
+        self.ctx = ctx
+        # Create Athena client using shared utility function
+        self.athena_client = create_aws_client('athena')
+
+    async def create_database(self, database_name: str, output_location: str) -> None:
+        """Create an Athena database if it doesn't exist.
+
+        Args:
+            database_name: Name of the database to create
+            output_location: S3 location for query results
+        """
+        create_db_query = f'CREATE DATABASE IF NOT EXISTS {database_name}'
+        await self.execute_query(create_db_query, 'default', output_location)
+
+    async def create_table_for_csv(
+            self,
+            database_name: str,
+            table_name: str,
+            schema_info: SchemaInfo,
+            data_location: str,
+            output_location: str,
+    ) -> None:
+        """Create an Athena table for CSV data.
+
+        Args:
+            database_name: Name of the database
+            table_name: Name of the table to create
+            schema_info: Schema information from manifest
+            data_location: S3 location of the data files
+            output_location: S3 location for query results
+        """
+        column_definitions = []
+        for column in schema_info['columns']:
+            column_definitions.append(f'`{column["name"]}` {column["type"]}')
+
+        create_table_query = f"""
+        CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
+            {', '.join(column_definitions)}
+        )
+        ROW FORMAT DELIMITED
+        FIELDS TERMINATED BY ','
+        STORED AS TEXTFILE
+        LOCATION '{data_location}'
+        TBLPROPERTIES ('skip.header.line.count'='1')
+        """
+
+        await self.execute_query(create_table_query, database_name, output_location)
+
+    async def create_table_for_parquet(
+            self,
+            database_name: str,
+            table_name: str,
+            schema_info: SchemaInfo,
+            data_location: str,
+            output_location: str,
+    ) -> None:
+        """Create an Athena table for Parquet data.
+
+        Args:
+            database_name: Name of the database
+            table_name: Name of the table to create
+            schema_info: Schema information from manifest
+            data_location: S3 location of the data files
+            output_location: S3 location for query results
+        """
+        column_definitions = []
+        for column in schema_info['columns']:
+            column_definitions.append(f'`{column["name"]}` {column["type"]}')
+
+        create_table_query = f"""
+        CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
+            {', '.join(column_definitions)}
+        )
+        STORED AS PARQUET
+        LOCATION '{data_location}'
+        """
+
+        await self.execute_query(create_table_query, database_name, output_location)
+
+    async def setup_table(
+            self,
+            database_name: str,
+            table_name: str,
+            schema_info: SchemaInfo,
+            data_location: str,
+            output_location: str,
+    ) -> None:
+        """Set up an Athena table based on the schema information.
+
+        Args:
+            database_name: Name of the database
+            table_name: Name of the table to create
+            schema_info: Schema information from manifest
+            data_location: S3 location of the data files
+            output_location: S3 location for query results
+        """
+        await self.ctx.info(f'Setting up Athena table {database_name}.{table_name}')
+        await self.ctx.info(f'Data location: {data_location}')
+        await self.ctx.info(f'Schema format: {schema_info["format"]}')
+        await self.ctx.info(f'Columns: {[col["name"] for col in schema_info["columns"]]}')
+
+        # Create database if it doesn't exist
+        await self.create_database(database_name, output_location)
+
+        # Create table based on format
+        if schema_info['format'] == SchemaFormat.CSV:
+            await self.ctx.info('Creating table for CSV format')
+            await self.create_table_for_csv(
+                database_name, table_name, schema_info, data_location, output_location
+            )
+        else:  # Parquet format
+            await self.ctx.info('Creating table for Parquet format')
+            await self.create_table_for_parquet(
+                database_name, table_name, schema_info, data_location, output_location
+            )
+
+    async def execute_query(
+            self, query: str, database_name: str, output_location: str
+    ) -> AthenaQueryExecution:
+        """Execute an Athena query.
+
+        Args:
+            query: SQL query to execute
+            database_name: Athena database name to use
+            output_location: S3 location for Athena query results
+
+        Returns:
+            AthenaQueryExecution: Query execution ID and status
+        """
+        try:
+            await self.ctx.info(f'Executing Athena query on database {database_name}:')
+            await self.ctx.info(f'Query: {query}')
+            await self.ctx.info(f'Output location: {output_location}')
+
+            # Start query execution
+            response = self.athena_client.start_query_execution(
+                QueryString=query,
+                QueryExecutionContext={'Database': database_name},
+                ResultConfiguration={'OutputLocation': output_location},
+            )
+
+            query_execution_id = response['QueryExecutionId']
+            await self.ctx.info(f'Query execution ID: {query_execution_id}')
+
+            return AthenaQueryExecution(query_execution_id=query_execution_id, status='STARTED')
+
+        except Exception as e:
+            await self.ctx.error(f'Error starting Athena query: {str(e)}')
+            # Use shared error handler
+            raise Exception(f'Error starting Athena query: {str(e)}')
+
+    async def wait_for_query_completion(
+            self, query_execution_id: str, max_retries: int = ATHENA_MAX_RETRIES
+    ) -> Dict[str, Any]:
+        """Wait for an Athena query to complete.
+
+        Args:
+            query_execution_id: Query execution ID
+            max_retries: Maximum number of retries
+
+        Returns:
+            Dict[str, Any]: Query execution status
+        """
+        try:
+            state = 'RUNNING'  # Initial state assumption
+            retries = 0
+
+            await self.ctx.info(f'Waiting for Athena query {query_execution_id} to complete...')
+
+            while (state == 'RUNNING' or state == 'QUEUED') and retries < max_retries:
+                response = self.athena_client.get_query_execution(QueryExecutionId=query_execution_id)
+                state = response['QueryExecution']['Status']['State']
+
+                await self.ctx.info(f'Query state: {state} (retry {retries}/{max_retries})')
+
+                if state == 'FAILED':
+                    reason = response['QueryExecution']['Status'].get(
+                        'StateChangeReason', 'Unknown error'
+                    )
+                    await self.ctx.error(f'Query failed: {reason}')
+                    raise Exception(f'Query failed: {reason}')
+                elif state == 'SUCCEEDED':
+                    await self.ctx.info(f'Query succeeded after {retries} retries')
+                    return response['QueryExecution']
+
+                # Wait before checking again
+                await asyncio.sleep(ATHENA_RETRY_DELAY_SECONDS)
+                retries += 1
+
+            if retries >= max_retries:
+                await self.ctx.error(f'Query timed out after {max_retries} retries')
+                raise Exception('Query timed out')
+
+            # This should never be reached due to the exception above, but return empty dict for type safety
+            return {'status': 'ERROR', 'message': 'Query timed out'}
+
+        except Exception as e:
+            # Use shared error handler for consistent error reporting
+            await self.ctx.error(f'Error waiting for query completion: {str(e)}')
+            raise
+
+    async def get_query_results(self, query_execution_id: str) -> Dict[str, Any]:
+        """Get the results of a completed Athena query.
+
+        Args:
+            query_execution_id: Query execution ID
+
+        Returns:
+            Dict[str, Any]: Query results and metadata
+        """
+        try:
+            # Get query results
+            results_response = self.athena_client.get_query_results(
+                QueryExecutionId=query_execution_id
+            )
+
+            # Process results
+            columns = [
+                col['Label']
+                for col in results_response['ResultSet']['ResultSetMetadata']['ColumnInfo']
+            ]
+            rows = []
+
+            # Skip header row if it exists
+            result_rows = results_response['ResultSet']['Rows']
+            start_index = (
+                1 if len(result_rows) > 0 and len(columns) == len(result_rows[0]['Data']) else 0
+            )
+
+            for row in result_rows[start_index:]:
+                values = []
+                for item in row['Data']:
+                    values.append(item.get('VarCharValue', ''))
+                rows.append(dict(zip(columns, values)))
+
+            return {
+                'columns': columns,
+                'rows': rows
+            }
+
+        except Exception as e:
+            # Use shared error handler for consistent error reporting
+            await self.ctx.error(f'Error getting query results: {str(e)}')
+            raise
+
+    def determine_output_location(
+            self, data_location: str, output_location: Optional[str] = None
+    ) -> str:
+        """Determine the output location for Athena query results.
+
+        Args:
+            data_location: S3 location of the data files
+            output_location: User-provided output location
+
+        Returns:
+            str: S3 location for Athena query results
+        """
+        if output_location:
+            return output_location
+
+        # If output_location is not provided, use the same bucket as the data
+        parsed_data_uri = urlparse(data_location)
+        bucket = parsed_data_uri.netloc
+        return f's3://{bucket}/athena-results/'
+
+
+class StorageLensQueryTool:
+    """Tool for querying S3 Storage Lens metrics using Athena."""
+
+    def __init__(self, ctx: Context):
+        """Initialize the manifest and Athena handlers.
+
+        Args:
+            ctx: MCP context for logging
+        """
+        self.ctx = ctx
+        self.manifest_handler = ManifestHandler(ctx)
+        self.athena_handler = AthenaHandler(ctx)
+
+    async def query_storage_lens(
+            self,
+            query: str,
+            manifest_location: str,
+            database_name: str = STORAGE_LENS_DEFAULT_DATABASE,
+            table_name: str = STORAGE_LENS_DEFAULT_TABLE,
+            output_location: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Query S3 Storage Lens metrics using Athena.
+
+        Args:
+            query: SQL query to execute against Storage Lens data
+            manifest_location: S3 URI to manifest file or folder
+            database_name: Athena database name (defaults to 'storage_lens_db')
+            table_name: Athena table name (defaults to 'storage_lens_metrics')
+            output_location: S3 location for query results (optional)
+
+        Returns:
+            Dict[str, Any]: Query results and metadata
+        """
+        try:
+            # 1. Locate and parse manifest file
+            manifest = await self.manifest_handler.get_manifest(manifest_location)
+
+            # 2. Extract data location and schema information
+            data_location = self.manifest_handler.extract_data_location(manifest)
+            schema_info = self.manifest_handler.parse_schema(manifest)
+
+            # 3. Determine output location if not provided
+            if not output_location:
+                output_location = self.athena_handler.determine_output_location(data_location)
+
+            # 4. Setup Athena database and table if needed
+            await self.athena_handler.setup_table(
+                database_name, table_name, schema_info, data_location, output_location
+            )
+
+            # 5. Replace {table} placeholder in query with actual table name
+            formatted_query = query
+            if '{table}' in query:
+                formatted_query = query.replace(
+                    '{table}', f'{database_name}.{table_name}'
+                )
+            elif f'{database_name}.{table_name}' not in query:
+                # If query doesn't contain the full table name and doesn't have the placeholder
+                # then prepend the database and table name to the FROM clause
+                if ' from ' in query.lower():
+                    formatted_query = query.lower().replace(' from ', f' FROM {database_name}.{table_name} ')
+                else:
+                    raise Exception('Query must either contain {table} placeholder or explicitly reference the table.')
+
+            # 6. Execute query
+            query_result = await self.athena_handler.execute_query(
+                formatted_query, database_name, output_location
+            )
+
+            # 7. Wait for query to complete
+            execution_details = await self.athena_handler.wait_for_query_completion(
+                query_result['query_execution_id']
+            )
+
+            # 8. Get query results
+            results = await self.athena_handler.get_query_results(
+                query_result['query_execution_id']
+            )
+
+            # 9. Add query statistics and metadata
+            stats = execution_details['Statistics']
+            formatted_response = {
+                'execution_time_ms': stats.get('TotalExecutionTimeInMillis', 0),
+                'data_scanned_bytes': stats.get('DataScannedInBytes', 0),
+                'engine_execution_time_ms': stats.get('EngineExecutionTimeInMillis', 0),
+                'columns': results['columns'],
+                'rows': results['rows'],
+                'query': formatted_query,
+                'manifest_location': manifest_location,
+                'data_location': data_location,
+            }
+
+            return format_response('success', formatted_response)
+
+        except Exception as e:
+            # Use shared error handler for consistent error reporting
+            return await handle_aws_error(self.ctx, e, 'query_storage_lens', 'Storage Lens')
+
+
+# Import asyncio for sleep function
+import asyncio
 
 
 @storage_lens_server.tool(
@@ -75,15 +696,44 @@ Example queries:
    SELECT storage_class, SUM(storage_bytes) as total_size FROM {table} GROUP BY storage_class ORDER BY total_size DESC
 
 3. Buckets with incomplete multipart uploads:
-   SELECT bucket_name, SUM(incomplete_multipart_upload_bytes) as incomplete_bytes FROM {table} WHERE incomplete_multipart_upload_bytes > 0 GROUP BY bucket_name ORDER BY incomplete_bytes DESC""",
+   SELECT bucket_name, SUM(incomplete_multipart_upload_bytes) as incomplete_bytes FROM {table} WHERE incomplete_multipart_upload_bytes > 0 GROUP BY bucket_name ORDER BY incomplete_bytes DESC
+
+4. Storage Distribution by Region and Storage Class:
+   SELECT
+       region,
+       storage_class,
+       SUM(storage_bytes) as total_bytes
+   FROM {table}
+   GROUP BY region, storage_class
+   ORDER BY total_bytes DESC
+
+5. Object Lifecycle Management Opportunities:
+   SELECT
+       bucket_name,
+       SUM(noncurrent_version_bytes) as noncurrent_bytes,
+       SUM(storage_bytes) as total_bytes
+   FROM {table}
+   WHERE noncurrent_version_bytes > 0
+   GROUP BY bucket_name
+   ORDER BY noncurrent_bytes DESC
+
+6. Lifecycle Rule Analysis:
+   SELECT
+       bucket_name,
+       transition_lifecycle_rule_count,
+       expiration_lifecycle_rule_count,
+       SUM(storage_bytes) as total_bytes
+   FROM {table}
+   GROUP BY bucket_name, transition_lifecycle_rule_count, expiration_lifecycle_rule_count
+   ORDER BY transition_lifecycle_rule_count ASC, total_bytes DESC""",
 )
 async def storage_lens_run_query(
-    ctx: Context,
-    query: str,
-    manifest_location: Optional[str] = None,
-    output_location: Optional[str] = None,
-    database_name: Optional[str] = None,
-    table_name: Optional[str] = None,
+        ctx: Context,
+        query: str,
+        manifest_location: Optional[str] = None,
+        output_location: Optional[str] = None,
+        database_name: Optional[str] = None,
+        table_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Query S3 Storage Lens metrics data using Athena SQL.
 
@@ -115,28 +765,19 @@ async def storage_lens_run_query(
         output_loc = output_location or os.environ.get(ENV_STORAGE_LENS_OUTPUT_LOCATION, '')
 
         # Use default or provided database and table names
-        db_name = database_name or DEFAULT_DATABASE
-        tbl_name = table_name or DEFAULT_TABLE
+        db_name = database_name or STORAGE_LENS_DEFAULT_DATABASE
+        tbl_name = table_name or STORAGE_LENS_DEFAULT_TABLE
 
-        # Ensure the query has the {table} placeholder
-        formatted_query = query
-        if '{table}' in query:
-            formatted_query = query.replace('{table}', f'{db_name}.{tbl_name}')
-        elif f'{db_name}.{tbl_name}' not in query:
-            # If query doesn't contain the full table name and doesn't have the placeholder
-            # then prepend the database and table name to the FROM clause
-            if ' from ' in query.lower():
-                formatted_query = query.lower().replace(' from ', f' FROM {db_name}.{tbl_name} ')
-            else:
-                return format_response(
-                    'error',
-                    {},
-                    'Query must either contain {table} placeholder or explicitly reference the table.',
-                )
+        # Create the query tool
+        query_tool = StorageLensQueryTool(ctx)
 
-        # Execute the query using Athena
-        result = await execute_athena_query(
-            ctx, formatted_query, manifest_loc, output_loc, db_name, tbl_name
+        # Execute the query
+        result = await query_tool.query_storage_lens(
+            query=query,
+            manifest_location=manifest_loc,
+            database_name=db_name,
+            table_name=tbl_name,
+            output_location=output_loc
         )
 
         return result
@@ -144,211 +785,3 @@ async def storage_lens_run_query(
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'storage_lens_run_query', 'Athena')
-
-
-async def execute_athena_query(
-    ctx, query, manifest_location, output_location, database_name, table_name
-):
-    """Execute a query using Athena on Storage Lens data."""
-    try:
-        # Initialize Athena client using shared utility
-        athena_client = create_aws_client('athena')
-
-        # Create database and table if they don't exist
-        await create_or_update_table(
-            ctx, athena_client, manifest_location, database_name, table_name
-        )
-
-        # Set up the output location
-        athena_output = output_location
-        if not athena_output:
-            # Use a default location if not provided
-            if manifest_location.endswith('/'):
-                athena_output = f'{manifest_location}query-results/'
-            else:
-                athena_output = f'{manifest_location}/query-results/'
-
-        # Start the query execution
-        start_response = athena_client.start_query_execution(
-            QueryString=query,
-            QueryExecutionContext={'Database': database_name},
-            ResultConfiguration={'OutputLocation': athena_output},
-        )
-
-        # Get the query execution ID
-        query_execution_id = start_response['QueryExecutionId']
-
-        # Wait for the query to complete
-        await ctx.info(f'Query execution ID: {query_execution_id}')
-        await ctx.info('Waiting for query to complete...')
-
-        # Poll for query completion
-        result = await poll_query_status(ctx, athena_client, query_execution_id)
-
-        return result
-
-    except Exception as e:
-        # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'execute_athena_query', 'Athena')
-
-
-async def create_or_update_table(ctx, athena_client, manifest_location, database_name, table_name):
-    """Create or update the Athena table for Storage Lens data."""
-    try:
-        # Create the database if it doesn't exist
-        create_db_query = f'CREATE DATABASE IF NOT EXISTS {database_name}'
-        response = athena_client.start_query_execution(
-            QueryString=create_db_query,
-            ResultConfiguration={
-                'OutputLocation': f's3://{manifest_location.split("/")[2]}/athena-temp/'
-            },
-        )
-
-        # Wait for the database creation to complete
-        query_execution_id = response['QueryExecutionId']
-        await wait_for_query_completion(ctx, athena_client, query_execution_id)
-
-        # Create or update the table
-        create_table_query = generate_create_table_query(
-            manifest_location, database_name, table_name
-        )
-        response = athena_client.start_query_execution(
-            QueryString=create_table_query,
-            QueryExecutionContext={'Database': database_name},
-            ResultConfiguration={
-                'OutputLocation': f's3://{manifest_location.split("/")[2]}/athena-temp/'
-            },
-        )
-
-        # Wait for the table creation to complete
-        query_execution_id = response['QueryExecutionId']
-        await wait_for_query_completion(ctx, athena_client, query_execution_id)
-
-        await ctx.info(f'Created or updated table {database_name}.{table_name}')
-
-    except Exception as e:
-        await ctx.error(f'Error creating or updating table: {str(e)}')
-        raise
-
-
-def generate_create_table_query(manifest_location, database_name, table_name):
-    """Generate the CREATE TABLE query for Storage Lens data."""
-    # Extract the S3 bucket and prefix from the manifest location
-    bucket_name = manifest_location.split('/')[2]
-    prefix_parts = manifest_location.split('/')[3:]
-    prefix = '/'.join(prefix_parts)
-
-    # Ensure prefix ends with a trailing slash
-    if not prefix.endswith('/'):
-        prefix = prefix + '/'
-
-    query = f"""
-    CREATE EXTERNAL TABLE IF NOT EXISTS {database_name}.{table_name} (
-        region string,
-        bucket_name string,
-        storage_class string,
-        record_timestamp timestamp,
-        storage_bytes bigint,
-        object_count bigint,
-        average_object_size double,
-        incomplete_multipart_upload_bytes bigint,
-        incomplete_multipart_upload_count bigint,
-        delete_marker_count bigint,
-        noncurrent_version_count bigint,
-        noncurrent_version_bytes bigint,
-        transition_lifecycle_rule_count bigint,
-        expiration_lifecycle_rule_count bigint,
-        intelligent_tiering_fa_bytes bigint,
-        intelligent_tiering_ia_bytes bigint,
-        intelligent_tiering_aa_bytes bigint
-    )
-    ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
-    WITH SERDEPROPERTIES (
-        'serialization.format' = '1'
-    )
-    STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'
-    OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
-    LOCATION 's3://{bucket_name}/{prefix}data/'
-    TBLPROPERTIES ('has_encrypted_data'='false')
-    """
-
-    return query
-
-
-async def wait_for_query_completion(ctx, athena_client, query_execution_id):
-    """Wait for an Athena query to complete."""
-    max_retries = 30
-    for _ in range(max_retries):
-        # Get the query execution status
-        response = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
-
-        status = response['QueryExecution']['Status']['State']
-
-        if status in ['SUCCEEDED', 'FAILED', 'CANCELLED']:
-            return status
-
-        # Wait before checking again
-        await ctx.info(f'Query status: {status}, waiting...')
-
-    return 'TIMEOUT'
-
-
-async def poll_query_status(ctx, athena_client, query_execution_id):
-    """Poll for query status and return results when complete."""
-    try:
-        # Wait for the query to complete
-        status = await wait_for_query_completion(ctx, athena_client, query_execution_id)
-
-        # Get the query execution details
-        response = athena_client.get_query_execution(QueryExecutionId=query_execution_id)
-
-        execution_details = response['QueryExecution']
-        status_info = execution_details['Status']
-
-        if status == 'SUCCEEDED':
-            # Get the query results
-            results_response = athena_client.get_query_results(
-                QueryExecutionId=query_execution_id,
-                MaxResults=100,
-            )
-
-            # Process the results
-            column_info = results_response['ResultSet']['ResultSetMetadata']['ColumnInfo']
-            columns = [col['Name'] for col in column_info]
-
-            rows = []
-            for row_data in results_response['ResultSet']['Rows'][1:]:
-                row = {}
-                for i, value in enumerate(row_data['Data']):
-                    if 'VarCharValue' in value:
-                        row[columns[i]] = value['VarCharValue']
-                    else:
-                        row[columns[i]] = None
-                rows.append(row)
-
-            # Create the formatted response
-            formatted_response = {
-                'query_execution_id': query_execution_id,
-                'execution_time': status_info.get('CompletionDateTime', 0)
-                - status_info.get('SubmissionDateTime', 0),
-                'data_scanned_bytes': execution_details.get('Statistics', {}).get(
-                    'DataScannedInBytes', 0
-                ),
-                'columns': columns,
-                'result_count': len(rows),
-                'results': rows,
-                'has_more': 'NextToken' in results_response,
-                's3_result_location': execution_details['ResultConfiguration']['OutputLocation'],
-            }
-
-            return format_response('success', formatted_response)
-        else:
-            # Query failed or was cancelled
-            error_message = status_info.get('StateChangeReason', 'Unknown error')
-            return format_response(
-                'error', {'query_execution_id': query_execution_id, 'state': status}, error_message
-            )
-
-    except Exception as e:
-        # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, 'poll_query_status', 'Athena')

@@ -100,3 +100,21 @@ SAVINGS_PLANS_TYPE_MAP = {
     'computeSavingsPlans': 'COMPUTE_SP',
     'sageMakerSavingsPlans': 'SAGEMAKER_SP',
 }
+
+
+
+# Storage Lens configuration
+STORAGE_LENS_DEFAULT_DATABASE = 'storage_lens_db'  # Default database name for Storage Lens data
+STORAGE_LENS_DEFAULT_TABLE = 'storage_lens_metrics'  # Default table name for Storage Lens data
+
+# Athena query configuration
+ATHENA_MAX_RETRIES = 100  # Maximum number of retries for Athena query completion
+ATHENA_RETRY_DELAY_SECONDS = 1  # Delay between retries in seconds
+
+# Environment variable names
+ENV_STORAGE_LENS_MANIFEST_LOCATION = (
+    'STORAGE_LENS_MANIFEST_LOCATION'  # S3 URI to manifest file or folder
+)
+ENV_STORAGE_LENS_OUTPUT_LOCATION = (
+    'STORAGE_LENS_OUTPUT_LOCATION'  # S3 location for Athena query results
+)
