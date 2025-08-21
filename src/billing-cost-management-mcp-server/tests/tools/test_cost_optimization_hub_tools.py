@@ -509,7 +509,9 @@ async def test_coh_real_summaries_exception_reload_identity_decorator(mock_conte
 
     with (
         patch.object(coh_mod, 'create_aws_client') as mock_create_client,
-        patch.object(coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock) as mock_list_summaries,
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_list_summaries,
     ):
         fake_client = MagicMock()
         mock_create_client.return_value = fake_client
@@ -549,7 +551,9 @@ async def test_coh_real_list_recommendations_exception_reload_identity_decorator
 
 
 @pytest.mark.asyncio
-async def test_coh_real_get_recommendation_missing_resource_id_reload_identity_decorator(mock_context):
+async def test_coh_real_get_recommendation_missing_resource_id_reload_identity_decorator(
+    mock_context,
+):
     """Test real cost_optimization_hub get_recommendation missing resource_id with identity decorator."""
     coh_mod = _reload_coh_with_identity_decorator()
     real_fn = coh_mod.cost_optimization_hub  # type: ignore
