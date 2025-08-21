@@ -358,6 +358,76 @@ class TestFreeTierUsage:
         assert result['message'] == 'API error'
 
 
+class TestFreeTierUsageEdgeCases:
+    """Additional tests to improve coverage."""
+
+    @pytest.fixture
+    def mock_context(self):
+        """Mock context for testing."""
+        from unittest.mock import AsyncMock
+
+        context = MagicMock()
+        context.info = AsyncMock()
+        context.error = AsyncMock()
+        return context
+
+    async def test_max_results_boundary_conditions(self, mock_context):
+        """Test max_results validation edge cases."""
+        from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
+            get_free_tier_usage_data,
+        )
+
+        mock_client = MagicMock()
+        mock_client.get_free_tier_usage.return_value = {'freeTierUsages': []}
+
+        # Test max_results < 1 (should be set to 1)
+        await get_free_tier_usage_data(mock_context, mock_client, None, 0)
+        mock_client.get_free_tier_usage.assert_called_with(maxResults=1)
+
+        # Test max_results > 1000 (should be set to 1000)
+        mock_client.reset_mock()
+        await get_free_tier_usage_data(mock_context, mock_client, None, 2000)
+        mock_client.get_free_tier_usage.assert_called_with(maxResults=1000)
+
+    async def test_filter_parameter_handling(self, mock_context):
+        """Test filter parameter processing."""
+        from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
+            get_free_tier_usage_data,
+        )
+
+        mock_client = MagicMock()
+        mock_client.get_free_tier_usage.return_value = {'freeTierUsages': []}
+
+        # Test with filter
+        filter_json = '{"dimensions": [{"key": "SERVICE", "values": ["EC2"]}]}'
+        await get_free_tier_usage_data(mock_context, mock_client, filter_json, None)
+
+        # Verify filter was parsed and passed
+        call_args = mock_client.get_free_tier_usage.call_args[1]
+        assert 'filter' in call_args
+        assert 'maxResults' in call_args
+
+    async def test_pagination_with_next_token(self, mock_context):
+        """Test pagination handling."""
+        from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
+            get_free_tier_usage_data,
+        )
+
+        mock_client = MagicMock()
+        # First call returns nextToken, second call doesn't
+        mock_client.get_free_tier_usage.side_effect = [
+            {'freeTierUsages': [{'service': 'EC2'}], 'nextToken': 'token1'},
+            {'freeTierUsages': [{'service': 'S3'}]},
+        ]
+
+        result = await get_free_tier_usage_data(mock_context, mock_client, None, None)
+
+        # Verify pagination worked
+        assert result['status'] == 'success'
+        assert len(result['data']['freeTierUsages']) == 2
+        assert mock_client.get_free_tier_usage.call_count == 2
+
+
 def test_free_tier_usage_server_initialization():
     """Test that the free_tier_usage_server is properly initialized."""
     # Verify the server name

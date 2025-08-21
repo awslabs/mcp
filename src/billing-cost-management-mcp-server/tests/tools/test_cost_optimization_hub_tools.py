@@ -483,3 +483,105 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
             None,  # filters
             None,  # include_all_recommendations
         )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_invalid_group_by_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub invalid group_by with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    res = await real_fn(  # type: ignore
+        mock_context,
+        operation='list_recommendation_summaries',
+        group_by='INVALID_GROUP_BY',
+    )
+
+    assert res['status'] == 'error'
+    assert 'Invalid group_by value' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_summaries_exception_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub summaries exception with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock) as mock_list_summaries,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_summaries.side_effect = Exception('Test exception')
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='ResourceType',
+        )
+
+        assert res['status'] == 'error'
+        assert 'Error fetching recommendation summaries' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_list_recommendations_exception_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub list_recommendations exception with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_recs.side_effect = Exception('Test exception')
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+        )
+
+        assert res['status'] == 'error'
+        assert 'Error fetching recommendations' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_get_recommendation_missing_resource_id_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub get_recommendation missing resource_id with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    res = await real_fn(  # type: ignore
+        mock_context,
+        operation='get_recommendation',
+        resource_type='EC2_INSTANCE',
+        # missing resource_id
+    )
+
+    assert res['status'] == 'error'
+    assert 'resource_id and resource_type are required' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_main_exception_reload_identity_decorator(mock_context):
+    """Test real cost_optimization_hub main exception with identity decorator."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'handle_aws_error', new_callable=AsyncMock) as mock_handle_error,
+    ):
+        mock_create_client.side_effect = Exception('Client creation failed')
+        mock_handle_error.return_value = {'status': 'error', 'message': 'Handled error'}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+        )
+
+        assert res['status'] == 'error'
+        mock_handle_error.assert_awaited_once()

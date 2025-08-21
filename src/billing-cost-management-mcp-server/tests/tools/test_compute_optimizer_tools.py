@@ -1167,3 +1167,213 @@ class TestComputeOptimizerCoverageGaps:
 
             assert result['status'] == 'success'
             assert len(result['data']['recommendations']) == 1
+
+
+@pytest.mark.asyncio
+class TestGetECSServiceRecommendations:
+    """Tests for get_ecs_service_recommendations function."""
+
+    async def test_basic_call(self, mock_context, mock_co_client):
+        """Test basic call to get_ecs_service_recommendations."""
+        from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
+            get_ecs_service_recommendations,
+        )
+
+        # Mock ECS service recommendations response
+        mock_co_client.get_ecs_service_recommendations.return_value = {
+            'ecsServiceRecommendations': [
+                {
+                    'serviceArn': 'arn:aws:ecs:us-east-1:558889323918:service/fargate-test-cluster/FargateDemo',
+                    'accountId': '558889323918',
+                    'currentServiceConfiguration': {
+                        'memory': 3072,
+                        'cpu': 1024,
+                        'containerConfigurations': [
+                            {'containerName': 'demo1', 'memorySizeConfiguration': {}, 'cpu': 0}
+                        ],
+                        'autoScalingGroupArn': None,
+                        'taskDefinitionArn': 'arn:aws:ecs:us-east-1:558889323918:task-definition/ECSFargateDemo:2',
+                        'finding': 'Overprovisioned',
+                        'currentPerformance': None,
+                    },
+                    'utilizationMetrics': [
+                        {'name': 'Cpu', 'statistic': 'Maximum', 'value': 0.26},
+                        {'name': 'Memory', 'statistic': 'Maximum', 'value': 3.0},
+                    ],
+                    'lookbackPeriodInDays': 14.0,
+                    'launchType': 'Fargate',
+                    'recommendationOptions': [
+                        {
+                            'memory': 512,
+                            'cpu': 256,
+                            'containerRecommendations': [
+                                {'containerName': 'demo1', 'memorySizeConfiguration': {}, 'cpu': 0}
+                            ],
+                            'projectedPerformance': None,
+                            'savingsOpportunity': {
+                                'savingsPercentage': None,
+                                'estimatedMonthlySavings': {'currency': 'USD', 'value': 30.275},
+                            },
+                        }
+                    ],
+                    'lastRefreshTimestamp': datetime(2025, 8, 20, 17, 3, 29),
+                    'tags': [{'key': 'application', 'value': 'test-app'}],
+                }
+            ],
+            'nextToken': None,
+        }
+
+        result = await get_ecs_service_recommendations(
+            mock_context,
+            mock_co_client,
+            max_results=10,
+            filters=None,
+            account_ids=None,
+            next_token=None,
+        )
+
+        # Verify the client was called correctly
+        mock_co_client.get_ecs_service_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_ecs_service_recommendations.call_args[1]
+        assert call_kwargs['maxResults'] == 10
+
+        # Verify response format
+        assert result['status'] == 'success'
+        assert 'recommendations' in result['data']
+
+        # Verify recommendation format
+        recommendations = result['data']['recommendations']
+        assert len(recommendations) == 1
+        recommendation = recommendations[0]
+
+        assert (
+            recommendation['service_arn']
+            == 'arn:aws:ecs:us-east-1:558889323918:service/fargate-test-cluster/FargateDemo'
+        )
+        assert recommendation['account_id'] == '558889323918'
+        assert recommendation['current_service_configuration']['memory'] == 3072
+        assert recommendation['current_service_configuration']['cpu'] == 1024
+        assert recommendation['launch_type'] == 'Fargate'
+
+        # Verify utilization metrics are included
+        assert 'utilization_metrics' in recommendation
+
+        # Verify the recommendation options exist
+        assert 'recommendation_options' in recommendation
+
+    async def test_with_filters(self, mock_context, mock_co_client):
+        """Test get_ecs_service_recommendations with filters."""
+        from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
+            get_ecs_service_recommendations,
+        )
+
+        # Setup
+        filters = '[{"Name":"Finding","Values":["Overprovisioned"]}]'
+        account_ids = '["558889323918"]'
+
+        # Mock response
+        mock_co_client.get_ecs_service_recommendations.return_value = {
+            'ecsServiceRecommendations': [],
+            'nextToken': None,
+        }
+
+        # Use patch to handle the parse_json calls
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
+        ) as mock_parse_json:
+            # Set up mock return values for parse_json calls
+            mock_parse_json.side_effect = [
+                [{'Name': 'Finding', 'Values': ['Overprovisioned']}],  # filters
+                ['558889323918'],  # account_ids
+            ]
+
+            # Execute
+            await get_ecs_service_recommendations(
+                mock_context,
+                mock_co_client,
+                max_results=10,
+                filters=filters,
+                account_ids=account_ids,
+                next_token='next-token',
+            )
+
+            # Assert
+            mock_co_client.get_ecs_service_recommendations.assert_called_once()
+            call_kwargs = mock_co_client.get_ecs_service_recommendations.call_args[1]
+
+            # Verify that the parsed parameters were passed to the client
+            assert 'filters' in call_kwargs
+            assert 'accountIds' in call_kwargs
+            assert call_kwargs['nextToken'] == 'next-token'
+
+
+@pytest.mark.asyncio
+class TestComputeOptimizerECSIntegration:
+    """Integration tests for ECS service recommendations through main compute_optimizer function."""
+
+    async def test_ecs_service_recommendations_success(self, mock_context):
+        """Test successful ECS service recommendations operation."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            # Setup mocks
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ecsService'],
+            }
+            mock_client.get_ecs_service_recommendations.return_value = {
+                'ecsServiceRecommendations': [],
+                'nextToken': None,
+            }
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(mock_context, operation='get_ecs_service_recommendations')
+            assert result['status'] == 'success'
+
+    async def test_ecs_service_recommendations_invalid_filter_error(self, mock_context):
+        """Test ECS service recommendations with invalid filter."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ecsService'],
+            }
+
+            from botocore.exceptions import ClientError
+
+            mock_client.get_ecs_service_recommendations.side_effect = ClientError(
+                error_response={
+                    'Error': {
+                        'Code': 'InvalidParameterValueException',
+                        'Message': 'Invalid ECS service filter name.',
+                    },
+                    'ResponseMetadata': {'RequestId': 'test-request-id', 'HTTPStatusCode': 400},
+                },
+                operation_name='GetECSServiceRecommendations',
+            )
+            mock_create_client.return_value = mock_client
+
+            result = await real_fn(
+                mock_context,
+                operation='get_ecs_service_recommendations',
+                filters='[{"Name":"InvalidFilter","Values":["test"]}]',
+            )
+
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'InvalidParameterValueException'
+            assert 'Invalid ECS service filter name' in result['message']

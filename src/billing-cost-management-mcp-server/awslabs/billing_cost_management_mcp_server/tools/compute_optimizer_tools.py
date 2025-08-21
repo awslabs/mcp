@@ -49,6 +49,7 @@ This tool supports the following operations:
 3. get_ebs_volume_recommendations: Get recommendations for EBS volumes
 4. get_lambda_function_recommendations: Get recommendations for Lambda functions
 5. get_rds_recommendations: Get recommendations for RDS instances
+6. get_ecs_service_recommendations: Get recommendations for ECS services
 
 Each operation can be filtered by AWS account IDs, regions, finding types, and more.
 
@@ -101,6 +102,7 @@ async def compute_optimizer(
                 'get_ebs_volume_recommendations': 'ebsVolume',
                 'get_lambda_function_recommendations': 'lambdaFunction',
                 'get_rds_recommendations': 'rdsDBInstance',
+                'get_ecs_service_recommendations': 'ecsService',
             }
 
             # Get required resource type for current operation
@@ -155,6 +157,10 @@ async def compute_optimizer(
             return await get_rds_recommendations(
                 ctx, co_client, max_results, filters, account_ids, next_token
             )
+        elif operation == 'get_ecs_service_recommendations':
+            return await get_ecs_service_recommendations(
+                ctx, co_client, max_results, filters, account_ids, next_token
+            )
         else:
             return format_response(
                 'error',
@@ -167,9 +173,10 @@ async def compute_optimizer(
                         'get_ebs_volume_recommendations',
                         'get_lambda_function_recommendations',
                         'get_rds_recommendations',
+                        'get_ecs_service_recommendations',
                     ],
                 },
-                f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', or 'get_rds_recommendations'.",
+                f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', 'get_rds_recommendations' or 'get_ecs_service_recommendations'.",
             )
 
     except ClientError as e:
@@ -647,6 +654,122 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
         formatted_response['recommendations'].append(formatted_recommendation)
 
     return {'status': 'success', 'data': formatted_response}
+
+
+async def get_ecs_service_recommendations(
+    ctx, co_client, max_results, filters, account_ids, next_token
+):
+    """Get ECS service recommendations."""
+    # Get context logger for consistent logging
+    ctx_logger = get_context_logger(ctx, __name__)
+
+    # Prepare the request parameters
+    request_params = {}
+
+    if max_results:
+        request_params['maxResults'] = int(max_results)
+
+    # Parse the filters if provided
+    if filters:
+        request_params['filters'] = parse_json(filters, 'filters')
+
+    # Parse the account IDs if provided
+    if account_ids:
+        request_params['accountIds'] = parse_json(account_ids, 'account_ids')
+
+    # Add the next token if provided
+    if next_token:
+        request_params['nextToken'] = next_token
+
+    # Make the API call
+    await ctx_logger.info(
+        f'Calling get_ecs_service_recommendations with parameters: {request_params}'
+    )
+    response = co_client.get_ecs_service_recommendations(**request_params)
+
+    # Format the response for better readability
+    formatted_response: Dict[str, Any] = {
+        'recommendations': [],
+        'next_token': response.get('nextToken'),
+    }
+
+    # Parse the recommendations
+    for recommendation in response.get('ecsServiceRecommendations', []):
+        # Get the current performance
+        current_performance = recommendation.get('currentPerformance')
+        formatted_current_performance = None
+        if current_performance:
+            formatted_current_performance = {
+                'cpu_utilization': current_performance.get('cpuUtilization'),
+                'memory_utilization': current_performance.get('memoryUtilization'),
+            }
+
+        # Get the current service configuration
+        current_config = {
+            'memory': recommendation.get('currentServiceConfiguration', {}).get('memory'),
+            'cpu': recommendation.get('currentServiceConfiguration', {}).get('cpu'),
+            'container_configurations': recommendation.get('currentServiceConfiguration', {}).get(
+                'containerConfigurations', []
+            ),
+            'auto_scaling_group_arn': recommendation.get('currentServiceConfiguration', {}).get(
+                'autoScalingGroupArn'
+            ),
+            'task_definition_arn': recommendation.get('currentServiceConfiguration', {}).get(
+                'taskDefinitionArn'
+            ),
+            'finding': recommendation.get('finding'),
+            'current_performance': formatted_current_performance,
+        }
+
+        # Get the utilization metrics
+        utilization_metrics = []
+        for metric in recommendation.get('utilizationMetrics', []):
+            utilization_metric = {
+                'name': metric.get('name'),
+                'statistic': metric.get('statistic'),
+                'value': metric.get('value'),
+            }
+            utilization_metrics.append(utilization_metric)
+
+        # Get the recommended service configurations
+        recommended_options = []
+        for option in recommendation.get('serviceRecommendationOptions', []):
+            # Format projected performance
+            projected_performance = option.get('projectedPerformance')
+            formatted_projected_performance = None
+            if projected_performance:
+                formatted_projected_performance = {
+                    'cpu_utilization': projected_performance.get('cpuUtilization'),
+                    'memory_utilization': projected_performance.get('memoryUtilization'),
+                }
+
+            recommended_option = {
+                'memory': option.get('memory'),
+                'cpu': option.get('cpu'),
+                'container_recommendations': option.get('containerRecommendations', []),
+                'projected_performance': formatted_projected_performance,
+                'savings_opportunity': format_savings_opportunity(
+                    option.get('savingsOpportunity', {})
+                ),
+            }
+            recommended_options.append(recommended_option)
+
+        # Create the formatted recommendation
+        formatted_recommendation = {
+            'service_arn': recommendation.get('serviceArn'),
+            'account_id': recommendation.get('accountId'),
+            'current_service_configuration': current_config,
+            'utilization_metrics': utilization_metrics,
+            'lookback_period_in_days': recommendation.get('lookbackPeriodInDays'),
+            'launch_type': recommendation.get('launchType'),
+            'recommendation_options': recommended_options,
+            'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
+            'tags': recommendation.get('tags', []),
+        }
+
+        formatted_response['recommendations'].append(formatted_recommendation)
+
+    return format_response('success', formatted_response)
 
 
 def format_savings_opportunity(savings_opportunity):
