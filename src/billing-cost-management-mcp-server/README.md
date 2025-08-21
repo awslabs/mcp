@@ -1,67 +1,239 @@
-# AWS Labs Billing and Cost Management MCP Server
+# AWS Billing and Cost Management MCP Server
 
-A Model Context Protocol (MCP) server that provides tools for AWS cost optimization by wrapping boto3 SDK functions.
+MCP server for accessing AWS Billing and Cost Management capabilities.
 
-## Introduction
+**Important Note**: This server accesses cost and usage data from AWS Billing and Cost Management APIs. All API calls are performed using the caller's AWS credentials and follow AWS service limits and quotas.
 
-The AWS Billing and Cost Management MCP Server is designed to make AWS cost optimization recommendations and insights easily accessible to Large Language Models (LLMs) through the Model Context Protocol (MCP). It wraps boto3 SDK functions for AWS cost optimization services, allowing LLMs to directly interact with AWS cost optimization tools.
+## Features
 
-## Use case
+### AWS Free Tier
 
-This project enables LLMs to access AWS cost optimization services directly, allowing them to:
+- **Free Tier optimization**: Monitor Free Tier usage and avoid unexpected charges
 
-1. Retrieve cost optimization recommendations from AWS services
-2. Analyze AWS resource usage and costs
-3. Identify potential savings opportunities
-4. Make data-driven recommendations for cost optimization
+### AWS Cost and Usage Analysis
 
-This helps AWS customers optimize their cloud spending by leveraging the analytical capabilities of LLMs combined with AWS's cost optimization services.
+- **Cost Explorer insights**: Analyze historical and forecasted AWS costs with flexible grouping and filtering
+- **Usage metrics analysis**: Track resource usage trends across your AWS environment
+- **Budget monitoring**: Check existing budgets and their status against actual spending
+- **Cost anomaly detection**: Identify unusual spending patterns and their root causes
 
-## Value proposition
+### Cost Optimization Recommendations
 
-The AWS Billing and Cost Management MCP Server provides several benefits:
+- **Compute Optimizer recommendations**: Get right-sizing suggestions for EC2, Lambda, EBS, and more
+- **Cost Optimization Hub**: Access cost-saving opportunities across your AWS environment
 
-1. **Simplified Access**: Makes AWS cost optimization services accessible to LLMs without complex integration
-2. **Enhanced Analysis**: Combines AWS's cost data with LLM's analytical capabilities
-3. **Actionable Insights**: Provides specific, actionable recommendations for cost savings
-4. **Extensible Design**: Easily add support for additional AWS services and methods
-5. **Standardized Interface**: Uses the Model Context Protocol for consistent interaction with different LLM platforms
+### Savings Plans and Reserved Instanaces
 
-## Project Structure
+- **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
+- **Savings Plans guidance**: Get personalized Savings Plans recommendations based on usage patterns
 
-* `awslabs/billing_cost_management_mcp_server/`: Main directory containing the MCP server implementation
-  * `server.py`: Implements the MCP server
-  * `tools/`: Directory containing all tool implementations
-    * `aws_pricing_tools.py`: AWS Pricing API tools
-    * `budget_tools.py`: AWS Budgets tools
-    * `cost_anomaly_tools.py`: Cost Anomaly Detection tools
-    * `cost_comparison_tools.py`: Cost comparison tools
-    * `cost_explorer_tools.py`: Cost Explorer tools
-    * `cost_optimization_hub_tools.py`: Cost Optimization Hub tools
-    * `free_tier_usage_tools.py`: Free Tier Usage tools
-    * `ri_performance_tools.py`: Reserved Instance tools
-    * `sp_performance_tools.py`: Savings Plans tools
-    * `storage_lens_tools.py`: Storage Lens tools
-    * `unified_sql_tools.py`: SQL tools for session data
-  * `utilities/`: Directory containing shared utility functions
-    * `aws_service_base.py`: Common AWS service utilities
-  * `templates/`: Directory containing templates for recommendations
-* `resources/`: Directory containing resource files and templates
-* `__init__.py`: Makes the project a proper Python package
-* `tests/`: Contains integration and unit tests for the server
-  * `unit/`: Unit tests (no AWS API calls)
-  * `integration/`: Integration tests (makes AWS API calls)
+### S3 Storage Lens Analysis
+
+- **Storage metrics querying**: Run SQL queries against Storage Lens metrics data
+- **Storage cost breakdown**: Analyze S3 storage costs by bucket, storage class, and region
+- **Storage optimization opportunities**: Identify lifecycle policy opportunities and cost-saving measures
+
+### Cost Comparison and Analysis
+
+- **Month-over-month comparisons**: Compare costs between time periods with detailed breakdown
+- **Multi-account analysis**: Analyze costs across multiple linked accounts
+- **Cost driver identification**: Identify key factors driving cost changes
+
+### Specialized Cost Optimization Prompts
+
+- **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
+- **Savings Plans analysis**: Structured recommendations for optimal Savings Plans purchases based on usage patterns
+
+## Prerequisites
+
+1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
+2. Install Python using `uv python install 3.10`
+3. Set up AWS credentials with access to AWS services
+   - You need an AWS account with appropriate permissions
+   - Configure AWS credentials with `aws configure` or environment variables
+   - Ensure your IAM role/user has permissions to access AWS Billing and Cost Management APIs
+
+## Installation
+
+| Cursor | VS Code |
+|:------:|:-------:|
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.billing-cost-management-mcp-server&config=ewogICAgImNvbW1hbmQiOiAidXZ4IGF3c2xhYnMuYmlsbGluZy1jb3N0LW1hbmFnZW1lbnQtbWNwLXNlcnZlckBsYXRlc3QiLAogICAgImVudiI6IHsKICAgICAgIkZBU1RNQ1BfTE9HX0xFVkVMIjogIkVSUk9SIiwKICAgICAgIkFXU19QUk9GSUxFIjogInlvdXItYXdzLXByb2ZpbGUiLAogICAgICAiQVdTX1JFR0lPTiI6ICJ1cy1lYXN0LTEiCiAgICB9LAogICAgImRpc2FibGVkIjogZmFsc2UsCiAgICAiYXV0b0FwcHJvdmUiOiBbXQogIH0K) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Billing%20and%20Cost%20Management%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.billing-cost-management-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+
+### ⚡ Using uv
+
+Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+
+
+**For Linux/MacOS users:**
+
+```json
+{
+  "mcpServers": {
+    "awslabs.billing-cost-management-mcp-server": {
+      "command": "uvx",
+      "args": [
+         "awslabs.billing-cost-management-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+**For Windows users:**
+
+```json
+{
+  "mcpServers": {
+    "awslabs.billing-cost-management-mcp-server": {
+      "command": "uvx",
+      "args": [
+         "--from",
+         "awslabs.billing-cost-management-mcp-server@latest",
+         "awslabs.billing-cost-management-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+### Using Docker
+
+Or docker after a successful `docker build -t awslabs/billing-cost-management-mcp-server .`:
+
+```file
+# fictitious `.env` file with AWS temporary credentials
+AWS_ACCESS_KEY_ID=ASIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R4Olgk
+AWS_REGION=us-east-1
+```
+
+```json
+{
+  "mcpServers": {
+    "awslabs.billing-cost-management-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "FASTMCP_LOG_LEVEL=ERROR",
+        "--env-file",
+        "/full/path/to/file/above/.env",
+        "awslabs/billing-cost-management-mcp-server:latest"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+NOTE: Your credentials will need to be kept refreshed from your host
+
+### Storage Lens Configuration
+
+To use the Storage Lens functionality, you'll need to set the following environment variables:
+
+- **`STORAGE_LENS_MANIFEST_LOCATION`**: S3 URI to your Storage Lens manifest file or folder (e.g., `s3://bucket-name/storage-lens/manifests/`)
+- **`STORAGE_LENS_OUTPUT_LOCATION`** (optional): S3 location for Athena query results (defaults to the same bucket as the manifest with an `athena-results/` suffix)
+
+Example configuration:
+
+```json
+"env": {
+  "AWS_PROFILE": "your-aws-profile",
+  "AWS_REGION": "us-east-1",
+  "STORAGE_LENS_MANIFEST_LOCATION": "s3://your-bucket/storage-lens-data/",
+  "STORAGE_LENS_OUTPUT_LOCATION": "s3://your-bucket/athena-results/"
+}
+```
+
+### AWS Authentication
+
+The MCP server requires specific AWS permissions and configuration:
+
+#### Required Permissions
+
+Your AWS IAM role or user needs permissions to access various AWS Billing and Cost Management APIs:
+
+- `ce:*` - Cost Explorer API access
+- `cost-optimization-hub:*` - Cost Optimization Hub access
+- `compute-optimizer:*` - Compute Optimizer recommendations
+- `budgets:*` - AWS Budget information
+- `pricing:*` - AWS Pricing API access
+- `athena:*` and `s3:*` - For Storage Lens querying capabilities
+- `resource:*` - AWS Free Tier
+
+#### Configuration
+
+The server uses these key environment variables:
+
+- **`AWS_PROFILE`**: Specifies the AWS profile to use from your AWS configuration file. If not provided, it defaults to the "default" profile.
+- **`AWS_REGION`**: Determines the AWS region for API calls. Some APIs like Cost Explorer are only available in specific regions.
+
+```json
+"env": {
+  "AWS_PROFILE": "your-aws-profile",
+  "AWS_REGION": "us-east-1"
+}
+```
 
 ## Supported AWS Services
 
-The server currently supports the following AWS services:
+The server currently supports the following AWS services
 
-1. **Cost Optimization Hub**
+1. **Cost Explorer**
+   - get-reservation-purchase-recommendation
+   - get_reservation_coverage
+   - get_reservation_utilization
+   - get-savings-plans-purchase-recommendation
+   - get_savings_plans_utilization
+   - get_savings_plans_coverage
+   - get_savings_plans_details
+   - get-anomalies
+   - get-cost-and-usage
+   - get-cost-and-usage-with-resources
+   - get-dimension-values
+   - get-cost-forecast
+   - get-usage-forecast
+   - get-tags
+   - get-cost-categories
+
+2. **AWS Budgets**
+   - describe-budgets
+
+3. **AWS Free Tier**
+   - get_free_tier_usage
+
+4. **AWS Pricing**
+   - get_service_codes
+   - get_service_attributes
+   - get_attribute_values
+   - get_products
+
+5. **Cost Optimization Hub**
    - get-recommendation
    - list-recommendations
    - list-recommendation-summaries
 
-2. **Compute Optimizer**
+6. **Compute Optimizer**
    - get-auto-scaling-group-recommendations
    - get-ebs-volume-recommendations
    - get-ec2-instance-recommendations
@@ -69,114 +241,7 @@ The server currently supports the following AWS services:
    - get-rds-database-recommendations
    - get-lambda-function-recommendations
    - get-idle-recommendations
-   - get-effective-recommendation-preferences
+   - get_enrollment_status
 
-3. **Cost Explorer**
-   - get-reservation-purchase-recommendation
-   - get-savings-plans-purchase-recommendation
-   - get-cost-and-usage
-
-4. **S3 Storage Lens**
+7. **S3 Storage Lens**
    - storage-lens-run-query (custom implementation using Athena)
-
-## Usage
-To connect to your account using this MCP server, configure AWS credentials using standard AWS methods (environment variables, config files, IAM roles, etc.)
-
-### Configuring the MCP Server
-
-You can configure the MCP server using a JSON configuration file. This is particularly useful when integrating with MCP clients like Amazon Q, Claude Desktop, or other LLM applications.
-
-Create a file named `mcp.json` with the following structure:
-
-```json
-{
-  "mcpServers": {
-    "billing-cost-management-mcp-server": {
-      "autoApprove": [],
-      "disabled": false,
-      "timeout": 60,
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/billing-cost-management-mcp",
-        "run",
-        "awslabs/billing_cost_management_mcp_server/server.py"
-      ],
-      "env": {
-        "STORAGE_LENS_MANIFEST_LOCATION": "s3://your-bucket/StorageLens/account-id/configuration-id/"
-      }
-    }
-  }
-}
-```
-
-Configuration options:
-- `autoApprove`: List of tools that don't require user approval before execution
-- `disabled`: Whether the server is disabled
-- `timeout`: Maximum execution time in seconds
-- `type`: Transport type (stdio, http, etc.)
-- `command`: Command to run the server
-- `args`: Arguments for the command
-- `env`: Environment variables for the server
-
-Environment variables:
-- `STORAGE_LENS_MANIFEST_LOCATION`: S3 location of Storage Lens manifest files
-- `AWS_REGION`: AWS region to use
-
-### Connecting to the server
-
-You can connect to the server using any MCP client. For example, using the FastMCP client:
-
-```python
-from fastmcp import Client
-
-async def main():
-    client = Client("path/to/awslabs/billing_cost_management_mcp_server/server.py")
-    async with client:
-        # Call a tool
-        result = await client.call_tool("cost-explorer", {
-            "params": {
-                "TimePeriod": {
-                    "Start": "2023-01-01",
-                    "End": "2023-01-31"
-                },
-                "Granularity": "MONTHLY",
-                "Metrics": ["BlendedCost"]
-            }
-        })
-        print(result)
-
-# Run the async function
-import asyncio
-asyncio.run(main())
-```
-
-## Testing
-
-The project includes comprehensive tests for all components and AWS service integrations. To run the tests:
-
-```bash
-
-# Run all tests
-uv run pytest
-
-# Run with verbose output
-uv run pytest -v
-
-# Run only unit tests (no AWS API calls)
-uv run pytest -m unit
-
-# Run only integration tests (makes AWS API calls)
-uv run pytest -m integration
-
-# Run tests for a specific service
-uv run pytest tests/integration/test_server.py
-
-# Run with code coverage report
-uv run pytest --cov=.
-```
-
-Note: Integration tests make actual AWS API calls and require valid AWS credentials. Tests will be skipped if you don't have the necessary permissions.
-
-See the tests/README.md file for more details on testing.

@@ -72,11 +72,10 @@ mcp = FastMCP(
     instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
 
 When using these tools, always:
-1. Provide explanations starting with "EXPLANATION:" before tool usage
-2. Use UnblendedCost metric by default
-3. Exclude Credits and Refunds by default
-4. Be concise and focus on essential information first
-5. For optimization queries, focus on top 2-3 highest impact recommendations
+1. Use UnblendedCost metric by default
+2. Exclude Credits and Refunds by default
+3. Be concise and focus on essential information first
+4. For optimization queries, focus on top 2-3 highest impact recommendations
 
 Available components:
 
