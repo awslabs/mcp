@@ -1,0 +1,44 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.mypy_cache
+.pytest_cache
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Unit test / coverage
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
+.pytest_cache/
+htmlcov/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+.uv/
+
+# IDE files
+.idea/
+.vscode/
+.vscode/settings.json
+.claude
+*.swp
+*~
+*#
+.DS_Store
+
+# Project specific
+/doc/_apidoc/

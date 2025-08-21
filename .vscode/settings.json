@@ -1,0 +1,5 @@
+{
+    "conventionalCommits.scopes": [
+        "aws-iot-sitewise-mcp-server"
+    ]
+}

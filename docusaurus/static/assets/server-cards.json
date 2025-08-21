@@ -1184,6 +1184,29 @@
       "workflows": [
         "conversational"
       ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Manage industrial IoT data with AWS IoT SiteWise for asset modeling, data collection, and analysis",
+      "icon": "\ud83d\udcca",
+      "id": "aws-iot-sitewise-mcp-server",
+      "name": "AWS IoT SiteWise MCP Server",
+      "source_path": "src/aws-iot-sitewise-mcp-server/",
+      "subcategory": "IoT & Industrial Data",
+      "tags": [
+        "data-analytics",
+        "iot",
+        "sitewise",
+        "industrial-iot",
+        "asset-modeling",
+        "data-collection",
+        "time-series",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
     }
   ],
   "workflows": [
