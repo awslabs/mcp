@@ -275,7 +275,7 @@ async def call_aws(
         )
 
 
-# Agent scripts tool - only registered if ENABLE_AGENT_SCRIPTS is True
+# EXPERIMENTAL: Agent scripts tool - only registered if ENABLE_AGENT_SCRIPTS is True
 if ENABLE_AGENT_SCRIPTS:
 
     @server.tool(

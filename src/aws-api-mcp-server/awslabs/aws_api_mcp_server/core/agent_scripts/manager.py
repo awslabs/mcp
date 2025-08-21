@@ -41,9 +41,16 @@ class AgentScriptsManager:
             with open(file_path, 'r') as f:
                 metadata, script = frontmatter.parse(f.read())
                 script_name = file_path.stem.removesuffix('.script')
+                description = metadata.get('description')
+
+                if not description:
+                    raise RuntimeError(
+                        f'Script {file_path.stem} has no "description" metadata in front matter.'
+                    )
+
                 self.scripts[script_name] = Script(
                     name=script_name,
-                    description=metadata.get('description'),
+                    description=str(description),
                     content=script,
                 )
 
