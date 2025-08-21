@@ -57,7 +57,7 @@ mcp = FastMCP(
 @mcp.tool()
 @handle_exceptions
 async def list_collections() -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Returns a list of collection IDs in your AWS account.
 
@@ -75,7 +75,7 @@ async def list_collections() -> Dict:
             "CollectionIds": ["my-collection-1", "my-collection-2"]
         }
     """
-    msg = 'list_collections tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'list_collections tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
@@ -106,7 +106,7 @@ async def index_faces(
     collection_id: str = Field(description='ID of the collection to add the face to'),
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Detects faces in an image and adds them to the specified collection.
 
@@ -149,7 +149,7 @@ async def index_faces(
             "UnindexedFaces": []
         }
     """
-    msg = 'index_faces tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'index_faces tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
@@ -175,7 +175,7 @@ async def search_faces_by_image(
     collection_id: str = Field(description='ID of the collection to search'),
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Searches for faces in a collection that match a face in the supplied image.
 
@@ -217,7 +217,7 @@ async def search_faces_by_image(
             "SearchedFaceConfidence": 99.98
         }
     """
-    msg = 'search_faces_by_image tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'search_faces_by_image tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
@@ -242,7 +242,7 @@ async def search_faces_by_image(
 async def detect_labels(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Detects objects, scenes, concepts, and activities in an image.
 
@@ -285,7 +285,7 @@ async def detect_labels(
             ]
         }
     """
-    msg = 'detect_labels tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'detect_labels tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
@@ -307,7 +307,7 @@ async def detect_labels(
 async def detect_moderation_labels(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Detects unsafe or inappropriate content in an image.
 
@@ -352,7 +352,7 @@ async def detect_moderation_labels(
             ]
         }
     """
-    msg = 'detect_moderation_labels tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'detect_moderation_labels tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
@@ -373,7 +373,7 @@ async def detect_moderation_labels(
 async def recognize_celebrities(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Recognizes celebrities in an image.
 
@@ -421,7 +421,7 @@ async def recognize_celebrities(
             ]
         }
     """
-    msg = 'recognize_celebrities tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'recognize_celebrities tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
@@ -443,7 +443,7 @@ async def compare_faces(
     source_image_path: str = Field(description='Path to the source image file'),
     target_image_path: str = Field(description='Path to the target image file'),
 ) -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Compares a face in the source image with faces in the target image.
 
@@ -488,7 +488,7 @@ async def compare_faces(
             }
         }
     """
-    msg = 'compare_faces tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'compare_faces tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
@@ -513,7 +513,7 @@ async def compare_faces(
 async def detect_text(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
 
     Detects text in an image.
 
@@ -559,7 +559,7 @@ async def detect_text(
             ]
         }
     """
-    msg = 'detect_text tool is deprecated. Please use the AWS API MCP server instead'
+    msg = 'detect_text tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
     warnings.warn(msg, DeprecationWarning, stacklevel=1)
 
     client = get_rekognition_client()
