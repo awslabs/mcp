@@ -21,8 +21,8 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from typing import Dict, List, Optional, Union, Any
 from dataclasses import dataclass, field
 
-from src.tools.listEventSourceMapping import ListEventSourceMapping
-from src.tools.iamHelper import IAMHelper
+from awslabs.aws_serverless_mcp_server.tools.poller.listEventSourceMapping import ListEventSourceMapping
+from awslabs.aws_serverless_mcp_server.tools.poller.iamHelper import IAMHelper
 
 class UpdateEventSourceMapping:
     """

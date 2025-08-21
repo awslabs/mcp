@@ -209,5 +209,4 @@ class ListEventSourceMapping:
             return formatted
         except Exception as e:
             self.logger.warning(f"Error formatting mapping: {str(e)}")
-            return mapping
-    __all__ = ['ListEventSourceMapping']
+            return mapping  # Return original mapping if formatting fails

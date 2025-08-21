@@ -22,8 +22,8 @@ from kafka import KafkaProducer, KafkaConsumer
 from kafka.structs import TopicPartition
 from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
 from kafka.sasl.oauth import AbstractTokenProvider
-from src.tools.iamHelper import IAMHelper
-from src.tools.listEventSourceMapping import ListEventSourceMapping
+from awslabs.aws_serverless_mcp_server.tools.poller.iamHelper import IAMHelper
+from awslabs.aws_serverless_mcp_server.tools.poller.listEventSourceMapping import ListEventSourceMapping
 import json
 import time
 
