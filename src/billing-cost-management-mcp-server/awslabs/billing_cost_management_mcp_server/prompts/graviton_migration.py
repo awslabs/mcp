@@ -50,7 +50,7 @@ Follow these steps:
 1. Use compute_optimizer_get_ec2_instance_recommendations to retrieve instance recommendations
 2. Filter the results to find instances with Graviton alternatives (look for m6g, c6g, r6g, etc. in recommendationOptions)
 3. For each candidate instance:
-   - Calculate the potential monthly and annual savings
+   - Look at the potential monthly and annual savings
    - Assess migration complexity based on instance type and usage patterns
    - Note any compatibility considerations
 4. Summarize the findings with:

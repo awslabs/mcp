@@ -43,7 +43,14 @@ def format_timestamp(timestamp: Any) -> Optional[str]:
             return timestamp.isoformat()
         else:
             # Assume it's a Unix timestamp in milliseconds
-            return datetime.fromtimestamp(timestamp / 1000).isoformat()
+            from datetime import timezone
+
+            return (
+                datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
+                .astimezone()
+                .replace(tzinfo=None)
+                .isoformat()
+            )
     except Exception as e:
         return str(f'Error: {e}, Timestamp: {timestamp}')
 
