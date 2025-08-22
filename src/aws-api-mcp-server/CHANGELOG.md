@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Use region from profile specified in cli command (#1123)
+- Support commands with outfile parameter (#1152)
 
 ## [0.2.5] - 2025-08-11
 
