@@ -665,7 +665,7 @@ class StorageLensQueryTool:
 
 
 @storage_lens_server.tool(
-    name='storage-lens-run-query',
+    name='storage-lens',
     description="""Query S3 Storage Lens metrics data using Athena SQL.
 
 IMPORTANT USAGE GUIDELINES:

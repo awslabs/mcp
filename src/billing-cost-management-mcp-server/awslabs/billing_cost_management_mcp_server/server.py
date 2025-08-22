@@ -82,15 +82,15 @@ Available components:
 TOOLS:
 - cost-explorer: Historical cost and usage data with flexible filtering
 - compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
-- cost-optimization-hub: Cost optimization recommendations across AWS services
-- storage-lens-run-query: Query S3 Storage Lens metrics data using Athena SQL
+- cost-optimization: Cost optimization recommendations across AWS services
+- storage-lens: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
 - pricing: Access AWS service pricing information
 - budget: Retrieve AWS budget information
 - cost-anomaly: Identify cost anomalies in AWS accounts
 - cost-comparison: Compare costs between time periods
 - free-tier-usage: Monitor AWS Free Tier usage
-- get-recommendation-details: Get enhanced cost optimization recommendations
+- rec-details: Get enhanced cost optimization recommendations
 - ri-performance: Analyze Reserved Instance coverage and utilization
 - sp-performance: Analyze Savings Plans coverage and utilization
 - session-sql: Execute SQL queries on the session database
@@ -101,20 +101,20 @@ PROMPTS:
 
 For financial analysis:
 1. Start with a high-level view of costs using cost-explorer with SERVICE dimension
-2. Look for cost optimization opportunities with compute-optimizer or cost-optimization-hub
-3. For S3-specific optimizations, use storage-lens-run-query
+2. Look for cost optimization opportunities with compute-optimizer or cost-optimization
+3. For S3-specific optimizations, use storage-lens
 4. For budget monitoring, use the budget tool
 5. For anomaly detection, use the cost-anomaly tool
 
 For optimization recommendations:
-1. Use cost-optimization-hub to get recommendations for cost optimization across services. This includes including Idle resources, Rightsizing for savings, RI/SP.
-2. Use get-recommendation-details for enhanced recommendation analysis for specific cost optimization recommendations.
+1. Use cost-optimization to get recommendations for cost optimization across services. This includes including Idle resources, Rightsizing for savings, RI/SP.
+2. Use rec-details for enhanced recommendation analysis for specific cost optimization recommendations.
 3. Use compute-optimizer to get performance optimization recommendations for compute resources such as EC2, ECS, EBS, Lambda, RDS, ASG.
 4. Use ri-performance and sp-performance to analyze purchase programs
 
 For multi-account environments:
 - Include the LINKED_ACCOUNT dimension in cost_explorer queries
-- Specify accountIds parameter for compute_optimizer and cost_optimization_hub tools
+- Specify accountIds parameter for compute-optimizer and cost-optimization tools
 """,
 )
 
@@ -154,14 +154,14 @@ async def setup():
     tools = [
         'cost-explorer',
         'compute-optimizer',
-        'cost-optimization-hub',
-        'storage-lens-run-query',
+        'cost-optimization',
+        'storage-lens',
         'pricing',
         'budget',
         'cost-anomaly',
         'cost-comparison',
         'free-tier-usage',
-        'get-recommendation-details',
+        'rec-details',
         'ri-performance',
         'sp-performance',
         'session-sql',

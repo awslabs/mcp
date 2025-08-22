@@ -49,7 +49,7 @@ recommendation_details_server = FastMCP(
 
 
 @recommendation_details_server.tool(
-    name='recommendation-details',
+    name='rec-details',
     description="""Get detailed cost optimization recommendation with integrated data from multiple AWS services.
 
 This tool combines data from:
