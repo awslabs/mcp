@@ -927,6 +927,28 @@
     },
     {
       "category": "Cost & Operations",
+      "description": "AWS Billing and Cost Management",
+      "icon": "\ud83d\udcb0",
+      "id": "billing_cost_management_mcp_server",
+      "name": "AWS Billing and Cost Management MCP Server",
+      "source_path": "src/billing_cost_management_mcp_server/",
+      "subcategory": "Cost Management",
+      "tags": [
+        "billing",
+        "cost-management",
+        "cost-analysis",
+        "cost-optimization",
+        "budgets",
+        "conversational",
+        "business-services",
+        "free-tier"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
       "description": "Pre-deployment cost estimation and optimization",
       "icon": "\ud83d\udcb0",
       "id": "aws-pricing-mcp-server",

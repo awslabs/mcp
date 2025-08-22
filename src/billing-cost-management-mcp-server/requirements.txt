@@ -1,0 +1,6 @@
+loguru>=0.7.0
+mcp[cli]>=1.11.0
+pydantic>=2.10.6
+fastmcp>=2.0.0
+boto3>=1.34.0
+python-dotenv>=1.0.0
