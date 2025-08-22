@@ -278,7 +278,6 @@ def _reload_coh_with_identity_decorator():
         cost_optimization_hub_tools as coh_mod,
     )
 
-    # Patch fastmcp.FastMCP.tool so the decorator returns the function unchanged
     def _identity_tool(self, *args, **kwargs):
         def _decorator(fn):
             return fn
@@ -286,7 +285,7 @@ def _reload_coh_with_identity_decorator():
         return _decorator
 
     with patch.object(fastmcp.FastMCP, 'tool', _identity_tool):
-        importlib.reload(coh_mod)  # cost_optimization_hub becomes callable
+        importlib.reload(coh_mod)
         return coh_mod
 
 

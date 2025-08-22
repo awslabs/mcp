@@ -46,7 +46,6 @@ from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-# Use the cost_explorer function directly in tests
 async def cost_explorer(ctx, operation, **kwargs):
     """Mock implementation of cost_explorer for testing."""
     # Import utilities inside function to avoid circular imports
@@ -624,7 +623,6 @@ async def test_get_savings_plans_utilization(mock_context, mock_ce_client):
 @pytest.mark.asyncio
 async def test_cost_explorer_unknown_operation(mock_context, mock_ce_client):
     """Test that cost_explorer returns an error for an unknown operation."""
-    # Patch the create_aws_client function to return our mock client
     with patch(
         'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.create_aws_client',
         return_value=mock_ce_client,
@@ -679,8 +677,6 @@ async def test_cost_explorer_handle_exception(mock_context, mock_ce_client):
     assert 'message' in result, 'Error response should contain a message field'
     assert isinstance(result['message'], str), 'Error message should be a string'
 
-    # The handle_aws_error function standardizes error messages based on exception type
-    # We expect either a generic error or a service error message
     error_msg = result['message'].lower()
     assert 'test error' in error_msg, 'Error message should contain the original error message'
 
@@ -1142,7 +1138,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-01',
             '2023-01-31',
             'Env',
-            None,  # tag_key for getTags
+            None,
             'n1',
             2,
         )
@@ -1152,7 +1148,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             '2023-01-01',
             '2023-01-31',
             'Env',
-            'Environment',  # tag_key for getTagValues
+            'Environment',
             'n2',
             3,
         )

@@ -141,10 +141,6 @@ class TestGetCostAndUsage:
         assert result['status'] == 'success'
         assert result['data'] is not None
 
-        # Test passes as long as we got a valid response structure
-        # We don't need to validate the specific fields since that's determined by
-        # the convert_api_response_to_table function which has its own tests
-
     async def test_with_json_parameters(self, mock_context, mock_ce_client):
         """Test with JSON parameters for metrics, group_by, and filters."""
         metrics_json = '["UnblendedCost", "UsageQuantity"]'
@@ -260,7 +256,6 @@ class TestGetCostAndUsageWithResources:
             end_date=today.strftime('%Y-%m-%d'),
         )
 
-        # Verify the API was called (the date adjustment logic may have been removed)
         mock_ce_client.get_cost_and_usage_with_resources.assert_called_once()
 
     async def test_with_json_parameters(self, mock_context, mock_ce_client):

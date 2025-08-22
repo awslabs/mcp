@@ -349,7 +349,6 @@ class TestGetReservationCoverage:
         assert 'coverages_by_time' in result['data']
         assert len(result['data']['coverages_by_time']) == 1
 
-        # Check total coverage
         assert 'total' in result['data']
         assert 'coverage_hours' in result['data']['total']
         assert 'coverage_cost' in result['data']['total']
@@ -672,9 +671,6 @@ class TestRIPerformance:
         # Assert
         assert result['status'] == 'error'
         assert 'Unsupported operation' in result['message']
-
-    # Error handling test can be skipped for now since we have a simplified implementation
-    # which doesn't use create_aws_client or handle_aws_error directly
 
 
 def test_ri_performance_server_initialization():

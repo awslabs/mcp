@@ -74,12 +74,6 @@ class TestSessionSql:
         assert handle_aws_error is not None
         assert execute_session_sql is not None
 
-    async def test_session_sql_uses_error_handler(self, mock_context):
-        """Test that session_sql uses the shared error handler."""
-        # This test verifies that the error handling mechanism is in place
-        # The actual error handling is tested in the utilities tests
-        pass
-
 
 def test_unified_sql_server_initialization():
     """Test that the unified SQL server is properly initialized."""

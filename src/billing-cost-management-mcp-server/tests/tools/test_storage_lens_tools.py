@@ -333,21 +333,6 @@ async def test_athena_handler_setup_table_integration(mock_context, mock_athena_
     assert mock_athena_client.start_query_execution.call_count == 2  # Once for DB, once for table
 
 
-# This test is no longer needed as table creation is now handled by AthenaHandler methods
-# The functionality is tested in the AthenaHandler tests
-
-
-# This test is covered by the AthenaHandler wait_for_query_completion test
-
-
-# This functionality is now handled by AthenaHandler.get_query_results method
-# and is tested in the AthenaHandler tests
-
-
-# This functionality is now handled by AthenaHandler.wait_for_query_completion method
-# and is tested in the AthenaHandler tests
-
-
 def test_server_initialization():
     """Test that the storage_lens_server is properly initialized."""
     # Verify the server name
@@ -474,9 +459,6 @@ async def test_storage_lens_real_query_missing_table_reference_error_reload_iden
                     assert 'must either contain {table} placeholder' in res.get('message', '')
 
 
-# --- execute_athena_query default output-location branches ---
-
-
 @pytest.mark.asyncio
 async def test_athena_handler_determine_output_location_trailing_slash(mock_context):
     """Test AthenaHandler determine_output_location with trailing slash."""
@@ -495,9 +477,6 @@ async def test_athena_handler_determine_output_location_no_trailing_slash(mock_c
     # Test with data location not ending with '/'
     result = athena_handler.determine_output_location('s3://my-bucket/manifest.json')
     assert result == 's3://my-bucket/athena-results/'
-
-
-# --- create_or_update_table exception path (logs + raises) ---
 
 
 @pytest.mark.asyncio
@@ -521,9 +500,6 @@ async def test_athena_handler_execute_query_exception_logs_and_raises(mock_conte
 
     mock_context.error.assert_awaited()
     mock_athena_client.start_query_execution.assert_called()
-
-
-# --- ManifestHandler tests ---
 
 
 @pytest.mark.asyncio
@@ -707,9 +683,6 @@ def test_manifest_handler_parse_schema_parquet_unknown_type(manifest_handler):
     # Verify that unknown types default to STRING
     assert result['columns'][0]['name'] == 'field_name'
     assert result['columns'][0]['type'] == 'STRING'
-
-
-# --- AthenaHandler tests ---
 
 
 @pytest.mark.asyncio
@@ -897,7 +870,6 @@ async def test_athena_handler_create_table_for_parquet(mock_context, athena_hand
 @pytest.mark.asyncio
 async def test_athena_handler_setup_table_csv(mock_context):
     """Test setup_table for CSV format."""
-    # In this test, we'll use our own execute_query implementation to verify the table is created properly
     # Create a fresh athena handler instance
     with patch(
         'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
@@ -981,9 +953,6 @@ async def test_athena_handler_setup_table_parquet(mock_context, athena_handler):
         mock_create_db.assert_awaited_once()
         mock_create_csv.assert_not_awaited()
         mock_create_parquet.assert_awaited_once()
-
-
-# --- StorageLensQueryTool tests ---
 
 
 @pytest.mark.asyncio
@@ -1210,8 +1179,6 @@ async def test_storage_lens_query_tool_table_placeholder_replacement(
                 table_name='storage_lens_metrics',
             )
 
-            # The implementation checks if 'storage_lens_db.storage_lens_metrics' is in the query
-            # Since it's not, it will transform the query by injecting the table name after 'from'
             expected_query = (
                 'select * FROM storage_lens_db.storage_lens_metrics custom_db.custom_table'
             )
@@ -1231,9 +1198,6 @@ async def test_storage_lens_query_tool_table_placeholder_replacement(
             )
 
 
-# --- poll_query_status: NextToken + exception path ---
-
-
 @pytest.mark.asyncio
 async def test_athena_handler_get_query_results_with_next_token(mock_context, mock_athena_client):
     """Test AthenaHandler get_query_results with next token (has_more functionality)."""
@@ -1249,7 +1213,6 @@ async def test_athena_handler_get_query_results_with_next_token(mock_context, mo
 
     assert 'columns' in result
     assert 'rows' in result
-    # Note: The NextToken functionality might be handled differently in the new implementation
 
 
 @pytest.mark.asyncio

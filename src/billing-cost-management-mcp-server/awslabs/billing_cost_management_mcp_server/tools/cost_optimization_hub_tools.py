@@ -111,7 +111,6 @@ async def cost_optimization_hub(
         await ctx.info(f'Cost Optimization Hub operation: {operation}')
 
         # Initialize Cost Optimization Hub client using shared utility
-        # Note: Cost Optimization Hub is only available in us-east-1 region
         coh_client = create_aws_client('cost-optimization-hub', region_name='us-east-1')
         await ctx.info('Created Cost Optimization Hub client in region us-east-1')
 
@@ -149,8 +148,6 @@ async def cost_optimization_hub(
                 # Parse filters if provided
                 parsed_filters = parse_json(filters, 'filters') if filters else None
 
-                # Set a default group_by if not provided - IMPORTANT: must be one of the allowed values
-                # Valid values: ACCOUNT_ID, RECOMMENDATION_TYPE, RESOURCE_TYPE, TAG, USAGE_TYPE
                 effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
                 await ctx.info(f'Using group_by: {effective_group_by}')
 
@@ -249,6 +246,5 @@ async def cost_optimization_hub(
             )
 
     except Exception as e:
-        # Use shared error handler
         await ctx.error(f'Error in Cost Optimization Hub operation {operation}: {str(e)}')
         return await handle_aws_error(ctx, e, operation, 'Cost Optimization Hub')

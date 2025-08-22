@@ -49,8 +49,6 @@ class TestCreateAwsClient:
         mock_session.return_value = mock_session_instance
 
         with patch.dict('os.environ', {'AWS_REGION': 'us-east-1'}, clear=True):
-            # Execute
-            # Use one of the allowed services from aws_service_base.py
             create_aws_client('ce')
 
         # Assert with detailed validation

@@ -302,8 +302,6 @@ class TestGetFreeTierUsageData:
         assert len(result['data']['freeTierUsages']) == 2
         assert result['data']['freeTierUsages'][0]['service'] == 'Amazon EC2'
 
-    # Rest of the TestGetFreeTierUsageData class tests...
-
 
 @pytest.mark.asyncio
 class TestFreeTierUsage:

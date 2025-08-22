@@ -116,7 +116,6 @@ def mock_coh_client():
                 'estimatedMonthlySavings': {'amount': 300.0, 'currency': 'USD'},
             },
         ]
-        # No nextToken to stop pagination
     }
 
     return client
@@ -335,7 +334,6 @@ class TestListRecommendationsErrorHandling:
 
     async def test_enrollment_not_enrolled(self, mock_context, mock_coh_client):
         """Test list_recommendations when Cost Optimization Hub is not enrolled."""
-        # Mock empty response (what happens when not enrolled)
         mock_coh_client.list_recommendations.return_value = {'items': []}
 
         result = await list_recommendations(mock_context, mock_coh_client)

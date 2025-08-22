@@ -47,8 +47,6 @@ recommendation_details_server = FastMCP(
     instructions='Tools for working with AWS Cost Optimization Hub enhanced recommendation details',
 )
 
-# Constants are now imported from utilities.constants
-
 
 @recommendation_details_server.tool(
     name='get-recommendation-details',

@@ -37,12 +37,10 @@ TEMP_ENV_VARS = {'AWS_REGION': 'us-east-1'}  # Set default region for testing
 def tests_setup_and_teardown():
     """Mock environment and module variables for testing."""
     global TEMP_ENV_VARS
-    # Will be executed before the first test
     old_environ = dict(os.environ)
     os.environ.update(TEMP_ENV_VARS)
 
     yield
-    # Will be executed after the last test
     os.environ.clear()
     os.environ.update(old_environ)
 

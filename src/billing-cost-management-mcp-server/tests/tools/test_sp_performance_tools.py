@@ -739,8 +739,6 @@ class TestSPPerformance:
         assert result['status'] == 'error'
         assert 'Unsupported operation' in result['message']
 
-    # Error handling test can be skipped for now since we have a simplified implementation
-
 
 def test_sp_performance_server_initialization():
     """Test that the sp_performance_server is properly initialized."""
@@ -820,15 +818,14 @@ class TestCoverageGaps:
 
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
 
-        # Malformed utilization data that tests edge cases
         malformed_data = [
             {
-                'TimePeriod': {},  # Empty time period - covers line 290
-                'TotalCommitment': None,  # None value - covers lines 273-281
-                'UsedCommitment': {'Amount': 'invalid'},  # Invalid amount, missing Unit
-                'UnusedCommitment': {},  # Empty dict
-                'UtilizationPercentage': 'not_a_number',  # Invalid percentage - covers lines 299-300
-                'SavingsPlansCount': None,  # None count
+                'TimePeriod': {},
+                'TotalCommitment': None,
+                'UsedCommitment': {'Amount': 'invalid'},
+                'UnusedCommitment': {},
+                'UtilizationPercentage': 'not_a_number',
+                'SavingsPlansCount': None,
             }
         ]
 
@@ -898,7 +895,6 @@ class TestCoverageGaps:
             )
 
             assert result['status'] == 'success'
-            # Should have estimated total based on individual data - covers lines 351, 355-356
             assert 'total' in result['data']
             assert result['data']['total']['utilization_percentage'] == 95.0
             mock_logger_instance.warning.assert_called_once()
@@ -914,7 +910,7 @@ class TestCoverageGaps:
         mock_ce_client = MagicMock()
 
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
-        mock_paginate.return_value = ([], {'NextToken': None})  # Empty data
+        mock_paginate.return_value = ([], {'NextToken': None})
 
         with patch(
             'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
@@ -950,14 +946,14 @@ class TestCoverageGaps:
         malformed_details = [
             {
                 'SavingsPlanArn': 'arn:aws:savingsplans:us-east-1:123456789012:savingsplan/sp-test',
-                'Attributes': None,  # None attributes - covers line 523
-                'TotalCommitment': {},  # Empty monetary value
-                'UsedCommitment': {'Amount': None, 'Unit': 'USD'},  # None amount
-                'UnusedCommitment': {'Amount': '5.0'},  # Missing unit
-                'UtilizationPercentage': 'invalid',  # Invalid percentage
+                'Attributes': None,
+                'TotalCommitment': {},
+                'UsedCommitment': {'Amount': None, 'Unit': 'USD'},
+                'UnusedCommitment': {'Amount': '5.0'},
+                'UtilizationPercentage': 'invalid',
                 'NetSavings': None,
                 'OnDemandCostEquivalent': {'Amount': 'not_a_number', 'Unit': 'USD'},
-                'AmortizedUpfrontFee': {'Unit': 'USD'},  # Missing amount
+                'AmortizedUpfrontFee': {'Unit': 'USD'},
                 'RecurringCommitment': {'Amount': '95.0', 'Unit': 'USD'},
             }
         ]
@@ -983,7 +979,6 @@ class TestCoverageGaps:
             assert detail['utilization']['utilization_percentage'] == 0.0
             assert detail['utilization']['total_commitment']['amount'] == 0.0
             assert detail['savings']['net_savings']['amount'] == 0.0
-            # Attributes stays None when input is None (code doesn't convert it)
             assert detail['attributes'] is None
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
@@ -1059,8 +1054,6 @@ class TestCoverageGaps:
 
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
 
-        # Create details data that will cause a division by zero or other calculation error
-        # by making the list access fail in some way
         details_data = [
             {
                 'SavingsPlanArn': 'arn1',
@@ -1086,14 +1079,12 @@ class TestCoverageGaps:
             mock_logger_instance.warning = AsyncMock()
             mock_logger.return_value = mock_logger_instance
 
-            # Mock the calculation to raise an exception
             with patch('builtins.sum', side_effect=Exception('Calculation error')):
                 result = await get_savings_plans_utilization_details(
                     mock_context_async, mock_ce_client, '2023-01-01', '2023-01-31', None, None
                 )
 
                 assert result['status'] == 'success'
-                # Summary stats should not be present due to calculation error
                 assert 'average_utilization_percentage' not in result['data']
                 mock_logger_instance.warning.assert_called_once()
 
@@ -1121,14 +1112,12 @@ class TestCoverageGaps:
         ]
 
         mock_paginate.return_value = (utilization_data, {'NextToken': None})
-
-        # Return total data but with None values to test the edge case handling
         mock_ce_client.get_savings_plans_utilization.return_value = {
             'Total': {
-                'TotalCommitment': None,  # None total commitment
-                'UsedCommitment': {'Amount': None, 'Unit': 'USD'},  # None amount
-                'UnusedCommitment': {},  # Empty dict
-                'UtilizationPercentage': None,  # None percentage
+                'TotalCommitment': None,
+                'UsedCommitment': {'Amount': None, 'Unit': 'USD'},
+                'UnusedCommitment': {},
+                'UtilizationPercentage': None,
             }
         }
 
@@ -1145,7 +1134,6 @@ class TestCoverageGaps:
             )
 
             assert result['status'] == 'success'
-            # Should have total with default values
             assert 'total' in result['data']
             assert result['data']['total']['utilization_percentage'] == 0.0
             assert result['data']['total']['total_commitment']['amount'] == 0.0

@@ -233,13 +233,6 @@ def mock_context():
     return context
 
 
-# Test the main compute_optimizer function and the individual operation functions
-
-
-# TestComputeOptimizer class removed since we can't directly test a FastMCP tool function
-# Instead we'll focus on testing the individual recommendation functions that it calls
-
-
 @pytest.mark.asyncio
 class TestGetEC2InstanceRecommendations:
     """Tests for get_ec2_instance_recommendations function."""
@@ -555,8 +548,6 @@ def test_compute_optimizer_server_initialization():
         'Tools for working with AWS Compute Optimizer API' in compute_optimizer_server.instructions
     )
 
-    # For FastMCP, we can simply verify that the object exists
-    # and has the expected name and instructions
     assert isinstance(compute_optimizer_server, FastMCP)
 
 
@@ -1301,7 +1292,6 @@ class TestGetECSServiceRecommendations:
             mock_co_client.get_ecs_service_recommendations.assert_called_once()
             call_kwargs = mock_co_client.get_ecs_service_recommendations.call_args[1]
 
-            # Verify that the parsed parameters were passed to the client
             assert 'filters' in call_kwargs
             assert 'accountIds' in call_kwargs
             assert call_kwargs['nextToken'] == 'next-token'

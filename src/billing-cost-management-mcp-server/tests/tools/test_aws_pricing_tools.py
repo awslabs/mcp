@@ -931,8 +931,6 @@ class TestGetAttributeValuesAdditional:
         )
 
         assert result['status'] == 'success'
-        # The implementation fetches all pages but breaks when limit is reached
-        # So we should get all 100 values since it continues until no more pages
         assert len(result['data']['values']) == 100
         # Should make both API calls to get all pages
         assert mock_client.get_attribute_values.call_count == 2

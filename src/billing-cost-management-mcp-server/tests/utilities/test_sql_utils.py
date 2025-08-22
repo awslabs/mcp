@@ -313,18 +313,9 @@ class TestExecuteQuery:
         mock_cursor.fetchall.return_value = [(1, 'Alice')]
         query = 'SELECT * FROM test_table WHERE id = ?'
         params = (1,)
+        mock_cursor.execute(query, params)
+        columns, rows = execute_query(mock_cursor, query)
 
-        # The implementation requires parameters to be passed to cursor.execute directly
-        # Let's modify our test to match the implementation's expectations
-
-        # Execute - In a real scenario, you would call cursor.execute(query, params) directly
-        # but in our test we just verify the behavior of execute_query which doesn't accept params
-        mock_cursor.execute(query, params)  # This is how parameters would actually be used
-        columns, rows = execute_query(
-            mock_cursor, query
-        )  # But this function doesn't handle params
-
-        # Assert with detailed validation
         assert (
             getattr(mock_cursor.execute, 'call_count', 0) >= 1
         )  # Called at least once (by us manually)
@@ -428,10 +419,6 @@ class TestExecuteSessionSql:
 
         # Assert with detailed validation
         assert mock_context.info.call_count >= 2  # At least two log messages
-
-        # Verify query execution
-        # We can't easily verify create_table and insert_data calls directly since we're not mocking them
-        # But we can verify the final query was executed
         mock_cursor.execute.assert_any_call(query)
 
         # Verify response structure
@@ -497,8 +484,6 @@ class TestExecuteSessionSql:
 
         query = 'SELECT * FROM non_existent_table'
 
-        # Execute - The exception should be caught within execute_session_sql
-        # and the connection should be closed properly
         result = await execute_session_sql(mock_context, query)
 
         # Assert error was logged
@@ -511,11 +496,6 @@ class TestExecuteSessionSql:
         assert result['status'] == 'error'
         assert 'Error executing SQL query' in result['message']
         assert 'SQL syntax error' in result['message']
-
-        # In the execute_session_sql implementation, connection closure happens in the finally block
-        # The execute raises an error, but since the connection is created, it should be closed
-        # Don't check for close() call in the test as our mocked error happens before the connection
-        # is fully established in the function context
 
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
@@ -1288,8 +1268,6 @@ class TestConvertResponseIfNeededErrorHandling:
         # Create a large response that will trigger conversion
         response = {'data': 'x' * 30000}  # Large enough to exceed threshold
 
-        # Mock the convert_api_response_to_table function to raise an error
-        # Use the full module path to ensure the mock is applied correctly
         with patch.object(
             sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils'],
             'convert_api_response_to_table',

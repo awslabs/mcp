@@ -335,7 +335,7 @@ def mock_compute_optimizer_client():
 def test_format_timestamp():
     """Test format_timestamp function."""
     # Test with a valid timestamp
-    timestamp = 1632825600000  # 2021-09-28T00:00:00
+    timestamp = 1632825600000
     result = format_timestamp(timestamp)
     assert result and '2021-09-28' in result
 
@@ -344,7 +344,7 @@ def test_format_timestamp():
     assert result is None
 
     # Test with invalid timestamp
-    result = format_timestamp(None)  # Use None instead of 'invalid' string
+    result = format_timestamp(None)
     assert result is None
 
 
@@ -1165,10 +1165,6 @@ class TestProcessRecommendation:
         assert result['additional_details'] == {'optimizer': 'data'}
         assert 'template' not in result
         assert 'formatting_instructions' not in result
-
-
-# We're not testing the get_recommendation_details function directly as it's a decorated function
-# Instead we test the implementation functions separately
 
 
 def test_recommendation_details_server_initialization():

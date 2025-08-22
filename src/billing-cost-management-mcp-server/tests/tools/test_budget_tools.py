@@ -537,11 +537,6 @@ class TestDescribeBudgets:
         assert result['message'] == 'API error'
 
 
-# We're not directly testing the budgets decorated function anymore
-# We'll test the individual internal functions that budgets would call
-# This approach is more in line with how other MCP servers structure their tests
-
-
 def test_budget_server_initialization():
     """Test that the budget_server is properly initialized."""
     # Verify the server name
