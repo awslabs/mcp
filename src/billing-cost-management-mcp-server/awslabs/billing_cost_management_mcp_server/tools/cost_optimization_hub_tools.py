@@ -45,7 +45,7 @@ cost_optimization_hub_server = FastMCP(
 
 
 @cost_optimization_hub_server.tool(
-    name='cost-optimization-hub',
+    name='cost-optimization',
     description="""Retrieves cost optimization recommendations from AWS Cost Optimization Hub.
 
 IMPORTANT USAGE GUIDELINES:

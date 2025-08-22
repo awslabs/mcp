@@ -192,7 +192,6 @@ Cost Explorer:
 - ce:GetUsageForecast
 - ce:GetTags
 - ce:GetCostCategories
-- ce:
 
 Cost Optimization Hub:
 - cost-optimization-hub:GetRecommendation
@@ -301,7 +300,7 @@ The server currently supports the following AWS services
    - get_auto_scaling_group_recommendations
    - get_ebs_volume_recommendations
    - get_ec2_instance_recommendations
-   - getvecs_service_recommendations
+   - get_ecs_service_recommendations
    - get_rds_database_recommendations
    - get_lambda_function_recommendations
    - get_idle_recommendations
