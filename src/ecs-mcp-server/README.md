@@ -24,6 +24,19 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 ## Installation
 
+### Prerequisites
+
+Before installing the ECS MCP Server, ensure you have the following prerequisites installed:
+
+1. **Docker or Finch**: Required for containerization and local testing
+   - [Docker](https://docs.docker.com/get-docker/) for container management
+   - [Finch](https://github.com/runfinch/finch) as a Docker alternative
+
+2. **UV**: Required for package management and running MCP servers
+   - Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
+
+### Installation Steps
+
 ```bash
 # Install using uv
 uv pip install awslabs.ecs-mcp-server
@@ -41,6 +54,8 @@ git clone https://github.com/awslabs/mcp.git
 # Run the server directly using uv
 uv --directory /path/to/ecs-mcp-server/src/ecs-mcp-server/awslabs/ecs_mcp_server run main.py
 ```
+
+To setup your preferred MCP client (ie. Amazon Q Developer CLI, Cline, Cursor, VS Code, etc.) with the ECS MCP Server, proceed to the [Configuration](#configuration) section.
 
 ## Usage Environments
 
@@ -106,7 +121,7 @@ Avoid using ECS MCP Server in production for:
 
 | Cursor | VS Code |
 |:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.ecs-mcp-server&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBhd3NsYWJzLWVjcy1tY3Atc2VydmVyIGVjcy1tY3Atc2VydmVyIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ5b3VyLWF3cy1yZWdpb24iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiRkFTVE1DUF9MT0dfRklMRSI6Ii9wYXRoL3RvL2Vjcy1tY3Atc2VydmVyLmxvZyIsIkFMTE9XX1dSSVRFIjoiZmFsc2UiLCJBTExPV19TRU5TSVRJVkVfREFUQSI6ImZhbHNlIn19) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=ECS%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--from%22%2C%22awslabs-ecs-mcp-server%22%2C%22ecs-mcp-server%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22your-aws-region%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22FASTMCP_LOG_FILE%22%3A%22%2Fpath%2Fto%2Fecs-mcp-server.log%22%2C%22ALLOW_WRITE%22%3A%22false%22%2C%22ALLOW_SENSITIVE_DATA%22%3A%22false%22%7D%7D) |
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.ecs-mcp-server&config=eyJjb21tYW5kIjoidXZ4IC0tZnJvbSBhd3NsYWJzLWVjcy1tY3Atc2VydmVyIGVjcy1tY3Atc2VydmVyIiwiZW52Ijp7IkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSIsIkFXU19SRUdJT04iOiJ5b3VyLWF3cy1yZWdpb24iLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiRkFTVE1DUF9MT0dfRklMRSI6Ii9wYXRoL3RvL2Vjcy1tY3Atc2VydmVyLmxvZyIsIkFMTE9XX1dSSVRFIjoiZmFsc2UiLCJBTExPV19TRU5TSVRJVkVfREFUQSI6ImZhbHNlIn19) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=ECS%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--from%22%2C%22awslabs-ecs-mcp-server%22%2C%22ecs-mcp-server%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22your-aws-region%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22FASTMCP_LOG_FILE%22%3A%22%2Fpath%2Fto%2Fecs-mcp-server.log%22%2C%22ALLOW_WRITE%22%3A%22false%22%2C%22ALLOW_SENSITIVE_DATA%22%3A%22false%22%7D%7D) |
 
 Add the ECS MCP Server to your MCP client configuration:
 
@@ -128,6 +143,38 @@ Add the ECS MCP Server to your MCP client configuration:
   }
 }
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.ecs-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.ecs-mcp-server@latest",
+        "awslabs.ecs-mcp-server.exe"
+      ],
+     "env": {
+        "AWS_PROFILE": "your-aws-profile", // Optional - uses your local AWS configuration if not specified
+        "AWS_REGION": "your-aws-region", // Optional - uses your local AWS configuration if not specified
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "FASTMCP_LOG_FILE": "/path/to/ecs-mcp-server.log",
+        "ALLOW_WRITE": "false",
+        "ALLOW_SENSITIVE_DATA": "false"
+      }
+    }
+  }
+}
+```
+
 
 If running from a local repository, configure the MCP client like this:
 

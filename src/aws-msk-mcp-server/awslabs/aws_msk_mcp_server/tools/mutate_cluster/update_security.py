@@ -37,7 +37,7 @@ def update_security(
                 },
                 "Tls": {
                     "CertificateAuthorityArnList": [
-                        "arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/abcdef12-3456-7890-abcd-ef1234567890"
+                        "arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/abcdef12-3456-7890-abcd-ef1234567890"  # pragma: allowlist secret
                     ],
                     "Enabled": True
                 },
@@ -48,7 +48,7 @@ def update_security(
         encryption_info (dict, optional): Includes all encryption-related information
             Example: {
                 "EncryptionAtRest": {
-                    "DataVolumeKMSKeyId": "arn:aws:kms:us-east-1:123456789012:key/abcd1234-ab12-cd34-ef56-abcdef123456"
+                    "DataVolumeKMSKeyId": "arn:aws:kms:us-east-1:123456789012:key/abcd1234-ab12-cd34-ef56-abcdef123456"  # pragma: allowlist secret
                 },
                 "EncryptionInTransit": {
                     "ClientBroker": "TLS",

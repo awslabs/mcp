@@ -33,7 +33,7 @@ Note: This server will run any query sent to it, which could include both mutati
 
 | Cursor | VS Code |
 |:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.amazon-neptune-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLW5lcHR1bmUtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiTkVQVFVORV9FTkRQT0lOVCI6Imh0dHBzOi8veW91ci1uZXB0dW5lLWNsdXN0ZXItaWQucmVnaW9uLm5lcHR1bmUuYW1hem9uYXdzLmNvbTo4MTgyIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20Neptune%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-neptune-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22NEPTUNE_ENDPOINT%22%3A%22https%3A%2F%2Fyour-neptune-cluster-id.region.neptune.amazonaws.com%3A8182%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.amazon-neptune-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLW5lcHR1bmUtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiTkVQVFVORV9FTkRQT0lOVCI6Imh0dHBzOi8veW91ci1uZXB0dW5lLWNsdXN0ZXItaWQucmVnaW9uLm5lcHR1bmUuYW1hem9uYXdzLmNvbTo4MTgyIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIiwiQVdTX1JFR0lPTiI6InVzLWVhc3QtMSIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Amazon%20Neptune%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-neptune-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22NEPTUNE_ENDPOINT%22%3A%22https%3A%2F%2Fyour-neptune-cluster-id.region.neptune.amazonaws.com%3A8182%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 Below is an example of how to configure your MCP client, although different clients may require a different format.
 
@@ -53,6 +53,34 @@ Below is an example of how to configure your MCP client, although different clie
 }
 
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.amazon-neptune-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.amazon-neptune-mcp-server@latest",
+        "awslabs.amazon-neptune-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "INFO",
+        "NEPTUNE_ENDPOINT": "<INSERT NEPTUNE ENDPOINT IN FORMAT SPECIFIED BELOW>"
+      }
+    }
+  }
+}
+```
+
 ### Docker Configuration
 After building with `docker build -t awslabs/amazon-neptune-mcp-server .`:
 

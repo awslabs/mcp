@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Fetch embedding model from AWS instead of Hugging Face (#1127)
+
+### Fixed
+
+- Use region from profile specified in cli command (#1123)
+
+## [0.2.5] - 2025-08-11
+
+### Changed
+
+- Validate `AWS_REGION` environment variable (#1030)
+
+## [0.2.4] - 2025-08-07
+
+### Fixed
+
+- Async model loading on Windows (#1035)
+
+## [0.2.3] - 2025-08-06
+
+### Changed
+
+- Improve tool logging (#1004)
+
+## [0.2.2] - 2025-08-05
+
+### Changed
+
+- Update README (#1020)
+
+## [0.2.1] - 2025-08-01
+
 ### Added
 
 - Support for `--profile` in boto3 operations. (#986)

@@ -32,6 +32,7 @@ from .core.common.config import (
     get_server_directory,
 )
 from .core.common.errors import AwsApiMcpError
+from .core.common.helpers import validate_aws_region
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
@@ -44,7 +45,7 @@ from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any, Optional
 
 
 logger.remove()
@@ -127,12 +128,18 @@ async def suggest_aws_commands(
     ctx: Context,
 ) -> dict[str, Any] | AwsApiMcpServerErrorResponse:
     """Suggest AWS CLI commands based on the provided query."""
+    logger.info('Suggesting AWS commands for query: {}', query)
     if not query.strip():
         error_message = 'Empty query provided'
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
     try:
-        return knowledge_base.get_suggestions(query)
+        suggestions = knowledge_base.get_suggestions(query)
+        logger.info(
+            'Suggested commands: {}',
+            [suggestion.get('command') for suggestion in suggestions.get('suggestions', {})],
+        )
+        return suggestions
     except Exception as e:
         error_message = f'Error while suggesting commands: {str(e)}'
         await ctx.error(error_message)
@@ -190,6 +197,7 @@ async def call_aws(
     ] = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
+    logger.info('Executing AWS CLI command: {}', cli_command)
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
@@ -231,7 +239,7 @@ async def call_aws(
 
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
-                execute_awscli_customization(cli_command)
+                execute_awscli_customization(cli_command, ir.command)
             )
             if isinstance(response, AwsApiMcpServerErrorResponse):
                 await ctx.error(response.detail)
@@ -239,7 +247,6 @@ async def call_aws(
 
         return interpret_command(
             cli_command=cli_command,
-            default_region=cast(str, DEFAULT_REGION),
             max_results=max_results,
         )
     except NoCredentialsError:
@@ -270,13 +277,8 @@ def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
 
-    if not WORKING_DIRECTORY:
-        error_message = 'AWS_API_MCP_WORKING_DIR environment variable is not defined.\n'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
     if not os.path.isabs(WORKING_DIRECTORY):
-        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.\n'
+        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.'
         logger.error(error_message)
         raise ValueError(error_message)
 
@@ -285,10 +287,11 @@ def main():
     logger.info(f'CWD: {os.getcwd()}')
 
     if DEFAULT_REGION is None:
-        error_message = 'AWS_REGION environment variable is not defined.\n'
+        error_message = 'AWS_REGION environment variable is not defined.'
         logger.error(error_message)
         raise ValueError(error_message)
 
+    validate_aws_region(DEFAULT_REGION)
     logger.info('AWS_REGION: {}', DEFAULT_REGION)
 
     try:

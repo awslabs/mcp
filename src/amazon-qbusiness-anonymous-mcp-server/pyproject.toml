@@ -2,7 +2,7 @@
 name = "awslabs.amazon-qbusiness-anonymous-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.2"
+version = "0.0.5"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Q Business anonymous mode application."
 readme = "README.md"
