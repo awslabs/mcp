@@ -199,7 +199,7 @@ class ListEventSourceMapping:
                 'MaximumBatchingWindowInSeconds': mapping.get('MaximumBatchingWindowInSeconds'),
                 'LastProcessingResult': mapping.get('LastProcessingResult'),
                 'LastModified': mapping.get('LastModified').strftime('%Y-%m-%d %H:%M:%S')
-                if mapping.get('LastModified')
+                if mapping.get('LastModified') is not None
                 else None,
             }
 

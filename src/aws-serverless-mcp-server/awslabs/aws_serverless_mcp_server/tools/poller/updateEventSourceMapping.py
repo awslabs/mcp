@@ -124,7 +124,7 @@ class UpdateEventSourceMapping:
                         f'Failed to add MSK permissions: {str(e)}. Continuing with update.'
                     )
 
-            update_params = {'UUID': uuid}
+            update_params: Dict = {'UUID': uuid}
 
             # We will only add parameters that have non-None values
             if batch_size is not None:
@@ -150,7 +150,7 @@ class UpdateEventSourceMapping:
 
             # Provisioned poller config
             if min_pollers is not None or max_pollers is not None:
-                poller_config = {}
+                poller_config: Dict = {}
                 if min_pollers is not None:
                     poller_config['MinimumPollers'] = min_pollers
                 if max_pollers is not None:
@@ -180,8 +180,8 @@ class UpdateEventSourceMapping:
     def update_esm_by_function_and_source(
         self,
         function_name: str,
-        event_source_arn: str = None,
-        kafka_bootstrap_servers: str = None,
+        event_source_arn: Optional[str] = None,
+        kafka_bootstrap_servers: Optional[str] = None,
         kafka_topic: Optional[str] = None,
         batch_size: Optional[int] = None,
         bisect_batch_on_error: Optional[bool] = None,

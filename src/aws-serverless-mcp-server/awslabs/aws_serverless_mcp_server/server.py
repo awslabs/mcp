@@ -85,10 +85,10 @@ class AutoShutdownServer(FastMCP):
                 print(f'Server idle for over {self.idle_timeout} seconds, shutting down')
                 sys.exit(0)
 
-    def run(self):
+    def run(self, transport=None, mount_path=None):
         """Start the server with idle monitoring."""
         self.shutdown_thread.start()
-        super().run()
+        super().run(transport=transport, mount_path=mount_path)
 
 
 # Initialize boto3 client
@@ -334,15 +334,15 @@ def create_event_source_mapping(
 
             result = creator.create_esm(
                 target=target,
-                event_source_arn=event_source_arn,
+                event_source_arn=event_source_arn or '',
                 kafka_topic=kafka_topic,
                 batch_size=batch_size,
-                starting_position=starting_position,
+                starting_position=starting_position or 'LATEST',
                 kafka_consumer_group_id=kafka_consumer_group_id,
                 max_batching_window=max_batching_window,
                 enabled=enabled,
-                min_pollers=min_pollers,
-                max_pollers=max_pollers,
+                min_pollers=min_pollers or 1,
+                max_pollers=max_pollers or 2,
                 report_batch_item_failures=report_batch_item_failures,
                 retry_attempts=retry_attempts,
                 bisect_batch_on_error=bisect_batch_on_error,
@@ -366,13 +366,13 @@ def create_event_source_mapping(
                 kafka_topic=kafka_topic,
                 source_access_configurations=source_configs,
                 batch_size=batch_size,
-                starting_position=starting_position,
+                starting_position=starting_position or 'LATEST',
                 kafka_consumer_group_id=kafka_consumer_group_id,
                 max_batching_window=max_batching_window,
                 max_concurrency=max_concurrency,
                 enabled=enabled,
-                min_pollers=min_pollers,
-                max_pollers=max_pollers,
+                min_pollers=min_pollers or 1,
+                max_pollers=max_pollers or 2,
                 report_batch_item_failures=report_batch_item_failures,
                 retry_attempts=retry_attempts,
             )
@@ -477,11 +477,11 @@ def update_event_source_mapping(
         if uuid:
             print(f'Updating ESM with UUID={uuid}')
             result = updater.update_esm_by_uuid(
-                uuid=uuid,
+                uuid=uuid or '',
                 batch_size=batch_size,
                 bisect_batch_on_error=bisect_batch_on_error,
                 enabled=enabled,
-                function_name=function_name,
+                function_name=function_name or '',
                 max_batching_window=max_batching_window,
                 max_record_age=max_record_age,
                 report_batch_item_failures=report_batch_item_failures,
@@ -499,7 +499,7 @@ def update_event_source_mapping(
                 f'Updating ESM with function={function_name}, source={source_identifier}, topic={kafka_topic}'
             )
             result = updater.update_esm_by_function_and_source(
-                function_name=function_name,
+                function_name=function_name or '',
                 event_source_arn=event_source_arn,
                 kafka_bootstrap_servers=kafka_bootstrap_servers,
                 kafka_topic=kafka_topic,
@@ -565,7 +565,7 @@ def delete_event_source_mapping(
                 f'Deleting ESM with function={function_name}, {source_type}={source_identifier}, topic={kafka_topic}'
             )
             result = deleter.delete_esm_by_function_and_source(
-                function_name=function_name,
+                function_name=function_name or '',
                 event_source_arn=event_source_arn,
                 kafka_bootstrap_servers=kafka_bootstrap_servers,
                 kafka_topic=kafka_topic,
@@ -600,7 +600,7 @@ def list_event_source_mappings(
             result = lister.list_esm_by_source(event_source_arn=event_source_arn)
         else:
             print('Listing all ESMs')
-            result = lister.list_all_esm(max_items=max_items)
+            result = lister.list_all_esm(max_items=max_items or 50)
 
         count = result.get('Count', 0)
         if count == 0:
@@ -643,7 +643,7 @@ def run_esm_load_test(
             bootstrap_servers = kafka_bootstrap_servers
         else:
             iam_helper = IAMHelper()
-            brokers = iam_helper.get_msk_bootstrap_brokers(event_source_arn)
+            brokers = iam_helper.get_msk_bootstrap_brokers(event_source_arn or '')
             bootstrap_servers = brokers.get('sasl_iam', '').replace('sasl_iam://', '')
 
         if test_size == 'end_to_end':

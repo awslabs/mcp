@@ -28,9 +28,9 @@ from typing import Dict, Optional
 class IAMHelper:
     """Helper class to manage IAM permissions for Lambda functions accessing MSK."""
 
-    def __init__(self, region_name=None):
+    def __init__(self, region_name: str = None):
         """Initialize the IAMHelper."""
-        region_name = region_name or os.environ.get('AWS_REGION')
+        region_name = region_name or os.environ.get('AWS_REGION') or 'us-east-1'
         print(f'DEBUG: Initializing IAMHelper with region {region_name}')
         aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
         aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
@@ -221,9 +221,9 @@ class IAMHelper:
         self,
         bootstrap_servers: str,
         security_protocol: str = 'PLAINTEXT',
-        sasl_mechanism: str = None,
-        sasl_secret_arn: str = None,
-        tls_cert_secret_arn: str = None,
+        sasl_mechanism: Optional[str] = None,
+        sasl_secret_arn: Optional[str] = None,
+        tls_cert_secret_arn: Optional[str] = None,
         prompt_for_missing: bool = True,
     ) -> Dict:
         """Test Kafka connection with specified authentication."""

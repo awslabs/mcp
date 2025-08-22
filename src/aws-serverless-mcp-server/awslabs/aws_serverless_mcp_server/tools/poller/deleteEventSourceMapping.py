@@ -80,8 +80,8 @@ class DeleteEventSourceMapping:
     def delete_esm_by_function_and_source(
         self,
         function_name: str,
-        event_source_arn: str = None,
-        kafka_bootstrap_servers: str = None,
+        event_source_arn: Optional[str] = None,
+        kafka_bootstrap_servers: Optional[str] = None,
         kafka_topic: Optional[str] = None,
     ) -> Dict:
         """Finds and deletes the Event Source Mapping for a Lambda function and MSK cluster ARN.

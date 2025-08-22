@@ -25,9 +25,9 @@ from typing import Dict
 class RoleCreator:
     """Helper class to create IAM roles with MSK permissions for Lambda functions."""
 
-    def __init__(self, region_name=None):
+    def __init__(self, region_name: str = None):
         """Initialize the RoleCreator."""
-        region_name = region_name or os.environ.get('AWS_REGION')
+        region_name = region_name or os.environ.get('AWS_REGION') or 'us-east-1'
         aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
         aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
         if aws_access_key and aws_secret_key:
