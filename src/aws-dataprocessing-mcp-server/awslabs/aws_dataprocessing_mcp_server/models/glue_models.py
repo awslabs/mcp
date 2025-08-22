@@ -616,13 +616,6 @@ class DataQualityRulesetResponse(CallToolResult):
     ruleset_count: Optional[int] = Field(default=0, description='Number of rulesets')
     status: str = Field(description='Operation status')
     message: str = Field(description='Operation message')
-    
-    def __init__(self, **data):
-        # Auto-populate content field from message if not provided
-        if 'content' not in data and 'message' in data:
-            from mcp.types import TextContent
-            data['content'] = [TextContent(type='text', text=data['message'])]
-        super().__init__(**data)
 
 
 class DataQualityEvaluationRunResponse(CallToolResult):
@@ -645,13 +638,6 @@ class DataQualityEvaluationRunResponse(CallToolResult):
     evaluation_runs: Optional[List[EvaluationRunSummary]] = Field(default=[], description='List of evaluation runs')
     run_count: Optional[int] = Field(default=0, description='Number of runs')
     message: str = Field(description='Operation message')
-    
-    def __init__(self, **data):
-        # Auto-populate content field from message if not provided
-        if 'content' not in data and 'message' in data:
-            from mcp.types import TextContent
-            data['content'] = [TextContent(type='text', text=data['message'])]
-        super().__init__(**data)
 
 
 class DataQualityRecommendationRunResponse(CallToolResult):
@@ -675,13 +661,6 @@ class DataQualityRecommendationRunResponse(CallToolResult):
     recommendation_runs: Optional[List[RecommendationRunSummary]] = Field(default=[], description='List of recommendation runs')
     run_count: Optional[int] = Field(default=0, description='Number of runs')
     message: str = Field(description='Operation message')
-    
-    def __init__(self, **data):
-        # Auto-populate content field from message if not provided
-        if 'content' not in data and 'message' in data:
-            from mcp.types import TextContent
-            data['content'] = [TextContent(type='text', text=data['message'])]
-        super().__init__(**data)
 
 
 class DataQualityMetricsResponse(CallToolResult):
@@ -703,10 +682,3 @@ class DataQualityMetricsResponse(CallToolResult):
     result_ids: Optional[List[str]] = Field(default=[], description='List of result IDs')
     result_count: Optional[int] = Field(default=0, description='Number of results')
     message: str = Field(description='Operation message')
-    
-    def __init__(self, **data):
-        # Auto-populate content field from message if not provided
-        if 'content' not in data and 'message' in data:
-            from mcp.types import TextContent
-            data['content'] = [TextContent(type='text', text=data['message'])]
-        super().__init__(**data)

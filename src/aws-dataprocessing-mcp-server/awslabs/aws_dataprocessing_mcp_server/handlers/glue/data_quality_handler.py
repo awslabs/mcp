@@ -37,6 +37,21 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Union
 
 
+def _populate_response_content(response_obj, message: str):
+    """Helper function to populate the content field of response objects.
+    
+    Args:
+        response_obj: The response object to populate
+        message: The message to use for content
+        
+    Returns:
+        The response object with populated content
+    """
+    if not response_obj.content:
+        response_obj.content = [TextContent(type='text', text=message)]
+    return response_obj
+
+
 class GlueDataQualityHandler:
     """Handler for Amazon Glue Data Quality operations."""
 
@@ -508,7 +523,7 @@ class GlueDataQualityHandler:
             f'Successfully created data quality ruleset: {timestamped_name}',
         )
 
-        return DataQualityRulesetResponse(
+        response_obj = DataQualityRulesetResponse(
             ruleset_name=timestamped_name,
             description=description or '',
             ruleset_definition=ruleset_definition,
@@ -516,6 +531,7 @@ class GlueDataQualityHandler:
             status='CREATED',
             message=f'Data quality ruleset {timestamped_name} created successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _get_ruleset(self, ctx: Context, ruleset_name: str) -> DataQualityRulesetResponse:
         """Get details of a data quality ruleset."""
@@ -526,7 +542,7 @@ class GlueDataQualityHandler:
         target_table = response.get('TargetTable', {})
         table_name = f"{target_table.get('DatabaseName', '')}.{target_table.get('TableName', '')}"
 
-        return DataQualityRulesetResponse(
+        response_obj = DataQualityRulesetResponse(
             ruleset_name=response.get('Name', ''),
             description=response.get('Description', ''),
             ruleset_definition=response.get('Ruleset', ''),
@@ -536,6 +552,7 @@ class GlueDataQualityHandler:
             status='RETRIEVED',
             message=f'Data quality ruleset {ruleset_name} retrieved successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _list_rulesets(
         self,
@@ -577,12 +594,13 @@ class GlueDataQualityHandler:
                 last_modified_on=str(ruleset.get('LastModifiedOn', '')),
             ))
 
-        return DataQualityRulesetResponse(
+        response_obj = DataQualityRulesetResponse(
             rulesets=ruleset_summaries,
             ruleset_count=len(ruleset_summaries),
             status='LISTED',
             message=f'Found {len(ruleset_summaries)} data quality rulesets',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _update_ruleset(
         self,
@@ -613,13 +631,14 @@ class GlueDataQualityHandler:
             f'Successfully updated data quality ruleset: {ruleset_name}',
         )
 
-        return DataQualityRulesetResponse(
+        response_obj = DataQualityRulesetResponse(
             ruleset_name=ruleset_name,
             description=description or '',
             ruleset_definition=ruleset_definition,
             status='UPDATED',
             message=f'Data quality ruleset {ruleset_name} updated successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _delete_ruleset(self, ctx: Context, ruleset_name: str) -> DataQualityRulesetResponse:
         """Delete a data quality ruleset."""
@@ -646,11 +665,12 @@ class GlueDataQualityHandler:
             f'Successfully deleted data quality ruleset: {ruleset_name}',
         )
 
-        return DataQualityRulesetResponse(
+        response_obj = DataQualityRulesetResponse(
             ruleset_name=ruleset_name,
             status='DELETED',
             message=f'Data quality ruleset {ruleset_name} deleted successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _append_ruleset(
         self, 
@@ -702,12 +722,13 @@ class GlueDataQualityHandler:
                 f'Successfully appended rules to data quality ruleset: {ruleset_name}',
             )
 
-            return DataQualityRulesetResponse(
+            response_obj = DataQualityRulesetResponse(
                 ruleset_name=ruleset_name,
                 ruleset_definition=updated_rules,
                 status='APPENDED',
                 message=f'Successfully appended new rules to data quality ruleset {ruleset_name}',
             )
+            return _populate_response_content(response_obj, response_obj.message)
 
         except ClientError as e:
             if e.response['Error']['Code'] == 'EntityNotFoundException':
@@ -776,13 +797,14 @@ class GlueDataQualityHandler:
                     error='Error retrieving ruleset details',
                 ))
 
-        return DataQualityRulesetResponse(
+        response_obj = DataQualityRulesetResponse(
             rulesets=ruleset_summaries,
             ruleset_count=len(ruleset_summaries),
             target_table=f"{database_name}.{table_name}",
             status='RETRIEVED',
             message=f'Found {len(ruleset_summaries)} rulesets for table {database_name}.{table_name}',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _start_evaluation_run(
         self,
@@ -839,7 +861,7 @@ class GlueDataQualityHandler:
             f'Successfully started evaluation run with ID: {run_id}',
         )
 
-        return DataQualityEvaluationRunResponse(
+        response_obj = DataQualityEvaluationRunResponse(
             run_id=run_id,
             status='STARTED',
             database_name=database_name,
@@ -847,6 +869,7 @@ class GlueDataQualityHandler:
             ruleset_names=ruleset_names,
             message=f'Data quality evaluation run {run_id} started successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _get_evaluation_run(self, ctx: Context, run_id: str) -> DataQualityEvaluationRunResponse:
         """Get details of a data quality evaluation run."""
@@ -861,7 +884,7 @@ class GlueDataQualityHandler:
         database_name = data_source.get('DatabaseName', '')
         table_name = data_source.get('TableName', '')
 
-        return DataQualityEvaluationRunResponse(
+        response_obj = DataQualityEvaluationRunResponse(
             run_id=run_id,
             status=response.get('Status', ''),
             database_name=database_name,
@@ -877,6 +900,7 @@ class GlueDataQualityHandler:
             error_string=response.get('ErrorString', ''),
             message=f'Data quality evaluation run {run_id} retrieved successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _list_evaluation_runs(
         self,
@@ -926,12 +950,13 @@ class GlueDataQualityHandler:
                 execution_time=run.get('ExecutionTime'),
             ))
 
-        return DataQualityEvaluationRunResponse(
+        response_obj = DataQualityEvaluationRunResponse(
             evaluation_runs=evaluation_runs,
             run_count=len(evaluation_runs),
             status='LISTED',
             message=f'Found {len(evaluation_runs)} evaluation runs',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _cancel_evaluation_run(self, ctx: Context, run_id: str) -> DataQualityEvaluationRunResponse:
         """Cancel a data quality evaluation run."""
@@ -948,11 +973,12 @@ class GlueDataQualityHandler:
             f'Successfully cancelled evaluation run: {run_id}',
         )
 
-        return DataQualityEvaluationRunResponse(
+        response_obj = DataQualityEvaluationRunResponse(
             run_id=run_id,
             status='CANCELLED',
             message=f'Data quality evaluation run {run_id} cancelled successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _start_recommendation_run(
         self,
@@ -1013,7 +1039,7 @@ class GlueDataQualityHandler:
             f'Successfully started recommendation run with ID: {run_id}',
         )
 
-        return DataQualityRecommendationRunResponse(
+        response_obj = DataQualityRecommendationRunResponse(
             run_id=run_id,
             status='STARTED',
             database_name=database_name,
@@ -1021,6 +1047,7 @@ class GlueDataQualityHandler:
             created_ruleset_name=run_params.get('CreatedRulesetName'),
             message=f'Data quality recommendation run {run_id} started successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _get_recommendation_run(self, ctx: Context, run_id: str) -> DataQualityRecommendationRunResponse:
         """Get details of a data quality recommendation run."""
@@ -1039,7 +1066,7 @@ class GlueDataQualityHandler:
         recommended_ruleset = response.get('RecommendedRuleset', '')
         recommendation_count = len(recommended_ruleset.splitlines()) if recommended_ruleset else 0
 
-        return DataQualityRecommendationRunResponse(
+        response_obj = DataQualityRecommendationRunResponse(
             run_id=run_id,
             status=response.get('Status', ''),
             database_name=database_name,
@@ -1056,6 +1083,7 @@ class GlueDataQualityHandler:
             error_string=response.get('ErrorString', ''),
             message=f'Data quality recommendation run {run_id} retrieved successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _cancel_recommendation_run(self, ctx: Context, run_id: str) -> DataQualityRecommendationRunResponse:
         """Cancel a data quality recommendation run."""
@@ -1072,11 +1100,12 @@ class GlueDataQualityHandler:
             f'Successfully cancelled recommendation run: {run_id}',
         )
 
-        return DataQualityRecommendationRunResponse(
+        response_obj = DataQualityRecommendationRunResponse(
             run_id=run_id,
             status='CANCELLED',
             message=f'Data quality recommendation run {run_id} cancelled successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _get_data_quality_result(self, ctx: Context, result_id: str) -> DataQualityMetricsResponse:
         """Get data quality result details."""
@@ -1098,7 +1127,7 @@ class GlueDataQualityHandler:
                 result=rule_result.get('Result', ''),
             ))
 
-        return DataQualityMetricsResponse(
+        response_obj = DataQualityMetricsResponse(
             result_id=result_id,
             ruleset_name=response.get('RulesetName', ''),
             evaluation_context=response.get('EvaluationContext', ''),
@@ -1114,6 +1143,7 @@ class GlueDataQualityHandler:
             result_count=len(data_quality_results),
             message=f'Data quality result {result_id} retrieved successfully',
         )
+        return _populate_response_content(response_obj, response_obj.message)
 
     async def _list_data_quality_results(
         self,
@@ -1162,8 +1192,9 @@ class GlueDataQualityHandler:
                         f'Could not get result IDs for run {run_id}: {str(e)}',
                     )
 
-        return DataQualityMetricsResponse(
+        response_obj = DataQualityMetricsResponse(
             result_ids=all_result_ids,
             result_count=len(all_result_ids),
             message=f'Found {len(all_result_ids)} data quality results',
         )
+        return _populate_response_content(response_obj, response_obj.message)
