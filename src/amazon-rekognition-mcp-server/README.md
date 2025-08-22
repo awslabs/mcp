@@ -1,6 +1,6 @@
-# Amazon Rekognition MCP Server
+# Amazon Rekognition MCP Server (DEPRECATED)
 
-A Model Context Protocol (MCP) server for Amazon Rekognition that enables AI assistants to analyze images using Amazon Rekognition's powerful computer vision capabilities.
+A Model Context Protocol (MCP) server for Amazon Rekognition that enables AI assistants to analyze images using Amazon Rekognition's powerful computer vision capabilities (DEPRECATED). Please use [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) for analyzing images using Amazon Rekognition's APIs.
 
 ## Features
 
@@ -22,6 +22,8 @@ A Model Context Protocol (MCP) server for Amazon Rekognition that enables AI ass
    - Ensure your IAM role/user has permissions to use Amazon Rekognition
 
 ## Installation
+
+(DEPRECATED). Please use [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) for analyzing images using Amazon Rekognition's APIs.
 
 | Cursor | VS Code |
 |:------:|:-------:|

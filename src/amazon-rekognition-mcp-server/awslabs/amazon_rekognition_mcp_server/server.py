@@ -14,6 +14,7 @@
 
 """awslabs amazon-rekognition MCP Server implementation."""
 
+import warnings
 from awslabs.amazon_rekognition_mcp_server.helpers import (
     get_image_bytes,
     get_rekognition_client,
@@ -56,7 +57,9 @@ mcp = FastMCP(
 @mcp.tool()
 @handle_exceptions
 async def list_collections() -> Dict:
-    """Returns a list of collection IDs in your AWS account.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Returns a list of collection IDs in your AWS account.
 
     Collections are containers for persisting faces that you index. You can create multiple
     collections to organize your face data. For example, you might create separate collections
@@ -72,6 +75,9 @@ async def list_collections() -> Dict:
             "CollectionIds": ["my-collection-1", "my-collection-2"]
         }
     """
+    msg = 'list_collections tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     collections = []
     next_token = None
@@ -100,7 +106,9 @@ async def index_faces(
     collection_id: str = Field(description='ID of the collection to add the face to'),
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """Detects faces in an image and adds them to the specified collection.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Detects faces in an image and adds them to the specified collection.
 
     This operation detects faces in the input image, extracts facial features, and stores
     the face data in the specified collection. The face data persists until you explicitly
@@ -141,6 +149,9 @@ async def index_faces(
             "UnindexedFaces": []
         }
     """
+    msg = 'index_faces tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     image = get_image_bytes(image_path)
 
@@ -164,7 +175,9 @@ async def search_faces_by_image(
     collection_id: str = Field(description='ID of the collection to search'),
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """Searches for faces in a collection that match a face in the supplied image.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Searches for faces in a collection that match a face in the supplied image.
 
     This operation detects the largest face in the input image, extracts facial features,
     and searches the specified collection for matching faces. The operation returns an array
@@ -204,6 +217,9 @@ async def search_faces_by_image(
             "SearchedFaceConfidence": 99.98
         }
     """
+    msg = 'search_faces_by_image tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     image = get_image_bytes(image_path)
 
@@ -226,7 +242,9 @@ async def search_faces_by_image(
 async def detect_labels(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """Detects objects, scenes, concepts, and activities in an image.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Detects objects, scenes, concepts, and activities in an image.
 
     This operation identifies objects (like "car" or "flower"), scenes (like "beach" or "city"),
     concepts (like "evening" or "nature"), and activities (like "running" or "playing soccer")
@@ -267,6 +285,9 @@ async def detect_labels(
             ]
         }
     """
+    msg = 'detect_labels tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     image = get_image_bytes(image_path)
 
@@ -286,7 +307,9 @@ async def detect_labels(
 async def detect_moderation_labels(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """Detects unsafe or inappropriate content in an image.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Detects unsafe or inappropriate content in an image.
 
     This operation detects potentially unsafe, unwanted, or inappropriate content in images.
     It can identify content in categories such as:
@@ -329,6 +352,9 @@ async def detect_moderation_labels(
             ]
         }
     """
+    msg = 'detect_moderation_labels tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     image = get_image_bytes(image_path)
 
@@ -347,7 +373,9 @@ async def detect_moderation_labels(
 async def recognize_celebrities(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """Recognizes celebrities in an image.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Recognizes celebrities in an image.
 
     This operation identifies celebrities (actors, musicians, athletes, etc.) in an image.
     For each detected celebrity, the operation returns:
@@ -393,6 +421,9 @@ async def recognize_celebrities(
             ]
         }
     """
+    msg = 'recognize_celebrities tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     image = get_image_bytes(image_path)
 
@@ -412,7 +443,9 @@ async def compare_faces(
     source_image_path: str = Field(description='Path to the source image file'),
     target_image_path: str = Field(description='Path to the target image file'),
 ) -> Dict:
-    """Compares a face in the source image with faces in the target image.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Compares a face in the source image with faces in the target image.
 
     This operation compares the largest face detected in the source image with each face
     detected in the target image. The operation uses a similarity threshold of 80% by default,
@@ -455,6 +488,9 @@ async def compare_faces(
             }
         }
     """
+    msg = 'compare_faces tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     source_image = get_image_bytes(source_image_path)
     target_image = get_image_bytes(target_image_path)
@@ -477,7 +513,9 @@ async def compare_faces(
 async def detect_text(
     image_path: str = Field(description='Path to the image file'),
 ) -> Dict:
-    """Detects text in an image.
+    """IMPORTANT: This tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server).
+
+    Detects text in an image.
 
     This operation identifies text in an image and converts it into machine-readable text.
     It can detect both printed text (such as books, posters, and documents) and handwritten text.
@@ -521,6 +559,9 @@ async def detect_text(
             ]
         }
     """
+    msg = 'detect_text tool is deprecated. Please use the AWS API MCP Server (awslabs.aws-api-mcp-server) instead'
+    warnings.warn(msg, DeprecationWarning, stacklevel=1)
+
     client = get_rekognition_client()
     image = get_image_bytes(image_path)
 
