@@ -1,23 +1,26 @@
 [project]
-name = "awslabs.amazon-rekognition-mcp-server"
+name = "awslabs.billing-cost-management-mcp-server"
 
-version = "0.0.7"
+# NOTE: "Patch"=9223372036854775807 bumps next release to zero.
+version = "0.0.1"
 
-description = "An AWS Labs Model Context Protocol (MCP) server for Amazon Rekognition"
+description = "A Model Context Protocol (MCP) server that provides tools for AWS Billing and Cost Management by wrapping boto3 SDK functions."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.11.0",
     "pydantic>=2.10.6",
-    "boto3>=1.38.0",
+    "fastmcp>=2.0.0",
+    "boto3>=1.34.0",
+    "python-dotenv>=1.0.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
-    {name = "Ayush Goyal", email="ayush987goyal@gmail.com"},
+    {name = "Rams Sundaram", email="shsrams@amazon.com"},
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
@@ -32,13 +35,13 @@ classifiers = [
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"
-docs = "https://awslabs.github.io/mcp/servers/amazon-rekognition-mcp-server/"
-documentation = "https://awslabs.github.io/mcp/servers/amazon-rekognition-mcp-server/"
+docs = "https://awslabs.github.io/mcp/servers/billing-cost-management-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/billing-cost-management-mcp-server/"
 repository = "https://github.com/awslabs/mcp.git"
-changelog = "https://github.com/awslabs/mcp/blob/main/src/amazon-rekognition-mcp-server/CHANGELOG.md"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/billing-cost-management-mcp-server/CHANGELOG.md"
 
 [project.scripts]
-"awslabs.amazon-rekognition-mcp-server" = "awslabs.amazon_rekognition_mcp_server.server:main"
+"awslabs.billing-cost-management-mcp-server" = "awslabs.billing_cost_management_mcp_server.server:main"
 
 [dependency-groups]
 dev = [
@@ -50,6 +53,7 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "black",
 ]
 
 [build-system]
@@ -107,7 +111,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/amazon_rekognition_mcp_server/__init__.py:__version__"
+    "awslabs/billing_cost_management_mcp_server/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
 
@@ -121,9 +125,15 @@ exclude_dirs = ["venv", ".venv", "tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-testpaths = [ "tests"]
+testpaths = ["tests"]
 asyncio_mode = "auto"
+log_cli = true
+log_cli_level = "INFO"
+# By default, only run unit tests (exclude integration tests)
+addopts = "-m 'not integration'"
 markers = [
+    "integration: marks tests as integration tests that make actual AWS API calls",
+    "unit: marks tests as unit tests that don't make external calls",
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
 ]

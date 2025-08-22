@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.ccapi-mcp-server"""
-
-__version__ = '1.0.4'
+"""Unit tests for prompts module."""
