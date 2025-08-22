@@ -53,6 +53,12 @@
       "icon": "\u26a1",
       "id": "core",
       "name": "Core"
+    },
+    {
+      "description": "Secure your AWS Cloud Workloads",
+      "icon": "\ud83d\udee1\ufe0f",
+      "id": "security",
+      "name": "Security"
     }
   ],
   "servers": [
@@ -1182,6 +1188,24 @@
         "conversational"
       ],
       "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Security",
+      "description": "Provides comprehensive security finding management, compliance monitoring, and security insights capabilities",
+      "icon": "\ud83d\udee1\ufe0f",
+      "id": "security-hub-mcp-server",
+      "name": "Amazon Security Hub MCP Server",
+      "source_path": "src/security-hub-mcp-server/",
+      "subcategory": "",
+      "tags": [
+        "security",
+        "compliance",
+        "securityhub"
+      ],
+      "workflows": [
+        "autonomous",
         "conversational"
       ]
     }
