@@ -51,51 +51,58 @@ IMPORTANT USAGE GUIDELINES:
 
 ## OPERATIONS
 
-1. getCostAndUsage - Historical cost data with grouping and filtering
-   Required: operation="getCostAndUsage"
-   Optional: start_date, end_date, granularity, metrics, group_by, filter, next_token, max_pages
-   Example: {"operation": "getCostAndUsage", "granularity": "DAILY", "group_by": '[{"Type": "DIMENSION", "Key": "SERVICE"}]'}
-   Returns: Grouped cost data with metrics by time period with automatic pagination
+1) getCostAndUsage — account-level historical cost/usage
+   Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
+   Optional: group_by, filter, next_token, max_pages
+   Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "DAILY", "metrics": [\"UnblendedCost\"], "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"SERVICE\"}]"}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
-   Required: operation="getCostAndUsageWithResources", Filter, Granularity, Start, End
+   Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
    Optional: metrics, group_by
-   Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to last 14 days of data only.
+   Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
+   Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
-   Required: operation="getDimensionValues", dimension
-   Optional: start_date, end_date, context, search_string, filter, max_results
-   Example: {"operation": "getDimensionValues", "dimension": "SERVICE"}
+   Required: operation="getDimensionValues", dimension, start_date, end_date
+   Optional: context, search_string, filter, max_results
+   Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "2024-01-01", "end_date": "2024-02-01"}
    Returns: List of values for specified dimension with automatic pagination
 
 4. getCostForecast - Future cost projections
-   Required: operation="getCostForecast", metric
-   Optional: start_date, end_date, granularity, filter, prediction_interval_level
-   Example: {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY"}
+   Required: operation="getCostForecast", metric, granularity, start_date, end_date
+   Optional: filter, prediction_interval_level
+   Example: {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22"}
+   Notes: metric value for this operation should be in all caps
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
-   Required: operation="getUsageForecast", metric, granularity, start, end
-   Optional: filter, prediction_interval_level
-   Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT
+   Required: operation="getUsageForecast", metric, granularity, start_date, end_date, filter
+   Optional: prediction_interval_level
+   Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE_GROUP\", \"Values\": [\"EC2-Instance\"]}}"}
+   Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"And\": [{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}, {\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\"]}}]}"}
+   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\", \"Reservation:p4de.24xlarge\", \"UnusedBox:p4de.24xlarge\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"REGION\"}]"}
+   Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast.
    Returns: Usage forecast for specified time period and granularity
 
 6. getTagsOrValues - Available cost allocation tags or values
    Required: operation="getTagsOrValues"
    Optional: start_date, end_date, search_string, next_token, max_pages
+   Example 1: {"operation": "getTagsOrValues"}
+   Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
    Returns: List of available cost allocation tags with automatic pagination. If tag values for a particular key are needed, pass the tag key as a parameter.
 
 8. getCostCategories - Available cost categories
-   Required: operation="getCostCategories"
-   Optional: start_date, end_date, search_string, next_token, max_pages
-   Example: {"operation": "getCostCategories"}
+   Required: operation="getCostCategories", start_date, end_date
+   Optional: search_string, next_token, max_pages
+   Example: {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
    Returns: List of available cost categories with automatic pagination
 
 9. getSavingsPlansUtilization - Savings Plans utilization data
-   Required: operation="getSavingsPlansUtilization"
-   Optional: start_date, end_date, granularity, filter
+   Required: operation="getSavingsPlansUtilization", start_date, end_date
+   Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
+   Notes: This operation supports only DAILY and MONTHLY granularity
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
