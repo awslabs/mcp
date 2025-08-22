@@ -38,6 +38,19 @@ cost_comparison_server = FastMCP(
 
 Do not use this tool except for comparing the costs of one month to the costs of another month. This tool should not be used for week-over-week or quarter-over-quarter (e.g., comparing Q2 vs. Q1) analysis.
 
+USE THIS TOOL ONLY FOR:
+- **Month-to-month cost variance analysis** (e.g., January vs February)
+- **Root cause analysis** of cost changes between specific months
+- **Detailed cost driver identification** (what exactly caused the cost change)
+- **Service-level impact analysis** for month-over-month changes
+- **Executive reporting** on monthly cost variances
+
+STRICT LIMITATIONS:
+- ONLY compares exactly one month to another month
+- Both periods must start on 1st day of month, end on 1st day of next month
+- Cannot compare weeks, quarters, or custom periods
+- DO NOT USE for general cost analysis or flexible time periods
+
 This tool supports two main operations:
 1. getCostAndUsageComparisons: Compare costs between two time periods with flexible grouping and filtering
 2. getCostComparisonDrivers: Identify key factors driving cost changes between two time periods

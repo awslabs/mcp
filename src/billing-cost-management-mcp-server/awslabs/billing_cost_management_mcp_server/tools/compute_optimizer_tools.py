@@ -39,9 +39,14 @@ compute_optimizer_server = FastMCP(
     description="""Retrieves recommendations from AWS Compute Optimizer.
 
 IMPORTANT USAGE GUIDELINES:
-- Start with EC2 instance recommendations if the user is not specific about resource types
 - Focus on recommendations with the highest estimated savings first
 - Include all relevant details when presenting specific recommendations
+
+USE THIS TOOL FOR:
+- **Performance optimization** (CPU, memory, network utilization analysis)
+- **Performance-based rightsizing** (not cost-based)
+
+DO NOT USE FOR: Cost optimization or idle detection (use cost-optimization-hub)
 
 This tool supports the following operations:
 1. get_ec2_instance_recommendations: Get recommendations for EC2 instances

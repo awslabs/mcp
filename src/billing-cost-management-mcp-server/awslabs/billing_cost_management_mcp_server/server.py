@@ -81,7 +81,7 @@ Available components:
 
 TOOLS:
 - cost-explorer: Historical cost and usage data with flexible filtering
-- compute-optimizer: Recommendations for AWS compute resources like EC2, Lambda, ASG
+- compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
 - cost-optimization-hub: Cost optimization recommendations across AWS services
 - storage-lens-run-query: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
@@ -106,10 +106,10 @@ For financial analysis:
 4. For budget monitoring, use the budget tool
 5. For anomaly detection, use the cost-anomaly tool
 
-For cost optimization recommendations:
-1. Use cost-optimization-hub to get broad recommendations across services
-2. Use compute-optimizer for compute-specific recommendations
-3. Use get-recommendation-details for enhanced recommendation analysis
+For optimization recommendations:
+1. Use cost-optimization-hub to get recommendations for cost optimization across services. This includes including Idle resources, Rightsizing for savings, RI/SP.
+2. Use get-recommendation-details for enhanced recommendation analysis for specific cost optimization recommendations.
+3. Use compute-optimizer to get performance optimization recommendations for compute resources such as EC2, ECS, EBS, Lambda, RDS, ASG.
 4. Use ri-performance and sp-performance to analyze purchase programs
 
 For multi-account environments:

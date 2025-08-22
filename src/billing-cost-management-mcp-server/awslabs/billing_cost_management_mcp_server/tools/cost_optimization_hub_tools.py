@@ -46,25 +46,50 @@ cost_optimization_hub_server = FastMCP(
 
 @cost_optimization_hub_server.tool(
     name='cost-optimization-hub',
-    description="""Retrieves recommendations from AWS Cost Optimization Hub.
+    description="""Retrieves cost optimization recommendations from AWS Cost Optimization Hub.
 
 IMPORTANT USAGE GUIDELINES:
 - Focus on recommendations with the highest estimated savings first
 - Include all relevant details when presenting specific recommendations
+
+USE THIS TOOL FOR:
+- **Idle/unused resource detection** (EC2, RDS, EBS, Lambda, etc.)
+- **Cost savings recommendations** (rightsizing, stopping, deleting resources)
+- **Reserved Instance and Savings Plans purchase recommendations**
+- **Cross-service cost optimization analysis**
+- **Monthly cost reduction opportunities**
+
+DO NOT USE FOR: Performance optimization (use compute-optimizer)
 
 Supported Operations:
 1. list_recommendation_summaries: High-level overview of savings opportunities grouped by a dimension
 2. list_recommendations: Detailed list of specific recommendations
 3. get_recommendation: Get detailed information about a specific recommendation
 
-IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter. Valid 'group_by' parameter for list_recommendation_summaries is: AccountId, Region, ActionType, ResourceType, RestartNeeded, RollbackPossible, ImplementationEffort
+IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter.
+Valid 'group_by' values: AccountId, Region, ActionType, ResourceType, RestartNeeded, RollbackPossible, ImplementationEffort
+
+CRITICAL PARAMETER REQUIREMENTS:
+- 'filters' parameter must be passed as JSON string format
+- 'max_results' must be integer (not string)
+- 'get_recommendation' requires both 'resource_id' AND 'resource_type' parameters
+- Service only available in us-east-1 region
+
+Available Filter Parameters (pass as JSON string):
+- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances']
+- actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
+- implementationEfforts: ['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh']
+- regions: AWS region codes (e.g., ["us-east-1", "us-west-2"])
+- accountIds: List of AWS account IDs
+- restartNeeded: boolean
+- rollbackPossible: boolean
 
 Cost Optimization Hub provides recommendations across multiple AWS services, including:
 - EC2 instances (right-sizing, Graviton migration)
 - EBS volumes (unused volumes, IOPS optimization)
 - RDS instances (right-sizing, engine optimization)
 - Lambda functions (memory size optimization)
-- S3 buckets (storage class optimization)
+- SP/RI
 - And more
 
 Each recommendation includes:
@@ -72,9 +97,6 @@ Each recommendation includes:
 - The estimated monthly savings
 - The current state of the resource
 - The recommended state of the resource
-- Implementation steps
-
-When passing max_result parameter for any of the operations ensure its a integer
 """,
 )
 async def cost_optimization_hub(

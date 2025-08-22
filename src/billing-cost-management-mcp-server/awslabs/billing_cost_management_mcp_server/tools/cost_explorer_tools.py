@@ -49,6 +49,14 @@ IMPORTANT USAGE GUIDELINES:
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones
 - Always remember that the end_date is exclusive
 
+USE THIS TOOL FOR:
+- **Historical cost trends** and spending analysis (any time period)
+- **Usage pattern analysis** over time
+- **Cost breakdown** by service, account, region, or any dimension
+- **Forecasting** future costs and usage
+- **Resource-level cost analysis** (last 14 days)
+- **Multi-dimensional cost analysis** with complex grouping
+
 ## OPERATIONS
 
 1) getCostAndUsage — account-level historical cost/usage

@@ -33,9 +33,9 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Storage cost breakdown**: Analyze S3 storage costs by bucket, storage class, and region
 - **Storage optimization opportunities**: Identify lifecycle policy opportunities and cost-saving measures
 
-### Cost Comparison and Analysis
+### Cost and Usage Comparison
 
-- **Month-over-month comparisons**: Compare costs between time periods with detailed breakdown
+- **Month-over-month comparisons**: Compare cost and usage between time periods with detailed breakdown
 - **Multi-account analysis**: Analyze costs across multiple linked accounts
 - **Cost driver identification**: Identify key factors driving cost changes
 
@@ -47,7 +47,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
-2. Install Python using `uv python install 3.10`
+2. Install Python 3.10 or newer using uv python install 3.10 (or a more recent version)
 3. Set up AWS credentials with access to AWS services
    - You need an AWS account with appropriate permissions
    - Configure AWS credentials with `aws configure` or environment variables
@@ -173,13 +173,75 @@ The MCP server requires specific AWS permissions and configuration:
 
 Your AWS IAM role or user needs permissions to access various AWS Billing and Cost Management APIs:
 
-- `ce:*` - Cost Explorer API access
-- `cost-optimization-hub:*` - Cost Optimization Hub access
-- `compute-optimizer:*` - Compute Optimizer recommendations
-- `budgets:*` - AWS Budget information
-- `pricing:*` - AWS Pricing API access
-- `athena:*` and `s3:*` - For Storage Lens querying capabilities
-- `resource:*` - AWS Free Tier
+Cost Explorer:
+- ce:GetReservationPurchaseRecommendation
+- ce:GetReservationCoverage
+- ce:GetReservationUtilization
+- ce:GetSavingsPlansUtilization
+- ce:GetSavingsPlansCoverage
+- ce:GetSavingsPlansUtilizationDetails
+- ce:GetSavingsPlansPurchaseRecommendation
+- ce:GetCostAndUsageComparisons
+- ce:GetCostComparisonDrivers
+- ce:GetAnomalies
+- ce:GetCostAndUsage
+- ce:GetCostAndUsageComparisons
+- ce:GetCostAndUsageWithResources
+- ce:GetDimensionValues
+- ce:GetCostForecast
+- ce:GetUsageForecast
+- ce:GetTags
+- ce:GetCostCategories
+- ce:
+
+Cost Optimization Hub:
+- cost-optimization-hub:GetRecommendation
+- cost-optimization-hub:ListRecommendations
+- cost-optimization-hub:ListRecommendationSummaries
+
+Compute Optimizer:
+- compute-optimizer:GetAutoScalingGroupRecommendations
+- compute-optimizer:GetEBSVolumeRecommendations
+- compute-optimizer:GetEC2InstanceRecommendations
+- compute-optimizer:GetECSServiceRecommendations
+- compute-optimizer:GetRDSDatabaseRecommendations
+- compute-optimizer:GetLambdaFunctionRecommendations
+- compute-optimizer:GetEnrollmentStatus
+- compute-optimizer:GetIdleRecommendations
+
+AWS Budgets:
+- budgets:ViewBudget
+
+AWS Pricing:
+- pricing:DescribeServices
+- pricing:GetAttributeValues
+- pricing:GetProducts
+
+AWS Free Tier:
+- freetier:GetFreeTierUsage
+
+Storage Lens (Athena and S3):
+- athena:StartQueryExecution
+- athena:GetQueryExecution
+- athena:GetQueryResults
+- athena:CreateWorkGroup
+- athena:GetWorkGroup
+- athena:CreateDataCatalog
+- athena:GetDataCatalog
+- athena:GetDatabase
+- athena:CreateTable
+- athena:GetTableMetadata
+- athena:ListDatabases
+- athena:ListTableMetadata
+- s3:GetObject
+- s3:ListBucket
+- s3:PutObject
+- s3:GetBucketLocation
+- s3:GetStorageLensConfiguration
+- s3:ListStorageLensConfigurations
+- s3:PutStorageLensConfiguration
+- s3:GetStorageLensConfigurationTagging
+- s3:PutStorageLensConfigurationTagging
 
 #### Configuration
 
@@ -200,24 +262,26 @@ The server uses these key environment variables:
 The server currently supports the following AWS services
 
 1. **Cost Explorer**
-   - get-reservation-purchase-recommendation
+   - get_reservation_purchase_recommendation
    - get_reservation_coverage
    - get_reservation_utilization
-   - get-savings-plans-purchase-recommendation
+   - get_savings_plans_purchase_recommendation
    - get_savings_plans_utilization
    - get_savings_plans_coverage
    - get_savings_plans_details
-   - get-anomalies
-   - get-cost-and-usage
-   - get-cost-and-usage-with-resources
-   - get-dimension-values
-   - get-cost-forecast
-   - get-usage-forecast
-   - get-tags
-   - get-cost-categories
+   - get_cost_comparison_drivers
+   - get_cost_and_usage_comparisons
+   - get_anomalies
+   - get_cost_and_usage
+   - get_cost_and_usage_with_resources
+   - get_dimension_values
+   - get_cost_forecast
+   - get_usage_forecast
+   - get_tags
+   - get_cost_categories
 
 2. **AWS Budgets**
-   - describe-budgets
+   - describe_budgets
 
 3. **AWS Free Tier**
    - get_free_tier_usage
@@ -229,19 +293,19 @@ The server currently supports the following AWS services
    - get_products
 
 5. **Cost Optimization Hub**
-   - get-recommendation
-   - list-recommendations
-   - list-recommendation-summaries
+   - get_recommendation
+   - list_recommendations
+   - list_recommendation_summaries
 
 6. **Compute Optimizer**
-   - get-auto-scaling-group-recommendations
-   - get-ebs-volume-recommendations
-   - get-ec2-instance-recommendations
-   - get-ecs-service-recommendations
-   - get-rds-database-recommendations
-   - get-lambda-function-recommendations
-   - get-idle-recommendations
+   - get_auto_scaling_group_recommendations
+   - get_ebs_volume_recommendations
+   - get_ec2_instance_recommendations
+   - getvecs_service_recommendations
+   - get_rds_database_recommendations
+   - get_lambda_function_recommendations
+   - get_idle_recommendations
    - get_enrollment_status
 
 7. **S3 Storage Lens**
-   - storage-lens-run-query (custom implementation using Athena)
+   - storage_lens_run_query (custom implementation using Athena)
