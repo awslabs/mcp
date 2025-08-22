@@ -1202,11 +1202,16 @@
       "tags": [
         "security",
         "compliance",
-        "securityhub"
+        "securityhub",
+        "insights",
+        "finding",
+        "findings",
+        "severity"
       ],
       "workflows": [
         "autonomous",
-        "conversational"
+        "conversational",
+        "Vibe Coding & Development"
       ]
     }
   ],
