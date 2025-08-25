@@ -218,7 +218,7 @@ Check for required tools and warn the user if any are missing.
 **Constraints:**
 - You MUST verify the following tools are available in your context:
   - tool_name_one
-  - tool_name_one
+  - tool_name_two
 - You MUST ONLY check for tool existence and MUST NOT attempt to run the tools because running tools during verification could cause unintended side effects, consume resources unnecessarily, or trigger actions before the user is ready
 - You MUST inform the user about any missing tools with a clear message
 - You MUST ask if the user wants to proceed anyway despite missing tools
