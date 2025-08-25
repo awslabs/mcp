@@ -682,3 +682,91 @@ def test_main_success_with_read_only_mode(
     mock_knowledge_base.setup.assert_called_once()
     mock_get_read_only_operations.assert_called_once()
     mock_server.run.assert_called_once_with(transport='stdio')
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_AGENT_SCRIPTS', True)
+async def test_get_execution_plan_is_available_when_env_var_is_set():
+    """Test get_execution_plan returns script content when script exists."""
+    # Re-import the server module to ensure the tool is registered
+    import awslabs.aws_api_mcp_server.server
+    import importlib
+
+    importlib.reload(awslabs.aws_api_mcp_server.server)
+
+    from awslabs.aws_api_mcp_server.server import server
+
+    tools = await server.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'get_execution_plan' in tool_names
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_AGENT_SCRIPTS', False)
+async def test_get_execution_plan_is_available_when_env_var_is_not_set():
+    """Test get_execution_plan returns script content when script exists."""
+    # Re-import the server module to ensure the tool is not registered
+    import awslabs.aws_api_mcp_server.server
+    import importlib
+
+    importlib.reload(awslabs.aws_api_mcp_server.server)
+
+    from awslabs.aws_api_mcp_server.server import server
+
+    tools = await server.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'get_execution_plan' not in tool_names
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_AGENT_SCRIPTS', True)
+async def test_get_execution_plan_script_not_found():
+    """Test get_execution_plan returns error when script does not exist."""
+    # Re-import the server module to ensure the function is defined
+    import awslabs.aws_api_mcp_server.server
+    import importlib
+
+    importlib.reload(awslabs.aws_api_mcp_server.server)
+
+    from awslabs.aws_api_mcp_server.server import get_execution_plan
+
+    # Mock the AGENT_SCRIPTS_MANAGER after reloading
+    with patch(
+        'awslabs.aws_api_mcp_server.server.AGENT_SCRIPTS_MANAGER'
+    ) as mock_agent_scripts_manager:
+        mock_agent_scripts_manager.get_script.return_value = None
+
+        result = await get_execution_plan('non-existent-script', DummyCtx())
+
+        assert isinstance(result, AwsApiMcpServerErrorResponse)
+        assert (
+            result.detail
+            == 'Error while retrieving execution plan: Script non-existent-script not found'
+        )
+        mock_agent_scripts_manager.get_script.assert_called_once_with('non-existent-script')
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_AGENT_SCRIPTS', True)
+async def test_get_execution_plan_exception_handling():
+    """Test get_execution_plan handles exceptions properly."""
+    # Re-import the server module to ensure the function is defined
+    import awslabs.aws_api_mcp_server.server
+    import importlib
+
+    importlib.reload(awslabs.aws_api_mcp_server.server)
+
+    from awslabs.aws_api_mcp_server.server import get_execution_plan
+
+    # Mock the AGENT_SCRIPTS_MANAGER after reloading
+    with patch(
+        'awslabs.aws_api_mcp_server.server.AGENT_SCRIPTS_MANAGER'
+    ) as mock_agent_scripts_manager:
+        mock_agent_scripts_manager.get_script.side_effect = Exception('Test exception')
+
+        mock_ctx = MagicMock()
+        mock_ctx.error = AsyncMock()
+
+        result = await get_execution_plan('test-script', mock_ctx)
+
+        assert isinstance(result, AwsApiMcpServerErrorResponse)
+        assert result.detail == 'Error while retrieving execution plan: Test exception'
+        mock_ctx.error.assert_called_once_with(
+            'Error while retrieving execution plan: Test exception'
+        )
