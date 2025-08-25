@@ -1,0 +1,24 @@
+{
+  "description": "Simple ETL workflow for testing",
+  "name": "simple_etl_workflow",
+  "tasks": [
+    {
+      "command": "SELECT * FROM source",
+      "id": "extract",
+      "name": "Extract",
+      "type": "sql"
+    },
+    {
+      "command": "INSERT INTO target",
+      "depends_on": [
+        {
+          "condition": "success",
+          "task_id": "extract"
+        }
+      ],
+      "id": "load",
+      "name": "Load",
+      "type": "sql"
+    }
+  ]
+}
