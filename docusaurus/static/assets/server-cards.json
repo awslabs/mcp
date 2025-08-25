@@ -467,6 +467,29 @@
       ]
     },
     {
+      "category": "AI & Machine Learning",
+      "description": "Manage custom models in Bedrock for on-demand inference",
+      "icon": "\ud83e\udd16",
+      "id": "aws-bedrock-custom-model-import-mcp-server",
+      "name": "Amazon Bedrock Custom Model Import MCP Server",
+      "source_path": "src/aws-bedrock-custom-model-import-mcp-server/",
+      "subcategory": "Model Orchestration",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "vibe-coding",
+        "conversational",
+        "machine-learning",
+        "ai-tools",
+        "serverless"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational",
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Data & Analytics",
       "description": "Complete DynamoDB operations and table management",
       "icon": "\ud83d\udcca",
