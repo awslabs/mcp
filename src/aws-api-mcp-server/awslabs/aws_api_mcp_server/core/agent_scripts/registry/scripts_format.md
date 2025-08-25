@@ -217,8 +217,8 @@ Check for required tools and warn the user if any are missing.
 
 **Constraints:**
 - You MUST verify the following tools are available in your context:
-  - santos_slack_mcp_server___get_conversation_history
-  - santos_slack_mcp_server___get_thread_replies
+  - tool_name_one
+  - tool_name_two
 - You MUST ONLY check for tool existence and MUST NOT attempt to run the tools because running tools during verification could cause unintended side effects, consume resources unnecessarily, or trigger actions before the user is ready
 - You MUST inform the user about any missing tools with a clear message
 - You MUST ask if the user wants to proceed anyway despite missing tools
@@ -242,7 +242,6 @@ Guide the user through a series of questions to refine their initial idea.
 
 **Constraints:**
 - You MUST ask one question at a time
-- You MUST append each question and answer to "idea-honing.md"
 - You SHOULD adapt follow-up questions based on previous answers
 - You MUST continue asking questions until sufficient detail is gathered
 ```
