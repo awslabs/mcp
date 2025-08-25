@@ -111,9 +111,11 @@ def test_script_content_parsing(test_registry_dir):
     manager = AgentScriptsManager(scripts_dir=test_registry_dir)
 
     script = manager.get_script('test_script')
+    assert script is not None
     assert script.content == '# Test Script 1\n\n<Agent Script Content>'
 
     script = manager.get_script('valid_script')
+    assert script is not None
     assert 'This is a valid script with proper frontmatter' in script.content
     assert '## Steps' in script.content
 
@@ -179,6 +181,7 @@ def test_script_with_complex_content(test_registry_dir):
     manager = AgentScriptsManager(scripts_dir=test_registry_dir)
 
     script = manager.get_script('valid_script')
+    assert script is not None
     assert '## Steps' in script.content
     assert '1. First step' in script.content
     assert '2. Second step' in script.content
