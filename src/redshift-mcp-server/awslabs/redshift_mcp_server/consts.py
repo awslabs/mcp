@@ -113,6 +113,17 @@ WHERE database_name = {} AND schema_name = {} AND table_name = {}
 ORDER BY ordinal_position;
 """
 
+SVV_COLUMNS_PATTERN_QUERY = """
+SELECT
+    table_schema,
+    table_name,
+    column_name,
+    data_type
+FROM SVV_COLUMNS
+WHERE column_name ILIKE {}
+ORDER BY table_schema, table_name, column_name
+"""
+
 # SQL guardrails
 
 # Single-lines comments.
