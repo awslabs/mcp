@@ -42,6 +42,7 @@ NOTICE                                                                    @awsla
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                         @awslabs/mcp-admins
 /src/cfn-mcp-server                     @karamvsingh                      @awslabs/mcp-admins
+/src/cloudtrail-mcp-server              @rokafella                        @awslabs/mcp-admins
 /src/ccapi-mcp-server                   @novekm                           @awslabs/mcp-admins
 /src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque   @awslabs/mcp-admins
 /src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe               @awslabs/mcp-admins
