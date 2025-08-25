@@ -18,7 +18,6 @@ import argparse
 import asyncio
 import sys
 from awslabs.postgres_mcp_server.connection import DBConnectionSingleton
-from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
@@ -282,17 +281,21 @@ def main():
                 sys.exit(1)
 
         else:
-            # Use Direct PostgreSQL connection using psycopg connection pool
+            # Use Direct PostgreSQL connection via singleton with psycopg connection pool
             try:
-                # Create a direct PostgreSQL connection pool
-                db_connection = PsycopgPoolConnection(
+                # Initialize the direct PostgreSQL connection singleton
+                DBConnectionSingleton.initialize(
+                    resource_arn=None,
+                    secret_arn=args.secret_arn,
+                    database=args.database,
+                    region=args.region,
+                    readonly=connection_params['readonly'],
                     host=args.hostname,
                     port=args.port,
-                    database=args.database,
-                    readonly=connection_params['readonly'],
-                    secret_arn=args.secret_arn,
-                    region=args.region,
                 )
+
+                # Get the connection from the singleton
+                db_connection = DBConnectionSingleton.get().db_connection
             except Exception as e:
                 logger.exception(f'Failed to create PostgreSQL connection: {str(e)}')
                 sys.exit(1)
