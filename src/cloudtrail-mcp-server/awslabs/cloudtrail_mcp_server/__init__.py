@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.aws-api-mcp-server"""
+"""awslabs.cloudtrail-mcp-server"""
 
-__version__ = '0.2.9'
+__version__ = '0.0.1'
+MCP_SERVER_VERSION = __version__

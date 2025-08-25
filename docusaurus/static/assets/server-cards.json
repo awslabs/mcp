@@ -1120,6 +1120,31 @@
       ]
     },
     {
+      "category": "Cost & Operations",
+      "description": "AWS API Activity, User or Resource analysis using CloudTrail Logs",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudtrail-mcp-server",
+      "name": "AWS CloudTrail MCP Server",
+      "source_path": "src/cloutrail-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudtrail",
+        "activity",
+        "audit",
+        "compliance",
+        "logs",
+        "events",
+        "analysis",
+        "troubleshooting",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Developer Tools & Support",
       "description": "Comprehensive IAM user, role, group, and policy management with security best practices",
       "icon": "\ud83d\udee0\ufe0f",

@@ -12,6 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.aws-api-mcp-server"""
-
-__version__ = '0.2.9'
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
