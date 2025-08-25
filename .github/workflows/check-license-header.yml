@@ -17,4 +17,4 @@ jobs:
         with:
           path: .
           config: ./.github/workflows/check-license-header.json
-          strict: false
+          strict: true
