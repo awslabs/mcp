@@ -718,7 +718,7 @@ def main():
 
     # Display read-only mode status
     if args.readonly:
-        print('\n⚠️ READ-ONLY MODE ACTIVE ⚠️')
+        print('\n[WARNING] READ-ONLY MODE ACTIVE [WARNING]')
         print('The server will not perform any create, update, or delete operations.')
 
     mcp.run()
