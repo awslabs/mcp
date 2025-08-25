@@ -116,14 +116,15 @@ class TestBaseModels:
         assert valid_comm.body == 'Test body'
 
         # Test body validation - empty body should fail
-        with pytest.raises(ValidationError):
-            Communication(
-                body='',  # Empty body should fail validation
-                caseId='test-case-id',
-                submittedBy='test@example.com',
-                timeCreated='2023-01-01T00:00:00Z',
-                attachmentSet=[],
-            )
+        # Remove this test as some communications has empty body in real world.
+        #with pytest.raises(ValidationError):
+        #    Communication(
+        #        body='',  # Empty body should fail validation
+        #        caseId='test-case-id',
+        #        submittedBy='test@example.com',
+        #        timeCreated='2023-01-01T00:00:00Z',
+        #        attachmentSet=[],
+        #    )
 
         # Test body length validation - body too long should fail
         with pytest.raises(ValidationError):
