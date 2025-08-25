@@ -15,24 +15,15 @@
 import frontmatter
 from .models import Script
 from pathlib import Path
-from typing import Optional
 
 
 class AgentScriptsManager:
     """Script manager for AWS API MCP."""
 
-    _instance: Optional['AgentScriptsManager'] = None
-
-    def __new__(cls) -> 'AgentScriptsManager':
-        """Create or return the singleton instance."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        """Initialize the manager (only once)."""
+    def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry'):
+        """Initialize the manager."""
         self.scripts = {}
-        self._scripts_dir = Path(__file__).parent / 'registry'
+        self._scripts_dir = scripts_dir
 
         if not self._scripts_dir.exists():
             raise RuntimeError(f'Scripts directory {self._scripts_dir} does not exist')
@@ -54,12 +45,9 @@ class AgentScriptsManager:
                     content=script,
                 )
 
-    def get_script(self, script_name: str) -> Optional[Script]:
+    def get_script(self, script_name: str) -> Script | None:
         """Get a script from file."""
-        if script_name not in self.scripts:
-            return None
-
-        return self.scripts[script_name]
+        return self.scripts.get(script_name)
 
     def pretty_print_scripts(self) -> str:
         """Pretty print all scripts."""
