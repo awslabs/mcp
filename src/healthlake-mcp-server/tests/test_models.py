@@ -224,3 +224,60 @@ class TestJobFilter:
 
         assert filter_obj.job_status is None
         assert filter_obj.job_type is None
+
+
+class TestModelValidators:
+    """Test Pydantic model validators."""
+
+    def test_create_request_validator_non_alphanumeric(self):
+        """Test create request validator with non-alphanumeric datastore ID."""
+        data = {
+            'datastore_id': '1234567890123456789012345678901!',  # Contains special character
+            'resource_type': 'Patient',
+            'resource_data': {'resourceType': 'Patient'},
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            CreateResourceRequest(**data)
+
+        assert 'alphanumeric' in str(exc_info.value)
+
+    def test_update_request_validator_non_alphanumeric(self):
+        """Test update request validator with non-alphanumeric datastore ID."""
+        data = {
+            'datastore_id': '1234567890123456789012345678901@',  # Contains special character
+            'resource_type': 'Patient',
+            'resource_id': 'patient-123',
+            'resource_data': {'resourceType': 'Patient'},
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            UpdateResourceRequest(**data)
+
+        assert 'alphanumeric' in str(exc_info.value)
+
+    def test_import_job_config_validator_non_alphanumeric(self):
+        """Test import job config validator with non-alphanumeric datastore ID."""
+        data = {
+            'datastore_id': '1234567890123456789012345678901#',  # Contains special character
+            'input_data_config': {'s3_uri': 's3://bucket/input'},
+            'data_access_role_arn': 'arn:aws:iam::123456789012:role/HealthLakeRole',
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            ImportJobConfig(**data)
+
+        assert 'alphanumeric' in str(exc_info.value)
+
+    def test_export_job_config_validator_non_alphanumeric(self):
+        """Test export job config validator with non-alphanumeric datastore ID."""
+        data = {
+            'datastore_id': '1234567890123456789012345678901$',  # Contains special character
+            'output_data_config': {'S3Configuration': {'S3Uri': 's3://bucket/export'}},
+            'data_access_role_arn': 'arn:aws:iam::123456789012:role/HealthLakeRole',
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            ExportJobConfig(**data)
+
+        assert 'alphanumeric' in str(exc_info.value)

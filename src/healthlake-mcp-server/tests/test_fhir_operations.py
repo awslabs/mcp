@@ -555,6 +555,130 @@ class TestAsyncJobOperations:
         assert result == expected
 
 
+class TestAWSAuthFlow:
+    """Test AWS SigV4 authentication flow."""
+
+    @pytest.fixture
+    def mock_request(self):
+        """Create a mock HTTP request."""
+        request = Mock()
+        request.method = 'POST'
+        request.url = Mock()
+        request.url.host = 'healthlake.us-east-1.amazonaws.com'
+        request.content = b'{"resourceType": "Patient"}'
+        request.headers = {'content-length': '25'}
+        return request
+
+    @pytest.fixture
+    def mock_credentials(self):
+        """Create mock AWS credentials."""
+        credentials = Mock()
+        credentials.access_key = 'AKIATEST'
+        credentials.secret_key = 'secret'  # pragma: allowlist secret
+        credentials.token = None
+        return credentials
+
+    def test_aws_auth_flow_post_request(self, mock_request, mock_credentials):
+        """Test auth flow for POST request with body."""
+        auth = AWSAuth(credentials=mock_credentials, region='us-east-1')
+
+        with (
+            patch('awslabs.healthlake_mcp_server.fhir_operations.AWSRequest') as mock_aws_request,
+            patch('awslabs.healthlake_mcp_server.fhir_operations.SigV4Auth') as mock_signer,
+        ):
+            mock_aws_request_instance = Mock()
+            mock_aws_request.return_value = mock_aws_request_instance
+            mock_aws_request_instance.headers = {
+                'Authorization': 'AWS4-HMAC-SHA256 ...',
+                'X-Amz-Date': '20220101T120000Z',
+                'Host': 'healthlake.us-east-1.amazonaws.com',
+            }
+
+            mock_signer_instance = Mock()
+            mock_signer.return_value = mock_signer_instance
+
+            # Execute auth flow
+            auth_generator = auth.auth_flow(mock_request)
+            result_request = next(auth_generator)
+
+            # Verify AWS request was created correctly
+            mock_aws_request.assert_called_once()
+            call_args = mock_aws_request.call_args
+            assert call_args[1]['method'] == 'POST'
+            assert call_args[1]['data'] == b'{"resourceType": "Patient"}'
+
+            # Verify signer was called
+            mock_signer.assert_called_once_with(mock_credentials, 'healthlake', 'us-east-1')
+            mock_signer_instance.add_auth.assert_called_once_with(mock_aws_request_instance)
+
+            # Verify headers were set
+            assert result_request == mock_request
+
+    def test_aws_auth_flow_get_request(self, mock_credentials):
+        """Test auth flow for GET request without body."""
+        request = Mock()
+        request.method = 'GET'
+        request.url = Mock()
+        request.url.host = 'healthlake.us-east-1.amazonaws.com'
+        request.content = None
+        request.headers = {}
+
+        auth = AWSAuth(credentials=mock_credentials, region='us-east-1')
+
+        with (
+            patch('awslabs.healthlake_mcp_server.fhir_operations.AWSRequest') as mock_aws_request,
+            patch('awslabs.healthlake_mcp_server.fhir_operations.SigV4Auth') as mock_signer,
+        ):
+            mock_aws_request_instance = Mock()
+            mock_aws_request.return_value = mock_aws_request_instance
+            mock_aws_request_instance.headers = {'Authorization': 'AWS4-HMAC-SHA256 ...'}
+
+            mock_signer_instance = Mock()
+            mock_signer.return_value = mock_signer_instance
+
+            # Execute auth flow
+            auth_generator = auth.auth_flow(request)
+            result_request = next(auth_generator)
+
+            # Verify no body for GET request
+            call_args = mock_aws_request.call_args
+            assert call_args[1]['data'] is None
+            assert result_request == request
+
+    def test_aws_auth_flow_with_content_length(self, mock_request, mock_credentials):
+        """Test auth flow preserves Content-Length header."""
+        auth = AWSAuth(credentials=mock_credentials, region='us-east-1')
+
+        with (
+            patch('awslabs.healthlake_mcp_server.fhir_operations.AWSRequest') as mock_aws_request,
+            patch('awslabs.healthlake_mcp_server.fhir_operations.SigV4Auth'),
+        ):
+            mock_aws_request_instance = Mock()
+            mock_aws_request.return_value = mock_aws_request_instance
+            mock_aws_request_instance.headers = {}
+
+            # Execute auth flow
+            auth_generator = auth.auth_flow(mock_request)
+            next(auth_generator)
+
+            # Verify Content-Length was included in headers for signing
+            call_args = mock_aws_request.call_args
+            headers = call_args[1]['headers']
+            assert headers['Content-Length'] == '25'
+
+    def test_aws_auth_flow_custom_service(self, mock_request, mock_credentials):
+        """Test auth flow with custom service name."""
+        auth = AWSAuth(credentials=mock_credentials, region='us-west-2', service='custom-service')
+
+        with patch('awslabs.healthlake_mcp_server.fhir_operations.SigV4Auth') as mock_signer:
+            # Execute auth flow
+            auth_generator = auth.auth_flow(mock_request)
+            next(auth_generator)
+
+            # Verify custom service was used
+            mock_signer.assert_called_once_with(mock_credentials, 'custom-service', 'us-west-2')
+
+
 class TestAWSAuthMethod:
     """Test AWS authentication method."""
 
@@ -584,3 +708,161 @@ class TestAWSAuthMethod:
 
         with pytest.raises(NoCredentialsError):
             mock_client._get_aws_auth()
+
+
+class TestHTTPErrorScenarios:
+    """Test HTTP error handling scenarios."""
+
+    @pytest.fixture
+    def mock_client_with_auth(self):
+        """Create a mock client with auth setup."""
+        with patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session'):
+            client = HealthLakeClient()
+            client.healthlake_client = Mock()
+            client.session = Mock()
+            client.region = 'us-east-1'
+
+            # Mock credentials
+            mock_credentials = Mock()
+            client.session.get_credentials.return_value = mock_credentials
+            return client
+
+    @pytest.mark.asyncio
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.httpx.AsyncClient')
+    async def test_search_resources_http_timeout(self, mock_httpx, mock_client_with_auth):
+        """Test search resources with HTTP timeout."""
+        import httpx
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.post.side_effect = httpx.TimeoutException('Request timeout')
+        mock_httpx.return_value.__aenter__.return_value = mock_client_instance
+
+        with pytest.raises(Exception, match='Request timeout'):
+            await mock_client_with_auth.search_resources(
+                '12345678901234567890123456789012', 'Patient', {'name': 'Smith'}
+            )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.httpx.AsyncClient')
+    async def test_search_resources_http_400_error(self, mock_httpx, mock_client_with_auth):
+        """Test search resources with HTTP 400 error."""
+        import httpx
+
+        mock_response = Mock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            '400 Bad Request', request=Mock(), response=Mock()
+        )
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.post.return_value = mock_response
+        mock_httpx.return_value.__aenter__.return_value = mock_client_instance
+
+        with pytest.raises(Exception) as exc_info:
+            await mock_client_with_auth.search_resources(
+                '12345678901234567890123456789012', 'Patient', {'name': 'Smith'}
+            )
+
+        # Should create helpful error message
+        error_message = str(exc_info.value)
+        assert 'HealthLake rejected the search request' in error_message or '400' in error_message
+
+    @pytest.mark.asyncio
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.httpx.AsyncClient')
+    async def test_patient_everything_connection_error(self, mock_httpx, mock_client_with_auth):
+        """Test patient everything with connection error."""
+        import httpx
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get.side_effect = httpx.ConnectError('Connection failed')
+        mock_httpx.return_value.__aenter__.return_value = mock_client_instance
+
+        with pytest.raises(Exception, match='Connection failed'):
+            await mock_client_with_auth.patient_everything(
+                '12345678901234567890123456789012', 'patient-123'
+            )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.httpx.AsyncClient')
+    async def test_create_resource_json_decode_error(self, mock_httpx, mock_client_with_auth):
+        """Test create resource with JSON decode error."""
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.side_effect = ValueError('Invalid JSON')
+
+        mock_client_instance = AsyncMock()
+        mock_client_instance.post.return_value = mock_response
+        mock_httpx.return_value.__aenter__.return_value = mock_client_instance
+
+        with pytest.raises(Exception, match='Invalid JSON'):
+            await mock_client_with_auth.create_resource(
+                '12345678901234567890123456789012', 'Patient', {'resourceType': 'Patient'}
+            )
+
+
+class TestBundleProcessingEdgeCases:
+    """Test bundle processing edge cases."""
+
+    def test_process_bundle_with_includes_complex(self):
+        """Test bundle processing with complex includes structure."""
+        client = HealthLakeClient.__new__(HealthLakeClient)
+
+        bundle = {
+            'resourceType': 'Bundle',
+            'entry': [
+                {
+                    'resource': {'resourceType': 'Patient', 'id': 'patient-1'},
+                    'search': {'mode': 'match'},
+                },
+                {
+                    'resource': {'resourceType': 'Practitioner', 'id': 'practitioner-1'},
+                    'search': {'mode': 'include'},
+                },
+                {
+                    'resource': {'resourceType': 'Observation', 'id': 'obs-1'},
+                    'search': {'mode': 'include'},
+                },
+            ],
+            'link': [],
+        }
+
+        result = client._process_bundle_with_includes(bundle)
+
+        assert len(result['entry']) == 1  # Only match entries
+        assert result['entry'][0]['resource']['id'] == 'patient-1'
+
+        # Check included resources are organized by type
+        assert 'included' in result
+        assert 'Practitioner' in result['included']
+        assert 'Observation' in result['included']
+        assert 'practitioner-1' in result['included']['Practitioner']
+        assert 'obs-1' in result['included']['Observation']
+
+    def test_process_bundle_malformed_pagination_url(self):
+        """Test bundle processing with malformed pagination URL."""
+        client = HealthLakeClient.__new__(HealthLakeClient)
+
+        bundle = {
+            'resourceType': 'Bundle',
+            'entry': [],
+            'link': [{'relation': 'next', 'url': 'malformed-url-without-proper-encoding'}],
+        }
+
+        result = client._process_bundle(bundle)
+
+        # Should handle malformed URL gracefully
+        assert result['pagination']['has_next'] is True
+        assert result['pagination']['next_token'] == 'malformed-url-without-proper-encoding'
+
+    def test_build_search_request_list_values(self):
+        """Test search request building with list values."""
+        client = HealthLakeClient.__new__(HealthLakeClient)
+
+        url, form_data = client._build_search_request(
+            base_url='https://healthlake.us-east-1.amazonaws.com/datastore/test/r4/',
+            resource_type='Patient',
+            search_params={'name': ['Smith', 'Johnson'], 'gender': 'male'},
+            count=50,
+        )
+
+        assert form_data['name'] == 'Smith,Johnson'
+        assert form_data['gender'] == 'male'
