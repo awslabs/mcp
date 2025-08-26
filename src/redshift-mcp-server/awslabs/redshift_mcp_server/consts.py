@@ -14,12 +14,12 @@
 
 """Redshift MCP Server constants."""
 
-# Defaults
+# System
+CLIENT_CONNECT_TIMEOUT = 60
+CLIENT_READ_TIMEOUT = 600
+CLIENT_RETRIES = {'max_attempts': 5, 'mode': 'adaptive'}
+CLIENT_USER_AGENT_NAME = 'awslabs/mcp/redshift-mcp-server'
 DEFAULT_LOG_LEVEL = 'WARNING'
-
-# Timeouts (seconds), etc
-CLIENT_TIMEOUT = 60
-DATA_CLIENT_TIMEOUT = 60
 QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 2
 
