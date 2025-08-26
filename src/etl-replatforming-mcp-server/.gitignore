@@ -35,6 +35,10 @@ ENV/
 output*/
 outputs/
 
+# Files that don't need license headers
+*.mmd
+*.log
+
 # Logs
 *.log
 
