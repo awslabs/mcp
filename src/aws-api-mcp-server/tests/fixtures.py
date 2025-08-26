@@ -242,14 +242,13 @@ def mock_make_api_call(self, operation_name, kwarg):
 def create_file_open_mock(*target_files):
     """Create a mock open function that only mocks specific files."""
     original_open = open
-    mock_files = {}
+    mock_files = {filename: MagicMock() for filename in target_files}
 
     def mock_open_side_effect(filename, mode='r', *args, **kwargs):
         if filename in target_files:
             mock_context = MagicMock()
-            mock_file = MagicMock()
+            mock_file = mock_files[filename]
             mock_context.__enter__.return_value = mock_file
-            mock_files[filename] = mock_file
             return mock_context
         return original_open(filename, mode, *args, **kwargs)
 

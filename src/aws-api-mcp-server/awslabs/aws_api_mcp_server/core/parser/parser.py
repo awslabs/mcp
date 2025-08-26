@@ -15,6 +15,7 @@
 import argparse
 import botocore.serialize
 import jmespath
+import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
@@ -65,6 +66,7 @@ from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
+from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 
@@ -404,7 +406,9 @@ def _handle_service_command(
         parameters,
     )
 
-    _validate_parameters(parameters, operation_command.arg_table)
+    _validate_parameters(
+        parameters, operation_command.arg_table, operation_command._operation_model
+    )
 
     arn_region = _fetch_region_from_arn(parameters)
     global_args.region = region or arn_region
@@ -413,6 +417,8 @@ def _handle_service_command(
         and global_args.region != GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
     ):
         global_args.region = GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
+
+    _validate_output_file(command_metadata, parsed_args)
 
     _validate_request_serialization(
         operation,
@@ -623,23 +629,49 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
 def _validate_parameters(
     parameters: dict[str, Any],
     arg_table: dict[str, BaseCLIArgument],
+    operation_model: OperationModel | None = None,
 ) -> None:
     validator = BotoCoreParamValidator()
-    param_name_to_arg = {
-        arg._serialized_name: arg for arg in arg_table.values() if isinstance(arg, CLIArgument)
+
+    serialized_to_cli = {
+        arg._serialized_name: arg.cli_name
+        for arg in arg_table.values()
+        if isinstance(arg, CLIArgument)
+        and hasattr(arg, '_serialized_name')
+        and hasattr(arg, 'cli_name')
     }
+
     errors = []
     for key, value in parameters.items():
-        cli_argument = param_name_to_arg.get(key)
-        if not cli_argument or not cli_argument.argument_model:
-            continue
-        report = validator.validate(value, cli_argument.argument_model)
-        if report.has_errors():
-            errors.append(
-                ParameterValidationErrorRecord(cli_argument.cli_name, report.generate_report())
-            )
+        validation_shape = _get_validation_shape(key, operation_model, arg_table)
+        if validation_shape is not None:
+            report = validator.validate(value, validation_shape)
+            if report.has_errors():
+                cli_name = serialized_to_cli.get(key, key)
+                errors.append(ParameterValidationErrorRecord(cli_name, report.generate_report()))
+
     if errors:
         raise ParameterSchemaValidationError(errors)
+
+
+def _get_validation_shape(
+    parameter_key: str,
+    operation_model: OperationModel | None,
+    arg_table: dict[str, BaseCLIArgument],
+) -> Any | None:
+    if operation_model is not None:
+        # For boto3 operations
+        input_shape = operation_model.input_shape
+        return getattr(input_shape, 'members').get(parameter_key)
+    else:
+        # For CLI customizations
+        param_name_to_arg = {
+            arg._serialized_name: arg for arg in arg_table.values() if isinstance(arg, CLIArgument)
+        }
+        cli_argument = param_name_to_arg.get(parameter_key)
+        return (
+            cli_argument.argument_model if cli_argument and cli_argument.argument_model else None
+        )
 
 
 def _validate_filters(
@@ -701,6 +733,13 @@ def _validate_request_serialization(
         raise RequestSerializationError(
             str(service_model.service_name), operation, str(err)
         ) from err
+
+
+def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
+    if command_metadata.has_streaming_output:
+        output_file_path = parsed_args.operation_args.outfile
+        if not os.path.isabs(Path(output_file_path)):
+            raise ValueError(f'{output_file_path} should be an aboslute path')
 
 
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:

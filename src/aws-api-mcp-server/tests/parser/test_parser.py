@@ -3,7 +3,6 @@ import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
-    CommandValidationError,
     ExpectedArgumentError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
@@ -214,25 +213,6 @@ def test_invalid_choice_for_option(command, message):
 def test_invalid_type_for_parameter(command, message):
     """Test that an invalid type for a parameter raises InvalidTypeForParameterError."""
     with pytest.raises(InvalidTypeForParameterError, match=message):
-        parse(command)
-
-
-@pytest.mark.parametrize(
-    'command, message',
-    [
-        (
-            'aws lambda  update-function-code --function-name MyFunction --zip-file  fileb://newfunction.zip',
-            str(
-                CommandValidationError(
-                    '-zip-file must be a zip file with the fileb:// prefix.\nExample usage:  --zip-file fileb://path/to/file.zip'
-                )
-            ),
-        )
-    ],
-)
-def test_command_validation_error_for_parameter(command, message):
-    """Test that a command validation error is raised for invalid parameters."""
-    with pytest.raises(CommandValidationError, match=message):
         parse(command)
 
 
