@@ -29,21 +29,21 @@ class TestRedshiftClientManagerRedshiftClient:
     def test_redshift_client_creation_default_credentials(self, mocker):
         """Test Redshift client creation with default credentials."""
         mock_client = mocker.Mock()
-        mock_boto3_client = mocker.patch('boto3.client', return_value=mock_client)
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.return_value = mock_client
 
         config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1')
+        manager = RedshiftClientManager(config)
         client = manager.redshift_client()
 
         assert client == mock_client
 
-        # Verify boto3.client was called with correct parameters
-        mock_boto3_client.assert_called_once_with(
-            'redshift', config=config, region_name='us-east-1'
-        )
+        # Verify boto3.Session was called with correct parameters
+        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
+        mock_boto3_session.return_value.client.assert_called_once_with('redshift', config=config)
 
-    def test_redshift_client_creation_with_profile(self, mocker):
-        """Test Redshift client creation with AWS profile."""
+    def test_redshift_client_creation_with_profile_and_region(self, mocker):
+        """Test Redshift client creation with AWS profile and region."""
         mock_session = mocker.Mock()
         mock_client = mocker.Mock()
         mock_session.client.return_value = mock_client
@@ -55,28 +55,20 @@ class TestRedshiftClientManagerRedshiftClient:
 
         assert client == mock_client
 
-        # Verify session was created with profile and client was created
-        mock_session_class.assert_called_once_with(profile_name='test-profile')
+        # Verify session was created with profile and region
+        mock_session_class.assert_called_once_with(
+            profile_name='test-profile', region_name='us-west-2'
+        )
         mock_session.client.assert_called_once_with('redshift', config=config)
 
-    def test_redshift_client_creation_error_default_credentials(self, mocker):
-        """Test error handling when client creation fails with default credentials."""
-        mocker.patch('boto3.client', side_effect=Exception('Credentials error'))
+    def test_redshift_client_creation_error(self, mocker):
+        """Test error handling when session creation fails."""
+        mocker.patch('boto3.Session', side_effect=Exception('Session error'))
 
         config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1')
+        manager = RedshiftClientManager(config)
 
-        with pytest.raises(Exception, match='Credentials error'):
-            manager.redshift_client()
-
-    def test_redshift_client_creation_error_with_profile(self, mocker):
-        """Test error handling when session creation fails with profile."""
-        mocker.patch('boto3.Session', side_effect=Exception('Profile not found'))
-
-        config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1', 'non-existent-profile')
-
-        with pytest.raises(Exception, match='Profile not found'):
+        with pytest.raises(Exception, match='Session error'):
             manager.redshift_client()
 
 
@@ -86,21 +78,23 @@ class TestRedshiftClientManagerServerlessClient:
     def test_redshift_serverless_client_creation_default_credentials(self, mocker):
         """Test Redshift Serverless client creation with default credentials."""
         mock_client = mocker.Mock()
-        mock_boto3_client = mocker.patch('boto3.client', return_value=mock_client)
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.return_value = mock_client
 
         config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1')
+        manager = RedshiftClientManager(config)
         client = manager.redshift_serverless_client()
 
         assert client == mock_client
 
-        # Verify boto3.client was called with correct parameters
-        mock_boto3_client.assert_called_once_with(
-            'redshift-serverless', config=config, region_name='us-east-1'
+        # Verify boto3.Session was called with correct parameters
+        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
+        mock_boto3_session.return_value.client.assert_called_once_with(
+            'redshift-serverless', config=config
         )
 
-    def test_redshift_serverless_client_creation_with_profile(self, mocker):
-        """Test Redshift Serverless client creation with AWS profile."""
+    def test_redshift_serverless_client_creation_with_profile_and_region(self, mocker):
+        """Test Redshift Serverless client creation with AWS profile and region."""
         mock_session = mocker.Mock()
         mock_client = mocker.Mock()
         mock_session.client.return_value = mock_client
@@ -112,28 +106,20 @@ class TestRedshiftClientManagerServerlessClient:
 
         assert client == mock_client
 
-        # Verify session was created with profile and client was created
-        mock_session_class.assert_called_once_with(profile_name='test-profile')
+        # Verify session was created with profile and region
+        mock_session_class.assert_called_once_with(
+            profile_name='test-profile', region_name='us-west-2'
+        )
         mock_session.client.assert_called_once_with('redshift-serverless', config=config)
 
-    def test_redshift_serverless_client_creation_error_default_credentials(self, mocker):
-        """Test error handling when serverless client creation fails with default credentials."""
-        mocker.patch('boto3.client', side_effect=Exception('Credentials error'))
+    def test_redshift_serverless_client_creation_error(self, mocker):
+        """Test error handling when session creation fails."""
+        mocker.patch('boto3.Session', side_effect=Exception('Session error'))
 
         config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1')
+        manager = RedshiftClientManager(config)
 
-        with pytest.raises(Exception, match='Credentials error'):
-            manager.redshift_serverless_client()
-
-    def test_redshift_serverless_client_creation_error_with_profile(self, mocker):
-        """Test error handling when session creation fails with profile."""
-        mocker.patch('boto3.Session', side_effect=Exception('Profile not found'))
-
-        config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1', 'non-existent-profile')
-
-        with pytest.raises(Exception, match='Profile not found'):
+        with pytest.raises(Exception, match='Session error'):
             manager.redshift_serverless_client()
 
 
@@ -143,21 +129,23 @@ class TestRedshiftClientManagerDataClient:
     def test_redshift_data_client_creation_default_credentials(self, mocker):
         """Test Redshift Data API client creation with default credentials."""
         mock_client = mocker.Mock()
-        mock_boto3_client = mocker.patch('boto3.client', return_value=mock_client)
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.return_value = mock_client
 
         config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1')
+        manager = RedshiftClientManager(config)
         client = manager.redshift_data_client()
 
         assert client == mock_client
 
-        # Verify boto3.client was called with correct parameters
-        mock_boto3_client.assert_called_once_with(
-            'redshift-data', config=config, region_name='us-east-1'
+        # Verify boto3.Session was called with correct parameters
+        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
+        mock_boto3_session.return_value.client.assert_called_once_with(
+            'redshift-data', config=config
         )
 
-    def test_redshift_data_client_creation_with_profile(self, mocker):
-        """Test Redshift Data API client creation with AWS profile."""
+    def test_redshift_data_client_creation_with_profile_and_region(self, mocker):
+        """Test Redshift Data API client creation with AWS profile and region."""
         mock_session = mocker.Mock()
         mock_client = mocker.Mock()
         mock_session.client.return_value = mock_client
@@ -169,28 +157,20 @@ class TestRedshiftClientManagerDataClient:
 
         assert client == mock_client
 
-        # Verify session was created with profile and client was created
-        mock_session_class.assert_called_once_with(profile_name='test-profile')
+        # Verify session was created with profile and region
+        mock_session_class.assert_called_once_with(
+            profile_name='test-profile', region_name='us-west-2'
+        )
         mock_session.client.assert_called_once_with('redshift-data', config=config)
 
-    def test_redshift_data_client_creation_error_default_credentials(self, mocker):
-        """Test error handling when data client creation fails with default credentials."""
-        mocker.patch('boto3.client', side_effect=Exception('Credentials error'))
+    def test_redshift_data_client_creation_error(self, mocker):
+        """Test error handling when session creation fails."""
+        mocker.patch('boto3.Session', side_effect=Exception('Session error'))
 
         config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1')
+        manager = RedshiftClientManager(config)
 
-        with pytest.raises(Exception, match='Credentials error'):
-            manager.redshift_data_client()
-
-    def test_redshift_data_client_creation_error_with_profile(self, mocker):
-        """Test error handling when session creation fails with profile."""
-        mocker.patch('boto3.Session', side_effect=Exception('Profile not found'))
-
-        config = Config()
-        manager = RedshiftClientManager(config, 'us-east-1', 'non-existent-profile')
-
-        with pytest.raises(Exception, match='Profile not found'):
+        with pytest.raises(Exception, match='Session error'):
             manager.redshift_data_client()
 
 

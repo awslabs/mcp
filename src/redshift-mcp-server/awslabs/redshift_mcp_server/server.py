@@ -85,7 +85,7 @@ This tool uses the Redshift Data API to run queries and return results.
 
 ## Getting Started
 
-1. Ensure your AWS credentials are configured (via AWS_PROFILE or default credentials).
+1. Ensure your AWS configuration and credentials are configured (environment variables or profile configuration file).
 2. Use the list_clusters tool to discover available Redshift instances.
 3. Note the cluster identifiers for use with other tools (coming in future milestones).
 

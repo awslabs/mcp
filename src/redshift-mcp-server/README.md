@@ -21,7 +21,11 @@ This MCP server provides tools to discover, explore, and query Amazon Redshift c
 ### AWS Client Requirements
 
 1. **Credentials**: Configure AWS credentials via AWS CLI, or environment variables
-2. **Permissions**: Ensure your AWS credentials have the required permissions (see [Permissions](#permissions) section)
+2. **Region**: Configure AWS region using one of the following (in order of precedence):
+   - `AWS_REGION` environment variable (highest priority)
+   - `AWS_DEFAULT_REGION` environment variable
+   - Region specified in your AWS profile configuration
+3. **Permissions**: Ensure your AWS credentials have the required permissions (see [Permissions](#permissions) section)
 
 ## Installation
 
@@ -39,7 +43,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       "args": ["awslabs.redshift-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "default",
-        "AWS_REGION": "us-east-1",
+        "AWS_DEFAULT_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "INFO"
       },
       "disabled": false,
@@ -48,6 +52,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
   }
 }
 ```
+
 ### Windows Installation
 
 For Windows users, the MCP server configuration format is slightly different:
@@ -68,15 +73,14 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.redshift-mcp-server.exe"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_DEFAULT_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
 }
 ```
-
 
 or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest .`:
 
@@ -91,7 +95,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
         "--interactive",
         "--env", "AWS_ACCESS_KEY_ID=[your data]",
         "--env", "AWS_SECRET_ACCESS_KEY=[your data]",
-        "--env", "AWS_REGION=[your data]",
+        "--env", "AWS_DEFAULT_REGION=[your data]",
         "awslabs/redshift-mcp-server:latest"
       ]
     }
@@ -101,7 +105,8 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 
 ### Environment Variables
 
-- `AWS_REGION`: AWS region to use (default: `us-east-1`)
+- `AWS_REGION`: AWS region to use (overrides all other region settings)
+- `AWS_DEFAULT_REGION`: Default AWS region (used if AWS_REGION not set and no region in profile)
 - `AWS_PROFILE`: AWS profile to use (optional, uses default if not specified)
 - `FASTMCP_LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
 - `LOG_FILE`: Path to log file (optional, logs to stdout if not specified)

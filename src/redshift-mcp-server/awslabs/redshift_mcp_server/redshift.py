@@ -21,7 +21,6 @@ import regex
 from awslabs.redshift_mcp_server import __version__
 from awslabs.redshift_mcp_server.consts import (
     CLIENT_TIMEOUT,
-    DEFAULT_AWS_REGION,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
     SUSPICIOUS_QUERY_REGEXP,
@@ -37,7 +36,9 @@ from loguru import logger
 class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
 
-    def __init__(self, config: Config, aws_region: str, aws_profile: str | None = None):
+    def __init__(
+        self, config: Config, aws_region: str | None = None, aws_profile: str | None = None
+    ):
         """Initialize the client manager."""
         self.aws_region = aws_region
         self.aws_profile = aws_profile
@@ -50,15 +51,12 @@ class RedshiftClientManager:
         """Get or create the Redshift client for provisioned clusters."""
         if self._redshift_client is None:
             try:
-                if self.aws_profile:
-                    session = boto3.Session(profile_name=self.aws_profile)
-                    self._redshift_client = session.client('redshift', config=self._config)
-                    logger.info(f'Created Redshift client with profile: {self.aws_profile}')
-                else:
-                    self._redshift_client = boto3.client(
-                        'redshift', config=self._config, region_name=self.aws_region
-                    )
-                    logger.info('Created Redshift client with default credentials')
+                # Session works with None values - uses default credentials/region chain
+                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
+                self._redshift_client = session.client('redshift', config=self._config)
+                logger.info(
+                    f'Created Redshift client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
+                )
             except Exception as e:
                 logger.error(f'Error creating Redshift client: {str(e)}')
                 raise
@@ -69,19 +67,14 @@ class RedshiftClientManager:
         """Get or create the Redshift Serverless client."""
         if self._redshift_serverless_client is None:
             try:
-                if self.aws_profile:
-                    session = boto3.Session(profile_name=self.aws_profile)
-                    self._redshift_serverless_client = session.client(
-                        'redshift-serverless', config=self._config
-                    )
-                    logger.info(
-                        f'Created Redshift Serverless client with profile: {self.aws_profile}'
-                    )
-                else:
-                    self._redshift_serverless_client = boto3.client(
-                        'redshift-serverless', config=self._config, region_name=self.aws_region
-                    )
-                    logger.info('Created Redshift Serverless client with default credentials')
+                # Session works with None values - uses default credentials/region chain
+                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
+                self._redshift_serverless_client = session.client(
+                    'redshift-serverless', config=self._config
+                )
+                logger.info(
+                    f'Created Redshift Serverless client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
+                )
             except Exception as e:
                 logger.error(f'Error creating Redshift Serverless client: {str(e)}')
                 raise
@@ -92,19 +85,12 @@ class RedshiftClientManager:
         """Get or create the Redshift Data API client."""
         if self._redshift_data_client is None:
             try:
-                if self.aws_profile:
-                    session = boto3.Session(profile_name=self.aws_profile)
-                    self._redshift_data_client = session.client(
-                        'redshift-data', config=self._config
-                    )
-                    logger.info(
-                        f'Created Redshift Data API client with profile: {self.aws_profile}'
-                    )
-                else:
-                    self._redshift_data_client = boto3.client(
-                        'redshift-data', config=self._config, region_name=self.aws_region
-                    )
-                    logger.info('Created Redshift Data API client with default credentials')
+                # Session works with None values - uses default credentials/region chain
+                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
+                self._redshift_data_client = session.client('redshift-data', config=self._config)
+                logger.info(
+                    f'Created Redshift Data API client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
+                )
             except Exception as e:
                 logger.error(f'Error creating Redshift Data API client: {str(e)}')
                 raise
@@ -625,6 +611,6 @@ client_manager = RedshiftClientManager(
         retries={'max_attempts': 3, 'mode': 'adaptive'},
         user_agent_extra=f'awslabs/mcp/redshift-mcp-server/{__version__}',
     ),
-    aws_region=os.environ.get('AWS_REGION', DEFAULT_AWS_REGION),
+    aws_region=os.environ.get('AWS_REGION'),
     aws_profile=os.environ.get('AWS_PROFILE'),
 )
