@@ -2,29 +2,29 @@
 
 # Install the package
 install:
-	pip install -e .
+	uv pip install -e .
 
 # Install with development dependencies
 install-dev:
-	pip install -e ".[dev]"
+	uv pip install -e ".[dev]"
 
 # Run unit tests
 test:
-	pytest tests/ -v
+	uv run pytest tests/ -v
 
 # Run unit tests with coverage
 test-coverage:
-	pytest tests/ -v --cov=awslabs/healthlake_mcp_server --cov-report=html --cov-report=term
+	uv run pytest tests/ -v --cov=awslabs/healthlake_mcp_server --cov-report=html --cov-report=term
 
 # Run linting
 lint:
-	ruff check awslabs/ tests/
-	pyright awslabs/
+	uv run ruff check awslabs/ tests/
+	uv run pyright awslabs/
 
 # Format code
 format:
-	ruff format awslabs/ tests/
-	ruff check --fix awslabs/ tests/
+	uv run ruff format awslabs/ tests/
+	uv run ruff check --fix awslabs/ tests/
 
 # Clean build artifacts and cache files
 clean:
@@ -42,11 +42,11 @@ clean:
 
 # Run the MCP server
 run:
-	awslabs.healthlake-mcp-server
+	uv run awslabs.healthlake-mcp-server
 
 # Build package
 build:
-	python -m build
+	uv build
 
 # Generate uv lock file
 lock:
