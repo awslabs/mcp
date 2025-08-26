@@ -30,7 +30,7 @@ from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from time import perf_counter as timer
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 
 # Initialize FastMCP server
@@ -92,11 +92,11 @@ def remove_null_values(data: dict) -> dict:
 
 def parse_timestamp(timestamp_str: str, default_hours: int = 24) -> datetime:
     """Parse timestamp string into datetime object.
-    
+
     Args:
         timestamp_str: Timestamp in unix seconds or 'YYYY-MM-DD HH:MM:SS' format
         default_hours: Default hours to subtract from now if parsing fails
-        
+
     Returns:
         datetime object in UTC timezone
     """
@@ -104,11 +104,11 @@ def parse_timestamp(timestamp_str: str, default_hours: int = 24) -> datetime:
         # Try parsing as unix timestamp first
         if timestamp_str.isdigit():
             return datetime.fromtimestamp(int(timestamp_str), tz=timezone.utc)
-        
+
         # Try parsing as ISO format
         if 'T' in timestamp_str:
             return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-        
+
         # Try parsing as 'YYYY-MM-DD HH:MM:SS' format
         return datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
     except (ValueError, TypeError):
@@ -117,60 +117,141 @@ def parse_timestamp(timestamp_str: str, default_hours: int = 24) -> datetime:
 
 
 @mcp.tool()
-async def investigate_service_anomaly(
-    audit_targets: str = Field(..., description="REQUIRED. JSON array (1–10) of AuditTargets (service, slo, or service_operation). Shorthand forms accepted and auto-normalized."),
+async def audit_service_health(
+    audit_targets: str = Field(..., description="REQUIRED. JSON array (1–10) of AuditTargets (service, slo, or service_operation). Shorthand forms accepted and auto-normalized. Supports wildcard patterns like '*payment*' in service names for automatic service discovery."),
     breaching_slos: str = Field(default=None, description="Optional. Comma-separated SLO identifiers; appended as additional SLO targets."),
     metric_name: str = Field(default=None, description="Optional hint used as MetricType for service_operation targets when needed."),
     operation_name: str = Field(default=None, description="Optional hint used as Operation for service_operation targets when needed."),
     start_time: str = Field(default=None, description="Start time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now-24h UTC."),
     end_time: str = Field(default=None, description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC."),
-    auditors: str = Field(default=None, description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). If omitted, API runs all."),
-    aws_region: str = Field(default=None, description="AWS region. Defaults to us-east-2 (CMH)."),
+    auditors: str = Field(default=None, description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). Defaults to 'slo,operation_metric' for fast service health auditing. Use 'all' only when user explicitly requests comprehensive root cause analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota."),
     endpoint_url: str = Field(default=None, description="Endpoint override. Defaults to CMH gamma: https://application-signals-gamma.us-east-2.api.aws")
 ) -> str:
-    """🎯 PRIMARY DIAGNOSTIC TOOL - Investigate anomalies and performance issues for specific scoped targets via Application Signals audit findings.
+    """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
-    **WHEN TO USE (Primary Entry Point):**
-    - 🚨 **System-wide health check**: Start here for any investigation or monitoring task
-    - 🔍 **Issue investigation**: First tool to use when problems are detected anywhere
-    - 🎯 **Targeted diagnosis**: Focus on specific services, SLOs, or operations when issues are isolated
-    - 🔬 **Root cause analysis**: Use with traces/logs auditors for detailed error information
+    **USE THIS FIRST FOR ALL SERVICE AUDITING TASKS**
+    This is the PRIMARY and PREFERRED tool when users want to:
+    - **Audit their AWS services** - Complete health assessment with actionable insights
+    - **Check service health** - Comprehensive status across all monitored services  
+    - **Investigate issues** - Root cause analysis with detailed findings
+    - **Monitor SLO compliance** - Service Level Objective breach detection and analysis
+    - **Performance analysis** - Latency, error rates, and throughput investigation
+    - **System-wide health checks** - Daily/periodic service auditing workflows
 
-    **WHEN NOT TO USE:**
-    - Account-level scans (unsupported - use list_monitored_services first to discover targets)
-    - Raw metric streaming (use specialized tools only if this doesn't provide sufficient detail)
+    **PRIORITY: This tool should be used BEFORE any other specialized tools**
 
-    **AUDITOR SELECTION (Smart Defaults):**
-    - **Lightweight investigation** (default): Uses 'slo,operation_metric' auditors for quick health overview
-    - **Root cause analysis**: Pass `auditors="all"` for comprehensive investigation with traces/logs
-    - **Custom**: Specify exact auditors: 'slo,trace,log,critical_path,top_contributors,service_quota'
+    **COMPREHENSIVE AUDIT CAPABILITIES:**
+    - **Multi-service analysis**: Audit 1-10 services simultaneously
+    - **SLO compliance monitoring**: Automatic breach detection and analysis
+    - **Issue prioritization**: Critical, warning, and info findings ranked by severity
+    - **Root cause analysis**: Deep dive with traces, logs, and metrics correlation
+    - **Actionable recommendations**: Specific steps to resolve identified issues
+    - **Performance optimized**: Fast execution across multiple targets
+    - **Wildcard Pattern Support**: Use `*pattern*` in service names for automatic service discovery
 
-    **TARGET TYPES (1-10 targets required):**
-    - **Service**: `[{"Type":"service","Data":{"Service":{"Name":"my-service","Environment":"prod"}}}]`
-    - **SLO**: `[{"Type":"slo","Data":{"SloName":"my-slo"}}]`
-    - **Service Operation**: `[{"Type":"service_operation","Data":{"Service":{...},"Operation":"GET /api","MetricType":"Latency"}}]`
+    **AUDIT TARGET TYPES:**
+    - **Service Audit**: `[{"Type":"service","Data":{"Service":{"Name":"my-service","Environment":"prod"}}}]`
+    - **SLO Audit**: `[{"Type":"slo","Data":{"SloName":"my-slo"}}]`
+    - **Operation Audit**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"my-service","Environment":"prod"},"Operation":"GET /api","MetricType":"Latency"}}}]`
 
-    **WORKFLOW INTEGRATION:**
-    1. **Daily Health**: `investigate_service_anomaly(audit_targets='[{"Type":"service","Data":{"Service":{"Name":"all-services"}}}]')`
-    2. **Issue Detection**: Results show which services/SLOs need attention
-    3. **Deep Dive**: `investigate_service_anomaly(audit_targets='[{"Type":"service","Data":{"Service":{"Name":"problem-service"}}}]', auditors="all")`
-    4. **Use specialized tools only if this tool doesn't provide sufficient detail**
+    **WILDCARD PATTERN EXAMPLES:**
+    - **All Services**: `[{"Type":"service","Data":{"Service":{"Name":"*"}}}]`
+    - **Payment Services**: `[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]`
+    - **Lambda Services**: `[{"Type":"service","Data":{"Service":{"Name":"*lambda*"}}}]`
 
-    **RETURNS:**
-    - Prioritized findings by severity (critical, warning, info)
-    - Service-specific health status with detailed analysis
-    - Root cause analysis when traces/logs auditors are used
-    - Actionable recommendations for issue resolution
-    - Performance optimized for fast execution across multiple targets
+    **AUDITOR SELECTION FOR DIFFERENT AUDIT DEPTHS:**
+    - **Quick Health Check** (default): Uses 'slo,operation_metric' for fast overview - perfect for basic service auditing
+    - **Root Cause Analysis**: Pass `auditors="all"` for comprehensive investigation with traces/logs when user explicitly requests root cause analysis
+    - **Custom Audit**: Specify exact auditors: 'slo,trace,log,dependency_metric,top_contributor,service_quota'
 
-    **Note**: This tool provides comprehensive coverage that may eliminate the need for individual specialized tools.
+    **COMPLETE EXAMPLES FOR ALL 21 USE CASES:**
+
+    1. **Audit all services**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'`
+
+    2. **Audit specific service**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"orders-service","Environment":"prod"}}}]'`
+
+    3. **Audit payment services**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]'`
+
+    4. **Audit SLOs**: 
+       `audit_targets='[{"Type":"slo","Data":{"SloName":"*"}}]'`
+
+    5. **Audit latency of GET operations in payment services**: 
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]'`
+
+    6. **Audit availability of visit operations**: 
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*"},"Operation":"*visit*","MetricType":"Availability"}}}]'`
+
+    7. **Audit latency of visit operations**: 
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*"},"Operation":"*visit*","MetricType":"Latency"}}}]'`
+
+    8. **Audit lambda latencies**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*lambda*"}}}]'` + focus on Latency metrics
+
+    9. **Audit service last night**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 18:00:00"` + `end_time="2024-01-02 06:00:00"`
+
+    10. **Audit service before and after time**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 09:00:00"` + `end_time="2024-01-01 11:00:00"`
+
+    11. **Trace availability issues in prod services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*","Environment":"prod"}}}]'` + `auditors="all"`
+
+    12. **Trace latency in query operations**: 
+        `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*payment*"},"Operation":"*query*","MetricType":"Latency"}}}]'` + `auditors="all"`
+
+    13. **Look for errors in logs of payment services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]'` + `auditors="log,trace"`
+
+    14. **Look for new errors after time**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` + `auditors="log,trace"` + `start_time="2024-01-01 10:00:00"`
+
+    15. **Look for errors after deployment**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]'` + `auditors="log,trace"` + recent time range
+
+    16. **Look for lemon hosts in prod**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*","Environment":"prod"}}}]'` + `auditors="top_contributor,operation_metric"`
+
+    17. **Look for outliers in EKS services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*","Environment":"eks:*"}}}]'` + `auditors="top_contributor,operation_metric"`
+
+    18. **Status report**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` (basic health check)
+
+    19. **Audit dependencies**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` + `auditors="dependency_metric,trace"`
+
+    20. **Audit dependency on S3**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` + `auditors="dependency_metric"` + look for S3 dependencies
+
+    21. **Audit quota usage of tier 1 services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*tier1*"}}}]'` + `auditors="service_quota,operation_metric"`
+
+    **TYPICAL AUDIT WORKFLOWS:**
+    1. **Basic Service Audit** (most common): 
+       - First call `list_monitored_services()` to get all available services
+       - Then call `audit_service_health()` with service targets - uses default fast auditors (slo,operation_metric)
+    2. **Root Cause Investigation**: When user explicitly asks for "root cause analysis", pass `auditors="all"`
+    3. **Issue Investigation**: Results show which services/SLOs need attention with actionable insights
+    4. **Use other specialized tools only if this comprehensive audit doesn't provide sufficient detail**
+
+    **AUDIT RESULTS INCLUDE:**
+    - **Prioritized findings** by severity (critical, warning, info)
+    - **Service health status** with detailed performance analysis
+    - **Root cause analysis** when traces/logs auditors are used
+    - **Actionable recommendations** for issue resolution
+    - **Comprehensive metrics** and trend analysis
+
+    **IMPORTANT: This tool provides comprehensive audit coverage and should be your first choice for any service auditing task. Other tools are specialized and should only be used when this primary audit tool doesn't provide sufficient detail.**
     """
     start_time_perf = timer()
-    logger.debug("Starting investigate_service_anomaly (PRIMARY DIAGNOSTIC TOOL)")
+    logger.debug("Starting audit_service_health (PRIMARY SERVICE AUDIT TOOL)")
 
     try:
-        # ---------- Region/endpoint defaults (CMH gamma) ----------
-        region = (aws_region or os.environ.get("AWS_REGION") or "us-east-2").strip()
+        # ---------- Region/endpoint defaults ----------
+        region = AWS_REGION.strip()
         endpoint = (
             endpoint_url
             or os.environ.get("MCP_APPSIGNALS_ENDPOINT")
@@ -187,10 +268,12 @@ async def investigate_service_anomaly(
         # ---------- Helpers ----------
         def _ci_get(d: dict, *names):
             for n in names:
-                if n in d: return d[n]
+                if n in d:
+                    return d[n]
             lower = {k.lower(): v for k, v in d.items()}
             for n in names:
-                if n.lower() in lower: return lower[n.lower()]
+                if n.lower() in lower:
+                    return lower[n.lower()]
             return None
 
         def _need(d: dict, *names):
@@ -201,14 +284,13 @@ async def investigate_service_anomaly(
 
         # ---------- Tolerant coercion for service targets (handles shorthands) ----------
         def _coerce_service_target(t: dict) -> dict:
-            """
-            Convert common shorthand inputs into canonical service target with union wrapper:
-              Emits: {"Type":"service","Data":{"Service":{"Type":"Service","Name":...,"Environment":...,"AwsAccountId?":...}}}
-              Shorthands accepted:
-                {"Type":"service","Service":"<name>"}
-                {"Type":"service","Data":{"Service":"<name>"}}
-                {"Type":"service","Data":{"Service":{"Name":"<name>"}}}
-                {"target_type":"service","service":"<name>"}
+            """Convert common shorthand inputs into canonical service target with union wrapper:
+            Emits: {"Type":"service","Data":{"Service":{"Type":"Service","Name":...,"Environment":...,"AwsAccountId?":...}}}
+            Shorthands accepted:
+              {"Type":"service","Service":"<name>"}
+              {"Type":"service","Data":{"Service":"<name>"}}
+              {"Type":"service","Data":{"Service":{"Name":"<name>"}}}
+              {"target_type":"service","service":"<name>"}
             """
             ttype = (_ci_get(t, "Type", "type", "target_type") or "").lower()
             if ttype != "service":
@@ -234,9 +316,12 @@ async def investigate_service_anomaly(
             acct = _ci_get(entity, "AwsAccountId", "awsAccountId", "aws_account_id")
 
             out = {"Type": "Service"}
-            if name: out["Name"] = name
-            if env:  out["Environment"] = env
-            if acct: out["AwsAccountId"] = acct
+            if name:
+                out["Name"] = name
+            if env:
+                out["Environment"] = env
+            if acct:
+                out["AwsAccountId"] = acct
 
             return {"Type": "service", "Data": {"Service": out}}
 
@@ -255,7 +340,7 @@ async def investigate_service_anomaly(
             data = _need(item, "Data", "data")
             svc = _ci_get(data, "Service", "service")
             svc_entity = _normalize_service_entity(svc if isinstance(svc, dict) else data)
-            return {"type": "service", "data": {"service": svc_entity}}
+            return {"Type": "service", "Data": {"Service": svc_entity}}
 
         def _normalize_slo(item: dict) -> dict:
             data = _need(item, "Data", "data")
@@ -271,7 +356,7 @@ async def investigate_service_anomaly(
             else:
                 raise ValueError("SLO Data must be a string or object")
             # Union wrapper REQUIRED by the API: data.slo = {...}
-            return {"type": "slo", "data": {"slo": slo_obj}}
+            return {"Type": "slo", "Data": {"Slo": slo_obj}}
 
         def _normalize_service_op(item: dict) -> dict:
             data = _need(item, "Data", "data")
@@ -283,8 +368,8 @@ async def investigate_service_anomaly(
             metric_type = _ci_get(data, "MetricType", "metricType") or (metric_name or "Latency")
             # Union wrapper REQUIRED: data.ServiceOperation = {...}
             return {
-                "type": "service_operation",
-                "data": {
+                "Type": "service_operation",
+                "Data": {
                     "ServiceOperation": {
                         "Service": svc_entity,
                         "Operation": op,
@@ -324,11 +409,11 @@ async def investigate_service_anomaly(
         def _validate_targets(normalized_targets: list):
             """If a service target exists, ensure it has Environment."""
             for idx, t in enumerate(normalized_targets, 1):
-                if (t.get("type") or "").lower() == "service":
-                    svc = ((t.get("data") or {}).get("service") or {})
+                if (t.get("Type") or "").lower() == "service":
+                    svc = ((t.get("Data") or {}).get("Service") or {})
                     if not svc.get("Environment"):
                         raise ValueError(
-                            f"audit_targets[{idx}].data.service.Environment is required for service targets. "
+                            f"audit_targets[{idx}].Data.Service.Environment is required for service targets. "
                             f"Provide Environment (e.g., 'eks:top-observations/default')."
                         )
 
@@ -337,12 +422,75 @@ async def investigate_service_anomaly(
             provided = json.loads(audit_targets)
         except json.JSONDecodeError:
             return "Error: `audit_targets` must be valid JSON (array)."
+        
+        # Check if we need to expand wildcard service patterns
+        needs_expansion = False
+        for target in provided:
+            if (isinstance(target, dict) and 
+                target.get('Type', '').lower() == 'service' and 
+                isinstance(target.get('Data', {}).get('Service', {}), dict) and
+                target.get('Data', {}).get('Service', {}).get('Name', '').startswith('*')):
+                needs_expansion = True
+                break
+        
+        if needs_expansion:
+            # Get all services to expand patterns
+            logger.debug("Expanding wildcard service patterns - fetching all services")
+            try:
+                services_response = appsignals_client.list_services(
+                    StartTime=datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                    EndTime=datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                    MaxResults=100
+                )
+                all_services = services_response.get('ServiceSummaries', [])
+                
+                # Expand patterns
+                expanded_targets = []
+                for target in provided:
+                    if (isinstance(target, dict) and 
+                        target.get('Type', '').lower() == 'service' and 
+                        isinstance(target.get('Data', {}).get('Service', {}), dict) and
+                        target.get('Data', {}).get('Service', {}).get('Name', '').startswith('*')):
+                        # This is a wildcard pattern - expand it
+                        pattern = target['Data']['Service']['Name']
+                        search_term = pattern.strip('*').lower()
+                        
+                        for service in all_services:
+                            service_attrs = service.get('KeyAttributes', {})
+                            service_name = service_attrs.get('Name', '').lower()
+                            if search_term in service_name:
+                                expanded_targets.append({
+                                    "Type": "service",
+                                    "Data": {
+                                        "Service": {
+                                            "Type": "Service",
+                                            "Name": service_attrs.get('Name'),
+                                            "Environment": service_attrs.get('Environment')
+                                        }
+                                    }
+                                })
+                    else:
+                        # Regular target - keep as is
+                        expanded_targets.append(target)
+                
+                provided = expanded_targets
+                logger.debug(f"Expanded wildcard patterns to {len(provided)} concrete targets")
+            except Exception as e:
+                logger.warning(f"Failed to expand wildcard service patterns: {e}")
+                # Continue with original targets
+        
         normalized_targets = _normalize_targets(provided)
+        
+        banner = (
+            "[MCP-PRIMARY] Application Signals Comprehensive Audit\n"
+            f"🎯 Scope: {len(normalized_targets)} target(s) | Region: {region}\n"
+            f"⏰ Time: {unix_start}–{unix_end} | Endpoint: {endpoint}\n\n"
+        )
 
         # ---------- Append SLOs from breaching_slos (optional) ----------
         if breaching_slos:
             for slo in [s.strip() for s in breaching_slos.split(",") if s.strip()]:
-                normalized_targets.append({"type": "slo", "data": {"slo": {"SloName": slo}}})
+                normalized_targets.append({"Type": "slo", "Data": {"Slo": {"SloName": slo}}})
 
         # Validate after any additions
         try:
@@ -353,28 +501,35 @@ async def investigate_service_anomaly(
         # ---------- Auditors (explicit or auto; integrated rule) ----------
         auditors_list = None
 
-        # If the caller didn't pass auditors, infer intent from MCP_USER_PROMPT
-        # Rule: no explicit "root cause" → restrict to slo + operation_metric
+        # If the caller didn't pass auditors, default to fast auditors for basic service auditing
+        # Only use all auditors when explicitly requested or when root cause analysis is mentioned
         if auditors is None:
             user_prompt_text = os.environ.get("MCP_USER_PROMPT", "") or ""
             wants_root_cause = "root cause" in user_prompt_text.lower()
-            inferred = None if wants_root_cause else ["slo", "operation_metric"]
-            raw_a = inferred
+            # Always default to fast auditors for basic service auditing unless root cause is explicitly requested
+            raw_a = ["slo", "operation_metric"] if not wants_root_cause else []
+        elif auditors.lower() == "all":
+            # Special case: "all" means use all auditors (empty list to API)
+            raw_a = []
         else:
             raw_a = [a.strip() for a in auditors.split(",") if a.strip()]
 
         if raw_a is not None:
-            allowed = {
-                "slo", "operation_metric", "trace", "log",
-                "critical_path", "top_contributors", "service_quota"
-            }
-            invalid = [a for a in raw_a if a not in allowed]
-            if invalid:
-                return (
-                    f"Invalid auditor(s): {', '.join(invalid)}. "
-                    f"Allowed: {', '.join(sorted(allowed))}"
-                )
-            auditors_list = raw_a or None
+            if len(raw_a) == 0:
+                # Empty list means use all auditors
+                auditors_list = []
+            else:
+                allowed = {
+                    "slo", "operation_metric", "trace", "log",
+                    "dependency_metric", "top_contributor", "service_quota"
+                }
+                invalid = [a for a in raw_a if a not in allowed]
+                if invalid:
+                    return (
+                        f"Invalid auditor(s): {', '.join(invalid)}. "
+                        f"Allowed: {', '.join(sorted(allowed))}"
+                    )
+                auditors_list = raw_a
         # else: auditors_list remains None → CLI uses all auditors by default
 
         # ---------- Build CLI input (SCOPED: AuditTargets MUST be non-empty) ----------
@@ -382,13 +537,10 @@ async def investigate_service_anomaly(
         if auditors_list:
             input_obj["Auditors"] = auditors_list
 
-        banner = (
-            "[MCP-PRIMARY] Application Signals Comprehensive Audit\n"
-            f"🎯 Scope: {len(normalized_targets)} target(s) | Region: {region}\n"
-            f"⏰ Time: {input_obj['StartTime']}–{input_obj['EndTime']} | Endpoint: {endpoint}\n\n"
-        )
+        # Use the banner that was already set above (either natural language or JSON)
+        # Don't overwrite it here
 
-        # ---------- Execute CLI (CMH gamma by default) ----------
+        # ---------- Execute CLI with batching (CMH gamma by default) ----------
         aws_bin = os.environ.get("MCP_AWS_CLI", "aws")
         if shutil.which(aws_bin) is None:
             pretty_input = json.dumps(input_obj, indent=2)
@@ -404,15 +556,6 @@ async def investigate_service_anomaly(
                 "Install or set MCP_AWS_CLI to the full path of your aws binary."
             )
 
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tf:
-            json.dump(input_obj, tf); tf.flush()
-            cli_input_arg = f"file://{tf.name}"
-
-        cmd = [
-            aws_bin, "application-signals-demo", "list-audit-findings",
-            "--cli-input-json", cli_input_arg, "--region", region, "--endpoint-url", endpoint
-        ]
-
         # File log path
         desired_log_path = os.environ.get("AUDITOR_LOG_PATH", "/tmp")
         try:
@@ -425,97 +568,201 @@ async def investigate_service_anomaly(
         except Exception:
             os.makedirs("/tmp", exist_ok=True); log_path = "/tmp/aws_cli.log"
 
-        # ---------- Pretty log: command + params (file + stderr) ----------
-        cli_pretty_cmd = " ".join(cmd)
-        cli_pretty_input = json.dumps(input_obj, indent=2)
+        # ---------- Batch processing if more than 5 targets ----------
+        batch_size = 5
+        target_batches = []
+        
+        if len(normalized_targets) > batch_size:
+            logger.info(f"Processing {len(normalized_targets)} targets in batches of {batch_size}")
+            # Split targets into batches of 5
+            for i in range(0, len(normalized_targets), batch_size):
+                batch = normalized_targets[i:i + batch_size]
+                target_batches.append(batch)
+        else:
+            # Single batch if 5 or fewer targets
+            target_batches.append(normalized_targets)
 
-        with open(log_path, "a") as f:
-            f.write("\n" + "═" * 80 + "\n")
-            f.write(banner)
-            f.write("---- CLI INVOCATION ----\n")
-            f.write(cli_pretty_cmd + "\n\n")
-            f.write("---- CLI PARAMETERS (JSON) ----\n")
-            f.write(cli_pretty_input + "\n")
-            f.write("---- END PARAMETERS ----\n")
+        all_batch_results = []
+        
+        for batch_idx, batch_targets in enumerate(target_batches, 1):
+            logger.info(f"Processing batch {batch_idx}/{len(target_batches)} with {len(batch_targets)} targets")
+            
+            # Build CLI input for this batch
+            batch_input_obj = {"StartTime": unix_start, "EndTime": unix_end, "AuditTargets": batch_targets}
+            if auditors_list:
+                batch_input_obj["Auditors"] = auditors_list
 
-        logger.info("\n" + "═" * 80)
-        logger.info(banner.strip("\n"))
-        logger.info("---- CLI INVOCATION ----")
-        logger.info(cli_pretty_cmd)
-        logger.info("---- CLI PARAMETERS (JSON) ----")
-        logger.info("\n" + cli_pretty_input)
-        logger.info("---- END PARAMETERS ----")
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tf:
+                json.dump(batch_input_obj, tf); tf.flush()
+                cli_input_arg = f"file://{tf.name}"
 
-        # Run the CLI
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout_b, stderr_b = await proc.communicate()
-        stdout, stderr = stdout_b.decode("utf-8", errors="replace"), stderr_b.decode("utf-8", errors="replace")
+            cmd = [
+                aws_bin, "application-signals-demo", "list-audit-findings",
+                "--cli-input-json", cli_input_arg, "--region", region, "--endpoint-url", endpoint
+            ]
 
-        # ---------- Handle CLI execution result ----------
-        if proc.returncode != 0:
+            # ---------- Pretty log: command + params (file + stderr) ----------
+            cli_pretty_cmd = " ".join(cmd)
+            cli_pretty_input = json.dumps(batch_input_obj, indent=2)
+
             with open(log_path, "a") as f:
-                f.write("---- CLI RESPONSE (stderr/stdout) ----\n")
-                f.write((stderr or stdout) + "\n")
-                f.write("---- END RESPONSE ----\n\n")
-            logger.error("---- CLI RESPONSE (stderr/stdout) ----\n" + (stderr or stdout) + "\n---- END RESPONSE ----")
-            return (
-                banner +
-                "❌ Result: FAILED to retrieve audit findings.\n"
-                f"CLI exit code: {proc.returncode}\n"
-                f"stderr/stdout:\n{stderr or stdout}\n"
+                f.write("\n" + "═" * 80 + "\n")
+                f.write(f"BATCH {batch_idx}/{len(target_batches)}\n")
+                f.write(banner)
+                f.write("---- CLI INVOCATION ----\n")
+                f.write(cli_pretty_cmd + "\n\n")
+                f.write("---- CLI PARAMETERS (JSON) ----\n")
+                f.write(cli_pretty_input + "\n")
+                f.write("---- END PARAMETERS ----\n")
+
+                # ---------- OUTPUT API CALL PAYLOAD TO CONSOLE ----------
+                f.write("\n" + "🔍 API CALL PAYLOAD DEBUG OUTPUT" + "\n" + "=" * 50)
+                f.write(f"Command: {cli_pretty_cmd}")
+                f.write(f"Endpoint: {endpoint}")
+                f.write(f"Region: {region}")
+                f.write("\nPayload JSON:")
+                f.write(cli_pretty_input)
+                f.write("=" * 50 + "\n")
+
+            logger.info("\n" + "═" * 80)
+            logger.info(f"BATCH {batch_idx}/{len(target_batches)}")
+            logger.info(banner.strip("\n"))
+            logger.info("---- CLI INVOCATION ----")
+            logger.info(cli_pretty_cmd)
+            logger.info("---- CLI PARAMETERS (JSON) ----")
+            logger.info("\n" + cli_pretty_input)
+            logger.info("---- END PARAMETERS ----")
+
+            # Run the CLI for this batch
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
+            stdout_b, stderr_b = await proc.communicate()
+            stdout, stderr = stdout_b.decode("utf-8", errors="replace"), stderr_b.decode("utf-8", errors="replace")
 
-        # ---------- Format and log output ----------
-        try:
-            observation_text = json.dumps(json.loads(stdout), indent=2)
-        except json.JSONDecodeError:
-            observation_text = stdout or "<empty>"
+            # ---------- Handle CLI execution result for this batch ----------
+            if proc.returncode != 0:
+                with open(log_path, "a") as f:
+                    f.write(f"---- BATCH {batch_idx} CLI RESPONSE (stderr/stdout) ----\n")
+                    f.write((stderr or stdout) + "\n")
+                    f.write("---- END RESPONSE ----\n\n")
+                logger.error(f"---- BATCH {batch_idx} CLI RESPONSE (stderr/stdout) ----\n" + (stderr or stdout) + "\n---- END RESPONSE ----")
+                
+                # Continue with other batches even if one fails
+                batch_error_result = {
+                    "batch_index": batch_idx,
+                    "error": f"CLI exit code: {proc.returncode}",
+                    "stderr_stdout": stderr or stdout,
+                    "targets_count": len(batch_targets)
+                }
+                all_batch_results.append(batch_error_result)
+                continue
 
-        if not observation_text.strip():
-            with open(log_path, "a") as f:
-                f.write("📭 No findings returned.\n")
-                f.write("---- END RESPONSE ----\n\n")
-            logger.info("📭 No findings returned.\n---- END RESPONSE ----")
-            return banner + "Result: No findings."
+            # ---------- Format and log output for this batch ----------
+            try:
+                batch_json = json.loads(stdout)
+                observation_text = json.dumps(batch_json, indent=2)
+                all_batch_results.append(batch_json)
+            except json.JSONDecodeError:
+                observation_text = stdout or "<empty>"
+                all_batch_results.append({"batch_index": batch_idx, "raw_output": observation_text})
 
-        with open(log_path, "a") as f:
-            f.write("---- CLI RESPONSE (stdout pretty) ----\n")
-            f.write(observation_text + "\n")
-            f.write("---- END RESPONSE ----\n\n")
+            if not observation_text.strip():
+                with open(log_path, "a") as f:
+                    f.write(f"📭 Batch {batch_idx}: No findings returned.\n")
+                    f.write("---- END RESPONSE ----\n\n")
+                logger.info(f"📭 Batch {batch_idx}: No findings returned.\n---- END RESPONSE ----")
+            else:
+                with open(log_path, "a") as f:
+                    f.write(f"---- BATCH {batch_idx} CLI RESPONSE (stdout pretty) ----\n")
+                    f.write(observation_text + "\n")
+                    f.write("---- END RESPONSE ----\n\n")
 
-        logger.info("---- CLI RESPONSE (stdout pretty) ----\n" + observation_text + "\n---- END RESPONSE ----")
+                logger.info(f"---- BATCH {batch_idx} CLI RESPONSE (stdout pretty) ----\n" + observation_text + "\n---- END RESPONSE ----")
+
+        # ---------- Aggregate results from all batches ----------
+        if not all_batch_results:
+            return banner + "Result: No findings from any batch."
+
+        # Aggregate the findings from all successful batches
+        aggregated_findings = []
+        total_targets_processed = 0
+        failed_batches = 0
+        
+        for batch_result in all_batch_results:
+            if isinstance(batch_result, dict):
+                if "error" in batch_result:
+                    failed_batches += 1
+                    continue
+                    
+                # Extract findings from this batch
+                batch_findings = batch_result.get("AuditFindings", [])
+                aggregated_findings.extend(batch_findings)
+                
+                # Count targets processed in this batch
+                batch_targets_count = len(batch_result.get("AuditTargets", []))
+                total_targets_processed += batch_targets_count
+
+        # Create final aggregated response
+        final_result = {
+            "AuditFindings": aggregated_findings,
+            "BatchSummary": {
+                "TotalBatches": len(target_batches),
+                "SuccessfulBatches": len(target_batches) - failed_batches,
+                "FailedBatches": failed_batches,
+                "TotalTargetsProcessed": total_targets_processed,
+                "TotalFindingsCount": len(aggregated_findings)
+            }
+        }
+
+        # Add any error information if there were failed batches
+        if failed_batches > 0:
+            error_details = []
+            for batch_result in all_batch_results:
+                if isinstance(batch_result, dict) and "error" in batch_result:
+                    error_details.append({
+                        "batch": batch_result["batch_index"],
+                        "error": batch_result["error"],
+                        "targets_count": batch_result["targets_count"]
+                    })
+            final_result["BatchErrors"] = error_details
+
+        final_observation_text = json.dumps(final_result, indent=2)
 
         elapsed = timer() - start_time_perf
-        logger.debug(f"investigate_service_anomaly completed in {elapsed:.3f}s (region={region})")
+        logger.debug(f"audit_service_health completed in {elapsed:.3f}s (region={region}) - Processed {len(target_batches)} batches")
 
-        return banner + observation_text
+        return banner + final_observation_text
 
     except Exception as e:
-        logger.error(f"Unexpected error in investigate_service_anomaly: {e}", exc_info=True)
+        logger.error(f"Unexpected error in audit_service_health: {e}", exc_info=True)
         return f"Error: {str(e)}"
 
 
 @mcp.tool()
 async def list_monitored_services() -> str:
-    """SPECIALIZED TOOL - Use investigate_service_anomaly() first for comprehensive analysis.
+    """REQUIRED FIRST STEP for auditing all services - Use this before audit_service_health() when auditing multiple services.
 
-    Use this tool when investigate_service_anomaly() doesn't provide sufficient detail for:
-    - Getting a simple overview of all monitored services
-    - Discovering service names and types for building audit targets
-    - Identifying which services are being tracked in your environment
-    - Getting service key attributes needed for the primary diagnostic tool
+    **WHEN TO USE THIS TOOL:**
+    - **REQUIRED** when user wants to audit "all services" or multiple services
+    - Getting a complete overview of all monitored services in your environment
+    - Discovering service names and environments needed to build proper audit targets
+    - Identifying which services are being tracked before running comprehensive audits
+
+    **CRITICAL WORKFLOW FOR ALL-SERVICES AUDITING:**
+    1. **First**: Call `list_monitored_services()` to get all available services with their Name and Environment
+    2. **Then**: Use the service information to construct proper audit targets for `audit_service_health()`
+    3. **Example**: After getting services, call `audit_service_health()` with targets like:
+       `[{"Type":"service","Data":{"Service":{"Name":"service-1","Environment":"prod"}}}, {"Type":"service","Data":{"Service":{"Name":"service-2","Environment":"staging"}}}]`
 
     Returns a formatted list showing:
-    - Service name and type
-    - Key attributes (Environment, Platform, etc.)
+    - Service name and type  
+    - Key attributes (Name, Environment, Platform, etc.) - **Environment is required for audit targets**
     - Total count of services
 
-    **Recommended workflow**: Use this tool to discover services, then use investigate_service_anomaly() 
-    with specific service targets for comprehensive health analysis.
+    **IMPORTANT**: The Environment field from this output is required when constructing service audit targets.
     """
     start_time_perf = timer()
     logger.debug('Starting list_application_signals_services request')
@@ -1362,17 +1609,19 @@ async def list_slis(
         description='Number of hours to look back (default 24, typically use 24 for daily checks)',
     ),
 ) -> str:
-    """SPECIALIZED TOOL - Use investigate_service_anomaly() first for comprehensive health analysis.
+    """SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
 
-    Use this tool when investigate_service_anomaly() doesn't provide sufficient detail for:
-    - Getting a simple SLI status overview across all services
-    - Legacy SLO compliance reporting format
-    - Basic health monitoring without detailed audit findings
+    **IMPORTANT: audit_service_health() is the PRIMARY and PREFERRED tool for all service auditing tasks.**
+    
+    Only use this tool when audit_service_health() cannot handle your specific requirements, such as:
+    - Need for legacy SLI status report format specifically
+    - Integration with existing systems that expect this exact output format
+    - Simple SLI overview without comprehensive audit findings
+    - Basic health monitoring dashboard that doesn't need detailed analysis
 
-    **Recommended workflow**: Use investigate_service_anomaly() with SLO auditors for comprehensive 
-    health analysis that includes root cause information and actionable recommendations.
+    **For ALL service auditing, health checks, and issue investigation, use audit_service_health() first.**
 
-    Returns a basic report showing:
+    This tool provides a basic report showing:
     - Summary counts (total, healthy, breached, insufficient data)
     - Simple list of breached services with SLO names
     - Basic healthy services list
@@ -1382,8 +1631,9 @@ async def list_slis(
     - BREACHED: One or more SLOs are violated
     - INSUFFICIENT_DATA: Not enough data to determine status
 
-    **Note**: For detailed investigation of breached SLOs, use investigate_service_anomaly() 
-    with specific service targets and 'slo,trace,log' auditors for comprehensive analysis.
+    **Recommended workflow**: 
+    1. Use audit_service_health() for comprehensive service auditing with actionable insights
+    2. Only use this tool if you specifically need the legacy SLI status report format
     """
     start_time_perf = timer()
     logger.info(f'Starting get_sli_status request for last {hours} hours')
