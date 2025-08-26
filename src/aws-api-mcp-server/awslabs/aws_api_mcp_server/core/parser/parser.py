@@ -629,7 +629,7 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
 def _validate_parameters(
     parameters: dict[str, Any],
     arg_table: dict[str, BaseCLIArgument],
-    operation_model: OperationModel | None = None,
+    operation_model: OperationModel,
 ) -> None:
     validator = BotoCoreParamValidator()
 
@@ -642,36 +642,19 @@ def _validate_parameters(
     }
 
     errors = []
+
+    input_shape = operation_model.input_shape
+    boto3_members = getattr(input_shape, 'members')
+
     for key, value in parameters.items():
-        validation_shape = _get_validation_shape(key, operation_model, arg_table)
-        if validation_shape is not None:
-            report = validator.validate(value, validation_shape)
+        boto3_shape = boto3_members.get(key)
+        if boto3_shape is not None:
+            report = validator.validate(value, boto3_shape)
             if report.has_errors():
                 cli_name = serialized_to_cli.get(key, key)
                 errors.append(ParameterValidationErrorRecord(cli_name, report.generate_report()))
-
     if errors:
         raise ParameterSchemaValidationError(errors)
-
-
-def _get_validation_shape(
-    parameter_key: str,
-    operation_model: OperationModel | None,
-    arg_table: dict[str, BaseCLIArgument],
-) -> Any | None:
-    if operation_model is not None:
-        # For boto3 operations
-        input_shape = operation_model.input_shape
-        return getattr(input_shape, 'members').get(parameter_key)
-    else:
-        # For CLI customizations
-        param_name_to_arg = {
-            arg._serialized_name: arg for arg in arg_table.values() if isinstance(arg, CLIArgument)
-        }
-        cli_argument = param_name_to_arg.get(parameter_key)
-        return (
-            cli_argument.argument_model if cli_argument and cli_argument.argument_model else None
-        )
 
 
 def _validate_filters(
