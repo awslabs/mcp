@@ -418,6 +418,7 @@ class K8sApis:
         since_seconds: Optional[int] = None,
         tail_lines: Optional[int] = None,
         limit_bytes: Optional[int] = None,
+        previous: Optional[bool] = None,
     ) -> str:
         """Get logs from a pod.
 
@@ -428,6 +429,7 @@ class K8sApis:
             since_seconds: Only return logs newer than this many seconds (optional)
             tail_lines: Number of lines to return from the end of the logs (optional)
             limit_bytes: Maximum number of bytes to return (optional)
+            previous: Return previous terminated container logs (optional)
 
         Returns:
             Pod logs as a string
@@ -448,6 +450,8 @@ class K8sApis:
                 params['tail_lines'] = tail_lines
             if limit_bytes:
                 params['limit_bytes'] = limit_bytes
+            if previous:
+                params['previous'] = previous
 
             # Call the read_namespaced_pod_log method
             logs_response = core_v1_api.read_namespaced_pod_log(
