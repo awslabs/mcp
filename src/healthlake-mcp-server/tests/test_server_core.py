@@ -247,3 +247,64 @@ class TestServerValidation:
 
         with pytest.raises(InputValidationError):
             validate_count(200)
+
+
+class TestServerValidationExtended:
+    """Extended server validation tests for coverage."""
+
+    def test_validate_count_edge_cases_extended(self):
+        """Test count validation edge cases."""
+        from awslabs.healthlake_mcp_server.server import InputValidationError, validate_count
+
+        # Valid cases
+        assert validate_count(1) == 1
+        assert validate_count(100) == 100
+
+        # Invalid cases
+        with pytest.raises(InputValidationError):
+            validate_count(0)
+
+        with pytest.raises(InputValidationError):
+            validate_count(101)
+
+
+class TestResponseFormattingExtended:
+    """Extended response formatting tests for coverage."""
+
+    def test_create_error_response_variations(self):
+        """Test error response creation variations."""
+        from awslabs.healthlake_mcp_server.server import create_error_response
+
+        # Test with default type
+        result = create_error_response('Test error')
+        assert len(result) == 1
+        assert '"error": true' in result[0].text
+        assert '"type": "error"' in result[0].text
+
+        # Test with custom type
+        result = create_error_response('Test error', 'custom_type')
+        assert '"type": "custom_type"' in result[0].text
+
+    def test_create_success_response_extended(self):
+        """Test success response creation."""
+        from awslabs.healthlake_mcp_server.server import create_success_response
+
+        data = {'status': 'success', 'count': 5}
+        result = create_success_response(data)
+        assert len(result) == 1
+        assert '"status": "success"' in result[0].text
+
+    def test_datetime_encoder_extended(self):
+        """Test DateTimeEncoder functionality."""
+        from awslabs.healthlake_mcp_server.server import DateTimeEncoder
+        from datetime import datetime
+
+        encoder = DateTimeEncoder()
+        dt = datetime(2023, 1, 1, 12, 0, 0)
+
+        result = encoder.default(dt)
+        assert result == '2023-01-01T12:00:00'
+
+        # Test with non-datetime object
+        with pytest.raises(TypeError):
+            encoder.default(object())

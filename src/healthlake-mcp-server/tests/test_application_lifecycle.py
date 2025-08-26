@@ -167,3 +167,17 @@ class TestMainModuleIntegration:
 
             with pytest.raises(Exception, match='Test error'):
                 sync_main()
+
+
+class TestMainExceptionHandling:
+    """Test main module exception handling for coverage."""
+
+    def test_main_sync_exception_coverage(self):
+        """Test main.py line 54 exception handling."""
+        from awslabs.healthlake_mcp_server.main import sync_main
+
+        with patch('awslabs.healthlake_mcp_server.main.asyncio.run') as mock_run:
+            mock_run.side_effect = Exception('Test error')
+
+            with pytest.raises(Exception, match='Test error'):
+                sync_main()

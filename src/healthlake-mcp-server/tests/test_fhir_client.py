@@ -925,3 +925,151 @@ class TestAWSAuthErrors:
         # This should succeed - credentials are checked later during auth
         client = HealthLakeClient()
         assert client is not None
+
+
+class TestBundleProcessingExtended:
+    """Extended bundle processing tests for coverage."""
+
+    def test_process_bundle_url_parsing_error(self):
+        """Test URL parsing exception handling (coverage: lines 281-283)."""
+        client = HealthLakeClient()
+
+        # Bundle with malformed URL that causes parsing error
+        bundle = {
+            'resourceType': 'Bundle',
+            'entry': [],
+            'link': [{'relation': 'next', 'url': 'malformed://url[{invalid}'}],
+        }
+
+        result = client._process_bundle(bundle)
+
+        # Should handle error gracefully and still return pagination
+        assert 'pagination' in result
+        assert result['pagination']['has_next'] is True
+
+
+class TestJobOperationErrorHandling:
+    """Test job operation error scenarios for coverage."""
+
+    @pytest.mark.asyncio
+    async def test_start_import_job_validation_exception(self):
+        """Test import job ValidationException handling (coverage: lines 615-630)."""
+        client = HealthLakeClient()
+
+        error_response = {'Error': {'Code': 'ValidationException', 'Message': 'Invalid S3 URI'}}
+
+        with patch.object(client, 'healthlake_client') as mock_client:
+            mock_client.start_fhir_import_job.side_effect = ClientError(
+                error_response, 'StartFHIRImportJob'
+            )
+
+            with pytest.raises(ValueError, match='Invalid parameters'):
+                await client.start_import_job(
+                    datastore_id='test',
+                    input_data_config={'s3_uri': 's3://test'},
+                    job_output_data_config={'s3_configuration': {'s3_uri': 's3://test'}},
+                    data_access_role_arn='arn:test',
+                )
+
+    @pytest.mark.asyncio
+    async def test_start_import_job_access_denied(self):
+        """Test import job AccessDeniedException handling."""
+        client = HealthLakeClient()
+
+        error_response = {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}}
+
+        with patch.object(client, 'healthlake_client') as mock_client:
+            mock_client.start_fhir_import_job.side_effect = ClientError(
+                error_response, 'StartFHIRImportJob'
+            )
+
+            with pytest.raises(PermissionError, match='Access denied'):
+                await client.start_import_job(
+                    datastore_id='test',
+                    input_data_config={'s3_uri': 's3://test'},
+                    job_output_data_config={'s3_configuration': {'s3_uri': 's3://test'}},
+                    data_access_role_arn='arn:test',
+                )
+
+    @pytest.mark.asyncio
+    async def test_start_import_job_resource_not_found(self):
+        """Test import job ResourceNotFoundException handling."""
+        client = HealthLakeClient()
+
+        error_response = {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Not found'}}
+
+        with patch.object(client, 'healthlake_client') as mock_client:
+            mock_client.start_fhir_import_job.side_effect = ClientError(
+                error_response, 'StartFHIRImportJob'
+            )
+
+            with pytest.raises(ValueError, match='Datastore not found'):
+                await client.start_import_job(
+                    datastore_id='test',
+                    input_data_config={'s3_uri': 's3://test'},
+                    job_output_data_config={'s3_configuration': {'s3_uri': 's3://test'}},
+                    data_access_role_arn='arn:test',
+                )
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_client_error(self):
+        """Test list_jobs error handling (coverage: lines 661-669, 683-686)."""
+        client = HealthLakeClient()
+
+        with patch.object(client, 'healthlake_client') as mock_client:
+            mock_client.list_fhir_import_jobs.side_effect = ClientError({}, 'ListFHIRImportJobs')
+            mock_client.list_fhir_export_jobs.side_effect = ClientError({}, 'ListFHIRExportJobs')
+
+            result = await client.list_jobs('test')
+
+            assert result['error'] is True
+            assert 'ImportJobs' in result
+            assert 'ExportJobs' in result
+
+
+class TestFHIRSearchValidationExtended:
+    """Extended FHIR search validation tests."""
+
+    def test_validate_search_request_empty_resource_type(self):
+        """Test validation with empty resource type."""
+        client = HealthLakeClient()
+
+        errors = client._validate_search_request(resource_type='', count=50)
+
+        assert 'Resource type is required' in errors
+
+    def test_validate_search_request_invalid_include_format(self):
+        """Test validation with invalid include format."""
+        client = HealthLakeClient()
+
+        errors = client._validate_search_request(
+            resource_type='Patient', include_params=['invalid_format'], count=50
+        )
+
+        assert any('Invalid include format' in error for error in errors)
+
+    def test_validate_search_request_invalid_revinclude_format(self):
+        """Test validation with invalid revinclude format."""
+        client = HealthLakeClient()
+
+        errors = client._validate_search_request(
+            resource_type='Patient', revinclude_params=['invalid_format'], count=50
+        )
+
+        assert any('Invalid revinclude format' in error for error in errors)
+
+
+class TestAWSAuthExtended:
+    """Extended AWS auth tests for coverage."""
+
+    def test_get_aws_auth_no_credentials_error(self):
+        """Test auth setup with no credentials (coverage: lines 330-332)."""
+        with patch('boto3.Session') as mock_session_class:
+            mock_session = Mock()
+            mock_session.get_credentials.return_value = None
+            mock_session_class.return_value = mock_session
+
+            client = HealthLakeClient()
+
+            with pytest.raises(NoCredentialsError):
+                client._get_aws_auth()
