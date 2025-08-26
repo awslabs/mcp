@@ -555,7 +555,7 @@ def create_healthlake_server() -> Server:
 
             for datastore in response.get('DatastorePropertiesList', []):
                 status_emoji = '✅' if datastore['DatastoreStatus'] == 'ACTIVE' else '⏳'
-                created_date = datetime.fromtimestamp(datastore['CreatedAt']).strftime('%Y-%m-%d')
+                created_date = datastore['CreatedAt'].strftime('%Y-%m-%d')
 
                 resources.append(
                     Resource(
