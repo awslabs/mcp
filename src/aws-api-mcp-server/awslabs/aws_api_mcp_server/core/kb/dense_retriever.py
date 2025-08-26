@@ -65,7 +65,7 @@ class DenseRetriever:
                 download_embedding_model(self.model_name)
             logger.debug('Embedding model is cached at {}', model_dir)
             self._model = SentenceTransformer(
-                model_name_or_path=str(model_dir), local_files_only=True
+                model_name_or_path=str(model_dir), local_files_only=True, device='cpu'
             )
             self._model_ready = True
             logger.info('Embedding model loaded!')

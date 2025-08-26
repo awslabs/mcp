@@ -54,7 +54,7 @@ def get_env_bool(env_key: str, default: bool) -> bool:
     return os.getenv(env_key, str(default)).casefold() in TRUTHY_VALUES
 
 
-FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'WARNING')
+FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')
 AWS_API_MCP_PROFILE_NAME = os.getenv('AWS_API_MCP_PROFILE_NAME')
 AWS_REGION = os.getenv('AWS_REGION')
 DEFAULT_REGION = get_region(AWS_API_MCP_PROFILE_NAME)
@@ -63,3 +63,4 @@ OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
 WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
 REQUIRE_MUTATION_CONSENT = get_env_bool(REQUIRE_MUTATION_CONSENT_KEY, False)
 EMBEDDING_MODEL_DIR = os.getenv('EMBEDDING_MODEL_DIR', get_server_directory() / 'embedding_models')
+ENABLE_AGENT_SCRIPTS = get_env_bool('EXPERIMENTAL_AGENT_SCRIPTS', False)
