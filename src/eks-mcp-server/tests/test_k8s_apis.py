@@ -540,6 +540,7 @@ class TestK8sApisOperations:
                 since_seconds=60,
                 tail_lines=100,
                 limit_bytes=1024,
+                previous=True,
             )
 
             # Verify the result
@@ -556,6 +557,7 @@ class TestK8sApisOperations:
                 since_seconds=60,
                 tail_lines=100,
                 limit_bytes=1024,
+                previous=True,
             )
 
     def test_get_pod_logs_minimal(self, k8s_apis):

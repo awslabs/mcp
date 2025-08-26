@@ -388,7 +388,7 @@ Features:
 
 Parameters:
 
-* cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional)
+* cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional), previous (optional)
 
 #### `get_k8s_events`
 

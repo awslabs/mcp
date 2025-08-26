@@ -1253,6 +1253,7 @@ metadata:
                 since_seconds=60,
                 tail_lines=100,
                 limit_bytes=1024,
+                previous=True,
             )
 
             # Verify that get_client was called
@@ -1266,6 +1267,7 @@ metadata:
                 since_seconds=60,
                 tail_lines=100,
                 limit_bytes=1024,
+                previous=True,
             )
 
             # Verify the result
@@ -1304,6 +1306,7 @@ metadata:
                 since_seconds=None,
                 tail_lines=100,  # Default value
                 limit_bytes=10240,  # Default value
+                previous=False,  # Default value
             )
 
             # Verify that get_client was called
