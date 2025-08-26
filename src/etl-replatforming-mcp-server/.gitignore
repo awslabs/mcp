@@ -79,3 +79,6 @@ coverage.xml
 
 # Amazon Q IDE configuration
 .amazonq/
+
+# Pre-commit configuration
+.pre-commit-config.yaml
