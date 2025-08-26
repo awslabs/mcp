@@ -1992,6 +1992,118 @@ async def query_sampled_traces(
         return json.dumps({'error': str(e)}, indent=2)
 
 
+@mcp.tool()
+async def list_slos(
+    key_attributes: str = Field(
+        default="{}",
+        description='JSON string of key attributes to filter SLOs (e.g., \'{"Name": "my-service", "Environment": "prod"}\'. Defaults to empty object to list all SLOs.'
+    ),
+    include_linked_accounts: bool = Field(
+        default=True,
+        description='Whether to include SLOs from linked accounts (default: True)'
+    ),
+    max_results: int = Field(
+        default=50,
+        description='Maximum number of SLOs to return (default: 50, max: 50)'
+    )
+) -> str:
+    """List all Service Level Objectives (SLOs) in Application Signals.
+
+    Use this tool to:
+    - Get a complete list of all SLOs in your account
+    - Discover SLO names and ARNs for use with other tools
+    - Filter SLOs by service attributes
+    - See basic SLO information including creation time and operation names
+
+    Returns a formatted list showing:
+    - SLO name and ARN
+    - Associated service key attributes
+    - Operation name being monitored
+    - Creation timestamp
+    - Total count of SLOs found
+
+    This tool is useful for:
+    - SLO discovery and inventory
+    - Finding SLO names to use with get_slo() or audit_service_health()
+    - Understanding what operations are being monitored
+    """
+    start_time_perf = timer()
+    logger.debug('Starting list_slos request')
+
+    try:
+        # Parse key_attributes JSON string
+        try:
+            key_attrs_dict = json.loads(key_attributes) if key_attributes else {}
+        except json.JSONDecodeError as e:
+            return f'Error: Invalid JSON in key_attributes parameter: {str(e)}'
+
+        # Validate max_results
+        max_results = min(max(max_results, 1), 100)  # Ensure between 1 and 100
+
+        # Build request parameters
+        request_params = {
+            'MaxResults': max_results,
+            'IncludeLinkedAccounts': include_linked_accounts
+        }
+
+        # Add key attributes if provided
+        if key_attrs_dict:
+            request_params['KeyAttributes'] = key_attrs_dict
+
+        logger.debug(f'Listing SLOs with parameters: {request_params}')
+
+        # Call the Application Signals API
+        response = appsignals_client.list_service_level_objectives(**request_params)
+        slo_summaries = response.get('SloSummaries', [])
+
+        logger.debug(f'Retrieved {len(slo_summaries)} SLO summaries')
+
+        if not slo_summaries:
+            logger.info('No SLOs found matching the criteria')
+            return 'No Service Level Objectives found matching the specified criteria.'
+
+        # Build formatted response
+        result = f'Service Level Objectives ({len(slo_summaries)} total):\n\n'
+
+        for slo in slo_summaries:
+            slo_name = slo.get('Name', 'Unknown')
+            slo_arn = slo.get('Arn', 'Unknown')
+            operation_name = slo.get('OperationName', 'N/A')
+            created_time = slo.get('CreatedTime', 'Unknown')
+
+            result += f'• SLO: {slo_name}\n'
+            result += f'  ARN: {slo_arn}\n'
+            result += f'  Operation: {operation_name}\n'
+            result += f'  Created: {created_time}\n'
+
+            # Add key attributes if available
+            key_attrs = slo.get('KeyAttributes', {})
+            if key_attrs:
+                result += '  Service Attributes:\n'
+                for key, value in key_attrs.items():
+                    result += f'    {key}: {value}\n'
+
+            result += '\n'
+
+        # Add pagination info if there might be more results
+        next_token = response.get('NextToken')
+        if next_token:
+            result += f'Note: More SLOs may be available. This response shows the first {len(slo_summaries)} results.\n'
+
+        elapsed_time = timer() - start_time_perf
+        logger.debug(f'list_slos completed in {elapsed_time:.3f}s - found {len(slo_summaries)} SLOs')
+        return result
+
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in list_slos: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
+    except Exception as e:
+        logger.error(f'Unexpected error in list_slos: {str(e)}', exc_info=True)
+        return f'Error: {str(e)}'
+
+
 def main():
     """Run the MCP server."""
     logger.debug('Starting CloudWatch AppSignals MCP server')
