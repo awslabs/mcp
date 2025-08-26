@@ -3449,6 +3449,9 @@ python tests/integration/test_integration.py
 # Full mode - tests all files
 INTEGRATION_TEST_MODE=full python tests/integration/test_integration.py
 
+# With AWS credentials and logging
+export AWS_PROFILE=vishal_programmatic_user && export AWS_REGION=us-east-1 && export FASTMCP_LOG_LEVEL=INFO && pytest tests/integration/ -v
+
 # With logging
 export MCP_LOG_FILE=integration_test.log
 python tests/integration/test_integration.py
