@@ -14,9 +14,13 @@
 
 """AWS HealthLake client for FHIR operations."""
 
+# Standard library imports
+# Third-party imports
 import boto3
 import httpx
 import logging
+
+# Local imports
 from . import __version__
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
