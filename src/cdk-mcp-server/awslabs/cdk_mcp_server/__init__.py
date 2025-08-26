@@ -18,4 +18,4 @@ from awslabs.cdk_mcp_server.core.server import main, mcp
 
 __all__ = ['main', 'mcp']
 
-__version__ = '0.0.0'
+__version__ = '1.0.7'

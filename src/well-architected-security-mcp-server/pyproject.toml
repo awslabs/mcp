@@ -1,0 +1,89 @@
+[project]
+name = "awslabs.well-architected-security-mcp-server"
+version = "0.1.1"
+description = "AWS Well-Architected Security Assessment Tool MCP Server"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[server]>=1.7.1",
+    "boto3>=1.28.0",
+    "loguru>=0.7.0",
+    "pydantic>=2.0.0",
+    "fastapi>=0.100.0",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.0.291",
+    "pyright>=1.1.0",
+]
+
+
+[tool.setuptools]
+packages = {find = {where = ["."]}}
+
+[project.scripts]
+"awslabs.well-architected-security-mcp-server" = "awslabs.well_architected_security_mcp_server.server:main"
+
+[project.entry-points.mcp]
+well-architected-security-mcp-server = "awslabs.well_architected_security_mcp_server.server:mcp"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/well_architected_security_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.ruff]
+line-length = 99
+target-version = "py310"
+exclude = [
+    ".venv",
+    "**/__pycache__"]
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["E", "F", "I", "B", "Q"]
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["awslabs"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
+[tool.pytest.ini_options]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+testpaths = [ "tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
+    "asyncio: marks tests that use asyncio"
+]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
+
+[tool.coverage.run]
+source = ["awslabs"]
