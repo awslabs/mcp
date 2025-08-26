@@ -21,6 +21,13 @@ lint:
 	uv run ruff check awslabs/ tests/
 	uv run pyright awslabs/
 
+# Run security checks
+security:
+	uv run bandit -r awslabs/
+
+# Run all checks
+check: lint security
+
 # Format code
 format:
 	uv run ruff format awslabs/ tests/
