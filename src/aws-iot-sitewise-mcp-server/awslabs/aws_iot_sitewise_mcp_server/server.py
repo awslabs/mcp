@@ -1,11 +1,20 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import signal
-from typing import Any, Dict
-
 from anyio import CancelScope, create_task_group, open_signal_receiver, run
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.tools import Tool
-
 from awslabs.aws_iot_sitewise_mcp_server.prompts.asset_hierarchy import (
     asset_hierarchy_visualization_prompt,
 )
@@ -69,6 +78,10 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways import (
     update_gateway_tool,
 )
 from awslabs.aws_iot_sitewise_mcp_server.utils import get_package_version
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.tools import Tool
+from typing import Any, Dict
+
 
 # Server instruction constants
 WRITE_ENABLED_INSTRUCTIONS = """WRITE ENABLED - AWS IoT SiteWise MCP Server
@@ -136,8 +149,7 @@ all_tools = [
 
 
 def get_sitewise_server_mode() -> Dict[str, Any]:
-    """
-    Get the current SiteWise server mode and available capabilities.
+    """Get the current SiteWise server mode and available capabilities.
 
     This tool helps users understand what operations are available
     and provides guidance for enabling write operations if needed.
@@ -145,9 +157,7 @@ def get_sitewise_server_mode() -> Dict[str, Any]:
     Returns:
         Dictionary containing server mode information and capabilities
     """
-    allow_writes = (
-        os.environ.get("SITEWISE_MCP_ALLOW_WRITES", "False").lower() == "true"
-    )
+    allow_writes = os.environ.get('SITEWISE_MCP_ALLOW_WRITES', 'False').lower() == 'true'
 
     readonly_count = sum(1 for tool in all_tools if is_readonly_tool(tool.fn))
     write_count = len(all_tools) - readonly_count
@@ -158,22 +168,20 @@ def get_sitewise_server_mode() -> Dict[str, Any]:
 
     if allow_writes:
         mode_info = {
-            "success": True,
-            "mode": "WRITE_ENABLED",
-            "readonly_tools": total_readonly,
-            "write_tools": write_count,
-            "total_tools": total_available,
+            'success': True,
+            'mode': 'WRITE_ENABLED',
+            'readonly_tools': total_readonly,
+            'write_tools': write_count,
+            'total_tools': total_available,
         }
     else:
         mode_info = {
-            "success": True,
-            "mode": "READ_ONLY",
-            "readonly_tools": total_readonly,
-            "write_tools": 0,
-            "total_tools": total_readonly,
-            "enable_writes": (
-                "Set SITEWISE_MCP_ALLOW_WRITES=True environment variable"
-            ),
+            'success': True,
+            'mode': 'READ_ONLY',
+            'readonly_tools': total_readonly,
+            'write_tools': 0,
+            'total_tools': total_readonly,
+            'enable_writes': ('Set SITEWISE_MCP_ALLOW_WRITES=True environment variable'),
         }
 
     return mode_info
@@ -188,7 +196,7 @@ async def signal_handler(scope: CancelScope):
     """
     with open_signal_receiver(signal.SIGINT, signal.SIGTERM) as signals:
         async for _ in signals:  # Shutting down regardless of signal type
-            print("Shutting down MCP server...")
+            print('Shutting down MCP server...')
             # Force immediate exit since MCP blocks on stdio.
             # You can also use scope.cancel(), but it means after Ctrl+C,
             # you need to press another 'Enter' to unblock the stdio.
@@ -198,17 +206,13 @@ async def signal_handler(scope: CancelScope):
 async def run_server():
     """Run the MCP server with signal handling."""
     # Check if writes are allowed
-    allow_writes = (
-        os.environ.get("SITEWISE_MCP_ALLOW_WRITES", "False").lower() == "true"
-    )
+    allow_writes = os.environ.get('SITEWISE_MCP_ALLOW_WRITES', 'False').lower() == 'true'
 
     # Update instructions based on mode
-    instructions = (
-        WRITE_ENABLED_INSTRUCTIONS if allow_writes else READ_ONLY_INSTRUCTIONS
-    )
+    instructions = WRITE_ENABLED_INSTRUCTIONS if allow_writes else READ_ONLY_INSTRUCTIONS
 
     mcp = FastMCP(
-        name="sitewise",
+        name='sitewise',
         instructions=instructions,
     )
 
@@ -233,11 +237,11 @@ async def run_server():
     # Create the server mode tool
     get_sitewise_server_mode_tool = Tool.from_function(
         fn=get_sitewise_server_mode,
-        name="get_sitewise_server_mode",
+        name='get_sitewise_server_mode',
         description=(
-            "Get the current SiteWise server mode and available capabilities. "
-            "Use this to understand what operations are available and how to "
-            "enable write operations if needed."
+            'Get the current SiteWise server mode and available capabilities. '
+            'Use this to understand what operations are available and how to '
+            'enable write operations if needed.'
         ),
     )
 
@@ -246,25 +250,25 @@ async def run_server():
         get_sitewise_server_mode_tool.fn,
         get_sitewise_server_mode_tool.name,
         get_sitewise_server_mode_tool.description,
-        str(get_sitewise_server_mode_tool.annotations or ""),
+        str(get_sitewise_server_mode_tool.annotations or ''),
     )
 
     # Register filtered tools
     for tool in tools_to_register:
-        mcp.add_tool(tool.fn, tool.name, tool.description, str(tool.annotations or ""))
+        mcp.add_tool(tool.fn, tool.name, tool.description, str(tool.annotations or ''))
 
     # Print registration summary
     total_tools = len(tools_to_register) + 1  # +1 for get_sitewise_server_mode
     if allow_writes:
         print(
-            f"Registered {readonly_count + 1} read-only tools "
-            f"(including get_sitewise_server_mode) and {write_count} "
-            f"write tools ({total_tools} total)"
+            f'Registered {readonly_count + 1} read-only tools '
+            f'(including get_sitewise_server_mode) and {write_count} '
+            f'write tools ({total_tools} total)'
         )
     else:
         print(
-            f"Registered {readonly_count + 1} read-only tools only "
-            f"(including get_sitewise_server_mode) ({total_tools} total)"
+            f'Registered {readonly_count + 1} read-only tools only '
+            f'(including get_sitewise_server_mode) ({total_tools} total)'
         )
 
     # Add prompts based on mode

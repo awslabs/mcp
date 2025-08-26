@@ -1,23 +1,31 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """AWS IoT SiteWise Data Ingestion Helper Prompt."""
 
 from mcp.server.fastmcp.prompts import Prompt
 
 
 def data_ingestion_helper(data_source: str, target_assets: str) -> str:
-    """
-    Generate a comprehensive guide for setting up data ingestion into \
-        AWS IoT SiteWise.
+    """Generate a comprehensive guide for setting up data ingestion into AWS IoT SiteWise.
 
-    This prompt helps design and \
-        implement data ingestion strategies for industrial data,
+    This prompt helps design and implement data ingestion strategies for industrial data,
     including asset modeling, gateway configuration, and data mapping.
 
     Args:
-        data_source: Description of the data source (
-            OPC-UA server,
-            Modbus devices,
-            etc.)        target_assets: Description of target assets or \
-                asset models
+        data_source: Description of the data source (OPC-UA server, Modbus devices, etc.)
+        target_assets: Description of target assets or asset models
 
     Returns:
         Comprehensive data ingestion strategy guide
@@ -114,9 +122,8 @@ Address any potential challenges and provide solutions for common issues.
 # Create the prompt using from_function
 data_ingestion_helper_prompt = Prompt.from_function(
     data_ingestion_helper,
-    name="data_ingestion_helper",
+    name='data_ingestion_helper',
     description=(
-        "Generate a comprehensive guide for setting up data "
-        "ingestion into AWS IoT SiteWise"
+        'Generate a comprehensive guide for setting up data ingestion into AWS IoT SiteWise'
     ),
 )

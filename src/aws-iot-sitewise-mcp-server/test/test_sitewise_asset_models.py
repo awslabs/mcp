@@ -1,12 +1,22 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for AWS IoT SiteWise Asset Model Management Tools."""
 
 import os
-import sys
-from unittest.mock import Mock, patch
-
 import pytest
-from botocore.exceptions import ClientError
-
+import sys
 from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models import (
     create_asset_model,
     create_asset_model_composite_model,
@@ -16,6 +26,9 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models import (
     list_asset_models,
     update_asset_model,
 )
+from botocore.exceptions import ClientError
+from unittest.mock import Mock, patch
+
 
 # Add the project root directory and its parent to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -28,9 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(project_dir)))
 class TestSiteWiseAssetModels:
     """Test cases for SiteWise asset model management tools."""
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_create_asset_model_success(self, mock_boto_client):
         """Test successful asset model creation."""
         # Mock the boto3 client
@@ -39,173 +50,151 @@ class TestSiteWiseAssetModels:
 
         # Mock the response
         mock_response = {
-            "assetModelId": "test-model-123",
-            "assetModelArn": "arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123",
-            "assetModelStatus": {"state": "CREATING"},
+            'assetModelId': 'test-model-123',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelStatus': {'state': 'CREATING'},
         }
         mock_client.create_asset_model.return_value = mock_response
 
         # Call the function
-        result = create_asset_model(asset_model_name="Test Model", region="us-east-1")
+        result = create_asset_model(asset_model_name='Test Model', region='us-east-1')
 
         # Verify the result
-        assert result["success"] is True
-        assert result["asset_model_id"] == "test-model-123"
+        assert result['success'] is True
+        assert result['asset_model_id'] == 'test-model-123'
         assert (
-            result["asset_model_arn"]
-            == "arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123"
+            result['asset_model_arn']
+            == 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123'
         )
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_describe_asset_model_success(self, mock_boto_client):
         """Test successful asset model description."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelId": "test-model-123",
-            "assetModelArn": "arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123",
-            "assetModelName": "Test Model",
-            "assetModelDescription": "Test description",
-            "assetModelProperties": [],
-            "assetModelHierarchies": [],
-            "assetModelCompositeModels": [],
-            "assetModelStatus": {"state": "ACTIVE"},
-            "assetModelType": "ASSET_MODEL",
-            "assetModelCreationDate": Mock(),
-            "assetModelLastUpdateDate": Mock(),
-            "assetModelVersion": "1",
-            "assetModelVersionDescription": "Initial version",
-            "assetModelExternalId": "external-123",
+            'assetModelId': 'test-model-123',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelName': 'Test Model',
+            'assetModelDescription': 'Test description',
+            'assetModelProperties': [],
+            'assetModelHierarchies': [],
+            'assetModelCompositeModels': [],
+            'assetModelStatus': {'state': 'ACTIVE'},
+            'assetModelType': 'ASSET_MODEL',
+            'assetModelCreationDate': Mock(),
+            'assetModelLastUpdateDate': Mock(),
+            'assetModelVersion': '1',
+            'assetModelVersionDescription': 'Initial version',
+            'assetModelExternalId': 'external-123',
         }
-        mock_response[
-            "assetModelCreationDate"
-        ].isoformat.return_value = "2023-01-01T00:00:00Z"
-        mock_response[
-            "assetModelLastUpdateDate"
-        ].isoformat.return_value = "2023-01-01T00:00:00Z"
+        mock_response['assetModelCreationDate'].isoformat.return_value = '2023-01-01T00:00:00Z'
+        mock_response['assetModelLastUpdateDate'].isoformat.return_value = '2023-01-01T00:00:00Z'
         mock_client.describe_asset_model.return_value = mock_response
 
-        result = describe_asset_model(
-            asset_model_id="test-model-123", region="us-east-1"
-        )
+        result = describe_asset_model(asset_model_id='test-model-123', region='us-east-1')
 
-        assert result["success"] is True
-        assert result["asset_model_id"] == "test-model-123"
-        assert result["asset_model_name"] == "Test Model"
+        assert result['success'] is True
+        assert result['asset_model_id'] == 'test-model-123'
+        assert result['asset_model_name'] == 'Test Model'
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_list_asset_models_success(self, mock_boto_client):
         """Test successful asset model listing."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelSummaries": [
-                {"id": "model-1", "name": "Model 1"},
-                {"id": "model-2", "name": "Model 2"},
+            'assetModelSummaries': [
+                {'id': 'model-1', 'name': 'Model 1'},
+                {'id': 'model-2', 'name': 'Model 2'},
             ],
-            "nextToken": "token-123",
+            'nextToken': 'token-123',
         }
         mock_client.list_asset_models.return_value = mock_response
 
-        result = list_asset_models(region="us-east-1")
+        result = list_asset_models(region='us-east-1')
 
-        assert result["success"] is True
-        assert len(result["asset_model_summaries"]) == 2
+        assert result['success'] is True
+        assert len(result['asset_model_summaries']) == 2
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_update_asset_model_success(self, mock_boto_client):
         """Test successful asset model update."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
-        mock_response = {"assetModelStatus": {"state": "UPDATING"}}
+        mock_response = {'assetModelStatus': {'state': 'UPDATING'}}
         mock_client.update_asset_model.return_value = mock_response
 
         result = update_asset_model(
-            asset_model_id="test-model-123",
-            asset_model_name="Updated Model",
-            region="us-east-1",
+            asset_model_id='test-model-123',
+            asset_model_name='Updated Model',
+            region='us-east-1',
         )
 
-        assert result["success"] is True
-        assert result["asset_model_status"]["state"] == "UPDATING"
+        assert result['success'] is True
+        assert result['asset_model_status']['state'] == 'UPDATING'
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_delete_asset_model_success(self, mock_boto_client):
         """Test successful asset model deletion."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
-        mock_response = {"assetModelStatus": {"state": "DELETING"}}
+        mock_response = {'assetModelStatus': {'state': 'DELETING'}}
         mock_client.delete_asset_model.return_value = mock_response
 
-        result = delete_asset_model(asset_model_id="test-model-123", region="us-east-1")
+        result = delete_asset_model(asset_model_id='test-model-123', region='us-east-1')
 
-        assert result["success"] is True
-        assert result["asset_model_status"]["state"] == "DELETING"
+        assert result['success'] is True
+        assert result['asset_model_status']['state'] == 'DELETING'
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_list_asset_model_properties_success(self, mock_boto_client):
         """Test successful asset model properties listing."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelPropertySummaries": [
-                {"id": "prop-1", "name": "Property 1"},
-                {"id": "prop-2", "name": "Property 2"},
+            'assetModelPropertySummaries': [
+                {'id': 'prop-1', 'name': 'Property 1'},
+                {'id': 'prop-2', 'name': 'Property 2'},
             ],
-            "nextToken": "token-123",
+            'nextToken': 'token-123',
         }
         mock_client.list_asset_model_properties.return_value = mock_response
 
-        result = list_asset_model_properties(
-            asset_model_id="test-model-123", region="us-east-1"
-        )
+        result = list_asset_model_properties(asset_model_id='test-model-123', region='us-east-1')
 
-        assert result["success"] is True
-        assert len(result["asset_model_property_summaries"]) == 2
+        assert result['success'] is True
+        assert len(result['asset_model_property_summaries']) == 2
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_create_asset_model_composite_model_success(self, mock_boto_client):
         """Test successful composite model creation."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelCompositeModelId": "composite-123",
-            "assetModelCompositeModelPath": [{"id": "path-1"}],
-            "assetModelStatus": {"state": "UPDATING"},
+            'assetModelCompositeModelId': 'composite-123',
+            'assetModelCompositeModelPath': [{'id': 'path-1'}],
+            'assetModelStatus': {'state': 'UPDATING'},
         }
         mock_client.create_asset_model_composite_model.return_value = mock_response
 
         result = create_asset_model_composite_model(
-            asset_model_id="test-model-123",
-            asset_model_composite_model_name="Test Composite",
-            asset_model_composite_model_type="AWS/ALARM",
-            region="us-east-1",
+            asset_model_id='test-model-123',
+            asset_model_composite_model_name='Test Composite',
+            asset_model_composite_model_type='AWS/ALARM',
+            region='us-east-1',
         )
 
-        assert result["success"] is True
-        assert result["asset_model_composite_model_id"] == "composite-123"
+        assert result['success'] is True
+        assert result['asset_model_composite_model_id'] == 'composite-123'
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_asset_model_validation_errors(self, mock_boto_client):
         """Test validation error handling in asset models."""
         mock_client = Mock()
@@ -213,115 +202,100 @@ class TestSiteWiseAssetModels:
 
         # Mock a successful response for cases that pass validation
         mock_response = {
-            "assetModelId": "test-model-123",
-            "assetModelArn": "arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123",
-            "assetModelStatus": {"state": "CREATING"},
+            'assetModelId': 'test-model-123',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelStatus': {'state': 'CREATING'},
         }
         mock_client.create_asset_model.return_value = mock_response
 
         # Test various validation failures that happen during parameter
         # validation
         result = create_asset_model(
-            asset_model_name="Test Model",
-            region="us-east-1",
-            asset_model_description="a" * 2049,  # Exceeds limit
+            asset_model_name='Test Model',
+            region='us-east-1',
+            asset_model_description='a' * 2049,  # Exceeds limit
         )
-        assert result["success"] is False
-        assert result["error_code"] == "ValidationException"
+        assert result['success'] is False
+        assert result['error_code'] == 'ValidationException'
 
         # Test too many tags
         result = create_asset_model(
-            asset_model_name="Test Model",
-            region="us-east-1",
-            tags={f"key{i}": f"value{i}" for i in range(51)},  # Exceeds limit
+            asset_model_name='Test Model',
+            region='us-east-1',
+            tags={f'key{i}': f'value{i}' for i in range(51)},  # Exceeds limit
         )
-        assert result["success"] is False
-        assert result["error_code"] == "ValidationException"
+        assert result['success'] is False
+        assert result['error_code'] == 'ValidationException'
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_client_error_handling(self, mock_boto_client):
         """Test ClientError handling."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         error_response = {
-            "Error": {"Code": "ConflictException", "Message": "Model already exists"}
+            'Error': {'Code': 'ConflictException', 'Message': 'Model already exists'}
         }
         mock_client.create_asset_model.side_effect = ClientError(
-            error_response, "CreateAssetModel"
+            error_response, 'CreateAssetModel'
         )
 
-        result = create_asset_model(asset_model_name="Test Model", region="us-east-1")
+        result = create_asset_model(asset_model_name='Test Model', region='us-east-1')
 
-        assert result["success"] is False
-        assert result["error_code"] == "ConflictException"
+        assert result['success'] is False
+        assert result['error_code'] == 'ConflictException'
 
     def test_create_asset_model_validation_errors(self):
         """Test create asset model validation error cases."""
         # Test asset model description too long
         result = create_asset_model(
-            asset_model_name="Test Model",
-            asset_model_description="x" * 2049,  # Exceeds 2048 character limit
+            asset_model_name='Test Model',
+            asset_model_description='x' * 2049,  # Exceeds 2048 character limit
         )
-        assert result["success"] is False
-        assert (
-            "Asset model description cannot exceed 2048 characters" in result["error"]
-        )
+        assert result['success'] is False
+        assert 'Asset model description cannot exceed 2048 characters' in result['error']
 
         # Test client token too long
         result = create_asset_model(
-            asset_model_name="Test Model",
-            client_token="x" * 65,  # Exceeds 64 character limit
+            asset_model_name='Test Model',
+            client_token='x' * 65,  # Exceeds 64 character limit
         )
-        assert result["success"] is False
-        assert "Client token cannot exceed 64 characters" in result["error"]
+        assert result['success'] is False
+        assert 'Client token cannot exceed 64 characters' in result['error']
 
         # Test too many tags
         # Exceeds 50 tag limit
-        too_many_tags = {f"key{i}": f"value{i}" for i in range(51)}
+        too_many_tags = {f'key{i}': f'value{i}' for i in range(51)}
         result = create_asset_model(
-            asset_model_name="Test Model",
+            asset_model_name='Test Model',
             tags=too_many_tags,
         )
-        assert result["success"] is False
-        assert "Cannot have more than 50 tags per asset model" in result["error"]
+        assert result['success'] is False
+        assert 'Cannot have more than 50 tags per asset model' in result['error']
 
         # Test too many hierarchies
-        too_many_hierarchies = [
-            {"name": f"hierarchy{i}"} for i in range(11)
-        ]  # Exceeds 10 limit
+        too_many_hierarchies = [{'name': f'hierarchy{i}'} for i in range(11)]  # Exceeds 10 limit
         result = create_asset_model(
-            asset_model_name="Test Model",
+            asset_model_name='Test Model',
             asset_model_hierarchies=too_many_hierarchies,
         )
-        assert result["success"] is False
-        assert "Cannot have more than 10 hierarchies per asset model" in result["error"]
+        assert result['success'] is False
+        assert 'Cannot have more than 10 hierarchies per asset model' in result['error']
 
         # Test too many composite models
-        too_many_composite = [
-            {"name": f"composite{i}"} for i in range(11)
-        ]  # Exceeds 10 limit
+        too_many_composite = [{'name': f'composite{i}'} for i in range(11)]  # Exceeds 10 limit
         result = create_asset_model(
-            asset_model_name="Test Model",
+            asset_model_name='Test Model',
             asset_model_composite_models=too_many_composite,
         )
-        assert result["success"] is False
-        assert (
-            "Cannot have more than 10 composite models per asset model"
-            in result["error"]
-        )
+        assert result['success'] is False
+        assert 'Cannot have more than 10 composite models per asset model' in result['error']
 
     @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.validate_asset_model_properties"
+        'awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.validate_asset_model_properties'
     )
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
-    def test_create_asset_model_with_all_params(
-        self, mock_boto_client, mock_validate_props
-    ):
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
+    def test_create_asset_model_with_all_params(self, mock_boto_client, mock_validate_props):
         """Test create asset model with all optional parameters."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
@@ -329,92 +303,86 @@ class TestSiteWiseAssetModels:
         mock_validate_props.return_value = None
 
         mock_response = {
-            "assetModelId": "test-model-123",
-            "assetModelArn": "arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123",
-            "assetModelStatus": {"state": "CREATING"},
+            'assetModelId': 'test-model-123',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelStatus': {'state': 'CREATING'},
         }
         mock_client.create_asset_model.return_value = mock_response
 
         result = create_asset_model(
-            asset_model_name="Test Model",
-            region="us-west-2",
-            asset_model_description="Test description",
-            asset_model_properties=[{"name": "property1", "dataType": "DOUBLE"}],
-            asset_model_hierarchies=[{"name": "hierarchy1"}],
-            asset_model_composite_models=[{"name": "composite1"}],
-            client_token="test-token",
-            tags={"Environment": "Test"},
-            asset_model_id="custom-model-id",
-            asset_model_external_id="ext-123",
-            asset_model_type="COMPONENT_MODEL",
+            asset_model_name='Test Model',
+            region='us-west-2',
+            asset_model_description='Test description',
+            asset_model_properties=[{'name': 'property1', 'dataType': 'DOUBLE'}],
+            asset_model_hierarchies=[{'name': 'hierarchy1'}],
+            asset_model_composite_models=[{'name': 'composite1'}],
+            client_token='test-token',
+            tags={'Environment': 'Test'},
+            asset_model_id='custom-model-id',
+            asset_model_external_id='ext-123',
+            asset_model_type='COMPONENT_MODEL',
         )
 
-        assert result["success"] is True
+        assert result['success'] is True
         mock_client.create_asset_model.assert_called_once_with(
-            assetModelName="Test Model",
-            assetModelType="COMPONENT_MODEL",
-            assetModelDescription="Test description",
-            assetModelProperties=[{"name": "property1", "dataType": "DOUBLE"}],
-            assetModelHierarchies=[{"name": "hierarchy1"}],
-            assetModelCompositeModels=[{"name": "composite1"}],
-            clientToken="test-token",
-            tags={"Environment": "Test"},
-            assetModelId="custom-model-id",
-            assetModelExternalId="ext-123",
+            assetModelName='Test Model',
+            assetModelType='COMPONENT_MODEL',
+            assetModelDescription='Test description',
+            assetModelProperties=[{'name': 'property1', 'dataType': 'DOUBLE'}],
+            assetModelHierarchies=[{'name': 'hierarchy1'}],
+            assetModelCompositeModels=[{'name': 'composite1'}],
+            clientToken='test-token',
+            tags={'Environment': 'Test'},
+            assetModelId='custom-model-id',
+            assetModelExternalId='ext-123',
         )
 
     def test_describe_asset_model_validation_errors(self):
         """Test describe asset model validation error cases."""
         # Test invalid asset model version
         result = describe_asset_model(
-            asset_model_id="test-model-123", asset_model_version="INVALID_VERSION"
+            asset_model_id='test-model-123', asset_model_version='INVALID_VERSION'
         )
-        assert result["success"] is False
-        assert "Asset model version must be 'LATEST' or 'ACTIVE'" in result["error"]
+        assert result['success'] is False
+        assert "Asset model version must be 'LATEST' or 'ACTIVE'" in result['error']
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_describe_asset_model_with_all_params(self, mock_boto_client):
         """Test describe asset model with all optional parameters."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelId": "test-model-123",
-            "assetModelArn": "arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123",
-            "assetModelName": "Test Model",
-            "assetModelDescription": "Test description",
-            "assetModelProperties": [],
-            "assetModelHierarchies": [],
-            "assetModelCompositeModels": [],
-            "assetModelStatus": {"state": "ACTIVE"},
-            "assetModelType": "ASSET_MODEL",
-            "assetModelCreationDate": Mock(),
-            "assetModelLastUpdateDate": Mock(),
-            "assetModelVersion": "1",
-            "assetModelVersionDescription": "Version 1",
-            "assetModelExternalId": "ext-123",
+            'assetModelId': 'test-model-123',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelName': 'Test Model',
+            'assetModelDescription': 'Test description',
+            'assetModelProperties': [],
+            'assetModelHierarchies': [],
+            'assetModelCompositeModels': [],
+            'assetModelStatus': {'state': 'ACTIVE'},
+            'assetModelType': 'ASSET_MODEL',
+            'assetModelCreationDate': Mock(),
+            'assetModelLastUpdateDate': Mock(),
+            'assetModelVersion': '1',
+            'assetModelVersionDescription': 'Version 1',
+            'assetModelExternalId': 'ext-123',
         }
-        mock_response[
-            "assetModelCreationDate"
-        ].isoformat.return_value = "2023-01-01T00:00:00Z"
-        mock_response[
-            "assetModelLastUpdateDate"
-        ].isoformat.return_value = "2023-01-01T00:00:00Z"
+        mock_response['assetModelCreationDate'].isoformat.return_value = '2023-01-01T00:00:00Z'
+        mock_response['assetModelLastUpdateDate'].isoformat.return_value = '2023-01-01T00:00:00Z'
         mock_client.describe_asset_model.return_value = mock_response
 
         result = describe_asset_model(
-            asset_model_id="test-model-123",
-            region="us-west-2",
+            asset_model_id='test-model-123',
+            region='us-west-2',
             exclude_properties=True,
-            asset_model_version="ACTIVE",
+            asset_model_version='ACTIVE',
         )
 
-        assert result["success"] is True
+        assert result['success'] is True
         mock_client.describe_asset_model.assert_called_once_with(
-            assetModelId="test-model-123",
-            assetModelVersion="ACTIVE",
+            assetModelId='test-model-123',
+            assetModelVersion='ACTIVE',
             excludeProperties=True,
         )
 
@@ -422,167 +390,147 @@ class TestSiteWiseAssetModels:
         """Test list asset models validation error cases."""
         # Test next token too long
         # Exceeds 4096 character limit
-        result = list_asset_models(next_token="x" * 4097)
-        assert result["success"] is False
-        assert "Next token too long" in result["error"]
+        result = list_asset_models(next_token='x' * 4097)
+        assert result['success'] is False
+        assert 'Next token too long' in result['error']
 
         # Test invalid asset model type
-        result = list_asset_models(asset_model_types=["INVALID_TYPE"])
-        assert result["success"] is False
-        assert (
-            "Asset model type must be 'ASSET_MODEL' or 'COMPONENT_MODEL'"
-            in result["error"]
-        )
+        result = list_asset_models(asset_model_types=['INVALID_TYPE'])
+        assert result['success'] is False
+        assert "Asset model type must be 'ASSET_MODEL' or 'COMPONENT_MODEL'" in result['error']
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_list_asset_models_with_all_params(self, mock_boto_client):
         """Test list asset models with all optional parameters."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelSummaries": [{"id": "model-1", "name": "Model 1"}],
-            "nextToken": "next-token-123",
+            'assetModelSummaries': [{'id': 'model-1', 'name': 'Model 1'}],
+            'nextToken': 'next-token-123',
         }
         mock_client.list_asset_models.return_value = mock_response
 
         result = list_asset_models(
-            region="us-west-2",
-            next_token="prev-token",
+            region='us-west-2',
+            next_token='prev-token',
             max_results=100,
-            asset_model_types=["ASSET_MODEL", "COMPONENT_MODEL"],
+            asset_model_types=['ASSET_MODEL', 'COMPONENT_MODEL'],
         )
 
-        assert result["success"] is True
+        assert result['success'] is True
         mock_client.list_asset_models.assert_called_once_with(
             maxResults=100,
-            nextToken="prev-token",
-            assetModelTypes=["ASSET_MODEL", "COMPONENT_MODEL"],
+            nextToken='prev-token',
+            assetModelTypes=['ASSET_MODEL', 'COMPONENT_MODEL'],
         )
 
     def test_update_asset_model_validation_errors(self):
         """Test update asset model validation error cases."""
         # Test asset model description too long
         result = update_asset_model(
-            asset_model_id="test-model-123",
-            asset_model_name="Updated Model",
-            asset_model_description="x" * 2049,  # Exceeds 2048 character limit
+            asset_model_id='test-model-123',
+            asset_model_name='Updated Model',
+            asset_model_description='x' * 2049,  # Exceeds 2048 character limit
         )
-        assert result["success"] is False
-        assert (
-            "Asset model description cannot exceed 2048 characters" in result["error"]
-        )
+        assert result['success'] is False
+        assert 'Asset model description cannot exceed 2048 characters' in result['error']
 
         # Test client token too long
         result = update_asset_model(
-            asset_model_id="test-model-123",
-            asset_model_name="Updated Model",
-            client_token="x" * 65,  # Exceeds 64 character limit
+            asset_model_id='test-model-123',
+            asset_model_name='Updated Model',
+            client_token='x' * 65,  # Exceeds 64 character limit
         )
-        assert result["success"] is False
-        assert "Client token cannot exceed 64 characters" in result["error"]
+        assert result['success'] is False
+        assert 'Client token cannot exceed 64 characters' in result['error']
 
         # Test too many hierarchies
-        too_many_hierarchies = [
-            {"name": f"hierarchy{i}"} for i in range(11)
-        ]  # Exceeds 10 limit
+        too_many_hierarchies = [{'name': f'hierarchy{i}'} for i in range(11)]  # Exceeds 10 limit
         result = update_asset_model(
-            asset_model_id="test-model-123",
-            asset_model_name="Updated Model",
+            asset_model_id='test-model-123',
+            asset_model_name='Updated Model',
             asset_model_hierarchies=too_many_hierarchies,
         )
-        assert result["success"] is False
-        assert "Cannot have more than 10 hierarchies per asset model" in result["error"]
+        assert result['success'] is False
+        assert 'Cannot have more than 10 hierarchies per asset model' in result['error']
 
         # Test too many composite models
-        too_many_composite = [
-            {"name": f"composite{i}"} for i in range(11)
-        ]  # Exceeds 10 limit
+        too_many_composite = [{'name': f'composite{i}'} for i in range(11)]  # Exceeds 10 limit
         result = update_asset_model(
-            asset_model_id="test-model-123",
-            asset_model_name="Updated Model",
+            asset_model_id='test-model-123',
+            asset_model_name='Updated Model',
             asset_model_composite_models=too_many_composite,
         )
-        assert result["success"] is False
-        assert (
-            "Cannot have more than 10 composite models per asset model"
-            in result["error"]
-        )
+        assert result['success'] is False
+        assert 'Cannot have more than 10 composite models per asset model' in result['error']
 
     @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.validate_asset_model_properties"
+        'awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.validate_asset_model_properties'
     )
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
-    def test_update_asset_model_with_all_params(
-        self, mock_boto_client, mock_validate_props
-    ):
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
+    def test_update_asset_model_with_all_params(self, mock_boto_client, mock_validate_props):
         """Test update asset model with all optional parameters."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
         # Mock the validation to pass
         mock_validate_props.return_value = None
 
-        mock_response = {"assetModelStatus": {"state": "UPDATING"}}
+        mock_response = {'assetModelStatus': {'state': 'UPDATING'}}
         mock_client.update_asset_model.return_value = mock_response
 
         result = update_asset_model(
-            asset_model_id="test-model-123",
-            asset_model_name="Updated Model",
-            region="us-west-2",
-            asset_model_description="Updated description",
-            asset_model_properties=[{"name": "property1", "dataType": "DOUBLE"}],
-            asset_model_hierarchies=[{"name": "hierarchy1"}],
-            asset_model_composite_models=[{"name": "composite1"}],
-            client_token="update-token",
-            asset_model_external_id="ext-456",
+            asset_model_id='test-model-123',
+            asset_model_name='Updated Model',
+            region='us-west-2',
+            asset_model_description='Updated description',
+            asset_model_properties=[{'name': 'property1', 'dataType': 'DOUBLE'}],
+            asset_model_hierarchies=[{'name': 'hierarchy1'}],
+            asset_model_composite_models=[{'name': 'composite1'}],
+            client_token='update-token',
+            asset_model_external_id='ext-456',
         )
 
-        assert result["success"] is True
+        assert result['success'] is True
         mock_client.update_asset_model.assert_called_once_with(
-            assetModelId="test-model-123",
-            assetModelName="Updated Model",
-            assetModelDescription="Updated description",
-            assetModelProperties=[{"name": "property1", "dataType": "DOUBLE"}],
-            assetModelHierarchies=[{"name": "hierarchy1"}],
-            assetModelCompositeModels=[{"name": "composite1"}],
-            clientToken="update-token",
-            assetModelExternalId="ext-456",
+            assetModelId='test-model-123',
+            assetModelName='Updated Model',
+            assetModelDescription='Updated description',
+            assetModelProperties=[{'name': 'property1', 'dataType': 'DOUBLE'}],
+            assetModelHierarchies=[{'name': 'hierarchy1'}],
+            assetModelCompositeModels=[{'name': 'composite1'}],
+            clientToken='update-token',
+            assetModelExternalId='ext-456',
         )
 
     def test_delete_asset_model_validation_errors(self):
         """Test delete asset model validation error cases."""
         # Test client token too long
         result = delete_asset_model(
-            asset_model_id="test-model-123",
-            client_token="x" * 65,  # Exceeds 64 character limit
+            asset_model_id='test-model-123',
+            client_token='x' * 65,  # Exceeds 64 character limit
         )
-        assert result["success"] is False
-        assert "Client token cannot exceed 64 characters" in result["error"]
+        assert result['success'] is False
+        assert 'Client token cannot exceed 64 characters' in result['error']
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_delete_asset_model_with_client_token(self, mock_boto_client):
         """Test delete asset model with client token."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
-        mock_response = {"assetModelStatus": {"state": "DELETING"}}
+        mock_response = {'assetModelStatus': {'state': 'DELETING'}}
         mock_client.delete_asset_model.return_value = mock_response
 
         result = delete_asset_model(
-            asset_model_id="test-model-123",
-            region="us-west-2",
-            client_token="delete-token",
+            asset_model_id='test-model-123',
+            region='us-west-2',
+            client_token='delete-token',
         )
 
-        assert result["success"] is True
+        assert result['success'] is True
         mock_client.delete_asset_model.assert_called_once_with(
-            assetModelId="test-model-123", clientToken="delete-token"
+            assetModelId='test-model-123', clientToken='delete-token'
         )
 
     def test_list_asset_model_properties_validation_errors(self):
@@ -590,216 +538,193 @@ class TestSiteWiseAssetModels:
         # Test next token too long
         result = list_asset_model_properties(
             # Exceeds 4096 character limit
-            asset_model_id="test-model-123",
-            next_token="x" * 4097,
+            asset_model_id='test-model-123',
+            next_token='x' * 4097,
         )
-        assert result["success"] is False
-        assert "Next token too long" in result["error"]
+        assert result['success'] is False
+        assert 'Next token too long' in result['error']
 
         # Test invalid asset model version
         result = list_asset_model_properties(
-            asset_model_id="test-model-123", asset_model_version="INVALID_VERSION"
+            asset_model_id='test-model-123', asset_model_version='INVALID_VERSION'
         )
-        assert result["success"] is False
-        assert "Asset model version must be 'LATEST' or 'ACTIVE'" in result["error"]
+        assert result['success'] is False
+        assert "Asset model version must be 'LATEST' or 'ACTIVE'" in result['error']
 
         # Test invalid filter type
         result = list_asset_model_properties(
-            asset_model_id="test-model-123", filter_type="INVALID_FILTER"
+            asset_model_id='test-model-123', filter_type='INVALID_FILTER'
         )
-        assert result["success"] is False
-        assert "Filter type must be 'ALL' or 'BASE'" in result["error"]
+        assert result['success'] is False
+        assert "Filter type must be 'ALL' or 'BASE'" in result['error']
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_list_asset_model_properties_with_all_params(self, mock_boto_client):
         """Test list asset model properties with all optional parameters."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelPropertySummaries": [{"id": "prop-1", "name": "Property 1"}],
-            "nextToken": "next-token-123",
+            'assetModelPropertySummaries': [{'id': 'prop-1', 'name': 'Property 1'}],
+            'nextToken': 'next-token-123',
         }
         mock_client.list_asset_model_properties.return_value = mock_response
 
         result = list_asset_model_properties(
-            asset_model_id="test-model-123",
-            region="us-west-2",
-            next_token="prev-token",
+            asset_model_id='test-model-123',
+            region='us-west-2',
+            next_token='prev-token',
             max_results=100,
-            asset_model_version="ACTIVE",
-            filter_type="BASE",
+            asset_model_version='ACTIVE',
+            filter_type='BASE',
         )
 
-        assert result["success"] is True
+        assert result['success'] is True
         mock_client.list_asset_model_properties.assert_called_once_with(
-            assetModelId="test-model-123",
+            assetModelId='test-model-123',
             maxResults=100,
-            assetModelVersion="ACTIVE",
-            nextToken="prev-token",
-            filter="BASE",
+            assetModelVersion='ACTIVE',
+            nextToken='prev-token',
+            filter='BASE',
         )
 
     def test_create_asset_model_composite_model_validation_errors(self):
         """Test create asset model composite model validation error cases."""
         # Test composite model description too long
         result = create_asset_model_composite_model(
-            asset_model_id="test-model-123",
-            asset_model_composite_model_name="Test Composite",
-            asset_model_composite_model_type="alarms",
-            asset_model_composite_model_description="x"
-            * 2049,  # Exceeds 2048 character limit
+            asset_model_id='test-model-123',
+            asset_model_composite_model_name='Test Composite',
+            asset_model_composite_model_type='alarms',
+            asset_model_composite_model_description='x' * 2049,  # Exceeds 2048 character limit
         )
-        assert result["success"] is False
-        assert (
-            "Composite model description cannot exceed 2048 characters"
-            in result["error"]
-        )
+        assert result['success'] is False
+        assert 'Composite model description cannot exceed 2048 characters' in result['error']
 
         # Test client token too long
         result = create_asset_model_composite_model(
-            asset_model_id="test-model-123",
-            asset_model_composite_model_name="Test Composite",
-            asset_model_composite_model_type="alarms",
-            client_token="x" * 65,  # Exceeds 64 character limit
+            asset_model_id='test-model-123',
+            asset_model_composite_model_name='Test Composite',
+            asset_model_composite_model_type='alarms',
+            client_token='x' * 65,  # Exceeds 64 character limit
         )
-        assert result["success"] is False
-        assert "Client token cannot exceed 64 characters" in result["error"]
+        assert result['success'] is False
+        assert 'Client token cannot exceed 64 characters' in result['error']
 
         # Test too many properties in composite model
-        too_many_properties = [
-            {"name": f"prop{i}"} for i in range(201)
-        ]  # Exceeds 200 limit
+        too_many_properties = [{'name': f'prop{i}'} for i in range(201)]  # Exceeds 200 limit
         result = create_asset_model_composite_model(
-            asset_model_id="test-model-123",
-            asset_model_composite_model_name="Test Composite",
-            asset_model_composite_model_type="alarms",
+            asset_model_id='test-model-123',
+            asset_model_composite_model_name='Test Composite',
+            asset_model_composite_model_type='alarms',
             asset_model_composite_model_properties=too_many_properties,
         )
-        assert result["success"] is False
-        assert (
-            "Cannot have more than 200 properties per composite model"
-            in result["error"]
-        )
+        assert result['success'] is False
+        assert 'Cannot have more than 200 properties per composite model' in result['error']
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_create_asset_model_composite_model_with_all_params(self, mock_boto_client):
         """Test create asset model composite model with all optional parameters."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            "assetModelCompositeModelId": "composite-123",
-            "assetModelCompositeModelPath": ["path1", "path2"],
-            "assetModelStatus": {"state": "UPDATING"},
+            'assetModelCompositeModelId': 'composite-123',
+            'assetModelCompositeModelPath': ['path1', 'path2'],
+            'assetModelStatus': {'state': 'UPDATING'},
         }
         mock_client.create_asset_model_composite_model.return_value = mock_response
 
         result = create_asset_model_composite_model(
-            asset_model_id="test-model-123",
-            asset_model_composite_model_name="Test Composite",
-            asset_model_composite_model_type="alarms",
-            region="us-west-2",
-            asset_model_composite_model_description="Test composite description",
-            asset_model_composite_model_properties=[
-                {"name": "property1", "dataType": "DOUBLE"}
-            ],
-            client_token="composite-token",
-            asset_model_composite_model_id="custom-composite-id",
-            asset_model_composite_model_external_id="ext-composite-123",
-            parent_asset_model_composite_model_id="parent-composite-123",
-            composed_asset_model_id="composed-model-123",
+            asset_model_id='test-model-123',
+            asset_model_composite_model_name='Test Composite',
+            asset_model_composite_model_type='alarms',
+            region='us-west-2',
+            asset_model_composite_model_description='Test composite description',
+            asset_model_composite_model_properties=[{'name': 'property1', 'dataType': 'DOUBLE'}],
+            client_token='composite-token',
+            asset_model_composite_model_id='custom-composite-id',
+            asset_model_composite_model_external_id='ext-composite-123',
+            parent_asset_model_composite_model_id='parent-composite-123',
+            composed_asset_model_id='composed-model-123',
         )
 
-        assert result["success"] is True
+        assert result['success'] is True
         mock_client.create_asset_model_composite_model.assert_called_once_with(
-            assetModelId="test-model-123",
-            assetModelCompositeModelName="Test Composite",
-            assetModelCompositeModelType="alarms",
-            assetModelCompositeModelDescription="Test composite description",
-            assetModelCompositeModelProperties=[
-                {"name": "property1", "dataType": "DOUBLE"}
-            ],
-            clientToken="composite-token",
-            assetModelCompositeModelId="custom-composite-id",
-            assetModelCompositeModelExternalId="ext-composite-123",
-            parentAssetModelCompositeModelId="parent-composite-123",
-            composedAssetModelId="composed-model-123",
+            assetModelId='test-model-123',
+            assetModelCompositeModelName='Test Composite',
+            assetModelCompositeModelType='alarms',
+            assetModelCompositeModelDescription='Test composite description',
+            assetModelCompositeModelProperties=[{'name': 'property1', 'dataType': 'DOUBLE'}],
+            clientToken='composite-token',
+            assetModelCompositeModelId='custom-composite-id',
+            assetModelCompositeModelExternalId='ext-composite-123',
+            parentAssetModelCompositeModelId='parent-composite-123',
+            composedAssetModelId='composed-model-123',
         )
 
-    @patch(
-        "awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client"
-    )
+    @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_asset_models.boto3.client')
     def test_all_functions_client_error_handling(self, mock_boto_client):
         """Test that all functions handle ClientError exceptions properly."""
         mock_client = Mock()
         mock_boto_client.return_value = mock_client
 
         error_response = {
-            "Error": {
-                "Code": "InternalFailureException",
-                "Message": "Internal server error",
+            'Error': {
+                'Code': 'InternalFailureException',
+                'Message': 'Internal server error',
             }
         }
 
         # Test describe_asset_model error handling
         mock_client.describe_asset_model.side_effect = ClientError(
-            error_response, "DescribeAssetModel"
+            error_response, 'DescribeAssetModel'
         )
-        result = describe_asset_model(asset_model_id="test-123")
-        assert result["success"] is False
-        assert result["error_code"] == "InternalFailureException"
+        result = describe_asset_model(asset_model_id='test-123')
+        assert result['success'] is False
+        assert result['error_code'] == 'InternalFailureException'
 
         # Test list_asset_models error handling
-        mock_client.list_asset_models.side_effect = ClientError(
-            error_response, "ListAssetModels"
-        )
+        mock_client.list_asset_models.side_effect = ClientError(error_response, 'ListAssetModels')
         result = list_asset_models()
-        assert result["success"] is False
-        assert result["error_code"] == "InternalFailureException"
+        assert result['success'] is False
+        assert result['error_code'] == 'InternalFailureException'
 
         # Test update_asset_model error handling
         mock_client.update_asset_model.side_effect = ClientError(
-            error_response, "UpdateAssetModel"
+            error_response, 'UpdateAssetModel'
         )
-        result = update_asset_model(
-            asset_model_id="test-123", asset_model_name="Updated"
-        )
-        assert result["success"] is False
-        assert result["error_code"] == "InternalFailureException"
+        result = update_asset_model(asset_model_id='test-123', asset_model_name='Updated')
+        assert result['success'] is False
+        assert result['error_code'] == 'InternalFailureException'
 
         # Test delete_asset_model error handling
         mock_client.delete_asset_model.side_effect = ClientError(
-            error_response, "DeleteAssetModel"
+            error_response, 'DeleteAssetModel'
         )
-        result = delete_asset_model(asset_model_id="test-123")
-        assert result["success"] is False
-        assert result["error_code"] == "InternalFailureException"
+        result = delete_asset_model(asset_model_id='test-123')
+        assert result['success'] is False
+        assert result['error_code'] == 'InternalFailureException'
 
         # Test list_asset_model_properties error handling
         mock_client.list_asset_model_properties.side_effect = ClientError(
-            error_response, "ListAssetModelProperties"
+            error_response, 'ListAssetModelProperties'
         )
-        result = list_asset_model_properties(asset_model_id="test-123")
-        assert result["success"] is False
-        assert result["error_code"] == "InternalFailureException"
+        result = list_asset_model_properties(asset_model_id='test-123')
+        assert result['success'] is False
+        assert result['error_code'] == 'InternalFailureException'
 
         # Test create_asset_model_composite_model error handling
         mock_client.create_asset_model_composite_model.side_effect = ClientError(
-            error_response, "CreateAssetModelCompositeModel"
+            error_response, 'CreateAssetModelCompositeModel'
         )
         result = create_asset_model_composite_model(
-            asset_model_id="test-123",
-            asset_model_composite_model_name="Test Composite",
-            asset_model_composite_model_type="alarms",
+            asset_model_id='test-123',
+            asset_model_composite_model_name='Test Composite',
+            asset_model_composite_model_type='alarms',
         )
-        assert result["success"] is False
-        assert result["error_code"] == "InternalFailureException"
+        assert result['success'] is False
+        assert result['error_code'] == 'InternalFailureException'
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     pytest.main([__file__])

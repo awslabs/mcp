@@ -1,31 +1,33 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """AWS IoT SiteWise Data Exploration Prompt using executeQuery API."""
 
 from mcp.server.fastmcp.prompts import Prompt
 
 
-def data_exploration_helper(
-    exploration_goal: str, time_range: str = "last 7 days"
-) -> str:
-    """
-    Generate comprehensive guidance for exploring IoT SiteWise data \
-        using the executeQuery API.
+def data_exploration_helper(exploration_goal: str, time_range: str = 'last 7 days') -> str:
+    """Generate comprehensive guidance for exploring IoT SiteWise data using the executeQuery API.
 
     This prompt helps users leverage the SQL capabilities of AWS IoT SiteWise
     to perform analytics, aggregations, and data exploration using the correct
-    SiteWise query language with proper view names and \
-        column names from official AWS documentation.
+    SiteWise query language with proper view names and column names from official AWS documentation.
 
     Args:
-        exploration_goal: Description of what you want to explore (
-            e.g.,
-            "temperature trends",
-            "equipment efficiency") \
-        time_range: Time range for the analysis \
-                \
-                (
-            e.g.,
-            "last 7 days",
-            "January 2024")
+        exploration_goal: Description of what you want to explore (e.g., "temperature trends", "equipment efficiency")
+        time_range: Time range for the analysis (e.g., "last 7 days", "January 2024")
+
     Returns:
         Comprehensive data exploration strategy guide with correct SQL syntax
     """
@@ -519,10 +521,10 @@ Use the `execute_query` tool with these correct view names and \
 # Create the prompt using from_function
 data_exploration_helper_prompt = Prompt.from_function(
     data_exploration_helper,
-    name="data_exploration_helper",
+    name='data_exploration_helper',
     description=(
-        "Generate comprehensive guidance for exploring IoT data "
-        "using AWS IoT SiteWise analytics with correct view schemas "
-        "and column names from official AWS documentation"
+        'Generate comprehensive guidance for exploring IoT data '
+        'using AWS IoT SiteWise analytics with correct view schemas '
+        'and column names from official AWS documentation'
     ),
 )

@@ -1,44 +1,53 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """AWS IoT SiteWise Data Ingestion and Retrieval Tools."""
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-
 import boto3
-from botocore.exceptions import ClientError
-from mcp.server.fastmcp.tools import Tool
-
-from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
-
 from ..validation import ValidationError, validate_max_results, validate_region
+from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
+from botocore.exceptions import ClientError
+from datetime import datetime
+from mcp.server.fastmcp.tools import Tool
+from typing import Any, Dict, List, Optional
 
 
 @tool_metadata(readonly=False)
 def batch_put_asset_property_value(
-    entries: List[Dict[str, Any]], region: str = "us-east-1"
+    entries: List[Dict[str, Any]], region: str = 'us-east-1'
 ) -> Dict[str, Any]:
-    """
-    from typing import Any, Dict, List, Optional
-        Send a list of asset property values to AWS IoT SiteWise.
+    """Send a list of asset property values to AWS IoT SiteWise.
 
-        Args:
-            entries: The list of asset property value entries to send to AWS IoT SiteWise
-            region: AWS region (default: us-east-1)
+    Args:
+        entries: The list of asset property value entries to send to AWS IoT SiteWise
+        region: AWS region (default: us-east-1)
 
-        Returns:
-            Dictionary containing batch put response
+    Returns:
+        Dictionary containing batch put response
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
         response = client.batch_put_asset_property_value(entries=entries)
 
-        return {"success": True, "error_entries": response.get("errorEntries", [])}
+        return {'success': True, 'error_entries': response.get('errorEntries', [])}
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
@@ -47,10 +56,9 @@ def get_asset_property_value(
     asset_id: Optional[str] = None,
     property_id: Optional[str] = None,
     property_alias: Optional[str] = None,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
-    """
-    Get the current value for the given asset property.
+    """Get the current value for the given asset property.
 
     Args:
         asset_id: The ID of the asset
@@ -62,31 +70,31 @@ def get_asset_property_value(
         Dictionary containing current property value
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
         params: Dict[str, Any] = {}
         if asset_id:
-            params["assetId"] = asset_id
+            params['assetId'] = asset_id
         if property_id:
-            params["propertyId"] = property_id
+            params['propertyId'] = property_id
         if property_alias:
-            params["propertyAlias"] = property_alias
+            params['propertyAlias'] = property_alias
 
         response = client.get_asset_property_value(**params)
 
-        property_value = response["propertyValue"]
+        property_value = response['propertyValue']
         return {
-            "success": True,
-            "value": property_value["value"],
-            "timestamp": property_value["timestamp"],
-            "quality": property_value.get("quality", "GOOD"),
+            'success': True,
+            'value': property_value['value'],
+            'timestamp': property_value['timestamp'],
+            'quality': property_value.get('quality', 'GOOD'),
         }
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
@@ -98,13 +106,12 @@ def get_asset_property_value_history(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     qualities: Optional[List[str]] = None,
-    time_ordering: str = "ASCENDING",
+    time_ordering: str = 'ASCENDING',
     next_token: Optional[str] = None,
     max_results: int = 100,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
-    """
-    Get the history of an asset property's values.
+    """Get the history of an asset property's values.
 
     Args:
         asset_id: The ID of the asset
@@ -112,59 +119,51 @@ def get_asset_property_value_history(
         property_alias: The alias that identifies the property
         start_date: The exclusive start of the range (ISO 8601 format)
         end_date: The inclusive end of the range (ISO 8601 format)
-        qualities: The quality by which to filter asset data (
-            GOOD,
-            BAD,
-            UNCERTAIN)        time_ordering: The chronological sorting order of \
-                the requested information (
-            ASCENDING,
-            DESCENDING)        next_token: The token to be used for the next set \
-                of paginated results
-        max_results: The maximum number of results to return (
-            1-4000,
-            default: 100)        region: AWS region (default: us-east-1)
+        qualities: The quality by which to filter asset data (GOOD, BAD, UNCERTAIN)
+        time_ordering: The chronological sorting order of the requested information (ASCENDING, DESCENDING)
+        next_token: The token to be used for the next set of paginated results
+        max_results: The maximum number of results to return (1-4000, default: 100)
+        region: AWS region (default: us-east-1)
 
     Returns:
         Dictionary containing property value history
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
         params: Dict[str, Any] = {
-            "timeOrdering": time_ordering,
-            "maxResults": max_results,
+            'timeOrdering': time_ordering,
+            'maxResults': max_results,
         }
 
         if asset_id:
-            params["assetId"] = asset_id
+            params['assetId'] = asset_id
         if property_id:
-            params["propertyId"] = property_id
+            params['propertyId'] = property_id
         if property_alias:
-            params["propertyAlias"] = property_alias
+            params['propertyAlias'] = property_alias
         if start_date:
-            params["startDate"] = datetime.fromisoformat(
-                start_date.replace("Z", "+00:00")
-            )
+            params['startDate'] = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
         if end_date:
-            params["endDate"] = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            params['endDate'] = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
         if qualities:
-            params["qualities"] = qualities
+            params['qualities'] = qualities
         if next_token:
-            params["nextToken"] = next_token
+            params['nextToken'] = next_token
 
         response = client.get_asset_property_value_history(**params)
 
         return {
-            "success": True,
-            "asset_property_value_history": response["assetPropertyValueHistory"],
-            "next_token": response.get("nextToken", ""),
+            'success': True,
+            'asset_property_value_history': response['assetPropertyValueHistory'],
+            'next_token': response.get('nextToken', ''),
         }
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
@@ -174,90 +173,75 @@ def get_asset_property_aggregates(
     property_id: Optional[str] = None,
     property_alias: Optional[str] = None,
     aggregate_types: Optional[List[str]] = None,
-    resolution: str = "1h",
+    resolution: str = '1h',
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     qualities: Optional[List[str]] = None,
-    time_ordering: str = "ASCENDING",
+    time_ordering: str = 'ASCENDING',
     next_token: Optional[str] = None,
     max_results: int = 100,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
-    """
-    Get aggregated values for an asset property.
+    """Get aggregated values for an asset property.
 
     Args:
         asset_id: The ID of the asset
         property_id: The ID of the asset property
         property_alias: The alias that identifies the property
-        aggregate_types: The data aggregating function (
-            AVERAGE,
-            COUNT,
-            MAXIMUM,
-            MINIMUM,
-            SUM,
-            STANDARD_DEVIATION)        resolution: The time interval over which \
-                to aggregate data
+        aggregate_types: The data aggregating function (AVERAGE, COUNT, MAXIMUM, MINIMUM, SUM, STANDARD_DEVIATION)
+        resolution: The time interval over which to aggregate data
         start_date: The exclusive start of the range (ISO 8601 format)
         end_date: The inclusive end of the range (ISO 8601 format)
-        qualities: The quality by which to filter asset data (
-            GOOD,
-            BAD,
-            UNCERTAIN)        time_ordering: The chronological sorting order of \
-                the requested information (
-            ASCENDING,
-            DESCENDING)        next_token: The token to be used for the next set \
-                of paginated results
-        max_results: The maximum number of results to return (
-            1-4000,
-            default: 100)        region: AWS region (default: us-east-1)
+        qualities: The quality by which to filter asset data (GOOD, BAD, UNCERTAIN)
+        time_ordering: The chronological sorting order of the requested information (ASCENDING, DESCENDING)
+        next_token: The token to be used for the next set of paginated results
+        max_results: The maximum number of results to return (1-4000, default: 100)
+        region: AWS region (default: us-east-1)
 
     Returns:
         Dictionary containing property aggregates
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
         if not aggregate_types:
-            aggregate_types = ["AVERAGE"]
+            aggregate_types = ['AVERAGE']
 
         params: Dict[str, Any] = {
-            "aggregateTypes": aggregate_types,
-            "resolution": resolution,
-            "timeOrdering": time_ordering,
-            "maxResults": max_results,
+            'aggregateTypes': aggregate_types,
+            'resolution': resolution,
+            'timeOrdering': time_ordering,
+            'maxResults': max_results,
         }
 
         if asset_id:
-            params["assetId"] = asset_id
+            params['assetId'] = asset_id
         if property_id:
-            params["propertyId"] = property_id
+            params['propertyId'] = property_id
         if property_alias:
-            params["propertyAlias"] = property_alias
+            params['propertyAlias'] = property_alias
         if start_date:
-            params["startDate"] = datetime.fromisoformat(
-                start_date.replace("Z", "+00:00")
-            )
+            params['startDate'] = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
         if end_date:
-            params["endDate"] = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            params['endDate'] = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
         if qualities:
-            params["qualities"] = qualities
+            params['qualities'] = qualities
         if next_token:
-            params["nextToken"] = next_token
+            params['nextToken'] = next_token
 
         response = client.get_asset_property_aggregates(**params)
 
         return {
-            "success": True,
-            "aggregated_values": response["aggregatedValues"],
-            "next_token": response.get("nextToken", ""),
+            'success': True,
+            'aggregated_values': response['aggregatedValues'],
+            'next_token': response.get('nextToken', ''),
         }
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
@@ -268,78 +252,69 @@ def get_interpolated_asset_property_values(
     property_alias: Optional[str] = None,
     start_time_in_seconds: Optional[int] = None,
     end_time_in_seconds: Optional[int] = None,
-    quality: str = "GOOD",
+    quality: str = 'GOOD',
     interval_in_seconds: int = 3600,
     next_token: Optional[str] = None,
     max_results: int = 100,
-    interpolation_type: str = "LINEAR_INTERPOLATION",
+    interpolation_type: str = 'LINEAR_INTERPOLATION',
     interval_window_in_seconds: Optional[int] = None,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
-    """
-    Get interpolated values for an asset property for a specified time interval.
+    """Get interpolated values for an asset property for a specified time interval.
 
     Args:
         asset_id: The ID of the asset
         property_id: The ID of the asset property
         property_alias: The alias that identifies the property
-        start_time_in_seconds: The exclusive start of the range (Unix epoch \
-            time in seconds)
-        end_time_in_seconds: The inclusive end of the range (Unix epoch time \
-            in seconds)
+        start_time_in_seconds: The exclusive start of the range (Unix epoch time in seconds)
+        end_time_in_seconds: The inclusive end of the range (Unix epoch time in seconds)
         quality: The quality of the asset property value (GOOD, BAD, UNCERTAIN)
-        interval_in_seconds: The time interval in seconds over which to \
-            interpolate data
+        interval_in_seconds: The time interval in seconds over which to interpolate data
         next_token: The token to be used for the next set of paginated results
-        max_results: The maximum number of results to return (
-            1-4000,
-            default: 100)        interpolation_type: The interpolation type (
-            LINEAR_INTERPOLATION,
-            LOCF_INTERPOLATION)        interval_window_in_seconds: The query \
-                interval for the window
+        max_results: The maximum number of results to return (1-4000, default: 100)
+        interpolation_type: The interpolation type (LINEAR_INTERPOLATION, LOCF_INTERPOLATION)
+        interval_window_in_seconds: The query interval for the window
         region: AWS region (default: us-east-1)
 
     Returns:
         Dictionary containing interpolated property values
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
         params: Dict[str, Any] = {
-            "startTimeInSeconds": start_time_in_seconds,
-            "endTimeInSeconds": end_time_in_seconds,
-            "quality": quality,
-            "intervalInSeconds": interval_in_seconds,
-            "maxResults": max_results,
-            "type": interpolation_type,
+            'startTimeInSeconds': start_time_in_seconds,
+            'endTimeInSeconds': end_time_in_seconds,
+            'quality': quality,
+            'intervalInSeconds': interval_in_seconds,
+            'maxResults': max_results,
+            'type': interpolation_type,
         }
 
         if asset_id:
-            params["assetId"] = asset_id
+            params['assetId'] = asset_id
         if property_id:
-            params["propertyId"] = property_id
+            params['propertyId'] = property_id
         if property_alias:
-            params["propertyAlias"] = property_alias
+            params['propertyAlias'] = property_alias
         if next_token:
-            params["nextToken"] = next_token
+            params['nextToken'] = next_token
         if interval_window_in_seconds:
-            params["intervalWindowInSeconds"] = interval_window_in_seconds
+            params['intervalWindowInSeconds'] = interval_window_in_seconds
 
         response = client.get_interpolated_asset_property_values(**params)
 
         return {
-            "success": True,
-            "interpolated_asset_property_values": response[
-                "interpolatedAssetPropertyValues"
-            ],
-            "next_token": response.get("nextToken", ""),
+            'success': True,
+            'interpolated_asset_property_values': response['interpolatedAssetPropertyValues'],
+            'next_token': response.get('nextToken', ''),
         }
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
@@ -347,10 +322,9 @@ def get_interpolated_asset_property_values(
 def batch_get_asset_property_value(
     entries: List[Dict[str, Any]],
     next_token: Optional[str] = None,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
-    """
-    Get the current values for multiple asset properties.
+    """Get the current values for multiple asset properties.
 
     Args:
         entries: The list of asset property identifiers for the batch get request
@@ -361,27 +335,27 @@ def batch_get_asset_property_value(
         Dictionary containing batch get response
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
-        params: Dict[str, Any] = {"entries": entries}
+        params: Dict[str, Any] = {'entries': entries}
         if next_token:
-            params["nextToken"] = next_token
+            params['nextToken'] = next_token
 
         response = client.batch_get_asset_property_value(**params)
 
         return {
-            "success": True,
-            "success_entries": response.get("successEntries", []),
-            "skipped_entries": response.get("skippedEntries", []),
-            "error_entries": response.get("errorEntries", []),
-            "next_token": response.get("nextToken", ""),
+            'success': True,
+            'success_entries': response.get('successEntries', []),
+            'skipped_entries': response.get('skippedEntries', []),
+            'error_entries': response.get('errorEntries', []),
+            'next_token': response.get('nextToken', ''),
         }
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
@@ -390,44 +364,41 @@ def batch_get_asset_property_value_history(
     entries: List[Dict[str, Any]],
     next_token: Optional[str] = None,
     max_results: int = 100,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
-    """
-    Get the historical values for multiple asset properties.
+    """Get the historical values for multiple asset properties.
 
     Args:
-        entries: The list of asset property historical value entries for the \
-            batch get request
+        entries: The list of asset property historical value entries for the batch get request
         next_token: The token to be used for the next set of paginated results
-        max_results: The maximum number of results to return (
-            1-4000,
-            default: 100)        region: AWS region (default: us-east-1)
+        max_results: The maximum number of results to return (1-4000, default: 100)
+        region: AWS region (default: us-east-1)
 
     Returns:
         Dictionary containing batch get history response
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
-        params: Dict[str, Any] = {"entries": entries, "maxResults": max_results}
+        params: Dict[str, Any] = {'entries': entries, 'maxResults': max_results}
         if next_token:
-            params["nextToken"] = next_token
+            params['nextToken'] = next_token
 
         response = client.batch_get_asset_property_value_history(**params)
 
         return {
-            "success": True,
-            "success_entries": response.get("successEntries", []),
-            "skipped_entries": response.get("skippedEntries", []),
-            "error_entries": response.get("errorEntries", []),
-            "next_token": response.get("nextToken", ""),
+            'success': True,
+            'success_entries': response.get('successEntries', []),
+            'skipped_entries': response.get('skippedEntries', []),
+            'error_entries': response.get('errorEntries', []),
+            'next_token': response.get('nextToken', ''),
         }
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
@@ -436,56 +407,52 @@ def batch_get_asset_property_aggregates(
     entries: List[Dict[str, Any]],
     next_token: Optional[str] = None,
     max_results: int = 100,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
 ) -> Dict[str, Any]:
-    """
-    Get aggregated values for multiple asset properties.
+    """Get aggregated values for multiple asset properties.
 
     Args:
         entries: The list of asset property aggregate entries for the batch get request
         next_token: The token to be used for the next set of paginated results
-        max_results: The maximum number of results to return (
-            1-4000,
-            default: 100)        region: AWS region (default: us-east-1)
+        max_results: The maximum number of results to return (1-4000, default: 100)
+        region: AWS region (default: us-east-1)
 
     Returns:
         Dictionary containing batch get aggregates response
     """
     try:
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
-        params: Dict[str, Any] = {"entries": entries, "maxResults": max_results}
+        params: Dict[str, Any] = {'entries': entries, 'maxResults': max_results}
         if next_token:
-            params["nextToken"] = next_token
+            params['nextToken'] = next_token
 
         response = client.batch_get_asset_property_aggregates(**params)
 
         return {
-            "success": True,
-            "success_entries": response.get("successEntries", []),
-            "skipped_entries": response.get("skippedEntries", []),
-            "error_entries": response.get("errorEntries", []),
-            "next_token": response.get("nextToken", ""),
+            'success': True,
+            'success_entries': response.get('successEntries', []),
+            'skipped_entries': response.get('skippedEntries', []),
+            'error_entries': response.get('errorEntries', []),
+            'next_token': response.get('nextToken', ''),
         }
 
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
 @tool_metadata(readonly=True)
 def execute_query(
     query_statement: str,
-    region: str = "us-east-1",
+    region: str = 'us-east-1',
     next_token: Optional[str] = None,
     max_results: int = 100,
 ) -> Dict[str, Any]:
-    """
-    Execute comprehensive SQL queries against AWS IoT SiteWise data \
-        using the executeQuery API.
+    """Execute comprehensive SQL queries against AWS IoT SiteWise data using the executeQuery API.
 
     The AWS IoT SiteWise query language supports SQL capabilities including:
     - Views: asset, asset_property, raw_time_series, \
@@ -723,127 +690,113 @@ def execute_query(
     try:
         # Validate parameters
         if not query_statement or not query_statement.strip():
-            raise ValidationError("Query statement cannot be empty")
+            raise ValidationError('Query statement cannot be empty')
 
         if len(query_statement) > 65536:  # 64KB limit
-            raise ValidationError("Query statement cannot exceed 64KB")
+            raise ValidationError('Query statement cannot exceed 64KB')
 
         validate_region(region)
         validate_max_results(max_results, min_val=1, max_val=4000)
 
         if next_token and len(next_token) > 4096:
-            raise ValidationError("Next token too long")
+            raise ValidationError('Next token too long')
 
-        client = boto3.client("iotsitewise", region_name=region)
+        client = boto3.client('iotsitewise', region_name=region)
 
         params: Dict[str, Any] = {
-            "queryStatement": query_statement.strip(),
-            "maxResults": max_results,
+            'queryStatement': query_statement.strip(),
+            'maxResults': max_results,
         }
 
         if next_token:
-            params["nextToken"] = next_token
+            params['nextToken'] = next_token
 
         response = client.execute_query(**params)
 
         return {
-            "success": True,
-            "columns": response.get("columns", []),
-            "rows": response.get("rows", []),
-            "next_token": response.get("nextToken", ""),
-            "query_statistics": response.get("queryStatistics", {}),
-            "query_status": response.get("queryStatus", "COMPLETED"),
+            'success': True,
+            'columns': response.get('columns', []),
+            'rows': response.get('rows', []),
+            'next_token': response.get('nextToken', ''),
+            'query_statistics': response.get('queryStatistics', {}),
+            'query_status': response.get('queryStatus', 'COMPLETED'),
         }
 
     except ValidationError as e:
         return {
-            "success": False,
-            "error": f"Validation error: {str(e)}",
-            "error_code": "ValidationException",
+            'success': False,
+            'error': f'Validation error: {str(e)}',
+            'error_code': 'ValidationException',
         }
     except ClientError as e:
         return {
-            "success": False,
-            "error": str(e),
-            "error_code": e.response["Error"]["Code"],
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
         }
 
 
 batch_put_asset_property_value_tool = Tool.from_function(
     fn=batch_put_asset_property_value,
-    name="batch_put_asset_property_value",
-    description=(
-        "Send a list of asset property values to AWS IoT SiteWise "
-        "for data ingestion."
-    ),
+    name='batch_put_asset_property_value',
+    description=('Send a list of asset property values to AWS IoT SiteWise for data ingestion.'),
 )
 
 
 get_asset_property_value_tool = Tool.from_function(
     fn=get_asset_property_value,
-    name="get_asset_property_value",
-    description=(
-        "Get the current value for a given asset property in AWS IoT " "SiteWise."
-    ),
+    name='get_asset_property_value',
+    description=('Get the current value for a given asset property in AWS IoT SiteWise.'),
 )
 
 get_asset_property_value_history_tool = Tool.from_function(
     fn=get_asset_property_value_history,
-    name="get_asset_property_value_history",
-    description=(
-        "Get the historical values for an asset property in AWS IoT " "SiteWise."
-    ),
+    name='get_asset_property_value_history',
+    description=('Get the historical values for an asset property in AWS IoT SiteWise.'),
 )
 
 get_asset_property_aggregates_tool = Tool.from_function(
     fn=get_asset_property_aggregates,
-    name="get_asset_property_aggregates",
-    description="Get aggregated values (average, count, maximum, minimum, "
-    "sum, standard deviation) for an asset property in AWS IoT SiteWise.",
+    name='get_asset_property_aggregates',
+    description='Get aggregated values (average, count, maximum, minimum, '
+    'sum, standard deviation) for an asset property in AWS IoT SiteWise.',
 )
 
 get_interpolated_asset_property_values_tool = Tool.from_function(
     fn=get_interpolated_asset_property_values,
-    name="get_interpl_asset_property_values",
+    name='get_interpl_asset_property_values',
     description=(
-        "Get interpolated values for an asset property for a "
-        "specified time interval in AWS IoT SiteWise."
+        'Get interpolated values for an asset property for a '
+        'specified time interval in AWS IoT SiteWise.'
     ),
 )
 
 batch_get_asset_property_value_tool = Tool.from_function(
     fn=batch_get_asset_property_value,
-    name="batch_get_asset_property_value",
-    description=(
-        "Get the current values for multiple asset properties in AWS " "IoT SiteWise."
-    ),
+    name='batch_get_asset_property_value',
+    description=('Get the current values for multiple asset properties in AWS IoT SiteWise.'),
 )
 
 batch_get_asset_property_value_history_tool = Tool.from_function(
     fn=batch_get_asset_property_value_history,
-    name="batch_get_asset_property_value_hist",
-    description=(
-        "Get the historical values for multiple asset properties in "
-        "AWS IoT SiteWise."
-    ),
+    name='batch_get_asset_property_value_hist',
+    description=('Get the historical values for multiple asset properties in AWS IoT SiteWise.'),
 )
 
 batch_get_asset_property_aggregates_tool = Tool.from_function(
     fn=batch_get_asset_property_aggregates,
-    name="batch_get_asset_property_aggregates",
-    description=(
-        "Get aggregated values for multiple asset properties in AWS " "IoT SiteWise."
-    ),
+    name='batch_get_asset_property_aggregates',
+    description=('Get aggregated values for multiple asset properties in AWS IoT SiteWise.'),
 )
 
 execute_query_tool = Tool.from_function(
     fn=execute_query,
-    name="execute_query",
+    name='execute_query',
     description=(
-        "Execute comprehensive SQL queries against AWS IoT SiteWise data "
-        "with SQL capabilities including views (asset, asset_property, "
-        "raw_time_series, latest_value_time_series, precomputed_aggregates), "
-        "functions (aggregation, date/time, string, mathematical), "
-        "operators, joins, and analytics for industrial IoT data exploration."
+        'Execute comprehensive SQL queries against AWS IoT SiteWise data '
+        'with SQL capabilities including views (asset, asset_property, '
+        'raw_time_series, latest_value_time_series, precomputed_aggregates), '
+        'functions (aggregation, date/time, string, mathematical), '
+        'operators, joins, and analytics for industrial IoT data exploration.'
     ),
 )
