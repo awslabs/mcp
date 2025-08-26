@@ -16,6 +16,7 @@
 
 import boto3
 import logging
+import os
 from botocore.exceptions import ClientError
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -196,8 +197,13 @@ class SLIReportClient:
         )
 
         try:
+            # Get endpoint URL from environment variable
+            endpoint_url = os.environ.get('MCP_APPSIGNALS_ENDPOINT')
+            if endpoint_url:
+                logger.debug(f'Using Application Signals endpoint override: {endpoint_url}')
+            
             # Initialize AWS service clients
-            self.signals_client = boto3.client('application-signals', region_name=config.region)
+            self.signals_client = boto3.client('application-signals', region_name=config.region, endpoint_url=endpoint_url)
             self.cloudwatch_client = boto3.client('cloudwatch', region_name=config.region)
             logger.debug('AWS clients initialized successfully')
         except Exception as e:

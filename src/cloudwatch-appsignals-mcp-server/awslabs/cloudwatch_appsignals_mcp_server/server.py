@@ -76,18 +76,23 @@ logger.debug(f'Using AWS region: {AWS_REGION}')
 def _initialize_aws_clients():
     """Initialize AWS clients with proper configuration."""
     config = Config(user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}')
+    
+    # Get endpoint URL from environment variable
+    endpoint_url = os.environ.get('MCP_APPSIGNALS_ENDPOINT')
+    if endpoint_url:
+        logger.debug(f'Using Application Signals endpoint override: {endpoint_url}')
 
     # Check for AWS_PROFILE environment variable
     if aws_profile := os.environ.get('AWS_PROFILE'):
         logger.debug(f'Using AWS profile: {aws_profile}')
         session = boto3.Session(profile_name=aws_profile, region_name=AWS_REGION)
         logs = session.client('logs', config=config)
-        appsignals = session.client('application-signals', config=config)
+        appsignals = session.client('application-signals', region_name=AWS_REGION, config=config, endpoint_url=endpoint_url)
         cloudwatch = session.client('cloudwatch', config=config)
         xray = session.client('xray', config=config)
     else:
         logs = boto3.client('logs', region_name=AWS_REGION, config=config)
-        appsignals = boto3.client('application-signals', region_name=AWS_REGION, config=config)
+        appsignals = boto3.client('application-signals', region_name=AWS_REGION, config=config, endpoint_url=endpoint_url)
         cloudwatch = boto3.client('cloudwatch', region_name=AWS_REGION, config=config)
         xray = boto3.client('xray', region_name=AWS_REGION, config=config)
 
@@ -235,13 +240,12 @@ def calculate_name_similarity(target_name: str, candidate_name: str, name_type: 
 @mcp.tool()
 async def audit_service_health(
     audit_targets: str = Field(..., description="REQUIRED. JSON array of AuditTargets (service, slo, or service_operation). Shorthand forms accepted and auto-normalized. Supports wildcard patterns like '*payment*' in service names for automatic service discovery. Large target lists are automatically processed in batches."),
-    breaching_slos: str = Field(default=None, description="Optional. Comma-separated SLO identifiers; appended as additional SLO targets."),
+    slo_identifiers: str = Field(default=None, description="Optional. Comma-separated SLO identifiers (names or ARNs) to include in the audit; appended as additional SLO targets."),
     metric_name: str = Field(default=None, description="Optional hint used as MetricType for service_operation targets when needed."),
     operation_name: str = Field(default=None, description="Optional hint used as Operation for service_operation targets when needed."),
     start_time: str = Field(default=None, description="Start time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now-24h UTC."),
     end_time: str = Field(default=None, description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC."),
-    auditors: str = Field(default=None, description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). Defaults to 'slo,operation_metric' for fast service health auditing. Use 'all' only when user explicitly requests comprehensive root cause analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota."),
-    endpoint_url: str = Field(default=None, description="Endpoint override. Defaults to CMH gamma: https://application-signals-gamma.us-east-2.api.aws")
+    auditors: str = Field(default=None, description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). Defaults to 'slo,operation_metric' for fast service health auditing. Use 'all' only when user explicitly requests comprehensive root cause analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.")
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
@@ -266,14 +270,14 @@ async def audit_service_health(
     - **Wildcard Pattern Support**: Use `*pattern*` in service names for automatic service discovery
 
     **AUDIT TARGET TYPES:**
-    - **Service Audit**: `[{"Type":"service","Data":{"Service":{"Name":"my-service","Environment":"prod"}}}]`
+    - **Service Audit**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"my-service","Environment":"prod"}}}]`
     - **SLO Audit**: `[{"Type":"slo","Data":{"SloName":"my-slo"}}]`
-    - **Operation Audit**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"my-service","Environment":"prod"},"Operation":"GET /api","MetricType":"Latency"}}}]`
+    - **Operation Audit**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"my-service","Environment":"prod"},"Operation":"GET /api","MetricType":"Latency"}}}]`
 
     **WILDCARD PATTERN EXAMPLES:**
-    - **All Services**: `[{"Type":"service","Data":{"Service":{"Name":"*"}}}]`
-    - **Payment Services**: `[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]`
-    - **Lambda Services**: `[{"Type":"service","Data":{"Service":{"Name":"*lambda*"}}}]`
+    - **All Services**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]`
+    - **Payment Services**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]`
+    - **Lambda Services**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*lambda*"}}}]`
     - **All SLOs**: `[{"Type":"slo","Data":{"Slo":{"SloName":"*"}}}]`
     - **Payment SLOs**: `[{"Type":"slo","Data":{"Slo":{"SloName":"*payment*"}}}]`
 
@@ -285,67 +289,79 @@ async def audit_service_health(
     **COMPLETE EXAMPLES FOR ALL 21 USE CASES:**
 
     1. **Audit all services**: 
-       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'`
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'`
 
     2. **Audit specific service**: 
-       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"orders-service","Environment":"prod"}}}]'`
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"orders-service","Environment":"prod"}}}]'`
 
     3. **Audit payment services**: 
-       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]'`
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'`
 
     4. **Audit all SLOs**: 
        `audit_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"*"}}}]'`
 
     5. **Audit latency of GET operations in payment services**: 
-       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]'`
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]'`
+       
+       **IMPORTANT WORKFLOW FOR GET OPERATIONS AUDITING (Latency/Fault/Error):**
+       When user asks to audit GET operations in payment services (for any metric type):
+       1. **First Call**: Use `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'` with `auditors="operation_metric"` to discover payment services and their operations
+       2. **Analysis**: From the results, identify GET operations in the findings (look for operations containing "GET" in the operation names)
+       3. **Follow-up**: If specific GET operations need deeper investigation, use service_operation targets with the exact operation names and desired MetricType (Latency/Fault/Error)
+       
+       This approach ensures you:
+       - Use wildcard matching (*payment*) to find all payment-related services with fuzzy matching
+       - Include operation_metric auditor to get detailed operation-level metrics data for all metric types
+       - Get comprehensive results showing all GET operations and their latency, fault, and error metrics
+       - Can then drill down into specific problematic GET operations with the appropriate MetricType if needed
 
     6. **Audit availability of visit operations**: 
-       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*"},"Operation":"*visit*","MetricType":"Availability"}}}]'`
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*"},"Operation":"*visit*","MetricType":"Availability"}}}]'`
 
     7. **Audit latency of visit operations**: 
-       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*"},"Operation":"*visit*","MetricType":"Latency"}}}]'`
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*"},"Operation":"*visit*","MetricType":"Latency"}}}]'`
 
     8. **Audit lambda latencies**: 
-       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*lambda*"}}}]'` + focus on Latency metrics
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*lambda*"}}}]'` + focus on Latency metrics
 
     9. **Audit service last night**: 
-       `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 18:00:00"` + `end_time="2024-01-02 06:00:00"`
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 18:00:00"` + `end_time="2024-01-02 06:00:00"`
 
     10. **Audit service before and after time**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 09:00:00"` + `end_time="2024-01-01 11:00:00"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 09:00:00"` + `end_time="2024-01-01 11:00:00"`
 
     11. **Trace availability issues in prod services**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*","Environment":"prod"}}}]'` + `auditors="all"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*","Environment":"prod"}}}]'` + `auditors="all"`
 
     12. **Trace latency in query operations**: 
-        `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Name":"*payment*"},"Operation":"*query*","MetricType":"Latency"}}}]'` + `auditors="all"`
+        `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*query*","MetricType":"Latency"}}}]'` + `auditors="all"`
 
     13. **Look for errors in logs of payment services**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]'` + `auditors="log,trace"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'` + `auditors="log,trace"`
 
     14. **Look for new errors after time**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` + `auditors="log,trace"` + `start_time="2024-01-01 10:00:00"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` + `auditors="log,trace"` + `start_time="2024-01-01 10:00:00"`
 
     15. **Look for errors after deployment**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]'` + `auditors="log,trace"` + recent time range
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'` + `auditors="log,trace"` + recent time range
 
     16. **Look for lemon hosts in prod**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*","Environment":"prod"}}}]'` + `auditors="top_contributor,operation_metric"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*","Environment":"prod"}}}]'` + `auditors="top_contributor,operation_metric"`
 
     17. **Look for outliers in EKS services**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*","Environment":"eks:*"}}}]'` + `auditors="top_contributor,operation_metric"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*","Environment":"eks:*"}}}]'` + `auditors="top_contributor,operation_metric"`
 
     18. **Status report**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` (basic health check)
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` (basic health check)
 
     19. **Audit dependencies**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` + `auditors="dependency_metric,trace"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` + `auditors="dependency_metric,trace"`
 
     20. **Audit dependency on S3**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*"}}}]'` + `auditors="dependency_metric"` + look for S3 dependencies
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` + `auditors="dependency_metric"` + look for S3 dependencies
 
     21. **Audit quota usage of tier 1 services**: 
-        `audit_targets='[{"Type":"service","Data":{"Service":{"Name":"*tier1*"}}}]'` + `auditors="service_quota,operation_metric"`
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*tier1*"}}}]'` + `auditors="service_quota,operation_metric"`
 
     **TYPICAL AUDIT WORKFLOWS:**
     1. **Basic Service Audit** (most common): 
@@ -375,13 +391,8 @@ async def audit_service_health(
     logger.debug("Starting audit_service_health (PRIMARY SERVICE AUDIT TOOL)")
 
     try:
-        # ---------- Region/endpoint defaults ----------
+        # ---------- Region defaults ----------
         region = AWS_REGION.strip()
-        endpoint = (
-            endpoint_url
-            or os.environ.get("MCP_APPSIGNALS_ENDPOINT")
-            or "https://application-signals-gamma.us-east-2.api.aws"
-        ).strip()
 
         # ---------- Time range (fill missing with defaults) ----------
         start_dt = parse_timestamp(start_time) if start_time else (datetime.now(timezone.utc) - timedelta(hours=24))
@@ -499,12 +510,24 @@ async def audit_service_health(
 
         def _normalize_service_op(item: dict) -> dict:
             data = _need(item, "Data", "data")
-            svc = _need(data, "Service", "service")
+            
+            # Handle both formats: direct Service under Data, or nested under ServiceOperation
+            service_operation = _ci_get(data, "ServiceOperation", "serviceOperation")
+            if service_operation:
+                # Nested format: Data.ServiceOperation.Service
+                svc = _need(service_operation, "Service", "service")
+                op = _ci_get(service_operation, "Operation", "operation") or operation_name
+                metric_type = _ci_get(service_operation, "MetricType", "metricType") or (metric_name or "Latency")
+            else:
+                # Direct format: Data.Service
+                svc = _need(data, "Service", "service")
+                op = _ci_get(data, "Operation", "operation") or operation_name
+                metric_type = _ci_get(data, "MetricType", "metricType") or (metric_name or "Latency")
+            
             svc_entity = _normalize_service_entity(svc)
-            op = _ci_get(data, "Operation", "operation") or operation_name
             if not op:
                 raise ValueError("service_operation requires Operation (or pass operation_name)")
-            metric_type = _ci_get(data, "MetricType", "metricType") or (metric_name or "Latency")
+            
             # Union wrapper REQUIRED: data.ServiceOperation = {...}
             return {
                 "Type": "service_operation",
@@ -732,8 +755,25 @@ async def audit_service_health(
                                 slo_fuzzy_matches.append((target, slo_name))
                         else:
                             expanded_targets.append(target)
+                elif target_type == 'service_operation':
+                    # Handle service_operation targets with wildcard expansion
+                    service_op_data = target.get('Data', {}).get('ServiceOperation', {})
+                    service_data = service_op_data.get('Service', {})
+                    service_name = service_data.get('Name', '')
+                    operation_name = service_op_data.get('Operation', '')
+                    
+                    if isinstance(service_name, str) and '*' in service_name:
+                        # Service name has wildcards - expand to concrete services first
+                        service_patterns.append((target, service_name))
+                    elif isinstance(operation_name, str) and '*' in operation_name:
+                        # Operation name has wildcards - need to expand operations for the service
+                        # For now, pass through as-is since operation expansion requires service-specific logic
+                        expanded_targets.append(target)
+                    else:
+                        # No wildcards in service_operation target
+                        expanded_targets.append(target)
                 else:
-                    # Other target types (service_operation, etc.)
+                    # Other target types
                     expanded_targets.append(target)
             
             # Expand service patterns and fuzzy matches
@@ -752,24 +792,50 @@ async def audit_service_health(
                         search_term = pattern.strip('*').lower() if pattern != '*' else ''
                         matches_found = 0
                         
+                        # Check if this is a service_operation target
+                        is_service_operation = original_target.get('Type', '').lower() == 'service_operation'
+                        
                         for service in all_services:
                             service_attrs = service.get('KeyAttributes', {})
                             service_name = service_attrs.get('Name', '')
                             
                             if search_term == '' or search_term in service_name.lower():
-                                expanded_targets.append({
-                                    "Type": "service",
-                                    "Data": {
-                                        "Service": {
-                                            "Type": "Service",
-                                            "Name": service_name,
-                                            "Environment": service_attrs.get('Environment')
+                                if is_service_operation:
+                                    # For service_operation targets, preserve the operation and metric type
+                                    service_op_data = original_target.get('Data', {}).get('ServiceOperation', {})
+                                    operation_name = service_op_data.get('Operation', '')
+                                    metric_type = service_op_data.get('MetricType', 'Latency')
+                                    
+                                    expanded_targets.append({
+                                        "Type": "service_operation",
+                                        "Data": {
+                                            "ServiceOperation": {
+                                                "Service": {
+                                                    "Type": "Service",
+                                                    "Name": service_name,
+                                                    "Environment": service_attrs.get('Environment')
+                                                },
+                                                "Operation": operation_name,
+                                                "MetricType": metric_type
+                                            }
                                         }
-                                    }
-                                })
+                                    })
+                                else:
+                                    # Regular service target
+                                    expanded_targets.append({
+                                        "Type": "service",
+                                        "Data": {
+                                            "Service": {
+                                                "Type": "Service",
+                                                "Name": service_name,
+                                                "Environment": service_attrs.get('Environment')
+                                            }
+                                        }
+                                    })
                                 matches_found += 1
                         
-                        logger.debug(f"Service pattern '{pattern}' expanded to {matches_found} targets")
+                        target_type_str = "service_operation" if is_service_operation else "service"
+                        logger.debug(f"{target_type_str.title()} pattern '{pattern}' expanded to {matches_found} targets")
                     
                     # Handle fuzzy matches for inexact service names
                     for original_target, inexact_name in service_fuzzy_matches:
@@ -940,7 +1006,7 @@ async def audit_service_health(
         banner = (
             "[MCP-PRIMARY] Application Signals Comprehensive Audit\n"
             f"🎯 Scope: {len(normalized_targets)} target(s) | Region: {region}\n"
-            f"⏰ Time: {unix_start}–{unix_end} | Endpoint: {endpoint}\n"
+            f"⏰ Time: {unix_start}–{unix_end}\n"
         )
         
         # Add batching info to banner if we have many targets
@@ -949,10 +1015,14 @@ async def audit_service_health(
         
         banner += "\n"
 
-        # ---------- Append SLOs from breaching_slos (optional) ----------
-        if breaching_slos:
-            for slo in [s.strip() for s in breaching_slos.split(",") if s.strip()]:
-                normalized_targets.append({"Type": "slo", "Data": {"Slo": {"SloName": slo}}})
+        # ---------- Append SLOs from slo_identifiers (optional) ----------
+        if slo_identifiers:
+            for slo in [s.strip() for s in slo_identifiers.split(",") if s.strip()]:
+                # Check if it's an ARN or a name
+                if slo.startswith("arn:"):
+                    normalized_targets.append({"Type": "slo", "Data": {"Slo": {"SloArn": slo}}})
+                else:
+                    normalized_targets.append({"Type": "slo", "Data": {"Slo": {"SloName": slo}}})
 
         # Validate and enrich targets after any additions
         try:
@@ -1060,7 +1130,7 @@ async def audit_service_health(
 
             cmd = [
                 aws_bin, "application-signals-demo", "list-audit-findings",
-                "--cli-input-json", cli_input_arg, "--region", region, "--endpoint-url", endpoint
+                "--cli-input-json", cli_input_arg, "--region", region, "--endpoint-url", os.environ.get('MCP_APPSIGNALS_ENDPOINT')
             ]
 
             # ---------- Pretty log: command + params (file + stderr) ----------
@@ -1082,7 +1152,7 @@ async def audit_service_health(
             logger.info("=" * 60)
             logger.info(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
             logger.info(f"Command: {cli_pretty_cmd}")
-            logger.info(f"Endpoint: {endpoint}")
+            logger.info(f"Endpoint: {os.environ.get('MCP_APPSIGNALS_ENDPOINT', 'default')}")
             logger.info(f"Region: {region}")
             logger.info(f"Batch: {batch_idx}/{len(target_batches)}")
             logger.info(f"Targets in batch: {len(batch_targets)}")
@@ -1221,13 +1291,13 @@ async def list_monitored_services() -> str:
     - When you need detailed service attributes beyond what wildcard expansion provides
 
     **RECOMMENDED WORKFLOW:**
-    - **Primary**: Use `audit_service_health()` with wildcard patterns like `[{"Type":"service","Data":{"Service":{"Name":"*"}}}]` for automatic service discovery
+    - **Primary**: Use `audit_service_health()` with wildcard patterns like `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]` for automatic service discovery
     - **Alternative**: Use this tool first if you need detailed service information, then construct specific audit targets
 
     **AUTOMATIC SERVICE DISCOVERY IN AUDIT:**
     The `audit_service_health()` tool automatically discovers services when you use wildcard patterns:
-    - `[{"Type":"service","Data":{"Service":{"Name":"*"}}}]` - Audits all services
-    - `[{"Type":"service","Data":{"Service":{"Name":"*payment*"}}}]` - Audits services with "payment" in the name
+    - `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]` - Audits all services
+    - `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]` - Audits services with "payment" in the name
 
     Returns a formatted list showing:
     - Service name and type  
