@@ -738,7 +738,7 @@ def _validate_request_serialization(
 def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
     if command_metadata.has_streaming_output:
         output_file_path = parsed_args.operation_args.outfile
-        if not os.path.isabs(Path(output_file_path)):
+        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
             raise ValueError(f'{output_file_path} should be an aboslute path')
 
 

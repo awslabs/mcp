@@ -542,13 +542,13 @@ def test_profile_not_added_if_present_for_customizations(mock_get_region, mock_m
     'command,expected_outfile,expected_content',
     [
         (
-            'aws s3api get-object --bucket test-bucket --key test-key myfile.template',
-            'myfile.template',
+            'aws s3api get-object --bucket test-bucket --key test-key /tmp/myfile.template',
+            '/tmp/myfile.template',
             S3_GET_OBJECT_PAYLOAD['Body'].content,
         ),
         (
-            'aws lambda invoke --function-name my-function response.json',
-            'response.json',
+            'aws lambda invoke --function-name my-function /tmp/response.json',
+            '/tmp/response.json',
             LAMBDA_INVOKE_PAYLOAD['Payload'].content,
         ),
     ],
