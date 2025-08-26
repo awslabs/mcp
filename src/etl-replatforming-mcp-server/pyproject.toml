@@ -102,3 +102,42 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings",
+    "--cov=awslabs",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-fail-under=80",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.pyright]
+exclude = [
+    "outputs/**",
+    "tests/integration/test_data/**",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/node_modules"
+]
+include = ["awslabs"]
+pythonVersion = "3.10"
+reportMissingImports = "error"
+reportMissingTypeStubs = "warning"
+reportUnusedExpression = "none"

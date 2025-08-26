@@ -77,8 +77,7 @@ coverage.xml
 # Ruff cache
 .ruff_cache/
 
-# UV lock file
-uv.lock
+
 
 # Amazon Q IDE configuration
 .amazonq/
