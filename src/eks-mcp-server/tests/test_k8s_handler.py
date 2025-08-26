@@ -1306,7 +1306,7 @@ metadata:
                 since_seconds=None,
                 tail_lines=100,  # Default value
                 limit_bytes=10240,  # Default value
-                previous=False, # Default value
+                previous=False,  # Default value
             )
 
             # Verify that get_client was called
