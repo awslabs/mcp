@@ -1,4 +1,4 @@
-"""Tests for main entry point functions."""
+"""Tests for application startup, shutdown, and lifecycle management."""
 
 import pytest
 from unittest.mock import AsyncMock, Mock, patch
@@ -133,3 +133,13 @@ class TestMainModuleIntegration:
         with patch('awslabs.healthlake_mcp_server.main.asyncio.run') as mock_run:
             sync_main()
             mock_run.assert_called_once()
+
+    def test_sync_main_exception_propagation(self):
+        """Test sync_main exception propagation."""
+        from awslabs.healthlake_mcp_server.main import sync_main
+
+        with patch('awslabs.healthlake_mcp_server.main.main') as mock_main:
+            mock_main.side_effect = Exception('Test error')
+
+            with pytest.raises(Exception, match='Test error'):
+                sync_main()

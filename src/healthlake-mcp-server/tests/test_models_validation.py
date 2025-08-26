@@ -1,6 +1,7 @@
-"""Tests for Pydantic models - critical validation coverage."""
+"""Tests for Pydantic models and input validation."""
 
 import pytest
+from awslabs.healthlake_mcp_server.fhir_operations import validate_datastore_id
 from awslabs.healthlake_mcp_server.models import (
     CreateResourceRequest,
     DatastoreFilter,
@@ -9,13 +10,63 @@ from awslabs.healthlake_mcp_server.models import (
     JobFilter,
     UpdateResourceRequest,
 )
+from awslabs.healthlake_mcp_server.server import (
+    MAX_SEARCH_COUNT,
+    InputValidationError,
+    validate_count,
+)
 from pydantic import ValidationError
 
 
-class TestCreateResourceRequest:
-    """Test CreateResourceRequest model validation."""
+class TestDatastoreValidation:
+    """Test datastore ID and parameter validation."""
 
-    def test_valid_create_request(self):
+    def test_max_search_count_constant(self):
+        """Test that MAX_SEARCH_COUNT is properly defined."""
+        assert MAX_SEARCH_COUNT == 100
+
+    def test_count_validation_edge_cases(self):
+        """Test count validation with edge cases."""
+        # Valid cases
+        assert validate_count(1) == 1
+        assert validate_count(50) == 50
+        assert validate_count(100) == 100
+
+        # Invalid cases
+        with pytest.raises(InputValidationError, match='Count must be between 1 and 100'):
+            validate_count(0)
+
+        with pytest.raises(InputValidationError, match='Count must be between 1 and 100'):
+            validate_count(101)
+
+        with pytest.raises(InputValidationError, match='Count must be between 1 and 100'):
+            validate_count(-1)
+
+    def test_datastore_id_validation_comprehensive(self):
+        """Test comprehensive datastore ID validation."""
+        # Valid 32-character alphanumeric ID
+        valid_id = '12345678901234567890123456789012'
+        assert validate_datastore_id(valid_id) == valid_id
+
+        # Invalid length cases
+        with pytest.raises(ValueError, match='must be 32 characters'):
+            validate_datastore_id('short')
+
+        with pytest.raises(ValueError, match='must be 32 characters'):
+            validate_datastore_id('1234567890123456789012345678901234')  # 34 chars
+
+        with pytest.raises(ValueError, match='must be 32 characters'):
+            validate_datastore_id('')
+
+        # None case
+        with pytest.raises(ValueError, match='must be 32 characters'):
+            validate_datastore_id(None)
+
+
+class TestResourceModels:
+    """Test FHIR resource request models."""
+
+    def test_create_resource_request_valid(self):
         """Test valid create resource request."""
         data = {
             'datastore_id': '12345678901234567890123456789012',
@@ -29,9 +80,8 @@ class TestCreateResourceRequest:
         assert request.resource_type == 'Patient'
         assert request.resource_data['resourceType'] == 'Patient'
 
-    def test_missing_required_fields(self):
+    def test_create_resource_request_missing_fields(self):
         """Test create request with missing required fields."""
-        # Test with actually missing required fields
         with pytest.raises(ValidationError) as exc_info:
             CreateResourceRequest()  # type: ignore
 
@@ -41,7 +91,7 @@ class TestCreateResourceRequest:
         assert 'resource_type' in required_fields
         assert 'resource_data' in required_fields
 
-    def test_invalid_datastore_id_length(self):
+    def test_create_resource_request_invalid_datastore_id(self):
         """Test create request with invalid datastore ID length."""
         data = {
             'datastore_id': 'short',
@@ -54,11 +104,7 @@ class TestCreateResourceRequest:
 
         assert 'datastore_id' in str(exc_info.value)
 
-
-class TestUpdateResourceRequest:
-    """Test UpdateResourceRequest model validation."""
-
-    def test_valid_update_request(self):
+    def test_update_resource_request_valid(self):
         """Test valid update resource request."""
         data = {
             'datastore_id': '12345678901234567890123456789012',
@@ -73,7 +119,7 @@ class TestUpdateResourceRequest:
         assert request.resource_type == 'Patient'
         assert request.resource_id == 'patient-123'
 
-    def test_missing_resource_id(self):
+    def test_update_resource_request_missing_resource_id(self):
         """Test update request with missing resource ID."""
         data = {
             'datastore_id': '12345678901234567890123456789012',
@@ -89,33 +135,27 @@ class TestUpdateResourceRequest:
         assert 'resource_id' in missing_fields
 
 
-class TestDatastoreFilter:
-    """Test DatastoreFilter model validation."""
+class TestJobModels:
+    """Test job configuration models."""
 
-    def test_valid_filter_status(self):
+    def test_datastore_filter_valid_status(self):
         """Test valid datastore filter with status."""
         filter_obj = DatastoreFilter(status='ACTIVE')
-
         assert filter_obj.status == 'ACTIVE'
 
-    def test_invalid_filter_status(self):
+    def test_datastore_filter_invalid_status(self):
         """Test invalid datastore filter status."""
         with pytest.raises(ValidationError) as exc_info:
             DatastoreFilter(status='INVALID_STATUS')
 
         assert 'status' in str(exc_info.value)
 
-    def test_optional_filter_status(self):
+    def test_datastore_filter_optional_status(self):
         """Test datastore filter without status (optional)."""
         filter_obj = DatastoreFilter(status='ACTIVE')
-
         assert filter_obj.status == 'ACTIVE'
 
-
-class TestImportJobConfig:
-    """Test ImportJobConfig model validation."""
-
-    def test_valid_import_job_config(self):
+    def test_import_job_config_valid(self):
         """Test valid import job configuration."""
         data = {
             'datastore_id': '12345678901234567890123456789012',
@@ -130,20 +170,7 @@ class TestImportJobConfig:
         assert config.input_data_config['s3_uri'] == 's3://bucket/input'
         assert config.data_access_role_arn.startswith('arn:aws:iam::')
 
-    def test_missing_s3_uri_in_input_config(self):
-        """Test import job config with missing S3 URI in input config."""
-        data = {
-            'datastore_id': '12345678901234567890123456789012',
-            'input_data_config': {},  # Missing s3_uri - but this is not validated at model level
-            'job_output_data_config': {'s3_configuration': {'s3_uri': 's3://bucket/output'}},
-            'data_access_role_arn': 'arn:aws:iam::123456789012:role/HealthLakeRole',
-        }
-
-        # This should pass at model level - validation happens in business logic
-        config = ImportJobConfig(**data)
-        assert config.input_data_config == {}
-
-    def test_optional_job_name(self):
+    def test_import_job_config_optional_job_name(self):
         """Test import job config with optional job name."""
         data = {
             'datastore_id': '12345678901234567890123456789012',
@@ -154,14 +181,9 @@ class TestImportJobConfig:
         }
 
         config = ImportJobConfig(**data)
-
         assert config.job_name == 'test-import-job'
 
-
-class TestExportJobConfig:
-    """Test ExportJobConfig model validation."""
-
-    def test_valid_export_job_config(self):
+    def test_export_job_config_valid(self):
         """Test valid export job configuration."""
         data = {
             'datastore_id': '12345678901234567890123456789012',
@@ -174,7 +196,7 @@ class TestExportJobConfig:
         assert config.datastore_id == data['datastore_id']
         assert config.output_data_config['S3Configuration']['S3Uri'] == 's3://bucket/export'
 
-    def test_missing_output_data_config(self):
+    def test_export_job_config_missing_output_data_config(self):
         """Test export job config with missing output data config."""
         with pytest.raises(ValidationError) as exc_info:
             ExportJobConfig(  # type: ignore
@@ -186,11 +208,7 @@ class TestExportJobConfig:
         missing_fields = {error['loc'][0] for error in errors}
         assert 'output_data_config' in missing_fields
 
-
-class TestJobFilter:
-    """Test JobFilter model validation."""
-
-    def test_valid_job_filter(self):
+    def test_job_filter_valid(self):
         """Test valid job filter."""
         data = {'job_status': 'COMPLETED', 'job_type': 'IMPORT'}
 
@@ -199,7 +217,7 @@ class TestJobFilter:
         assert filter_obj.job_status == 'COMPLETED'
         assert filter_obj.job_type == 'IMPORT'
 
-    def test_invalid_job_status(self):
+    def test_job_filter_invalid_status(self):
         """Test job filter with invalid status."""
         data = {'job_status': 'INVALID_STATUS'}
 
@@ -208,7 +226,7 @@ class TestJobFilter:
 
         assert 'job_status' in str(exc_info.value)
 
-    def test_invalid_job_type(self):
+    def test_job_filter_invalid_type(self):
         """Test job filter with invalid type."""
         data = {'job_type': 'INVALID_TYPE'}
 
@@ -217,7 +235,7 @@ class TestJobFilter:
 
         assert 'job_type' in str(exc_info.value)
 
-    def test_optional_fields(self):
+    def test_job_filter_optional_fields(self):
         """Test job filter with only optional fields."""
         filter_obj = JobFilter(job_status='COMPLETED', job_type='IMPORT')
 

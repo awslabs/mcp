@@ -1,4 +1,4 @@
-"""Tests for FHIR operations - critical coverage."""
+"""Tests for AWS HealthLake FHIR client operations."""
 
 import pytest
 from awslabs.healthlake_mcp_server.fhir_operations import (
@@ -866,3 +866,62 @@ class TestBundleProcessingEdgeCases:
 
         assert form_data['name'] == 'Smith,Johnson'
         assert form_data['gender'] == 'male'
+
+
+class TestFHIRSearchAdvanced:
+    """Test advanced FHIR search functionality for missing coverage."""
+
+    def test_search_with_chained_params(self):
+        """Test search with chained parameters."""
+        client = HealthLakeClient.__new__(HealthLakeClient)
+
+        url, form_data = client._build_search_request(
+            base_url='https://healthlake.us-east-1.amazonaws.com/datastore/test/r4/',
+            resource_type='Observation',
+            chained_params={
+                'subject:Patient.name': 'Smith',
+                'performer:Practitioner.name': 'Johnson',
+            },
+            count=50,
+        )
+
+        # Should encode colons in parameter names
+        assert 'subject%3APatient.name' in form_data
+        assert 'performer%3APractitioner.name' in form_data
+        assert form_data['subject%3APatient.name'] == 'Smith'
+        assert form_data['performer%3APractitioner.name'] == 'Johnson'
+
+
+class TestFHIRErrorHandling:
+    """Test FHIR error handling for missing coverage."""
+
+    def test_pagination_error_handling(self):
+        """Test pagination error handling."""
+        client = HealthLakeClient.__new__(HealthLakeClient)
+
+        # Test with malformed next URL that causes exception during processing
+        bundle = {
+            'resourceType': 'Bundle',
+            'entry': [{'resource': {'resourceType': 'Patient', 'id': '1'}}],
+            'link': [{'relation': 'next', 'url': 'https://example.com/next?param=value'}],
+        }
+
+        # This should process without error and extract the next token
+        result = client._process_bundle(bundle)
+        assert result['pagination']['has_next'] is True
+        assert 'next' in result['pagination']['next_token']
+
+
+class TestAWSAuthErrors:
+    """Test AWS authentication error handling for missing coverage."""
+
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    def test_client_initialization_with_no_credentials(self, mock_session):
+        """Test client initialization when no credentials are available."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
+        # This should succeed - credentials are checked later during auth
+        client = HealthLakeClient()
+        assert client is not None

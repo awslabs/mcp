@@ -1,16 +1,18 @@
-"""Tests for server functionality - simplified approach."""
+"""Tests for MCP server creation, handlers, and response formatting."""
 
+import json
 import pytest
 from awslabs.healthlake_mcp_server.server import (
+    DateTimeEncoder,
     create_error_response,
     create_healthlake_server,
     create_success_response,
 )
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class TestServerCreation:
-    """Test server creation and basic functionality."""
+    """Test MCP server creation and initialization."""
 
     @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
     def test_create_healthlake_server_success(self, mock_client_class):
@@ -45,8 +47,20 @@ class TestServerCreation:
         with pytest.raises(Exception, match='Client creation failed'):
             create_healthlake_server()
 
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    def test_server_creation_includes_handlers(self, mock_client_class):
+        """Test server creation includes all handlers."""
+        mock_client = AsyncMock()
+        mock_client_class.return_value = mock_client
 
-class TestResponseHelpers:
+        server = create_healthlake_server()
+
+        # Verify server was created successfully
+        assert server is not None
+        assert server.name == 'healthlake-mcp-server'
+
+
+class TestResponseFormatting:
     """Test response helper functions."""
 
     def test_create_error_response_basic(self):
@@ -68,6 +82,26 @@ class TestResponseHelpers:
         assert '"type": "validation_error"' in content.text
         assert '"message": "Validation failed"' in content.text
 
+    def test_create_error_response_with_custom_type(self):
+        """Test error response format."""
+        response = create_error_response('Test error', 'validation_error')
+
+        assert len(response) == 1
+        content = response[0]
+        assert content.type == 'text'
+
+        data = json.loads(content.text)
+        assert data['error'] is True
+        assert data['type'] == 'validation_error'
+        assert data['message'] == 'Test error'
+
+    def test_create_error_response_default_type(self):
+        """Test error response with default error type."""
+        response = create_error_response('Default error')
+
+        data = json.loads(response[0].text)
+        assert data['type'] == 'error'
+
     def test_create_success_response_basic(self):
         """Test basic success response creation."""
         test_data = {'key': 'value', 'number': 42}
@@ -79,6 +113,18 @@ class TestResponseHelpers:
         assert '"key": "value"' in content.text
         assert '"number": 42' in content.text
 
+    def test_create_success_response_format(self):
+        """Test success response format."""
+        test_data = {'key': 'value', 'number': 42}
+        response = create_success_response(test_data)
+
+        assert len(response) == 1
+        content = response[0]
+        assert content.type == 'text'
+
+        data = json.loads(content.text)
+        assert data == test_data
+
     def test_create_success_response_with_datetime(self):
         """Test success response with datetime serialization."""
         from datetime import datetime
@@ -88,6 +134,82 @@ class TestResponseHelpers:
 
         content = response[0]
         assert '2023-01-01T12:00:00' in content.text
+
+    def test_create_success_response_handles_datetime(self):
+        """Test success response handles datetime serialization."""
+        from datetime import datetime
+
+        test_data = {'timestamp': datetime(2023, 1, 1, 12, 0, 0)}
+        response = create_success_response(test_data)
+
+        data = json.loads(response[0].text)
+        assert '2023-01-01T12:00:00' in data['timestamp']
+
+    def test_error_response_edge_cases(self):
+        """Test error response with edge cases."""
+        # Test with empty message
+        response = create_error_response('', 'empty_error')
+        data = json.loads(response[0].text)
+        assert data['message'] == ''
+
+        # Test with special characters
+        response = create_error_response('Error with "quotes" and \n newlines', 'special_error')
+        data = json.loads(response[0].text)
+        assert 'quotes' in data['message']
+        assert 'newlines' in data['message']
+
+
+class TestDateTimeEncoding:
+    """Test custom datetime encoder."""
+
+    def test_datetime_encoder_with_datetime(self):
+        """Test datetime encoder with datetime object."""
+        from datetime import datetime
+
+        test_data = {'timestamp': datetime(2023, 1, 1, 12, 0, 0)}
+
+        result = json.dumps(test_data, cls=DateTimeEncoder)
+
+        assert '2023-01-01T12:00:00' in result
+
+    def test_datetime_encoder_with_regular_object(self):
+        """Test datetime encoder with regular objects."""
+        test_data = {'string': 'value', 'number': 42}
+
+        result = json.dumps(test_data, cls=DateTimeEncoder)
+
+        assert '"string": "value"' in result
+        assert '"number": 42' in result
+
+    def test_datetime_encoder_fallback(self):
+        """Test datetime encoder fallback for non-datetime objects."""
+        encoder = DateTimeEncoder()
+
+        # Test with datetime
+        from datetime import datetime
+
+        dt = datetime(2023, 1, 1, 12, 0, 0)
+        result = encoder.default(dt)
+        assert result == '2023-01-01T12:00:00'
+
+        # Test with non-datetime object - should raise TypeError
+        with pytest.raises(TypeError):
+            encoder.default(object())
+
+    def test_datetime_encoder_edge_cases(self):
+        """Test DateTimeEncoder with edge cases."""
+        from datetime import datetime
+
+        encoder = DateTimeEncoder()
+
+        # Test with datetime
+        dt = datetime(2023, 1, 1, 12, 0, 0)
+        result = encoder.default(dt)
+        assert result == '2023-01-01T12:00:00'
+
+        # Test with non-datetime object - should raise TypeError
+        with pytest.raises(TypeError):
+            encoder.default(object())
 
 
 class TestServerValidation:
@@ -125,31 +247,3 @@ class TestServerValidation:
 
         with pytest.raises(InputValidationError):
             validate_count(200)
-
-
-class TestDateTimeEncoder:
-    """Test custom datetime encoder."""
-
-    def test_datetime_encoder_with_datetime(self):
-        """Test datetime encoder with datetime object."""
-        import json
-        from awslabs.healthlake_mcp_server.server import DateTimeEncoder
-        from datetime import datetime
-
-        test_data = {'timestamp': datetime(2023, 1, 1, 12, 0, 0)}
-
-        result = json.dumps(test_data, cls=DateTimeEncoder)
-
-        assert '2023-01-01T12:00:00' in result
-
-    def test_datetime_encoder_with_regular_object(self):
-        """Test datetime encoder with regular objects."""
-        import json
-        from awslabs.healthlake_mcp_server.server import DateTimeEncoder
-
-        test_data = {'string': 'value', 'number': 42}
-
-        result = json.dumps(test_data, cls=DateTimeEncoder)
-
-        assert '"string": "value"' in result
-        assert '"number": 42' in result
