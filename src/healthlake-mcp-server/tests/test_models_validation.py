@@ -60,7 +60,7 @@ class TestDatastoreValidation:
 
         # None case
         with pytest.raises(ValueError, match='must be 32 characters'):
-            validate_datastore_id(None)
+            validate_datastore_id(None)  # type: ignore
 
 
 class TestResourceModels:
