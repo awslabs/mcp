@@ -191,8 +191,11 @@ def test_interpret_returns_valid_response(
 ):
     """Test that interpret_command returns a valid response for correct CLI commands."""
     with patch_boto3():
-        history.events.clear()
-        response = interpret_command(cli_command=cli)
+        with patch(
+            'awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1'
+        ):
+            history.events.clear()
+            response = interpret_command(cli_command=cli)
         assert response == ProgramInterpretationResponse(
             response=InterpretationResponse(json=as_json(output), error=None, status_code=200),
             failed_constraints=[],
@@ -260,11 +263,14 @@ def test_interpret_injects_region(mock_get_region):
 def test_region_picked_up_from_arn(cli, region):
     """Test that region is correctly picked up from ARN in the CLI command."""
     with patch_boto3():
-        response = interpret_command(
-            cli_command=cli,
-        )
-        assert response.metadata is not None
-        assert response.metadata.region_name == region
+        with patch(
+            'awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1'
+        ):
+            response = interpret_command(
+                cli_command=cli,
+            )
+            assert response.metadata is not None
+            assert response.metadata.region_name == region
 
 
 def test_validate_success():

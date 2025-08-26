@@ -37,10 +37,12 @@ NOTICE                                                                    @awsla
 /src/aws-pricing-mcp-server             @nspring00 @aytech-in @s12v       @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                           @awslabs/mcp-admins
 /src/aws-support-mcp-server             @Wook133                          @awslabs/mcp-admins
-/src/well-architected-security-mcp-server @juntinyeh                        @awslabs/mcp-admins
+/src/billing-cost-management-mcp-server @chittev @Rahul-1404              @awslabs/mcp-admins
+/src/well-architected-security-mcp-server @juntinyeh                      @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                         @awslabs/mcp-admins
 /src/cfn-mcp-server                     @karamvsingh                      @awslabs/mcp-admins
+/src/cloudtrail-mcp-server              @rokafella                        @awslabs/mcp-admins
 /src/ccapi-mcp-server                   @novekm                           @awslabs/mcp-admins
 /src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque   @awslabs/mcp-admins
 /src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe               @awslabs/mcp-admins
