@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.ccapi-mcp-server"""
+from awslabs.aws_bedrock_custom_model_import_mcp_server.services.imported_model_service import (
+    ImportedModelService,
+)
+from awslabs.aws_bedrock_custom_model_import_mcp_server.services.model_import_service import (
+    ModelImportService,
+)
 
-__version__ = '1.0.5'
+__all__ = ['ImportedModelService', 'ModelImportService']

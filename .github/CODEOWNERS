@@ -28,6 +28,7 @@ NOTICE                                                                    @awsla
 /src/amazon-sns-sqs-mcp-server          @kenliao94 @hashimsharkh          @awslabs/mcp-admins
 /src/aws-api-mcp-server                 @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh @awslabs/mcp-admins
 #/src/aurora-dsql-mcp-server            @awslabs/mcp-maintainers          @awslabs/mcp-admins
+#/src/aws-bedrock-custom-model-import-mcp-server @saidrhs                 @awslabs/mcp-admins
 #/src/aws-bedrock-data-automation-mcp-server @awslabs/mcp-maintainers     @awslabs/mcp-admins
 /src/aws-diagram-mcp-server             @MichaelWalker-git                @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim             @awslabs/mcp-admins

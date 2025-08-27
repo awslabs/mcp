@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.ccapi-mcp-server"""
+"""awslabs.aws-bedrock-custom-model-import-mcp-server"""
 
-__version__ = '1.0.5'
+__version__ = '0.0.2'
