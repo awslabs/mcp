@@ -14,7 +14,17 @@
 
 """Workflow linting tools for WDL and CWL workflow definitions."""
 
+# Import linting dependencies
+import cwltool
+import cwltool.load_tool
+import cwltool.main
+
+# Import nest_asyncio to handle nested event loops
+import nest_asyncio
 import tempfile
+import WDL
+import WDL.CLI
+from cwltool.context import LoadingContext
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pathlib import Path
@@ -22,29 +32,7 @@ from pydantic import Field
 from typing import Any, Dict, Optional
 
 
-# Try to import nest_asyncio to handle nested event loops
-try:
-    import nest_asyncio
-
-    nest_asyncio.apply()
-except ImportError:
-    nest_asyncio = None
-
-# Import linting dependencies at module level for proper mocking in tests
-try:
-    import WDL
-    import WDL.CLI
-except ImportError:
-    WDL = None
-
-try:
-    import cwltool
-    import cwltool.load_tool
-    import cwltool.main
-    from cwltool.context import LoadingContext
-except ImportError:
-    cwltool = None
-    LoadingContext = None
+nest_asyncio.apply()
 
 
 class WorkflowLinter:
@@ -118,13 +106,6 @@ class WorkflowLinter:
 
     async def _lint_wdl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
         """Lint WDL workflow using miniwdl."""
-        if WDL is None:
-            return {
-                'status': 'error',
-                'format': 'wdl',
-                'message': 'WDL linting dependency (miniwdl) is not available. Please install with: pip install miniwdl',
-            }
-
         try:
             # Create temporary file for the WDL content
             with tempfile.NamedTemporaryFile(mode='w', suffix='.wdl', delete=False) as tmp_file:
@@ -139,16 +120,8 @@ class WorkflowLinter:
                 except RuntimeError as e:
                     if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
                         # Try to handle nested event loop issues
-                        if nest_asyncio is not None:
-                            logger.info(
-                                'Attempting to resolve event loop conflict with nest_asyncio'
-                            )
-                            doc = WDL.load(str(tmp_path))
-                        else:
-                            raise RuntimeError(
-                                f'Event loop conflict detected. Please install nest-asyncio: pip install nest-asyncio. '
-                                f'Original error: {e}'
-                            )
+                        logger.info('Attempting to resolve event loop conflict with nest_asyncio')
+                        doc = WDL.load(str(tmp_path))
                     else:
                         raise
 
@@ -265,13 +238,6 @@ class WorkflowLinter:
 
     async def _lint_cwl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
         """Lint CWL workflow using cwltool."""
-        if cwltool is None:
-            return {
-                'status': 'error',
-                'format': 'cwl',
-                'message': 'CWL linting dependency (cwltool) is not available. Please install with: pip install cwltool',
-            }
-
         try:
             # Create temporary file for the CWL content
             with tempfile.NamedTemporaryFile(mode='w', suffix='.cwl', delete=False) as tmp_file:
@@ -290,16 +256,8 @@ class WorkflowLinter:
                 except RuntimeError as e:
                     if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
                         # Try to handle nested event loop issues
-                        if nest_asyncio is not None:
-                            logger.info(
-                                'Attempting to resolve event loop conflict with nest_asyncio'
-                            )
-                            tool = cwltool.load_tool.load_tool(str(tmp_path), loading_context)
-                        else:
-                            raise RuntimeError(
-                                f'Event loop conflict detected. Please install nest-asyncio: pip install nest-asyncio. '
-                                f'Original error: {e}'
-                            )
+                        logger.info('Attempting to resolve event loop conflict with nest_asyncio')
+                        tool = cwltool.load_tool.load_tool(str(tmp_path), loading_context)
                     else:
                         raise
 
@@ -401,13 +359,6 @@ class WorkflowLinter:
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint WDL workflow bundle using miniwdl."""
-        if WDL is None:
-            return {
-                'status': 'error',
-                'format': 'wdl',
-                'message': 'WDL linting dependency (miniwdl) is not available. Please install with: pip install miniwdl',
-            }
-
         try:
             # Create temporary directory structure
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -436,16 +387,10 @@ class WorkflowLinter:
                     except RuntimeError as e:
                         if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
                             # Try to handle nested event loop issues
-                            if nest_asyncio is not None:
-                                logger.info(
-                                    'Attempting to resolve event loop conflict with nest_asyncio'
-                                )
-                                doc = WDL.load(str(main_file_path))
-                            else:
-                                raise RuntimeError(
-                                    f'Event loop conflict detected. Please install nest-asyncio: pip install nest-asyncio. '
-                                    f'Original error: {e}'
-                                )
+                            logger.info(
+                                'Attempting to resolve event loop conflict with nest_asyncio'
+                            )
+                            doc = WDL.load(str(main_file_path))
                         else:
                             raise
 
@@ -586,13 +531,6 @@ class WorkflowLinter:
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint CWL workflow bundle using cwltool."""
-        if cwltool is None:
-            return {
-                'status': 'error',
-                'format': 'cwl',
-                'message': 'CWL linting dependency (cwltool) is not available. Please install with: pip install cwltool',
-            }
-
         try:
             # Create temporary directory structure
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -625,18 +563,12 @@ class WorkflowLinter:
                     except RuntimeError as e:
                         if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
                             # Try to handle nested event loop issues
-                            if nest_asyncio is not None:
-                                logger.info(
-                                    'Attempting to resolve event loop conflict with nest_asyncio'
-                                )
-                                tool = cwltool.load_tool.load_tool(
-                                    str(main_file_path), loading_context
-                                )
-                            else:
-                                raise RuntimeError(
-                                    f'Event loop conflict detected. Please install nest-asyncio: pip install nest-asyncio. '
-                                    f'Original error: {e}'
-                                )
+                            logger.info(
+                                'Attempting to resolve event loop conflict with nest_asyncio'
+                            )
+                            tool = cwltool.load_tool.load_tool(
+                                str(main_file_path), loading_context
+                            )
                         else:
                             raise
 
@@ -799,51 +731,6 @@ async def lint_workflow_definition(
         logger.error(error_message)
         await ctx.error(error_message)
         return {'status': 'error', 'message': f'Workflow linting failed: {str(e)}'}
-
-
-async def check_linting_dependencies(ctx: Context) -> Dict[str, Any]:
-    """Check workflow linting dependencies and their versions.
-
-    This tool reports the status and versions of workflow linting dependencies:
-    - miniwdl: For WDL workflow linting
-    - cwltool: For CWL workflow linting
-
-    Returns:
-        Dictionary containing dependency status and version information
-    """
-    try:
-        dependencies = {
-            'miniwdl': {
-                'available': WDL is not None,
-                'version': getattr(WDL, '__version__', 'unknown')
-                if WDL is not None
-                else 'not installed',
-                'purpose': 'WDL workflow linting',
-                'documentation': 'https://miniwdl.readthedocs.io/',
-            },
-            'cwltool': {
-                'available': cwltool is not None,
-                'version': getattr(cwltool, '__version__', 'unknown')
-                if cwltool is not None
-                else 'not installed',
-                'purpose': 'CWL workflow linting',
-                'documentation': 'https://github.com/common-workflow-language/cwltool',
-            },
-        }
-
-        all_available = all(dep['available'] for dep in dependencies.values())
-        missing_count = sum(1 for dep in dependencies.values() if not dep['available'])
-
-        return {
-            'status': 'success',
-            'dependencies': dependencies,
-            'summary': {'total': 2, 'all_available': all_available, 'missing': missing_count},
-        }
-
-    except Exception as e:
-        logger.error(f'Error checking linting dependencies: {str(e)}')
-
-        return {'status': 'error', 'message': f'Failed to check linting dependencies: {str(e)}'}
 
 
 async def lint_workflow_bundle(

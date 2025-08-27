@@ -34,7 +34,6 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
     start_run,
 )
 from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
-    check_linting_dependencies,
     lint_workflow_bundle,
     lint_workflow_definition,
 )
@@ -85,7 +84,6 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 ### Workflow Linting
 - **LintAHOWorkflowDefinition**: Lint single WDL or CWL workflow files using miniwdl and cwltool
 - **LintAHOWorkflowBundle**: Lint multi-file WDL or CWL workflow bundles with import/dependency support
-- **CheckAHOLintingDependencies**: Check workflow linting dependency versions and status
 
 ### Helper Tools
 - **PackageAHOWorkflow**: Package workflow definition files into a base64-encoded ZIP
@@ -130,7 +128,6 @@ mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
 # Register workflow linting tools
 mcp.tool(name='LintAHOWorkflowDefinition')(lint_workflow_definition)
 mcp.tool(name='LintAHOWorkflowBundle')(lint_workflow_bundle)
-mcp.tool(name='CheckAHOLintingDependencies')(check_linting_dependencies)
 
 # Register helper tools
 mcp.tool(name='PackageAHOWorkflow')(package_workflow)

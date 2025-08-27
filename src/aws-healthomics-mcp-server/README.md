@@ -40,7 +40,6 @@ This MCP server provides tools for:
 5. **ListAHOWorkflowVersions** - List all versions of a specific workflow
 6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool
 7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support
-8. **CheckAHOLintingDependencies** - Check workflow linting dependency versions and status
 8. **PackageAHOWorkflow** - Package workflow files into base64-encoded ZIP format
 
 ### Workflow Execution Tools
@@ -127,11 +126,7 @@ When workflows fail, follow this diagnostic approach:
 
 The MCP server includes built-in workflow linting capabilities for validating WDL and CWL workflows before deployment:
 
-1. **Check Dependencies**: Use `CheckAHOLintingDependencies` to verify versions:
-   - **miniwdl**: Included for WDL workflow validation
-   - **cwltool**: Included for CWL workflow validation
-
-2. **Lint Workflow Definitions**:
+1. **Lint Workflow Definitions**:
    - **Single files**: Use `LintAHOWorkflowDefinition` for individual workflow files
    - **Multi-file bundles**: Use `LintAHOWorkflowBundle` for workflows with imports and dependencies
    - **Syntax errors**: Catch parsing issues before deployment
@@ -140,11 +135,11 @@ The MCP server includes built-in workflow linting capabilities for validating WD
    - **Import resolution**: Validate imports and dependencies between files
    - **Best practices**: Get warnings about potential improvements
 
-3. **Supported Formats**:
+2. **Supported Formats**:
    - **WDL**: Uses miniwdl for comprehensive validation
    - **CWL**: Uses cwltool for standards-compliant validation
 
-4. **No Additional Installation Required**:
+3. **No Additional Installation Required**:
    Both miniwdl and cwltool are included as dependencies and available immediately after installing the MCP server.
 
 ### Common Use Cases
