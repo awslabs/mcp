@@ -161,11 +161,12 @@ async def suggest_aws_commands(
     - All commands are validated before execution to prevent errors
     - Supports pagination control via max_results parameter
     - The current working directory is {WORKING_DIRECTORY}
+    - File paths should always have forward slash (/) as a separator regardless of the system. Example: 'c:/folder/file.txt'
 
     Best practices for command generation:
-    — Always use the most specific service and operation names
+    - Always use the most specific service and operation names
     - Always use the working directory when writing files, unless user explicitly mentioned another directory
-    — Include --region when operating across regions
+    - Include --region when operating across regions
     - Only use filters (--filters, --query, --prefix, --pattern, etc) when necessary or user explicitly asked for it
 
     Command restrictions:
