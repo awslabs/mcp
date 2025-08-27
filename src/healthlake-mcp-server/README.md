@@ -454,7 +454,7 @@ make test lint format
 make test
 
 # Run with coverage
-make test-coverage
+make test-cov
 
 # Format code
 make format
@@ -463,7 +463,7 @@ make format
 make lint
 ```
 
-**Test Results**: 174 tests pass, 85% coverage
+**Test Results**: 197 tests pass, 89% coverage
 
 ### Project Structure
 
