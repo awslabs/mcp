@@ -21,37 +21,40 @@ from unittest.mock import patch
 
 class TestConstants:
     """Test cases for constants configuration."""
-    
+
     @patch.dict(os.environ, {'HEALTHOMICS_DEFAULT_MAX_RESULTS': '25'})
     def test_default_max_results_from_environment(self):
         """Test DEFAULT_MAX_RESULTS uses value from environment variable."""
         # Need to reload the module to pick up the environment variable
         import importlib
         from awslabs.aws_healthomics_mcp_server import consts
+
         importlib.reload(consts)
-        
+
         assert consts.DEFAULT_MAX_RESULTS == 25
-    
+
     @patch.dict(os.environ, {}, clear=True)
     def test_default_max_results_default_value(self):
         """Test DEFAULT_MAX_RESULTS uses default value when no environment variable."""
         # Need to reload the module to pick up the cleared environment
         import importlib
         from awslabs.aws_healthomics_mcp_server import consts
+
         importlib.reload(consts)
-        
+
         assert consts.DEFAULT_MAX_RESULTS == 10
-    
+
     @patch.dict(os.environ, {'HEALTHOMICS_DEFAULT_MAX_RESULTS': '100'})
     def test_default_max_results_custom_value(self):
         """Test DEFAULT_MAX_RESULTS uses custom value from environment."""
         # Need to reload the module to pick up the environment variable
         import importlib
         from awslabs.aws_healthomics_mcp_server import consts
+
         importlib.reload(consts)
-        
+
         assert consts.DEFAULT_MAX_RESULTS == 100
-    
+
     @patch.dict(os.environ, {'HEALTHOMICS_DEFAULT_MAX_RESULTS': 'invalid'})
     def test_default_max_results_invalid_value(self):
         """Test DEFAULT_MAX_RESULTS handles invalid environment variable value."""
@@ -59,4 +62,5 @@ class TestConstants:
         with pytest.raises(ValueError):
             import importlib
             from awslabs.aws_healthomics_mcp_server import consts
+
             importlib.reload(consts)

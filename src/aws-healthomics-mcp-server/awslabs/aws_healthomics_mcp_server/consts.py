@@ -14,12 +14,21 @@
 
 """Defines constants used across the server."""
 
+from loguru import logger
 import os
+
 
 # Service constants
 DEFAULT_REGION = 'us-east-1'
 DEFAULT_STORAGE_TYPE = 'DYNAMIC'
-DEFAULT_MAX_RESULTS = int(os.environ.get('HEALTHOMICS_DEFAULT_MAX_RESULTS', '10'))
+try:
+    DEFAULT_MAX_RESULTS = int(os.environ.get('HEALTHOMICS_DEFAULT_MAX_RESULTS', '10'))
+except ValueError:
+    logging.warning(
+        "Invalid value for HEALTHOMICS_DEFAULT_MAX_RESULTS environment variable. "
+        "Using default value of 10."
+    )
+    DEFAULT_MAX_RESULTS = 10
 
 # Supported regions (as of June 2025)
 # These are hardcoded as a fallback in case the SSM parameter store query fails
