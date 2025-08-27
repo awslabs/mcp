@@ -482,6 +482,73 @@ class TestErrorHandling:
         assert 'Search error: Network timeout' in message
 
 
+class TestExportJobOperations:
+    """Test export job operations for coverage."""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock HealthLake client for testing."""
+        with patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session'):
+            client = HealthLakeClient()
+            client.healthlake_client = Mock()
+            return client
+
+    @pytest.mark.asyncio
+    async def test_start_export_job_success(self, mock_client):
+        """Test successful export job start (coverage: lines 640-653)."""
+        expected_response = {'JobId': 'export-123', 'JobStatus': 'SUBMITTED'}
+        mock_client.healthlake_client.start_fhir_export_job.return_value = expected_response
+
+        result = await mock_client.start_export_job(
+            datastore_id='12345678901234567890123456789012',
+            output_data_config={'S3Configuration': {'S3Uri': 's3://bucket/export'}},
+            data_access_role_arn='arn:aws:iam::123456789012:role/HealthLakeRole',
+        )
+
+        assert result == expected_response
+        mock_client.healthlake_client.start_fhir_export_job.assert_called_once_with(
+            DatastoreId='12345678901234567890123456789012',
+            OutputDataConfig={'S3Configuration': {'S3Uri': 's3://bucket/export'}},
+            DataAccessRoleArn='arn:aws:iam::123456789012:role/HealthLakeRole',
+        )
+
+    @pytest.mark.asyncio
+    async def test_start_export_job_with_job_name(self, mock_client):
+        """Test export job start with optional job name."""
+        expected_response = {'JobId': 'export-456', 'JobStatus': 'SUBMITTED'}
+        mock_client.healthlake_client.start_fhir_export_job.return_value = expected_response
+
+        result = await mock_client.start_export_job(
+            datastore_id='12345678901234567890123456789012',
+            output_data_config={'S3Configuration': {'S3Uri': 's3://bucket/export'}},
+            data_access_role_arn='arn:aws:iam::123456789012:role/HealthLakeRole',
+            job_name='MyExportJob',
+        )
+
+        assert result == expected_response
+        mock_client.healthlake_client.start_fhir_export_job.assert_called_once_with(
+            DatastoreId='12345678901234567890123456789012',
+            OutputDataConfig={'S3Configuration': {'S3Uri': 's3://bucket/export'}},
+            DataAccessRoleArn='arn:aws:iam::123456789012:role/HealthLakeRole',
+            JobName='MyExportJob',
+        )
+
+    @pytest.mark.asyncio
+    async def test_start_export_job_client_error(self, mock_client):
+        """Test export job start with ClientError."""
+        error_response = {'Error': {'Code': 'ValidationException', 'Message': 'Invalid S3 URI'}}
+        mock_client.healthlake_client.start_fhir_export_job.side_effect = ClientError(
+            error_response, 'StartFHIRExportJob'
+        )
+
+        with pytest.raises(ClientError):
+            await mock_client.start_export_job(
+                datastore_id='12345678901234567890123456789012',
+                output_data_config={'S3Configuration': {'S3Uri': 'invalid-uri'}},
+                data_access_role_arn='arn:aws:iam::123456789012:role/HealthLakeRole',
+            )
+
+
 class TestAWSAuth:
     """Test AWS authentication."""
 
@@ -553,6 +620,47 @@ class TestAsyncJobOperations:
 
         expected = {'ImportJobs': [{'JobId': 'import-1'}], 'ExportJobs': [{'JobId': 'export-1'}]}
         assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_import_only(self, mock_client):
+        """Test listing import jobs only (coverage: lines 661-664)."""
+        import_response = {'ImportJobPropertiesList': [{'JobId': 'import-1'}]}
+        mock_client.healthlake_client.list_fhir_import_jobs.return_value = import_response
+
+        result = await mock_client.list_jobs('12345678901234567890123456789012', job_type='IMPORT')
+
+        assert result == import_response
+        mock_client.healthlake_client.list_fhir_import_jobs.assert_called_once_with(
+            DatastoreId='12345678901234567890123456789012'
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_export_only(self, mock_client):
+        """Test listing export jobs only (coverage: lines 666-669)."""
+        export_response = {'ExportJobPropertiesList': [{'JobId': 'export-1'}]}
+        mock_client.healthlake_client.list_fhir_export_jobs.return_value = export_response
+
+        result = await mock_client.list_jobs('12345678901234567890123456789012', job_type='EXPORT')
+
+        assert result == export_response
+        mock_client.healthlake_client.list_fhir_export_jobs.assert_called_once_with(
+            DatastoreId='12345678901234567890123456789012'
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_jobs_with_status_filter(self, mock_client):
+        """Test listing jobs with status filter."""
+        import_response = {'ImportJobPropertiesList': [{'JobId': 'import-1'}]}
+        mock_client.healthlake_client.list_fhir_import_jobs.return_value = import_response
+
+        result = await mock_client.list_jobs(
+            '12345678901234567890123456789012', job_status='COMPLETED', job_type='IMPORT'
+        )
+
+        assert result == import_response
+        mock_client.healthlake_client.list_fhir_import_jobs.assert_called_once_with(
+            DatastoreId='12345678901234567890123456789012', JobStatus='COMPLETED'
+        )
 
 
 class TestAWSAuthFlow:
