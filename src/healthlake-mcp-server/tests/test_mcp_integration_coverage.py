@@ -7,10 +7,17 @@ from datetime import datetime
 from mcp.types import (
     CallToolRequest,
     CallToolRequestParams,
+    CallToolResult,
     ListResourcesRequest,
+    ListResourcesResult,
     ListToolsRequest,
+    ListToolsResult,
     ReadResourceRequest,
+    ReadResourceRequestParams,
+    ReadResourceResult,
+    TextContent,
 )
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 
@@ -33,8 +40,9 @@ class TestMCPIntegrationCoverage:
             )
 
             response = await call_tool_handler(request)
+            result = cast(CallToolResult, response.root)
 
-            content_text = response.root.content[0].text
+            content_text = cast(TextContent, result.content[0]).text
             assert '"error": true' in content_text
             assert '"type": "validation_error"' in content_text
 
@@ -61,8 +69,9 @@ class TestMCPIntegrationCoverage:
             )
 
             response = await call_tool_handler(request)
+            result = cast(CallToolResult, response.root)
 
-            content_text = response.root.content[0].text
+            content_text = cast(TextContent, result.content[0]).text
             assert '"error": true' in content_text
             assert '"type": "not_found"' in content_text
 
@@ -92,8 +101,9 @@ class TestMCPIntegrationCoverage:
             )
 
             response = await call_tool_handler(request)
+            result = cast(CallToolResult, response.root)
 
-            content_text = response.root.content[0].text
+            content_text = cast(TextContent, result.content[0]).text
             assert '"error": true' in content_text
             assert '"type": "validation_error"' in content_text
             assert 'Invalid parameter value' in content_text
@@ -119,8 +129,9 @@ class TestMCPIntegrationCoverage:
             )
 
             response = await call_tool_handler(request)
+            result = cast(CallToolResult, response.root)
 
-            content_text = response.root.content[0].text
+            content_text = cast(TextContent, result.content[0]).text
             assert '"error": true' in content_text
             assert '"type": "service_error"' in content_text
 
@@ -140,8 +151,9 @@ class TestMCPIntegrationCoverage:
             )
 
             response = await call_tool_handler(request)
+            result = cast(CallToolResult, response.root)
 
-            content_text = response.root.content[0].text
+            content_text = cast(TextContent, result.content[0]).text
             assert '"error": true' in content_text
             assert '"type": "auth_error"' in content_text
             assert 'AWS credentials not configured' in content_text
@@ -162,8 +174,9 @@ class TestMCPIntegrationCoverage:
             )
 
             response = await call_tool_handler(request)
+            result = cast(CallToolResult, response.root)
 
-            content_text = response.root.content[0].text
+            content_text = cast(TextContent, result.content[0]).text
             assert '"error": true' in content_text
             assert '"type": "server_error"' in content_text
             assert 'Internal server error' in content_text
@@ -176,9 +189,10 @@ class TestMCPIntegrationCoverage:
 
             request = ListToolsRequest(method='tools/list')
             response = await list_tools_handler(request)
+            result = cast(ListToolsResult, response.root)
 
-            assert len(response.root.tools) == 11
-            assert response.root.tools[0].name == 'list_datastores'
+            assert len(result.tools) == 11
+            assert result.tools[0].name == 'list_datastores'
 
     async def test_mcp_list_resources_handler_success(self):
         """Test MCP list_resources handler success - covers lines 552-565."""
@@ -203,10 +217,11 @@ class TestMCPIntegrationCoverage:
 
             request = ListResourcesRequest(method='resources/list')
             response = await list_resources_handler(request)
+            result = cast(ListResourcesResult, response.root)
 
-            assert len(response.root.resources) == 1
-            assert 'test-datastore' in response.root.resources[0].name
-            assert 'ACTIVE' in response.root.resources[0].name
+            assert len(result.resources) == 1
+            assert 'test-datastore' in result.resources[0].name
+            assert 'ACTIVE' in result.resources[0].name
 
     async def test_mcp_list_resources_handler_error(self):
         """Test MCP list_resources handler error - covers lines 562-565."""
@@ -220,8 +235,9 @@ class TestMCPIntegrationCoverage:
 
             request = ListResourcesRequest(method='resources/list')
             response = await list_resources_handler(request)
+            result = cast(ListResourcesResult, response.root)
 
-            assert len(response.root.resources) == 0
+            assert len(result.resources) == 0
 
     async def test_mcp_read_resource_handler_success(self):
         """Test MCP read_resource handler success - covers lines 570-574."""
@@ -236,7 +252,6 @@ class TestMCPIntegrationCoverage:
             server = create_healthlake_server()
             read_resource_handler = server.request_handlers[ReadResourceRequest]
 
-            from mcp.types import ReadResourceRequestParams
             from pydantic import AnyUrl
 
             request = ReadResourceRequest(
@@ -245,8 +260,10 @@ class TestMCPIntegrationCoverage:
             )
 
             response = await read_resource_handler(request)
+            result = cast(ReadResourceResult, response.root)
 
-            assert 'test-datastore' in response.root.contents[0].text
+            # The response is a string (deprecated format), so we check it directly
+            assert 'test-datastore' in str(result.contents[0])
 
     async def test_mcp_read_resource_handler_invalid_uri(self):
         """Test MCP read_resource handler with invalid URI - covers lines 571-573."""
@@ -254,7 +271,6 @@ class TestMCPIntegrationCoverage:
             server = create_healthlake_server()
             read_resource_handler = server.request_handlers[ReadResourceRequest]
 
-            from mcp.types import ReadResourceRequestParams
             from pydantic import AnyUrl
 
             request = ReadResourceRequest(
