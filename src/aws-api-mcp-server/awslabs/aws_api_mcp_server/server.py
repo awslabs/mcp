@@ -27,9 +27,12 @@ from .core.common.config import (
     DEFAULT_REGION,
     ENABLE_AGENT_SCRIPTS,
     FASTMCP_LOG_LEVEL,
+    HOST,
+    PORT,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
     REQUIRE_MUTATION_CONSENT,
+    TRANSPORT,
     WORKING_DIRECTORY,
     get_server_directory,
 )
@@ -59,7 +62,7 @@ log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
-server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL)
+server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL, host=HOST, port=PORT)
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 
@@ -158,11 +161,12 @@ async def suggest_aws_commands(
     - All commands are validated before execution to prevent errors
     - Supports pagination control via max_results parameter
     - The current working directory is {WORKING_DIRECTORY}
+    - File paths should always have forward slash (/) as a separator regardless of the system. Example: 'c:/folder/file.txt'
 
     Best practices for command generation:
-    — Always use the most specific service and operation names
+    - Always use the most specific service and operation names
     - Always use the working directory when writing files, unless user explicitly mentioned another directory
-    — Include --region when operating across regions
+    - Include --region when operating across regions
     - Only use filters (--filters, --query, --prefix, --pattern, etc) when necessary or user explicitly asked for it
 
     Command restrictions:
@@ -354,7 +358,7 @@ def main():
     if READ_OPERATIONS_ONLY_MODE or REQUIRE_MUTATION_CONSENT:
         READ_OPERATIONS_INDEX = get_read_only_operations()
 
-    server.run(transport='stdio')
+    server.run(transport=TRANSPORT)
 
 
 if __name__ == '__main__':
