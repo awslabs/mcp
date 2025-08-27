@@ -42,7 +42,6 @@ try:
     import cwltool.load_tool
     import cwltool.main
     from cwltool.context import LoadingContext
-    from cwltool.resolver import tool_resolver
 except ImportError:
     cwltool = None
     LoadingContext = None
@@ -52,6 +51,7 @@ class WorkflowLinter:
     """Lints WDL and CWL workflow definitions using appropriate linting tools."""
 
     def __init__(self):
+        """Initialize the workflow linter with supported formats."""
         self.supported_formats = ['wdl', 'cwl']
 
     async def lint_workflow_bundle(
