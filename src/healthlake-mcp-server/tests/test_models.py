@@ -101,7 +101,7 @@ class TestDatastoreFilter:
 
     def test_none_status(self):
         """Test None status (optional field)."""
-        filter_obj = DatastoreFilter()
+        filter_obj = DatastoreFilter(status=None)
         assert filter_obj.status is None
 
     def test_invalid_status_value(self):
