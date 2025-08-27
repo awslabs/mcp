@@ -463,12 +463,7 @@ make format
 make lint
 ```
 
-**Test Results**: All 11 tests pass successfully, covering:
-- Tool handler functionality
-- Response formatting
-- Input validation
-- Server initialization
-- Error handling
+**Test Results**: 174 tests pass, 85% coverage
 
 ### Project Structure
 
