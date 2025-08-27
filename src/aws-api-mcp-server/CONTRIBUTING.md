@@ -44,6 +44,7 @@ uv sync
 
 4. Configure AWS credentials and environment variables:
    - Ensure you have AWS credentials configured as you did during installation, read more [here](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials)
+   - The server supports both STDIO (default) and Streamable HTTP transport modes. For local development, use STDIO mode. For network scenarios, you can set `AWS_API_MCP_TRANSPORT` to `"streamable-http"` and configure the host and port with `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.
 
 
 5. Run the server:

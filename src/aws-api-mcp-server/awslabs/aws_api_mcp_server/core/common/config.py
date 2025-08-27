@@ -16,6 +16,13 @@ import boto3
 import os
 import tempfile
 from pathlib import Path
+from typing import Literal, cast
+
+
+TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
+READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
+TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
+REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
 
 
 def get_region(profile_name: str | None = None) -> str:
@@ -43,15 +50,17 @@ def get_server_directory():
     return Path(base_dir) / base_location
 
 
-TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
-READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
-TELEMETRY_KEY = 'AWS_API_MCP_TELEMETRY'
-REQUIRE_MUTATION_CONSENT_KEY = 'REQUIRE_MUTATION_CONSENT'
-
-
 def get_env_bool(env_key: str, default: bool) -> bool:
     """Get a boolean value from an environment variable, with a default."""
     return os.getenv(env_key, str(default)).casefold() in TRUTHY_VALUES
+
+
+def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
+    """Get a transport value from an environment variable, with a default."""
+    transport = os.getenv('AWS_API_MCP_TRANSPORT', 'stdio')
+    if transport not in ['stdio', 'streamable-http']:
+        raise ValueError(f'Invalid transport: {transport}')
+    return cast(Literal['stdio', 'streamable-http'], transport)
 
 
 FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')
@@ -64,3 +73,6 @@ WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() 
 REQUIRE_MUTATION_CONSENT = get_env_bool(REQUIRE_MUTATION_CONSENT_KEY, False)
 EMBEDDING_MODEL_DIR = os.getenv('EMBEDDING_MODEL_DIR', get_server_directory() / 'embedding_models')
 ENABLE_AGENT_SCRIPTS = get_env_bool('EXPERIMENTAL_AGENT_SCRIPTS', False)
+TRANSPORT = get_transport_from_env()
+HOST = os.getenv('AWS_API_MCP_HOST', '127.0.0.1')
+PORT = int(os.getenv('AWS_API_MCP_PORT', 8000))

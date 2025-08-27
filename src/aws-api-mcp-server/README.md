@@ -131,6 +131,47 @@ You can isolate the MCP server by running it in a Docker container. The Docker i
 
 For detailed instructions on setting up your local development environment and running the server from source, please see the CONTRIBUTING.md file.
 
+### 🌐 HTTP Mode Configuration
+
+The MCP server supports streamable HTTP mode. To use it, when starting the server set the `AWS_API_MCP_TRANSPORT` environment variable to `"streamable-http"` and optionally configure the host and port with `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.
+
+#### For Linux/macOS:
+```bash
+AWS_API_MCP_TRANSPORT=streamable-http uvx awslabs.aws-api-mcp-server@latest
+```
+
+#### For Windows (Command Prompt):
+```cmd
+set AWS_API_MCP_TRANSPORT=streamable-http
+uvx awslabs.aws-api-mcp-server@latest
+```
+
+#### For Windows (PowerShell):
+```powershell
+$env:AWS_API_MCP_TRANSPORT="streamable-http"
+uvx awslabs.aws-api-mcp-server@latest
+```
+
+Once the server is running, connect to it using the following configuration (ensure the host and port number match your `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT` settings):"
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "type": "streamableHttp",
+      "url": "http://127.0.0.1:8000/mcp",
+      "autoApprove": [],
+      "disabled": false,
+      "timeout": 60
+    }
+  }
+}
+```
+
+**Note**: Replace `127.0.0.1` with your custom host if you've set `AWS_API_MCP_HOST` to a different value.
+
+**Note**: When using HTTP mode, ensure proper network security measures are in place, including firewall rules and authentication if needed.
+
 
 
 ## ⚙️ Configuration Options
@@ -146,6 +187,9 @@ For detailed instructions on setting up your local development environment and r
 | `AWS_API_MCP_TELEMETRY`                                           | ❌ No     | `"true"`                                                 | Allow sending additional telemetry data to AWS related to the server configuration. This includes Whether the `call_aws()` tool is used with `READ_OPERATIONS_ONLY` set to true or false. Note: Regardless of this setting, AWS obtains information about which operations were invoked and the server version as part of normal AWS service interactions; no additional telemetry calls are made by the server for this purpose.                                                                                                                                                                                            |
 | `EMBEDDING_MODEL_DIR`                                             | ❌ No     | `$AWS_API_MCP_WORKING_DIR/embedding_models`              | Directory path where embedding models are stored or cached. When specified, this directory will be used for model storage and retrieval operations. Must be an absolute path when provided.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `EXPERIMENTAL_AGENT_SCRIPTS`                                      | ❌ No     | `"false"`                                                | When set to "true", enables experimental agent scripts functionality. This provides access to structured, step-by-step workflows for complex AWS tasks through the `get_execution_plan` tool. Agent scripts are reusable workflows that automate complex processes and provide detailed guidance for accomplishing specific tasks. This feature is experimental and may change in future releases.                                                                                                                                                                                                                                                                                              |
+| `AWS_API_MCP_TRANSPORT`                                           | ❌ No     | `"stdio"`                                                | Transport protocol for the MCP server. Valid options are `"stdio"` (default) for local communication or `"streamable-http"` for HTTP-based communication. When using `"streamable-http"`, the server will listen on the host and port specified by `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `AWS_API_MCP_HOST`                                                | ❌ No     | `"127.0.0.1"`                                            | Host address for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `AWS_API_MCP_PORT`                                                | ❌ No     | `"8000"`                                                 | Port number for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### 🚀 Quick Start
 

@@ -1,5 +1,9 @@
 import pytest
-from awslabs.aws_api_mcp_server.core.common.config import get_region, get_server_directory
+from awslabs.aws_api_mcp_server.core.common.config import (
+    get_region,
+    get_server_directory,
+    get_transport_from_env,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -82,3 +86,50 @@ def test_get_region_parametrized(
         result = get_region(profile_name)
 
     assert result == expected_region
+
+
+@pytest.mark.parametrize(
+    'transport_value,expected',
+    [
+        ('stdio', 'stdio'),
+        ('streamable-http', 'streamable-http'),
+    ],
+)
+def test_get_transport_from_env_valid_values(monkeypatch, transport_value, expected):
+    """Test get_transport_from_env with valid transport values."""
+    monkeypatch.setenv('AWS_API_MCP_TRANSPORT', transport_value)
+
+    result = get_transport_from_env()
+
+    assert result == expected
+
+
+def test_get_transport_from_env_default_value(monkeypatch):
+    """Test get_transport_from_env returns default value when env var is not set."""
+    # Ensure the environment variable is not set
+    monkeypatch.delenv('AWS_API_MCP_TRANSPORT', raising=False)
+
+    result = get_transport_from_env()
+
+    assert result == 'stdio'
+
+
+@pytest.mark.parametrize(
+    'invalid_transport',
+    [
+        'http',
+        'websocket',
+        'tcp',
+        'invalid',
+        'STDIO',
+        'STREAMABLE-HTTP',
+        '',
+        'stdio-http',
+    ],
+)
+def test_get_transport_from_env_invalid_values(monkeypatch, invalid_transport):
+    """Test get_transport_from_env raises ValueError for invalid transport values."""
+    monkeypatch.setenv('AWS_API_MCP_TRANSPORT', invalid_transport)
+
+    with pytest.raises(ValueError, match=f'Invalid transport: {invalid_transport}'):
+        get_transport_from_env()
