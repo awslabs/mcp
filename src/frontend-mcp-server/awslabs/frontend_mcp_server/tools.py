@@ -31,7 +31,7 @@
 import base64
 import json
 import os
-import requests
+import httpx
 from datetime import datetime, timedelta
 from .consts import (
     DEFAULT_SEARCH_LIMIT,
@@ -43,7 +43,7 @@ from .consts import (
 from typing import Any, Dict, List, Optional
 
 
-def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Dict]:
+async def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Dict]:
     """Search Amplify documentation by browsing the repository structure.
 
     Args:
@@ -66,36 +66,37 @@ def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_LIMIT) 
             'User-Agent': 'AmplifyGen2MCPServer/1.0'
         }
 
-        response = requests.get(tree_url, headers=headers, timeout=10)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(tree_url, headers=headers)
 
-        if response.status_code == 200:
-            tree_data = response.json()
+            if response.status_code == 200:
+                tree_data = response.json()
 
-            # Filter for markdown files and calculate relevance
-            for item in tree_data.get('tree', []):
-                if item['type'] == 'blob' and item['path'].endswith(('.md', '.mdx')):
-                    # Calculate relevance score based on path and filename
-                    relevance_score = calculate_relevance_score_from_path(item['path'], query)
+                # Filter for markdown files and calculate relevance
+                for item in tree_data.get('tree', []):
+                    if item['type'] == 'blob' and item['path'].endswith(('.md', '.mdx')):
+                        # Calculate relevance score based on path and filename
+                        relevance_score = calculate_relevance_score_from_path(item['path'], query)
 
-                    if relevance_score > 0:  # Only include relevant results
-                        search_results.append({
-                            'rank_order': len(search_results) + 1,
-                            'url': f"https://github.com/{DOCUMENTATION_REPO}/blob/main/{item['path']}",
-                            'raw_url': f"https://raw.githubusercontent.com/{DOCUMENTATION_REPO}/main/{item['path']}",
-                            'title': extract_title_from_path(item['path']),
-                            'path': item['path'],
-                            'relevance_score': relevance_score,
-                            'repository': DOCUMENTATION_REPO
-                        })
+                        if relevance_score > 0:  # Only include relevant results
+                            search_results.append({
+                                'rank_order': len(search_results) + 1,
+                                'url': f"https://github.com/{DOCUMENTATION_REPO}/blob/main/{item['path']}",
+                                'raw_url': f"https://raw.githubusercontent.com/{DOCUMENTATION_REPO}/main/{item['path']}",
+                                'title': extract_title_from_path(item['path']),
+                                'path': item['path'],
+                                'relevance_score': relevance_score,
+                                'repository': DOCUMENTATION_REPO
+                            })
 
-            # Sort by relevance score
-            search_results.sort(key=lambda x: x['relevance_score'], reverse=True)
+                # Sort by relevance score
+                search_results.sort(key=lambda x: x['relevance_score'], reverse=True)
 
-            # Update rank order after sorting
-            for i, result in enumerate(search_results):
-                result['rank_order'] = i + 1
+                # Update rank order after sorting
+                for i, result in enumerate(search_results):
+                    result['rank_order'] = i + 1
 
-            return search_results[:limit]
+                return search_results[:limit]
 
         return []
 
@@ -197,7 +198,7 @@ def extract_title_from_path(path: str) -> str:
 
     return title
 
-def fetch_github_content(repo: str, path: str, branch: str = "main") -> Optional[str]:
+async def fetch_github_content(repo: str, path: str, branch: str = "main") -> Optional[str]:
     """Fetch content from a GitHub repository file.
 
     Args:
@@ -217,13 +218,14 @@ def fetch_github_content(repo: str, path: str, branch: str = "main") -> Optional
             'User-Agent': 'AmplifyGen2MCPServer/1.0'
         }
 
-        response = requests.get(url, headers=headers, params=params, timeout=10)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url, headers=headers, params=params)
 
-        if response.status_code == 200:
-            content_data = response.json()
-            if content_data.get('encoding') == 'base64':
-                content = base64.b64decode(content_data['content']).decode('utf-8')
-                return content
+            if response.status_code == 200:
+                content_data = response.json()
+                if content_data.get('encoding') == 'base64':
+                    content = base64.b64decode(content_data['content']).decode('utf-8')
+                    return content
 
         return None
 
@@ -231,7 +233,7 @@ def fetch_github_content(repo: str, path: str, branch: str = "main") -> Optional
         print(f"Error fetching GitHub content from {repo}/{path}: {e}")
         return None
 
-def fetch_raw_content(raw_url: str) -> Optional[str]:
+async def fetch_raw_content(raw_url: str) -> Optional[str]:
     """Fetch content from a raw GitHub URL.
 
     Args:
@@ -245,10 +247,11 @@ def fetch_raw_content(raw_url: str) -> Optional[str]:
             'User-Agent': 'AmplifyGen2MCPServer/1.0'
         }
 
-        response = requests.get(raw_url, headers=headers, timeout=10)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(raw_url, headers=headers)
 
-        if response.status_code == 200:
-            return response.text
+            if response.status_code == 200:
+                return response.text
 
         return None
 
@@ -256,7 +259,7 @@ def fetch_raw_content(raw_url: str) -> Optional[str]:
         print(f"Error fetching raw content from {raw_url}: {e}")
         return None
 
-def search_sample_repositories(query: str) -> List[Dict]:
+async def search_sample_repositories(query: str) -> List[Dict]:
     """Search sample repositories for code examples.
     
     Args:

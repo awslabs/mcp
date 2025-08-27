@@ -29,7 +29,7 @@ mcp = FastMCP(
     dependencies=[
         'pydantic>=2.10.6',
         'loguru>=0.7.0',
-        'requests>=2.32.5',
+        'httpx>=0.27.0',
         'pyyaml>=6.0.2',
     ],
 )
@@ -67,7 +67,7 @@ async def get_react_docs_by_topic(
             )
 
 @mcp.tool(name='SearchAmplifyGen2Docs')
-def search_amplify_gen2_documentation_tool(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> str:
+async def search_amplify_gen2_documentation_tool(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> str:
     """Search Amplify Gen2 documentation comprehensively across official docs and sample repositories.
 
     Args:
@@ -77,7 +77,7 @@ def search_amplify_gen2_documentation_tool(query: str, limit: int = DEFAULT_SEAR
     Returns:
         Comprehensive search results with URLs, relevance scores, and code examples
     """
-    results = search_amplify_documentation(query, limit)
+    results = await search_amplify_documentation(query, limit)
     
     # Format results as a readable string
     if not results:
