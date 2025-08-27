@@ -930,8 +930,13 @@ class TestAWSAuthErrors:
 class TestBundleProcessingExtended:
     """Extended bundle processing tests for coverage."""
 
-    def test_process_bundle_url_parsing_error(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    def test_process_bundle_url_parsing_error(self, mock_session):
         """Test URL parsing exception handling (coverage: lines 281-283)."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         # Bundle with malformed URL that causes parsing error
@@ -952,8 +957,13 @@ class TestJobOperationErrorHandling:
     """Test job operation error scenarios for coverage."""
 
     @pytest.mark.asyncio
-    async def test_start_import_job_validation_exception(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    async def test_start_import_job_validation_exception(self, mock_session):
         """Test import job ValidationException handling (coverage: lines 615-630)."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         error_response = {'Error': {'Code': 'ValidationException', 'Message': 'Invalid S3 URI'}}
@@ -972,8 +982,13 @@ class TestJobOperationErrorHandling:
                 )
 
     @pytest.mark.asyncio
-    async def test_start_import_job_access_denied(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    async def test_start_import_job_access_denied(self, mock_session):
         """Test import job AccessDeniedException handling."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         error_response = {'Error': {'Code': 'AccessDeniedException', 'Message': 'Access denied'}}
@@ -992,8 +1007,13 @@ class TestJobOperationErrorHandling:
                 )
 
     @pytest.mark.asyncio
-    async def test_start_import_job_resource_not_found(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    async def test_start_import_job_resource_not_found(self, mock_session):
         """Test import job ResourceNotFoundException handling."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         error_response = {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Not found'}}
@@ -1012,8 +1032,13 @@ class TestJobOperationErrorHandling:
                 )
 
     @pytest.mark.asyncio
-    async def test_list_jobs_client_error(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    async def test_list_jobs_client_error(self, mock_session):
         """Test list_jobs error handling (coverage: lines 661-669, 683-686)."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         with patch.object(client, 'healthlake_client') as mock_client:
@@ -1030,16 +1055,26 @@ class TestJobOperationErrorHandling:
 class TestFHIRSearchValidationExtended:
     """Extended FHIR search validation tests."""
 
-    def test_validate_search_request_empty_resource_type(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    def test_validate_search_request_empty_resource_type(self, mock_session):
         """Test validation with empty resource type."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         errors = client._validate_search_request(resource_type='', count=50)
 
         assert 'Resource type is required' in errors
 
-    def test_validate_search_request_invalid_include_format(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    def test_validate_search_request_invalid_include_format(self, mock_session):
         """Test validation with invalid include format."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         errors = client._validate_search_request(
@@ -1048,8 +1083,13 @@ class TestFHIRSearchValidationExtended:
 
         assert any('Invalid include format' in error for error in errors)
 
-    def test_validate_search_request_invalid_revinclude_format(self):
+    @patch('awslabs.healthlake_mcp_server.fhir_operations.boto3.Session')
+    def test_validate_search_request_invalid_revinclude_format(self, mock_session):
         """Test validation with invalid revinclude format."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = Mock()
+
         client = HealthLakeClient()
 
         errors = client._validate_search_request(
