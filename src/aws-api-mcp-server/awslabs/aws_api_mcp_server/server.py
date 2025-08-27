@@ -27,6 +27,7 @@ from .core.common.config import (
     DEFAULT_REGION,
     ENABLE_AGENT_SCRIPTS,
     FASTMCP_LOG_LEVEL,
+    HOST,
     PORT,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
@@ -61,7 +62,7 @@ log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
-server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL, port=PORT)
+server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL, host=HOST, port=PORT)
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 
