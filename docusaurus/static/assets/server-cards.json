@@ -119,6 +119,47 @@
     },
     {
       "category": "Infrastructure & Deployment",
+      "description": "Comprehensive AWS resource management with integrated security scanning and full CRUDL operations",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "ccapi-mcp-server",
+      "name": "AWS Cloud Control API MCP Server",
+      "source_path": "src/ccapi-mcp-server/",
+      "subcategory": "Infrastructure as Code",
+      "tags": [
+        "infrastructure-as-code",
+        "cloud-control-api",
+        "security-scanning",
+        "resource-management",
+        "crudl-operations",
+        "vibe-coding",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
+      "description": "Direct CloudFormation resource management via Cloud Control API",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "cfn-mcp-server",
+      "name": "AWS CloudFormation MCP Server",
+      "source_path": "src/cfn-mcp-server/",
+      "subcategory": "Infrastructure as Code",
+      "tags": [
+        "infrastructure-as-code",
+        "cloudformation",
+        "cloud-control-api",
+        "resource-management",
+        "vibe-coding",
+        "infrastructure-deployment"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
       "description": "AWS CDK development with security compliance",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "cdk-mcp-server",
@@ -151,26 +192,6 @@
         "terraform",
         "security-scanning",
         "workflows",
-        "vibe-coding",
-        "infrastructure-deployment"
-      ],
-      "workflows": [
-        "vibe-coding"
-      ]
-    },
-    {
-      "category": "Infrastructure & Deployment",
-      "description": "Direct CloudFormation resource management via Cloud Control API",
-      "icon": "\ud83c\udfd7\ufe0f",
-      "id": "cfn-mcp-server",
-      "name": "AWS CloudFormation MCP Server",
-      "source_path": "src/cfn-mcp-server/",
-      "subcategory": "Infrastructure as Code",
-      "tags": [
-        "infrastructure-as-code",
-        "cloudformation",
-        "cloud-control-api",
-        "resource-management",
         "vibe-coding",
         "infrastructure-deployment"
       ],
@@ -906,6 +927,28 @@
     },
     {
       "category": "Cost & Operations",
+      "description": "AWS Billing and Cost Management",
+      "icon": "\ud83d\udcb0",
+      "id": "billing_cost_management_mcp_server",
+      "name": "AWS Billing and Cost Management MCP Server",
+      "source_path": "src/billing_cost_management_mcp_server/",
+      "subcategory": "Cost Management",
+      "tags": [
+        "billing",
+        "cost-management",
+        "cost-analysis",
+        "cost-optimization",
+        "budgets",
+        "conversational",
+        "business-services",
+        "free-tier"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
       "description": "Pre-deployment cost estimation and optimization",
       "icon": "\ud83d\udcb0",
       "id": "aws-pricing-mcp-server",
@@ -1077,6 +1120,31 @@
       ]
     },
     {
+      "category": "Cost & Operations",
+      "description": "AWS API Activity, User or Resource analysis using CloudTrail Logs",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudtrail-mcp-server",
+      "name": "AWS CloudTrail MCP Server",
+      "source_path": "src/cloutrail-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudtrail",
+        "activity",
+        "audit",
+        "compliance",
+        "logs",
+        "events",
+        "analysis",
+        "troubleshooting",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Developer Tools & Support",
       "description": "Comprehensive IAM user, role, group, and policy management with security best practices",
       "icon": "\ud83d\udee0\ufe0f",
@@ -1140,6 +1208,28 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Assess AWS environments against the Well-Architected Framework Security Pillar",
+      "icon": "\ud83d\udcb0",
+      "id": "well-architected-security-mcp-server",
+      "name": "AWS Well-Architected Security Assessment Tool MCP Server",
+      "source_path": "src/well-architected-security-mcp-server/",
+      "subcategory": "Security Assessment",
+      "tags": [
+        "cost-operations",
+        "security",
+        "well-architected",
+        "assessment",
+        "compliance",
+        "security-posture",
+        "monitoring",
+        "conversational"
+      ],
+      "workflows": [
+        "conversational"
       ]
     }
   ],

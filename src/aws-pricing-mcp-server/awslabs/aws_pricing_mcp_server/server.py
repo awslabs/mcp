@@ -463,14 +463,19 @@ async def get_pricing(
         return await create_error_response(
             ctx=ctx,
             error_type='empty_results',
-            message=f'The service "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
+            message=f'No results found for given filters [{filters}], service: "{service_code}", region "{region}"',
             service_code=service_code,
             region=region,
+            suggestion='Try these approaches: (1) Verify that the service code is valid. Use get_service_codes() to get valid service codes. (2) Validate region and filter values using get_pricing_attribute_values(). (3) Test with fewer filters to isolate the issue.',
             examples={
-                'OpenSearch': 'AmazonES',
-                'Lambda': 'AWSLambda',
-                'DynamoDB': 'AmazonDynamoDB',
-                'Bedrock': 'AmazonBedrock',
+                'Example service codes': [
+                    'AmazonEC2',
+                    'AmazonS3',
+                    'AmazonES',
+                    'AWSLambda',
+                    'AmazonDynamoDB',
+                ],
+                'Example regions': ['us-east-1', 'eu-west-1', 'ap-south-1'],
             },
         )
 

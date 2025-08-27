@@ -14,4 +14,4 @@
 
 """awslabs.amazon-qbusiness-anonymous-mcp-server"""
 
-__version__ = '0.0.0'
+__version__ = '0.0.5'

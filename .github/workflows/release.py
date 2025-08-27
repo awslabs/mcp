@@ -386,8 +386,10 @@ class PyPiPackage:
                     validate_path_security(init_file, self.path)
                     if init_file.exists():
                         init_content = secure_file_read(init_file)
-                        version_pattern = r"__version__\s*=\s*['\"][^'\"]*['\"]"
-                        new_version_line = f"__version__ = '{new_version}'"
+                        version_pattern = (
+                            r'__version__\s*=\s*(?P<start>[\'"])[^\'"]*(?P<end>[\'"])'
+                        )
+                        new_version_line = r'__version__ = \g<start>' + new_version + r'\g<end>'
                         if re.search(version_pattern, init_content):
                             updated_init_content = re.sub(
                                 version_pattern, new_version_line, init_content

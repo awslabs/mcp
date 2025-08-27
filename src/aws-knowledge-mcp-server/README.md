@@ -63,7 +63,7 @@ You can configure the Knowledge server for use with any MCP client that supports
 }
 ```
 
-If the client you use does not support HTTP transport for MCP or if it encounters issues during setup, we recommend to use either the [mcp-remote](https://github.com/geelen/mcp-remote) or [mcp-proxy](https://github.com/TBXark/mcp-proxy) utility to proxy from stdio to HTTP transport. Clients that fall in this category may include Kiro, Cline, Q CLI and Claude Desktop. Find below configuration examples for both utilities.
+If the client you use does not support HTTP transport for MCP or if it encounters issues during setup, we recommend to use either the [mcp-remote](https://github.com/geelen/mcp-remote) or [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy) utility to proxy from stdio to HTTP transport. Clients that fall in this category may include Kiro, Cline, Q CLI and Claude Desktop. Find below configuration examples for both utilities.
 
 **mcp-remote**
 

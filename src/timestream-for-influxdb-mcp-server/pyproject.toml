@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.timestream-for-influxdb-mcp-server"
-version = "0.0.2"
+version = "0.0.5"
 description = "An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB"
 readme = "README.md"
 requires-python = ">=3.10"

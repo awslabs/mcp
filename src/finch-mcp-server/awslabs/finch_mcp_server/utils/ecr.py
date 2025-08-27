@@ -76,7 +76,6 @@ def create_ecr_repository(
 
         response = ecr_client.create_repository(
             repositoryName=repository_name,
-            imageScanningConfiguration={'scanOnPush': True},
             imageTagMutability='IMMUTABLE',
         )
 
