@@ -15,13 +15,13 @@
 """AWS helper functions."""
 
 import boto3
-import sys
 from awslabs.aws_bedrock_custom_model_import_mcp_server import __version__
 from awslabs.aws_bedrock_custom_model_import_mcp_server.utils.consts import (
     AWS_REGION,
     ENV_ROLE_ARN,
 )
 from botocore.config import Config
+from loguru import logger
 from typing import Any
 
 
@@ -39,12 +39,13 @@ def get_aws_client(
     """
     try:
         config = Config(
-            user_agent_extra=f'awslabs/mcp/aws-bedrock-custom-model-import-mcp-server/{__version__}'
+            retries={'max_attempts': 3, 'mode': 'standard'},
+            user_agent_extra=f'awslabs/mcp/aws-bedrock-custom-model-import-mcp-server/{__version__}',
         )
         session = boto3.Session(profile_name=profile_name, region_name=region_name)
         return session.client(service_name, config=config)
     except Exception as e:
-        print(f'Error creating {service_name} client: {str(e)}', file=sys.stderr)
+        logger.error(f'Error creating {service_name} client: {str(e)}')
         if 'ExpiredToken' in str(e):
             raise RuntimeError('Your AWS credentials have expired. Please refresh them.')
         elif 'NoCredentialProviders' in str(e):

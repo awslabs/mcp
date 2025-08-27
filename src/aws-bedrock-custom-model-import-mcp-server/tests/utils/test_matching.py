@@ -89,7 +89,7 @@ class TestApproximateMatch:
         assert 'totally-unrelated' not in result
 
         # With very high threshold - should return None
-        result = approximate_match(candidates, target, threshold=290)
+        result = approximate_match(candidates, target, threshold=400)
         assert result is None
 
         # With very low threshold - should include more matches

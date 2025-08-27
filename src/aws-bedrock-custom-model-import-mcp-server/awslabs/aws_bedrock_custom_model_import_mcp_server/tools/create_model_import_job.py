@@ -67,7 +67,7 @@ class CreateModelImportJob:
         ## Usage Instructions
         1. Create descriptive job and model names based on the model you want to import
            - The tool itself will automatically add a timestamp suffix to distinguish names from multiple imports
-           - Example: For a LLAMA-2 model, use "llama2-import-job" and "llama2-model"
+           - Example: For a LLAMA-2 model, use "llama-2-import-job" and "llama-2" for job name and model name respectively
         2. The S3 URI is NOT required - it will be automatically inferred from the model name
         3. For advanced configurations, you can optionally specify:
            - Role ARN for permissions
@@ -77,7 +77,7 @@ class CreateModelImportJob:
 
         ## Best Practices
         - Use clear, descriptive names for both jobName and importedModelName
-        - Name the model based on its architecture and purpose (e.g., "llama2-7b-chat")
+        - Name the model based on its architecture and purpose (e.g., "llama-2-7b-chat")
         - When importing multiple versions of the same model, use consistent naming with version indicators
 
         Args:

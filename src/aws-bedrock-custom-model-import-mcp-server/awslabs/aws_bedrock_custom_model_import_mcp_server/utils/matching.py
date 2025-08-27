@@ -14,6 +14,7 @@
 
 """Utility functions for approximate resource matching."""
 
+import difflib
 import re
 from loguru import logger
 from thefuzz import fuzz
@@ -32,8 +33,8 @@ def normalize_name(name: str) -> str:
     # Convert to lowercase
     name = name.lower()
 
-    # Normalize version (remove dots and dashes)
-    name = re.sub(r'([A-Za-z0-9])[.-]([A-Za-z0-9])', r'\1\2', name)
+    # Remove all dots and dashes
+    name = re.sub(r'[.-]', '', name)
 
     # Remove other common separators
     name = re.sub(r'[-_]', '', name)
@@ -69,13 +70,27 @@ def approximate_match(
     for candidate in candidates:
         candidate_normalized = normalize_name(candidate)
 
-        # Combine different approximate matching methods
+        # Base similarity scores
+        ratio_score = fuzz.ratio(target_normalized, candidate_normalized)
+        partial_score = fuzz.partial_ratio(target_normalized, candidate_normalized)
+        token_score = fuzz.token_sort_ratio(target_normalized, candidate_normalized)
+
+        # Sequence matcher for longest contiguous match
+        seq_matcher = difflib.SequenceMatcher(None, target_normalized, candidate_normalized)
+        longest_match = seq_matcher.find_longest_match(
+            0, len(target_normalized), 0, len(candidate_normalized)
+        )
+        longest_match_score = (longest_match.size / len(target_normalized)) * 100
+
+        # Adjust ratio score based on string length
+        length_factor = min(len(candidate_normalized) / len(target_normalized), 1)
+        adjusted_ratio_score = ratio_score * length_factor
+
         score = (
-            fuzz.ratio(target_normalized, candidate_normalized)  # Exact character match
-            + fuzz.partial_ratio(target_normalized, candidate_normalized)  # Partial string match
-            + fuzz.token_sort_ratio(
-                target_normalized, candidate_normalized
-            )  # Token order independent match
+            adjusted_ratio_score * 1.0  # Higher weight for exact character match
+            + partial_score * 1.0  # Normal weight for partial matches
+            + token_score * 0.5  # Lower weight for token sorting
+            + longest_match_score * 2.0  # Weight for longest contiguous match
         )
         scored_candidates.append((candidate, score))
 

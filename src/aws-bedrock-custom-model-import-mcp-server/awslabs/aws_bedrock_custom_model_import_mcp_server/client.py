@@ -226,6 +226,42 @@ class BedrockModelImportClient:
             logger.error(f'Error deleting imported model: {str(e)}')
             raise
 
+    def _paginate_results(self, paginator, **kwargs) -> list:
+        """Helper method for pagination.
+
+        Args:
+            paginator: The paginator object
+            **kwargs: Additional parameters to pass to the paginate method
+
+        Returns:
+            list: Aggregated results from all pages
+
+        Raises:
+            ClientError: If there is an error from the AWS service (except throttling errors)
+        """
+        all_results = []
+
+        try:
+            for page in paginator.paginate(**kwargs):
+                for key in page:
+                    if isinstance(page[key], list):
+                        all_results.extend(page[key])
+                        break
+        except ClientError as e:
+            if e.response['Error']['Code'] in [
+                'ThrottlingException',
+                'Throttling',
+                'TooManyRequestsException',
+                'RequestLimitExceeded',
+            ]:
+                logger.warning(
+                    'Throttling occurred during pagination. Proceeding with partial results.'
+                )
+                return all_results
+            raise
+
+        return all_results
+
     def _find_model_in_s3(self, bucket_name: str, model_name: str) -> Optional[str]:
         """Search for a model in S3 bucket using approximate matching.
 
@@ -242,12 +278,9 @@ class BedrockModelImportClient:
             Optional[str]: S3 URI if found, None otherwise
         """
         try:
-            # Get all objects in the bucket
+            # Get all objects in the bucket using the pagination helper
             paginator = self.s3_client.get_paginator('list_objects_v2')
-            all_objects = []
-            for page in paginator.paginate(Bucket=bucket_name):
-                all_objects.extend(page.get('Contents', []))
-
+            all_objects = self._paginate_results(paginator, Bucket=bucket_name)
             if not all_objects:
                 logger.warning(
                     f'No objects found in bucket {bucket_name}. Please ensure the bucket exists and contains model files.'
@@ -353,9 +386,9 @@ class BedrockModelImportClient:
             # Create a map of job names to their status
             job_status_map = {}
             paginator = self.bedrock_client.get_paginator('list_model_import_jobs')
-            for page in paginator.paginate():
-                for job in page['modelImportJobSummaries']:
-                    job_status_map[job['jobName']] = job['status']
+            job_summaries = self._paginate_results(paginator)
+            for job in job_summaries:
+                job_status_map[job['jobName']] = job['status']
 
             if not job_status_map:
                 logger.warning('No model import jobs found')
@@ -418,10 +451,9 @@ class BedrockModelImportClient:
 
             # Fall back to approximate matching
             # Get a list of all model names
-            model_names = []
             paginator = self.bedrock_client.get_paginator('list_imported_models')
-            for page in paginator.paginate():
-                model_names.extend([model['modelName'] for model in page['modelSummaries']])
+            model_summaries = self._paginate_results(paginator)
+            model_names = [model['modelName'] for model in model_summaries]
 
             if not model_names:
                 logger.warning('No imported models found')

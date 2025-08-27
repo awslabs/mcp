@@ -574,3 +574,91 @@ class TestBedrockModelImportClient:
         client.bedrock_client.get_paginator.side_effect = Exception('Test error')
         with pytest.raises(Exception, match='Test error'):
             client._find_model_by_approximate_match(model_name)
+
+    async def test_paginate_results(self, client: BedrockModelImportClient):
+        """Test the _paginate_results method with various scenarios including throttling."""
+        # Setup
+        paginator_mock = MagicMock()
+
+        # Test 1: Normal pagination with multiple pages
+        paginator_mock.paginate.return_value = [
+            {'Contents': [{'Key': 'file1'}, {'Key': 'file2'}]},
+            {'Contents': [{'Key': 'file3'}]},
+        ]
+
+        results = client._paginate_results(paginator_mock, Bucket='test-bucket')
+        assert len(results) == 3
+        assert results[0]['Key'] == 'file1'
+        assert results[2]['Key'] == 'file3'
+        paginator_mock.paginate.assert_called_once_with(Bucket='test-bucket')
+
+        # Test 2: Empty results
+        paginator_mock.reset_mock()
+        paginator_mock.paginate.return_value = [{}]
+
+        results = client._paginate_results(paginator_mock)
+        assert len(results) == 0
+
+        # Test 3: Different key in response
+        paginator_mock.reset_mock()
+        paginator_mock.paginate.return_value = [
+            {'Items': [{'id': 'item1'}, {'id': 'item2'}]},
+        ]
+
+        results = client._paginate_results(paginator_mock)
+        assert len(results) == 2
+        assert results[0]['id'] == 'item1'
+
+        # Test 4: Throttling exception
+        paginator_mock.reset_mock()
+
+        # First page succeeds, second page throws throttling exception
+        def paginate_side_effect(**kwargs):
+            yield {'Contents': [{'Key': 'file1'}, {'Key': 'file2'}]}
+            error_response = {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}}
+            raise ClientError(error_response, 'ListObjects')
+
+        paginator_mock.paginate.side_effect = paginate_side_effect
+
+        # Should return partial results and not re-raise the throttling exception
+        with patch(
+            'awslabs.aws_bedrock_custom_model_import_mcp_server.client.logger'
+        ) as mock_logger:
+            results = client._paginate_results(paginator_mock)
+            assert len(results) == 2
+            assert results[0]['Key'] == 'file1'
+            mock_logger.warning.assert_called_once()
+            assert 'Throttling occurred' in mock_logger.warning.call_args[0][0]
+
+        # Test 5: Other ClientError exception
+        paginator_mock.reset_mock()
+
+        error_response = {'Error': {'Code': 'AccessDenied', 'Message': 'Access Denied'}}
+        paginator_mock.paginate.side_effect = ClientError(error_response, 'ListObjects')
+
+        # Should re-raise non-throttling exceptions
+        with pytest.raises(ClientError) as excinfo:
+            client._paginate_results(paginator_mock)
+        assert excinfo.value.response['Error']['Code'] == 'AccessDenied'
+
+        # Test 6: Test all throttling error codes
+        throttling_codes = [
+            'ThrottlingException',
+            'Throttling',
+            'TooManyRequestsException',
+            'RequestLimitExceeded',
+        ]
+
+        for code in throttling_codes:
+            paginator_mock.reset_mock()
+            error_response = {'Error': {'Code': code, 'Message': f'{code} occurred'}}
+            paginator_mock.paginate.side_effect = ClientError(error_response, 'ListObjects')
+
+            # Should handle all throttling codes and return empty results
+            with patch(
+                'awslabs.aws_bedrock_custom_model_import_mcp_server.client.logger'
+            ) as mock_logger:
+                results = client._paginate_results(paginator_mock)
+                assert len(results) == 0
+                mock_logger.warning.assert_called_once()
+                assert 'Throttling occurred' in mock_logger.warning.call_args[0][0]
