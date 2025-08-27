@@ -184,3 +184,89 @@ class TestFHIRErrorScenarios:
                     {'s3_configuration': {'s3_uri': 's3://bucket/output'}},
                     'arn:aws:iam::123456789012:role/HealthLakeRole',
                 )
+
+    async def test_pagination_next_url_extraction(self, client):
+        """Test pagination next URL extraction - covers lines 330-332."""
+        bundle_with_next = {
+            'resourceType': 'Bundle',
+            'link': [
+                {'relation': 'self', 'url': 'https://example.com/self'},
+                {'relation': 'next', 'url': 'https://example.com/next?page=2'},
+            ],
+            'entry': [],
+        }
+
+        result = client._process_bundle(bundle_with_next)
+        assert result['pagination']['has_next'] is True
+        assert 'next' in result['pagination']['next_token']
+
+    async def test_import_job_with_kms_key(self, client):
+        """Test import job with KMS key - covers line 599."""
+        with patch.object(client.healthlake_client, 'start_fhir_import_job') as mock_start:
+            mock_start.return_value = {'JobId': 'test-job-123'}
+
+            await client.start_import_job(
+                'test-datastore',
+                {'s3_uri': 's3://bucket/data'},
+                {'s3_configuration': {'s3_uri': 's3://bucket/output', 'kms_key_id': 'key-123'}},
+                'arn:aws:iam::123456789012:role/Role',
+            )
+
+            # Verify KMS key was set
+            call_args = mock_start.call_args[1]
+            s3_config = call_args['JobOutputDataConfig']['S3Configuration']
+            assert s3_config['KmsKeyId'] == 'key-123'
+
+    async def test_import_job_with_name(self, client):
+        """Test import job with job name - covers line 609."""
+        with patch.object(client.healthlake_client, 'start_fhir_import_job') as mock_start:
+            mock_start.return_value = {'JobId': 'test-job-123'}
+
+            await client.start_import_job(
+                'test-datastore',
+                {'s3_uri': 's3://bucket/data'},
+                {'s3_configuration': {'s3_uri': 's3://bucket/output'}},
+                'arn:aws:iam::123456789012:role/Role',
+                job_name='my-import-job',
+            )
+
+            # Verify job name was set
+            call_args = mock_start.call_args[1]
+            assert call_args['JobName'] == 'my-import-job'
+
+    async def test_import_job_unknown_error_coverage(self, client):
+        """Test import job unknown error - covers lines 629-630."""
+        error_response = {'Error': {'Code': 'UnknownError', 'Message': 'Unknown error'}}
+        client_error = ClientError(error_response, 'StartFHIRImportJob')
+
+        with patch.object(
+            client.healthlake_client, 'start_fhir_import_job', side_effect=client_error
+        ):
+            with pytest.raises(ClientError):
+                await client.start_import_job(
+                    'test-datastore',
+                    {'s3_uri': 's3://bucket/data'},
+                    {'s3_configuration': {'s3_uri': 's3://bucket/output'}},
+                    'arn:aws:iam::123456789012:role/Role',
+                )
+
+    async def test_list_export_jobs_with_status_filter(self, client):
+        """Test list export jobs with status filter - covers line 668."""
+        with patch.object(client.healthlake_client, 'list_fhir_export_jobs') as mock_list:
+            mock_list.return_value = {'ExportJobPropertiesList': []}
+
+            await client.list_jobs('test-datastore', job_status='COMPLETED', job_type='EXPORT')
+
+            # Verify job status was passed
+            call_args = mock_list.call_args[1]
+            assert call_args['JobStatus'] == 'COMPLETED'
+
+    async def test_import_job_invalid_output_config_coverage(self, client):
+        """Test import job with invalid output config - covers line 586."""
+        with pytest.raises(ValueError, match='s3_configuration with s3_uri'):
+            await client.start_import_job(
+                'test-datastore',
+                {'s3_uri': 's3://bucket/data'},
+                {'invalid_config': 'bad'},  # Invalid config structure
+                'arn:aws:iam::123456789012:role/Role',
+            )
