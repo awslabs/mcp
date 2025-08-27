@@ -551,25 +551,15 @@ def create_healthlake_server() -> Server:
         """List available HealthLake datastores as discoverable resources."""
         try:
             response = await healthlake_client.list_datastores()
-            resources = []
-
-            for datastore in response.get('DatastorePropertiesList', []):
-                status_emoji = '✅' if datastore['DatastoreStatus'] == 'ACTIVE' else '⏳'
-                created_date = datastore['CreatedAt'].strftime('%Y-%m-%d')
-
-                resources.append(
-                    Resource(
-                        uri=AnyUrl(f'healthlake://datastore/{datastore["DatastoreId"]}'),
-                        name=f'{status_emoji} {datastore.get("DatastoreName", "Unnamed")} ({datastore["DatastoreStatus"]})',
-                        description=f'FHIR {datastore["DatastoreTypeVersion"]} datastore\n'
-                        f'Created: {created_date}\n'
-                        f'Endpoint: {datastore["DatastoreEndpoint"]}\n'
-                        f'ID: {datastore["DatastoreId"]}',
-                        mimeType='application/json',
-                    )
+            return [
+                Resource(
+                    uri=AnyUrl(f'healthlake://datastore/{ds["DatastoreId"]}'),
+                    name=f'{"✅" if ds["DatastoreStatus"] == "ACTIVE" else "⏳"} {ds.get("DatastoreName", "Unnamed")} ({ds["DatastoreStatus"]})',
+                    description=f'FHIR {ds["DatastoreTypeVersion"]} datastore\nCreated: {ds["CreatedAt"].strftime("%Y-%m-%d")}\nEndpoint: {ds["DatastoreEndpoint"]}\nID: {ds["DatastoreId"]}',
+                    mimeType='application/json',
                 )
-
-            return resources
+                for ds in response.get('DatastorePropertiesList', [])
+            ]
         except Exception as e:
             logger.error(f'Error listing datastore resources: {e}')
             return []
@@ -580,39 +570,36 @@ def create_healthlake_server() -> Server:
         uri_str = str(uri)
         if not uri_str.startswith('healthlake://datastore/'):
             raise ValueError(f'Unknown resource URI: {uri_str}')
-
         datastore_id = uri_str.split('/')[-1]
-        details = await healthlake_client.get_datastore_details(datastore_id)
-
-        return json.dumps(details, indent=2, cls=DateTimeEncoder)
+        return json.dumps(
+            await healthlake_client.get_datastore_details(datastore_id),
+            indent=2,
+            cls=DateTimeEncoder,
+        )
 
     @server.call_tool()
     async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> Sequence[TextContent]:
         """Handle tool calls using dispatch pattern."""
         try:
             return await tool_handler.handle_tool(name, arguments)
-
         except (InputValidationError, ValueError) as e:
             logger.warning(f'Validation error in {name}: {e}')
             return create_error_response(str(e), 'validation_error')
-
         except ClientError as e:
             error_code = e.response['Error']['Code']
             logger.error(f'AWS error in {name}: {error_code}')
-
-            if error_code == 'ResourceNotFoundException':
-                return create_error_response('Resource not found', 'not_found')
-            elif error_code == 'ValidationException':
-                return create_error_response(
-                    f'Invalid parameters: {e.response["Error"]["Message"]}', 'validation_error'
-                )
-            else:
-                return create_error_response('AWS service error', 'service_error')
-
+            errors = {
+                'ResourceNotFoundException': ('Resource not found', 'not_found'),
+                'ValidationException': (
+                    f'Invalid parameters: {e.response["Error"]["Message"]}',
+                    'validation_error',
+                ),
+            }
+            msg, typ = errors.get(error_code, ('AWS service error', 'service_error'))
+            return create_error_response(msg, typ)
         except NoCredentialsError:
             logger.error(f'Credentials error in {name}')
             return create_error_response('AWS credentials not configured', 'auth_error')
-
         except Exception as e:
             logger.error(f'Unexpected error in {name}: {e}', exc_info=True)
             return create_error_response('Internal server error', 'server_error')
