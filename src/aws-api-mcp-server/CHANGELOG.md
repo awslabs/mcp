@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for streamable HTTP transport mode via `AWS_API_MCP_TRANSPORT` environment variable
 - Configurable port for HTTP transport mode via `AWS_API_MCP_PORT` environment variable (defaults to 8000)
+- Configurable host for HTTP transport mode via `AWS_API_MCP_HOST` environment variable (defaults to 127.0.0.1)
 
 ### Changed
 
