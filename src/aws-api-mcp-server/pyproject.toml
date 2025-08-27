@@ -2,7 +2,7 @@
 name = "awslabs.aws-api-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.2.8"
+version = "0.2.9"
 
 description = "Model Context Protocol (MCP) server for interacting with AWS"
 readme = "README.md"
@@ -22,6 +22,7 @@ dependencies = [
     "loguru>=0.7.3",
     "importlib_resources>=6.0.0",
     "requests>=2.32.4",
+    "python-frontmatter>=1.1.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

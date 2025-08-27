@@ -952,6 +952,28 @@
     },
     {
       "category": "Cost & Operations",
+      "description": "AWS Billing and Cost Management",
+      "icon": "\ud83d\udcb0",
+      "id": "billing_cost_management_mcp_server",
+      "name": "AWS Billing and Cost Management MCP Server",
+      "source_path": "src/billing_cost_management_mcp_server/",
+      "subcategory": "Cost Management",
+      "tags": [
+        "billing",
+        "cost-management",
+        "cost-analysis",
+        "cost-optimization",
+        "budgets",
+        "conversational",
+        "business-services",
+        "free-tier"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
       "description": "Pre-deployment cost estimation and optimization",
       "icon": "\ud83d\udcb0",
       "id": "aws-pricing-mcp-server",
@@ -1113,6 +1135,31 @@
         "metrics",
         "alarms",
         "logs",
+        "analysis",
+        "troubleshooting",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "AWS API Activity, User or Resource analysis using CloudTrail Logs",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudtrail-mcp-server",
+      "name": "AWS CloudTrail MCP Server",
+      "source_path": "src/cloutrail-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudtrail",
+        "activity",
+        "audit",
+        "compliance",
+        "logs",
+        "events",
         "analysis",
         "troubleshooting",
         "autonomous",
