@@ -20,7 +20,10 @@ import os
 import regex
 from awslabs.redshift_mcp_server import __version__
 from awslabs.redshift_mcp_server.consts import (
-    CLIENT_TIMEOUT,
+    CLIENT_CONNECT_TIMEOUT,
+    CLIENT_READ_TIMEOUT,
+    CLIENT_RETRIES,
+    CLIENT_USER_AGENT_NAME,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
     SUSPICIOUS_QUERY_REGEXP,
@@ -179,19 +182,22 @@ async def execute_statement(
         )
 
     # Guard from executing read-write statements if not allowed
-    protected_sqls = protect_sql(sql, allow_read_write)
-    logger.debug(f'Protected SQL: {" ".join(protected_sqls)}')
+    sqls = protect_sql(sql, allow_read_write)
+    # Add application name and version
+    sqls = [f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__}';"] + sqls
+
+    logger.debug(f'Protected and versioned SQL: {" ".join(sqls)}')
 
     # Execute the query using Data API
     if cluster_info['type'] == 'provisioned':
         logger.debug(f'Using ClusterIdentifier for provisioned cluster: {cluster_identifier}')
         response = data_client.batch_execute_statement(
-            ClusterIdentifier=cluster_identifier, Database=database_name, Sqls=protected_sqls
+            ClusterIdentifier=cluster_identifier, Database=database_name, Sqls=sqls
         )
     elif cluster_info['type'] == 'serverless':
         logger.debug(f'Using WorkgroupName for serverless workgroup: {cluster_identifier}')
         response = data_client.batch_execute_statement(
-            WorkgroupName=cluster_identifier, Database=database_name, Sqls=protected_sqls
+            WorkgroupName=cluster_identifier, Database=database_name, Sqls=sqls
         )
     else:
         raise Exception(f'Unknown cluster type: {cluster_info["type"]}')
@@ -223,9 +229,9 @@ async def execute_statement(
         raise Exception(f'Query timed out after {QUERY_TIMEOUT} seconds')
 
     # Get user query results
-    subquery1_id = status_response['SubStatements'][1]['Id']
-    results_response = data_client.get_statement_result(Id=subquery1_id)
-    return results_response, subquery1_id
+    subquery2_id = status_response['SubStatements'][2]['Id']
+    results_response = data_client.get_statement_result(Id=subquery2_id)
+    return results_response, subquery2_id
 
 
 async def discover_clusters() -> list[dict]:
@@ -606,10 +612,10 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
 # Global client manager instance
 client_manager = RedshiftClientManager(
     config=Config(
-        connect_timeout=CLIENT_TIMEOUT,
-        read_timeout=CLIENT_TIMEOUT,
-        retries={'max_attempts': 3, 'mode': 'adaptive'},
-        user_agent_extra=f'awslabs/mcp/redshift-mcp-server/{__version__}',
+        connect_timeout=CLIENT_CONNECT_TIMEOUT,
+        read_timeout=CLIENT_READ_TIMEOUT,
+        retries=CLIENT_RETRIES,
+        user_agent_extra=f'{CLIENT_USER_AGENT_NAME}/{__version__}',
     ),
     aws_region=os.environ.get('AWS_REGION'),
     aws_profile=os.environ.get('AWS_PROFILE'),

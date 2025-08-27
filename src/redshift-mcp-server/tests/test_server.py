@@ -815,6 +815,7 @@ class TestExecuteQueryTool:
         mock_data_client.describe_statement.return_value = {
             'Status': 'FINISHED',
             'SubStatements': [
+                {'Id': 'set-app-name'},  # SET application_name
                 {'Id': 'sub-query-0'},  # BEGIN READ ONLY
                 {'Id': 'query-123'},  # Our actual SQL query
                 {'Id': 'sub-query-2'},  # END
