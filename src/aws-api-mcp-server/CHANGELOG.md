@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable port for HTTP transport mode via `AWS_API_MCP_PORT` environment variable (defaults to 8000)
 - Configurable host for HTTP transport mode via `AWS_API_MCP_HOST` environment variable (defaults to 127.0.0.1)
 
+### Fixed
+
+- Support commands with outfile parameter (#1154)
+
+## [0.2.8] - 2025-08-21
+
 ### Changed
 
 - Fetch embedding model from AWS instead of Hugging Face (#1127)

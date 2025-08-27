@@ -14,11 +14,25 @@
 
 import awscli.clidriver
 import re
+from awscli.paramfile import LOCAL_PREFIX_MAP, URIArgumentHandler
 from botocore.model import OperationModel
 from collections.abc import Set
 from loguru import logger
 from lxml import html
 from typing import Any, NamedTuple
+
+
+def _deny_remote_prefix(prefix, uri):
+    raise ValueError(f'{prefix} prefix is not allowed')
+
+
+RESTRICTED_URI_HANDLER = URIArgumentHandler(
+    prefixes={
+        **LOCAL_PREFIX_MAP,
+        'http://': (_deny_remote_prefix, {}),
+        'https://': (_deny_remote_prefix, {}),
+    }
+)
 
 
 PaginationConfig = dict[str, int]
@@ -35,6 +49,7 @@ filter_query = re.compile(r'^\s+([-a-z0-9_.]+|tag:<key>)\s+')
 
 driver = awscli.clidriver.create_clidriver()
 session = driver.session
+session.register('load-cli-arg', RESTRICTED_URI_HANDLER)
 
 
 class OperationFilters:

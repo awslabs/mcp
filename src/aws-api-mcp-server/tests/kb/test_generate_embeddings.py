@@ -266,8 +266,13 @@ def test_generate_operation_document_for_custom_argument():
 
 def test_get_aws_api_documents():
     """Test _get_aws_api_documents."""
+    # Create fresh driver to avoid interference from other tests
+    import awscli.clidriver
+
+    new_driver = awscli.clidriver.create_clidriver()
+
     # Get original command table and filter to only s3, cloudformation, lambda, configure, history
-    original_table = driver._get_command_table()
+    original_table = new_driver._get_command_table()
     filtered_table = {
         k: v
         for k, v in original_table.items()

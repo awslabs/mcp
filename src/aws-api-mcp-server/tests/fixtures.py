@@ -5,7 +5,7 @@ import datetime
 from .history_handler import history
 from awslabs.aws_api_mcp_server.core.common.models import Credentials
 from copy import deepcopy
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 S3_CLI_NO_REGION = 'aws s3api list-buckets'
@@ -176,6 +176,33 @@ CLOUDFRONT_FUNCTIONS = {
 }
 
 
+class MockStreamingBody:
+    """Mock implementation of boto3's StreamingBody for testing."""
+
+    def __init__(self, content):
+        """Initialize the mock streaming body with content."""
+        self.content = content
+
+    def iter_chunks(self, chunk_size=1024):
+        """Yield chunks of the content."""
+        yield self.content
+
+    def read(self):
+        """Read all content."""
+        return self.content
+
+
+S3_GET_OBJECT_PAYLOAD = {
+    'Body': MockStreamingBody(b'test content'),
+    'ResponseMetadata': {'HTTPStatusCode': 200},
+}
+
+LAMBDA_INVOKE_PAYLOAD = {
+    'Payload': MockStreamingBody(b'{"result": "success"}'),
+    'ResponseMetadata': {'HTTPStatusCode': 200},
+}
+
+
 def raise_(ex):
     """Raise the given exception."""
     raise ex
@@ -189,6 +216,8 @@ _patched_operations = {
     'GetCallerIdentity': lambda *args, **kwargs: GET_CALLER_IDENTITY_PAYLOAD,
     'ListBuckets': lambda *args, **kwargs: LIST_BUCKETS_PAYLOAD,
     'ListNodes': lambda *args, **kwargs: SSM_LIST_NODES_PAYLOAD,
+    'GetObject': lambda *args, **kwargs: S3_GET_OBJECT_PAYLOAD,
+    'Invoke': lambda *args, **kwargs: LAMBDA_INVOKE_PAYLOAD,
 }
 
 
@@ -208,6 +237,22 @@ def mock_make_api_call(self, operation_name, kwarg):
     # If we don't want to patch the API call; these will fail
     # as credentials are invalid
     return orig(self, operation_name, kwarg)
+
+
+def create_file_open_mock(*target_files):
+    """Create a mock open function that only mocks specific files."""
+    original_open = open
+    mock_files = {filename: MagicMock() for filename in target_files}
+
+    def mock_open_side_effect(filename, mode='r', *args, **kwargs):
+        if filename in target_files:
+            mock_context = MagicMock()
+            mock_file = mock_files[filename]
+            mock_context.__enter__.return_value = mock_file
+            return mock_context
+        return original_open(filename, mode, *args, **kwargs)
+
+    return mock_open_side_effect, mock_files
 
 
 @contextlib.contextmanager

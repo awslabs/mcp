@@ -1,6 +1,7 @@
 import pytest
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.errors import (
+    CommandValidationError,
     InvalidServiceOperationError,
     MissingRequiredParametersError,
     OperationNotAllowedError,
@@ -11,6 +12,8 @@ from awslabs.aws_api_mcp_server.core.parser.parser import (
     is_denied_custom_operation,
     parse,
 )
+from tests.fixtures import create_file_open_mock
+from unittest.mock import patch
 
 
 def test_wait_is_custom_operation():
@@ -414,3 +417,56 @@ def test_rds_generate_db_auth_token_with_numeric_port():
     assert result.command_metadata.operation_sdk_name == 'generate-db-auth-token'
     assert result.is_awscli_customization is True
     assert result.parameters['--port'] == '5432'  # Port is a string, not an integer
+
+
+def test_local_file_uri():
+    """Test aws command with URI input file parameter."""
+    import io
+    import zipfile
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr(
+            'lambda_function.py', 'def lambda_handler(event, context): return "Hello World"'
+        )
+    mock_zip_content = zip_buffer.getvalue()
+
+    zip_file_path = '/test/path/lambda-deployment.zip'
+    mock_open_side_effect, mock_files = create_file_open_mock(zip_file_path)
+
+    with patch('builtins.open', side_effect=mock_open_side_effect):
+        mock_file = mock_files[zip_file_path]
+        mock_file.read.return_value = mock_zip_content
+
+        result = parse(
+            f'aws lambda create-function --function-name hello-world-lambda --runtime python3.9 '
+            f'--role arn:aws:iam::123456789012:role/lambda-test-role --handler lambda_function.lambda_handler '
+            f'--zip-file fileb://{zip_file_path} --description "A Hello World Lambda function"'
+        )
+
+        assert result.is_awscli_customization is False
+        assert result.command_metadata.service_sdk_name == 'lambda'
+        assert result.command_metadata.operation_sdk_name == 'CreateFunction'
+
+        assert 'Code' in result.parameters
+        assert 'ZipFile' in result.parameters['Code']
+        assert isinstance(result.parameters['Code']['ZipFile'], bytes)
+        assert result.parameters['Code']['ZipFile'] == mock_zip_content
+
+        assert result.parameters['FunctionName'] == 'hello-world-lambda'
+        assert result.parameters['Runtime'] == 'python3.9'
+        assert result.parameters['Role'] == 'arn:aws:iam::123456789012:role/lambda-test-role'
+        assert result.parameters['Handler'] == 'lambda_function.lambda_handler'
+        assert result.parameters['Description'] == 'A Hello World Lambda function'
+
+
+def test_http_uri_validation_error():
+    """Test aws command with http:// URI throws validation error."""
+    with pytest.raises(CommandValidationError) as exc_info:
+        parse(
+            'aws cloudformation create-stack --stack-name test-stack '
+            '--template-body http://example.com/template.yaml'
+        )
+
+    error_message = str(exc_info.value)
+    assert 'http:// prefix is not allowed' in error_message

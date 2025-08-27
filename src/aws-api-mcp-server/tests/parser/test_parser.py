@@ -3,7 +3,6 @@ import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
-    CommandValidationError,
     ExpectedArgumentError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
@@ -214,25 +213,6 @@ def test_invalid_choice_for_option(command, message):
 def test_invalid_type_for_parameter(command, message):
     """Test that an invalid type for a parameter raises InvalidTypeForParameterError."""
     with pytest.raises(InvalidTypeForParameterError, match=message):
-        parse(command)
-
-
-@pytest.mark.parametrize(
-    'command, message',
-    [
-        (
-            'aws lambda  update-function-code --function-name MyFunction --zip-file  fileb://newfunction.zip',
-            str(
-                CommandValidationError(
-                    '-zip-file must be a zip file with the fileb:// prefix.\nExample usage:  --zip-file fileb://path/to/file.zip'
-                )
-            ),
-        )
-    ],
-)
-def test_command_validation_error_for_parameter(command, message):
-    """Test that a command validation error is raised for invalid parameters."""
-    with pytest.raises(CommandValidationError, match=message):
         parse(command)
 
 
@@ -602,22 +582,6 @@ def test_client_side_filter_error():
     command = 'aws ec2 describe-instances --query "Reservations[[]"'
     with pytest.raises(
         ClientSideFilterError, match="Error parsing client-side filter 'Reservations[[]'*"
-    ):
-        parse(command)
-
-
-@pytest.mark.parametrize(
-    'command',
-    [
-        'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template myfile.template',
-        'aws lambda invoke --function-name my-function response.json',
-    ],
-)
-def test_outfile_parameter_not_supported(command):
-    """Test that outfile parameters raise a validation error."""
-    with pytest.raises(
-        CommandValidationError,
-        match='Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.',
     ):
         parse(command)
 
