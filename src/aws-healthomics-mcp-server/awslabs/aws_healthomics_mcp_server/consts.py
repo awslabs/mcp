@@ -14,8 +14,8 @@
 
 """Defines constants used across the server."""
 
-from loguru import logger
 import os
+from loguru import logger
 
 
 # Service constants
@@ -24,9 +24,9 @@ DEFAULT_STORAGE_TYPE = 'DYNAMIC'
 try:
     DEFAULT_MAX_RESULTS = int(os.environ.get('HEALTHOMICS_DEFAULT_MAX_RESULTS', '10'))
 except ValueError:
-    logging.warning(
-        "Invalid value for HEALTHOMICS_DEFAULT_MAX_RESULTS environment variable. "
-        "Using default value of 10."
+    logger.warning(
+        'Invalid value for HEALTHOMICS_DEFAULT_MAX_RESULTS environment variable. '
+        'Using default value of 10.'
     )
     DEFAULT_MAX_RESULTS = 10
 
