@@ -15,10 +15,12 @@
 """awslabs frontend MCP Server implementation."""
 
 from awslabs.frontend_mcp_server.utils.file_utils import load_markdown_file
+from awslabs.frontend_mcp_server.consts import DEFAULT_SEARCH_LIMIT
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Literal
+from .tools import search_amplify_documentation
 
 
 mcp = FastMCP(
@@ -35,7 +37,7 @@ mcp = FastMCP(
 async def get_react_docs_by_topic(
     topic: Literal[
         'essential-knowledge',
-        'troubleshooting',
+        'troubleshooting'
     ] = Field(
         ...,
         description='The topic of React documentation to retrieve. Topics include: essential-knowledge, troubleshooting.',
@@ -47,6 +49,7 @@ async def get_react_docs_by_topic(
         topic: The topic of React documentation to retrieve.
           - "essential-knowledge": Essential knowledge for working with React applications.
           - "troubleshooting": Common issues and solutions when generating code.
+          - "amplify-gen2": Search the amplify gen2 documentation for code examples and best practices. 
 
     Returns:
         A markdown string containing the requested documentation
@@ -61,6 +64,35 @@ async def get_react_docs_by_topic(
                 f'Invalid topic: {topic}. Must be one of: essential-knowledge, troubleshooting'
             )
 
+@mcp.tool(name='SearchAmplifyGen2Docs')
+def search_amplify_gen2_documentation_tool(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> str:
+    """Search Amplify Gen2 documentation comprehensively across official docs and sample repositories.
+
+    Args:
+        query: Search query string (e.g., "authentication", "data modeling", "file upload")
+        limit: Maximum number of results to return (default: 10)
+
+    Returns:
+        Comprehensive search results with URLs, relevance scores, and code examples
+    """
+    results = search_amplify_documentation(query, limit)
+    
+    # Format results as a readable string
+    if not results:
+        return f"No documentation found for query: '{query}'"
+    
+    formatted_results = []
+    for i, result in enumerate(results, 1):
+        formatted_result = f"""
+{i}. **{result.get('title', 'Untitled')}**
+   - Path: {result.get('path', 'N/A')}
+   - URL: {result.get('url', 'N/A')}
+   - Relevance: {result.get('relevance_score', 0):.2f}
+   - Preview: {result.get('content_preview', 'No preview available')[:200]}...
+"""
+        formatted_results.append(formatted_result)
+    
+    return f"Found {len(results)} results for '{query}':\n" + "\n".join(formatted_results)
 
 def main():
     """Run the MCP server with CLI argument support."""
