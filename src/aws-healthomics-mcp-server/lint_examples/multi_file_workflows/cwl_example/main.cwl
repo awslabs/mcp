@@ -31,7 +31,7 @@ steps:
       reads: fastq_files
       sample_id: sample_name
     out: [aligned_bam, stats]
-  
+
   variant_calling:
     run: tools/variant_calling.cwl
     in:

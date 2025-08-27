@@ -86,9 +86,9 @@ workflow MyWorkflow {
     input {
         String sample_name
     }
-    
+
     call ProcessSample { input: name = sample_name }
-    
+
     output {
         File result = ProcessSample.output_file
     }
@@ -98,11 +98,11 @@ task ProcessSample {
     input {
         String name
     }
-    
+
     command <<<
         echo "Processing ${name}" > result.txt
     >>>
-    
+
     output {
         File output_file = "result.txt"
     }
@@ -138,7 +138,7 @@ class: Workflow
 inputs:
   input_file:
     type: File
-  
+
 outputs:
   processed_file:
     type: File
@@ -187,13 +187,13 @@ workflow GenomicsPipeline {
         File reference_genome
         Array[File] fastq_files
     }
-    
+
     call alignment.AlignReads {
         input:
             reference = reference_genome,
             reads = fastq_files
     }
-    
+
     output {
         File aligned_bam = AlignReads.aligned_bam
     }
@@ -207,17 +207,17 @@ task AlignReads {
         File reference
         Array[File] reads
     }
-    
+
     command <<<
         bwa mem ${reference} ${sep=' ' reads} | samtools sort -o aligned.bam -
     >>>
-    
+
     runtime {
         docker: "biocontainers/bwa:v0.7.17_cv1"
         memory: "8 GB"
         cpu: 4
     }
-    
+
     output {
         File aligned_bam = "aligned.bam"
     }

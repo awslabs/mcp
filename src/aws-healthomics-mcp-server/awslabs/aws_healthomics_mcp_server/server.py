@@ -33,17 +33,17 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
     list_runs,
     start_run,
 )
+from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
+    check_linting_dependencies,
+    lint_workflow_bundle,
+    lint_workflow_definition,
+)
 from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     create_workflow,
     create_workflow_version,
     get_workflow,
     list_workflow_versions,
     list_workflows,
-)
-from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
-    check_linting_dependencies,
-    lint_workflow_definition,
-    lint_workflow_bundle,
 )
 from loguru import logger
 from mcp.server.fastmcp import FastMCP

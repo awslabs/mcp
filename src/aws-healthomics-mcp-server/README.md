@@ -131,7 +131,7 @@ The MCP server includes built-in workflow linting capabilities for validating WD
    - **miniwdl**: Included for WDL workflow validation
    - **cwltool**: Included for CWL workflow validation
 
-2. **Lint Workflow Definitions**: 
+2. **Lint Workflow Definitions**:
    - **Single files**: Use `LintAHOWorkflowDefinition` for individual workflow files
    - **Multi-file bundles**: Use `LintAHOWorkflowBundle` for workflows with imports and dependencies
    - **Syntax errors**: Catch parsing issues before deployment
