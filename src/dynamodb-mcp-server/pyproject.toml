@@ -1,15 +1,15 @@
 [project]
 name = "awslabs.dynamodb-mcp-server"
-version = "1.0.4"
+version = "1.0.8"
 description = "The official MCP Server for interacting with AWS DynamoDB"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.28.0",
-    "loguru>=0.7.0",
-    "mcp[cli]>=1.11.0",
-    "pydantic>=2.10.6",
-    "typing-extensions>=4.0.0",
+    "boto3==1.40.5",
+    "loguru==0.7.3",
+    "mcp[cli]==1.12.4",
+    "pydantic==2.11.7",
+    "typing-extensions==4.14.1",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

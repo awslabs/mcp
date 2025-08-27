@@ -27,7 +27,7 @@ This MCP server acts as a bridge between MCP clients and Finch, allowing generat
 
 | Cursor | VS Code |
 |:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/install-mcp?name=awslabs.finch-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZmluY2gtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJkZWZhdWx0IiwiQVdTX1JFR0lPTiI6InVzLXdlc3QtMiIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiSU5GTyJ9LCJ0cmFuc3BvcnRUeXBlIjoic3RkaW8iLCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Finch%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.finch-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22INFO%22%7D%2C%22transportType%22%3A%22stdio%22%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.finch-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZmluY2gtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJkZWZhdWx0IiwiQVdTX1JFR0lPTiI6InVzLXdlc3QtMiIsIkZBU1RNQ1BfTE9HX0xFVkVMIjoiSU5GTyJ9LCJ0cmFuc3BvcnRUeXBlIjoic3RkaW8iLCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Finch%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.finch-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22INFO%22%7D%2C%22transportType%22%3A%22stdio%22%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 Configure the MCP server in your MCP client configuration:
 
@@ -53,6 +53,35 @@ By default, the server runs in a mode that prevents the creation of new AWS reso
   }
 }
 ```
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.finch-mcp-server@latest",
+        "awslabs.finch-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 
 In this default mode:
 - The `finch_build_container_image` tools will work normally
@@ -130,7 +159,9 @@ Example:
 
 Check if an ECR repository exists and create it if it doesn't.
 
-This tool checks if the specified ECR repository exists using boto3. If the repository doesn't exist, it creates a new one with the given name with scan on push enabled and immutable tags for enhanced security. The tool requires appropriate AWS credentials configured.
+This tool checks if the specified ECR repository exists using boto3. If the repository doesn't exist, it creates a new one with the given name with immutable tags for enhanced security. The tool requires appropriate AWS credentials configured.
+
+**Note:** The scan on push option is disabled in the mcp tool in favour of intentionally set by the user.
 
 **Note:** When the server is running in readonly mode, this tool will return an error and will not create any AWS resources.
 
@@ -172,7 +203,119 @@ Example:
 - **Resource Management**: Regularly clean up unused images and containers to free up disk space.
 - **Version Control**: Keep track of image versions and tags to ensure reproducibility.
 - **Error Handling**: Implement proper error handling in your applications when using these tools.
+- **ECR Registry Scanning Configuration**: The PutImageScanningConfiguration API is being deprecated in favor of specifying image scanning configuration at the registry level. To configure registry-level scanning, use the following AWS CLI command:
+  ```bash
+  aws ecr put-registry-scanning-configuration --scan-type ENHANCED --rules "[{\"scanFrequency\":\"SCAN_ON_PUSH\",\"repositoryFilters\":[{\"filter\":\"*\",\"filterType\":\"WILDCARD\"}]}]"
+  ```
+  For more information, see [ECR PutRegistryScanningConfiguration documentation](https://docs.aws.amazon.com/AmazonECR/latest/APIReference/API_PutRegistryScanningConfiguration.html).
 
+
+## Logging
+
+The Finch MCP server provides comprehensive logging capabilities to help with debugging and monitoring operations.
+
+### Log Destinations
+
+By default, the server logs to two destinations:
+1. **stderr** - Standard error output (follows MCP protocol standards)
+2. **File** - Persistent log file for detailed debugging
+
+### File Logging
+
+#### Default Log Location
+
+Logs are automatically saved to platform-specific directories:
+- **macOS/Linux**: `~/.finch/finch-mcp-server/finch_mcp_server.log`
+- **Windows**: `%LOCALAPPDATA%\finch-mcp-server\finch_mcp_server.log`
+
+#### Custom Log File Location
+
+Specify a custom log file path using the `FINCH_MCP_LOG_FILE` environment variable:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
+      "env": {
+        "FINCH_MCP_LOG_FILE": "~/logs/finch-mcp-server.log"
+      }
+    }
+  }
+}
+```
+
+#### Disable File Logging
+
+To log only to stderr (following strict MCP standards), disable file logging:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
+      "env": {
+        "FINCH_DISABLE_FILE_LOGGING": "true"
+      }
+    }
+  }
+}
+```
+
+Or use the command line argument in the args array:
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.finch-mcp-server@latest",
+        "--disable-file-logging"
+      ]
+    }
+  }
+}
+```
+
+### Log Features
+
+#### Automatic Log Rotation
+- Log files are automatically rotated when they exceed 10 MB
+- Old logs are compressed (gzip) and retained for 7 days
+- This prevents disk space issues from large log files
+
+#### Sensitive Data Protection
+The logging system automatically redacts sensitive information from log messages:
+- AWS access keys and secret keys
+- API keys, passwords, and tokens
+- JWT tokens and OAuth credentials
+- URLs containing embedded credentials
+
+#### Log Format
+- **stderr**: `{time} | {level} | {message}`
+- **File**: `{time} | {level} | {name}:{function}:{line} | {message}`
+
+The file format includes additional context (function name and line number) for detailed debugging.
+
+### Example Configuration
+
+```json
+{
+  "mcpServers": {
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-west-2",
+        "FINCH_MCP_LOG_FILE": "~/logs/finch-mcp-server.log"
+      }
+    }
+  }
+}
+```
 
 ## Troubleshooting
 
@@ -180,6 +323,8 @@ Example:
 - For Finch VM issues, try running `finch vm stop` and then `finch vm start` manually
 - If the build fails with errors about missing files, check that your context path is correct
 - For general Finch issues, consult the [Finch documentation](https://github.com/runfinch/finch)
+- **Check the logs**: Enable DEBUG level logging and examine the log files for detailed error information
+- **Log file permissions**: If file logging fails, the server will continue with stderr-only logging and show a warning message
 
 ## Version
 

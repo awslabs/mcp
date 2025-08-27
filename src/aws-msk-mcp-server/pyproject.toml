@@ -2,7 +2,7 @@
 name = "awslabs.aws-msk-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.3"
+version = "0.0.6"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for aws-msk"
 readme = "README.md"
