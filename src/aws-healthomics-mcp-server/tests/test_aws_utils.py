@@ -27,6 +27,7 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_aws_session,
     get_logs_client,
     get_omics_client,
+    get_omics_service_name,
     get_region,
     get_ssm_client,
 )
@@ -53,6 +54,75 @@ class TestGetRegion:
         """Test get_region returns empty string when environment variable is set to empty."""
         result = get_region()
         assert result == ''
+
+
+class TestGetOmicsServiceName:
+    """Test cases for get_omics_service_name function."""
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'custom-omics'})
+    def test_get_omics_service_name_from_environment(self):
+        """Test get_omics_service_name returns service name from environment variable."""
+        result = get_omics_service_name()
+        assert result == 'custom-omics'
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_omics_service_name_default(self):
+        """Test get_omics_service_name returns default service name when no environment variable."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': ''})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_empty_env_var(self, mock_logger):
+        """Test get_omics_service_name returns default and logs warning when environment variable is empty."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            'Using default service name: omics'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '   '})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_whitespace_env_var(self, mock_logger):
+        """Test get_omics_service_name returns default and logs warning when environment variable is only whitespace."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            'Using default service name: omics'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '\t\n  \r'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_mixed_whitespace_env_var(self, mock_logger):
+        """Test get_omics_service_name returns default and logs warning when environment variable contains mixed whitespace."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            'Using default service name: omics'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'omics-dev'})
+    def test_get_omics_service_name_custom_value(self):
+        """Test get_omics_service_name with custom service name."""
+        result = get_omics_service_name()
+        assert result == 'omics-dev'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '  omics-staging  '})
+    def test_get_omics_service_name_with_surrounding_whitespace(self):
+        """Test get_omics_service_name strips surrounding whitespace from valid service name."""
+        result = get_omics_service_name()
+        assert result == 'omics-staging'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'omics-prod'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_valid_no_warning(self, mock_logger):
+        """Test get_omics_service_name does not log warning for valid service name."""
+        result = get_omics_service_name()
+        assert result == 'omics-prod'
+        mock_logger.warning.assert_not_called()
 
 
 class TestGetAwsSession:
@@ -126,8 +196,9 @@ class TestGetOmicsClient:
     """Test cases for get_omics_client function."""
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
-    def test_get_omics_client_success(self, mock_create_client):
-        """Test successful HealthOmics client creation."""
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_omics_client_success_default_service(self, mock_create_client):
+        """Test successful HealthOmics client creation with default service name."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
 
@@ -137,11 +208,45 @@ class TestGetOmicsClient:
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'custom-omics'})
+    def test_get_omics_client_success_custom_service(self, mock_create_client):
+        """Test successful HealthOmics client creation with custom service name."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = get_omics_client()
+
+        mock_create_client.assert_called_once_with('custom-omics')
+        assert result == mock_client
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'omics-dev'})
+    def test_get_omics_client_success_dev_service(self, mock_create_client):
+        """Test successful HealthOmics client creation with dev service name."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = get_omics_client()
+
+        mock_create_client.assert_called_once_with('omics-dev')
+        assert result == mock_client
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    @patch.dict(os.environ, {}, clear=True)
     def test_get_omics_client_failure(self, mock_create_client):
         """Test HealthOmics client creation failure."""
         mock_create_client.side_effect = Exception('HealthOmics not available')
 
         with pytest.raises(Exception, match='HealthOmics not available'):
+            get_omics_client()
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'invalid-service'})
+    def test_get_omics_client_failure_custom_service(self, mock_create_client):
+        """Test HealthOmics client creation failure with custom service name."""
+        mock_create_client.side_effect = Exception('Service not found')
+
+        with pytest.raises(Exception, match='Service not found'):
             get_omics_client()
 
 
@@ -315,3 +420,49 @@ class TestRegionResolution:
         expected_calls = [(), (), (), ()]  # All calls should have no arguments
         actual_calls = [call.args for call in mock_get_session.call_args_list]
         assert actual_calls == expected_calls
+
+
+class TestServiceNameConfiguration:
+    """Test cases for service name configuration integration."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_omics_service_name')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_omics_client_uses_service_name_function(
+        self, mock_create_client, mock_get_service_name
+    ):
+        """Test that get_omics_client uses get_omics_service_name function."""
+        mock_get_service_name.return_value = 'test-service'
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = get_omics_client()
+
+        mock_get_service_name.assert_called_once_with()
+        mock_create_client.assert_called_once_with('test-service')
+        assert result == mock_client
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'omics-staging'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_end_to_end_service_name_configuration(self, mock_create_client):
+        """Test end-to-end service name configuration from environment to client creation."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = get_omics_client()
+
+        mock_create_client.assert_called_once_with('omics-staging')
+        assert result == mock_client
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '   '})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_end_to_end_whitespace_service_name_fallback(self, mock_logger, mock_create_client):
+        """Test end-to-end fallback to default when service name is whitespace."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+
+        result = get_omics_client()
+
+        mock_create_client.assert_called_once_with('omics')
+        mock_logger.warning.assert_called_once()
+        assert result == mock_client

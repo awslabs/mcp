@@ -21,7 +21,7 @@ import io
 import os
 import zipfile
 from awslabs.aws_healthomics_mcp_server import __version__
-from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_REGION
+from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_OMICS_SERVICE_NAME, DEFAULT_REGION
 from loguru import logger
 from typing import Any, Dict
 
@@ -33,6 +33,25 @@ def get_region() -> str:
         str: AWS region name
     """
     return os.environ.get('AWS_REGION', DEFAULT_REGION)
+
+
+def get_omics_service_name() -> str:
+    """Get the HealthOmics service name from environment variable or default.
+
+    Returns:
+        str: HealthOmics service name
+    """
+    service_name = os.environ.get('HEALTHOMICS_SERVICE_NAME', DEFAULT_OMICS_SERVICE_NAME)
+
+    # Check if service name is empty or only whitespace
+    if not service_name or not service_name.strip():
+        logger.warning(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            f'Using default service name: {DEFAULT_OMICS_SERVICE_NAME}'
+        )
+        return DEFAULT_OMICS_SERVICE_NAME
+
+    return service_name.strip()
 
 
 def get_aws_session() -> boto3.Session:
@@ -118,7 +137,7 @@ def get_omics_client() -> Any:
     Raises:
         Exception: If client creation fails
     """
-    return create_aws_client('omics')
+    return create_aws_client(get_omics_service_name())
 
 
 def get_logs_client() -> Any:
