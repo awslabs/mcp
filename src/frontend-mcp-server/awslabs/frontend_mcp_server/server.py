@@ -27,8 +27,10 @@ mcp = FastMCP(
     'awslabs.frontend-mcp-server',
     instructions='The Frontend MCP Server provides specialized tools for modern web application development. It offers guidance on React application setup, optimistic UI implementation, and authentication integration. Use these tools when you need expert advice on frontend development best practices.',
     dependencies=[
-        'pydantic',
-        'loguru',
+        'pydantic>=2.10.6',
+        'loguru>=0.7.0',
+        'requests>=2.32.5',
+        'pyyaml>=6.0.2',
     ],
 )
 

@@ -30,8 +30,8 @@
 
 import base64
 import json
-import logging
 import os
+import requests
 from datetime import datetime, timedelta
 from .consts import (
     DEFAULT_SEARCH_LIMIT,
@@ -100,7 +100,7 @@ def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_LIMIT) 
         return []
 
     except Exception as e:
-        logger.error(f"Error searching Amplify documentation: {e}")
+        print(f"Error searching Amplify documentation: {e}")
         return []
 
 def calculate_relevance_score_from_path(path: str, query: str) -> float:
@@ -228,7 +228,7 @@ def fetch_github_content(repo: str, path: str, branch: str = "main") -> Optional
         return None
 
     except Exception as e:
-        logger.error(f"Error fetching GitHub content from {repo}/{path}: {e}")
+        print(f"Error fetching GitHub content from {repo}/{path}: {e}")
         return None
 
 def fetch_raw_content(raw_url: str) -> Optional[str]:
@@ -253,84 +253,18 @@ def fetch_raw_content(raw_url: str) -> Optional[str]:
         return None
 
     except Exception as e:
-        logger.error(f"Error fetching raw content from {raw_url}: {e}")
+        print(f"Error fetching raw content from {raw_url}: {e}")
         return None
 
-def discover_project_templates(framework: str = None) -> Dict[str, Any]:
-    """Search Amplify Gen2 documentation comprehensively.
-
+def search_sample_repositories(query: str) -> List[Dict]:
+    """Search sample repositories for code examples.
+    
     Args:
-        ctx: MCP context
         query: Search query string
-        limit: Maximum number of results to return
-
+        
     Returns:
-        Comprehensive search results from official documentation and samples
+        List of sample repository results
     """
-    logger.info(f"Searching Amplify Gen2 documentation for: {query}")
-
-    # Search official documentation
-    doc_results = search_amplify_documentation(query, limit)
-
-    # Search sample repositories
-    sample_results = search_sample_repositories(query)
-
-    # Format results
-    result = f"""
-# Amplify Gen2 Documentation Search Results
-
-**Query:** {query}
-**Found:** {len(doc_results)} documentation results, {len(sample_results)} code examples
-
-## Official Documentation
-
-"""
-
-    if doc_results:
-        for i, result_item in enumerate(doc_results[:limit], 1):
-            result += f"""
-### {i}. {result_item['title']}
-**URL:** {result_item['url']}
-**Path:** {result_item['path']}
-**Relevance Score:** {result_item['relevance_score']:.1f}
-
-"""
-    else:
-        result += "No documentation results found.\n\n"
-
-    result += "## Code Examples\n\n"
-
-    if sample_results:
-        for i, sample in enumerate(sample_results[:5], 1):
-            result += f"""
-### {i}. {sample['title']}
-**Framework:** {sample['framework'].title()}
-**Repository:** https://github.com/{sample['repository']}
-**File:** {sample['path']}
-**URL:** {sample['url']}
-
-"""
-    else:
-        result += "No code examples found.\n\n"
-
-    result += """
-## Next Steps
-
-1. **Read Documentation:** Click on the documentation URLs above to read the full content
-2. **Explore Code:** Visit the repository URLs to see complete implementation examples
-3. **Get Content:** Use the read_amplify_documentation tool with specific URLs for full content
-
-**Available Search Topics:**
-- Authentication, authorization, sign-in, sign-up, MFA
-- Data modeling, GraphQL, API, database, schema
-- Storage, file upload, S3, media
-- Functions, Lambda, serverless, API
-- Deployment, hosting, CI/CD, environments
-- AI, machine learning, Bedrock, generation
-- Analytics, monitoring, logging
-- Push notifications, real-time, subscriptions
-
-**Available Frameworks:** React, Vue, Angular, Next.js, Flutter
-    """
-
-    return result
+    # For now, return empty list as this feature is not fully implemented
+    # This prevents the function from crashing when called
+    return []
