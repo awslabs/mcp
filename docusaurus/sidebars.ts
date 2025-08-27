@@ -64,6 +64,7 @@ const sidebars: SidebarsConfig = {
             'servers/amazon-qindex-mcp-server',
             'servers/amazon-qbusiness-anonymous-mcp-server',
             'servers/nova-canvas-mcp-server',
+            'servers/aws-bedrock-custom-model-import-mcp-server'
           ],
         },
         {
