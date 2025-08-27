@@ -14,6 +14,7 @@
 
 import os
 import sys
+from .core.agent_scripts.manager import AGENT_SCRIPTS_MANAGER
 from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     execute_awscli_customization,
@@ -24,14 +25,19 @@ from .core.aws.service import (
 )
 from .core.common.config import (
     DEFAULT_REGION,
+    ENABLE_AGENT_SCRIPTS,
     FASTMCP_LOG_LEVEL,
+    HOST,
+    PORT,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
     REQUIRE_MUTATION_CONSENT,
+    TRANSPORT,
     WORKING_DIRECTORY,
     get_server_directory,
 )
 from .core.common.errors import AwsApiMcpError
+from .core.common.helpers import validate_aws_region
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
@@ -39,13 +45,12 @@ from .core.common.models import (
 )
 from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
-from awslabs.aws_api_mcp_server.core.common.helpers import validate_aws_region
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any, Optional
 
 
 logger.remove()
@@ -57,7 +62,7 @@ log_dir.mkdir(exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
-server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL)
+server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL, host=HOST, port=PORT)
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 
@@ -156,11 +161,12 @@ async def suggest_aws_commands(
     - All commands are validated before execution to prevent errors
     - Supports pagination control via max_results parameter
     - The current working directory is {WORKING_DIRECTORY}
+    - File paths should always have forward slash (/) as a separator regardless of the system. Example: 'c:/folder/file.txt'
 
     Best practices for command generation:
-    — Always use the most specific service and operation names
+    - Always use the most specific service and operation names
     - Always use the working directory when writing files, unless user explicitly mentioned another directory
-    — Include --region when operating across regions
+    - Include --region when operating across regions
     - Only use filters (--filters, --query, --prefix, --pattern, etc) when necessary or user explicitly asked for it
 
     Command restrictions:
@@ -247,7 +253,6 @@ async def call_aws(
 
         return interpret_command(
             cli_command=cli_command,
-            default_region=cast(str, DEFAULT_REGION),
             max_results=max_results,
         )
     except NoCredentialsError:
@@ -272,6 +277,54 @@ async def call_aws(
         return AwsApiMcpServerErrorResponse(
             detail=error_message,
         )
+
+
+# EXPERIMENTAL: Agent scripts tool - only registered if ENABLE_AGENT_SCRIPTS is True
+if ENABLE_AGENT_SCRIPTS:
+
+    @server.tool(
+        name='get_execution_plan',
+        description=f"""Get the execution plan for a compiled AWS workflow. This tool provides structured, step-by-step guidance for accomplishing a complex task with AWS.
+        When a user request matches a plan intent, you MUST always call this tool to get an execution plan instead of attempting to come up with you own, since the procedures returned by this tool are more robust, and properly tested.
+
+        Below you can find the list of available scripts in the format <script_name> : <description>
+        {AGENT_SCRIPTS_MANAGER.pretty_print_scripts()}
+        INSTRUCTIONS:
+        - Call this tool with the specific script_name when user requests match the above patterns
+        - The returned plan contains detailed, tested procedures that you MUST follow exactly
+        - Do NOT attempt to create your own procedures for these tasks - use the provided plans
+        - Execute ALL steps in the plan without skipping any
+        - If plan instructions contradict each other, ask the user for guidance
+
+        Returns:
+            - Detailed script plan with step-by-step instructions for the requested task.
+        """,
+        annotations=ToolAnnotations(
+            title='Get structured execution plans for complex tasks',
+            readOnlyHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_execution_plan(
+        script_name: Annotated[str, Field(description='Name of the script to get the plan for')],
+        ctx: Context,
+    ) -> str | AwsApiMcpServerErrorResponse:
+        """Retrieve full script content given a script name."""
+        try:
+            script = AGENT_SCRIPTS_MANAGER.get_script(script_name)
+
+            if not script:
+                error_message = f'Script {script_name} not found'
+                logger.error(error_message)
+                raise ValueError(error_message)
+
+            logger.info(f'Retrieved script plan for {script_name}.')
+            return script.content
+
+        except Exception as e:
+            error_message = f'Error while retrieving execution plan: {str(e)}'
+            await ctx.error(error_message)
+            return AwsApiMcpServerErrorResponse(detail=error_message)
 
 
 def main():
@@ -305,7 +358,7 @@ def main():
     if READ_OPERATIONS_ONLY_MODE or REQUIRE_MUTATION_CONSENT:
         READ_OPERATIONS_INDEX = get_read_only_operations()
 
-    server.run(transport='stdio')
+    server.run(transport=TRANSPORT)
 
 
 if __name__ == '__main__':
