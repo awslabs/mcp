@@ -44,7 +44,7 @@ from typing import Any, Dict, List, Optional
 
 
 async def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Dict]:
-    """Search Amplify documentation by browsing the repository structure.
+    """Search Amplify documentation using GitHub API first, fallback to docs site.
 
     Args:
         query: Search query string
@@ -53,14 +53,19 @@ async def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_L
     Returns:
         List of search results with file information and relevance
     """
+    # Try GitHub API first
+    github_results = await search_github_docs(query, limit)
+    if github_results:
+        return github_results
+    
+    # Fallback to Amplify docs site
+    return await search_amplify_docs_site(query, limit)
+
+
+async def search_github_docs(query: str, limit: int) -> List[Dict]:
+    """Search GitHub repository for documentation."""
     try:
-        # Since GitHub Code Search API requires auth, we'll use a different approach
-        # Get the repository tree and search through file paths and names
-        search_results = []
-
-        # Get the repository tree
         tree_url = f"{GITHUB_API_BASE}/repos/{DOCUMENTATION_REPO}/git/trees/main?recursive=1"
-
         headers = {
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'AmplifyGen2MCPServer/1.0'
@@ -69,16 +74,19 @@ async def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_L
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(tree_url, headers=headers)
 
+            if response.status_code == 403:
+                print("GitHub rate limit exceeded, falling back to docs site")
+                return []
+            
             if response.status_code == 200:
                 tree_data = response.json()
+                search_results = []
 
-                # Filter for markdown files and calculate relevance
                 for item in tree_data.get('tree', []):
                     if item['type'] == 'blob' and item['path'].endswith(('.md', '.mdx')):
-                        # Calculate relevance score based on path and filename
                         relevance_score = calculate_relevance_score_from_path(item['path'], query)
 
-                        if relevance_score > 0:  # Only include relevant results
+                        if relevance_score > 0:
                             search_results.append({
                                 'rank_order': len(search_results) + 1,
                                 'url': f"https://github.com/{DOCUMENTATION_REPO}/blob/main/{item['path']}",
@@ -86,13 +94,11 @@ async def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_L
                                 'title': extract_title_from_path(item['path']),
                                 'path': item['path'],
                                 'relevance_score': relevance_score,
-                                'repository': DOCUMENTATION_REPO
+                                'repository': DOCUMENTATION_REPO,
+                                'source': 'github'
                             })
 
-                # Sort by relevance score
                 search_results.sort(key=lambda x: x['relevance_score'], reverse=True)
-
-                # Update rank order after sorting
                 for i, result in enumerate(search_results):
                     result['rank_order'] = i + 1
 
@@ -101,8 +107,99 @@ async def search_amplify_documentation(query: str, limit: int = DEFAULT_SEARCH_L
         return []
 
     except Exception as e:
-        print(f"Error searching Amplify documentation: {e}")
+        print(f"GitHub search error: {e}")
         return []
+
+
+async def search_amplify_docs_site(query: str, limit: int) -> List[Dict]:
+    """Search Amplify docs site using sitemap."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get("https://docs.amplify.aws/sitemap.xml")
+            
+            if response.status_code != 200:
+                return []
+            
+            # Parse XML sitemap
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(response.text)
+            
+            search_results = []
+            query_lower = query.lower()
+            
+            for url_elem in root.findall('.//{http://www.sitemaps.org/schemas/sitemap/0.9}url'):
+                loc_elem = url_elem.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc')
+                if loc_elem is not None:
+                    url = loc_elem.text
+                    path = url.replace('https://docs.amplify.aws/', '')
+                    
+                    # Filter for relevant pages and calculate relevance
+                    if '/gen2/' in path or '/react/' in path or '/nextjs/' in path:
+                        relevance_score = calculate_sitemap_relevance(path, query_lower)
+                        
+                        if relevance_score > 0:
+                            search_results.append({
+                                'rank_order': len(search_results) + 1,
+                                'url': url,
+                                'title': extract_title_from_url(path),
+                                'path': path,
+                                'relevance_score': relevance_score,
+                                'source': 'sitemap'
+                            })
+            
+            # Sort by relevance and limit results
+            search_results.sort(key=lambda x: x['relevance_score'], reverse=True)
+            for i, result in enumerate(search_results):
+                result['rank_order'] = i + 1
+                
+            return search_results[:limit]
+            
+    except Exception as e:
+        print(f"Sitemap search error: {e}")
+        return []
+
+
+def calculate_sitemap_relevance(path: str, query: str) -> float:
+    """Calculate relevance for sitemap URLs."""
+    score = 0.0
+    path_lower = path.lower()
+    
+    # Exact match in path
+    if query in path_lower:
+        score += 10.0
+    
+    # Partial matches
+    query_words = query.split()
+    for word in query_words:
+        if word in path_lower:
+            score += 5.0
+    
+    # Boost for Gen2 content
+    if 'gen2' in path_lower:
+        score += 3.0
+        
+    # Boost for core topics
+    core_topics = ['auth', 'data', 'storage', 'function', 'api']
+    for topic in core_topics:
+        if topic in path_lower and topic in query:
+            score += 8.0
+            
+    return score
+
+
+def extract_title_from_url(path: str) -> str:
+    """Extract readable title from URL path."""
+    # Remove leading slash and split by /
+    parts = path.strip('/').split('/')
+    
+    if len(parts) >= 3:
+        # Format: framework/section/topic
+        framework = parts[0].title()
+        section = parts[-1].replace('-', ' ').title()
+        return f"{section} ({framework})"
+    
+    # Fallback to last part
+    return parts[-1].replace('-', ' ').title() if parts else "Documentation"
 
 def calculate_relevance_score_from_path(path: str, query: str) -> float:
     """Calculate relevance score for search results based on file path only."""

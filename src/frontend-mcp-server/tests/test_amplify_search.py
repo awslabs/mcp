@@ -38,16 +38,16 @@ def mock_search_results():
         }
     ]
 
-
+@pytest.mark.asyncio
 @patch('awslabs.frontend_mcp_server.server.search_amplify_documentation')
-def test_search_amplify_gen2_docs_basic_query(mock_search, mock_search_results):
+async def test_search_amplify_gen2_docs_basic_query(mock_search, mock_search_results):
     """Test SearchAmplifyGen2Docs tool with basic authentication query."""
     # Arrange
     mock_search.return_value = mock_search_results
     query = "authentication"
     
     # Act
-    result = search_amplify_gen2_documentation_tool(query)
+    result = await search_amplify_gen2_documentation_tool(query)
     
     # Assert
     mock_search.assert_called_once_with("authentication", 10)
@@ -55,9 +55,9 @@ def test_search_amplify_gen2_docs_basic_query(mock_search, mock_search_results):
     assert "Authentication Setup" in result
     assert "Data Modeling" in result
 
-
+@pytest.mark.asyncio
 @patch('awslabs.frontend_mcp_server.server.search_amplify_documentation')
-def test_search_amplify_gen2_docs_with_limit(mock_search, mock_search_results):
+async def test_search_amplify_gen2_docs_with_limit(mock_search, mock_search_results):
     """Test SearchAmplifyGen2Docs tool with custom limit."""
     # Arrange
     mock_search.return_value = mock_search_results[:1]  # Return only first result
@@ -65,47 +65,47 @@ def test_search_amplify_gen2_docs_with_limit(mock_search, mock_search_results):
     limit = 1
     
     # Act
-    result = search_amplify_gen2_documentation_tool(query, limit)
+    result = await search_amplify_gen2_documentation_tool(query, limit)
     
     # Assert
     mock_search.assert_called_once_with("data modeling", 1)
     assert "Found 1 results for 'data modeling'" in result
     assert "Authentication Setup" in result
 
-
+@pytest.mark.asyncio
 @patch('awslabs.frontend_mcp_server.server.search_amplify_documentation')
-def test_search_amplify_gen2_docs_no_results(mock_search):
+async def test_search_amplify_gen2_docs_no_results(mock_search):
     """Test SearchAmplifyGen2Docs tool with no results."""
     # Arrange
     mock_search.return_value = []
     query = "nonexistent"
     
     # Act
-    result = search_amplify_gen2_documentation_tool(query)
+    result = await search_amplify_gen2_documentation_tool(query)
     
     # Assert
     mock_search.assert_called_once_with("nonexistent", 10)
     assert "No documentation found for query: 'nonexistent'" in result
 
-
+@pytest.mark.asyncio
 @patch('awslabs.frontend_mcp_server.server.search_amplify_documentation')
-def test_search_amplify_gen2_docs_complex_query(mock_search, mock_search_results):
+async def test_search_amplify_gen2_docs_complex_query(mock_search, mock_search_results):
     """Test SearchAmplifyGen2Docs tool with complex query."""
     # Arrange
     mock_search.return_value = mock_search_results
     query = "authentication with email and password login"
     
     # Act
-    result = search_amplify_gen2_documentation_tool(query)
+    result = await search_amplify_gen2_documentation_tool(query)
     
     # Assert
     mock_search.assert_called_once_with("authentication with email and password login", 10)
     assert "Found 2 results" in result
     assert "0.95" in result  # Check relevance score is displayed
 
-
+@pytest.mark.asyncio
 @patch('awslabs.frontend_mcp_server.server.search_amplify_documentation')
-def test_search_amplify_gen2_docs_exception_handling(mock_search):
+async def test_search_amplify_gen2_docs_exception_handling(mock_search):
     """Test SearchAmplifyGen2Docs tool handles exceptions gracefully."""
     # Arrange
     mock_search.side_effect = Exception("Network error")
@@ -113,4 +113,4 @@ def test_search_amplify_gen2_docs_exception_handling(mock_search):
     
     # Act & Assert
     with pytest.raises(Exception, match="Network error"):
-        search_amplify_gen2_documentation_tool(query)
+        await search_amplify_gen2_documentation_tool(query)
