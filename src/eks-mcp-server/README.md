@@ -35,6 +35,11 @@ For read operations, the following permissions are required:
       "Effect": "Allow",
       "Action": [
         "eks:DescribeCluster",
+        "eks:DescribeInsight",
+        "eks:ListInsights",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeRouteTables",
         "cloudformation:DescribeStacks",
         "cloudwatch:GetMetricData",
         "logs:StartQuery",
@@ -383,7 +388,7 @@ Features:
 
 Parameters:
 
-* cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional)
+* cluster_name, pod_name, namespace, container_name (optional), since_seconds (optional), tail_lines (optional), limit_bytes (optional), previous (optional)
 
 #### `get_k8s_events`
 
@@ -398,6 +403,22 @@ Features:
 Parameters:
 
 * cluster_name, kind, name, namespace (optional)
+
+#### `get_eks_vpc_config`
+
+Retrieves comprehensive VPC configuration details for EKS clusters, with support for hybrid node setups.
+
+Features:
+
+* Returns detailed VPC configuration including CIDR blocks, route tables, and subnet information
+* Automatically identifies and includes remote node and pod CIDR configurations for hybrid node setups
+* Validates subnet capacity for EKS networking requirements
+* Flags subnets in disallowed availability zones that can't be used with EKS
+* Requires `--allow-sensitive-data-access` server flag to be enabled
+
+Parameters:
+
+* cluster_name, vpc_id (optional)
 
 ### CloudWatch Integration
 
@@ -502,6 +523,23 @@ Parameters:
 
 * query
 
+#### `get_eks_insights`
+
+Retrieves Amazon EKS Insights that identify potential issues with your EKS cluster configuration and upgrade readiness.
+
+Features:
+
+* Returns insights in two categories: MISCONFIGURATION and UPGRADE_READINESS (for upgrade blockers)
+* Supports both list mode (all insights) and detail mode (specific insight with recommendations)
+* Includes status, descriptions, and timestamps for each insight
+* Provides detailed recommendations for addressing identified issues when using detail mode
+* Supports optional filtering by insight category
+* Requires `--allow-sensitive-data-access` server flag to be enabled
+
+Parameters:
+
+* cluster_name, insight_id (optional), category (optional), next_token (optional)
+
 
 ## Security & permissions
 
@@ -533,7 +571,7 @@ When using the EKS MCP Server, consider the following:
 
 The EKS MCP Server can be used for production environments with proper security controls in place. The server runs in read-only mode by default, which is recommended and considered generally safer for production environments. Only explicitly enable write access when necessary. Below are the EKS MCP server tools available in read-only versus write-access mode:
 
-* **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`.
+* **Read-only mode (default)**: `manage_eks_stacks` (with operation="describe"), `manage_k8s_resource` (with operation="read"), `list_k8s_resources`, `get_pod_logs`, `get_k8s_events`, `get_cloudwatch_logs`, `get_cloudwatch_metrics`, `get_policies_for_role`, `search_eks_troubleshoot_guide`, `list_api_versions`, `get_eks_vpc_config`, `get_eks_insights`.
 * **Write-access mode**: (require `--allow-write`): `manage_eks_stacks` (with "generate", "deploy", "delete"), `manage_k8s_resource` (with "create", "replace", "patch", "delete"), `apply_yaml`, `generate_app_manifest`, `add_inline_policy`.
 
 #### `autoApprove` (optional)

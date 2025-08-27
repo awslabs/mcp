@@ -15,8 +15,24 @@
 import dataclasses
 from .command_metadata import CommandMetadata
 from botocore import xform_name
+from botocore.model import OperationModel
 from jmespath.parser import ParsedResult
 from typing import Any
+
+
+@dataclasses.dataclass(frozen=True)
+class OutputFile:
+    """Represents an output file configuration for AWS CLI commands."""
+
+    path: str
+    response_key: str
+
+    @classmethod
+    def from_operation(cls, path: str, operation_model: OperationModel) -> 'OutputFile':
+        """Create OutputFile from operation model for streaming operations."""
+        return cls(
+            path, response_key=getattr(operation_model.output_shape, 'serialization')['payload']
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -29,6 +45,7 @@ class IRCommand:
     profile: str | None = None
     client_side_filter: ParsedResult | None = None
     is_awscli_customization: bool = False
+    output_file: OutputFile | None = None
 
     @property
     def operation_python_name(self):
