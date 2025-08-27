@@ -65,7 +65,6 @@ def register_module(mcp: FastMCP) -> None:
         annotations=None,
     )
     async def mcp_ecs_troubleshooting_tool(
-        app_name: Optional[str] = None,
         action: TroubleshootingAction = "get_ecs_troubleshooting_guidance",
         parameters: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -79,10 +78,12 @@ def register_module(mcp: FastMCP) -> None:
 
         ### 1. get_ecs_troubleshooting_guidance
         Initial assessment and data collection
-        - Required: app_name
-        - Optional: symptoms_description (Description of symptoms experienced by the user)
+        - Required: cluster_name
+        - Optional: service_name (Name of the ECS service to troubleshoot),
+                   symptoms_description (Description of symptoms experienced by the user)
         - Example: action="get_ecs_troubleshooting_guidance",
-                   parameters={"symptoms_description": "ALB returning 503 errors"}
+                   parameters={"cluster_name": "my-cluster", "service_name": "my-service",
+                               "symptoms_description": "ALB returning 503 errors"}
 
         ### 2. fetch_cloudformation_status
         Infrastructure-level diagnostics for CloudFormation stacks
@@ -91,7 +92,7 @@ def register_module(mcp: FastMCP) -> None:
 
         ### 3. fetch_service_events
         Service-level diagnostics for ECS services
-        - Required: app_name, cluster_name, service_name
+        - Required: cluster_name, service_name
         - Optional: time_window (Time window in seconds to look back for events (default: 3600)),
                     start_time (Explicit start time for the analysis window (UTC, takes
                     precedence over time_window if provided)),
@@ -104,7 +105,7 @@ def register_module(mcp: FastMCP) -> None:
 
         ### 4. fetch_task_failures
         Task-level diagnostics for ECS task failures
-        - Required: app_name, cluster_name
+        - Required: cluster_name
         - Optional: time_window (Time window in seconds to look back for failures (default: 3600)),
                     start_time (Explicit start time for the analysis window (UTC, takes
                     precedence over time_window if provided)),
@@ -116,7 +117,7 @@ def register_module(mcp: FastMCP) -> None:
 
         ### 5. fetch_task_logs
         Application-level diagnostics through CloudWatch logs
-        - Required: app_name, cluster_name
+        - Required: cluster_name
         - Optional: task_id (Specific task ID to retrieve logs for),
                     time_window (Time window in seconds to look back for logs (default: 3600)),
                     filter_pattern (CloudWatch logs filter pattern),
@@ -131,21 +132,39 @@ def register_module(mcp: FastMCP) -> None:
 
         ### 6. detect_image_pull_failures
         Specialized tool for detecting container image pull failures
-        - Required: app_name
-        - Example: action="detect_image_pull_failures", parameters={}
+        - Required: None (but at least one valid parameter combination must be provided)
+        - Valid combinations: cluster_name+service_name, cluster_name+task_id, stack_name,
+          family_prefix
+        - Optional: cluster_name, service_name, stack_name, family_prefix, task_id
+        - Example: action="detect_image_pull_failures",
+                   parameters={"cluster_name": "my-cluster", "service_name": "my-service"}
 
         ### 7. fetch_network_configuration
         Network-level diagnostics for ECS deployments
-        - Required: app_name
+        - Required: None (all parameters are optional)
         - Optional: vpc_id (Specific VPC ID to analyze), cluster_name (Specific ECS cluster name)
         - Example: action="fetch_network_configuration",
                    parameters={"vpc_id": "vpc-12345678", "cluster_name": "my-cluster"}
+
+        ## Resource Discovery:
+        If you don't know the cluster or service names, use `ecs_resource_management` tool first:
+
+        # List all clusters
+        ecs_resource_management(api_operation="ListClusters")
+
+        # List services in a cluster
+        ecs_resource_management(api_operation="ListServices", api_params={"cluster": "my-cluster"})
+
+        # Get detailed cluster information
+        ecs_resource_management(api_operation="DescribeClusters",
+                               api_params={"clusters": ["my-cluster"]})
 
         ## Quick Usage Examples:
         ```
         # Initial assessment and data collection
         action: "get_ecs_troubleshooting_guidance"
-        parameters: {"symptoms_description": "ALB returning 503 errors"}
+        parameters: {"cluster_name": "my-cluster",
+                    "symptoms_description": "ALB returning 503 errors"}
 
         # Infrastructure-level diagnostics for CloudFormation stacks
         action: "fetch_cloudformation_status"
@@ -170,7 +189,7 @@ def register_module(mcp: FastMCP) -> None:
 
         # Specialized tool for detecting container image pull failures
         action: "detect_image_pull_failures"
-        parameters: {}
+        parameters: {"cluster_name": "my-cluster", "service_name": "my-service"}
 
         # Network-level diagnostics for ECS deployments
         action: "fetch_network_configuration"
@@ -178,7 +197,6 @@ def register_module(mcp: FastMCP) -> None:
         ```
 
         Parameters:
-            app_name: Application/stack name (required for most actions)
             action: The troubleshooting action to perform (see available actions above)
             parameters: Action-specific parameters (see parameter specifications above)
 
@@ -189,7 +207,7 @@ def register_module(mcp: FastMCP) -> None:
         if parameters is None:
             parameters = {}
 
-        return await ecs_troubleshooting_tool(app_name, action, parameters)
+        return await ecs_troubleshooting_tool(action, parameters)
 
     # Define prompt groups for bulk registration
     prompt_groups = {

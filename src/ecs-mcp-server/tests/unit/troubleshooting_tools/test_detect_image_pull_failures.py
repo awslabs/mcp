@@ -34,14 +34,14 @@ def test_module_setup():
     ]
 
     # Save the original functions
-    original_get_td = detect_failures_module._get_task_definitions
+    original_find_td = detect_failures_module._find_task_definitions
     original_validate = detect_failures_module._validate_container_images
 
     # Return module reference and original functions for later restoration
-    yield detect_failures_module, original_get_td, original_validate
+    yield detect_failures_module, original_find_td, original_validate
 
     # Restore original functions after test
-    detect_failures_module._get_task_definitions = original_get_td
+    detect_failures_module._find_task_definitions = original_find_td
     detect_failures_module._validate_container_images = original_validate
 
 
@@ -57,7 +57,14 @@ async def test_detect_image_pull_failures_happy_path(test_module_setup):
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock functions
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return [
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
@@ -78,11 +85,11 @@ async def test_detect_image_pull_failures_happy_path(test_module_setup):
         ]
 
     # Replace with mocks
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
     detect_failures_module._validate_container_images = mock_validate
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(family_prefix="test-app")
 
     # Verify the result
     assert result["status"] == "success"
@@ -91,24 +98,120 @@ async def test_detect_image_pull_failures_happy_path(test_module_setup):
 
 
 @pytest.mark.anyio
-async def test_detect_image_pull_failures_no_task_definitions(test_module_setup):
-    """Test detect_image_pull_failures with no task definitions."""
+async def test_detect_image_pull_failures_no_task_definitions_stack_name(test_module_setup):
+    """Test detect_image_pull_failures with no task definitions using stack_name."""
     # Unpack the module reference and original functions
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock function that returns empty list
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return []
 
     # Replace with mock
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(stack_name="test-app")
 
     # Verify the result
     assert result["status"] == "success"
-    assert "No task definitions found" in result["assessment"]
+    assert "No task definitions found for stack" in result["assessment"]
+    assert "Check if your task definition is named differently" in result["recommendations"][0]
+
+
+@pytest.mark.anyio
+async def test_detect_image_pull_failures_no_task_definitions_service_name(test_module_setup):
+    """Test detect_image_pull_failures with no task definitions using cluster and service name."""
+    # Unpack the module reference and original functions
+    detect_failures_module, _, _ = test_module_setup
+
+    # Create mock function that returns empty list
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
+        return []
+
+    # Replace with mock
+    detect_failures_module._find_task_definitions = mock_find_td
+
+    # Call the function
+    result = await detect_image_pull_failures(
+        cluster_name="test-cluster", service_name="test-service"
+    )
+
+    # Verify the result
+    assert result["status"] == "success"
+    assert "No task definitions found for cluster" in result["assessment"]
+    assert "Check if your task definition is named differently" in result["recommendations"][0]
+
+
+@pytest.mark.anyio
+async def test_detect_image_pull_failures_no_task_definitions_task_id(test_module_setup):
+    """Test detect_image_pull_failures with no task definitions using cluster_name and task_id."""
+    # Unpack the module reference and original functions
+    detect_failures_module, _, _ = test_module_setup
+
+    # Create mock function that returns empty list
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
+        return []
+
+    # Replace with mock
+    detect_failures_module._find_task_definitions = mock_find_td
+
+    # Call the function
+    result = await detect_image_pull_failures(cluster_name="test-cluster", task_id="test-task")
+
+    # Verify the result
+    assert result["status"] == "success"
+    assert "No task definitions found for cluster" in result["assessment"]
+    assert "Check if your task definition is named differently" in result["recommendations"][0]
+
+
+@pytest.mark.anyio
+async def test_detect_image_pull_failures_no_task_definitions_family_prefix(test_module_setup):
+    """Test detect_image_pull_failures with no task definitions using family_prefix."""
+    # Unpack the module reference and original functions
+    detect_failures_module, _, _ = test_module_setup
+
+    # Create mock function that returns empty list
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
+        return []
+
+    # Replace with mock
+    detect_failures_module._find_task_definitions = mock_find_td
+
+    # Call the function
+    result = await detect_image_pull_failures(family_prefix="test-family")
+
+    # Verify the result
+    assert result["status"] == "success"
+    assert "No task definitions found for family prefix" in result["assessment"]
     assert "Check if your task definition is named differently" in result["recommendations"][0]
 
 
@@ -119,7 +222,14 @@ async def test_detect_image_pull_failures_with_invalid_images(test_module_setup)
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock functions
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return [
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
@@ -150,11 +260,11 @@ async def test_detect_image_pull_failures_with_invalid_images(test_module_setup)
         ]
 
     # Replace with mocks
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
     detect_failures_module._validate_container_images = mock_validate
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(cluster_name="test-cluster", service_name="test-app")
 
     # Verify the result
     assert result["status"] == "success"
@@ -171,7 +281,14 @@ async def test_detect_image_pull_failures_comprehensive(test_module_setup):
     detect_failures_module, _, _ = test_module_setup
 
     # Define mock functions
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return [
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
@@ -225,11 +342,11 @@ async def test_detect_image_pull_failures_comprehensive(test_module_setup):
         ]
 
     # Replace with mocks
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
     detect_failures_module._validate_container_images = mock_validate
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(family_prefix="test-app")
 
     # Verify the result
     assert result["status"] == "success"
@@ -250,7 +367,14 @@ async def test_detect_image_pull_failures_with_missing_execution_role(test_modul
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock functions
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return [
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
@@ -276,11 +400,11 @@ async def test_detect_image_pull_failures_with_missing_execution_role(test_modul
         ]
 
     # Replace with mocks
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
     detect_failures_module._validate_container_images = mock_validate
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(task_id="test-task", cluster_name="test-cluster")
 
     # Verify the result
     assert result["status"] == "success"
@@ -296,7 +420,14 @@ async def test_detect_image_pull_failures_external_image(test_module_setup):
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock functions
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return [
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
@@ -317,11 +448,11 @@ async def test_detect_image_pull_failures_external_image(test_module_setup):
         ]
 
     # Replace with mocks
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
     detect_failures_module._validate_container_images = mock_validate
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(stack_name="test-stack")
 
     # Verify the result
     assert result["status"] == "success"
@@ -342,14 +473,21 @@ async def test_detect_image_pull_failures_task_definitions_error(test_module_set
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock function that raises an exception
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         raise Exception("Failed to get task definitions")
 
     # Replace with mock
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(family_prefix="test-app")
 
     # Verify the result
     assert result["status"] == "error"
@@ -364,7 +502,14 @@ async def test_detect_image_pull_failures_validate_images_error(test_module_setu
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock functions
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return [
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
@@ -376,11 +521,13 @@ async def test_detect_image_pull_failures_validate_images_error(test_module_setu
         raise Exception("Failed to validate images")
 
     # Replace with mocks
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
     detect_failures_module._validate_container_images = mock_validate
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(
+        cluster_name="test-cluster", service_name="test-service"
+    )
 
     # Verify the result
     assert result["status"] == "error"
@@ -395,7 +542,14 @@ async def test_detect_image_pull_failures_client_error(test_module_setup):
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock functions
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return [
             {
                 "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
@@ -410,16 +564,66 @@ async def test_detect_image_pull_failures_client_error(test_module_setup):
         )
 
     # Replace with mocks
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
     detect_failures_module._validate_container_images = mock_validate
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(family_prefix="test-app")
 
     # Verify the result
     assert result["status"] == "error"
     assert "User not authorized to access ECR" in result["error"]
     assert "Error validating container images" in result["assessment"]
+
+
+@pytest.mark.anyio
+async def test_detect_image_pull_failures_other_image_failure(test_module_setup):
+    """Test detect_image_pull_failures with a different image failure type."""
+    # Unpack the module reference and original functions
+    detect_failures_module, _, _ = test_module_setup
+
+    # Create mock functions
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
+        return [
+            {
+                "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "containerDefinitions": [{"name": "container1", "image": "unknown-image"}],
+                "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+            }
+        ]
+
+    async def mock_validate(task_definitions):
+        return [
+            {
+                "image": "unknown-image",
+                "exists": "false",  # Not "true" but also not "unknown"
+                "repository_type": "other",  # Not "ecr"
+                "task_definition": "arn:aws:ecs:us-west-2:123456789012:task-definition/task1:1",
+                "container_name": "container1",
+            }
+        ]
+
+    # Replace with mocks
+    detect_failures_module._find_task_definitions = mock_find_td
+    detect_failures_module._validate_container_images = mock_validate
+
+    # Call the function
+    result = await detect_image_pull_failures(
+        cluster_name="test-cluster", service_name="test-service"
+    )
+
+    # Verify the result
+    assert result["status"] == "success"
+    assert len(result["image_issues"]) == 1
+    assert "has issues" in result["recommendations"][0]
+    assert "unknown-image" in result["recommendations"][0]
 
 
 @pytest.mark.anyio
@@ -429,16 +633,53 @@ async def test_detect_image_pull_failures_general_exception(test_module_setup):
     detect_failures_module, _, _ = test_module_setup
 
     # Create mock function that returns something not iterable (will cause an exception)
-    async def mock_get_td(app_name):
+    async def mock_find_td(
+        cluster_name=None,
+        service_name=None,
+        stack_name=None,
+        family_prefix=None,
+        task_id=None,
+        ecs_client=None,
+    ):
         return 123  # This will cause an exception in the function when it tries to iterate
 
     # Replace with mock
-    detect_failures_module._get_task_definitions = mock_get_td
+    detect_failures_module._find_task_definitions = mock_find_td
 
     # Call the function
-    result = await detect_image_pull_failures("test-app")
+    result = await detect_image_pull_failures(stack_name="test-stack")
 
     # Verify the result
     assert result["status"] == "error"
     assert "error" in result
+    assert len(result["image_issues"]) == 0
+
+
+@pytest.mark.anyio
+async def test_detect_image_pull_failures_general_outer_exception(test_module_setup):
+    """Test detect_image_pull_failures with exception in the outer try-except block."""
+    # Unpack the module reference and original functions
+    detect_failures_module, _, _ = test_module_setup
+
+    # Store reference to original function for potential restoration (not currently used)
+
+    # Define a function that will be called inside detect_image_pull_failures
+    # and will raise an exception that should be caught by the outer try-except
+    async def mock_find_td(*args, **kwargs):
+        # This will be caught by the inner try-except and then re-raised
+        # to simulate an exception in the outer block
+        class SpecialException(Exception):
+            pass
+
+        raise SpecialException("Special exception to trigger outer exception handler")
+
+    # Replace the find_task_definitions function to make it raise an exception
+    detect_failures_module._find_task_definitions = mock_find_td
+
+    # Call the function
+    result = await detect_image_pull_failures(family_prefix="test-family")
+
+    # Verify the result
+    assert result["status"] == "error"
+    assert "Special exception" in result["error"]
     assert len(result["image_issues"]) == 0

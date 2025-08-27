@@ -149,21 +149,46 @@ def _categorize_failures(
     return failed_tasks, failure_categories
 
 
+async def _get_stopped_tasks_for_cluster(
+    ecs_client: Any, cluster_name: str, start_time: datetime.datetime
+) -> List[Dict[str, Any]]:
+    """Get stopped tasks for cluster within time window."""
+    try:
+        # Get all stopped task ARNs
+        task_arns = ecs_client.list_tasks(cluster=cluster_name, desiredStatus="STOPPED").get(
+            "taskArns", []
+        )
+        if not task_arns:
+            return []
+
+        # Get task details and filter by time
+        tasks = ecs_client.describe_tasks(cluster=cluster_name, tasks=task_arns).get("tasks", [])
+        return [
+            task
+            for task in tasks
+            if task.get("stoppedAt")
+            and (
+                task["stoppedAt"].replace(tzinfo=datetime.timezone.utc)
+                if task["stoppedAt"].tzinfo is None
+                else task["stoppedAt"]
+            )
+            >= start_time
+        ]
+    except ClientError:
+        return []
+
+
 async def fetch_task_failures(
-    app_name: str,
     cluster_name: str,
     time_window: int = 3600,
     start_time: Optional[datetime.datetime] = None,
     end_time: Optional[datetime.datetime] = None,
-    ecs_client=None,
 ) -> Dict[str, Any]:
     """
     Task-level diagnostics for ECS task failures.
 
     Parameters
     ----------
-    app_name : str
-        The name of the application to analyze
     cluster_name : str
         The name of the ECS cluster
     time_window : int, optional
@@ -173,8 +198,6 @@ async def fetch_task_failures(
         (UTC, takes precedence over time_window if provided)
     end_time : datetime, optional
         Explicit end time for the analysis window (UTC, defaults to current time if not provided)
-    ecs_client : object, optional
-        Client for ECS API interactions, useful for testing
 
     Returns
     -------
@@ -196,22 +219,29 @@ async def fetch_task_failures(
             time_window, start_time, end_time
         )
 
-        ecs = ecs_client or await get_aws_client("ecs")
+        ecs = await get_aws_client("ecs")
 
         # Check if cluster exists
-        cluster_exists, cluster_info = await ecs.check_cluster_exists(cluster_name)
-        if not cluster_exists:
-            response["message"] = f"Cluster '{cluster_name}' does not exist"
-            return response
+        try:
+            cluster_response = ecs.describe_clusters(clusters=[cluster_name])
+            if not cluster_response.get("clusters"):
+                response["message"] = f"Cluster '{cluster_name}' does not exist"
+                return response
 
-        response["cluster_exists"] = True
-        response["raw_data"]["cluster"] = cluster_info
+            cluster_info = cluster_response["clusters"][0]
+            response["cluster_exists"] = True
+            response["raw_data"]["cluster"] = cluster_info
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ClusterNotFoundException":
+                response["message"] = f"Cluster '{cluster_name}' does not exist"
+                return response
+            raise
 
         # Get stopped tasks within time window
-        stopped_tasks = await ecs.get_stopped_tasks(cluster_name, actual_start_time)
+        stopped_tasks = await _get_stopped_tasks_for_cluster(ecs, cluster_name, actual_start_time)
 
         # Get running tasks count
-        running_tasks_count = await ecs.get_running_tasks_count(cluster_name)
+        running_tasks_count = cluster_info.get("runningTasksCount", 0)
         response["raw_data"]["running_tasks_count"] = running_tasks_count
 
         # Process and categorize failures
