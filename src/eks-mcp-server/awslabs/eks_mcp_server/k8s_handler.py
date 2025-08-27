@@ -878,6 +878,10 @@ class K8sHandler:
             10240,
             description='Maximum number of bytes to return. Default: 10KB (10240 bytes). Prevents retrieving extremely large log files.',
         ),
+        previous: bool = Field(
+            False,
+            description='Return previous terminated container logs. Default: false. Useful to get logs for pods that are restarting.',
+        ),
     ) -> PodLogsResponse:
         """Get logs from a pod in a Kubernetes cluster.
 
@@ -905,6 +909,7 @@ class K8sHandler:
             since_seconds: Only return logs newer than this many seconds (optional)
             tail_lines: Number of lines to return from the end of the logs (defaults to 100)
             limit_bytes: Maximum number of bytes to return (defaults to 10KB)
+            previous: Return previous terminated container logs (defaults to false)
 
         Returns:
             PodLogsResponse with pod logs
@@ -934,6 +939,7 @@ class K8sHandler:
                 since_seconds=since_seconds,
                 tail_lines=tail_lines,
                 limit_bytes=limit_bytes,
+                previous=previous,
             )
 
             # Split logs into lines
