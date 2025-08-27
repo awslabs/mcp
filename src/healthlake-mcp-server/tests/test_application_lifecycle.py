@@ -97,23 +97,12 @@ class TestMainModuleExecution:
     """Test main module execution scenarios."""
 
     def test_main_module_execution(self):
-        """Test __name__ == '__main__' execution path."""
-        # Test by executing the main module code directly
+        """Test main module execution."""
         import awslabs.healthlake_mcp_server.main
 
-        # Mock sync_main to avoid actual server startup
         with patch('awslabs.healthlake_mcp_server.main.sync_main') as mock_sync_main:
-            # Execute the code that runs when __name__ == '__main__'
-            # This simulates running: python -m awslabs.healthlake_mcp_server.main
-            exec(
-                compile("if __name__ == '__main__': sync_main()", '<test>', 'exec'),
-                {
-                    '__name__': '__main__',
-                    'sync_main': awslabs.healthlake_mcp_server.main.sync_main,
-                },
-            )
-
-            # Verify sync_main was called
+            # Test the function directly
+            awslabs.healthlake_mcp_server.main.sync_main()
             mock_sync_main.assert_called_once()
 
 
