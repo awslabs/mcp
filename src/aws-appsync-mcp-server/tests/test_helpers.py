@@ -33,7 +33,10 @@ def test_get_appsync_client_default():
         client = get_appsync_client()
 
         mock_session.assert_called_once_with(profile_name=None, region_name='us-east-1')
-        mock_session.return_value.client.assert_called_once_with('appsync')
+        # Verify client is called with appsync and config parameter
+        args, kwargs = mock_session.return_value.client.call_args
+        assert args[0] == 'appsync'
+        assert 'config' in kwargs
         assert client == mock_client
 
 
@@ -49,6 +52,10 @@ def test_get_appsync_client_with_profile():
             mock_session.assert_called_once_with(
                 profile_name='test-profile', region_name='us-west-2'
             )
+            # Verify client is called with appsync and config parameter
+            args, kwargs = mock_session.return_value.client.call_args
+            assert args[0] == 'appsync'
+            assert 'config' in kwargs
             assert client == mock_client
 
 
@@ -98,3 +105,33 @@ async def test_handle_exceptions_decorator_generic_error():
 
     with pytest.raises(RuntimeError, match='Test error'):
         await error_func()
+
+
+def test_get_appsync_client_config_user_agent():
+    """Test that get_appsync_client creates config with correct user agent."""
+    with (
+        patch('boto3.Session') as mock_session,
+        patch('awslabs.aws_appsync_mcp_server.__version__', '1.0.0'),
+    ):
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+
+        get_appsync_client()
+
+        # Verify config parameter contains user agent
+        args, kwargs = mock_session.return_value.client.call_args
+        config = kwargs['config']
+        assert hasattr(config, 'user_agent_extra')
+        assert 'awslabs/mcp/aws-appsync-mcp-server/1.0.0' in config.user_agent_extra
+
+
+def test_get_appsync_client_no_env_vars():
+    """Test get_appsync_client with no environment variables set."""
+    with patch('boto3.Session') as mock_session, patch.dict(os.environ, {}, clear=True):
+        mock_client = MagicMock()
+        mock_session.return_value.client.return_value = mock_client
+
+        client = get_appsync_client()
+
+        mock_session.assert_called_once_with(profile_name=None, region_name='us-east-1')
+        assert client == mock_client
