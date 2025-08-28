@@ -185,19 +185,22 @@ class TestErrorHandling:
 
             tools = CloudWatchLogsTools()
 
-            with pytest.raises(Exception) as exc_info:
-                await tools.execute_log_insights_query(
-                    mock_context,
-                    log_group_names=['test-group'],
-                    log_group_identifiers=None,
-                    start_time='2023-01-01T00:00:00+00:00',
-                    end_time='2023-01-01T01:00:00+00:00',
-                    query_string='fields @message',
-                    limit=10,
-                    max_timeout=30,
-                )
+            result = await tools.execute_log_insights_query(
+                mock_context,
+                log_group_names=['test-group'],
+                log_group_identifiers=None,
+                start_time='2023-01-01T00:00:00+00:00',
+                end_time='2023-01-01T01:00:00+00:00',
+                query_string='fields @message',
+                limit=10,
+                max_timeout=30,
+            )
 
-            assert 'Query API Error' in str(exc_info.value)
+            # Verify error response structure instead of exception
+            assert result['status'] == 'Error'
+            assert result['results'] == []
+            assert 'Query API Error' in result['message']
+            assert result['queryId'] == ''
             mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
@@ -212,10 +215,15 @@ class TestErrorHandling:
 
             tools = CloudWatchLogsTools()
 
-            with pytest.raises(Exception) as exc_info:
-                await tools.get_logs_insight_query_results(mock_context, query_id='test-query-id')
+            result = await tools.get_logs_insight_query_results(
+                mock_context, query_id='test-query-id'
+            )
 
-            assert 'Query Results API Error' in str(exc_info.value)
+            # Verify error response structure instead of exception
+            assert result['status'] == 'Error'
+            assert result['results'] == []
+            assert 'Query Results API Error' in result['message']
+            assert result['queryId'] == 'test-query-id'
             mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
