@@ -5,19 +5,16 @@ A Model Context Protocol (MCP) server for AWS HealthLake FHIR operations. Provid
 ## Table of Contents
 
 - [Features](#features)
+- [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
   - [Option 1: uvx (Recommended)](#option-1-uvx-recommended)
   - [Option 2: uv install](#option-2-uv-install)
   - [Option 3: Docker](#option-3-docker)
-- [Docker](#docker)
-  - [Quick Start with Docker](#quick-start-with-docker)
-  - [Building Locally](#building-locally)
-  - [MCP Client Configuration for Docker](#mcp-client-configuration-for-docker)
-  - [Environment Variables](#environment-variables)
-- [Prerequisites](#prerequisites)
 - [MCP Client Configuration](#mcp-client-configuration)
   - [Amazon Q Developer CLI](#amazon-q-developer-cli)
+  - [Docker Configuration](#docker-configuration)
   - [Other MCP Clients](#other-mcp-clients)
+- [Read-Only Mode](#read-only-mode)
 - [Available Tools](#available-tools)
   - [Datastore Management](#datastore-management)
   - [FHIR Resource Operations (CRUD)](#fhir-resource-operations-crud)
@@ -54,6 +51,14 @@ A Model Context Protocol (MCP) server for AWS HealthLake FHIR operations. Provid
 - **Error Handling**: Structured error responses with specific error types
 - **Docker Support**: Production-ready containerization
 
+## Prerequisites
+
+- **Python 3.10+** (required by MCP framework)
+- **AWS credentials** configured
+- **AWS HealthLake access** with appropriate permissions
+
+[↑ Back to Table of Contents](#table-of-contents)
+
 ## Quick Start
 
 Choose your preferred installation method:
@@ -82,35 +87,67 @@ awslabs.healthlake-mcp-server
 # Build and run with Docker
 docker build -t healthlake-mcp-server .
 docker run -e AWS_ACCESS_KEY_ID=xxx -e AWS_SECRET_ACCESS_KEY=yyy healthlake-mcp-server
+
+# Or use pre-built image with environment variables
+docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e AWS_REGION=us-east-1 awslabs/healthlake-mcp-server
+
+# With AWS profile (mount credentials)
+docker run -v ~/.aws:/root/.aws -e AWS_PROFILE=your-profile awslabs/healthlake-mcp-server
+
+# Read-only mode
+docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e AWS_REGION=us-east-1 awslabs/healthlake-mcp-server --readonly
 ```
 
 [↑ Back to Table of Contents](#table-of-contents)
 
-## Docker
+## MCP Client Configuration
 
-### Quick Start with Docker
+### Amazon Q Developer CLI
 
-```bash
-# Run with environment variables
-docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e AWS_REGION=us-east-1 -e MCP_LOG_LEVEL=INFO awslabs/healthlake-mcp-server
+Add to your MCP configuration file:
 
-# Run with AWS profile (mount credentials)
-docker run -v ~/.aws:/root/.aws -e AWS_PROFILE=your-profile -e MCP_LOG_LEVEL=INFO awslabs/healthlake-mcp-server
+**Location:**
+- macOS: `~/.aws/amazonq/mcp.json`
+- Linux: `~/.config/amazon-q/mcp.json`
+- Windows: `%APPDATA%\Amazon Q\mcp.json`
+
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "healthlake": {
+      "command": "uvx",
+      "args": ["awslabs.healthlake-mcp-server@latest"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "your-profile-name",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
 ```
 
-### Building Locally
-
-```bash
-# Build the image
-docker build -t healthlake-mcp-server .
-
-# Run locally built image
-docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret healthlake-mcp-server
+**Read-Only Configuration:**
+```json
+{
+  "mcpServers": {
+    "healthlake-readonly": {
+      "command": "uvx",
+      "args": ["awslabs.healthlake-mcp-server@latest", "--readonly"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "your-profile-name",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
 ```
 
-### MCP Client Configuration for Docker
+### Docker Configuration
 
-**Amazon Q Developer CLI:**
+**With environment variables:**
 ```json
 {
   "mcpServers": {
@@ -147,51 +184,21 @@ docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret he
 }
 ```
 
-### Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `AWS_ACCESS_KEY_ID` | AWS access key | Yes* |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key | Yes* |
-| `AWS_REGION` | AWS region | Yes |
-| `AWS_PROFILE` | AWS profile name | No |
-| `MCP_LOG_LEVEL` | Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | No |
-
-*Not required if using IAM roles or mounted credentials
-
-[↑ Back to Table of Contents](#table-of-contents)
-
-## Prerequisites
-
-- **Python 3.10+** (required by MCP framework)
-- **AWS credentials** configured
-- **AWS HealthLake access** with appropriate permissions
-
-[↑ Back to Table of Contents](#table-of-contents)
-
-## MCP Client Configuration
-
-### Amazon Q Developer CLI
-
-Add to your MCP configuration file:
-
-**Location:**
-- macOS: `~/.aws/amazonq/mcp.json`
-- Linux: `~/.config/amazon-q/mcp.json`
-- Windows: `%APPDATA%\Amazon Q\mcp.json`
-
-**Configuration:**
+**Read-Only Mode with Docker:**
 ```json
 {
   "mcpServers": {
-    "healthlake": {
-      "command": "uvx",
-      "args": ["awslabs.healthlake-mcp-server@latest"],
-      "env": {
-        "AWS_REGION": "us-east-1",
-        "AWS_PROFILE": "your-profile-name",
-        "MCP_LOG_LEVEL": "INFO"
-      }
+    "healthlake-readonly": {
+      "command": "docker",
+      "args": [
+        "run", "--rm",
+        "-e", "AWS_ACCESS_KEY_ID=your_key",
+        "-e", "AWS_SECRET_ACCESS_KEY=your_secret",
+        "-e", "AWS_REGION=us-east-1",
+        "-e", "MCP_LOG_LEVEL=INFO",
+        "awslabs/healthlake-mcp-server",
+        "--readonly"
+      ]
     }
   }
 }
@@ -200,6 +207,50 @@ Add to your MCP configuration file:
 ### Other MCP Clients
 
 See `examples/mcp_config.json` for additional configuration examples.
+
+[↑ Back to Table of Contents](#table-of-contents)
+
+## Read-Only Mode
+
+The server supports a read-only mode that prevents all mutating operations while still allowing read operations. This is useful for:
+
+- **Safety**: Preventing accidental modifications in production environments
+- **Testing**: Allowing safe exploration of FHIR resources without risk of changes
+- **Auditing**: Running the server in environments where only read access should be allowed
+- **Compliance**: Meeting security requirements for read-only access to healthcare data
+
+### Enabling Read-Only Mode
+
+Add the `--readonly` flag when starting the server:
+
+```bash
+# Using uvx
+uvx awslabs.healthlake-mcp-server@latest --readonly
+
+# Or if installed locally
+python -m awslabs.healthlake_mcp_server.main --readonly
+```
+
+### Operations Available in Read-Only Mode
+
+| Operation | Available | Description |
+|-----------|-----------|-------------|
+| `list_datastores` | ✅ | List all HealthLake datastores |
+| `get_datastore_details` | ✅ | Get detailed datastore information |
+| `read_fhir_resource` | ✅ | Retrieve specific FHIR resources |
+| `search_fhir_resources` | ✅ | Advanced FHIR search operations |
+| `patient_everything` | ✅ | Comprehensive patient record retrieval |
+| `list_fhir_jobs` | ✅ | Monitor import/export job status |
+
+### Operations Blocked in Read-Only Mode
+
+| Operation | Blocked | Description |
+|-----------|---------|-------------|
+| `create_fhir_resource` | ❌ | Create new FHIR resources |
+| `update_fhir_resource` | ❌ | Update existing FHIR resources |
+| `delete_fhir_resource` | ❌ | Delete FHIR resources |
+| `start_fhir_import_job` | ❌ | Start FHIR data import jobs |
+| `start_fhir_export_job` | ❌ | Start FHIR data export jobs |
 
 [↑ Back to Table of Contents](#table-of-contents)
 
