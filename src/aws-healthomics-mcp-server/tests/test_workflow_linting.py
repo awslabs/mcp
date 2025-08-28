@@ -934,6 +934,136 @@ steps:
             mock_lint_cwl.assert_called_once_with('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
 
     @pytest.mark.asyncio
+    async def test_lint_workflow_bundle_cwl_elif_branch(self):
+        """Test to ensure CWL elif branch in lint_workflow_bundle is covered."""
+        with patch.object(self.linter, '_lint_cwl_bundle') as mock_lint_cwl_bundle:
+            mock_lint_cwl_bundle.return_value = {
+                'status': 'success',
+                'format': 'cwl',
+                'main_file': 'main.cwl',
+                'files_processed': ['main.cwl'],
+                'linter': 'cwltool',
+                'raw_output': 'Success',
+            }
+
+            # Call lint_workflow_bundle directly to hit the elif branch
+            result = await self.linter.lint_workflow_bundle(
+                workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
+                workflow_format='CWL',  # Use uppercase to test case insensitive
+                main_workflow_file='main.cwl',
+            )
+
+            assert result['status'] == 'success'
+            assert result['format'] == 'cwl'
+            mock_lint_cwl_bundle.assert_called_once_with(
+                {'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'}, 'main.cwl'
+            )
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_cwl_elif_branch_direct(self):
+        """Test to ensure CWL elif branch in lint_workflow is covered."""
+        with patch.object(self.linter, '_lint_cwl') as mock_lint_cwl:
+            mock_lint_cwl.return_value = {
+                'status': 'success',
+                'format': 'cwl',
+                'linter': 'cwltool',
+                'raw_output': 'Success',
+            }
+
+            # Call lint_workflow directly to hit the elif branch
+            result = await self.linter.lint_workflow(
+                workflow_content='cwlVersion: v1.0\nclass: Workflow',
+                workflow_format='CWL',  # Use uppercase to test case insensitive
+                filename='test.cwl',
+            )
+
+            assert result['status'] == 'success'
+            assert result['format'] == 'cwl'
+            mock_lint_cwl.assert_called_once_with('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_wdl_then_cwl_branch_coverage(self):
+        """Test both WDL and CWL branches to ensure complete branch coverage."""
+        # Test WDL branch first
+        with patch.object(self.linter, '_lint_wdl') as mock_lint_wdl:
+            mock_lint_wdl.return_value = {
+                'status': 'success',
+                'format': 'wdl',
+                'linter': 'miniwdl',
+                'raw_output': 'Success',
+            }
+
+            result = await self.linter.lint_workflow(
+                workflow_content='version 1.0\nworkflow Test {}',
+                workflow_format='wdl',
+                filename='test.wdl',
+            )
+
+            assert result['status'] == 'success'
+            assert result['format'] == 'wdl'
+
+        # Test CWL branch second to ensure elif is properly covered
+        with patch.object(self.linter, '_lint_cwl') as mock_lint_cwl:
+            mock_lint_cwl.return_value = {
+                'status': 'success',
+                'format': 'cwl',
+                'linter': 'cwltool',
+                'raw_output': 'Success',
+            }
+
+            result = await self.linter.lint_workflow(
+                workflow_content='cwlVersion: v1.0\nclass: Workflow',
+                workflow_format='cwl',
+                filename='test.cwl',
+            )
+
+            assert result['status'] == 'success'
+            assert result['format'] == 'cwl'
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_bundle_wdl_then_cwl_branch_coverage(self):
+        """Test both WDL and CWL branches in bundle linting to ensure complete branch coverage."""
+        # Test WDL branch first
+        with patch.object(self.linter, '_lint_wdl_bundle') as mock_lint_wdl_bundle:
+            mock_lint_wdl_bundle.return_value = {
+                'status': 'success',
+                'format': 'wdl',
+                'main_file': 'main.wdl',
+                'files_processed': ['main.wdl'],
+                'linter': 'miniwdl',
+                'raw_output': 'Success',
+            }
+
+            result = await self.linter.lint_workflow_bundle(
+                workflow_files={'main.wdl': 'version 1.0\nworkflow Test {}'},
+                workflow_format='wdl',
+                main_workflow_file='main.wdl',
+            )
+
+            assert result['status'] == 'success'
+            assert result['format'] == 'wdl'
+
+        # Test CWL branch second to ensure elif is properly covered
+        with patch.object(self.linter, '_lint_cwl_bundle') as mock_lint_cwl_bundle:
+            mock_lint_cwl_bundle.return_value = {
+                'status': 'success',
+                'format': 'cwl',
+                'main_file': 'main.cwl',
+                'files_processed': ['main.cwl'],
+                'linter': 'cwltool',
+                'raw_output': 'Success',
+            }
+
+            result = await self.linter.lint_workflow_bundle(
+                workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
+                workflow_format='cwl',
+                main_workflow_file='main.cwl',
+            )
+
+            assert result['status'] == 'success'
+            assert result['format'] == 'cwl'
+
+    @pytest.mark.asyncio
     async def test_cwl_workflow_with_subworkflows(self):
         """Test CWL workflow with embedded subworkflows."""
         ctx = AsyncMock()
