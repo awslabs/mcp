@@ -32,8 +32,11 @@ from tests.fixtures import (
     CLOUD9_PARAMS_MISSING_CONTEXT_FAILURES,
     EC2_DESCRIBE_INSTANCES,
     GET_CALLER_IDENTITY_PAYLOAD,
+    LAMBDA_INVOKE_PAYLOAD,
+    S3_GET_OBJECT_PAYLOAD,
     SSM_LIST_NODES_PAYLOAD,
     T2_EC2_DESCRIBE_INSTANCES_FILTERED,
+    create_file_open_mock,
     patch_boto3,
 )
 from typing import Any
@@ -539,3 +542,54 @@ def test_profile_not_added_if_present_for_customizations(mock_get_region, mock_m
     assert '--profile' in args
     profile_index = args.index('--profile')
     assert args[profile_index + 1] == 'different'
+
+
+@pytest.mark.parametrize(
+    'command,expected_outfile,expected_content',
+    [
+        (
+            'aws s3api get-object --bucket test-bucket --key test-key /tmp/myfile.template',
+            '/tmp/myfile.template',
+            S3_GET_OBJECT_PAYLOAD['Body'].content,
+        ),
+        (
+            'aws lambda invoke --function-name my-function /tmp/response.json',
+            '/tmp/response.json',
+            LAMBDA_INVOKE_PAYLOAD['Payload'].content,
+        ),
+    ],
+)
+def test_interpret_command_creates_output_file_for_streaming_operations(
+    command, expected_outfile, expected_content
+):
+    """Test that interpret_command writes an output file for streaming operations with outfile parameter."""
+    with patch_boto3():
+        mock_open_side_effect, mock_files = create_file_open_mock(expected_outfile)
+
+        with patch('builtins.open', side_effect=mock_open_side_effect):
+            response = interpret_command(cli_command=command)
+
+            assert response.response is not None
+            assert response.response.status_code == 200
+
+            mock_file = mock_files[expected_outfile]
+            mock_file.write.assert_called_with(expected_content)
+
+            assert response.response.as_json is not None
+            response_data = json.loads(response.response.as_json)
+
+            assert 'Body' not in response_data
+            assert 'Payload' not in response_data
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        'aws s3api get-object --bucket test-bucket --key test-key relative/path/file.txt',
+        'aws lambda invoke --function-name my-function response.json',
+    ],
+)
+def test_validate_output_file_raises_error_for_relative_paths(command):
+    """Test that _validate_output_file raises ValueError for streaming operations with relative paths."""
+    with pytest.raises(ValueError, match=r'.* should be an aboslute path'):
+        interpret_command(cli_command=command)
