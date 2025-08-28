@@ -1,11 +1,11 @@
 [project]
 name = "awslabs.aws-healthomics-mcp-server"
-version = "0.0.6"
+version = "0.0.7"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS HealthOmics"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.38.30",
+    "boto3>=1.40.17",
     "loguru>=0.7.0",
     "mcp[cli]>=1.11.0",
     "pydantic>=2.10.6",

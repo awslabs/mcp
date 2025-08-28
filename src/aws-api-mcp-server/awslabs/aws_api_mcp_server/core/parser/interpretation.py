@@ -18,8 +18,8 @@ from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
 )
-from ..common.command import IRCommand
-from ..common.config import OPT_IN_TELEMETRY, READ_OPERATIONS_ONLY_MODE
+from ..common.command import IRCommand, OutputFile
+from ..common.config import OPT_IN_TELEMETRY, READ_OPERATIONS_ONLY_MODE, REQUIRE_MUTATION_CONSENT
 from ..common.helpers import operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
@@ -27,6 +27,7 @@ from typing import Any
 
 
 TIMEOUT_AFTER_SECONDS = 10
+CHUNK_SIZE = 4 * 1024 * 1024
 
 # Get package version for user agent
 try:
@@ -86,6 +87,9 @@ def interpret(
             if client_side_filter is not None:
                 response = _apply_filter(response, client_side_filter)
 
+        if ir.has_streaming_output and ir.output_file and ir.output_file.path != '-':
+            response = _handle_streaming_output(response, ir.output_file)
+
         return response
 
 
@@ -93,9 +97,19 @@ def _get_user_agent_extra() -> str:
     user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
     if not OPT_IN_TELEMETRY:
         return user_agent_extra
-    # ReadOperationsOnly mode
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
+    user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
     return user_agent_extra
+
+
+def _handle_streaming_output(response: dict[str, Any], output_file: OutputFile) -> dict[str, Any]:
+    streaming_output = response[output_file.response_key]
+    with open(output_file.path, 'wb') as f:
+        for chunk in streaming_output.iter_chunks(chunk_size=CHUNK_SIZE):
+            f.write(chunk)
+
+    del response[output_file.response_key]
+    return response
 
 
 def _apply_filter(response: dict[str, Any], client_side_filter: ParsedResult) -> dict[str, Any]:
