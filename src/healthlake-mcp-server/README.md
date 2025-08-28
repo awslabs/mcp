@@ -88,10 +88,10 @@ docker run -e AWS_ACCESS_KEY_ID=xxx -e AWS_SECRET_ACCESS_KEY=yyy healthlake-mcp-
 
 ```bash
 # Run with environment variables
-docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e AWS_REGION=us-east-1 awslabs/healthlake-mcp-server
+docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret -e AWS_REGION=us-east-1 -e MCP_LOG_LEVEL=INFO awslabs/healthlake-mcp-server
 
 # Run with AWS profile (mount credentials)
-docker run -v ~/.aws:/root/.aws -e AWS_PROFILE=your-profile awslabs/healthlake-mcp-server
+docker run -v ~/.aws:/root/.aws -e AWS_PROFILE=your-profile -e MCP_LOG_LEVEL=INFO awslabs/healthlake-mcp-server
 ```
 
 ### Building Locally
@@ -117,6 +117,7 @@ docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret he
         "-e", "AWS_ACCESS_KEY_ID=your_key",
         "-e", "AWS_SECRET_ACCESS_KEY=your_secret",
         "-e", "AWS_REGION=us-east-1",
+        "-e", "MCP_LOG_LEVEL=INFO",
         "awslabs/healthlake-mcp-server"
       ]
     }
@@ -134,6 +135,7 @@ docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret he
         "run", "--rm",
         "-v", "~/.aws:/root/.aws",
         "-e", "AWS_PROFILE=your-profile",
+        "-e", "MCP_LOG_LEVEL=INFO",
         "awslabs/healthlake-mcp-server"
       ]
     }
@@ -149,6 +151,7 @@ docker run -e AWS_ACCESS_KEY_ID=your_key -e AWS_SECRET_ACCESS_KEY=your_secret he
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key | Yes* |
 | `AWS_REGION` | AWS region | Yes |
 | `AWS_PROFILE` | AWS profile name | No |
+| `MCP_LOG_LEVEL` | Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL) | No |
 
 *Not required if using IAM roles or mounted credentials
 
@@ -182,7 +185,8 @@ Add to your MCP configuration file:
       "args": ["awslabs.healthlake-mcp-server@latest"],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_PROFILE": "your-profile-name"
+        "AWS_PROFILE": "your-profile-name",
+        "MCP_LOG_LEVEL": "INFO"
       }
     }
   }
@@ -358,7 +362,7 @@ All tools return structured error responses:
 Set environment variable for detailed logging:
 ```bash
 export PYTHONPATH=.
-export AWS_LOG_LEVEL=DEBUG
+export MCP_LOG_LEVEL=DEBUG
 awslabs.healthlake-mcp-server
 ```
 
