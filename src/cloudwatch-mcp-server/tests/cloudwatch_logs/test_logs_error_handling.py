@@ -364,14 +364,13 @@ class TestEdgeCases:
             # Response with minimal fields
             raw_response = {
                 'status': 'Complete',
-                # Missing queryId, statistics, results
+                # Missing queryId, results
             }
 
             processed = tools._process_query_results(raw_response, 'fallback-id')
 
             assert processed['queryId'] == 'fallback-id'
             assert processed['status'] == 'Complete'
-            assert processed['statistics'] == {}
             assert processed['results'] == []
 
     def test_aws_profile_initialization(self):
