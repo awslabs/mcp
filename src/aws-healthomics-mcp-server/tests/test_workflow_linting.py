@@ -1534,3 +1534,45 @@ steps:
 
             assert result['status'] == 'error'
             assert 'Workflow bundle linting failed' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_fallback_branch(self):
+        """Test fallback branch when format is neither WDL nor CWL."""
+        # Temporarily modify supported_formats to allow an unsupported format through initial validation
+        original_formats = self.linter.supported_formats
+        self.linter.supported_formats = ['wdl', 'cwl', 'nextflow']
+
+        try:
+            result = await self.linter.lint_workflow(
+                workflow_content='nextflow workflow',
+                workflow_format='nextflow',
+                filename='test.nf',
+            )
+
+            assert result['status'] == 'error'
+            assert 'Unexpected workflow format: nextflow' in result['message']
+            assert 'should not happen' in result['message']
+        finally:
+            # Restore original supported formats
+            self.linter.supported_formats = original_formats
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_bundle_fallback_branch(self):
+        """Test fallback branch when format is neither WDL nor CWL in bundle linting."""
+        # Temporarily modify supported_formats to allow an unsupported format through initial validation
+        original_formats = self.linter.supported_formats
+        self.linter.supported_formats = ['wdl', 'cwl', 'nextflow']
+
+        try:
+            result = await self.linter.lint_workflow_bundle(
+                workflow_files={'main.nf': 'nextflow workflow'},
+                workflow_format='nextflow',
+                main_workflow_file='main.nf',
+            )
+
+            assert result['status'] == 'error'
+            assert 'Unexpected workflow format: nextflow' in result['message']
+            assert 'should not happen' in result['message']
+        finally:
+            # Restore original supported formats
+            self.linter.supported_formats = original_formats

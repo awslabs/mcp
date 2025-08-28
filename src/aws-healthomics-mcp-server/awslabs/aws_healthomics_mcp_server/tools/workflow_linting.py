@@ -53,6 +53,12 @@ class WorkflowLinter:
                 return await self._lint_wdl_bundle(workflow_files, main_workflow_file)
             elif workflow_format.lower() == 'cwl':
                 return await self._lint_cwl_bundle(workflow_files, main_workflow_file)
+            else:
+                # Fallback for unexpected format (should not happen due to earlier validation)
+                return {
+                    'status': 'error',
+                    'message': f'Unexpected workflow format: {workflow_format}. This should not happen.',
+                }
         except Exception as e:
             logger.error(f'Error linting {workflow_format} workflow bundle: {str(e)}')
             return {
@@ -84,6 +90,12 @@ class WorkflowLinter:
                 return await self._lint_wdl(workflow_content, filename)
             elif workflow_format.lower() == 'cwl':
                 return await self._lint_cwl(workflow_content, filename)
+            else:
+                # Fallback for unexpected format (should not happen due to earlier validation)
+                return {
+                    'status': 'error',
+                    'message': f'Unexpected workflow format: {workflow_format}. This should not happen.',
+                }
         except Exception as e:
             logger.error(f'Error linting {workflow_format} workflow: {str(e)}')
             return {
