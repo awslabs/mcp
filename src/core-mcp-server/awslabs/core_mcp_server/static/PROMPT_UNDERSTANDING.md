@@ -383,7 +383,30 @@ Analysis:
 - Note security best practices
 - Document compliance considerations
 
-## 5. Tool Usage Strategy
+## 5. Core MCP Server Configuration
+
+The Core MCP Server can dynamically import other MCP servers based on role-based environment variables. This allows for tailored server configurations based on specific use cases or roles:
+
+- **aws-foundation**: AWS knowledge and API servers
+- **dev-tools**: Git repo research and code documentation tools
+- **ci-cd-devops**: CDK and CloudFormation servers
+- **container-orchestration**: EKS, ECS, and Finch servers
+- **serverless-architecture**: Serverless, Lambda, Step Functions, and SNS/SQS servers
+- **analytics-warehouse**: Redshift, Timestream, and data processing servers
+- **data-platform-eng**: DynamoDB, S3 Tables, and data processing servers
+- **frontend-dev**: Frontend and Nova Canvas servers
+- **solutions-architect**: Diagram, pricing, cost explorer, and AWS knowledge servers
+- **finops**: Cost explorer, pricing, CloudWatch, and billing cost management servers
+- **monitoring-observability**: CloudWatch, CloudTrail, AppSignals, and Prometheus servers
+- **caching-performance**: ElastiCache, Valkey, and Memcached servers
+- **security-identity**: IAM, support, and well architected security servers
+- **sql-db-specialist**: PostgreSQL, MySQL, Aurora DSQL, and Redshift servers
+- **nosql-db-specialist**: DynamoDB, DocumentDB, Keyspaces, and Neptune servers
+- **timeseries-db-specialist**: Timestream, Prometheus, and CloudWatch servers
+- **messaging-events**: SNS/SQS and MQ servers
+- **healthcare-lifesci**: HealthOmics server
+
+## 6. Tool Usage Strategy
 
 1. Initial Analysis:
 ```md
@@ -425,9 +448,9 @@ Analysis:
 </use_mcp_tool>
 ```
 
-## 6. Additional MCP Server Tools Examples
+## 7. Additional MCP Server Tools Examples
 
-### 6.1 Nova Canvas MCP Server
+### 7.1 Nova Canvas MCP Server
 
 Generate images for UI or solution architecture diagrams:
 
@@ -449,7 +472,7 @@ Generate images for UI or solution architecture diagrams:
 </use_mcp_tool>
 ```
 
-### 6.2 AWS Pricing MCP Server
+### 7.2 AWS Pricing MCP Server
 
 Get pricing information for AWS services:
 
@@ -466,7 +489,7 @@ Get pricing information for AWS services:
 </use_mcp_tool>
 ```
 
-### 6.3 AWS Documentation MCP Server
+### 7.3 AWS Documentation MCP Server
 
 Search for AWS documentation:
 
@@ -484,7 +507,7 @@ Search for AWS documentation:
 </use_mcp_tool>
 ```
 
-### 6.4 Terraform MCP Server
+### 7.4 Terraform MCP Server
 
 Execute Terraform commands and search for infrastructure documentation:
 
@@ -552,7 +575,7 @@ Key Research Areas:
 
 Remember: The goal is to translate general application requirements into specific, modern AWS services and patterns while considering scalability, security, and cost-effectiveness. if any MCP server referenced here is not avalaible, ask the user if they would like to install it
 
-### 6.5 AWS API MCP Server
+### 7.5 AWS API MCP Server
 
 Find all running EC2 servers in us-west-2 in the user's AWS account using AWS CLI commands.
 
