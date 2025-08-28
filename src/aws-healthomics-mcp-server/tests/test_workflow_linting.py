@@ -105,6 +105,10 @@ class TestWorkflowLinter:
 class TestLintingTools:
     """Test cases for linting tool functions."""
 
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.linter = WorkflowLinter()
+
     @pytest.mark.asyncio
     async def test_lint_workflow_definition(self):
         """Test lint_workflow_definition function."""
@@ -822,15 +826,362 @@ steps:
                 'status': 'success',
                 'format': 'wdl',
                 'valid': True,
-                'summary': {'structs_count': 2},
             }
+
             result = await lint_workflow_definition(
                 ctx=ctx,
                 workflow_content='version 1.0\nstruct Sample { String id }\nworkflow Test {}',
                 workflow_format='wdl',
                 filename='test.wdl',
             )
+
             assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_wdl_timeout_handling(self, mock_subprocess):
+        """Test WDL linting timeout handling."""
+        mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
+
+        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+
+        assert result['status'] == 'error'
+        assert 'timed out' in result['raw_output']
+        assert result['format'] == 'wdl'
+        assert result['linter'] == 'miniwdl'
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_cwl_timeout_handling(self, mock_subprocess):
+        """Test CWL linting timeout handling."""
+        mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
+
+        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+
+        assert result['status'] == 'error'
+        assert 'timed out' in result['raw_output']
+        assert result['format'] == 'cwl'
+        assert result['linter'] == 'cwltool'
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_wdl_subprocess_exception(self, mock_subprocess):
+        """Test WDL linting subprocess exception handling."""
+        mock_subprocess.side_effect = FileNotFoundError('miniwdl not found')
+
+        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+
+        assert result['status'] == 'error'
+        assert 'Failed to execute linter' in result['raw_output']
+        assert 'miniwdl not found' in result['raw_output']
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_cwl_subprocess_exception(self, mock_subprocess):
+        """Test CWL linting subprocess exception handling."""
+        mock_subprocess.side_effect = FileNotFoundError('cwltool not found')
+
+        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+
+        assert result['status'] == 'error'
+        assert 'Failed to execute linter' in result['raw_output']
+        assert 'cwltool not found' in result['raw_output']
+
+    @pytest.mark.asyncio
+    @patch('tempfile.NamedTemporaryFile')
+    async def test_lint_wdl_tempfile_exception(self, mock_tempfile):
+        """Test WDL linting with temporary file creation error."""
+        mock_tempfile.side_effect = OSError('No space left on device')
+
+        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+
+        assert result['status'] == 'error'
+        assert 'WDL linting failed' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('tempfile.NamedTemporaryFile')
+    async def test_lint_cwl_tempfile_exception(self, mock_tempfile):
+        """Test CWL linting with temporary file creation error."""
+        mock_tempfile.side_effect = OSError('No space left on device')
+
+        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+
+        assert result['status'] == 'error'
+        assert 'CWL linting failed' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('pathlib.Path.unlink')
+    @patch('subprocess.run')
+    async def test_lint_wdl_cleanup_exception(self, mock_subprocess, mock_unlink):
+        """Test WDL linting with file cleanup exception."""
+        # Mock successful subprocess
+        mock_result = MagicMock()
+        mock_result.stdout = 'Success'
+        mock_result.stderr = ''
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+
+        # Mock cleanup failure
+        mock_unlink.side_effect = PermissionError('Permission denied')
+
+        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+
+        # Should still succeed despite cleanup failure
+        assert result['status'] == 'success'
+        assert result['format'] == 'wdl'
+
+    @pytest.mark.asyncio
+    @patch('pathlib.Path.unlink')
+    @patch('subprocess.run')
+    async def test_lint_cwl_cleanup_exception(self, mock_subprocess, mock_unlink):
+        """Test CWL linting with file cleanup exception."""
+        # Mock successful subprocess
+        mock_result = MagicMock()
+        mock_result.stdout = 'Success'
+        mock_result.stderr = ''
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+
+        # Mock cleanup failure
+        mock_unlink.side_effect = PermissionError('Permission denied')
+
+        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+
+        # Should still succeed despite cleanup failure
+        assert result['status'] == 'success'
+        assert result['format'] == 'cwl'
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_bundle_exception_handling(self):
+        """Test exception handling in lint_workflow_bundle method."""
+        # Mock an exception in the bundle linting process
+        with patch.object(self.linter, '_lint_wdl_bundle') as mock_lint:
+            mock_lint.side_effect = RuntimeError('Unexpected error')
+
+            result = await self.linter.lint_workflow_bundle(
+                workflow_files={'main.wdl': 'workflow test {}'},
+                workflow_format='wdl',
+                main_workflow_file='main.wdl',
+            )
+
+            assert result['status'] == 'error'
+            assert 'Failed to lint wdl workflow bundle' in result['message']
+            assert 'Unexpected error' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_exception_handling(self):
+        """Test exception handling in lint_workflow method."""
+        # Mock an exception in the workflow linting process
+        with patch.object(self.linter, '_lint_wdl') as mock_lint:
+            mock_lint.side_effect = RuntimeError('Unexpected error')
+
+            result = await self.linter.lint_workflow(
+                workflow_content='workflow test {}', workflow_format='wdl', filename='test.wdl'
+            )
+
+            assert result['status'] == 'error'
+            assert 'Failed to lint wdl workflow' in result['message']
+            assert 'Unexpected error' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_wdl_bundle_timeout_handling(self, mock_subprocess):
+        """Test WDL bundle linting timeout handling."""
+        mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
+
+        result = await self.linter._lint_wdl_bundle(
+            workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
+        )
+
+        assert result['status'] == 'error'
+        assert 'timed out' in result['raw_output']
+        assert result['format'] == 'wdl'
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_cwl_bundle_timeout_handling(self, mock_subprocess):
+        """Test CWL bundle linting timeout handling."""
+        mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
+
+        result = await self.linter._lint_cwl_bundle(
+            workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'timed out' in result['raw_output']
+        assert result['format'] == 'cwl'
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_wdl_bundle_subprocess_exception(self, mock_subprocess):
+        """Test WDL bundle linting subprocess exception handling."""
+        mock_subprocess.side_effect = FileNotFoundError('miniwdl not found')
+
+        result = await self.linter._lint_wdl_bundle(
+            workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
+        )
+
+        assert result['status'] == 'error'
+        assert 'Failed to execute linter' in result['message']
+        assert 'miniwdl not found' in result['raw_output']
+
+    @pytest.mark.asyncio
+    @patch('subprocess.run')
+    async def test_lint_cwl_bundle_subprocess_exception(self, mock_subprocess):
+        """Test CWL bundle linting subprocess exception handling."""
+        mock_subprocess.side_effect = FileNotFoundError('cwltool not found')
+
+        result = await self.linter._lint_cwl_bundle(
+            workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Failed to execute linter' in result['message']
+        assert 'cwltool not found' in result['raw_output']
+
+    @pytest.mark.asyncio
+    @patch('tempfile.TemporaryDirectory')
+    async def test_lint_wdl_bundle_tempdir_exception(self, mock_tempdir):
+        """Test WDL bundle linting with temporary directory creation error."""
+        mock_tempdir.side_effect = OSError('No space left on device')
+
+        result = await self.linter._lint_wdl_bundle(
+            workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
+        )
+
+        assert result['status'] == 'error'
+        assert 'WDL bundle linting failed' in result['message']
+
+    @pytest.mark.asyncio
+    @patch('tempfile.TemporaryDirectory')
+    async def test_lint_cwl_bundle_tempdir_exception(self, mock_tempdir):
+        """Test CWL bundle linting with temporary directory creation error."""
+        mock_tempdir.side_effect = OSError('No space left on device')
+
+        result = await self.linter._lint_cwl_bundle(
+            workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
+            main_workflow_file='main.cwl',
+        )
+
+        assert result['status'] == 'error'
+        assert 'CWL bundle linting failed' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_definition_api_exception(self):
+        """Test exception handling in lint_workflow_definition API function."""
+        ctx = AsyncMock()
+
+        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
+            mock_lint.side_effect = RuntimeError('Unexpected API error')
+
+            result = await lint_workflow_definition(
+                ctx=ctx,
+                workflow_content='workflow test {}',
+                workflow_format='wdl',
+                filename='test.wdl',
+            )
+
+            assert result['status'] == 'error'
+            assert 'Workflow linting failed' in result['message']
+            assert 'Unexpected API error' in result['message']
+            ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_bundle_api_exception(self):
+        """Test exception handling in lint_workflow_bundle API function."""
+        ctx = AsyncMock()
+
+        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
+            mock_lint.side_effect = RuntimeError('Unexpected API error')
+
+            result = await lint_workflow_bundle(
+                ctx=ctx,
+                workflow_files={'main.wdl': 'workflow test {}'},
+                workflow_format='wdl',
+                main_workflow_file='main.wdl',
+            )
+
+            assert result['status'] == 'error'
+            assert 'Workflow bundle linting failed' in result['message']
+            assert 'Unexpected API error' in result['message']
+            ctx.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_bundle_unsupported_format_in_method(self):
+        """Test unsupported format handling in lint_workflow_bundle method."""
+        result = await self.linter.lint_workflow_bundle(
+            workflow_files={'main.nf': 'nextflow workflow'},
+            workflow_format='nextflow',
+            main_workflow_file='main.nf',
+        )
+
+        assert result['status'] == 'error'
+        assert 'Unsupported workflow format: nextflow' in result['message']
+        assert 'wdl' in result['message']
+        assert 'cwl' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_unsupported_format_in_method(self):
+        """Test unsupported format handling in lint_workflow method."""
+        result = await self.linter.lint_workflow(
+            workflow_content='nextflow workflow', workflow_format='nextflow', filename='main.nf'
+        )
+
+        assert result['status'] == 'error'
+        assert 'Unsupported workflow format: nextflow' in result['message']
+        assert 'wdl' in result['message']
+        assert 'cwl' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_wdl_bundle_main_file_not_found(self):
+        """Test WDL bundle when main file doesn't exist after writing files."""
+        # This tests the main_file_path.exists() check
+        workflow_files = {'other.wdl': 'version 1.0\ntask Test {}'}
+
+        result = await self.linter._lint_wdl_bundle(
+            workflow_files=workflow_files, main_workflow_file='missing.wdl'
+        )
+
+        assert result['status'] == 'error'
+        assert result['format'] == 'wdl'
+        assert 'Main workflow file "missing.wdl" not found' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_cwl_bundle_main_file_not_found(self):
+        """Test CWL bundle when main file doesn't exist after writing files."""
+        # This tests the main_file_path.exists() check
+        workflow_files = {'other.cwl': 'cwlVersion: v1.0\nclass: CommandLineTool'}
+
+        result = await self.linter._lint_cwl_bundle(
+            workflow_files=workflow_files, main_workflow_file='missing.cwl'
+        )
+
+        assert result['status'] == 'error'
+        assert result['format'] == 'cwl'
+        assert 'Main workflow file "missing.cwl" not found' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_lint_workflow_cwl_path_coverage(self):
+        """Test to ensure CWL path in lint_workflow method is covered."""
+        with patch.object(self.linter, '_lint_cwl') as mock_lint_cwl:
+            mock_lint_cwl.return_value = {
+                'status': 'success',
+                'format': 'cwl',
+                'linter': 'cwltool',
+                'raw_output': 'Success',
+            }
+
+            result = await self.linter.lint_workflow(
+                workflow_content='cwlVersion: v1.0\nclass: Workflow',
+                workflow_format='cwl',
+                filename='test.cwl',
+            )
+
+            assert result['status'] == 'success'
+            assert result['format'] == 'cwl'
+            mock_lint_cwl.assert_called_once_with('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
 
     @pytest.mark.asyncio
     async def test_cwl_workflow_with_subworkflows(self):
