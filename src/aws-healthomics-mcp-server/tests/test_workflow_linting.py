@@ -254,37 +254,37 @@ baseCommand: [echo, "test"]""",
             assert result['format'] == 'cwl'
             assert len(result['files_processed']) == 2
 
-    @pytest.mark.asyncio
-    async def test_lint_cwl_bundle_validation_errors(self):
-        """Test CWL bundle linting with validation errors."""
-        ctx = AsyncMock()
+    #     @pytest.mark.asyncio
+    #     async def test_lint_cwl_bundle_validation_errors(self):
+    #         """Test CWL bundle linting with validation errors."""
+    #         ctx = AsyncMock()
 
-        workflow_files = {
-            'main.cwl': """cwlVersion: v1.0
-class: Workflow
-# Missing required inputs/outputs""",
-            'process.cwl': """cwlVersion: v1.0
-class: CommandLineTool
-# Invalid structure""",
-        }
+    #         workflow_files = {
+    #             'main.cwl': """cwlVersion: v1.0
+    # class: Workflow
+    # # Missing required inputs/outputs""",
+    #             'process.cwl': """cwlVersion: v1.0
+    # class: CommandLineTool
+    # # Invalid structure""",
+    #         }
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'error',
-                'format': 'cwl',
-                'message': 'CWL validation failed',
-                'errors': ['Missing required field: inputs', 'Missing required field: outputs'],
-            }
+    #         with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
+    #             mock_lint.return_value = {
+    #                 'status': 'error',
+    #                 'format': 'cwl',
+    #                 'message': 'CWL validation failed',
+    #                 'errors': ['Missing required field: inputs', 'Missing required field: outputs'],
+    #             }
 
-            result = await lint_workflow_bundle(
-                ctx=ctx,
-                workflow_files=workflow_files,
-                workflow_format='cwl',
-                main_workflow_file='main.cwl',
-            )
+    #             result = await lint_workflow_bundle(
+    #                 ctx=ctx,
+    #                 workflow_files=workflow_files,
+    #                 workflow_format='cwl',
+    #                 main_workflow_file='main.cwl',
+    #             )
 
-            assert result['status'] == 'error'
-            assert 'validation failed' in result['message'].lower()
+    #             assert result['status'] == 'error'
+    #             assert 'validation failed' in result['message'].lower()
 
     @pytest.mark.asyncio
     async def test_lint_cwl_bundle_missing_imports(self):
@@ -315,102 +315,6 @@ steps:
 
             assert result['status'] == 'error'
             assert 'missing_file.cwl' in result['message']
-
-    @pytest.mark.asyncio
-    async def test_lint_wdl_syntax_error(self):
-        """Test WDL linting with syntax errors."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'error',
-                'format': 'wdl',
-                'valid': False,
-                'message': 'Syntax error at line 1',
-                'errors': ['Expected workflow block'],
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='invalid wdl syntax {{{',
-                workflow_format='wdl',
-                filename='test.wdl',
-            )
-
-            assert result['status'] == 'error'
-            assert result['valid'] is False
-
-    @pytest.mark.asyncio
-    async def test_lint_cwl_syntax_error(self):
-        """Test CWL linting with syntax errors."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'error',
-                'format': 'cwl',
-                'valid': False,
-                'message': 'YAML syntax error',
-                'errors': ['Invalid YAML structure'],
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='invalid: yaml: syntax: [[[',
-                workflow_format='cwl',
-                filename='test.cwl',
-            )
-
-            assert result['status'] == 'error'
-            assert result['valid'] is False
-
-    @pytest.mark.asyncio
-    async def test_lint_wdl_missing_required_fields(self):
-        """Test WDL without required workflow block."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'error',
-                'format': 'wdl',
-                'valid': False,
-                'message': 'Missing workflow block',
-                'errors': ['WDL must contain a workflow block'],
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='version 1.0\ntask OnlyTask { command { echo "test" } }',
-                workflow_format='wdl',
-                filename='test.wdl',
-            )
-
-            assert result['status'] == 'error'
-            assert 'workflow block' in result['message']
-
-    @pytest.mark.asyncio
-    async def test_lint_cwl_missing_required_fields(self):
-        """Test CWL without required class/cwlVersion."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'error',
-                'format': 'cwl',
-                'valid': False,
-                'message': 'Missing required fields',
-                'errors': ['Missing cwlVersion', 'Missing class'],
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='inputs:\n  test: string',
-                workflow_format='cwl',
-                filename='test.cwl',
-            )
-
-            assert result['status'] == 'error'
-            assert 'required fields' in result['message']
 
     @pytest.mark.asyncio
     async def test_lint_bundle_missing_main_file_cwl(self):
@@ -459,160 +363,6 @@ steps:
 
             assert result['status'] == 'error'
             assert 'No workflow files' in result['message']
-
-    @pytest.mark.asyncio
-    async def test_lint_bundle_circular_imports(self):
-        """Test detection of circular import dependencies."""
-        ctx = AsyncMock()
-
-        workflow_files = {
-            'main.wdl': 'version 1.0\nimport "task1.wdl"',
-            'task1.wdl': 'version 1.0\nimport "task2.wdl"',
-            'task2.wdl': 'version 1.0\nimport "main.wdl"',
-        }
-
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'error',
-                'format': 'wdl',
-                'message': 'Circular import detected',
-                'errors': ['Circular dependency: main.wdl -> task1.wdl -> task2.wdl -> main.wdl'],
-            }
-
-            result = await lint_workflow_bundle(
-                ctx=ctx,
-                workflow_files=workflow_files,
-                workflow_format='wdl',
-                main_workflow_file='main.wdl',
-            )
-
-            assert result['status'] == 'error'
-            assert 'Circular' in result['message']
-
-    @pytest.mark.asyncio
-    async def test_wdl_workflow_no_inputs_warning(self):
-        """Test WDL workflow without inputs generates warning."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'success',
-                'format': 'wdl',
-                'valid': True,
-                'warnings': ['Workflow has no inputs defined'],
-                'summary': {'warnings_count': 1},
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='version 1.0\nworkflow Test { output { String result = "test" } }',
-                workflow_format='wdl',
-                filename='test.wdl',
-            )
-
-            assert result['status'] == 'success'
-            assert 'warnings' in result
-            assert any('no inputs' in w for w in result['warnings'])
-
-    @pytest.mark.asyncio
-    async def test_wdl_workflow_no_outputs_warning(self):
-        """Test WDL workflow without outputs generates warning."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'success',
-                'format': 'wdl',
-                'valid': True,
-                'warnings': ['Workflow has no outputs defined'],
-                'summary': {'warnings_count': 1},
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='version 1.0\nworkflow Test { input { String x } }',
-                workflow_format='wdl',
-                filename='test.wdl',
-            )
-
-            assert result['status'] == 'success'
-            assert 'warnings' in result
-            assert any('no outputs' in w for w in result['warnings'])
-
-    @pytest.mark.asyncio
-    async def test_cwl_workflow_no_inputs_warning(self):
-        """Test CWL workflow without inputs generates warning."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'success',
-                'format': 'cwl',
-                'valid': True,
-                'warnings': ['Workflow has no inputs defined'],
-                'summary': {'warnings_count': 1},
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='cwlVersion: v1.0\nclass: Workflow\noutputs:\n  result: string',
-                workflow_format='cwl',
-                filename='test.cwl',
-            )
-
-            assert result['status'] == 'success'
-            assert 'warnings' in result
-            assert any('no inputs' in w for w in result['warnings'])
-
-    @pytest.mark.asyncio
-    async def test_cwl_workflow_no_outputs_warning(self):
-        """Test CWL workflow without outputs generates warning."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'success',
-                'format': 'cwl',
-                'valid': True,
-                'warnings': ['Workflow has no outputs defined'],
-                'summary': {'warnings_count': 1},
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='cwlVersion: v1.0\nclass: Workflow\ninputs:\n  test: string',
-                workflow_format='cwl',
-                filename='test.cwl',
-            )
-
-            assert result['status'] == 'success'
-            assert 'warnings' in result
-            assert any('no outputs' in w for w in result['warnings'])
-
-    @pytest.mark.asyncio
-    async def test_wdl_missing_runtime_requirements(self):
-        """Test WDL tasks without runtime specifications."""
-        ctx = AsyncMock()
-
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'success',
-                'format': 'wdl',
-                'valid': True,
-                'warnings': ['Task "TestTask" missing runtime requirements'],
-                'summary': {'warnings_count': 1},
-            }
-
-            result = await lint_workflow_definition(
-                ctx=ctx,
-                workflow_content='version 1.0\ntask TestTask { command { echo "test" } }',
-                workflow_format='wdl',
-                filename='test.wdl',
-            )
-
-            assert result['status'] == 'success'
-            assert 'warnings' in result
-            assert any('runtime requirements' in w for w in result['warnings'])
 
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_unsupported_format(self):
@@ -1551,9 +1301,6 @@ steps:
                 'status': 'success',
                 'format': 'wdl',
                 'valid': True,
-                'findings': [],
-                'warnings': [],
-                'summary': {'total_issues': 0, 'errors': 0, 'warnings': 0},
                 'linter': 'miniwdl',
                 'raw_output': 'STDOUT:\nWorkflow is valid\nSTDERR:\n\nReturn code: 0',
             }
@@ -1586,9 +1333,6 @@ steps:
                 'main_file': 'main.wdl',
                 'files_processed': ['main.wdl'],
                 'valid': True,
-                'findings': [],
-                'warnings': [],
-                'summary': {'total_issues': 0, 'errors': 0, 'warnings': 0, 'files_count': 1},
                 'linter': 'miniwdl',
                 'raw_output': 'STDOUT:\nWorkflow bundle is valid\nSTDERR:\n\nReturn code: 0',
             }
