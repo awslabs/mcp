@@ -105,7 +105,7 @@ class WorkflowLinter:
 
     async def _lint_wdl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
         """Lint WDL workflow using miniwdl."""
-        import subprocess
+        import subprocess  # nosec B404 - subprocess needed for workflow linting
         import sys
 
         try:
@@ -116,7 +116,7 @@ class WorkflowLinter:
 
             try:
                 # Capture raw linter output using miniwdl check command
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
                     [sys.executable, '-m', 'WDL', 'check', str(tmp_path)],
                     capture_output=True,
                     text=True,
@@ -153,8 +153,8 @@ class WorkflowLinter:
                 # Clean up temporary file
                 try:
                     tmp_path.unlink()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'Failed to clean up temporary WDL file {tmp_path}: {str(e)}')
 
         except Exception as e:
             logger.error(f'Error in WDL linting: {str(e)}')
@@ -162,7 +162,7 @@ class WorkflowLinter:
 
     async def _lint_cwl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
         """Lint CWL workflow using cwltool."""
-        import subprocess
+        import subprocess  # nosec B404 - subprocess needed for workflow linting
         import sys
 
         try:
@@ -173,7 +173,7 @@ class WorkflowLinter:
 
             try:
                 # Capture raw linter output using cwltool --validate
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
                     [sys.executable, '-m', 'cwltool', '--validate', str(tmp_path)],
                     capture_output=True,
                     text=True,
@@ -210,8 +210,8 @@ class WorkflowLinter:
                 # Clean up temporary file
                 try:
                     tmp_path.unlink()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f'Failed to clean up temporary CWL file {tmp_path}: {str(e)}')
 
         except Exception as e:
             logger.error(f'Error in CWL linting: {str(e)}')
@@ -221,7 +221,7 @@ class WorkflowLinter:
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint WDL workflow bundle using miniwdl."""
-        import subprocess
+        import subprocess  # nosec B404 - subprocess needed for workflow linting
         import sys
 
         try:
@@ -246,7 +246,7 @@ class WorkflowLinter:
 
                 try:
                     # Capture raw linter output using miniwdl check command
-                    result = subprocess.run(
+                    result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
                         [sys.executable, '-m', 'WDL', 'check', str(main_file_path)],
                         capture_output=True,
                         text=True,
@@ -294,7 +294,7 @@ class WorkflowLinter:
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint CWL workflow bundle using cwltool."""
-        import subprocess
+        import subprocess  # nosec B404 - subprocess needed for workflow linting
         import sys
 
         try:
@@ -319,7 +319,7 @@ class WorkflowLinter:
 
                 try:
                     # Capture raw linter output using cwltool --validate
-                    result = subprocess.run(
+                    result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
                         [sys.executable, '-m', 'cwltool', '--validate', str(main_file_path)],
                         capture_output=True,
                         text=True,
