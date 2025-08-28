@@ -80,6 +80,9 @@ To help you create your prompts, you can use:
 - tools like [Amazon Bedrock Prompt Optimization](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-management-optimize.html) which will rewrite prompts to yield inference results that are more suitable for your use case
 - metaprompting by discussing the feature with the AI assistant first, then summarizing the discussion as a prompt for the agent to develop the feature
 
+To discover prompts:
+- checkout [God Tier Prompts](https://www.godtierprompts.com), a community leaderboard that showcases the best prompts.
+
 ## Testing and Validation
 
 Ensure code quality and reliability through:
