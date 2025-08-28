@@ -19,7 +19,7 @@ from ..aws.services import (
     extract_pagination_config,
 )
 from ..common.command import IRCommand, OutputFile
-from ..common.config import OPT_IN_TELEMETRY, READ_OPERATIONS_ONLY_MODE
+from ..common.config import OPT_IN_TELEMETRY, READ_OPERATIONS_ONLY_MODE, REQUIRE_MUTATION_CONSENT
 from ..common.helpers import operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
@@ -97,8 +97,8 @@ def _get_user_agent_extra() -> str:
     user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
     if not OPT_IN_TELEMETRY:
         return user_agent_extra
-    # ReadOperationsOnly mode
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
+    user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
     return user_agent_extra
 
 
