@@ -20,7 +20,6 @@ from awslabs.healthlake_mcp_server.main import main, parse_args
 from awslabs.healthlake_mcp_server.server import (
     READ_ONLY_TOOLS,
     WRITE_TOOLS,
-    HealthLakeClient,
     ToolHandler,
     create_healthlake_server,
 )
@@ -124,28 +123,28 @@ class TestReadOnlyModeLogging:
 class TestToolHandlerReadOnly:
     """Test ToolHandler read-only functionality."""
 
-    def test_readonly_handler_initialization(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    def test_readonly_handler_initialization(self, mock_client):
         """Test ToolHandler initialization in read-only mode."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         assert handler.read_only is True
         assert len(handler.handlers) == len(READ_ONLY_TOOLS)
         assert set(handler.handlers.keys()) == READ_ONLY_TOOLS
 
-    def test_full_handler_initialization(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    def test_full_handler_initialization(self, mock_client):
         """Test ToolHandler initialization in full mode."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=False)
+        handler = ToolHandler(mock_client.return_value, read_only=False)
 
         assert handler.read_only is False
         assert len(handler.handlers) == len(READ_ONLY_TOOLS | WRITE_TOOLS)
         assert set(handler.handlers.keys()) == (READ_ONLY_TOOLS | WRITE_TOOLS)
 
-    async def test_readonly_blocks_write_tools(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    async def test_readonly_blocks_write_tools(self, mock_client):
         """Test that write tools are blocked in read-only mode."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         for write_tool in WRITE_TOOLS:
             with pytest.raises(
@@ -153,10 +152,10 @@ class TestToolHandlerReadOnly:
             ):
                 await handler.handle_tool(write_tool, {})
 
-    async def test_readonly_allows_read_tools(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    async def test_readonly_allows_read_tools(self, mock_client):
         """Test that read tools work in read-only mode."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         # Test that read tools are available (will fail for other reasons, not read-only)
         for read_tool in READ_ONLY_TOOLS:
@@ -173,42 +172,42 @@ class TestToolHandlerReadOnly:
 class TestWriteOperationSafetyChecks:
     """Test safety checks in write operation handlers."""
 
-    async def test_create_safety_check(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    async def test_create_safety_check(self, mock_client):
         """Test create operation safety check."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         with pytest.raises(ValueError, match='Create operation not allowed in read-only mode'):
             await handler._handle_create({})
 
-    async def test_update_safety_check(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    async def test_update_safety_check(self, mock_client):
         """Test update operation safety check."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         with pytest.raises(ValueError, match='Update operation not allowed in read-only mode'):
             await handler._handle_update({})
 
-    async def test_delete_safety_check(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    async def test_delete_safety_check(self, mock_client):
         """Test delete operation safety check."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         with pytest.raises(ValueError, match='Delete operation not allowed in read-only mode'):
             await handler._handle_delete({})
 
-    async def test_import_job_safety_check(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    async def test_import_job_safety_check(self, mock_client):
         """Test import job operation safety check."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         with pytest.raises(ValueError, match='Import job operation not allowed in read-only mode'):
             await handler._handle_import_job({})
 
-    async def test_export_job_safety_check(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    async def test_export_job_safety_check(self, mock_client):
         """Test export job operation safety check."""
-        client = HealthLakeClient()
-        handler = ToolHandler(client, read_only=True)
+        handler = ToolHandler(mock_client.return_value, read_only=True)
 
         with pytest.raises(ValueError, match='Export job operation not allowed in read-only mode'):
             await handler._handle_export_job({})
@@ -217,17 +216,20 @@ class TestWriteOperationSafetyChecks:
 class TestServerCreation:
     """Test server creation with read-only mode."""
 
-    def test_create_readonly_server(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    def test_create_readonly_server(self, mock_client):
         """Test creating server in read-only mode."""
         server = create_healthlake_server(read_only=True)
         assert server is not None
 
-    def test_create_full_server(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    def test_create_full_server(self, mock_client):
         """Test creating server in full mode."""
         server = create_healthlake_server(read_only=False)
         assert server is not None
 
-    def test_create_server_default_mode(self):
+    @patch('awslabs.healthlake_mcp_server.server.HealthLakeClient')
+    def test_create_server_default_mode(self, mock_client):
         """Test creating server with default mode (full access)."""
         server = create_healthlake_server()
         assert server is not None
