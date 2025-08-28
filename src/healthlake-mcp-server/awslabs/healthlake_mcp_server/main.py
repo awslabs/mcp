@@ -17,18 +17,20 @@
 
 # Standard library imports
 import asyncio
-import logging
+import os
+import sys
 
 # Local imports
 from .server import create_healthlake_server
 
 # Third-party imports
+from loguru import logger
 from mcp.server.stdio import stdio_server
 
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('MCP_LOG_LEVEL', 'WARNING'))
 
 
 async def main() -> None:

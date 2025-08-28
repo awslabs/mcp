@@ -18,7 +18,6 @@
 # Third-party imports
 import boto3
 import httpx
-import logging
 
 # Local imports
 from . import __version__
@@ -26,11 +25,10 @@ from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
+from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin
 
-
-logger = logging.getLogger(__name__)
 
 # HealthLake API limits
 MAX_SEARCH_COUNT = 100  # Maximum number of resources per search request

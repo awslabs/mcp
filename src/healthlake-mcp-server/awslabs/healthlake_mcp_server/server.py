@@ -16,7 +16,6 @@
 
 # Standard library imports
 import json
-import logging
 
 # Local imports
 from .fhir_operations import MAX_SEARCH_COUNT, HealthLakeClient, validate_datastore_id
@@ -32,13 +31,11 @@ from .models import (
 # Third-party imports
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime
+from loguru import logger
 from mcp.server import Server
 from mcp.types import Resource, TextContent, Tool
 from pydantic import AnyUrl
 from typing import Any, Dict, List, Sequence
-
-
-logger = logging.getLogger(__name__)
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -600,8 +597,8 @@ def create_healthlake_server() -> Server:
         except NoCredentialsError:
             logger.error(f'Credentials error in {name}')
             return create_error_response('AWS credentials not configured', 'auth_error')
-        except Exception as e:
-            logger.error(f'Unexpected error in {name}: {e}', exc_info=True)
+        except Exception:
+            logger.exception('Unexpected error in tool call', tool=name)
             return create_error_response('Internal server error', 'server_error')
 
     return server
