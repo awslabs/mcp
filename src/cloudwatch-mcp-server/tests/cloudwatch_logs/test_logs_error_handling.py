@@ -335,17 +335,17 @@ class TestErrorHandling:
             mock_client.get_query_results.side_effect = Exception('Network timeout during polling')
             mock_session.return_value.client.return_value = mock_client
             tools = CloudWatchLogsTools()
-            
+
             result = await tools._poll_for_query_completion(
                 mock_client, 'test-query-id', 30, mock_context
             )
-            
+
             # Verify error response structure
             assert result['queryId'] == 'test-query-id'
             assert result['status'] == 'Error'
             assert 'Network timeout during polling' in result['message']
             assert result['results'] == []
-            
+
             # Verify context error was called
             mock_context.error.assert_called_once()
             error_call_args = mock_context.error.call_args[0][0]
