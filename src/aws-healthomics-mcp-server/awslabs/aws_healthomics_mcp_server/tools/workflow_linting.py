@@ -14,25 +14,12 @@
 
 """Workflow linting tools for WDL and CWL workflow definitions."""
 
-# Import linting dependencies
-import cwltool
-import cwltool.load_tool
-import cwltool.main
-
-# Import nest_asyncio to handle nested event loops
-import nest_asyncio
 import tempfile
-import WDL
-import WDL.CLI
-from cwltool.context import LoadingContext
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, Optional
-
-
-nest_asyncio.apply()
 
 
 class WorkflowLinter:
@@ -106,6 +93,9 @@ class WorkflowLinter:
 
     async def _lint_wdl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
         """Lint WDL workflow using miniwdl."""
+        import subprocess
+        import sys
+
         try:
             # Create temporary file for the WDL content
             with tempfile.NamedTemporaryFile(mode='w', suffix='.wdl', delete=False) as tmp_file:
@@ -113,116 +103,38 @@ class WorkflowLinter:
                 tmp_path = Path(tmp_file.name)
 
             try:
-                # Parse and validate the WDL document
-                # Handle potential event loop conflicts
-                try:
-                    doc = WDL.load(str(tmp_path))
-                except RuntimeError as e:
-                    if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
-                        # Try to handle nested event loop issues
-                        logger.info('Attempting to resolve event loop conflict with nest_asyncio')
-                        doc = WDL.load(str(tmp_path))
-                    else:
-                        raise
-
-                # Run basic validation
-                findings = []
-                warnings = []
-
-                # Check for common issues
-                if hasattr(doc, 'workflow') and doc.workflow:
-                    workflow = doc.workflow
-
-                    # Check for missing inputs
-                    if not workflow.available_inputs:
-                        warnings.append(
-                            {
-                                'type': 'warning',
-                                'message': 'Workflow has no inputs defined',
-                                'location': 'workflow',
-                            }
-                        )
-
-                    # Check for missing outputs
-                    if not workflow.outputs:
-                        warnings.append(
-                            {
-                                'type': 'warning',
-                                'message': 'Workflow has no outputs defined',
-                                'location': 'workflow',
-                            }
-                        )
-
-                # Check for tasks
-                if hasattr(doc, 'tasks') and doc.tasks:
-                    for task in doc.tasks:
-                        # Check for missing runtime requirements
-                        if not task.runtime:
-                            warnings.append(
-                                {
-                                    'type': 'warning',
-                                    'message': f'Task "{task.name}" has no runtime requirements defined',
-                                    'location': f'task.{task.name}',
-                                }
-                            )
+                # Capture raw linter output using miniwdl check command
+                result = subprocess.run(
+                    [sys.executable, '-m', 'WDL', 'check', str(tmp_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
                 return {
                     'status': 'success',
                     'format': 'wdl',
                     'filename': filename or tmp_path.name,
-                    'valid': True,
-                    'findings': findings,
-                    'warnings': warnings,
-                    'summary': {
-                        'total_issues': len(findings) + len(warnings),
-                        'errors': len(findings),
-                        'warnings': len(warnings),
-                    },
                     'linter': 'miniwdl',
+                    'raw_output': raw_output,
                 }
 
-            except WDL.Error.ValidationError as e:
-                # Handle WDL validation errors
-                findings = []
-                for error in e.errors if hasattr(e, 'errors') else [e]:
-                    findings.append(
-                        {
-                            'type': 'error',
-                            'message': str(error),
-                            'location': getattr(error, 'pos', {}).get('filename', 'unknown')
-                            if hasattr(error, 'pos')
-                            else 'unknown',
-                            'line': getattr(error, 'pos', {}).get('line', None)
-                            if hasattr(error, 'pos')
-                            else None,
-                            'column': getattr(error, 'pos', {}).get('column', None)
-                            if hasattr(error, 'pos')
-                            else None,
-                        }
-                    )
-
+            except subprocess.TimeoutExpired:
                 return {
-                    'status': 'validation_failed',
+                    'status': 'error',
                     'format': 'wdl',
                     'filename': filename or tmp_path.name,
-                    'valid': False,
-                    'findings': findings,
-                    'warnings': [],
-                    'summary': {
-                        'total_issues': len(findings),
-                        'errors': len(findings),
-                        'warnings': 0,
-                    },
                     'linter': 'miniwdl',
+                    'raw_output': 'Linter execution timed out after 30 seconds',
                 }
-
             except Exception as e:
                 return {
                     'status': 'error',
                     'format': 'wdl',
                     'filename': filename or tmp_path.name,
-                    'message': f'Failed to parse WDL: {str(e)}',
                     'linter': 'miniwdl',
+                    'raw_output': f'Failed to execute linter: {str(e)}',
                 }
 
             finally:
@@ -238,6 +150,9 @@ class WorkflowLinter:
 
     async def _lint_cwl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
         """Lint CWL workflow using cwltool."""
+        import subprocess
+        import sys
+
         try:
             # Create temporary file for the CWL content
             with tempfile.NamedTemporaryFile(mode='w', suffix='.cwl', delete=False) as tmp_file:
@@ -245,103 +160,38 @@ class WorkflowLinter:
                 tmp_path = Path(tmp_file.name)
 
             try:
-                # Set up loading context
-                loading_context = LoadingContext()
-                loading_context.strict = True  # Enable strict validation
-
-                # Load and validate the CWL document
-                # Handle potential event loop conflicts
-                try:
-                    tool = cwltool.load_tool.load_tool(str(tmp_path), loading_context)
-                except RuntimeError as e:
-                    if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
-                        # Try to handle nested event loop issues
-                        logger.info('Attempting to resolve event loop conflict with nest_asyncio')
-                        tool = cwltool.load_tool.load_tool(str(tmp_path), loading_context)
-                    else:
-                        raise
-
-                findings = []
-                warnings = []
-
-                # Basic validation checks
-                if hasattr(tool, 'tool') and tool.tool:
-                    cwl_tool = tool.tool
-
-                    # Check for required fields
-                    if 'inputs' not in cwl_tool or not cwl_tool['inputs']:
-                        warnings.append(
-                            {
-                                'type': 'warning',
-                                'message': 'Workflow has no inputs defined',
-                                'location': 'workflow',
-                            }
-                        )
-
-                    if 'outputs' not in cwl_tool or not cwl_tool['outputs']:
-                        warnings.append(
-                            {
-                                'type': 'warning',
-                                'message': 'Workflow has no outputs defined',
-                                'location': 'workflow',
-                            }
-                        )
-
-                    # Check for steps in workflow
-                    if cwl_tool.get('class') == 'Workflow':
-                        if 'steps' not in cwl_tool or not cwl_tool['steps']:
-                            warnings.append(
-                                {
-                                    'type': 'warning',
-                                    'message': 'Workflow has no steps defined',
-                                    'location': 'workflow',
-                                }
-                            )
-                        else:
-                            # Check each step
-                            for step_name, step in cwl_tool['steps'].items():
-                                if 'run' not in step:
-                                    findings.append(
-                                        {
-                                            'type': 'error',
-                                            'message': f'Step "{step_name}" is missing required "run" field',
-                                            'location': f'steps.{step_name}',
-                                        }
-                                    )
+                # Capture raw linter output using cwltool --validate
+                result = subprocess.run(
+                    [sys.executable, '-m', 'cwltool', '--validate', str(tmp_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
                 return {
                     'status': 'success',
                     'format': 'cwl',
                     'filename': filename or tmp_path.name,
-                    'valid': True,
-                    'findings': findings,
-                    'warnings': warnings,
-                    'summary': {
-                        'total_issues': len(findings) + len(warnings),
-                        'errors': len(findings),
-                        'warnings': len(warnings),
-                    },
                     'linter': 'cwltool',
+                    'raw_output': raw_output,
                 }
 
-            except Exception as e:
-                # Handle CWL validation errors
-                error_msg = str(e)
-                findings = [{'type': 'error', 'message': error_msg, 'location': 'document'}]
-
+            except subprocess.TimeoutExpired:
                 return {
-                    'status': 'validation_failed',
+                    'status': 'error',
                     'format': 'cwl',
                     'filename': filename or tmp_path.name,
-                    'valid': False,
-                    'findings': findings,
-                    'warnings': [],
-                    'summary': {
-                        'total_issues': len(findings),
-                        'errors': len(findings),
-                        'warnings': 0,
-                    },
                     'linter': 'cwltool',
+                    'raw_output': 'Linter execution timed out after 30 seconds',
+                }
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'format': 'cwl',
+                    'filename': filename or tmp_path.name,
+                    'linter': 'cwltool',
+                    'raw_output': f'Failed to execute linter: {str(e)}',
                 }
 
             finally:
@@ -359,6 +209,9 @@ class WorkflowLinter:
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint WDL workflow bundle using miniwdl."""
+        import subprocess
+        import sys
+
         try:
             # Create temporary directory structure
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -380,143 +233,41 @@ class WorkflowLinter:
                     }
 
                 try:
-                    # Parse and validate the WDL document with imports
-                    # Handle potential event loop conflicts
-                    try:
-                        doc = WDL.load(str(main_file_path))
-                    except RuntimeError as e:
-                        if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
-                            # Try to handle nested event loop issues
-                            logger.info(
-                                'Attempting to resolve event loop conflict with nest_asyncio'
-                            )
-                            doc = WDL.load(str(main_file_path))
-                        else:
-                            raise
-
-                    # Run basic validation
-                    findings = []
-                    warnings = []
-
-                    # Check for common issues in main workflow
-                    if hasattr(doc, 'workflow') and doc.workflow:
-                        workflow = doc.workflow
-
-                        # Check for missing inputs
-                        if not workflow.available_inputs:
-                            warnings.append(
-                                {
-                                    'type': 'warning',
-                                    'message': 'Workflow has no inputs defined',
-                                    'location': 'workflow',
-                                    'file': main_workflow_file,
-                                }
-                            )
-
-                        # Check for missing outputs
-                        if not workflow.outputs:
-                            warnings.append(
-                                {
-                                    'type': 'warning',
-                                    'message': 'Workflow has no outputs defined',
-                                    'location': 'workflow',
-                                    'file': main_workflow_file,
-                                }
-                            )
-
-                    # Check for tasks across all files
-                    all_tasks = []
-                    if hasattr(doc, 'tasks'):
-                        all_tasks.extend(doc.tasks)
-
-                    # Check imported documents for tasks
-                    for imported_doc in getattr(doc, 'imports', []):
-                        if hasattr(imported_doc, 'tasks'):
-                            all_tasks.extend(imported_doc.tasks)
-
-                    for task in all_tasks:
-                        # Check for missing runtime requirements
-                        if not task.runtime:
-                            warnings.append(
-                                {
-                                    'type': 'warning',
-                                    'message': f'Task "{task.name}" has no runtime requirements defined',
-                                    'location': f'task.{task.name}',
-                                    'file': getattr(task, 'pos', {}).get('filename', 'unknown')
-                                    if hasattr(task, 'pos')
-                                    else 'unknown',
-                                }
-                            )
+                    # Capture raw linter output using miniwdl check command
+                    result = subprocess.run(
+                        [sys.executable, '-m', 'WDL', 'check', str(main_file_path)],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        cwd=str(tmp_path),
+                    )
+                    raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
                     return {
                         'status': 'success',
                         'format': 'wdl',
                         'main_file': main_workflow_file,
                         'files_processed': list(workflow_files.keys()),
-                        'valid': True,
-                        'findings': findings,
-                        'warnings': warnings,
-                        'summary': {
-                            'total_issues': len(findings) + len(warnings),
-                            'errors': len(findings),
-                            'warnings': len(warnings),
-                            'files_count': len(workflow_files),
-                        },
                         'linter': 'miniwdl',
+                        'raw_output': raw_output,
                     }
 
-                except WDL.Error.ValidationError as e:
-                    # Handle WDL validation errors
-                    findings = []
-                    for error in e.errors if hasattr(e, 'errors') else [e]:
-                        error_file = (
-                            getattr(error, 'pos', {}).get('filename', 'unknown')
-                            if hasattr(error, 'pos')
-                            else 'unknown'
-                        )
-                        # Convert absolute path back to relative path
-                        if error_file.startswith(str(tmp_path)):
-                            error_file = str(Path(error_file).relative_to(tmp_path))
-
-                        findings.append(
-                            {
-                                'type': 'error',
-                                'message': str(error),
-                                'location': error_file,
-                                'file': error_file,
-                                'line': getattr(error, 'pos', {}).get('line', None)
-                                if hasattr(error, 'pos')
-                                else None,
-                                'column': getattr(error, 'pos', {}).get('column', None)
-                                if hasattr(error, 'pos')
-                                else None,
-                            }
-                        )
-
+                except subprocess.TimeoutExpired:
                     return {
-                        'status': 'validation_failed',
+                        'status': 'error',
                         'format': 'wdl',
                         'main_file': main_workflow_file,
-                        'files_processed': list(workflow_files.keys()),
-                        'valid': False,
-                        'findings': findings,
-                        'warnings': [],
-                        'summary': {
-                            'total_issues': len(findings),
-                            'errors': len(findings),
-                            'warnings': 0,
-                            'files_count': len(workflow_files),
-                        },
                         'linter': 'miniwdl',
+                        'raw_output': 'Linter execution timed out after 30 seconds',
                     }
-
                 except Exception as e:
                     return {
                         'status': 'error',
                         'format': 'wdl',
                         'main_file': main_workflow_file,
-                        'message': f'Failed to parse WDL bundle: {str(e)}',
+                        'message': f'Failed to execute linter: {str(e)}',
                         'linter': 'miniwdl',
+                        'raw_output': f'Failed to execute linter: {str(e)}',
                     }
 
         except Exception as e:
@@ -531,6 +282,9 @@ class WorkflowLinter:
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint CWL workflow bundle using cwltool."""
+        import subprocess
+        import sys
+
         try:
             # Create temporary directory structure
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -552,122 +306,41 @@ class WorkflowLinter:
                     }
 
                 try:
-                    # Set up loading context
-                    loading_context = LoadingContext()
-                    loading_context.strict = True  # Enable strict validation
-
-                    # Load and validate the CWL document
-                    # Handle potential event loop conflicts
-                    try:
-                        tool = cwltool.load_tool.load_tool(str(main_file_path), loading_context)
-                    except RuntimeError as e:
-                        if 'event loop' in str(e).lower() or 'already running' in str(e).lower():
-                            # Try to handle nested event loop issues
-                            logger.info(
-                                'Attempting to resolve event loop conflict with nest_asyncio'
-                            )
-                            tool = cwltool.load_tool.load_tool(
-                                str(main_file_path), loading_context
-                            )
-                        else:
-                            raise
-
-                    findings = []
-                    warnings = []
-
-                    # Basic validation checks
-                    if hasattr(tool, 'tool') and tool.tool:
-                        cwl_tool = tool.tool
-
-                        # Check for required fields
-                        if 'inputs' not in cwl_tool or not cwl_tool['inputs']:
-                            warnings.append(
-                                {
-                                    'type': 'warning',
-                                    'message': 'Workflow has no inputs defined',
-                                    'location': 'workflow',
-                                    'file': main_workflow_file,
-                                }
-                            )
-
-                        if 'outputs' not in cwl_tool or not cwl_tool['outputs']:
-                            warnings.append(
-                                {
-                                    'type': 'warning',
-                                    'message': 'Workflow has no outputs defined',
-                                    'location': 'workflow',
-                                    'file': main_workflow_file,
-                                }
-                            )
-
-                        # Check for steps in workflow
-                        if cwl_tool.get('class') == 'Workflow':
-                            if 'steps' not in cwl_tool or not cwl_tool['steps']:
-                                warnings.append(
-                                    {
-                                        'type': 'warning',
-                                        'message': 'Workflow has no steps defined',
-                                        'location': 'workflow',
-                                        'file': main_workflow_file,
-                                    }
-                                )
-                            else:
-                                # Check each step
-                                for step_name, step in cwl_tool['steps'].items():
-                                    if 'run' not in step:
-                                        findings.append(
-                                            {
-                                                'type': 'error',
-                                                'message': f'Step "{step_name}" is missing required "run" field',
-                                                'location': f'steps.{step_name}',
-                                                'file': main_workflow_file,
-                                            }
-                                        )
+                    # Capture raw linter output using cwltool --validate
+                    result = subprocess.run(
+                        [sys.executable, '-m', 'cwltool', '--validate', str(main_file_path)],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        cwd=str(tmp_path),
+                    )
+                    raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
                     return {
                         'status': 'success',
                         'format': 'cwl',
                         'main_file': main_workflow_file,
                         'files_processed': list(workflow_files.keys()),
-                        'valid': True,
-                        'findings': findings,
-                        'warnings': warnings,
-                        'summary': {
-                            'total_issues': len(findings) + len(warnings),
-                            'errors': len(findings),
-                            'warnings': len(warnings),
-                            'files_count': len(workflow_files),
-                        },
                         'linter': 'cwltool',
+                        'raw_output': raw_output,
                     }
 
-                except Exception as e:
-                    # Handle CWL validation errors
-                    error_msg = str(e)
-                    findings = [
-                        {
-                            'type': 'error',
-                            'message': error_msg,
-                            'location': 'document',
-                            'file': main_workflow_file,
-                        }
-                    ]
-
+                except subprocess.TimeoutExpired:
                     return {
-                        'status': 'validation_failed',
+                        'status': 'error',
                         'format': 'cwl',
                         'main_file': main_workflow_file,
-                        'files_processed': list(workflow_files.keys()),
-                        'valid': False,
-                        'findings': findings,
-                        'warnings': [],
-                        'summary': {
-                            'total_issues': len(findings),
-                            'errors': len(findings),
-                            'warnings': 0,
-                            'files_count': len(workflow_files),
-                        },
                         'linter': 'cwltool',
+                        'raw_output': 'Linter execution timed out after 30 seconds',
+                    }
+                except Exception as e:
+                    return {
+                        'status': 'error',
+                        'format': 'cwl',
+                        'main_file': main_workflow_file,
+                        'message': f'Failed to execute linter: {str(e)}',
+                        'linter': 'cwltool',
+                        'raw_output': f'Failed to execute linter: {str(e)}',
                     }
 
         except Exception as e:
@@ -709,13 +382,11 @@ async def lint_workflow_definition(
 
     Returns:
         Dictionary containing:
-        - status: 'success', 'validation_failed', or 'error'
+        - status: 'success' or 'error'
         - format: The workflow format that was linted
-        - valid: Boolean indicating if the workflow is valid
-        - findings: List of errors found during linting
-        - warnings: List of warnings found during linting
-        - summary: Summary statistics of issues found
+        - filename: The filename that was processed (optional)
         - linter: Name of the linting tool used
+        - raw_output: Raw output from the linter command execution
     """
     try:
         logger.info(f'Linting {workflow_format} workflow definition')
@@ -767,15 +438,12 @@ async def lint_workflow_bundle(
 
     Returns:
         Dictionary containing:
-        - status: 'success', 'validation_failed', or 'error'
+        - status: 'success' or 'error'
         - format: The workflow format that was linted
         - main_file: The main workflow file that was processed
         - files_processed: List of all files that were processed
-        - valid: Boolean indicating if the workflow bundle is valid
-        - findings: List of errors found during linting
-        - warnings: List of warnings found during linting
-        - summary: Summary statistics including file count and issues found
         - linter: Name of the linting tool used
+        - raw_output: Raw output from the linter command execution
     """
     try:
         logger.info(f'Linting {workflow_format} workflow bundle with {len(workflow_files)} files')
