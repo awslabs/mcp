@@ -304,6 +304,54 @@ class TestErrorHandling:
             assert result['queryId'] == 'test-query-id'
             assert result['status'] == 'Cancelled'
 
+    @pytest.mark.asyncio
+    async def test_poll_for_query_completion_unexpected_status(self, mock_context):
+        """Test polling with unexpected query status."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_client.get_query_results.return_value = {
+                'queryId': 'test-query-id',
+                'status': 'UnknownStatus',  # Unexpected status
+                'results': [],
+            }
+            mock_session.return_value.client.return_value = mock_client
+            tools = CloudWatchLogsTools()
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
+            assert result['queryId'] == 'test-query-id'
+            assert result['status'] == 'UnknownStatus'
+            assert result['results'] == []
+
+    @pytest.mark.asyncio
+    async def test_poll_for_query_completion_polling_exception(self, mock_context):
+        """Test polling with exception during get_query_results."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_client.get_query_results.side_effect = Exception('Network timeout during polling')
+            mock_session.return_value.client.return_value = mock_client
+            tools = CloudWatchLogsTools()
+            
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
+            
+            # Verify error response structure
+            assert result['queryId'] == 'test-query-id'
+            assert result['status'] == 'Error'
+            assert 'Network timeout during polling' in result['message']
+            assert result['results'] == []
+            
+            # Verify context error was called
+            mock_context.error.assert_called_once()
+            error_call_args = mock_context.error.call_args[0][0]
+            assert 'Error during query polling' in error_call_args
+            assert 'Network timeout during polling' in error_call_args
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
