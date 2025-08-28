@@ -38,6 +38,25 @@ from pydantic import AnyUrl
 from typing import Any, Dict, List, Sequence
 
 
+# Tool categories for read-only mode
+READ_ONLY_TOOLS = {
+    'list_datastores',
+    'get_datastore_details',
+    'read_fhir_resource',
+    'search_fhir_resources',
+    'patient_everything',
+    'list_fhir_jobs',
+}
+
+WRITE_TOOLS = {
+    'create_fhir_resource',
+    'update_fhir_resource',
+    'delete_fhir_resource',
+    'start_fhir_import_job',
+    'start_fhir_export_job',
+}
+
+
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
 
@@ -79,10 +98,13 @@ def create_success_response(data: Any) -> List[TextContent]:
 class ToolHandler:
     """Handles tool dispatch and execution."""
 
-    def __init__(self, healthlake_client: HealthLakeClient):
-        """Initialize tool handler with HealthLake client and set up handlers."""
+    def __init__(self, healthlake_client: HealthLakeClient, read_only: bool = False):
+        """Initialize tool handler with HealthLake client and read-only mode support."""
         self.client = healthlake_client
-        self.handlers = {
+        self.read_only = read_only
+
+        # Define all possible handlers
+        all_handlers = {
             'list_datastores': self._handle_list_datastores,
             'get_datastore_details': self._handle_get_datastore,
             'create_fhir_resource': self._handle_create,
@@ -96,10 +118,19 @@ class ToolHandler:
             'list_fhir_jobs': self._handle_list_jobs,
         }
 
+        # Filter handlers based on read-only mode
+        if read_only:
+            self.handlers = {k: v for k, v in all_handlers.items() if k in READ_ONLY_TOOLS}
+        else:
+            self.handlers = all_handlers
+
     async def handle_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Dispatch tool call to appropriate handler."""
+        """Dispatch tool call to appropriate handler with read-only safety check."""
         if name not in self.handlers:
-            raise ValueError(f'Unknown tool: {name}')
+            if self.read_only and name in WRITE_TOOLS:
+                raise ValueError(f'Tool {name} not available in read-only mode')
+            else:
+                raise ValueError(f'Unknown tool: {name}')
 
         handler = self.handlers[name]
         result = await handler(arguments)
@@ -115,6 +146,9 @@ class ToolHandler:
         return await self.client.get_datastore_details(datastore_id=datastore_id)
 
     async def _handle_create(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        if self.read_only:
+            raise ValueError('Create operation not allowed in read-only mode')
+
         request = CreateResourceRequest(**args)
 
         return await self.client.create_resource(
@@ -133,6 +167,9 @@ class ToolHandler:
         )
 
     async def _handle_update(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        if self.read_only:
+            raise ValueError('Update operation not allowed in read-only mode')
+
         request = UpdateResourceRequest(**args)
 
         return await self.client.update_resource(
@@ -143,6 +180,9 @@ class ToolHandler:
         )
 
     async def _handle_delete(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        if self.read_only:
+            raise ValueError('Delete operation not allowed in read-only mode')
+
         datastore_id = validate_datastore_id(args['datastore_id'])
 
         return await self.client.delete_resource(
@@ -186,6 +226,9 @@ class ToolHandler:
         )
 
     async def _handle_import_job(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        if self.read_only:
+            raise ValueError('Import job operation not allowed in read-only mode')
+
         request = ImportJobConfig(**args)
 
         return await self.client.start_import_job(
@@ -197,6 +240,9 @@ class ToolHandler:
         )
 
     async def _handle_export_job(self, args: Dict[str, Any]) -> Dict[str, Any]:
+        if self.read_only:
+            raise ValueError('Export job operation not allowed in read-only mode')
+
         request = ExportJobConfig(**args)
 
         return await self.client.start_export_job(
@@ -218,16 +264,17 @@ class ToolHandler:
         )
 
 
-def create_healthlake_server() -> Server:
+def create_healthlake_server(read_only: bool = False) -> Server:
     """Create and configure the HealthLake MCP server."""
     server = Server('healthlake-mcp-server')
     healthlake_client = HealthLakeClient()
-    tool_handler = ToolHandler(healthlake_client)
+    tool_handler = ToolHandler(healthlake_client, read_only=read_only)
 
     @server.list_tools()
     async def handle_list_tools() -> List[Tool]:
-        """List available HealthLake tools."""
-        return [
+        """List available HealthLake tools based on mode."""
+        # Define all tools
+        all_tools = [
             # Datastore Management (foundational operations)
             Tool(
                 name='list_datastores',
@@ -543,6 +590,12 @@ def create_healthlake_server() -> Server:
             ),
         ]
 
+        # Filter tools based on read-only mode
+        if read_only:
+            return [tool for tool in all_tools if tool.name in READ_ONLY_TOOLS]
+        else:
+            return all_tools
+
     @server.list_resources()
     async def handle_list_resources() -> List[Resource]:
         """List available HealthLake datastores as discoverable resources."""
@@ -580,8 +633,16 @@ def create_healthlake_server() -> Server:
         try:
             return await tool_handler.handle_tool(name, arguments)
         except (InputValidationError, ValueError) as e:
-            logger.warning(f'Validation error in {name}: {e}')
-            return create_error_response(str(e), 'validation_error')
+            if 'read-only mode' in str(e):
+                logger.warning(f'Read-only mode violation attempt: {name}')
+                return create_error_response(
+                    f'Operation {name} not available in read-only mode. '
+                    'Remove --readonly flag to enable write operations.',
+                    'read_only_violation',
+                )
+            else:
+                logger.warning(f'Validation error in {name}: {e}')
+                return create_error_response(str(e), 'validation_error')
         except ClientError as e:
             error_code = e.response['Error']['Code']
             logger.error(f'AWS error in {name}: {error_code}')

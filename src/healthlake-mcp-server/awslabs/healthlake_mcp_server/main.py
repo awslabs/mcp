@@ -16,6 +16,7 @@
 """Main entry point for the AWS HealthLake MCP server."""
 
 # Standard library imports
+import argparse
 import asyncio
 import os
 import sys
@@ -33,11 +34,31 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv('MCP_LOG_LEVEL', 'WARNING'))
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='AWS HealthLake MCP Server')
+    parser.add_argument(
+        '--readonly',
+        action='store_true',
+        help='Run server in read-only mode (prevents all mutating operations)',
+    )
+    return parser.parse_args()
+
+
 async def main() -> None:
     """Main entry point for the server."""
     try:
-        # Create the HealthLake MCP server
-        server = create_healthlake_server()
+        # Parse command line arguments
+        args = parse_args()
+
+        # Create the HealthLake MCP server with read-only mode
+        server = create_healthlake_server(read_only=args.readonly)
+
+        # Log server mode
+        if args.readonly:
+            logger.info('Server started in READ-ONLY mode - mutating operations disabled')
+        else:
+            logger.info('Server started in FULL ACCESS mode')
 
         # Run the server using stdio transport
         async with stdio_server() as (read_stream, write_stream):
