@@ -20,6 +20,7 @@ from loguru import logger
 
 # Service constants
 DEFAULT_REGION = 'us-east-1'
+DEFAULT_OMICS_SERVICE_NAME = 'omics'
 DEFAULT_STORAGE_TYPE = 'DYNAMIC'
 try:
     DEFAULT_MAX_RESULTS = int(os.environ.get('HEALTHOMICS_DEFAULT_MAX_RESULTS', '10'))
