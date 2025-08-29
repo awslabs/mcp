@@ -441,6 +441,7 @@ For example, you can use the **AWS Documentation MCP Server** to help your AI as
 Each server has specific installation instructions with one-click installs for Cursor and VSCode. Generally, you can:
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
+   > **Important**: Make sure you have uv version 0.8.12 or later. Earlier versions had compatibility issues that have been resolved.
 2. Install Python using `uv python install 3.10`
 3. Configure AWS credentials with access to required services
 4. Add the server to your MCP client configuration
