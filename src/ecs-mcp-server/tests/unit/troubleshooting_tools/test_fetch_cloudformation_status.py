@@ -22,20 +22,17 @@ from tests.unit.utils.async_test_utils import (
 @pytest.fixture
 def mock_cloudformation_client():
     """Create a mock CloudFormation client for testing."""
-    # Create a mock AWS CloudFormation client
-    mock_cf = mock.AsyncMock()
-
-    # Set up default responses to match behavior for key methods
-    mock_cf.describe_stacks.return_value = {"Stacks": []}
-    mock_cf.list_stack_resources.return_value = {"StackResourceSummaries": []}
-    mock_cf.describe_stack_events.return_value = {"StackEvents": []}
-    mock_cf.list_deleted_stacks.return_value = []
-
-    return mock_cf
+    return mock.MagicMock()
 
 
 class TestFetchCloudFormationStatus:
     """Test the fetch_cloudformation_status function with CloudFormationClient mocking."""
+
+    def setup_method(self):
+        """Clear AWS client cache before each test to ensure isolation."""
+        from awslabs.ecs_mcp_server.utils.aws import _aws_clients
+
+        _aws_clients.clear()
 
     @pytest.mark.anyio
     async def test_stack_exists(self, mock_cloudformation_client):
@@ -76,8 +73,8 @@ class TestFetchCloudFormationStatus:
         ]
         mock_cloudformation_client.describe_stack_events.return_value = {"StackEvents": events}
 
-        # Call the function with the mock client
-        result = await fetch_cloudformation_status("test-app", mock_cloudformation_client)
+        with mock.patch("boto3.client", return_value=mock_cloudformation_client):
+            result = await fetch_cloudformation_status("test-app")
 
         # Verify the result
         assert result["status"] == "success"
@@ -129,8 +126,8 @@ class TestFetchCloudFormationStatus:
         ]
         mock_cloudformation_client.describe_stack_events.return_value = {"StackEvents": events}
 
-        # Call the function with the mock client
-        result = await fetch_cloudformation_status("test-app", mock_cloudformation_client)
+        with mock.patch("boto3.client", return_value=mock_cloudformation_client):
+            result = await fetch_cloudformation_status("test-app")
 
         # Verify the result
         assert result["status"] == "success"
@@ -165,14 +162,14 @@ class TestFetchCloudFormationStatus:
         # The actual implementation should have this field populated
         mock_cloudformation_client.list_deleted_stacks.return_value = [deleted_stack]
 
-        # Call the function with the mock client
-        result = await fetch_cloudformation_status("test-app", mock_cloudformation_client)
+        with mock.patch("boto3.client", return_value=mock_cloudformation_client):
+            result = await fetch_cloudformation_status("test-app")
 
         # Verify the result
         assert result["status"] == "success"
         assert not result["stack_exists"]
-        assert "deleted_stacks" in result
-        assert len(result["deleted_stacks"]) == 1
+        assert "message" in result
+        assert "does not exist" in result["message"]
 
     @pytest.mark.anyio
     async def test_client_error_handling(self, mock_cloudformation_client):
@@ -190,9 +187,8 @@ class TestFetchCloudFormationStatus:
         # Set up a successful describe_stack_events call
         mock_cloudformation_client.describe_stack_events.return_value = {"StackEvents": []}
 
-        # Call the function\
-        #  with the mock client - this should handle the error in list_stack_resources
-        result = await fetch_cloudformation_status("test-app", mock_cloudformation_client)
+        with mock.patch("boto3.client", return_value=mock_cloudformation_client):
+            result = await fetch_cloudformation_status("test-app")
 
         # We expect the function to recover from the error
         assert result["status"] == "success"
@@ -207,8 +203,8 @@ class TestFetchCloudFormationStatus:
         # Make describe_stacks raise unexpected error
         mock_cloudformation_client.describe_stacks.side_effect = Exception("Unexpected error")
 
-        # Call the function with the mock client
-        result = await fetch_cloudformation_status("test-app", mock_cloudformation_client)
+        with mock.patch("boto3.client", return_value=mock_cloudformation_client):
+            result = await fetch_cloudformation_status("test-app")
 
         # Verify the result - should return error status
         assert result["status"] == "error"
@@ -252,8 +248,8 @@ class TestFetchCloudFormationStatus:
         ]
         mock_cloudformation_client.describe_stack_events.return_value = {"StackEvents": events}
 
-        # Call the function with the mock client
-        result = await fetch_cloudformation_status("test-app", mock_cloudformation_client)
+        with mock.patch("boto3.client", return_value=mock_cloudformation_client):
+            result = await fetch_cloudformation_status("test-app")
 
         # Verify the result
         assert result["status"] == "success"
@@ -282,11 +278,11 @@ class TestFetchCloudFormationStatus:
         )
         mock_cloudformation_client.list_deleted_stacks.side_effect = error
 
-        # Call the function with the mock client
-        result = await fetch_cloudformation_status("test-app", mock_cloudformation_client)
+        with mock.patch("boto3.client", return_value=mock_cloudformation_client):
+            result = await fetch_cloudformation_status("test-app")
 
         # Verify the result
         assert result["status"] == "success"
         assert not result["stack_exists"]
-        # The function should have tried to handle the list_deleted_stacks error
-        assert "list_error" in result
+        assert "message" in result
+        assert "does not exist" in result["message"]

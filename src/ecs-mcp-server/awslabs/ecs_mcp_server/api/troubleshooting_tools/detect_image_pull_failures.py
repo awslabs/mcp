@@ -20,28 +20,46 @@ container images exist and are accessible, helping to diagnose image pull failur
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (
-    get_task_definitions,
-    validate_container_images,
+    validate_container_images as _validate_container_images,
 )
-
-# Create internal aliases to make the module more testable
-_get_task_definitions = get_task_definitions
-_validate_container_images = validate_container_images
+from awslabs.ecs_mcp_server.api.troubleshooting_tools.utils import (
+    find_task_definitions as _find_task_definitions,
+)
 
 logger = logging.getLogger(__name__)
 
 
-async def detect_image_pull_failures(app_name: str) -> Dict[str, Any]:
+async def detect_image_pull_failures(
+    cluster_name: Optional[str] = None,
+    service_name: Optional[str] = None,
+    stack_name: Optional[str] = None,
+    family_prefix: Optional[str] = None,
+    task_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Specialized tool for detecting image pull failures.
 
+    This function finds task definitions based on the provided parameters and checks
+    if their container images exist and are accessible, helping to diagnose image pull failures.
+
+    At least one of the parameter combinations must be provided: cluster_name+service_name,
+    cluster_name+task_id, stack_name, or family_prefix.
+
     Parameters
     ----------
-    app_name : str
-        Application name to check for image pull failures
+    cluster_name : str, optional
+        Name of the ECS cluster (required if service_name or task_id is provided)
+    service_name : str, optional
+        Name of the ECS service (requires cluster_name)
+    stack_name : str, optional
+        Name of the CloudFormation stack to find related task definitions
+    family_prefix : str, optional
+        Prefix to filter task definition families (e.g., "my-app")
+    task_id : str, optional
+        ID of a task to get its task definition (requires cluster_name)
 
     Returns
     -------
@@ -56,9 +74,31 @@ async def detect_image_pull_failures(app_name: str) -> Dict[str, Any]:
             "recommendations": [],
         }
 
+        # Validate parameters
+        if not any(
+            [(cluster_name and service_name), (cluster_name and task_id), stack_name, family_prefix]
+        ):
+            error_msg = (
+                "At least one of: cluster_name+service_name, cluster_name+task_id, "
+                "stack_name, or family_prefix must be provided"
+            )
+            logger.error(error_msg)
+            return {
+                "status": "error",
+                "error": error_msg,
+                "assessment": error_msg,
+                "image_issues": [],
+            }
+
         # Find related task definitions
         try:
-            task_definitions = await _get_task_definitions(app_name)
+            task_definitions = await _find_task_definitions(
+                cluster_name=cluster_name,
+                service_name=service_name,
+                stack_name=stack_name,
+                family_prefix=family_prefix,
+                task_id=task_id,
+            )
         except Exception as e:
             logger.exception("Error getting task definitions: %s", str(e))
             return {
@@ -69,7 +109,17 @@ async def detect_image_pull_failures(app_name: str) -> Dict[str, Any]:
             }
 
         if not task_definitions:
-            response["assessment"] = f"No task definitions found related to {app_name}"
+            parameter_desc = ""
+            if cluster_name and service_name:
+                parameter_desc = f"cluster '{cluster_name}' and service '{service_name}'"
+            elif cluster_name and task_id:
+                parameter_desc = f"cluster '{cluster_name}' and task ID '{task_id}'"
+            elif stack_name:
+                parameter_desc = f"stack '{stack_name}'"
+            elif family_prefix:
+                parameter_desc = f"family prefix '{family_prefix}'"
+
+            response["assessment"] = f"No task definitions found for {parameter_desc}"
             response["recommendations"].append("Check if your task definition is named differently")
             return response
 

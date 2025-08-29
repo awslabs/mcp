@@ -31,22 +31,18 @@ logger = logging.getLogger(__name__)
 
 
 async def fetch_task_logs(
-    app_name: str,
     cluster_name: str,
     task_id: Optional[str] = None,
     time_window: int = 3600,
     filter_pattern: Optional[str] = None,
     start_time: Optional[datetime.datetime] = None,
     end_time: Optional[datetime.datetime] = None,
-    logs_client=None,
 ) -> Dict[str, Any]:
     """
     Application-level diagnostics through CloudWatch logs.
 
     Parameters
     ----------
-    app_name : str
-        The name of the application to analyze
     cluster_name : str
         The name of the ECS cluster
     task_id : str, optional
@@ -82,15 +78,15 @@ async def fetch_task_logs(
             "pattern_summary": [],
         }
 
-        # Initialize CloudWatch Logs client using provided client or get_aws_client
-        logs = logs_client or await get_aws_client("logs")
+        # Initialize CloudWatch Logs client
+        logs = await get_aws_client("logs")
 
         # Determine log group name pattern
-        # Usually follows the format /ecs/{cluster_name}/{task_or_service_name}
-        log_group_pattern = f"/ecs/{cluster_name}/{app_name}"
+        # Usually follows the format /ecs/{cluster_name}
+        log_group_pattern = f"/ecs/{cluster_name}"
 
         # List matching log groups
-        log_groups = await logs.describe_log_groups(logGroupNamePrefix=log_group_pattern)
+        log_groups = logs.describe_log_groups(logGroupNamePrefix=log_group_pattern)
 
         if not log_groups["logGroups"]:
             response["status"] = "not_found"
@@ -109,7 +105,7 @@ async def fetch_task_logs(
                     stream_prefix = task_id.split("-")[
                         0
                     ]  # Usually task ID starts with log stream name
-                    log_streams = await logs.describe_log_streams(
+                    log_streams = logs.describe_log_streams(
                         logGroupName=log_group_name,
                         logStreamNamePrefix=stream_prefix,
                         orderBy="LastEventTime",
@@ -117,7 +113,7 @@ async def fetch_task_logs(
                     )
                 else:
                     # Otherwise get all recent log streams
-                    log_streams = await logs.describe_log_streams(
+                    log_streams = logs.describe_log_streams(
                         logGroupName=log_group_name, orderBy="LastEventTime", descending=True
                     )
 
@@ -143,7 +139,7 @@ async def fetch_task_logs(
                         if filter_pattern:
                             args["filterPattern"] = filter_pattern
 
-                        log_events = await logs.get_log_events(**args)
+                        log_events = logs.get_log_events(**args)
 
                         # Process log events
                         for event in log_events["events"]:
