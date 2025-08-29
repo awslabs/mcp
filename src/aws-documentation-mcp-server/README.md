@@ -43,60 +43,6 @@ Configure the MCP server in your MCP client configuration:
 }
 ```
 
-For [Amazon Q Developer CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line.html), add the MCP client configuration and tool command to the agent file in `~/.aws/amazonq/cli-agents`.
-
-Example, `~/.aws/amazonq/cli-agents/default.json`
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-documentation-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_DOCUMENTATION_PARTITION": "aws"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  },
-  "tools": [
-    // .. other existing tools
-    "@awslabs.aws-documentation-mcp-server"
-  ],
-}
-```
-
-### Windows Installation
-
-For Windows users, the MCP server configuration format is slightly different:
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-documentation-mcp-server": {
-      "disabled": false,
-      "timeout": 60,
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "tool",
-        "run",
-        "--from",
-        "awslabs.aws-documentation-mcp-server@latest",
-        "awslabs.aws-documentation-mcp-server.exe"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_DOCUMENTATION_PARTITION": "aws"
-      }
-    }
-  }
-}
-```
-
-
 > **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `aws-cn` to query AWS China documentation instead of global AWS documentation.
 
 or docker after a successful `docker build -t mcp/aws-documentation .`:
