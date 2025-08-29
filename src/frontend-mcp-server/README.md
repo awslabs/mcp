@@ -94,3 +94,30 @@ Available topics:
 2. **troubleshooting**: Common issues and solutions for React development with AWS integrations
 
 Each topic returns comprehensive markdown documentation with explanations, code examples, and implementation guidance.
+
+### SearchAmplifyGen2Docs
+
+This tool provides comprehensive search capabilities across AWS Amplify Gen2 documentation and sample repositories. It helps developers find specific code examples, configuration patterns, and best practices for Amplify Gen2 development.
+
+```python
+result = search_amplify_gen2_documentation_tool('authentication')
+```
+
+**Features:**
+- **Comprehensive Search**: Searches across official Amplify Gen2 documentation repositories
+- **Relevance Scoring**: Results are ranked by relevance to your query
+- **Code Examples**: Returns actual code snippets and configuration examples
+- **File Paths**: Shows exact file locations and directory structures
+- **URL References**: Provides direct links to source documentation
+
+**Example Queries:**
+- `"authentication"` - Find auth setup patterns and examples
+- `"data modeling"` - Discover data schema and API patterns  
+- `"file upload"` - Locate storage and file handling examples
+- `"defineAuth email login"` - Search for specific API usage patterns
+
+**Parameters:**
+- `query` (string): Your search terms (e.g., "authentication", "data modeling")
+- `limit` (int, optional): Maximum number of results to return (default: 10)
+
+The tool returns formatted results with titles, file paths, URLs, relevance scores, and content previews to help you quickly find the exact Amplify Gen2 patterns you need.
