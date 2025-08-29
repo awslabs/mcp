@@ -26,7 +26,10 @@ from .cluster_best_practices import get_cluster_best_practices
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='get_cluster_best_practices')
+    @mcp.tool(
+        name='get_cluster_best_practices',
+        description='Gets best practices and quotas for AWS MSK clusters.',
+    )
     def get_cluster_best_practices_tool(
         instance_type: str = Field(
             ...,
@@ -37,7 +40,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Provides detailed best practices and quotas for AWS MSK clusters to guide in evaluating cluster health and identifying deviations.
+        Gets detailed best practices and quotas for AWS MSK clusters to guide in evaluating cluster health and identifying deviations.
 
         Args:
             instance_type (str): The AWS MSK broker instance type (e.g., kafka.m5.large, kafka.m5.xlarge, express.m7g.large).
