@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "healthlake": {
+      "args": [
+        "awslabs.healthlake-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "AWS_PROFILE": "your-profile-name",
+        "AWS_REGION": "us-east-1",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}

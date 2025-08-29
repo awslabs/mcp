@@ -1098,6 +1098,25 @@
       ]
     },
     {
+      "category": "Healthcare & Lifesciences",
+      "description": "Perform Fast Healthcare Interoperability Resources (FHIR) interactions and manage AWS HealthLake datastores",
+      "icon": "\ud83e\uddc0",
+      "id": "healthlake-mcp-server",
+      "name": "HealthLake MCP Server",
+      "source_path": "src/healthlake-mcp-server/",
+      "subcategory": "FHIR resource management",
+      "tags": [
+        "healthcare",
+        "lifesciences",
+        "healthlake",
+        "fhir",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Cost & Operations",
       "description": "Application monitoring and performance insights",
       "icon": "\ud83d\udcb0",
