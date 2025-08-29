@@ -19,7 +19,6 @@ from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
     check_security_policy,
     execute_awscli_customization,
-    is_operation_read_only,
     interpret_command,
     request_consent,
     validate,
