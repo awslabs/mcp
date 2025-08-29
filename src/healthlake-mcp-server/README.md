@@ -44,12 +44,15 @@ A Model Context Protocol (MCP) server for AWS HealthLake FHIR operations. Provid
 
 ## Features
 
-- **11 FHIR Tools**: Complete CRUD operations, advanced search, patient-everything, job management
+- **11 FHIR Tools**: Complete CRUD operations (6 read-only, 5 write), advanced search, patient-everything, job management
+- **Read-Only Mode**: Security-focused mode that blocks all mutating operations while preserving read access
 - **MCP Resources**: Automatic datastore discovery - no manual datastore IDs needed
-- **Advanced Search**: Chained parameters, includes, modifiers, and date/number prefixes
-- **AWS Integration**: SigV4 authentication with automatic credential handling
-- **Error Handling**: Structured error responses with specific error types
-- **Docker Support**: Production-ready containerization
+- **Advanced Search**: Chained parameters, includes, revIncludes, modifiers, and date/number prefixes with pagination
+- **AWS Integration**: SigV4 authentication with automatic credential handling and region support
+- **Comprehensive Testing**: 235 tests with 96% coverage ensuring reliability
+- **Task Automation**: Poethepoet integration for streamlined development workflow
+- **Error Handling**: Structured error responses with specific error types and helpful messages
+- **Docker Support**: Containerized deployment with flexible authentication options
 
 ## Prerequisites
 
@@ -546,7 +549,7 @@ poe format
 poe lint
 ```
 
-**Test Results**: 214 tests pass, 96% coverage
+**Test Results**: 235 tests pass, 96% coverage
 
 ### Project Structure
 
