@@ -7,15 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Telemetry for consent mechanism (#1202)
+
+## [0.2.10] - 2025-08-28
+
 ### Added
 
-- Support for streamable HTTP transport mode via `AWS_API_MCP_TRANSPORT` environment variable
-- Configurable port for HTTP transport mode via `AWS_API_MCP_PORT` environment variable (defaults to 8000)
-- Configurable host for HTTP transport mode via `AWS_API_MCP_HOST` environment variable (defaults to 127.0.0.1)
+- Support for streamable HTTP transport mode via `AWS_API_MCP_TRANSPORT` environment variable (#1192)
+- Configurable port for HTTP transport mode via `AWS_API_MCP_PORT` environment variable (defaults to 8000) (#1192)
+- Configurable host for HTTP transport mode via `AWS_API_MCP_HOST` environment variable (defaults to 127.0.0.1) (#1192)
 
 ### Fixed
 
 - Support commands with outfile parameter (#1154)
+
+## [0.2.9] - 2025-08-25
+
+### Added
+
+- Experimental support for Agent Scripts (#1149)
 
 ## [0.2.8] - 2025-08-21
 
