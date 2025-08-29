@@ -495,31 +495,8 @@ async def finch_create_ecr_repo(
         return Result(**error_result)
 
 
-def main(enable_aws_resource_write: bool = False):
-    """Run the Finch MCP server.
-
-    Args:
-        enable_aws_resource_write (bool, optional): Whether to enable AWS resource creation/modification. Defaults to False.
-
-    """
-    # Set AWS resource write mode
-    set_enable_aws_resource_write(enable_aws_resource_write)
-
-    logger.info('Starting Finch MCP server')
-
-    # Log where logs are going
-    log_file = os.environ.get('FINCH_MCP_LOG_FILE')
-    if log_file:
-        logger.info(f'Logging to stderr and file: {log_file}')
-    elif os.environ.get('FINCH_DISABLE_FILE_LOGGING'):
-        logger.warning('Logging to stderr only')
-    else:
-        logger.info('Logging to stderr and default logging file')
-
-    mcp.run(transport='stdio')
-
-
-if __name__ == '__main__':  # pragma: no cover
+def main():
+    """Run the Finch MCP server."""
     import argparse
 
     parser = argparse.ArgumentParser(description='Run the Finch MCP server')
@@ -542,4 +519,22 @@ if __name__ == '__main__':  # pragma: no cover
     # Configure logging after parsing arguments
     configure_logging()
 
-    main(enable_aws_resource_write=args.enable_aws_resource_write)
+    # Set AWS resource write mode
+    set_enable_aws_resource_write(args.enable_aws_resource_write)
+
+    logger.info('Starting Finch MCP server')
+
+    # Log where logs are going
+    log_file = os.environ.get('FINCH_MCP_LOG_FILE')
+    if log_file:
+        logger.info(f'Logging to stderr and file: {log_file}')
+    elif os.environ.get('FINCH_DISABLE_FILE_LOGGING'):
+        logger.warning('Logging to stderr only')
+    else:
+        logger.info('Logging to stderr and default logging file')
+
+    mcp.run(transport='stdio')
+
+
+if __name__ == '__main__':  # pragma: no cover
+    main()
