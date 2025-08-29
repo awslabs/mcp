@@ -67,6 +67,36 @@ def handle_aws_api_error(e: Exception) -> Exception:
         return ServerError('Internal failure. The server failed to process the request.')
     elif 'ServiceUnavailable' in error_message or error_type == 'ServiceUnavailable':
         return ServerError('Service unavailable. The server failed to process the request.')
+    elif (
+        'ResourceScanInProgressException' in error_message
+        or error_type == 'ResourceScanInProgressException'
+    ):
+        return ClientError(
+            'Resource scan is already in progress. Please wait for the current scan to complete before starting a new one.'
+        )
+    elif (
+        'ResourceScanLimitExceededException' in error_message
+        or error_type == 'ResourceScanLimitExceededException'
+    ):
+        return ClientError(
+            'Resource scan limit exceeded. You have reached the maximum number of concurrent resource scans allowed.'
+        )
+    elif 'GeneratedTemplateNotFoundException' in error_message:
+        return ClientError(
+            'Generated template not found. Please ensure that the template has been generated successfully.'
+        )
+    elif 'AlreadyExistsException' in error_message:
+        return ClientError(
+            'Resource already exists. The resource you are trying to create already exists in the specified location.'
+        )
+    elif 'InsufficientCapabilitiesException' in error_message:
+        return ClientError(
+            'Insufficient capabilities. The stack you are trying to create or update requires capabilities that you have not acknowledged.'
+        )
+    elif 'LimitExceededException' in error_message:
+        return ClientError(
+            'Limit exceeded. You have reached the maximum number of resources allowed for this operation.'
+        )
     else:
         # Generic error handling - we might shift to this for everything eventually since it gives more context to the LLM, will have to test
         return ClientError(f'An error occurred: {error_message}')
@@ -80,6 +110,17 @@ class ClientError(Exception):
         # Call the base class constructor with the parameters it needs
         super().__init__(message)
         self.type = 'client'
+        self.message = message
+
+
+class PromptUser(Exception):
+    """An error that indicates that the user needs to provide additional information or input."""
+
+    def __init__(self, message):
+        """Call super and set message."""
+        # Call the base class constructor with the parameters it needs
+        super().__init__(message)
+        self.type = 'prompt_user'
         self.message = message
 
 
