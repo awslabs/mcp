@@ -441,7 +441,6 @@ For example, you can use the **AWS Documentation MCP Server** to help your AI as
 Each server has specific installation instructions with one-click installs for Cursor and VSCode. Generally, you can:
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/)
-   > **Important**: Make sure you have uv version 0.8.12 or later. Earlier versions had compatibility issues that have been resolved.
 2. Install Python using `uv python install 3.10`
 3. Configure AWS credentials with access to required services
 4. Add the server to your MCP client configuration
@@ -576,6 +575,18 @@ Using the *"@latest"* suffix checks and downloads the latest MCP server package 
 - `uv cache clean <tool>`: where {tool} is the mcp server you want to delete from cache and install again (e.g.: "awslabs.lambda-tool-mcp-server") (remember to remove the '<>').
 - `uvx <tool>@latest`: this will refresh the tool with the latest version and add it to the uv cache.
 
+**Troubleshooting "program not found" on Windows:**
+
+A bug in versions of uv before 0.8.12 could cause the following error:
+```
+error: Failed to spawn: `awslabs.<mcp server name>`
+  Caused by: program not found
+```
+This error is resolved in uv 0.8.12 and newer. Update with
+```bash
+$ uv self update
+```
+
 ### Running MCP servers in containers
 
 Docker images for each MCP server are published to the [public AWS ECR registry](https://gallery.ecr.aws/awslabs-mcp).
@@ -677,39 +688,12 @@ See [Kiro Model Context Protocol Documentation](https://kiro.dev/docs/mcp/config
 
 #### `kiro_mcp_settings.json`
 
-For macOS/Linux:
-
 ```json
 {
   "mcpServers": {
     "awslabs.core-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.core-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
-
-For Windows:
-
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "disabled": false,
-      "timeout": 60,
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "tool",
-        "run",
-        "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
-      ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }

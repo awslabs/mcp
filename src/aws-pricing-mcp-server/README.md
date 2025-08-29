@@ -48,8 +48,6 @@ MCP server for accessing real-time AWS pricing information and providing cost an
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 
-**For Linux/MacOS users:**
-
 ```json
 {
   "mcpServers": {
@@ -72,26 +70,10 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 **For Windows users:**
 
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-pricing-mcp-server": {
-      "command": "uvx",
-      "args": [
-         "--from",
-         "awslabs.aws-pricing-mcp-server@latest",
-         "awslabs.aws-pricing-mcp-server.exe"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
+Make sure your `uv --version` is at least 0.8.12, otherwise you may see the below error:
+```
+error: Failed to spawn: `awslabs.<mcp server name>`
+  Caused by: program not found
 ```
 
 ### Using Docker
