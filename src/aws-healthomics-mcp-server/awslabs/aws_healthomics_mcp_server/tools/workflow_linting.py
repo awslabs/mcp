@@ -15,6 +15,7 @@
 """Workflow linting tools for WDL and CWL workflow definitions."""
 
 import tempfile
+from abc import ABC, abstractmethod
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pathlib import Path
@@ -22,202 +23,146 @@ from pydantic import Field
 from typing import Any, Dict, Optional
 
 
-class WorkflowLinter:
-    """Lints WDL and CWL workflow definitions using appropriate linting tools."""
+class WorkflowLinter(ABC):
+    """Base class for workflow linters with core functionality and abstract methods."""
 
-    def __init__(self):
-        """Initialize the workflow linter with supported formats."""
-        self.supported_formats = ['wdl', 'cwl']
-
-    async def lint_workflow_bundle(
-        self, workflow_files: Dict[str, str], workflow_format: str, main_workflow_file: str
-    ) -> Dict[str, Any]:
-        """Lint a multi-file workflow bundle and return findings.
+    def __init__(self, workflow_format: str):
+        """Initialize the workflow linter with the supported format.
 
         Args:
-            workflow_files: Dictionary mapping file paths to their content
-            workflow_format: The workflow format ('wdl' or 'cwl')
-            main_workflow_file: Path to the main workflow file within the bundle
-
-        Returns:
-            Dictionary containing lint results and findings
+            workflow_format: The workflow format this linter supports ('wdl' or 'cwl')
         """
-        if workflow_format.lower() not in self.supported_formats:
-            return {
-                'status': 'error',
-                'message': f'Unsupported workflow format: {workflow_format}. Supported formats: {self.supported_formats}',
-            }
+        self.workflow_format = workflow_format.lower()
 
-        try:
-            if workflow_format.lower() == 'wdl':
-                return await self._lint_wdl_bundle(workflow_files, main_workflow_file)
-            elif workflow_format.lower() == 'cwl':
-                return await self._lint_cwl_bundle(workflow_files, main_workflow_file)
-            else:
-                # Fallback for unexpected format (should not happen due to earlier validation)
-                return {
-                    'status': 'error',
-                    'message': f'Unexpected workflow format: {workflow_format}. This should not happen.',
-                }
-        except Exception as e:
-            logger.error(f'Error linting {workflow_format} workflow bundle: {str(e)}')
-            return {
-                'status': 'error',
-                'message': f'Failed to lint {workflow_format} workflow bundle: {str(e)}',
-            }
-
+    @abstractmethod
     async def lint_workflow(
-        self, workflow_content: str, workflow_format: str, filename: Optional[str] = None
+        self, workflow_content: str, filename: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Lint a workflow definition and return findings.
+        """Lint a single workflow definition and return findings.
 
         Args:
             workflow_content: The workflow definition content
-            workflow_format: The workflow format ('wdl' or 'cwl')
             filename: Optional filename for context
 
         Returns:
             Dictionary containing lint results and findings
         """
-        if workflow_format.lower() not in self.supported_formats:
-            return {
-                'status': 'error',
-                'message': f'Unsupported workflow format: {workflow_format}. Supported formats: {self.supported_formats}',
-            }
+        pass
 
-        try:
-            if workflow_format.lower() == 'wdl':
-                return await self._lint_wdl(workflow_content, filename)
-            elif workflow_format.lower() == 'cwl':
-                return await self._lint_cwl(workflow_content, filename)
-            else:
-                # Fallback for unexpected format (should not happen due to earlier validation)
-                return {
-                    'status': 'error',
-                    'message': f'Unexpected workflow format: {workflow_format}. This should not happen.',
-                }
-        except Exception as e:
-            logger.error(f'Error linting {workflow_format} workflow: {str(e)}')
-            return {
-                'status': 'error',
-                'message': f'Failed to lint {workflow_format} workflow: {str(e)}',
-            }
+    @abstractmethod
+    async def lint_workflow_bundle(
+        self, workflow_files: Dict[str, str], main_workflow_file: str
+    ) -> Dict[str, Any]:
+        """Lint a multi-file workflow bundle and return findings.
 
-    async def _lint_wdl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
+        Args:
+            workflow_files: Dictionary mapping file paths to their content
+            main_workflow_file: Path to the main workflow file within the bundle
+
+        Returns:
+            Dictionary containing lint results and findings
+        """
+        pass
+
+    def _create_error_response(
+        self, message: str, filename: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Create a standardized error response.
+
+        Args:
+            message: Error message
+            filename: Optional filename for context
+
+        Returns:
+            Dictionary containing error response
+        """
+        response = {
+            'status': 'error',
+            'format': self.workflow_format,
+            'message': message,
+        }
+        if filename:
+            response['filename'] = filename
+        return response
+
+    def _create_success_response(
+        self, raw_output: str, linter: str, filename: Optional[str] = None, **kwargs
+    ) -> Dict[str, Any]:
+        """Create a standardized success response.
+
+        Args:
+            raw_output: Raw output from the linter
+            linter: Name of the linting tool used
+            filename: Optional filename for context
+            **kwargs: Additional fields to include in response
+
+        Returns:
+            Dictionary containing success response
+        """
+        response = {
+            'status': 'success',
+            'format': self.workflow_format,
+            'linter': linter,
+            'raw_output': raw_output,
+        }
+        if filename:
+            response['filename'] = filename
+        response.update(kwargs)
+        return response
+
+
+class WDLWorkflowLinter(WorkflowLinter):
+    """Linter for WDL workflow definitions using miniwdl."""
+
+    def __init__(self):
+        """Initialize the WDL workflow linter."""
+        super().__init__('wdl')
+
+    async def lint_workflow(
+        self, workflow_content: str, filename: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Lint WDL workflow using miniwdl."""
         import subprocess  # nosec B404 - subprocess needed for workflow linting
         import sys
 
+        tmp_path = None
         try:
             # Create temporary file for the WDL content
             with tempfile.NamedTemporaryFile(mode='w', suffix='.wdl', delete=False) as tmp_file:
-                tmp_file.write(content)
+                tmp_file.write(workflow_content)
                 tmp_path = Path(tmp_file.name)
 
-            try:
-                # Capture raw linter output using miniwdl check command
-                result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
-                    [sys.executable, '-m', 'WDL', 'check', str(tmp_path)],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
+            # Capture raw linter output using miniwdl check command
+            result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
+                [sys.executable, '-m', 'WDL', 'check', str(tmp_path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
-                return {
-                    'status': 'success',
-                    'format': 'wdl',
-                    'filename': filename or tmp_path.name,
-                    'linter': 'miniwdl',
-                    'raw_output': raw_output,
-                }
+            return self._create_success_response(
+                raw_output=raw_output, linter='miniwdl', filename=filename or tmp_path.name
+            )
 
-            except subprocess.TimeoutExpired:
-                return {
-                    'status': 'error',
-                    'format': 'wdl',
-                    'filename': filename or tmp_path.name,
-                    'linter': 'miniwdl',
-                    'raw_output': 'Linter execution timed out after 30 seconds',
-                }
-            except Exception as e:
-                return {
-                    'status': 'error',
-                    'format': 'wdl',
-                    'filename': filename or tmp_path.name,
-                    'linter': 'miniwdl',
-                    'raw_output': f'Failed to execute linter: {str(e)}',
-                }
+        except subprocess.TimeoutExpired:
+            return self._create_error_response(
+                'Linter execution timed out after 30 seconds',
+                filename or (tmp_path.name if tmp_path else None),
+            )
+        except Exception as e:
+            logger.error(f'Error in WDL linting: {str(e)}')
+            return self._create_error_response(f'WDL linting failed: {str(e)}', filename)
 
-            finally:
-                # Clean up temporary file
+        finally:
+            # Clean up temporary file
+            if tmp_path:
                 try:
                     tmp_path.unlink()
                 except Exception as e:
                     logger.warning(f'Failed to clean up temporary WDL file {tmp_path}: {str(e)}')
 
-        except Exception as e:
-            logger.error(f'Error in WDL linting: {str(e)}')
-            return {'status': 'error', 'format': 'wdl', 'message': f'WDL linting failed: {str(e)}'}
-
-    async def _lint_cwl(self, content: str, filename: Optional[str] = None) -> Dict[str, Any]:
-        """Lint CWL workflow using cwltool."""
-        import subprocess  # nosec B404 - subprocess needed for workflow linting
-        import sys
-
-        try:
-            # Create temporary file for the CWL content
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.cwl', delete=False) as tmp_file:
-                tmp_file.write(content)
-                tmp_path = Path(tmp_file.name)
-
-            try:
-                # Capture raw linter output using cwltool --validate
-                result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
-                    [sys.executable, '-m', 'cwltool', '--validate', str(tmp_path)],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
-
-                return {
-                    'status': 'success',
-                    'format': 'cwl',
-                    'filename': filename or tmp_path.name,
-                    'linter': 'cwltool',
-                    'raw_output': raw_output,
-                }
-
-            except subprocess.TimeoutExpired:
-                return {
-                    'status': 'error',
-                    'format': 'cwl',
-                    'filename': filename or tmp_path.name,
-                    'linter': 'cwltool',
-                    'raw_output': 'Linter execution timed out after 30 seconds',
-                }
-            except Exception as e:
-                return {
-                    'status': 'error',
-                    'format': 'cwl',
-                    'filename': filename or tmp_path.name,
-                    'linter': 'cwltool',
-                    'raw_output': f'Failed to execute linter: {str(e)}',
-                }
-
-            finally:
-                # Clean up temporary file
-                try:
-                    tmp_path.unlink()
-                except Exception as e:
-                    logger.warning(f'Failed to clean up temporary CWL file {tmp_path}: {str(e)}')
-
-        except Exception as e:
-            logger.error(f'Error in CWL linting: {str(e)}')
-            return {'status': 'error', 'format': 'cwl', 'message': f'CWL linting failed: {str(e)}'}
-
-    async def _lint_wdl_bundle(
+    async def lint_workflow_bundle(
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint WDL workflow bundle using miniwdl."""
@@ -238,59 +183,86 @@ class WorkflowLinter:
                 main_file_path = tmp_path / main_workflow_file
 
                 if not main_file_path.exists():
-                    return {
-                        'status': 'error',
-                        'format': 'wdl',
-                        'message': f'Main workflow file "{main_workflow_file}" not found in provided files',
-                    }
-
-                try:
-                    # Capture raw linter output using miniwdl check command
-                    result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
-                        [sys.executable, '-m', 'WDL', 'check', str(main_file_path)],
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
-                        cwd=str(tmp_path),
+                    return self._create_error_response(
+                        f'Main workflow file "{main_workflow_file}" not found in provided files'
                     )
-                    raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
-                    return {
-                        'status': 'success',
-                        'format': 'wdl',
-                        'main_file': main_workflow_file,
-                        'files_processed': list(workflow_files.keys()),
-                        'linter': 'miniwdl',
-                        'raw_output': raw_output,
-                    }
+                # Capture raw linter output using miniwdl check command
+                result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
+                    [sys.executable, '-m', 'WDL', 'check', str(main_file_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=str(tmp_path),
+                )
+                raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
-                except subprocess.TimeoutExpired:
-                    return {
-                        'status': 'error',
-                        'format': 'wdl',
-                        'main_file': main_workflow_file,
-                        'linter': 'miniwdl',
-                        'raw_output': 'Linter execution timed out after 30 seconds',
-                    }
-                except Exception as e:
-                    return {
-                        'status': 'error',
-                        'format': 'wdl',
-                        'main_file': main_workflow_file,
-                        'message': f'Failed to execute linter: {str(e)}',
-                        'linter': 'miniwdl',
-                        'raw_output': f'Failed to execute linter: {str(e)}',
-                    }
+                return self._create_success_response(
+                    raw_output=raw_output,
+                    linter='miniwdl',
+                    main_file=main_workflow_file,
+                    files_processed=list(workflow_files.keys()),
+                )
 
+        except subprocess.TimeoutExpired:
+            return self._create_error_response('Linter execution timed out after 30 seconds')
         except Exception as e:
             logger.error(f'Error in WDL bundle linting: {str(e)}')
-            return {
-                'status': 'error',
-                'format': 'wdl',
-                'message': f'WDL bundle linting failed: {str(e)}',
-            }
+            return self._create_error_response(f'WDL bundle linting failed: {str(e)}')
 
-    async def _lint_cwl_bundle(
+
+class CWLWorkflowLinter(WorkflowLinter):
+    """Linter for CWL workflow definitions using cwltool."""
+
+    def __init__(self):
+        """Initialize the CWL workflow linter."""
+        super().__init__('cwl')
+
+    async def lint_workflow(
+        self, workflow_content: str, filename: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Lint CWL workflow using cwltool."""
+        import subprocess  # nosec B404 - subprocess needed for workflow linting
+        import sys
+
+        tmp_path = None
+        try:
+            # Create temporary file for the CWL content
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.cwl', delete=False) as tmp_file:
+                tmp_file.write(workflow_content)
+                tmp_path = Path(tmp_file.name)
+
+            # Capture raw linter output using cwltool --validate
+            result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
+                [sys.executable, '-m', 'cwltool', '--validate', str(tmp_path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
+
+            return self._create_success_response(
+                raw_output=raw_output, linter='cwltool', filename=filename or tmp_path.name
+            )
+
+        except subprocess.TimeoutExpired:
+            return self._create_error_response(
+                'Linter execution timed out after 30 seconds',
+                filename or (tmp_path.name if tmp_path else None),
+            )
+        except Exception as e:
+            logger.error(f'Error in CWL linting: {str(e)}')
+            return self._create_error_response(f'CWL linting failed: {str(e)}', filename)
+
+        finally:
+            # Clean up temporary file
+            if tmp_path:
+                try:
+                    tmp_path.unlink()
+                except Exception as e:
+                    logger.warning(f'Failed to clean up temporary CWL file {tmp_path}: {str(e)}')
+
+    async def lint_workflow_bundle(
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
         """Lint CWL workflow bundle using cwltool."""
@@ -311,61 +283,64 @@ class WorkflowLinter:
                 main_file_path = tmp_path / main_workflow_file
 
                 if not main_file_path.exists():
-                    return {
-                        'status': 'error',
-                        'format': 'cwl',
-                        'message': f'Main workflow file "{main_workflow_file}" not found in provided files',
-                    }
-
-                try:
-                    # Capture raw linter output using cwltool --validate
-                    result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
-                        [sys.executable, '-m', 'cwltool', '--validate', str(main_file_path)],
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
-                        cwd=str(tmp_path),
+                    return self._create_error_response(
+                        f'Main workflow file "{main_workflow_file}" not found in provided files'
                     )
-                    raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
-                    return {
-                        'status': 'success',
-                        'format': 'cwl',
-                        'main_file': main_workflow_file,
-                        'files_processed': list(workflow_files.keys()),
-                        'linter': 'cwltool',
-                        'raw_output': raw_output,
-                    }
+                # Capture raw linter output using cwltool --validate
+                result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
+                    [sys.executable, '-m', 'cwltool', '--validate', str(main_file_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    cwd=str(tmp_path),
+                )
+                raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
 
-                except subprocess.TimeoutExpired:
-                    return {
-                        'status': 'error',
-                        'format': 'cwl',
-                        'main_file': main_workflow_file,
-                        'linter': 'cwltool',
-                        'raw_output': 'Linter execution timed out after 30 seconds',
-                    }
-                except Exception as e:
-                    return {
-                        'status': 'error',
-                        'format': 'cwl',
-                        'main_file': main_workflow_file,
-                        'message': f'Failed to execute linter: {str(e)}',
-                        'linter': 'cwltool',
-                        'raw_output': f'Failed to execute linter: {str(e)}',
-                    }
+                return self._create_success_response(
+                    raw_output=raw_output,
+                    linter='cwltool',
+                    main_file=main_workflow_file,
+                    files_processed=list(workflow_files.keys()),
+                )
 
+        except subprocess.TimeoutExpired:
+            return self._create_error_response('Linter execution timed out after 30 seconds')
         except Exception as e:
             logger.error(f'Error in CWL bundle linting: {str(e)}')
-            return {
-                'status': 'error',
-                'format': 'cwl',
-                'message': f'CWL bundle linting failed: {str(e)}',
-            }
+            return self._create_error_response(f'CWL bundle linting failed: {str(e)}')
 
 
-# Global linter instance
-workflow_linter = WorkflowLinter()
+# Global linter instances
+_wdl_linter = WDLWorkflowLinter()
+_cwl_linter = CWLWorkflowLinter()
+
+# Linter registry
+_linters = {
+    'wdl': _wdl_linter,
+    'cwl': _cwl_linter,
+}
+
+
+def get_linter(workflow_format: str) -> WorkflowLinter:
+    """Get the appropriate linter for the given workflow format.
+
+    Args:
+        workflow_format: The workflow format ('wdl' or 'cwl')
+
+    Returns:
+        The appropriate linter instance
+
+    Raises:
+        ValueError: If the workflow format is not supported
+    """
+    format_lower = workflow_format.lower()
+    if format_lower not in _linters:
+        supported_formats = list(_linters.keys())
+        raise ValueError(
+            f'Unsupported workflow format: {workflow_format}. Supported formats: {supported_formats}'
+        )
+    return _linters[format_lower]
 
 
 async def lint_workflow_definition(
@@ -402,18 +377,14 @@ async def lint_workflow_definition(
     """
     try:
         logger.info(f'Linting {workflow_format} workflow definition')
-
-        result = await workflow_linter.lint_workflow(
-            workflow_content=workflow_content, workflow_format=workflow_format, filename=filename
-        )
-
-        return result
-
-    except Exception as e:
-        error_message = f'Error during workflow linting: {str(e)}'
+        linter = get_linter(workflow_format)
+        return await linter.lint_workflow(workflow_content=workflow_content, filename=filename)
+    except ValueError as e:
+        # Handle unsupported workflow format from get_linter
+        error_message = str(e)
         logger.error(error_message)
         await ctx.error(error_message)
-        return {'status': 'error', 'message': f'Workflow linting failed: {str(e)}'}
+        return {'status': 'error', 'message': error_message}
 
 
 async def lint_workflow_bundle(
@@ -459,17 +430,14 @@ async def lint_workflow_bundle(
     """
     try:
         logger.info(f'Linting {workflow_format} workflow bundle with {len(workflow_files)} files')
-
-        result = await workflow_linter.lint_workflow_bundle(
+        linter = get_linter(workflow_format)
+        return await linter.lint_workflow_bundle(
             workflow_files=workflow_files,
-            workflow_format=workflow_format,
             main_workflow_file=main_workflow_file,
         )
-
-        return result
-
-    except Exception as e:
-        error_message = f'Error during workflow bundle linting: {str(e)}'
+    except ValueError as e:
+        # Handle unsupported workflow format from get_linter
+        error_message = str(e)
         logger.error(error_message)
         await ctx.error(error_message)
-        return {'status': 'error', 'message': f'Workflow bundle linting failed: {str(e)}'}
+        return {'status': 'error', 'message': error_message}

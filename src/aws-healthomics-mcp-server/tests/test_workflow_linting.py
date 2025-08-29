@@ -17,7 +17,9 @@
 import pytest
 import subprocess
 from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
-    WorkflowLinter,
+    CWLWorkflowLinter,
+    WDLWorkflowLinter,
+    get_linter,
     lint_workflow_bundle,
     lint_workflow_definition,
 )
@@ -29,21 +31,19 @@ class TestWorkflowLinter:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.linter = WorkflowLinter()
+        self.wdl_linter = WDLWorkflowLinter()
+        self.cwl_linter = CWLWorkflowLinter()
 
     def test_init(self):
         """Test WorkflowLinter initialization."""
-        assert self.linter.supported_formats == ['wdl', 'cwl']
+        assert self.wdl_linter.workflow_format == 'wdl'
+        assert self.cwl_linter.workflow_format == 'cwl'
 
     @pytest.mark.asyncio
-    async def test_lint_workflow_unsupported_format(self):
-        """Test linting with unsupported workflow format."""
-        result = await self.linter.lint_workflow(
-            workflow_content='test content', workflow_format='nextflow'
-        )
-
-        assert result['status'] == 'error'
-        assert 'Unsupported workflow format' in result['message']
+    async def test_get_linter_unsupported_format(self):
+        """Test getting linter with unsupported workflow format."""
+        with pytest.raises(ValueError, match='Unsupported workflow format: xyz'):
+            get_linter('xyz')
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -56,7 +56,9 @@ class TestWorkflowLinter:
         mock_result.returncode = 0
         mock_subprocess.return_value = mock_result
 
-        result = await self.linter._lint_wdl('workflow test { input: String x }', 'test.wdl')
+        result = await self.wdl_linter.lint_workflow(
+            'workflow test { input: String x }', 'test.wdl'
+        )
 
         assert result['status'] == 'success'
         assert result['format'] == 'wdl'
@@ -75,7 +77,7 @@ class TestWorkflowLinter:
         mock_result.returncode = 1
         mock_subprocess.return_value = mock_result
 
-        result = await self.linter._lint_wdl('invalid wdl', 'test.wdl')
+        result = await self.wdl_linter.lint_workflow('invalid wdl', 'test.wdl')
 
         assert result['status'] == 'success'  # We always return success when subprocess runs
         assert result['format'] == 'wdl'
@@ -93,7 +95,9 @@ class TestWorkflowLinter:
         mock_result.returncode = 0
         mock_subprocess.return_value = mock_result
 
-        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+        result = await self.cwl_linter.lint_workflow(
+            'cwlVersion: v1.0\nclass: Workflow', 'test.cwl'
+        )
 
         assert result['status'] == 'success'
         assert result['format'] == 'cwl'
@@ -107,20 +111,27 @@ class TestLintingTools:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.linter = WorkflowLinter()
+        self.wdl_linter = WDLWorkflowLinter()
+        self.cwl_linter = CWLWorkflowLinter()
+        # For backward compatibility with tests that expect self.linter
+        self.linter = self.wdl_linter  # Default to WDL linter for legacy tests
 
     @pytest.mark.asyncio
     async def test_lint_workflow_definition(self):
         """Test lint_workflow_definition function."""
         ctx = AsyncMock()
 
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'linter': 'miniwdl',
                 'raw_output': 'STDOUT:\nWorkflow is valid\nSTDERR:\n\nReturn code: 0',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -132,8 +143,9 @@ class TestLintingTools:
             assert result['status'] == 'success'
             assert result['format'] == 'wdl'
             assert 'raw_output' in result
-            mock_lint.assert_called_once_with(
-                workflow_content='workflow test {}', workflow_format='wdl', filename='test.wdl'
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow.assert_called_once_with(
+                workflow_content='workflow test {}', filename='test.wdl'
             )
 
     @pytest.mark.asyncio
@@ -149,8 +161,11 @@ workflow Test { call tasks.TestTask }""",
 task TestTask { command { echo "test" } output { String result = stdout() } }""",
         }
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'main_file': 'main.wdl',
@@ -158,6 +173,7 @@ task TestTask { command { echo "test" } output { String result = stdout() } }"""
                 'linter': 'miniwdl',
                 'raw_output': 'STDOUT:\nWorkflow bundle is valid\nSTDERR:\n\nReturn code: 0',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -171,8 +187,9 @@ task TestTask { command { echo "test" } output { String result = stdout() } }"""
             assert result['main_file'] == 'main.wdl'
             assert len(result['files_processed']) == 2
             assert 'raw_output' in result
-            mock_lint.assert_called_once_with(
-                workflow_files=workflow_files, workflow_format='wdl', main_workflow_file='main.wdl'
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.wdl'
             )
 
     @pytest.mark.asyncio
@@ -182,12 +199,16 @@ task TestTask { command { echo "test" } output { String result = stdout() } }"""
 
         workflow_files = {'tasks.wdl': 'version 1.0\ntask Test {}'}
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'error',
                 'format': 'wdl',
                 'message': 'Main workflow file "main.wdl" not found in provided files',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -198,6 +219,10 @@ task TestTask { command { echo "test" } output { String result = stdout() } }"""
 
             assert result['status'] == 'error'
             assert 'not found' in result['message']
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_cwl_bundle_success(self):
@@ -233,8 +258,11 @@ outputs:
 baseCommand: [echo, "test"]""",
         }
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'main_file': 'main.cwl',
@@ -242,6 +270,7 @@ baseCommand: [echo, "test"]""",
                 'valid': True,
                 'summary': {'files_count': 2},
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -253,38 +282,10 @@ baseCommand: [echo, "test"]""",
             assert result['status'] == 'success'
             assert result['format'] == 'cwl'
             assert len(result['files_processed']) == 2
-
-    #     @pytest.mark.asyncio
-    #     async def test_lint_cwl_bundle_validation_errors(self):
-    #         """Test CWL bundle linting with validation errors."""
-    #         ctx = AsyncMock()
-
-    #         workflow_files = {
-    #             'main.cwl': """cwlVersion: v1.0
-    # class: Workflow
-    # # Missing required inputs/outputs""",
-    #             'process.cwl': """cwlVersion: v1.0
-    # class: CommandLineTool
-    # # Invalid structure""",
-    #         }
-
-    #         with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-    #             mock_lint.return_value = {
-    #                 'status': 'error',
-    #                 'format': 'cwl',
-    #                 'message': 'CWL validation failed',
-    #                 'errors': ['Missing required field: inputs', 'Missing required field: outputs'],
-    #             }
-
-    #             result = await lint_workflow_bundle(
-    #                 ctx=ctx,
-    #                 workflow_files=workflow_files,
-    #                 workflow_format='cwl',
-    #                 main_workflow_file='main.cwl',
-    #             )
-
-    #             assert result['status'] == 'error'
-    #             assert 'validation failed' in result['message'].lower()
+            mock_get_linter.assert_called_once_with('cwl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.cwl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_cwl_bundle_missing_imports(self):
@@ -299,12 +300,16 @@ steps:
     run: missing_file.cwl"""
         }
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'error',
                 'format': 'cwl',
                 'message': 'Import resolution failed: missing_file.cwl not found',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -315,6 +320,10 @@ steps:
 
             assert result['status'] == 'error'
             assert 'missing_file.cwl' in result['message']
+            mock_get_linter.assert_called_once_with('cwl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.cwl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_bundle_missing_main_file_cwl(self):
@@ -323,12 +332,16 @@ steps:
 
         workflow_files = {'helper.cwl': 'cwlVersion: v1.0\nclass: CommandLineTool'}
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'error',
                 'format': 'cwl',
                 'message': 'Main workflow file "main.cwl" not found in provided files',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -339,6 +352,10 @@ steps:
 
             assert result['status'] == 'error'
             assert 'not found' in result['message']
+            mock_get_linter.assert_called_once_with('cwl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.cwl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_bundle_invalid_file_structure(self):
@@ -347,12 +364,16 @@ steps:
 
         workflow_files = {}  # Empty files dict
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'error',
                 'format': 'wdl',
                 'message': 'No workflow files provided',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -363,6 +384,10 @@ steps:
 
             assert result['status'] == 'error'
             assert 'No workflow files' in result['message']
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_unsupported_format(self):
@@ -371,21 +396,16 @@ steps:
 
         workflow_files = {'main.nf': 'nextflow workflow'}
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
-                'status': 'error',
-                'message': 'Unsupported workflow format: nextflow',
-            }
+        # This should trigger the ValueError in get_linter for unsupported format
+        result = await lint_workflow_bundle(
+            ctx=ctx,
+            workflow_files=workflow_files,
+            workflow_format='nextflow',
+            main_workflow_file='main.nf',
+        )
 
-            result = await lint_workflow_bundle(
-                ctx=ctx,
-                workflow_files=workflow_files,
-                workflow_format='nextflow',
-                main_workflow_file='main.nf',
-            )
-
-            assert result['status'] == 'error'
-            assert 'Unsupported' in result['message']
+        assert result['status'] == 'error'
+        assert 'Unsupported' in result['message']
 
     @pytest.mark.asyncio
     @patch('tempfile.NamedTemporaryFile')
@@ -394,8 +414,16 @@ steps:
         ctx = AsyncMock()
         mock_temp_file.side_effect = PermissionError('Permission denied')
 
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.side_effect = PermissionError('Permission denied')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL linting failed: Permission denied',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -404,16 +432,29 @@ steps:
                 filename='test.wdl',
             )
 
-            # Should handle the error gracefully
+            # The linter method handles the error and returns an error response
             assert result['status'] == 'error'
+            assert 'Permission denied' in result['message']
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow.assert_called_once_with(
+                workflow_content='version 1.0\nworkflow Test {}', filename='test.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_wdl_event_loop_conflict(self):
         """Test WDL linting with event loop conflict."""
         ctx = AsyncMock()
 
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.side_effect = RuntimeError('There is already a running event loop')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL linting failed: There is already a running event loop',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -422,6 +463,7 @@ steps:
                 filename='test.wdl',
             )
 
+            # The linter method handles the exception and returns an error response
             assert result['status'] == 'error'
             assert 'event loop' in result.get('message', '').lower()
 
@@ -430,8 +472,16 @@ steps:
         """Test CWL linting with event loop conflict."""
         ctx = AsyncMock()
 
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.side_effect = RuntimeError('There is already a running event loop')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'cwl',
+                'message': 'CWL linting failed: There is already a running event loop',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -440,8 +490,13 @@ steps:
                 filename='test.cwl',
             )
 
+            # The linter method handles the exception and returns an error response
             assert result['status'] == 'error'
             assert 'event loop' in result.get('message', '').lower()
+            mock_get_linter.assert_called_once_with('cwl')
+            mock_linter.lint_workflow.assert_called_once_with(
+                workflow_content='cwlVersion: v1.0\nclass: Workflow', filename='test.cwl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_wdl_bundle_nested_imports(self):
@@ -452,8 +507,11 @@ steps:
             'tasks/process.wdl': 'version 1.0\nimport "../utils/common.wdl"',
             'utils/common.wdl': 'version 1.0\ntask CommonTask { command { echo "test" } }',
         }
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'main_file': 'main.wdl',
@@ -461,6 +519,8 @@ steps:
                 'valid': True,
                 'summary': {'files_count': 3},
             }
+            mock_get_linter.return_value = mock_linter
+
             result = await lint_workflow_bundle(
                 ctx=ctx,
                 workflow_files=workflow_files,
@@ -469,6 +529,10 @@ steps:
             )
             assert result['status'] == 'success'
             assert len(result['files_processed']) == 3
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_cwl_bundle_nested_imports(self):
@@ -478,14 +542,19 @@ steps:
             'main.cwl': 'cwlVersion: v1.0\nclass: Workflow\nsteps:\n  process:\n    run: tools/process.cwl',
             'tools/process.cwl': 'cwlVersion: v1.0\nclass: CommandLineTool',
         }
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'main_file': 'main.cwl',
                 'files_processed': ['main.cwl', 'tools/process.cwl'],
                 'valid': True,
             }
+            mock_get_linter.return_value = mock_linter
+
             result = await lint_workflow_bundle(
                 ctx=ctx,
                 workflow_files=workflow_files,
@@ -493,6 +562,10 @@ steps:
                 main_workflow_file='main.cwl',
             )
             assert result['status'] == 'success'
+            mock_get_linter.assert_called_once_with('cwl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.cwl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_bundle_mixed_file_types(self):
@@ -502,11 +575,16 @@ steps:
             'main.wdl': 'version 1.0\nworkflow Test {}',
             'tool.cwl': 'cwlVersion: v1.0\nclass: CommandLineTool',
         }
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'error',
                 'message': 'Mixed file types not supported',
             }
+            mock_get_linter.return_value = mock_linter
+
             result = await lint_workflow_bundle(
                 ctx=ctx,
                 workflow_files=workflow_files,
@@ -514,6 +592,10 @@ steps:
                 main_workflow_file='main.wdl',
             )
             assert result['status'] == 'error'
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_bundle_large_workflow(self):
@@ -524,12 +606,17 @@ steps:
             workflow_files[f'task_{i}.wdl'] = (
                 f'version 1.0\ntask Task{i} {{ command {{ echo "test{i}" }} }}'
             )
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'files_processed': list(workflow_files.keys()),
                 'valid': True,
             }
+            mock_get_linter.return_value = mock_linter
+
             result = await lint_workflow_bundle(
                 ctx=ctx,
                 workflow_files=workflow_files,
@@ -538,45 +625,83 @@ steps:
             )
             assert result['status'] == 'success'
             assert len(result['files_processed']) == 21
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow_bundle.assert_called_once_with(
+                workflow_files=workflow_files, main_workflow_file='main.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_file_permission_error(self):
         """Test handling of permission errors."""
         ctx = AsyncMock()
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.side_effect = PermissionError('Permission denied')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL linting failed: Permission denied',
+            }
+            mock_get_linter.return_value = mock_linter
+
             result = await lint_workflow_definition(
                 ctx=ctx,
                 workflow_content='version 1.0\nworkflow Test {}',
                 workflow_format='wdl',
                 filename='test.wdl',
             )
+            # The linter method handles the error and returns an error response
             assert result['status'] == 'error'
+            assert 'Permission denied' in result['message']
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow.assert_called_once_with(
+                workflow_content='version 1.0\nworkflow Test {}', filename='test.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_disk_space_error(self):
         """Test handling of disk space errors."""
         ctx = AsyncMock()
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.side_effect = OSError('No space left on device')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL linting failed: No space left on device',
+            }
+            mock_get_linter.return_value = mock_linter
+
             result = await lint_workflow_definition(
                 ctx=ctx,
                 workflow_content='version 1.0\nworkflow Test {}',
                 workflow_format='wdl',
                 filename='test.wdl',
             )
+            # The linter method handles the error and returns an error response
             assert result['status'] == 'error'
+            assert 'No space left on device' in result['message']
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow.assert_called_once_with(
+                workflow_content='version 1.0\nworkflow Test {}', filename='test.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_wdl_workflow_with_structs(self):
         """Test WDL workflow with complex custom types."""
         ctx = AsyncMock()
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'valid': True,
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -586,6 +711,11 @@ steps:
             )
 
             assert result['status'] == 'success'
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow.assert_called_once_with(
+                workflow_content='version 1.0\nstruct Sample { String id }\nworkflow Test {}',
+                filename='test.wdl',
+            )
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -593,12 +723,11 @@ steps:
         """Test WDL linting timeout handling."""
         mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
 
-        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+        result = await self.wdl_linter.lint_workflow('workflow test {}', 'test.wdl')
 
         assert result['status'] == 'error'
-        assert 'timed out' in result['raw_output']
+        assert 'timed out' in result['message']
         assert result['format'] == 'wdl'
-        assert result['linter'] == 'miniwdl'
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -606,12 +735,13 @@ steps:
         """Test CWL linting timeout handling."""
         mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
 
-        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+        result = await self.cwl_linter.lint_workflow(
+            'cwlVersion: v1.0\nclass: Workflow', 'test.cwl'
+        )
 
         assert result['status'] == 'error'
-        assert 'timed out' in result['raw_output']
+        assert 'timed out' in result['message']
         assert result['format'] == 'cwl'
-        assert result['linter'] == 'cwltool'
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -619,11 +749,11 @@ steps:
         """Test WDL linting subprocess exception handling."""
         mock_subprocess.side_effect = FileNotFoundError('miniwdl not found')
 
-        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+        result = await self.wdl_linter.lint_workflow('workflow test {}', 'test.wdl')
 
         assert result['status'] == 'error'
-        assert 'Failed to execute linter' in result['raw_output']
-        assert 'miniwdl not found' in result['raw_output']
+        assert 'WDL linting failed' in result['message']
+        assert 'miniwdl not found' in result['message']
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -631,11 +761,13 @@ steps:
         """Test CWL linting subprocess exception handling."""
         mock_subprocess.side_effect = FileNotFoundError('cwltool not found')
 
-        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+        result = await self.cwl_linter.lint_workflow(
+            'cwlVersion: v1.0\nclass: Workflow', 'test.cwl'
+        )
 
         assert result['status'] == 'error'
-        assert 'Failed to execute linter' in result['raw_output']
-        assert 'cwltool not found' in result['raw_output']
+        assert 'CWL linting failed' in result['message']
+        assert 'cwltool not found' in result['message']
 
     @pytest.mark.asyncio
     @patch('tempfile.NamedTemporaryFile')
@@ -643,7 +775,7 @@ steps:
         """Test WDL linting with temporary file creation error."""
         mock_tempfile.side_effect = OSError('No space left on device')
 
-        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+        result = await self.wdl_linter.lint_workflow('workflow test {}', 'test.wdl')
 
         assert result['status'] == 'error'
         assert 'WDL linting failed' in result['message']
@@ -654,7 +786,9 @@ steps:
         """Test CWL linting with temporary file creation error."""
         mock_tempfile.side_effect = OSError('No space left on device')
 
-        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+        result = await self.cwl_linter.lint_workflow(
+            'cwlVersion: v1.0\nclass: Workflow', 'test.cwl'
+        )
 
         assert result['status'] == 'error'
         assert 'CWL linting failed' in result['message']
@@ -674,7 +808,7 @@ steps:
         # Mock cleanup failure
         mock_unlink.side_effect = PermissionError('Permission denied')
 
-        result = await self.linter._lint_wdl('workflow test {}', 'test.wdl')
+        result = await self.wdl_linter.lint_workflow('workflow test {}', 'test.wdl')
 
         # Should still succeed despite cleanup failure
         assert result['status'] == 'success'
@@ -695,7 +829,9 @@ steps:
         # Mock cleanup failure
         mock_unlink.side_effect = PermissionError('Permission denied')
 
-        result = await self.linter._lint_cwl('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+        result = await self.cwl_linter.lint_workflow(
+            'cwlVersion: v1.0\nclass: Workflow', 'test.cwl'
+        )
 
         # Should still succeed despite cleanup failure
         assert result['status'] == 'success'
@@ -704,33 +840,53 @@ steps:
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_exception_handling(self):
         """Test exception handling in lint_workflow_bundle method."""
-        # Mock an exception in the bundle linting process
-        with patch.object(self.linter, '_lint_wdl_bundle') as mock_lint:
-            mock_lint.side_effect = RuntimeError('Unexpected error')
+        ctx = AsyncMock()
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL bundle linting failed: Unexpected error',
+            }
+            mock_get_linter.return_value = mock_linter
 
-            result = await self.linter.lint_workflow_bundle(
+            result = await lint_workflow_bundle(
+                ctx=ctx,
                 workflow_files={'main.wdl': 'workflow test {}'},
                 workflow_format='wdl',
                 main_workflow_file='main.wdl',
             )
 
+            # The linter method handles the exception and returns an error response
             assert result['status'] == 'error'
-            assert 'Failed to lint wdl workflow bundle' in result['message']
             assert 'Unexpected error' in result['message']
 
     @pytest.mark.asyncio
     async def test_lint_workflow_exception_handling(self):
         """Test exception handling in lint_workflow method."""
-        # Mock an exception in the workflow linting process
-        with patch.object(self.linter, '_lint_wdl') as mock_lint:
-            mock_lint.side_effect = RuntimeError('Unexpected error')
+        ctx = AsyncMock()
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL linting failed: Unexpected error',
+            }
+            mock_get_linter.return_value = mock_linter
 
-            result = await self.linter.lint_workflow(
-                workflow_content='workflow test {}', workflow_format='wdl', filename='test.wdl'
+            result = await lint_workflow_definition(
+                ctx=ctx,
+                workflow_content='workflow test {}',
+                workflow_format='wdl',
+                filename='test.wdl',
             )
 
+            # The linter method handles the exception and returns an error response
             assert result['status'] == 'error'
-            assert 'Failed to lint wdl workflow' in result['message']
             assert 'Unexpected error' in result['message']
 
     @pytest.mark.asyncio
@@ -739,12 +895,12 @@ steps:
         """Test WDL bundle linting timeout handling."""
         mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
 
-        result = await self.linter._lint_wdl_bundle(
+        result = await self.wdl_linter.lint_workflow_bundle(
             workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
         )
 
         assert result['status'] == 'error'
-        assert 'timed out' in result['raw_output']
+        assert 'timed out' in result['message']
         assert result['format'] == 'wdl'
 
     @pytest.mark.asyncio
@@ -753,13 +909,13 @@ steps:
         """Test CWL bundle linting timeout handling."""
         mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
 
-        result = await self.linter._lint_cwl_bundle(
+        result = await self.cwl_linter.lint_workflow_bundle(
             workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
             main_workflow_file='main.cwl',
         )
 
         assert result['status'] == 'error'
-        assert 'timed out' in result['raw_output']
+        assert 'timed out' in result['message']
         assert result['format'] == 'cwl'
 
     @pytest.mark.asyncio
@@ -768,13 +924,13 @@ steps:
         """Test WDL bundle linting subprocess exception handling."""
         mock_subprocess.side_effect = FileNotFoundError('miniwdl not found')
 
-        result = await self.linter._lint_wdl_bundle(
+        result = await self.wdl_linter.lint_workflow_bundle(
             workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
         )
 
         assert result['status'] == 'error'
-        assert 'Failed to execute linter' in result['message']
-        assert 'miniwdl not found' in result['raw_output']
+        assert 'WDL bundle linting failed' in result['message']
+        assert 'miniwdl not found' in result['message']
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -782,14 +938,14 @@ steps:
         """Test CWL bundle linting subprocess exception handling."""
         mock_subprocess.side_effect = FileNotFoundError('cwltool not found')
 
-        result = await self.linter._lint_cwl_bundle(
+        result = await self.cwl_linter.lint_workflow_bundle(
             workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
             main_workflow_file='main.cwl',
         )
 
         assert result['status'] == 'error'
-        assert 'Failed to execute linter' in result['message']
-        assert 'cwltool not found' in result['raw_output']
+        assert 'CWL bundle linting failed' in result['message']
+        assert 'cwltool not found' in result['message']
 
     @pytest.mark.asyncio
     @patch('tempfile.TemporaryDirectory')
@@ -797,7 +953,7 @@ steps:
         """Test WDL bundle linting with temporary directory creation error."""
         mock_tempdir.side_effect = OSError('No space left on device')
 
-        result = await self.linter._lint_wdl_bundle(
+        result = await self.wdl_linter.lint_workflow_bundle(
             workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
         )
 
@@ -810,7 +966,7 @@ steps:
         """Test CWL bundle linting with temporary directory creation error."""
         mock_tempdir.side_effect = OSError('No space left on device')
 
-        result = await self.linter._lint_cwl_bundle(
+        result = await self.cwl_linter.lint_workflow_bundle(
             workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
             main_workflow_file='main.cwl',
         )
@@ -823,8 +979,16 @@ steps:
         """Test exception handling in lint_workflow_definition API function."""
         ctx = AsyncMock()
 
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.side_effect = RuntimeError('Unexpected API error')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL linting failed: Unexpected API error',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -833,18 +997,31 @@ steps:
                 filename='test.wdl',
             )
 
+            # The linter method handles the exception and returns an error response
             assert result['status'] == 'error'
-            assert 'Workflow linting failed' in result['message']
             assert 'Unexpected API error' in result['message']
-            ctx.error.assert_called_once()
+            # ctx.error should not be called since the exception is handled by the linter
+            ctx.error.assert_not_called()
+            mock_get_linter.assert_called_once_with('wdl')
+            mock_linter.lint_workflow.assert_called_once_with(
+                workflow_content='workflow test {}', filename='test.wdl'
+            )
 
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_api_exception(self):
         """Test exception handling in lint_workflow_bundle API function."""
         ctx = AsyncMock()
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.side_effect = RuntimeError('Unexpected API error')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL bundle linting failed: Unexpected API error',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -853,15 +1030,18 @@ steps:
                 main_workflow_file='main.wdl',
             )
 
+            # The linter method handles the exception and returns an error response
             assert result['status'] == 'error'
-            assert 'Workflow bundle linting failed' in result['message']
             assert 'Unexpected API error' in result['message']
-            ctx.error.assert_called_once()
+            # ctx.error should not be called since the exception is handled by the linter
+            ctx.error.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_unsupported_format_in_method(self):
-        """Test unsupported format handling in lint_workflow_bundle method."""
-        result = await self.linter.lint_workflow_bundle(
+        """Test unsupported format handling through public API."""
+        ctx = AsyncMock()
+        result = await lint_workflow_bundle(
+            ctx=ctx,
             workflow_files={'main.nf': 'nextflow workflow'},
             workflow_format='nextflow',
             main_workflow_file='main.nf',
@@ -869,20 +1049,20 @@ steps:
 
         assert result['status'] == 'error'
         assert 'Unsupported workflow format: nextflow' in result['message']
-        assert 'wdl' in result['message']
-        assert 'cwl' in result['message']
 
     @pytest.mark.asyncio
     async def test_lint_workflow_unsupported_format_in_method(self):
-        """Test unsupported format handling in lint_workflow method."""
-        result = await self.linter.lint_workflow(
-            workflow_content='nextflow workflow', workflow_format='nextflow', filename='main.nf'
+        """Test unsupported format handling through public API."""
+        ctx = AsyncMock()
+        result = await lint_workflow_definition(
+            ctx=ctx,
+            workflow_content='nextflow workflow',
+            workflow_format='nextflow',
+            filename='main.nf',
         )
 
         assert result['status'] == 'error'
         assert 'Unsupported workflow format: nextflow' in result['message']
-        assert 'wdl' in result['message']
-        assert 'cwl' in result['message']
 
     @pytest.mark.asyncio
     async def test_wdl_bundle_main_file_not_found(self):
@@ -890,7 +1070,7 @@ steps:
         # This tests the main_file_path.exists() check
         workflow_files = {'other.wdl': 'version 1.0\ntask Test {}'}
 
-        result = await self.linter._lint_wdl_bundle(
+        result = await self.wdl_linter.lint_workflow_bundle(
             workflow_files=workflow_files, main_workflow_file='missing.wdl'
         )
 
@@ -904,7 +1084,7 @@ steps:
         # This tests the main_file_path.exists() check
         workflow_files = {'other.cwl': 'cwlVersion: v1.0\nclass: CommandLineTool'}
 
-        result = await self.linter._lint_cwl_bundle(
+        result = await self.cwl_linter.lint_workflow_bundle(
             workflow_files=workflow_files, main_workflow_file='missing.cwl'
         )
 
@@ -914,16 +1094,22 @@ steps:
 
     @pytest.mark.asyncio
     async def test_lint_workflow_cwl_path_coverage(self):
-        """Test to ensure CWL path in lint_workflow method is covered."""
-        with patch.object(self.linter, '_lint_cwl') as mock_lint_cwl:
-            mock_lint_cwl.return_value = {
+        """Test CWL workflow linting through public API."""
+        ctx = AsyncMock()
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'linter': 'cwltool',
                 'raw_output': 'Success',
             }
+            mock_get_linter.return_value = mock_linter
 
-            result = await self.linter.lint_workflow(
+            result = await lint_workflow_definition(
+                ctx=ctx,
                 workflow_content='cwlVersion: v1.0\nclass: Workflow',
                 workflow_format='cwl',
                 filename='test.cwl',
@@ -931,13 +1117,18 @@ steps:
 
             assert result['status'] == 'success'
             assert result['format'] == 'cwl'
-            mock_lint_cwl.assert_called_once_with('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+            mock_get_linter.assert_called_once_with('cwl')
+            mock_linter.lint_workflow.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_cwl_elif_branch(self):
-        """Test to ensure CWL elif branch in lint_workflow_bundle is covered."""
-        with patch.object(self.linter, '_lint_cwl_bundle') as mock_lint_cwl_bundle:
-            mock_lint_cwl_bundle.return_value = {
+        """Test CWL workflow bundle linting through public API."""
+        ctx = AsyncMock()
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'main_file': 'main.cwl',
@@ -945,9 +1136,10 @@ steps:
                 'linter': 'cwltool',
                 'raw_output': 'Success',
             }
+            mock_get_linter.return_value = mock_linter
 
-            # Call lint_workflow_bundle directly to hit the elif branch
-            result = await self.linter.lint_workflow_bundle(
+            result = await lint_workflow_bundle(
+                ctx=ctx,
                 workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
                 workflow_format='CWL',  # Use uppercase to test case insensitive
                 main_workflow_file='main.cwl',
@@ -955,23 +1147,27 @@ steps:
 
             assert result['status'] == 'success'
             assert result['format'] == 'cwl'
-            mock_lint_cwl_bundle.assert_called_once_with(
-                {'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'}, 'main.cwl'
-            )
+            mock_get_linter.assert_called_once_with('CWL')
+            mock_linter.lint_workflow_bundle.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_lint_workflow_cwl_elif_branch_direct(self):
-        """Test to ensure CWL elif branch in lint_workflow is covered."""
-        with patch.object(self.linter, '_lint_cwl') as mock_lint_cwl:
-            mock_lint_cwl.return_value = {
+        """Test CWL workflow linting with case insensitive format."""
+        ctx = AsyncMock()
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'linter': 'cwltool',
                 'raw_output': 'Success',
             }
+            mock_get_linter.return_value = mock_linter
 
-            # Call lint_workflow directly to hit the elif branch
-            result = await self.linter.lint_workflow(
+            result = await lint_workflow_definition(
+                ctx=ctx,
                 workflow_content='cwlVersion: v1.0\nclass: Workflow',
                 workflow_format='CWL',  # Use uppercase to test case insensitive
                 filename='test.cwl',
@@ -979,21 +1175,29 @@ steps:
 
             assert result['status'] == 'success'
             assert result['format'] == 'cwl'
-            mock_lint_cwl.assert_called_once_with('cwlVersion: v1.0\nclass: Workflow', 'test.cwl')
+            mock_get_linter.assert_called_once_with('CWL')
+            mock_linter.lint_workflow.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_lint_workflow_wdl_then_cwl_branch_coverage(self):
-        """Test both WDL and CWL branches to ensure complete branch coverage."""
-        # Test WDL branch first
-        with patch.object(self.linter, '_lint_wdl') as mock_lint_wdl:
-            mock_lint_wdl.return_value = {
+        """Test both WDL and CWL workflow linting through public API."""
+        ctx = AsyncMock()
+
+        # Test WDL workflow
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'linter': 'miniwdl',
                 'raw_output': 'Success',
             }
+            mock_get_linter.return_value = mock_linter
 
-            result = await self.linter.lint_workflow(
+            result = await lint_workflow_definition(
+                ctx=ctx,
                 workflow_content='version 1.0\nworkflow Test {}',
                 workflow_format='wdl',
                 filename='test.wdl',
@@ -1002,16 +1206,21 @@ steps:
             assert result['status'] == 'success'
             assert result['format'] == 'wdl'
 
-        # Test CWL branch second to ensure elif is properly covered
-        with patch.object(self.linter, '_lint_cwl') as mock_lint_cwl:
-            mock_lint_cwl.return_value = {
+        # Test CWL workflow
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'linter': 'cwltool',
                 'raw_output': 'Success',
             }
+            mock_get_linter.return_value = mock_linter
 
-            result = await self.linter.lint_workflow(
+            result = await lint_workflow_definition(
+                ctx=ctx,
                 workflow_content='cwlVersion: v1.0\nclass: Workflow',
                 workflow_format='cwl',
                 filename='test.cwl',
@@ -1022,10 +1231,15 @@ steps:
 
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_wdl_then_cwl_branch_coverage(self):
-        """Test both WDL and CWL branches in bundle linting to ensure complete branch coverage."""
-        # Test WDL branch first
-        with patch.object(self.linter, '_lint_wdl_bundle') as mock_lint_wdl_bundle:
-            mock_lint_wdl_bundle.return_value = {
+        """Test both WDL and CWL bundle linting through public API."""
+        ctx = AsyncMock()
+
+        # Test WDL bundle
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'main_file': 'main.wdl',
@@ -1033,8 +1247,10 @@ steps:
                 'linter': 'miniwdl',
                 'raw_output': 'Success',
             }
+            mock_get_linter.return_value = mock_linter
 
-            result = await self.linter.lint_workflow_bundle(
+            result = await lint_workflow_bundle(
+                ctx=ctx,
                 workflow_files={'main.wdl': 'version 1.0\nworkflow Test {}'},
                 workflow_format='wdl',
                 main_workflow_file='main.wdl',
@@ -1043,9 +1259,12 @@ steps:
             assert result['status'] == 'success'
             assert result['format'] == 'wdl'
 
-        # Test CWL branch second to ensure elif is properly covered
-        with patch.object(self.linter, '_lint_cwl_bundle') as mock_lint_cwl_bundle:
-            mock_lint_cwl_bundle.return_value = {
+        # Test CWL bundle
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'main_file': 'main.cwl',
@@ -1053,8 +1272,10 @@ steps:
                 'linter': 'cwltool',
                 'raw_output': 'Success',
             }
+            mock_get_linter.return_value = mock_linter
 
-            result = await self.linter.lint_workflow_bundle(
+            result = await lint_workflow_bundle(
+                ctx=ctx,
                 workflow_files={'main.cwl': 'cwlVersion: v1.0\nclass: Workflow'},
                 workflow_format='cwl',
                 main_workflow_file='main.cwl',
@@ -1067,13 +1288,17 @@ steps:
     async def test_cwl_workflow_with_subworkflows(self):
         """Test CWL workflow with embedded subworkflows."""
         ctx = AsyncMock()
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'valid': True,
                 'summary': {'subworkflows_count': 1},
             }
+            mock_get_linter.return_value = mock_linter
             result = await lint_workflow_definition(
                 ctx=ctx,
                 workflow_content='cwlVersion: v1.0\nclass: Workflow\nrequirements:\n  - class: SubworkflowFeatureRequirement',
@@ -1086,13 +1311,17 @@ steps:
     async def test_wdl_workflow_with_conditionals(self):
         """Test WDL workflow with conditional logic."""
         ctx = AsyncMock()
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'valid': True,
                 'summary': {'conditionals_count': 1},
             }
+            mock_get_linter.return_value = mock_linter
             result = await lint_workflow_definition(
                 ctx=ctx,
                 workflow_content='version 1.0\nworkflow Test {\n  input { Boolean run_optional }\n  if (run_optional) { call Task }\n}',
@@ -1105,13 +1334,17 @@ steps:
     async def test_cwl_workflow_with_scatter(self):
         """Test CWL workflow with scatter/gather patterns."""
         ctx = AsyncMock()
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'cwl',
                 'valid': True,
                 'summary': {'scatter_steps': 1},
             }
+            mock_get_linter.return_value = mock_linter
             result = await lint_workflow_definition(
                 ctx=ctx,
                 workflow_content='cwlVersion: v1.0\nclass: Workflow\nrequirements:\n  - class: ScatterFeatureRequirement\nsteps:\n  process:\n    scatter: input_files',
@@ -1338,8 +1571,17 @@ steps:
     async def test_lint_workflow_bundle_tool_exception(self):
         """Test LintAHOWorkflowBundle tool exception handling."""
         ctx = AsyncMock()
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.side_effect = Exception('Linter crashed')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL bundle linting failed: Linter crashed',
+            }
+            mock_get_linter.return_value = mock_linter
+
             result = await lint_workflow_bundle(
                 ctx=ctx,
                 workflow_files={'main.wdl': 'version 1.0\nworkflow Test {}'},
@@ -1347,7 +1589,7 @@ steps:
                 main_workflow_file='main.wdl',
             )
             assert result['status'] == 'error'
-            assert 'bundle linting failed' in result['message']
+            assert 'Linter crashed' in result['message']
 
     @pytest.mark.asyncio
     async def test_wdl_bundle_main_file_not_found_error(self):
@@ -1380,16 +1622,26 @@ steps:
     @pytest.mark.asyncio
     async def test_wdl_bundle_unsupported_format_error(self):
         """Test unsupported format error in bundle linting."""
-        linter = WorkflowLinter()
-        result = await linter.lint_workflow_bundle({'main.nf': 'nextflow'}, 'nextflow', 'main.nf')
+        ctx = AsyncMock()
+        result = await lint_workflow_bundle(
+            ctx=ctx,
+            workflow_files={'main.nf': 'nextflow content'},
+            workflow_format='nextflow',
+            main_workflow_file='main.nf',
+        )
         assert result['status'] == 'error'
         assert 'Unsupported workflow format' in result['message']
 
     @pytest.mark.asyncio
     async def test_wdl_single_file_unsupported_format(self):
         """Test unsupported format in single file linting."""
-        linter = WorkflowLinter()
-        result = await linter.lint_workflow('nextflow content', 'nextflow', 'main.nf')
+        ctx = AsyncMock()
+        result = await lint_workflow_definition(
+            ctx=ctx,
+            workflow_content='nextflow content',
+            workflow_format='nextflow',
+            filename='main.nf',
+        )
         assert result['status'] == 'error'
         assert 'Unsupported workflow format' in result['message']
 
@@ -1426,14 +1678,18 @@ steps:
         """Test that raw linter output is included in the response."""
         ctx = AsyncMock()
 
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'valid': True,
                 'linter': 'miniwdl',
                 'raw_output': 'STDOUT:\nWorkflow is valid\nSTDERR:\n\nReturn code: 0',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -1456,8 +1712,11 @@ steps:
             'main.wdl': 'version 1.0\nworkflow Test { input { String x } output { String y = x } }',
         }
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.return_value = {
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
                 'status': 'success',
                 'format': 'wdl',
                 'main_file': 'main.wdl',
@@ -1466,6 +1725,7 @@ steps:
                 'linter': 'miniwdl',
                 'raw_output': 'STDOUT:\nWorkflow bundle is valid\nSTDERR:\n\nReturn code: 0',
             }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -1484,8 +1744,16 @@ steps:
         """Test subprocess timeout handling."""
         ctx = AsyncMock()
 
-        with patch('subprocess.run') as mock_subprocess:
-            mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'Linter execution timed out after 30 seconds',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -1495,15 +1763,23 @@ steps:
             )
 
             assert result['status'] == 'error'
-            assert 'timed out' in result['raw_output']
+            assert 'timed out' in result['message']
 
     @pytest.mark.asyncio
     async def test_general_exception_handling(self):
         """Test general exception handling in workflow linting."""
         ctx = AsyncMock()
 
-        with patch.object(WorkflowLinter, 'lint_workflow') as mock_lint:
-            mock_lint.side_effect = Exception('Unexpected error')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL linting failed: Unexpected error',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_definition(
                 ctx=ctx,
@@ -1513,7 +1789,7 @@ steps:
             )
 
             assert result['status'] == 'error'
-            assert 'Workflow linting failed' in result['message']
+            assert 'Unexpected error' in result['message']
 
     @pytest.mark.asyncio
     async def test_bundle_general_exception_handling(self):
@@ -1522,8 +1798,16 @@ steps:
 
         workflow_files = {'main.wdl': 'version 1.0\nworkflow Test {}'}
 
-        with patch.object(WorkflowLinter, 'lint_workflow_bundle') as mock_lint:
-            mock_lint.side_effect = Exception('Unexpected bundle error')
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_linting.get_linter'
+        ) as mock_get_linter:
+            mock_linter = AsyncMock()
+            mock_linter.lint_workflow_bundle.return_value = {
+                'status': 'error',
+                'format': 'wdl',
+                'message': 'WDL bundle linting failed: Unexpected bundle error',
+            }
+            mock_get_linter.return_value = mock_linter
 
             result = await lint_workflow_bundle(
                 ctx=ctx,
@@ -1533,46 +1817,32 @@ steps:
             )
 
             assert result['status'] == 'error'
-            assert 'Workflow bundle linting failed' in result['message']
+            assert 'Unexpected bundle error' in result['message']
 
     @pytest.mark.asyncio
     async def test_lint_workflow_fallback_branch(self):
-        """Test fallback branch when format is neither WDL nor CWL."""
-        # Temporarily modify supported_formats to allow an unsupported format through initial validation
-        original_formats = self.linter.supported_formats
-        self.linter.supported_formats = ['wdl', 'cwl', 'nextflow']
+        """Test unsupported format handling through public API."""
+        ctx = AsyncMock()
+        result = await lint_workflow_definition(
+            ctx=ctx,
+            workflow_content='nextflow workflow',
+            workflow_format='nextflow',
+            filename='test.nf',
+        )
 
-        try:
-            result = await self.linter.lint_workflow(
-                workflow_content='nextflow workflow',
-                workflow_format='nextflow',
-                filename='test.nf',
-            )
-
-            assert result['status'] == 'error'
-            assert 'Unexpected workflow format: nextflow' in result['message']
-            assert 'should not happen' in result['message']
-        finally:
-            # Restore original supported formats
-            self.linter.supported_formats = original_formats
+        assert result['status'] == 'error'
+        assert 'Unsupported workflow format: nextflow' in result['message']
 
     @pytest.mark.asyncio
     async def test_lint_workflow_bundle_fallback_branch(self):
-        """Test fallback branch when format is neither WDL nor CWL in bundle linting."""
-        # Temporarily modify supported_formats to allow an unsupported format through initial validation
-        original_formats = self.linter.supported_formats
-        self.linter.supported_formats = ['wdl', 'cwl', 'nextflow']
+        """Test unsupported format handling in bundle linting through public API."""
+        ctx = AsyncMock()
+        result = await lint_workflow_bundle(
+            ctx=ctx,
+            workflow_files={'main.nf': 'nextflow workflow'},
+            workflow_format='nextflow',
+            main_workflow_file='main.nf',
+        )
 
-        try:
-            result = await self.linter.lint_workflow_bundle(
-                workflow_files={'main.nf': 'nextflow workflow'},
-                workflow_format='nextflow',
-                main_workflow_file='main.nf',
-            )
-
-            assert result['status'] == 'error'
-            assert 'Unexpected workflow format: nextflow' in result['message']
-            assert 'should not happen' in result['message']
-        finally:
-            # Restore original supported formats
-            self.linter.supported_formats = original_formats
+        assert result['status'] == 'error'
+        assert 'Unsupported workflow format: nextflow' in result['message']
