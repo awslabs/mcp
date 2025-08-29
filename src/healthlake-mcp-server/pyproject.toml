@@ -65,6 +65,7 @@ dev = [
     "pytest-mock>=3.12.0",
     "pre-commit>=4.1.0",
     "bandit>=1.8.6",
+    "poethepoet>=0.37.0",
 ]
 
 [build-system]
@@ -134,3 +135,20 @@ exclude_also = [
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.poe.tasks]
+test = "pytest tests/ -v"
+test-cov = "pytest tests/ -v --cov=awslabs/healthlake_mcp_server --cov-report=term"
+build = "uv build"
+run = "uv run awslabs.healthlake-mcp-server"
+ruff = "ruff check awslabs/ tests/"
+pyright = "pyright awslabs/"
+lint = ["ruff", "pyright"]
+ruff-format = "ruff format awslabs/ tests/"
+ruff-check = "ruff check --fix awslabs/ tests/"
+format = ["ruff-format", "ruff-check"]
+security = "bandit -r awslabs/"
+check = ["lint", "security"]
+clean1 = "rm -rf build/ dist/ *.egg-info/ htmlcov/ .pytest_cache/"
+clean2 = "find . -name __pycache__ -exec rm -rf {} +;"
+clean = ["clean1", "clean2"]

@@ -478,20 +478,44 @@ awslabs.healthlake-mcp-server
 
 ```bash
 # Run tests
-pytest tests/ -v
+poe test
 
 # Run tests with coverage
-pytest tests/ -v --cov=awslabs/healthlake_mcp_server --cov-report=html
+poe test-cov
 
 # Format code
-ruff format awslabs/ tests/
+poe format
 
 # Lint code
-ruff check awslabs/ tests/
-pyright awslabs/
+poe lint
 
+# Run all quality checks
+poe check
+
+# Clean build artifacts
+poe clean
+
+# Build package
+poe build
+
+# Run server
+poe run
+```
+
+### Available Tasks
+
+The project uses [Poethepoet](https://poethepoet.natn.io/) for task automation. Run `poe --help` to see all available tasks:
+
+- **Testing**: `test`, `test-cov`
+- **Code Quality**: `lint`, `format`, `check`, `security`
+- **Build & Run**: `build`, `run`
+- **Cleanup**: `clean`
+
+### Development Workflow
+
+```bash
 # Run all checks
-make test lint format
+poe check
 ```
 
 ### IDE Setup
@@ -510,16 +534,16 @@ make test lint format
 
 ```bash
 # Run unit tests (fast, no AWS dependencies)
-make test
+poe test
 
 # Run with coverage
-make test-cov
+poe test-cov
 
 # Format code
-make format
+poe format
 
 # Lint code
-make lint
+poe lint
 ```
 
 **Test Results**: 214 tests pass, 96% coverage
@@ -542,8 +566,8 @@ awslabs/healthlake_mcp_server/
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
 3. Make changes and add tests
-4. Run tests: `make test`
-5. Format code: `make format`
+4. Run tests: `poe test`
+5. Format code: `poe format`
 6. Submit a pull request
 
 [↑ Back to Table of Contents](#table-of-contents)
