@@ -84,6 +84,35 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 Note: The `--port` parameter is optional and defaults to 5432 (the standard PostgreSQL port). You only need to specify it if your PostgreSQL instance uses a non-standard port.
 
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.postgres-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.postgres-mcp-server@latest",
+        "awslabs.postgres-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
 ### Build and install docker image locally on the same host of your LLM client
 
 1. 'git clone https://github.com/awslabs/mcp.git'

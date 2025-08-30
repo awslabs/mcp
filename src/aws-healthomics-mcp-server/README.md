@@ -198,6 +198,7 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 - `AWS_REGION` - AWS region for HealthOmics operations (default: us-east-1)
 - `AWS_PROFILE` - AWS profile for authentication
 - `FASTMCP_LOG_LEVEL` - Server logging level (default: WARNING)
+- `HEALTHOMICS_DEFAULT_MAX_RESULTS` - Default maximum number of results for paginated API calls (default: 10)
 
 ### AWS Credentials
 
@@ -260,7 +261,8 @@ Add to your Claude Desktop configuration:
       "args": ["awslabs.aws-healthomics-mcp-server"],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_PROFILE": "your-profile"
+        "AWS_PROFILE": "your-profile",
+        "HEALTHOMICS_DEFAULT_MAX_RESULTS": "10"
       }
     }
   }
@@ -273,6 +275,35 @@ Configure according to your client's documentation, using:
 - Command: `uvx`
 - Args: `["awslabs.aws-healthomics-mcp-server"]`
 - Environment variables as needed
+
+### Windows Installation
+
+For Windows users, the MCP server configuration format is slightly different:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-healthomics-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.aws-healthomics-mcp-server@latest",
+        "awslabs.aws-healthomics-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
 
 ## Development
 

@@ -15,6 +15,7 @@
 import argparse
 import botocore.serialize
 import jmespath
+import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
@@ -22,8 +23,9 @@ from ..aws.services import (
     get_operation_filters,
     session,
 )
-from ..common.command import IRCommand
+from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
+from ..common.config import AWS_API_MCP_PROFILE_NAME, get_region
 from ..common.errors import (
     AwsApiMcpError,
     ClientSideFilterError,
@@ -49,6 +51,7 @@ from ..common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
+from ..common.helpers import expand_user_home_directory
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
 from .custom_validators.ssm_validator import perform_ssm_validations
@@ -58,12 +61,12 @@ from awscli.argparser import ArgTableArgParser, CommandAction, MainArgParser
 from awscli.argprocess import ParamError
 from awscli.arguments import BaseCLIArgument, CLIArgument
 from awscli.clidriver import ServiceCommand
-from awslabs.aws_api_mcp_server.core.common.helpers import expand_user_home_directory
 from botocore.exceptions import ParamValidationError, UndefinedModelAttributeError
 from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
+from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 
@@ -387,14 +390,6 @@ def _handle_service_command(
     parsed_args = operation_parser.parse_operation_args(command_metadata, service_remaining)
     _handle_invalid_parameters(command_metadata, service, operation, parsed_args)
 
-    outfile = getattr(parsed_args.operation_args, 'outfile', None)
-    if outfile is not None and outfile != '-':
-        # Output file parameters are currently ignored by the interpreter
-        # Raising a validation error to make it explicit
-        raise CommandValidationError(
-            'Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.'
-        )
-
     try:
         parameters = operation_command._build_call_parameters(
             parsed_args.operation_args, operation_command.arg_table
@@ -411,7 +406,9 @@ def _handle_service_command(
         parameters,
     )
 
-    _validate_parameters(parameters, operation_command.arg_table)
+    _validate_parameters(
+        parameters, operation_command.arg_table, operation_command._operation_model
+    )
 
     arn_region = _fetch_region_from_arn(parameters)
     global_args.region = region or arn_region
@@ -420,6 +417,8 @@ def _handle_service_command(
         and global_args.region != GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
     ):
         global_args.region = GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
+
+    _validate_output_file(command_metadata, parsed_args)
 
     _validate_request_serialization(
         operation,
@@ -433,10 +432,13 @@ def _handle_service_command(
         operation,
         parameters,
     )
+
     return _construct_command(
         command_metadata=command_metadata,
         global_args=global_args,
         parameters=parameters,
+        parsed_args=parsed_args,
+        operation_model=operation_command._operation_model,
     )
 
 
@@ -627,21 +629,30 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
 def _validate_parameters(
     parameters: dict[str, Any],
     arg_table: dict[str, BaseCLIArgument],
+    operation_model: OperationModel,
 ) -> None:
     validator = BotoCoreParamValidator()
-    param_name_to_arg = {
-        arg._serialized_name: arg for arg in arg_table.values() if isinstance(arg, CLIArgument)
+
+    serialized_to_cli = {
+        arg._serialized_name: arg.cli_name
+        for arg in arg_table.values()
+        if isinstance(arg, CLIArgument)
+        and hasattr(arg, '_serialized_name')
+        and hasattr(arg, 'cli_name')
     }
+
     errors = []
+
+    input_shape = operation_model.input_shape
+    boto3_members = getattr(input_shape, 'members')
+
     for key, value in parameters.items():
-        cli_argument = param_name_to_arg.get(key)
-        if not cli_argument or not cli_argument.argument_model:
-            continue
-        report = validator.validate(value, cli_argument.argument_model)
-        if report.has_errors():
-            errors.append(
-                ParameterValidationErrorRecord(cli_argument.cli_name, report.generate_report())
-            )
+        boto3_shape = boto3_members.get(key)
+        if boto3_shape is not None:
+            report = validator.validate(value, boto3_shape)
+            if report.has_errors():
+                cli_name = serialized_to_cli.get(key, key)
+                errors.append(ParameterValidationErrorRecord(cli_name, report.generate_report()))
     if errors:
         raise ParameterSchemaValidationError(errors)
 
@@ -707,6 +718,13 @@ def _validate_request_serialization(
         ) from err
 
 
+def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
+    if command_metadata.has_streaming_output:
+        output_file_path = parsed_args.operation_args.outfile
+        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
+            raise ValueError(f'{output_file_path} should be an aboslute path')
+
+
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
     for param_value in parameters.values():
         if isinstance(param_value, str):
@@ -721,11 +739,15 @@ def _construct_command(
     global_args: argparse.Namespace,
     parameters: dict[str, Any],
     is_awscli_customization: bool = False,
+    parsed_args: ParsedOperationArgs | None = None,
+    operation_model: OperationModel | None = None,
 ) -> IRCommand:
-    # Verify the service actually exists in this region
-    region = getattr(global_args, 'region', None)
-    if region is None:
-        region = _fetch_region_from_arn(parameters)
+    profile = getattr(global_args, 'profile', None)
+    region = (
+        getattr(global_args, 'region', None)
+        or _fetch_region_from_arn(parameters)
+        or get_region(profile or AWS_API_MCP_PROFILE_NAME)
+    )
 
     client_side_query = getattr(global_args, 'query', None)
     client_side_filter = None
@@ -741,13 +763,20 @@ def _construct_command(
                 msg=str(error),
             )
 
+    output_file = (
+        OutputFile.from_operation(parsed_args.operation_args.outfile, operation_model)
+        if command_metadata.has_streaming_output and parsed_args and operation_model
+        else None
+    )
+
     return IRCommand(
         command_metadata=command_metadata,
         parameters=parameters,
         region=region,
-        profile=getattr(global_args, 'profile', None),
+        profile=profile,
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
+        output_file=output_file,
     )
 
 

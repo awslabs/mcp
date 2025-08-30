@@ -4,8 +4,6 @@
 
 *                                     @awslabs/mcp-maintainers            @awslabs/mcp-admins
 
-## Secure specific files and directories
-
 CODE_OF_CONDUCT.md                                                        @awslabs/mcp-admins
 CONTRIBUTING.md                                                           @awslabs/mcp-admins
 LICENSE                                                                   @awslabs/mcp-admins
@@ -30,6 +28,7 @@ NOTICE                                                                    @awsla
 /src/amazon-sns-sqs-mcp-server          @kenliao94 @hashimsharkh          @awslabs/mcp-admins
 /src/aws-api-mcp-server                 @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh @awslabs/mcp-admins
 #/src/aurora-dsql-mcp-server            @awslabs/mcp-maintainers          @awslabs/mcp-admins
+#/src/aws-bedrock-custom-model-import-mcp-server @saidrhs                 @awslabs/mcp-admins
 #/src/aws-bedrock-data-automation-mcp-server @awslabs/mcp-maintainers     @awslabs/mcp-admins
 /src/aws-diagram-mcp-server             @MichaelWalker-git                @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim             @awslabs/mcp-admins
@@ -39,9 +38,12 @@ NOTICE                                                                    @awsla
 /src/aws-pricing-mcp-server             @nspring00 @aytech-in @s12v       @awslabs/mcp-admins
 /src/aws-serverless-mcp-server          @bx9900                           @awslabs/mcp-admins
 /src/aws-support-mcp-server             @Wook133                          @awslabs/mcp-admins
+/src/billing-cost-management-mcp-server @chittev @Rahul-1404              @awslabs/mcp-admins
+/src/well-architected-security-mcp-server @juntinyeh                      @awslabs/mcp-admins
 #/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/cdk-mcp-server                     @jimini55                         @awslabs/mcp-admins
 /src/cfn-mcp-server                     @karamvsingh                      @awslabs/mcp-admins
+/src/cloudtrail-mcp-server              @rokafella                        @awslabs/mcp-admins
 /src/ccapi-mcp-server                   @novekm                           @awslabs/mcp-admins
 /src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque   @awslabs/mcp-admins
 /src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe               @awslabs/mcp-admins
@@ -51,13 +53,14 @@ NOTICE                                                                    @awsla
 /src/cost-explorer-mcp-server           @Fedayizada                       @awslabs/mcp-admins
 /src/aws-dataprocessing-mcp-server          @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun                      @awslabs/mcp-admins
 #/src/documentdb-mcp-server             @awslabs/mcp-maintainers          @awslabs/mcp-admin
-/src/dynamodb-mcp-server                @erbenmo                          @awslabs/mcp-admins
+/src/dynamodb-mcp-server                @erbenmo @shetsa-amzn @LeeroyHannigan                          @awslabs/mcp-admins
 /src/ecs-mcp-server                     @vibhav-ag @matthewgoodman13      @awslabs/mcp-admins
 /src/eks-mcp-server                     @patrick-yu-amzn @srhsrhsrhsrh    @awslabs/mcp-admins
 /src/elasticache-mcp-server             @seaofawareness                   @awslabs/mcp-admins
 /src/finch-mcp-server                   @Shubhranshu153 @pendo324         @awslabs/mcp-admins
 /src/frontend-mcp-server                @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/git-repo-research-mcp-server       @jonslo                           @awslabs/mcp-admins
+/src/healthlake-mcp-server              @aws-steve @awsri                   @awslabs/mcp-admins
 /src/iam-mcp-server                     @oshardik                         @awslabs/mcp-admins
 /src/lambda-tool-mcp-server             @danilop @jsamuel1                @awslabs/mcp-admins
 /src/mcp-lambda-handler                 @mikegc-aws @Lukas-Xue            @awslabs/mcp-admins

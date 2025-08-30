@@ -467,6 +467,29 @@
       ]
     },
     {
+      "category": "AI & Machine Learning",
+      "description": "Manage custom models in Bedrock for on-demand inference",
+      "icon": "\ud83e\udd16",
+      "id": "aws-bedrock-custom-model-import-mcp-server",
+      "name": "Amazon Bedrock Custom Model Import MCP Server",
+      "source_path": "src/aws-bedrock-custom-model-import-mcp-server/",
+      "subcategory": "Model Orchestration",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "vibe-coding",
+        "conversational",
+        "machine-learning",
+        "ai-tools",
+        "serverless"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational",
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Data & Analytics",
       "description": "Complete DynamoDB operations and table management",
       "icon": "\ud83d\udcca",
@@ -927,6 +950,28 @@
     },
     {
       "category": "Cost & Operations",
+      "description": "AWS Billing and Cost Management",
+      "icon": "\ud83d\udcb0",
+      "id": "billing_cost_management_mcp_server",
+      "name": "AWS Billing and Cost Management MCP Server",
+      "source_path": "src/billing_cost_management_mcp_server/",
+      "subcategory": "Cost Management",
+      "tags": [
+        "billing",
+        "cost-management",
+        "cost-analysis",
+        "cost-optimization",
+        "budgets",
+        "conversational",
+        "business-services",
+        "free-tier"
+      ],
+      "workflows": [
+        "conversational"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
       "description": "Pre-deployment cost estimation and optimization",
       "icon": "\ud83d\udcb0",
       "id": "aws-pricing-mcp-server",
@@ -1053,6 +1098,25 @@
       ]
     },
     {
+      "category": "Healthcare & Lifesciences",
+      "description": "Perform Fast Healthcare Interoperability Resources (FHIR) interactions and manage AWS HealthLake datastores",
+      "icon": "\ud83e\uddc0",
+      "id": "healthlake-mcp-server",
+      "name": "HealthLake MCP Server",
+      "source_path": "src/healthlake-mcp-server/",
+      "subcategory": "FHIR resource management",
+      "tags": [
+        "healthcare",
+        "lifesciences",
+        "healthlake",
+        "fhir",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Cost & Operations",
       "description": "Application monitoring and performance insights",
       "icon": "\ud83d\udcb0",
@@ -1088,6 +1152,31 @@
         "metrics",
         "alarms",
         "logs",
+        "analysis",
+        "troubleshooting",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "AWS API Activity, User or Resource analysis using CloudTrail Logs",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudtrail-mcp-server",
+      "name": "AWS CloudTrail MCP Server",
+      "source_path": "src/cloutrail-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudtrail",
+        "activity",
+        "audit",
+        "compliance",
+        "logs",
+        "events",
         "analysis",
         "troubleshooting",
         "autonomous",
@@ -1161,6 +1250,28 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "Assess AWS environments against the Well-Architected Framework Security Pillar",
+      "icon": "\ud83d\udcb0",
+      "id": "well-architected-security-mcp-server",
+      "name": "AWS Well-Architected Security Assessment Tool MCP Server",
+      "source_path": "src/well-architected-security-mcp-server/",
+      "subcategory": "Security Assessment",
+      "tags": [
+        "cost-operations",
+        "security",
+        "well-architected",
+        "assessment",
+        "compliance",
+        "security-posture",
+        "monitoring",
+        "conversational"
+      ],
+      "workflows": [
+        "conversational"
       ]
     }
   ],
