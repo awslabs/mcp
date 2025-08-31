@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""CORE MCP server package."""
 
-__version__ = '1.0.8'
+"""AWS HealthLake MCP Server."""
+
+__version__ = '0.0.1'

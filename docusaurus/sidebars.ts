@@ -131,7 +131,10 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Healthcare & Lifesciences',
-          items: ['servers/aws-healthomics-mcp-server'],
+          items: [
+            'servers/aws-healthomics-mcp-server',
+            'servers/healthlake-mcp-server',
+          ],
         },
       ],
     },

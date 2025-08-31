@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:6544e0e002b40ae0f59bc3618b07c1e48064c4faed3a15ae2fbd2e8f663e8283 AS uv
+FROM public.ecr.aws/docker/library/python:3.13.7-alpine3.22@sha256:587df003ff48316a56a0ddac50e1e2b64dfeca281f0c071b91920895a65b12d2 AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -33,6 +33,21 @@ ENV UV_FROZEN=true
 # Copy the required files first
 COPY pyproject.toml uv.lock uv-requirements.txt ./
 
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies and Python package manager
+RUN apk update && \
+    apk add --no-cache --virtual .build-deps \
+    build-base \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo && \
+    pip install uv
+
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
@@ -47,33 +62,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:6544e0e002b40ae0f59bc3618b07c1e48064c4faed3a15ae2fbd2e8f663e8283
+FROM public.ecr.aws/docker/library/python:3.13.7-alpine3.22@sha256:587df003ff48316a56a0ddac50e1e2b64dfeca281f0c071b91920895a65b12d2
 
 # Place executables in the environment at the front of the path and include other binaries
-ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
 
-# Install lsof for the healthcheck
-# Install other tools as needed for the MCP server
-# Add non-root user and ability to change directory into /root
-RUN out=$(mktemp) && \
-    apt-get update -y && \
-    apt-get install -y wget procps && \
-    wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg && \
-    cat $out | \
-      tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
-	chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
-      tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
-    apt-get update -y && \
-    apt-get install -y gh && \
-    apt-get clean -y && \
-    apt-get autoremove -y && \
-    groupadd --force --system app && \
-    useradd app -g app -d /app && \
-    chmod o+x /root
+# Install runtime dependencies and create application user
+RUN apk update && \
+    apk add --no-cache ca-certificates && \
+    update-ca-certificates && \
+    addgroup -S app && \
+    adduser -S app -G app -h /app
 
-# Get the project from the uv layer
-# COPY --from=uv --chown=app:app /root/.local /root/.local
+# Copy application artifacts from build stage
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
@@ -84,4 +86,4 @@ USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
-ENTRYPOINT ["awslabs.core-mcp-server"]
+ENTRYPOINT ["awslabs.healthlake-mcp-server"]
