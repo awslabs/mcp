@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_appsync_mcp_server.operations.create_graphql_api import (
+    _validate_inputs,
     create_graphql_api_operation,
 )
 from awslabs.aws_appsync_mcp_server.tools.create_graphql_api import (
@@ -551,3 +552,142 @@ async def test_create_graphql_api_tool_execution():
             result = await captured_func('test-api', 'API_KEY')
             mock_op.assert_called_once()
             assert result == {'graphqlApi': {'name': 'test-api'}}
+
+
+class TestValidateInputs:
+    """Test cases for input validation."""
+
+    def test_validate_inputs_valid_minimal(self):
+        """Test validation with minimal valid inputs."""
+        # Should not raise any exception
+        _validate_inputs('test-api', 'API_KEY', None, None, None, None, None, None)
+
+    def test_validate_inputs_empty_name(self):
+        """Test validation fails with empty name."""
+        with pytest.raises(ValueError, match='Name is required and cannot be empty'):
+            _validate_inputs('', 'API_KEY', None, None, None, None, None, None)
+
+    def test_validate_inputs_whitespace_name(self):
+        """Test validation fails with whitespace-only name."""
+        with pytest.raises(ValueError, match='Name is required and cannot be empty'):
+            _validate_inputs('   ', 'API_KEY', None, None, None, None, None, None)
+
+    def test_validate_inputs_name_too_long(self):
+        """Test validation fails with name exceeding 65536 characters."""
+        long_name = 'a' * 65537
+        with pytest.raises(ValueError, match='Name cannot exceed 65536 characters'):
+            _validate_inputs(long_name, 'API_KEY', None, None, None, None, None, None)
+
+    def test_validate_inputs_invalid_auth_type(self):
+        """Test validation fails with invalid authentication type."""
+        with pytest.raises(ValueError, match='Invalid authentication_type'):
+            _validate_inputs('test-api', 'INVALID_AUTH', None, None, None, None, None, None)
+
+    def test_validate_inputs_valid_auth_types(self):
+        """Test validation passes with all valid authentication types."""
+        valid_types = [
+            'API_KEY',
+            'AWS_IAM',
+            'AMAZON_COGNITO_USER_POOLS',
+            'OPENID_CONNECT',
+            'AWS_LAMBDA',
+        ]
+        for auth_type in valid_types:
+            _validate_inputs('test-api', auth_type, None, None, None, None, None, None)
+
+    def test_validate_inputs_invalid_visibility(self):
+        """Test validation fails with invalid visibility."""
+        with pytest.raises(ValueError, match="Invalid visibility. Must be 'GLOBAL' or 'PRIVATE'"):
+            _validate_inputs('test-api', 'API_KEY', 'INVALID', None, None, None, None, None)
+
+    def test_validate_inputs_valid_visibility(self):
+        """Test validation passes with valid visibility values."""
+        for visibility in ['GLOBAL', 'PRIVATE']:
+            _validate_inputs('test-api', 'API_KEY', visibility, None, None, None, None, None)
+
+    def test_validate_inputs_invalid_api_type(self):
+        """Test validation fails with invalid API type."""
+        with pytest.raises(ValueError, match="Invalid api_type. Must be 'GRAPHQL' or 'MERGED'"):
+            _validate_inputs('test-api', 'API_KEY', None, 'INVALID', None, None, None, None)
+
+    def test_validate_inputs_valid_api_type(self):
+        """Test validation passes with valid API types."""
+        for api_type in ['GRAPHQL', 'MERGED']:
+            _validate_inputs('test-api', 'API_KEY', None, api_type, None, None, None, None)
+
+    def test_validate_inputs_invalid_introspection_config(self):
+        """Test validation fails with invalid introspection config."""
+        with pytest.raises(
+            ValueError, match="Invalid introspection_config. Must be 'ENABLED' or 'DISABLED'"
+        ):
+            _validate_inputs('test-api', 'API_KEY', None, None, 'INVALID', None, None, None)
+
+    def test_validate_inputs_valid_introspection_config(self):
+        """Test validation passes with valid introspection config values."""
+        for config in ['ENABLED', 'DISABLED']:
+            _validate_inputs('test-api', 'API_KEY', None, None, config, None, None, None)
+
+    def test_validate_inputs_query_depth_limit_negative(self):
+        """Test validation fails with negative query depth limit."""
+        with pytest.raises(ValueError, match='query_depth_limit must be between 0 and 75'):
+            _validate_inputs('test-api', 'API_KEY', None, None, None, -1, None, None)
+
+    def test_validate_inputs_query_depth_limit_too_high(self):
+        """Test validation fails with query depth limit exceeding 75."""
+        with pytest.raises(ValueError, match='query_depth_limit must be between 0 and 75'):
+            _validate_inputs('test-api', 'API_KEY', None, None, None, 76, None, None)
+
+    def test_validate_inputs_valid_query_depth_limits(self):
+        """Test validation passes with valid query depth limits."""
+        for limit in [0, 1, 75]:
+            _validate_inputs('test-api', 'API_KEY', None, None, None, limit, None, None)
+
+    def test_validate_inputs_resolver_count_limit_negative(self):
+        """Test validation fails with negative resolver count limit."""
+        with pytest.raises(ValueError, match='resolver_count_limit must be between 0 and 10000'):
+            _validate_inputs('test-api', 'API_KEY', None, None, None, None, -1, None)
+
+    def test_validate_inputs_resolver_count_limit_too_high(self):
+        """Test validation fails with resolver count limit exceeding 10000."""
+        with pytest.raises(ValueError, match='resolver_count_limit must be between 0 and 10000'):
+            _validate_inputs('test-api', 'API_KEY', None, None, None, None, 10001, None)
+
+    def test_validate_inputs_valid_resolver_count_limits(self):
+        """Test validation passes with valid resolver count limits."""
+        for limit in [0, 1, 10000]:
+            _validate_inputs('test-api', 'API_KEY', None, None, None, None, limit, None)
+
+    def test_validate_inputs_invalid_arn_format(self):
+        """Test validation fails with invalid ARN format."""
+        invalid_arns = [
+            'invalid-arn',
+            'arn:aws:s3:::bucket',  # Wrong service
+            'arn:aws:iam::123456789012:user/test',  # Wrong resource type
+            'arn:aws:iam::invalid:role/test',  # Invalid account ID
+        ]
+        for arn in invalid_arns:
+            with pytest.raises(ValueError, match='Invalid merged_api_execution_role_arn format'):
+                _validate_inputs('test-api', 'API_KEY', None, None, None, None, None, arn)
+
+    def test_validate_inputs_valid_arn_formats(self):
+        """Test validation passes with valid ARN formats."""
+        valid_arns = [
+            'arn:aws:iam::123456789012:role/test-role',
+            'arn:aws-us-gov:iam::123456789012:role/gov-role',
+            'arn:aws-cn:iam::123456789012:role/china-role',
+        ]
+        for arn in valid_arns:
+            _validate_inputs('test-api', 'API_KEY', None, None, None, None, None, arn)
+
+    def test_validate_inputs_all_valid_parameters(self):
+        """Test validation passes with all valid parameters."""
+        _validate_inputs(
+            name='test-api',
+            authentication_type='API_KEY',
+            visibility='GLOBAL',
+            api_type='GRAPHQL',
+            introspection_config='ENABLED',
+            query_depth_limit=50,
+            resolver_count_limit=5000,
+            merged_api_execution_role_arn='arn:aws:iam::123456789012:role/test-role',
+        )

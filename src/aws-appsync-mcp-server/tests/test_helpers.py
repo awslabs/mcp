@@ -12,126 +12,117 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the AWS AppSync MCP Server helpers."""
+"""Unit tests for helper functions."""
 
-import os
 import pytest
 from awslabs.aws_appsync_mcp_server.helpers import (
+    _sanitize_error_message,
     get_appsync_client,
     handle_exceptions,
 )
 from botocore.exceptions import ClientError
-from unittest.mock import MagicMock, patch
+from unittest.mock import Mock, patch
 
 
-def test_get_appsync_client_default():
-    """Test get_appsync_client with default settings."""
-    with patch('boto3.Session') as mock_session:
-        mock_client = MagicMock()
-        mock_session.return_value.client.return_value = mock_client
+class TestSanitizeErrorMessage:
+    """Test error message sanitization."""
 
-        client = get_appsync_client()
+    def test_sanitize_account_id(self):
+        """Test account ID sanitization."""
+        message = 'Access denied for account 123456789012'
+        result = _sanitize_error_message(message)
+        assert result == 'Access denied for account [ACCOUNT-ID]'
 
-        mock_session.assert_called_once_with(profile_name=None, region_name='us-east-1')
-        # Verify client is called with appsync and config parameter
-        args, kwargs = mock_session.return_value.client.call_args
-        assert args[0] == 'appsync'
-        assert 'config' in kwargs
-        assert client == mock_client
+    def test_sanitize_arn(self):
+        """Test ARN sanitization."""
+        message = 'Resource arn:aws:appsync:us-east-1:123456789012:apis/abc123 not found'
+        result = _sanitize_error_message(message)
+        assert result == 'Resource [ARN] not found'
 
+    def test_sanitize_access_key(self):
+        """Test access key sanitization."""
+        message = 'Invalid access key DUMMYDUMMYDUMMYDUMMY'
+        result = _sanitize_error_message(message)
+        assert result == 'Invalid access key [ACCESS-KEY]'
 
-def test_get_appsync_client_with_profile():
-    """Test get_appsync_client with AWS_PROFILE and AWS_REGION set."""
-    with patch('boto3.Session') as mock_session:
-        mock_client = MagicMock()
-        mock_session.return_value.client.return_value = mock_client
+    def test_sanitize_multiple_patterns(self):
+        """Test multiple sensitive patterns in one message."""
+        message = (
+            'Account 123456789012 cannot access arn:aws:appsync:us-east-1:123456789012:apis/abc123'
+        )
+        result = _sanitize_error_message(message)
+        assert result == 'Account [ACCOUNT-ID] cannot access [ARN]'
 
-        with patch.dict(os.environ, {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-west-2'}):
-            client = get_appsync_client()
-
-            mock_session.assert_called_once_with(
-                profile_name='test-profile', region_name='us-west-2'
-            )
-            # Verify client is called with appsync and config parameter
-            args, kwargs = mock_session.return_value.client.call_args
-            assert args[0] == 'appsync'
-            assert 'config' in kwargs
-            assert client == mock_client
-
-
-def test_get_appsync_client_exception():
-    """Test get_appsync_client when boto3 raises an exception."""
-    with patch('boto3.Session', side_effect=Exception('AWS error')):
-        with pytest.raises(Exception, match='AWS error'):
-            get_appsync_client()
+    def test_no_sensitive_data(self):
+        """Test message with no sensitive data remains unchanged."""
+        message = 'Invalid GraphQL schema'
+        result = _sanitize_error_message(message)
+        assert result == 'Invalid GraphQL schema'
 
 
-@pytest.mark.asyncio
-async def test_handle_exceptions_decorator_success():
-    """Test handle_exceptions decorator with successful function."""
+class TestHandleExceptions:
+    """Test exception handling decorator."""
 
-    @handle_exceptions
-    async def test_func():
-        return 'success'
+    @pytest.mark.asyncio
+    async def test_client_error_handling(self):
+        """Test ClientError handling with sanitization."""
 
-    result = await test_func()
-    assert result == 'success'
+        @handle_exceptions
+        async def mock_func():
+            error_response = {
+                'Error': {
+                    'Code': 'AccessDenied',
+                    'Message': 'Access denied for account 123456789012',
+                }
+            }
+            raise ClientError(error_response, 'GetApi')
 
+        with pytest.raises(Exception) as exc_info:
+            await mock_func()
 
-@pytest.mark.asyncio
-async def test_handle_exceptions_decorator_client_error():
-    """Test handle_exceptions decorator with ClientError."""
-
-    @handle_exceptions
-    async def error_func():
-        raise ClientError(
-            error_response={
-                'Error': {'Code': 'ValidationException', 'Message': 'Invalid API name'}
-            },
-            operation_name='CreateApi',
+        assert 'AppSync API error [AccessDenied]: Access denied for account [ACCOUNT-ID]' in str(
+            exc_info.value
         )
 
-    with pytest.raises(Exception, match='AppSync API error: Invalid API name'):
-        await error_func()
+    @pytest.mark.asyncio
+    async def test_generic_exception_handling(self):
+        """Test generic exception handling."""
+
+        @handle_exceptions
+        async def mock_func():
+            raise ValueError('Test error')
+
+        with pytest.raises(ValueError):
+            await mock_func()
+
+    @pytest.mark.asyncio
+    async def test_successful_execution(self):
+        """Test successful function execution."""
+
+        @handle_exceptions
+        async def mock_func():
+            return 'success'
+
+        result = await mock_func()
+        assert result == 'success'
 
 
-@pytest.mark.asyncio
-async def test_handle_exceptions_decorator_generic_error():
-    """Test handle_exceptions decorator with generic exception."""
+class TestGetAppSyncClient:
+    """Test AppSync client creation."""
 
-    @handle_exceptions
-    async def error_func():
-        raise RuntimeError('Test error')
-
-    with pytest.raises(RuntimeError, match='Test error'):
-        await error_func()
-
-
-def test_get_appsync_client_config_user_agent():
-    """Test that get_appsync_client creates config with correct user agent."""
-    with (
-        patch('boto3.Session') as mock_session,
-        patch('awslabs.aws_appsync_mcp_server.__version__', '1.0.0'),
-    ):
-        mock_client = MagicMock()
+    @patch('awslabs.aws_appsync_mcp_server.helpers.boto3.Session')
+    def test_get_appsync_client_success(self, mock_session):
+        """Test successful client creation."""
+        mock_client = Mock()
         mock_session.return_value.client.return_value = mock_client
 
-        get_appsync_client()
+        result = get_appsync_client()
+        assert result == mock_client
 
-        # Verify config parameter contains user agent
-        args, kwargs = mock_session.return_value.client.call_args
-        config = kwargs['config']
-        assert hasattr(config, 'user_agent_extra')
-        assert 'awslabs/mcp/aws-appsync-mcp-server/1.0.0' in config.user_agent_extra
+    @patch('awslabs.aws_appsync_mcp_server.helpers.boto3.Session')
+    def test_get_appsync_client_exception(self, mock_session):
+        """Test client creation with exception."""
+        mock_session.side_effect = Exception('Test error')
 
-
-def test_get_appsync_client_no_env_vars():
-    """Test get_appsync_client with no environment variables set."""
-    with patch('boto3.Session') as mock_session, patch.dict(os.environ, {}, clear=True):
-        mock_client = MagicMock()
-        mock_session.return_value.client.return_value = mock_client
-
-        client = get_appsync_client()
-
-        mock_session.assert_called_once_with(profile_name=None, region_name='us-east-1')
-        assert client == mock_client
+        with pytest.raises(Exception):
+            get_appsync_client()

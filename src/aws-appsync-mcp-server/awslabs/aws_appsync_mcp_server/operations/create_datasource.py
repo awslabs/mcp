@@ -16,7 +16,6 @@
 
 import re
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
-from loguru import logger
 from typing import Any, Dict, Optional
 
 
@@ -24,6 +23,21 @@ def _validate_service_role_arn(arn: str) -> bool:
     """Validate IAM service role ARN format."""
     arn_pattern = r'^arn:aws:iam::[0-9]{12}:role/.*$'
     return bool(re.match(arn_pattern, arn))
+
+
+def _validate_http_config(http_config: Dict) -> None:
+    """Validate HTTP configuration for security."""
+    endpoint = http_config.get('endpoint', '')
+
+    # Block localhost/private IPs to prevent SSRF
+    if re.search(
+        r'(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)', endpoint
+    ):
+        raise ValueError('HTTP endpoint cannot target localhost or private IP ranges')
+
+    # Require HTTPS for external endpoints
+    if not endpoint.startswith('https://'):
+        raise ValueError('HTTP endpoint must use HTTPS protocol')
 
 
 @handle_exceptions
@@ -45,8 +59,11 @@ async def create_datasource_operation(
     """Execute create_data_source operation."""
     # Validate service role ARN if provided
     if service_role_arn and not _validate_service_role_arn(service_role_arn):
-        logger.warning(f'Service role ARN format validation failed: {service_role_arn}')
         raise ValueError(f'Invalid service role ARN format: {service_role_arn}')
+
+    # Validate HTTP configuration if provided
+    if http_config:
+        _validate_http_config(http_config)
 
     client = get_appsync_client()
 
