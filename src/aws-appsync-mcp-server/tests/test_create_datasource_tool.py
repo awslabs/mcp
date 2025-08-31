@@ -29,7 +29,12 @@ class TestCreateDatasourceTool:
         mock_operation.return_value = {'dataSource': {'name': 'test'}}
 
         # Mock MCP server
+        from typing import Any, Callable
+
         class MockMCP:
+            def __init__(self):
+                self.tool_func: Callable[..., Any] | None = None
+
             def tool(self, **kwargs):
                 def decorator(func):
                     self.tool_func = func
@@ -41,7 +46,9 @@ class TestCreateDatasourceTool:
         register_create_datasource_tool(mock_mcp)
 
         # Execute the tool function
-        result = await mock_mcp.tool_func(
+        tool_func = mock_mcp.tool_func
+        assert tool_func is not None, 'Tool function was not registered'
+        result = await tool_func(
             'api123',
             'test-ds',
             'HTTP',

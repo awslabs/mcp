@@ -27,13 +27,15 @@ class TestCreateSchemaTool:
     async def test_tool_execution(self, mock_operation):
         """Test that the registered tool calls the operation correctly."""
         # Setup mock MCP server
+        from typing import Any, Callable
+
         mock_mcp = Mock()
-        mock_tool_func = None
+        captured_func: Callable[..., Any] | None = None
 
         def capture_tool_func(name, description, annotations):
             def decorator(func):
-                nonlocal mock_tool_func
-                mock_tool_func = func
+                nonlocal captured_func
+                captured_func = func
                 return func
 
             return decorator
@@ -47,7 +49,11 @@ class TestCreateSchemaTool:
         mock_operation.return_value = {'status': 'SUCCESS', 'details': 'Schema created'}
 
         # Execute the tool
-        result = await mock_tool_func('test-api-id', 'type Query { hello: String }')
+        assert captured_func is not None, 'Tool function was not registered'
+        from typing import cast
+
+        tool_func = cast(Callable[..., Any], captured_func)
+        result = await tool_func('test-api-id', 'type Query { hello: String }')
 
         # Verify operation was called correctly
         mock_operation.assert_called_once_with('test-api-id', 'type Query { hello: String }')
