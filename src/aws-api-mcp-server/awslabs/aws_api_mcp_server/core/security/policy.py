@@ -39,9 +39,11 @@ class SecurityPolicy:
         self._load_policy()
 
     def _load_policy(self):
-        """Load security policy from local security directory."""
+        """Load security policy from user directory."""
+        policy_dir = Path.home() / '.aws' / 'aws-api-mcp'
+        policy_dir.mkdir(parents=True, exist_ok=True)
+        policy_path = policy_dir / 'mcp-security-policy.json'
         security_dir = Path(__file__).parent
-        policy_path = security_dir / 'mcp-security-policy.json'
         customization_path = security_dir / 'aws_api_customization.json'
 
         if not policy_path.exists():
@@ -118,13 +120,8 @@ class SecurityPolicy:
                     return PolicyDecision.DENY
                 return PolicyDecision.ELICIT
 
-        # Default behavior: read-only allowed, mutations elicited
-        if is_read_only:
-            return PolicyDecision.ALLOW
-        else:
-            if not supports_elicitation:
-                return PolicyDecision.DENY
-            return PolicyDecision.ELICIT
+        # Default behavior: allow all operations
+        return PolicyDecision.ALLOW
 
     def check_customization(
         self, cli_command: str, is_read_only_func, supports_elicitation: bool

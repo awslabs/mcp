@@ -86,7 +86,7 @@ def is_operation_read_only(ir: IRTranslation, read_only_operations: ReadOnlyOper
     return read_only_operations.has(service=service_name, operation=operation_name)
 
 
-async def check_elicitation_support(ctx: Context) -> bool:
+def check_elicitation_support(ctx: Context) -> bool:
     """Check if elicitation is supported."""
     try:
         return hasattr(ctx, 'elicit')
@@ -103,7 +103,7 @@ def check_security_policy(
         return read_only_operations.has(service=service, operation=operation)
 
     # Check if client supports elicitation
-    supports_elicitation = hasattr(ctx, 'elicit')
+    supports_elicitation = check_elicitation_support(ctx)
 
     # First check if this matches a customization
     customization_decision = security_policy.check_customization(
