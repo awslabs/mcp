@@ -74,7 +74,7 @@ title: Script without description
         script_file = test_dir / 'missing_desc.script.md'
         script_file.write_text(script_content)
 
-        with pytest.raises(RuntimeError, match='has no "description" metadata in front matter'):
+        with pytest.raises(RuntimeError, match='has no \"description\" metadata in front matter'):
             AgentScriptsManager(scripts_dir=test_dir)
 
 

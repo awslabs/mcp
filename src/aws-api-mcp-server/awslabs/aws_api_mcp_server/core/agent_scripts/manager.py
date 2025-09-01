@@ -15,8 +15,9 @@
 import frontmatter
 import os
 from pathlib import Path
-from .models import Script
+
 from ..common.config import CUSTOM_SCRIPTS_DIR
+from .models import Script
 
 
 class AgentScriptsManager:
@@ -25,10 +26,10 @@ class AgentScriptsManager:
     def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry', custom_scripts_dir: Path | None = None):
         """Initialize the manager."""
         self.scripts = {}
-        
+
         if not scripts_dir.exists():
             raise RuntimeError(f'Scripts directory {scripts_dir} does not exist')
-        
+
         self.scripts_dirs = [scripts_dir]
         if custom_scripts_dir:
             if not custom_scripts_dir.exists():
