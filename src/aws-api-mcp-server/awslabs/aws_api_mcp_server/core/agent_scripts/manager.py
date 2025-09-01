@@ -16,13 +16,13 @@ import frontmatter
 import os
 from pathlib import Path
 from .models import Script
-from ..common.config import USER_SCRIPTS_DIR
+from ..common.config import CUSTOM_SCRIPTS_DIR
 
 
 class AgentScriptsManager:
     """Script manager for AWS API MCP."""
 
-    def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry', user_dir: Path | None = None):
+    def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry', custom_scripts_dir: Path | None = None):
         """Initialize the manager."""
         self.scripts = {}
         
@@ -30,12 +30,12 @@ class AgentScriptsManager:
             raise RuntimeError(f'Scripts directory {scripts_dir} does not exist')
         
         self.scripts_dirs = [scripts_dir]
-        if user_dir:
-            if not user_dir.exists():
-                raise RuntimeError(f'User scripts directory {user_dir} does not exist')
-            if not os.access(user_dir, os.R_OK):
-                raise RuntimeError(f'No read permission for user scripts directory {user_dir}')
-            self.scripts_dirs.append(user_dir)
+        if custom_scripts_dir:
+            if not custom_scripts_dir.exists():
+                raise RuntimeError(f'User scripts directory {custom_scripts_dir} does not exist')
+            if not os.access(custom_scripts_dir, os.R_OK):
+                raise RuntimeError(f'No read permission for user scripts directory {custom_scripts_dir}')
+            self.scripts_dirs.append(custom_scripts_dir)
 
         for script_directory in self.scripts_dirs:
             for file_path in script_directory.glob('*.script.md'):
@@ -66,5 +66,5 @@ class AgentScriptsManager:
         )
 
 
-user_dir = Path(USER_SCRIPTS_DIR) if USER_SCRIPTS_DIR and USER_SCRIPTS_DIR.strip() else None
-AGENT_SCRIPTS_MANAGER = AgentScriptsManager(user_dir=user_dir)
+custom_scripts_dir = Path(CUSTOM_SCRIPTS_DIR) if CUSTOM_SCRIPTS_DIR and CUSTOM_SCRIPTS_DIR.strip() else None
+AGENT_SCRIPTS_MANAGER = AgentScriptsManager(custom_scripts_dir=custom_scripts_dir)
