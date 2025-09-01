@@ -14,10 +14,9 @@
 
 import frontmatter
 import os
-from pathlib import Path
-
 from ..common.config import CUSTOM_SCRIPTS_DIR
 from .models import Script
+from pathlib import Path
 
 
 class AgentScriptsManager:
