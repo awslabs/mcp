@@ -13,37 +13,47 @@
 # limitations under the License.
 
 import frontmatter
-from .models import Script
+import os
 from pathlib import Path
+from .models import Script
+from ..common.config import USER_SCRIPTS_DIR
 
 
 class AgentScriptsManager:
     """Script manager for AWS API MCP."""
 
-    def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry'):
+    def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry', user_dir: Path | None = None):
         """Initialize the manager."""
         self.scripts = {}
-        self._scripts_dir = scripts_dir
+        
+        if not scripts_dir.exists():
+            raise RuntimeError(f'Scripts directory {scripts_dir} does not exist')
+        
+        self.scripts_dirs = [scripts_dir]
+        if user_dir:
+            if not user_dir.exists():
+                raise RuntimeError(f'User scripts directory {user_dir} does not exist')
+            if not os.access(user_dir, os.R_OK):
+                raise RuntimeError(f'No read permission for user scripts directory {user_dir}')
+            self.scripts_dirs.append(user_dir)
 
-        if not self._scripts_dir.exists():
-            raise RuntimeError(f'Scripts directory {self._scripts_dir} does not exist')
+        for script_directory in self.scripts_dirs:
+            for file_path in script_directory.glob('*.script.md'):
+                with open(file_path, 'r') as f:
+                    metadata, script = frontmatter.parse(f.read())
+                    script_name = file_path.stem.removesuffix('.script')
+                    description = metadata.get('description')
 
-        for file_path in self._scripts_dir.glob('*.script.md'):
-            with open(file_path, 'r') as f:
-                metadata, script = frontmatter.parse(f.read())
-                script_name = file_path.stem.removesuffix('.script')
-                description = metadata.get('description')
+                    if not description:
+                        raise RuntimeError(
+                            f'Script {file_path.stem} has no "description" metadata in front matter.'
+                        )
 
-                if not description:
-                    raise RuntimeError(
-                        f'Script {file_path.stem} has no "description" metadata in front matter.'
+                    self.scripts[script_name] = Script(
+                        name=script_name,
+                        description=str(description),
+                        content=script,
                     )
-
-                self.scripts[script_name] = Script(
-                    name=script_name,
-                    description=str(description),
-                    content=script,
-                )
 
     def get_script(self, script_name: str) -> Script | None:
         """Get a script from file."""
@@ -56,4 +66,5 @@ class AgentScriptsManager:
         )
 
 
-AGENT_SCRIPTS_MANAGER = AgentScriptsManager()
+user_dir = Path(USER_SCRIPTS_DIR) if USER_SCRIPTS_DIR and USER_SCRIPTS_DIR.strip() else None
+AGENT_SCRIPTS_MANAGER = AgentScriptsManager(user_dir=user_dir)

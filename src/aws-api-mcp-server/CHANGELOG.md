@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Support for custom user scripts directory via `AWS_API_MCP_USER_SCRIPTS_DIR` environment variable
+
 ### Changed
 
 - Telemetry for consent mechanism (#1202)
