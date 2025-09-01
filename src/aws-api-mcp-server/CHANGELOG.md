@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support for custom user scripts directory via `AWS_API_MCP_USER_SCRIPTS_DIR` environment variable
+- Support for custom agent scripts directory via `AWS_API_MCP_AGENT_SCRIPTS_DIR` environment variable
 
 ### Changed
 
