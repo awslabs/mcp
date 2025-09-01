@@ -1,40 +1,14 @@
-"""Multi-turn conversation evaluator for DynamoDB MCP tool using Strands agents.
-
-This module implements a comprehensive evaluation system that combines realistic
-conversational testing with sophisticated quality assessment. It orchestrates
-complex integrations between Strands agents, MCP tools,
-and DSPy evaluation engines to provide end-to-end assessment of DynamoDB guidance quality.
-
-System Architecture:
-    The evaluation system operates through three integrated layers:
-
-    1. **Conversation Layer** (Strands + MCP):
-       - Strands agents simulate realistic user interactions
-       - Native MCP integration provides access to DynamoDB expert tools
-       - Multi-turn conversations test real-world usage patterns
-       - Structured scenario-based testing with comprehensive requirements
-
-    2. **Content Extraction Layer**:
-       - Intelligent parsing of agent responses into structured sections
-       - Separation of modeling session documentation from final designs
-       - Robust handling of varied agent output formats
-       - Content validation and error recovery mechanisms
-
-    3. **Evaluation Layer** (DSPy):
-       - Dual-pathway evaluation: process quality + design quality
-       - Expert knowledge-informed scoring using DSPy signatures
-       - Comprehensive metrics covering 10 evaluation dimensions
-       - Performance tracking and quality level classification
-"""
+"""Multi-turn conversation evaluator using Strands agents."""
 
 import ast
 import asyncio
 import dspy
+import json
 import os
 import time
 from botocore.config import Config as BotocoreConfig
 from dataclasses import dataclass
-from dspy_evaluators import DSPyEvaluationEngine, EvaluationResult, SessionEvaluationResult
+from dynamic_evaluators import dynamic_engine
 from mcp import StdioServerParameters, stdio_client
 from strands import Agent
 from strands.models import BedrockModel
@@ -44,138 +18,63 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class ConversationTurn:
-    """Represents a single turn in a multi-turn conversation.
+    """Single turn in a multi-turn conversation."""
 
-    This structure captures the complete context of each conversation exchange,
-    including metadata for performance analysis and conversation flow tracking.
-    Essential for understanding the progression of DynamoDB modeling discussions
-    and evaluating conversational patterns.
-    """
-
-    role: str  # 'user' or 'assistant' - speaker identification
-    content: str  # Complete text content of the conversation turn
-    turn_number: int  # Sequential position in conversation flow
-    timestamp: float  # Unix timestamp for performance and flow analysis
+    role: str
+    content: str
+    turn_number: int
+    timestamp: float
 
 
 @dataclass
 class ConversationResult:
-    """Container for complete conversation evaluation results.
+    """Container for conversation evaluation results."""
 
-    Holds the full conversational exchange data for analysis and evaluation.
-    This structure enables comprehensive analysis of conversation patterns,
-    timing, and content quality across the entire DynamoDB modeling session.
-
-    Attributes:
-        turns (List[ConversationTurn]): Complete sequence of conversation exchanges
-    """
-
-    turns: List[ConversationTurn]  # Complete sequence of conversation exchanges
+    turns: List[ConversationTurn]
 
 
 def _to_text(x) -> str:
-    """Text extraction from varied Strands agent response formats.
-
-    Strands agents can return responses in multiple formats depending on the
-    underlying model and tool usage. This utility function provides consistent
-    text extraction across different response types, ensuring reliable content
-    processing for evaluation.
-    """
-    # Direct string return - most common case
+    """Extract text from varied Strands agent response formats."""
     if isinstance(x, str):
         return x
 
-    # Check common attribute names in agent response objects
-    # Strands agents may return different object types with text content
     for attr in ('message', 'text', 'content'):
         v = getattr(x, attr, None)
         if isinstance(v, str):
             return v
 
-    # Fallback to string conversion for unknown object types
     try:
         return str(x)
     except Exception:
-        # Ultimate fallback - return empty string rather than raise exception
-        # This ensures evaluation pipeline continues even with unexpected response formats
         return ''
 
 
-def extract_guidance_sections(final_guidance):
-    """Extraction of structured DynamoDB guidance from agent responses.
-
-    This function implements a parsing pipeline to extract two distinct
-    markdown sections from Strands agent responses: the modeling session documentation
-    and the final data model specification. The extraction process handles the
-    complex nested JSON structure returned by agents and separates content for
-    independent evaluation.
-
-    Args:
-        final_guidance (str): Raw string response from Strands agent containing
-                             structured JSON with embedded markdown sections
-
-    Returns:
-        tuple: (dynamodb_modeling_session, dynamodb_data_model)
-            - dynamodb_modeling_session (str|None): Process documentation content
-            - dynamodb_data_model (str|None): Final design specification content
-            Returns (None, None) if parsing fails at any stage
-    """
-    # Step 1: Parse the string as a Python dictionary
-    # Agent responses are typically stringified JSON that needs parsing
+def extract_requirements_guidance_sections(final_guidance):
+    """Extract DynamoDB modeling requirement and data model sections from agent response."""
     try:
         response_data = ast.literal_eval(final_guidance)
-    except (ValueError, SyntaxError) as e:
-        print(f'Error parsing final_guidance: {e}')
-        return None, None
-
-    # Step 2: Extract the markdown content from the nested structure
-    # Navigate the agent response structure to find the actual content
-    try:
         markdown_content = response_data['content'][0]['text']
-    except (KeyError, IndexError) as e:
-        print(f'Error accessing content: {e}')
+        markdown_content = markdown_content.replace('\\n', '\n')
+        markdown_blocks = markdown_content.split('```markdown\n')
+
+        if len(markdown_blocks) < 3:
+            print('Error: Expected at least 2 markdown sections')
+            return None, None
+
+        dynamodb_modeling_requirement = markdown_blocks[1].split('```')[0].strip()
+        dynamodb_data_model = markdown_blocks[2].split('```')[0].strip()
+        return dynamodb_modeling_requirement, dynamodb_data_model
+
+    except (ValueError, SyntaxError, KeyError, IndexError) as e:
+        print(f'Error parsing guidance: {e}')
         return None, None
-
-    # Step 3: Clean up escaped newlines
-    # Agent responses often contain escaped newlines that need normalization
-    markdown_content = markdown_content.replace('\\n', '\n')
-
-    # Step 4: Split into markdown sections
-    # The content contains two separate ```markdown blocks that need separation
-    markdown_blocks = markdown_content.split('```markdown\n')
-
-    if len(markdown_blocks) < 3:
-        print('Error: Expected at least 2 markdown sections')
-        return None, None
-
-    # Extract each section (remove closing ``` and strip whitespace)
-    # First block is empty (before first ```markdown), second is session, third is model
-    dynamodb_modeling_session = markdown_blocks[1].split('```')[0].strip()
-    dynamodb_data_model = markdown_blocks[2].split('```')[0].strip()
-
-    return dynamodb_modeling_session, dynamodb_data_model
 
 
 class StrandsConversationHandler:
-    """Orchestrates realistic conversational interactions using Strands agents.
-
-    This class manages the complex integration between Strands agent framework
-    and DynamoDB MCP tools to simulate authentic
-    user-expert conversations. It provides the foundation for evaluating
-    DynamoDB guidance through realistic interactive scenarios.
-    """
+    """Handles conversational interactions using Strands agents with MCP tools."""
 
     def __init__(self, model_id: str = ''):
-        """Initialize Strands conversation handler with Bedrock model configuration.
-
-        Sets up the complete conversation infrastructure including Bedrock model
-        configuration, timeout settings, and retry policies optimized for
-        DynamoDB modeling evaluation scenarios.
-
-        Args:
-            model_id (str): Bedrock model identifier. Can include "bedrock/" prefix
-                          which will be normalized. Defaults to Claude 4 Sonnet.
-        """
+        """Initialize with Bedrock model configuration."""
         normalized = model_id
         if normalized.startswith('bedrock/'):
             normalized = normalized.split('/', 1)[1]
@@ -201,109 +100,29 @@ class StrandsConversationHandler:
             )
         )
 
-    def _build_comprehensive_message(self, scenario: Dict[str, Any]) -> str:
-        """Build comprehensive user message with all scenario context."""
-        parts = [
-            scenario['user_input'],
-            '\nHere are the complete requirements:',
-            'What type of application are you building?',
-        ]
+    def _build_scenario(self, scenario: Dict[str, Any]) -> str:
+        # Convert scenario to clean JSON representation
+        scenario_json = json.dumps(scenario, indent=2)
 
-        # Add application details
-        app_details = scenario.get('application_details', {})
-        if app_details:
-            parts.extend(
-                [
-                    f'• Type: {app_details.get("type", "Not specified")}',
-                    f'• Domain: {app_details.get("domain", "Not specified")}',
-                    f'• Primary Function: {app_details.get("primary_function", "Not specified")}',
-                    f'• Business Model: {app_details.get("business_model", "Not specified")}',
-                    '',
-                ]
-            )
+        # Simple message with minimal formatting
+        message = f"""Here are my complete requirements:
 
-        # Add entities and relationships
-        entities_rel = scenario.get('entities_and_relationships', {})
-        if entities_rel:
-            parts.append('What are the main entities in your system?')
+        {scenario_json}
 
-            # Entities
-            entities = entities_rel.get('entities', {})
-            if entities:
-                parts.append('Entities:')
-                for entity, description in entities.items():
-                    parts.append(f'• {entity}: {description}')
-                parts.append('')
+        INSTRUCTIONS:
+        Provide complete DynamoDB guidance now. Output exactly two blocks:
+        1) ```markdown
+        # DynamoDB Modeling Requirement (dynamodb_requirement.md)
+        ...content...
+        ```
+        2) ```markdown
+        # DynamoDB Data Model (dynamodb_data_model.md)
+        ...content...
+        ```
 
-            # Relationships
-            relationships = entities_rel.get('relationships', [])
-            if relationships:
-                parts.append('Relationships:')
-                for relationship in relationships:
-                    parts.append(f'• {relationship}')
-                parts.append('')
+        Do not ask additional questions - provide complete guidance now."""
 
-        # Add access patterns
-        access_patterns = scenario.get('access_patterns', {})
-        if access_patterns:
-            parts.append('ACCESS PATTERNS:')
-
-            # Read patterns
-            read_patterns = access_patterns.get('read_patterns', [])
-            if read_patterns:
-                parts.append('Read Patterns:')
-                for pattern in read_patterns:
-                    parts.append(f'• {pattern}')
-                parts.append('')
-
-            # Write patterns
-            write_patterns = access_patterns.get('write_patterns', [])
-            if write_patterns:
-                parts.append('Write Patterns:')
-                for pattern in write_patterns:
-                    parts.append(f'• {pattern}')
-                parts.append('')
-
-        # Add performance and scale requirements
-        perf_scale = scenario.get('performance_and_scale', {})
-        if perf_scale:
-            parts.append("What's the expected scale?")
-            parts.append(f'• User Base: {perf_scale.get("user_base", "Not specified")}')
-            parts.append(
-                f'• Transaction Volume: {perf_scale.get("transaction_volume", "Not specified")}'
-            )
-            parts.append(f'• Data Growth: {perf_scale.get("data_growth", "Not specified")}')
-            parts.append(
-                f'• Read/Write Ratio: {perf_scale.get("read_write_ratio", "Not specified")}'
-            )
-
-            # Performance requirements
-            perf_reqs = perf_scale.get('performance_requirements', [])
-            if perf_reqs:
-                parts.append('Performance Requirements:')
-                for req in perf_reqs:
-                    parts.append(f'• {req}')
-
-            parts.extend(
-                [
-                    f'• Scalability Needs: {perf_scale.get("scalability_needs", "Not specified")}',
-                    f'• Regional Requirements: {perf_scale.get("regional_requirements", "Not specified")}',
-                    '',
-                ]
-            )
-
-        # Add directive for complete guidance
-        parts.extend(
-            [
-                'INSTRUCTIONS:',
-                'Provide complete guidance now. Output exactly two blocks:',
-                '1) ```markdown\n# DynamoDB Modeling Session (dynamodb_requirement.md)\n...content...\n```',
-                '2) ```markdown\n# DynamoDB Data Model (dynamodb_data_model.md)\n...content...\n```',
-                'Do not ask additional questions - provide complete guidance now.',
-            ]
-        )
-
-        return '\n'.join(parts)
+        return message
 
     async def simulate_conversation(
         self, scenario: Dict[str, Any]
@@ -344,8 +163,8 @@ class StrandsConversationHandler:
                     )
                 )
 
-                # Turn 2: Comprehensive scenario
-                comprehensive_message = self._build_comprehensive_message(scenario)
+                # Turn 2: Simplified scenario with structured data
+                comprehensive_message = self._build_scenario(scenario)
 
                 conversation.append(
                     ConversationTurn(
@@ -382,30 +201,27 @@ class ComprehensiveEvaluationResult:
     """Enhanced result structure with complete evaluation data."""
 
     # Content sections
-    modeling_session: str
+    modeling_requirement: str
     data_model: str
     conversation: List[ConversationTurn]
 
-    # Separate evaluation results
-    session_evaluation: Optional[SessionEvaluationResult] = None
-    model_evaluation: Optional[EvaluationResult] = None
+    # Separate evaluation results - now using dynamic objects
+    requirement_evaluation: Optional[Any] = None
+    model_evaluation: Optional[Any] = None
 
     # Performance metadata
     conversation_duration: float = 0.0
-    session_evaluation_duration: float = 0.0
+    requirement_evaluation_duration: float = 0.0
     model_evaluation_duration: float = 0.0
     timestamp: str = ''
 
     # Separate quality assessments
-    session_quality_level: str = 'unknown'
+    requirement_quality_level: str = 'unknown'
     model_quality_level: str = 'unknown'
 
 
 class EnhancedMultiTurnEvaluator:
-    """Enhanced evaluator with comprehensive DSPy evaluation capabilities.
-
-    Combines conversation collection with detailed quality assessment.
-    """
+    """Enhanced evaluator combining conversation collection with DSPy evaluation."""
 
     def __init__(self, lm_model: str = ''):
         """Initialize the enhanced multi-turn evaluator."""
@@ -413,8 +229,8 @@ class EnhancedMultiTurnEvaluator:
             # Use Strands for conversation handling
             self.conversation_handler = StrandsConversationHandler(lm_model)
 
-            # Initialize evaluation components
-            self.dspy_engine = DSPyEvaluationEngine()
+            # Initialize evaluation components - use direct engine
+            self.dspy_engine = dynamic_engine
             if not os.environ.get('AWS_DEFAULT_REGION'):
                 os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
 
@@ -423,7 +239,7 @@ class EnhancedMultiTurnEvaluator:
             if not dspy_model.startswith('bedrock/'):
                 dspy_model = f'bedrock/{dspy_model}'
 
-            dspy.configure(lm=dspy.LM(dspy_model, max_tokens=8192))
+            dspy.configure(lm=dspy.LM(dspy_model, max_tokens=8192, temperature=0.1))
             print(f'✅ DSPy configured with {dspy_model}')
 
         except Exception as e:
@@ -432,14 +248,7 @@ class EnhancedMultiTurnEvaluator:
     async def evaluate_with_conversation(
         self, scenario: Dict[str, Any]
     ) -> Optional[ComprehensiveEvaluationResult]:
-        """Enhanced evaluation with comprehensive DSPy scoring and analysis.
-
-        Args:
-            scenario: Complete scenario specification
-
-        Returns:
-            ComprehensiveEvaluationResult with conversation and evaluation data
-        """
+        """Enhanced evaluation with comprehensive DSPy scoring and analysis."""
         start_time = time.time()
 
         try:
@@ -451,37 +260,37 @@ class EnhancedMultiTurnEvaluator:
                 scenario
             )
             conversation_duration = time.time() - conversation_start
-            dynamodb_modeling_session, dynamodb_data_model = extract_guidance_sections(
-                final_guidance
+            dynamodb_modeling_requirements, dynamodb_data_model_guidance = (
+                extract_requirements_guidance_sections(final_guidance)
             )
             print(f'✅ Conversation completed in {conversation_duration:.2f}s')
 
             # Step 2: Run comprehensive evaluations if available
-            session_evaluation_result = None
+            requirement_evaluation_result = None
             model_evaluation_result = None
-            session_eval_duration = 0.0
+            requirement_eval_duration = 0.0
             model_eval_duration = 0.0
 
-            if dynamodb_modeling_session and dynamodb_data_model:
-                # Run session evaluation
-                print('🔄 Running DSPy session evaluation...')
-                session_eval_start = time.time()
+            if dynamodb_modeling_requirements and dynamodb_data_model_guidance:
+                # Run Requirement evaluation
+                print('🔄 Running DSPy requirement evaluation...')
+                requirement_eval_start = time.time()
 
-                session_evaluation_result = self.dspy_engine.evaluate_session(
-                    scenario, dynamodb_modeling_session
+                requirement_evaluation_result = self.dspy_engine.evaluate(
+                    'requirement_evaluation', scenario, dynamodb_modeling_requirements
                 )
-                session_eval_duration = time.time() - session_eval_start
-                print(f'✅ Session evaluation completed in {session_eval_duration:.2f}s')
+                requirement_eval_duration = time.time() - requirement_eval_start
+                print(f'✅ Requirement evaluation completed in {requirement_eval_duration:.2f}s')
                 print(
-                    f'📊 Session Score: {session_evaluation_result.overall_score:.2f} ({session_evaluation_result.quality_level})'
+                    f'📊 Requirement Score: {requirement_evaluation_result.overall_score:.2f} ({requirement_evaluation_result.quality_level})'
                 )
 
                 # Run model evaluation
                 print('🔄 Running DSPy model evaluation...')
                 model_eval_start = time.time()
 
-                model_evaluation_result = self.dspy_engine.evaluate_guidance(
-                    scenario, dynamodb_data_model
+                model_evaluation_result = self.dspy_engine.evaluate(
+                    'model_evaluation', scenario, dynamodb_data_model_guidance
                 )
                 model_eval_duration = time.time() - model_eval_start
                 print(f'✅ Model evaluation completed in {model_eval_duration:.2f}s')
@@ -491,17 +300,17 @@ class EnhancedMultiTurnEvaluator:
 
             # Step 3: Create comprehensive result with separate evaluations
             result = ComprehensiveEvaluationResult(
-                modeling_session=dynamodb_modeling_session or '',
-                data_model=dynamodb_data_model or '',
+                modeling_requirement=dynamodb_modeling_requirements or '',
+                data_model=dynamodb_data_model_guidance or '',
                 conversation=conversation,
-                session_evaluation=session_evaluation_result,
+                requirement_evaluation=requirement_evaluation_result,
                 model_evaluation=model_evaluation_result,
                 conversation_duration=conversation_duration,
-                session_evaluation_duration=session_eval_duration,
+                requirement_evaluation_duration=requirement_eval_duration,
                 model_evaluation_duration=model_eval_duration,
                 timestamp=self._get_timestamp(),
-                session_quality_level=session_evaluation_result.quality_level
-                if session_evaluation_result
+                requirement_quality_level=requirement_evaluation_result.quality_level
+                if requirement_evaluation_result
                 else 'unknown',
                 model_quality_level=model_evaluation_result.quality_level
                 if model_evaluation_result
@@ -521,14 +330,7 @@ class EnhancedMultiTurnEvaluator:
             return None
 
     def evaluate_scenarios(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
-        """Enhanced scenario evaluation with separate session and model assessments.
-
-        Args:
-            scenario: Complete scenario specification
-
-        Returns:
-            Dictionary with comprehensive evaluation results
-        """
+        """Evaluate scenario with separate requirement and model assessments."""
         result = asyncio.run(self.evaluate_with_conversation(scenario))
 
         if not result:
@@ -549,74 +351,27 @@ class EnhancedMultiTurnEvaluator:
                 }
                 for turn in result.conversation
             ],
-            'modeling_session': result.modeling_session,
+            'modeling_requirement': result.modeling_requirement,
             'data_model': result.data_model,
-            'session_evaluation': self._session_evaluation_to_dict(result.session_evaluation)
-            if result.session_evaluation
+            'requirement_evaluation': result.requirement_evaluation.to_dict()
+            if result.requirement_evaluation
             else None,
-            'model_evaluation': self._model_evaluation_to_dict(result.model_evaluation)
+            'model_evaluation': result.model_evaluation.to_dict()
             if result.model_evaluation
             else None,
             'quality_assessment': {
-                'session_quality_level': result.session_quality_level,
+                'requirement_quality_level': result.requirement_quality_level,
                 'model_quality_level': result.model_quality_level,
             },
             'performance_metadata': {
                 'conversation_duration': result.conversation_duration,
-                'session_evaluation_duration': result.session_evaluation_duration,
+                'requirement_evaluation_duration': result.requirement_evaluation_duration,
                 'model_evaluation_duration': result.model_evaluation_duration,
                 'total_duration': result.conversation_duration
-                + result.session_evaluation_duration
+                + result.requirement_evaluation_duration
                 + result.model_evaluation_duration,
             },
             'timestamp': result.timestamp,
-        }
-
-    def _session_evaluation_to_dict(
-        self, session_result: SessionEvaluationResult
-    ) -> Dict[str, Any]:
-        """Convert SessionEvaluationResult to dictionary format."""
-        return {
-            'scores': {
-                'requirements_engineering': session_result.requirements_engineering,
-                'access_pattern_analysis': session_result.access_pattern_analysis,
-                'methodology_adherence': session_result.methodology_adherence,
-                'technical_reasoning': session_result.technical_reasoning,
-                'process_documentation': session_result.process_documentation,
-            },
-            'overall_score': session_result.overall_score,
-            'quality_level': session_result.quality_level,
-            'justifications': session_result.justifications,
-        }
-
-    def _model_evaluation_to_dict(self, model_result: EvaluationResult) -> Dict[str, Any]:
-        """Convert EvaluationResult to dictionary format."""
-        return {
-            'scores': {
-                'completeness': model_result.completeness,
-                'technical_accuracy': model_result.technical_accuracy,
-                'access_pattern_coverage': model_result.access_pattern_coverage,
-                'scalability_considerations': model_result.scalability_considerations,
-                'cost_optimization': model_result.cost_optimization,
-            },
-            'overall_score': model_result.overall_score,
-            'quality_level': model_result.quality_level,
-            'justifications': model_result.justifications,
-        }
-
-    def _evaluation_to_dict(self, evaluation_result: EvaluationResult) -> Dict[str, Any]:
-        """Convert EvaluationResult to dictionary format."""
-        return {
-            'scores': {
-                'completeness': evaluation_result.completeness,
-                'technical_accuracy': evaluation_result.technical_accuracy,
-                'access_pattern_coverage': evaluation_result.access_pattern_coverage,
-                'scalability_considerations': evaluation_result.scalability_considerations,
-                'cost_optimization': evaluation_result.cost_optimization,
-            },
-            'overall_score': evaluation_result.overall_score,
-            'quality_level': evaluation_result.quality_level,
-            'justifications': evaluation_result.justifications,
         }
 
     def _get_timestamp(self) -> str:
@@ -624,10 +379,3 @@ class EnhancedMultiTurnEvaluator:
         import datetime
 
         return datetime.datetime.now().isoformat()
-
-
-# # Backward compatibility alias
-class MultiTurnEvaluator(EnhancedMultiTurnEvaluator):
-    """Backward compatibility alias for MultiTurnEvaluator."""
-
-    pass

@@ -166,6 +166,7 @@ uv run python tests/evals/test_dspy_evals.py --list-scenarios
 | `--scenario` | Scenario name to evaluate | `"Simple E-commerce Schema"` |
 | `--list-scenarios` | Show all available scenarios | - |
 | `--debug` | Show raw JSON output | - |
+| `--aws-profile` | AWS profile to use for evaluation | `Bedrock` |
 
 ## Available Scenarios
 
@@ -289,15 +290,54 @@ Error during Strands conversation: MCP connection failed
 2. Include all required fields (entities, access patterns, scale)
 3. Test with different models for consistency
 
-**Custom Evaluation Dimensions:**
-1. Update `evaluation_config.py` with new dimensions
-2. Modify DSPy signatures in `dspy_evaluators.py`
-3. Update scoring algorithms and result structures
+**Adding New Evaluation Dimensions:**
+
+The system uses a dynamic registry pattern that makes adding new evaluation dimensions extremely simple - no code changes required to the evaluation engine!
+
+**3-Step Process:**
+1. **Add Dimension to Registry** - Simply add a new `DimensionConfig` to the appropriate evaluation in `evaluation_registry.py`
+2. **Define Scoring Rubric** - Specify how the dimension should be evaluated (1-10 scale)
+3. **Test Immediately** - The dynamic evaluator automatically picks up the new dimension
+
+**Example - Adding Security Evaluation:**
+```python
+# In evaluation_registry.py, add to model_dimensions list:
+DimensionConfig(
+    name="security_considerations",
+    display_name="Security Considerations",
+    description="Data security and access control planning",
+    scoring_rubric=(
+        "Score 1-10: Evaluate security measures including "
+        "encryption, access patterns, IAM policies, and data protection. "
+        "Return single number 1-10."
+    ),
+    weight=1.0,
+    justification_prompt="Explain security assessment and recommendations"
+)
+```
+
+**That's it!** The `DynamicEvaluationEngine` will automatically:
+- Generate DSPy signatures with your new dimension
+- Create result dataclasses including the new field
+- Integrate scoring and justification collection
+- Make it available in CLI evaluations
+
+**No changes needed to:**
+- `dynamic_evaluators.py` - automatically adapts
+- `test_dspy_evals.py` - CLI works immediately
+- Result processing - handled automatically
 
 **New Model Support:**
 1. Ensure model is available in AWS Bedrock
 2. Test compatibility with DSPy framework
 3. Adjust timeout settings if needed
+
+**Architecture Overview:**
+- `evaluation_registry.py`: Dynamic registry for evaluation dimensions and types
+- `dynamic_evaluators.py`: DSPy evaluation engine that adapts to registry configurations
+- `multiturn_evaluator.py`: Multi-turn conversation evaluator using Strands agents
+- `scenarios.py`: Test scenario definitions for evaluation
+- `test_dspy_evals.py`: Command-line interface for the evaluation system
 
 ## Development and Contributing
 

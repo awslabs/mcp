@@ -1,11 +1,4 @@
-"""Comprehensive test scenario definitions for DynamoDB data modeling evaluation.
-
-This module provides a structured collection of realistic business scenarios designed
-to evaluate DynamoDB data modeling guidance across different complexity levels and
-application domains. Each scenario includes complete business context, technical
-requirements, and expected evaluation criteria to enable consistent assessment
-of modeling quality and methodology adherence.
-"""
+"""Test scenario definitions for DynamoDB data modeling evaluation."""
 
 from typing import Any, Dict, List, Literal
 
