@@ -257,14 +257,14 @@ description: Custom script
 # Custom Script""")
 
         manager = AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
-        
+
         assert 'main' in manager.scripts
         assert 'custom' in manager.scripts
-        
+
         main_script = manager.get_script('main')
         assert main_script is not None
         assert main_script.description == 'Main script'
-        
+
         custom_script = manager.get_script('custom')
         assert custom_script is not None
         assert custom_script.description == 'Custom script'
@@ -277,7 +277,9 @@ def test_custom_scripts_dir_nonexistent():
         custom_dir = Path(temp_dir) / 'nonexistent'
         scripts_dir.mkdir()
 
-        with pytest.raises(RuntimeError, match=f'User scripts directory {custom_dir} does not exist'):
+        with pytest.raises(
+            RuntimeError, match=f'User scripts directory {custom_dir} does not exist'
+        ):
             AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
 
 
@@ -288,9 +290,11 @@ def test_custom_scripts_dir_no_read_permission():
         custom_dir = Path(temp_dir) / 'custom'
         scripts_dir.mkdir()
         custom_dir.mkdir()
-        
+
         with patch('os.access', return_value=False):
-            with pytest.raises(RuntimeError, match=f'No read permission for user scripts directory {custom_dir}'):
+            with pytest.raises(
+                RuntimeError, match=f'No read permission for user scripts directory {custom_dir}'
+            ):
                 AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
 
 
@@ -307,7 +311,7 @@ description: Test script
 # Test Script""")
 
         manager = AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=None)
-        
+
         assert len(manager.scripts_dirs) == 1
         assert manager.scripts_dirs[0] == scripts_dir
         assert 'test' in manager.scripts

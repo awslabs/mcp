@@ -23,7 +23,11 @@ from .models import Script
 class AgentScriptsManager:
     """Script manager for AWS API MCP."""
 
-    def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry', custom_scripts_dir: Path | None = None):
+    def __init__(
+        self,
+        scripts_dir: Path = Path(__file__).parent / 'registry',
+        custom_scripts_dir: Path | None = None,
+    ):
         """Initialize the manager."""
         self.scripts = {}
 
@@ -35,7 +39,9 @@ class AgentScriptsManager:
             if not custom_scripts_dir.exists():
                 raise RuntimeError(f'User scripts directory {custom_scripts_dir} does not exist')
             if not os.access(custom_scripts_dir, os.R_OK):
-                raise RuntimeError(f'No read permission for user scripts directory {custom_scripts_dir}')
+                raise RuntimeError(
+                    f'No read permission for user scripts directory {custom_scripts_dir}'
+                )
             self.scripts_dirs.append(custom_scripts_dir)
 
         for script_directory in self.scripts_dirs:
@@ -67,5 +73,7 @@ class AgentScriptsManager:
         )
 
 
-custom_scripts_dir = Path(CUSTOM_SCRIPTS_DIR) if CUSTOM_SCRIPTS_DIR and CUSTOM_SCRIPTS_DIR.strip() else None
+custom_scripts_dir = (
+    Path(CUSTOM_SCRIPTS_DIR) if CUSTOM_SCRIPTS_DIR and CUSTOM_SCRIPTS_DIR.strip() else None
+)
 AGENT_SCRIPTS_MANAGER = AgentScriptsManager(custom_scripts_dir=custom_scripts_dir)
