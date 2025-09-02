@@ -156,7 +156,7 @@ def check_agent_oauth_status(
             inbound_config = runtime_response.get('inboundConfig', {})
 
             # Check if OAuth config exists in our separate storage
-            oauth_file = (
+            oauth_file = (  # pragma: allowlist secret
                 Path.home() / '.agentcore_gateways' / f'{agent_name}_runtime.json'
             )  # pragma: allowlist secret
             oauth_available = oauth_file.exists()  # pragma: allowlist secret
@@ -174,7 +174,7 @@ def check_agent_oauth_status(
                         f'JWT Auth (Client: {jwt_auth.get("clientId", "Unknown")})'
                     )
                 if 'cognitoAuthorizer' in inbound_config:  # pragma: allowlist secret
-                    cognito_auth = inbound_config['cognitoAuthorizer']
+                    cognito_auth = inbound_config['cognitoAuthorizer']  # pragma: allowlist secret
                     auth_details.append(
                         f'Cognito Auth (Pool: {cognito_auth.get("userPoolId", "Unknown")})'
                     )
@@ -235,11 +235,12 @@ def validate_oauth_config(agent_name: str, region: str = 'us-east-1'):  # pragma
         from pathlib import Path
 
         # First check if the agent is actually deployed with OAuth
-        oauth_deployed, oauth_available, oauth_status = (
+        oauth_deployed, oauth_available, oauth_status = (  # pragma: allowlist secret
             check_agent_oauth_status(  # pragma: allowlist secret
-                agent_name, region
-            )
-        )
+                agent_name,
+                region,  # pragma: allowlist secret
+            )  # pragma: allowlist secret
+        )  # pragma: allowlist secret
 
         # Load OAuth configuration (same format as gateways)
         config_dir = Path.home() / '.agentcore_gateways'
@@ -267,10 +268,10 @@ Note: Check `.bedrock_agentcore.yaml` - if `oauth_configuration: null`, agent wa
 
         # Read and validate OAuth configuration
         try:
-            with open(config_file, 'r') as f:
-                oauth_config = json.load(f)
+            with open(config_file, 'r') as f:  # pragma: allowlist secret
+                oauth_config = json.load(f)  # pragma: allowlist secret
 
-            client_info = oauth_config.get('cognito_client_info', {})
+            client_info = oauth_config.get('cognito_client_info', {})  # pragma: allowlist secret
             if not client_info:
                 return (
                     False,
@@ -1109,21 +1110,26 @@ For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
         """Get OAuth access token for runtime agent - reuses all gateway infrastructure."""
         try:
             # Use shared validation and token generation (DRY principle)
-            success, result = validate_oauth_config(agent_name, region)
+            success, result = validate_oauth_config(agent_name, region)  # pragma: allowlist secret
             if not success:
-                return str(result)
+                return str(result)  # pragma: allowlist secret
 
-            client_info = result.get('client_info', {}) if isinstance(result, dict) else {}
-            oauth_config = result.get('oauth_config', {}) if isinstance(result, dict) else {}
+            client_info = (
+                result.get('client_info', {}) if isinstance(result, dict) else {}
+            )  # pragma: allowlist secret
+            oauth_config = (
+                result.get('oauth_config', {}) if isinstance(result, dict) else {}
+            )  # pragma: allowlist secret
 
             print(f'OAuth Config: {oauth_config}')
 
             # Generate access token using shared utility
-            token_success, access_token = generate_oauth_token(
-                client_info if isinstance(client_info, dict) else {}, region
+            token_success, access_token = generate_oauth_token(  # pragma: allowlist secret
+                client_info if isinstance(client_info, dict) else {},
+                region,  # pragma: allowlist secret
             )
-            if not token_success:
-                return access_token
+            if not token_success:  # pragma: allowlist secret
+                return access_token  # pragma: allowlist secret
 
             return f"""# OK Runtime OAuth Token Generated
 
