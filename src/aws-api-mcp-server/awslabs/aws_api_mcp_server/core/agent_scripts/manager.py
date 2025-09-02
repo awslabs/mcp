@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import frontmatter
+import os
+from ..common.config import CUSTOM_SCRIPTS_DIR
 from .models import Script
 from pathlib import Path
 
@@ -20,30 +22,44 @@ from pathlib import Path
 class AgentScriptsManager:
     """Script manager for AWS API MCP."""
 
-    def __init__(self, scripts_dir: Path = Path(__file__).parent / 'registry'):
+    def __init__(
+        self,
+        scripts_dir: Path = Path(__file__).parent / 'registry',
+        custom_scripts_dir: Path | None = None,
+    ):
         """Initialize the manager."""
         self.scripts = {}
-        self._scripts_dir = scripts_dir
 
-        if not self._scripts_dir.exists():
-            raise RuntimeError(f'Scripts directory {self._scripts_dir} does not exist')
+        if not scripts_dir.exists():
+            raise RuntimeError(f'Scripts directory {scripts_dir} does not exist')
 
-        for file_path in self._scripts_dir.glob('*.script.md'):
-            with open(file_path, 'r') as f:
-                metadata, script = frontmatter.parse(f.read())
-                script_name = file_path.stem.removesuffix('.script')
-                description = metadata.get('description')
-
-                if not description:
-                    raise RuntimeError(
-                        f'Script {file_path.stem} has no "description" metadata in front matter.'
-                    )
-
-                self.scripts[script_name] = Script(
-                    name=script_name,
-                    description=str(description),
-                    content=script,
+        self.scripts_dirs = [scripts_dir]
+        if custom_scripts_dir:
+            if not custom_scripts_dir.exists():
+                raise RuntimeError(f'User scripts directory {custom_scripts_dir} does not exist')
+            if not os.access(custom_scripts_dir, os.R_OK):
+                raise RuntimeError(
+                    f'No read permission for user scripts directory {custom_scripts_dir}'
                 )
+            self.scripts_dirs.append(custom_scripts_dir)
+
+        for script_directory in self.scripts_dirs:
+            for file_path in script_directory.glob('*.script.md'):
+                with open(file_path, 'r') as f:
+                    metadata, script = frontmatter.parse(f.read())
+                    script_name = file_path.stem.removesuffix('.script')
+                    description = metadata.get('description')
+
+                    if not description:
+                        raise RuntimeError(
+                            f'Script {file_path.stem} has no "description" metadata in front matter.'
+                        )
+
+                    self.scripts[script_name] = Script(
+                        name=script_name,
+                        description=str(description),
+                        content=script,
+                    )
 
     def get_script(self, script_name: str) -> Script | None:
         """Get a script from file."""
@@ -56,4 +72,7 @@ class AgentScriptsManager:
         )
 
 
-AGENT_SCRIPTS_MANAGER = AgentScriptsManager()
+custom_scripts_dir = (
+    Path(CUSTOM_SCRIPTS_DIR) if CUSTOM_SCRIPTS_DIR and CUSTOM_SCRIPTS_DIR.strip() else None
+)
+AGENT_SCRIPTS_MANAGER = AgentScriptsManager(custom_scripts_dir=custom_scripts_dir)
