@@ -628,7 +628,7 @@ async def get_run_task(
         task_id: ID of the task
 
     Returns:
-        Dictionary containing task details
+        Dictionary containing task details including imageDetails when available
     """
     client = get_omics_client()
 
@@ -655,7 +655,15 @@ async def get_run_task(
         if 'logStream' in response:
             result['logStream'] = response['logStream']
 
+        if 'imageDetails' in response:
+            result['imageDetails'] = response['imageDetails']
+
         return result
+    except botocore.exceptions.ClientError as e:
+        error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise
     except botocore.exceptions.BotoCoreError as e:
         error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
         logger.error(error_message)
