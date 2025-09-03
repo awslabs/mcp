@@ -85,6 +85,7 @@ const sidebars: SidebarsConfig = {
             'servers/aws-dataprocessing-mcp-server',
             'servers/redshift-mcp-server',
             'servers/s3-tables-mcp-server',
+            'servers/aws-appsync-mcp-server',
           ],
         },
         {

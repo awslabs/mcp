@@ -739,6 +739,31 @@
       ]
     },
     {
+      "category": "Data & Analytics",
+      "description": "AWS AppSync backend API management and operations execution",
+      "icon": "\ud83d\udcca",
+      "id": "aws-appsync-mcp-server",
+      "name": "AWS AppSync MCP Server",
+      "source_path": "src/aws-appsync-mcp-server/",
+      "subcategory": "Backend API Providers",
+      "tags": [
+        "api",
+        "graphql",
+        "appsync",
+        "api-management",
+        "graphql-operations",
+        "api-operations",
+        "autonomous",
+        "data-operations",
+        "event-based",
+        "real-time-events",
+        "event-notifications"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Developer Tools & Support",
       "description": "Semantic code search and repository analysis",
       "icon": "\ud83d\udee0\ufe0f",
