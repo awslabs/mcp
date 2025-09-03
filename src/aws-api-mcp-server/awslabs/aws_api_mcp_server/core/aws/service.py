@@ -30,7 +30,7 @@ from ..common.models import (
 )
 from ..common.models import Context as ContextAPIModel
 from ..common.models import ValidationFailure as FailureAPIModel
-from ..common.scrubber import credentials_scrubber
+from ..common.scrubber import sensitive_data_scrubber
 from ..metadata.read_only_operations_list import (
     ReadOnlyOperations,
 )
@@ -183,7 +183,7 @@ def _log_successful_execution(response: InterpretationResponse):
     if response.error_code is None and response.as_json is not None:
         logger.info(
             'AWS CLI command executed successfully: {}',
-            credentials_scrubber.scrub_creds(json.loads(response.as_json)),
+            sensitive_data_scrubber.scrub_creds(json.loads(response.as_json)),
         )
 
 

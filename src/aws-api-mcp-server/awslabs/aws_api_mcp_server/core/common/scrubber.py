@@ -25,7 +25,7 @@ BLOCKED_KEYWORDS = frozenset(
 )
 
 
-class CredentialsScrubber:
+class SensitiveDataScrubber:
     """Scrubber for removing sensitive credential information from JSON data."""
 
     def scrub_creds(self, json_node: dict[str, Any]) -> dict[str, Any]:
@@ -54,4 +54,4 @@ class CredentialsScrubber:
         )
 
 
-credentials_scrubber = CredentialsScrubber()
+sensitive_data_scrubber = SensitiveDataScrubber()
