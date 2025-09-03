@@ -150,7 +150,7 @@ def check_agent_oauth_status(
             return False, False, f'Agent runtime ARN not found for {agent_name}'
 
         # Get the actual runtime configuration from AWS
-        oauth_available = False
+        auth_file_exits = False
         try:
             runtime_response = agentcore_client.get_agent_runtime(
                 agentRuntimeArn=agent_runtime_arn
@@ -168,11 +168,11 @@ def check_agent_oauth_status(
                 # Validate the file path is within expected directory
                 oauth_file = oauth_file.resolve()
                 if not str(oauth_file).startswith(str(Path.home() / '.agentcore_gateways')):
-                    oauth_available = False  # noqa: nosec B105
+                    auth_file_exits = False  # noqa: nosec B105
                 else:
-                    oauth_available = oauth_file.exists()  # nosec B105
+                    auth_file_exits = oauth_file.exists()  # nosec B105
             except (OSError, ValueError):
-                oauth_available = False  # noqa: nosec B105
+                auth_file_exits = False  # noqa: nosec B105
 
             # Determine OAuth status from AWS API response
             oauth_deployed = bool(
@@ -209,9 +209,9 @@ def check_agent_oauth_status(
                 auth_summary = (
                     ', '.join(auth_details) if auth_details else 'Custom auth configured'
                 )
-                return True, oauth_available, f'Agent deployed with OAuth: {auth_summary}'
+                return True, auth_file_exits, f'Agent deployed with OAuth: {auth_summary}'
 
-            elif oauth_available:  # pragma: allowlist secret
+            elif auth_file_exits:  # pragma: allowlist secret
                 return (
                     False,
                     True,
@@ -223,7 +223,7 @@ def check_agent_oauth_status(
 
         except Exception as api_error:
             # Fallback to local config analysis if API fails
-            if oauth_available:  # pragma: allowlist secret
+            if auth_file_exits:  # pragma: allowlist secret
                 return (
                     False,
                     True,
@@ -237,9 +237,9 @@ def check_agent_oauth_status(
     except Exception as e:
         # Check if OAuth config exists in our separate storage as fallback
         oauth_file = Path.home() / '.agentcore_gateways' / f'{agent_name}_runtime.json'
-        oauth_available = oauth_file.exists()
+        auth_file_exits = oauth_file.exists()
 
-        if oauth_available:  # pragma: allowlist secret
+        if auth_file_exits:  # pragma: allowlist secret
             return (
                 False,
                 True,
@@ -1179,21 +1179,21 @@ For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
                 result.get('client_info', {}) if isinstance(result, dict) else {}
             )  # pragma: allowlist secret
             # Safely extract oauth_config with validation
-            oauth_config = {}  # pragma: allowlist secret
+            config_data = {}  # pragma: allowlist secret
             if isinstance(result, dict) and 'oauth_config' in result:
                 raw_config = result['oauth_config']
                 if isinstance(raw_config, dict):
                     # Validate and sanitize known oauth config fields
-                    oauth_config = {}  # noqa: nosec B105
+                    config_data = {}  # noqa: nosec B105
                     for key in ['client_id', 'client_secret', 'redirect_uri', 'scope']:
                         if key in raw_config and isinstance(raw_config[key], str):
-                            oauth_config[key] = raw_config[key][:500]  # Limit length
+                            config_data[key] = raw_config[key][:500]  # Limit length
                 else:
-                    oauth_config = {}  # noqa: nosec B105
+                    config_data = {}  # noqa: nosec B105
             else:
-                oauth_config = {}  # noqa: nosec B105
+                config_data = {}  # noqa: nosec B105
 
-            print(f'OAuth Config: {oauth_config}')
+            print(f'OAuth Config: {config_data}')
 
             # Generate access token using shared utility
             token_success, access_token = generate_oauth_token(  # pragma: allowlist secret
