@@ -205,6 +205,13 @@ async def start_run(
         await ctx.error(error_message)
         raise ValueError(error_message)
 
+    # Validate that cache_behavior requires cache_id
+    if cache_behavior and not cache_id:
+        error_message = 'cache_behavior requires cache_id to be provided'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)

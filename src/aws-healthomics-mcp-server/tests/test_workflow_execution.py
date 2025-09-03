@@ -1459,6 +1459,31 @@ async def test_start_run_invalid_cache_behavior():
 
 
 @pytest.mark.asyncio
+async def test_start_run_cache_behavior_without_cache_id():
+    """Test start_run with cache_behavior but no cache_id."""
+    mock_ctx = AsyncMock()
+
+    with pytest.raises(ValueError, match='cache_behavior requires cache_id to be provided'):
+        await start_run(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            name='test-run',
+            output_uri='s3://bucket/output/',
+            parameters={'param1': 'value1'},
+            workflow_version_name=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,  # No cache_id provided
+            cache_behavior='CACHE_ALWAYS',  # But cache_behavior is provided
+        )
+
+    # Verify error was reported to context
+    mock_ctx.error.assert_called_once()
+    assert 'cache_behavior requires cache_id to be provided' in mock_ctx.error.call_args[0][0]
+
+
+@pytest.mark.asyncio
 async def test_start_run_invalid_s3_uri():
     """Test start_run with invalid S3 URI."""
     mock_ctx = AsyncMock()
