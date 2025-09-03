@@ -306,10 +306,22 @@ class TestGetPricing:
         assert result['status'] == 'error'
         assert result['error_type'] == 'empty_results'
         assert 'InvalidService' in result['message']
+        assert 'No results found for given filters' in result['message']
         assert result['service_code'] == 'InvalidService'
         assert result['region'] == 'us-west-2'
         assert 'examples' in result
-        assert 'AmazonES' in result['examples']['OpenSearch']
+        assert 'Example service codes' in result['examples']
+        assert 'Example regions' in result['examples']
+        assert 'suggestion' in result
+        assert (
+            'Verify that the service code is valid. Use get_service_codes() to get valid service codes'
+            in result['suggestion']
+        )
+        assert (
+            'Validate region and filter values using get_pricing_attribute_values()'
+            in result['suggestion']
+        )
+        assert 'Test with fewer filters' in result['suggestion']
         mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio

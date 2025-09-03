@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -18,11 +18,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Get Started',
       collapsed: false,
-      items: [
-        'intro',
-        'installation',
-        'vibe_coding',
-      ],
+      items: ['intro', 'installation', 'vibe_coding'],
     },
     {
       type: 'category',
@@ -40,14 +36,13 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Documentation',
-          items: [
-            'servers/aws-documentation-mcp-server',
-          ],
+          items: ['servers/aws-documentation-mcp-server'],
         },
         {
           type: 'category',
           label: 'Infrastructure & Deployment',
           items: [
+            'servers/ccapi-mcp-server',
             'servers/cdk-mcp-server',
             'servers/cfn-mcp-server',
             'servers/terraform-mcp-server',
@@ -69,6 +64,7 @@ const sidebars: SidebarsConfig = {
             'servers/amazon-qindex-mcp-server',
             'servers/amazon-qbusiness-anonymous-mcp-server',
             'servers/nova-canvas-mcp-server',
+            'servers/aws-bedrock-custom-model-import-mcp-server'
           ],
         },
         {
@@ -107,7 +103,7 @@ const sidebars: SidebarsConfig = {
             'servers/syntheticdata-mcp-server',
             'servers/aws-bedrock-data-automation-mcp-server',
             'servers/aws-location-mcp-server',
-            'servers/aws-msk-mcp-server'
+            'servers/aws-msk-mcp-server',
           ],
         },
         {
@@ -126,6 +122,9 @@ const sidebars: SidebarsConfig = {
             'servers/cost-explorer-mcp-server',
             'servers/cloudwatch-mcp-server',
             'servers/cloudwatch-appsignals-mcp-server',
+            'servers/well-architected-security-mcp-server',
+            'servers/cloudtrail-mcp-server',
+            'servers/billing-cost-management-mcp-server',
           ],
         },
         {
@@ -133,6 +132,7 @@ const sidebars: SidebarsConfig = {
           label: 'Healthcare & Lifesciences',
           items: [
             'servers/aws-healthomics-mcp-server',
+            'servers/healthlake-mcp-server',
           ],
         },
       ],

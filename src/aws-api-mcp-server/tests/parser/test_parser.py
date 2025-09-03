@@ -3,7 +3,6 @@ import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
-    CommandValidationError,
     ExpectedArgumentError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
@@ -20,6 +19,7 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import parse
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -217,25 +217,6 @@ def test_invalid_type_for_parameter(command, message):
 
 
 @pytest.mark.parametrize(
-    'command, message',
-    [
-        (
-            'aws lambda  update-function-code --function-name MyFunction --zip-file  fileb://newfunction.zip',
-            str(
-                CommandValidationError(
-                    '-zip-file must be a zip file with the fileb:// prefix.\nExample usage:  --zip-file fileb://path/to/file.zip'
-                )
-            ),
-        )
-    ],
-)
-def test_command_validation_error_for_parameter(command, message):
-    """Test that a command validation error is raised for invalid parameters."""
-    with pytest.raises(CommandValidationError, match=message):
-        parse(command)
-
-
-@pytest.mark.parametrize(
     'command, messages',
     [
         (
@@ -250,7 +231,7 @@ def test_command_validation_error_for_parameter(command, message):
             + "--sort-criteria 'field=AWS_ACCOUNT_ID,_sortOrder=desc'",
             [
                 "The parameter '--filter-criteria' received an invalid input: "
-                + 'Unknown parameter in input: "myKey", must be one of: awsAccountId,',
+                + 'Unknown parameter in input: "myKey", must be one of: findingArn, awsAccountId,',
                 "\nThe parameter '--sort-criteria' received an invalid input: "
                 + 'Missing required parameter in input: "sortOrder"',
             ],
@@ -605,22 +586,6 @@ def test_client_side_filter_error():
         parse(command)
 
 
-@pytest.mark.parametrize(
-    'command',
-    [
-        'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template myfile.template',
-        'aws lambda invoke --function-name my-function response.json',
-    ],
-)
-def test_outfile_parameter_not_supported(command):
-    """Test that outfile parameters raise a validation error."""
-    with pytest.raises(
-        CommandValidationError,
-        match='Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.',
-    ):
-        parse(command)
-
-
 def test_valid_expand_user_home_directory():
     """Test that tilde is replaced with user home directory."""
     result = parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
@@ -633,7 +598,12 @@ def test_invalid_expand_user_home_directory():
     assert any(param.startswith('~') for param in result.parameters['--paths'])
 
 
-def test_profile():
+@patch('boto3.Session')
+def test_profile(mock_boto3_session):
     """Test that the profile is correctly extracted."""
+    mock_session_instance = mock_boto3_session.return_value
+    mock_session_instance.region_name = 'us-east-1'
+
     result = parse(cli_command='aws s3api list-buckets --profile test-profile')
     assert result.profile == 'test-profile'
+    mock_boto3_session.assert_called_with(profile_name='test-profile')

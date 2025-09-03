@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.cloudwatch-mcp-server"
-version = "0.0.7"
+version = "0.0.10"
 description = "An AWS Labs Model Context Protocol (MCP) server for cloudwatch"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -34,7 +34,7 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.return_value = expected_response
+            mock_client.get_bucket_metadata_configuration.return_value = expected_response
             mock_get_client.return_value = mock_client
 
             # Act
@@ -43,9 +43,7 @@ class TestGetBucketMetadataTableConfiguration:
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(region)
-            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(
-                Bucket=bucket
-            )
+            mock_client.get_bucket_metadata_configuration.assert_called_once_with(Bucket=bucket)
 
     @pytest.mark.asyncio
     async def test_successful_configuration_retrieval_with_default_region(self):
@@ -56,7 +54,7 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.return_value = expected_response
+            mock_client.get_bucket_metadata_configuration.return_value = expected_response
             mock_get_client.return_value = mock_client
 
             # Act
@@ -65,9 +63,7 @@ class TestGetBucketMetadataTableConfiguration:
             # Assert
             assert result == expected_response
             mock_get_client.assert_called_once_with(None)
-            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(
-                Bucket=bucket
-            )
+            mock_client.get_bucket_metadata_configuration.assert_called_once_with(Bucket=bucket)
 
     @pytest.mark.asyncio
     async def test_empty_configuration_response(self):
@@ -78,7 +74,7 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.return_value = expected_response
+            mock_client.get_bucket_metadata_configuration.return_value = expected_response
             mock_get_client.return_value = mock_client
 
             # Act
@@ -103,7 +99,7 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.return_value = expected_response
+            mock_client.get_bucket_metadata_configuration.return_value = expected_response
             mock_get_client.return_value = mock_client
 
             # Act
@@ -123,9 +119,7 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.side_effect = Exception(
-                error_message
-            )
+            mock_client.get_bucket_metadata_configuration.side_effect = Exception(error_message)
             mock_get_client.return_value = mock_client
 
             # Act
@@ -146,7 +140,7 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.return_value = {}
+            mock_client.get_bucket_metadata_configuration.return_value = {}
             mock_get_client.return_value = mock_client
 
             # Act
@@ -164,13 +158,11 @@ class TestGetBucketMetadataTableConfiguration:
 
         with patch('awslabs.s3_tables_mcp_server.s3_operations.get_s3_client') as mock_get_client:
             mock_client = MagicMock()
-            mock_client.get_bucket_metadata_table_configuration.return_value = {}
+            mock_client.get_bucket_metadata_configuration.return_value = {}
             mock_get_client.return_value = mock_client
 
             # Act
             await get_bucket_metadata_table_configuration(bucket, region)
 
             # Assert
-            mock_client.get_bucket_metadata_table_configuration.assert_called_once_with(
-                Bucket=bucket
-            )
+            mock_client.get_bucket_metadata_configuration.assert_called_once_with(Bucket=bucket)
