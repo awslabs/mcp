@@ -60,6 +60,7 @@ NOTICE                                                                    @awsla
 /src/finch-mcp-server                   @Shubhranshu153 @pendo324         @awslabs/mcp-admins
 /src/frontend-mcp-server                @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/git-repo-research-mcp-server       @jonslo                           @awslabs/mcp-admins
+/src/healthlake-mcp-server              @aws-steve @awsri                   @awslabs/mcp-admins
 /src/iam-mcp-server                     @oshardik                         @awslabs/mcp-admins
 /src/lambda-tool-mcp-server             @danilop @jsamuel1                @awslabs/mcp-admins
 /src/mcp-lambda-handler                 @mikegc-aws @Lukas-Xue            @awslabs/mcp-admins
