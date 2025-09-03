@@ -179,8 +179,8 @@ def interpret_command(
     )
 
 
-def _log_successful_execution(response: InterpretationResponse):
-    if response.error_code is None and response.as_json is not None:
+def _log_successful_execution(response: InterpretationResponse | None):
+    if response and response.error_code is None and response.as_json is not None:
         logger.info(
             'AWS CLI command executed successfully: {}',
             sensitive_data_scrubber.scrub_creds(json.loads(response.as_json)),
