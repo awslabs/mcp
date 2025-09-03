@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, List
+from typing import Any
 
 
 BLOCKED_KEYWORDS = frozenset(
     [
-        ['security', 'token'],
-        ['secret'],
-        ['session', 'token'],
-        ['password'],
+        ('security', 'token'),
+        ('secret',),
+        ('session', 'token'),
+        ('password',),
     ]
 )
 
@@ -43,7 +43,7 @@ class SensitiveDataScrubber:
 
         return json_node
 
-    def _contains_combination(self, text: str, combination: List[str]) -> bool:
+    def _contains_combination(self, text: str, combination: tuple[str, ...]) -> bool:
         """Check if text contains all words in a combination (case-insensitive)."""
         return all(word.lower() in text.lower() for word in combination)
 
