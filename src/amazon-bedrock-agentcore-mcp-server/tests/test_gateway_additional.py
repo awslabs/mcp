@@ -31,18 +31,21 @@ class TestGatewayDeletionRetryLogic:
 
     def _extract_result(self, result_tuple):
         """Extract string result from MCP response tuple."""
-        if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
-            result_content = result_tuple[0]
-            if hasattr(result_content, 'content'):
-                return str(result_content.content)
-            elif hasattr(result_content, 'text'):
-                return str(result_content.text)
-            return str(result_content)
-        elif hasattr(result_tuple, 'content'):
-            return str(result_tuple.content)
-        elif hasattr(result_tuple, 'text'):
-            return str(result_tuple.text)
-        return str(result_tuple)
+        try:
+            if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
+                result_content = result_tuple[0]
+                if hasattr(result_content, 'content'):
+                    return str(result_content.content)
+                elif hasattr(result_content, 'text'):
+                    return str(result_content.text)
+                return str(result_content)
+            elif hasattr(result_tuple, 'content'):
+                return str(result_tuple.content)  # type: ignore
+            elif hasattr(result_tuple, 'text'):
+                return str(result_tuple.text)  # type: ignore
+            return str(result_tuple)
+        except (AttributeError, TypeError):
+            return str(result_tuple)
 
     @pytest.mark.asyncio
     async def test_delete_gateway_with_throttling_retry(self):
@@ -228,18 +231,21 @@ class TestCognitoOAuthSetup:
 
     def _extract_result(self, result_tuple):
         """Extract string result from MCP response tuple."""
-        if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
-            result_content = result_tuple[0]
-            if hasattr(result_content, 'content'):
-                return str(result_content.content)
-            elif hasattr(result_content, 'text'):
-                return str(result_content.text)
-            return str(result_content)
-        elif hasattr(result_tuple, 'content'):
-            return str(result_tuple.content)
-        elif hasattr(result_tuple, 'text'):
-            return str(result_tuple.text)
-        return str(result_tuple)
+        try:
+            if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
+                result_content = result_tuple[0]
+                if hasattr(result_content, 'content'):
+                    return str(result_content.content)
+                elif hasattr(result_content, 'text'):
+                    return str(result_content.text)
+                return str(result_content)
+            elif hasattr(result_tuple, 'content'):
+                return str(result_tuple.content)  # type: ignore
+            elif hasattr(result_tuple, 'text'):
+                return str(result_tuple.text)  # type: ignore
+            return str(result_tuple)
+        except (AttributeError, TypeError):
+            return str(result_tuple)
 
     @pytest.mark.asyncio
     async def test_setup_cognito_oauth_success(self):
@@ -256,31 +262,31 @@ class TestCognitoOAuthSetup:
             mock_expanduser.return_value = '/home/user/.agentcore_gateways'
 
             # Mock all AWS clients
-            mock_bedrock_client = Mock()
-            mock_cognito_client = Mock()
+            mock_bedrock_service = Mock()  # noqa: S105
+            mock_cognito_service = Mock()  # noqa: S105
 
             def get_client(service, **kwargs):
                 if service == 'bedrock-agentcore-control':
-                    return mock_bedrock_client
+                    return mock_bedrock_service
                 elif service == 'cognito-idp':
-                    return mock_cognito_client
+                    return mock_cognito_service
                 return Mock()
 
             mock_boto3.side_effect = get_client
 
             # Mock successful gateway creation
-            mock_bedrock_client.create_gateway.return_value = {
+            mock_bedrock_service.create_gateway.return_value = {
                 'gatewayId': 'gw-12345',
                 'gatewayArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-12345',
             }
 
             # Mock successful Cognito operations
-            mock_cognito_client.create_user_pool.return_value = {
+            mock_cognito_service.create_user_pool.return_value = {
                 'UserPool': {'Id': 'us-east-1_TEST123', 'Name': 'test-pool'}
             }
-            mock_cognito_client.create_user_pool_client.return_value = {
+            mock_cognito_service.create_user_pool_client.return_value = {
                 'UserPoolClient': {
-                    'ClientId': 'test-client-id',
+                    'ClientId': 'test-client-id',  # pragma: allowlist secret
                     'ClientSecret': 'test-client-secret',  # pragma: allowlist secret
                 }
             }
@@ -290,7 +296,7 @@ class TestCognitoOAuthSetup:
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'enable_oauth': True,
+                    'enable_oauth': True,  # noqa: S105
                     'region': 'us-east-1',
                 },
             )
@@ -312,29 +318,29 @@ class TestCognitoOAuthSetup:
             patch('boto3.client') as mock_boto3,
         ):
             # Mock all AWS clients
-            mock_bedrock_client = Mock()
-            mock_cognito_client = Mock()
+            mock_bedrock_service = Mock()  # noqa: S105
+            mock_cognito_service = Mock()  # noqa: S105
 
             def get_client(service, **kwargs):
                 if service == 'bedrock-agentcore-control':
-                    return mock_bedrock_client
+                    return mock_bedrock_service
                 elif service == 'cognito-idp':
-                    return mock_cognito_client
+                    return mock_cognito_service
                 return Mock()
 
             mock_boto3.side_effect = get_client
 
             # Mock successful gateway creation
-            mock_bedrock_client.create_gateway.return_value = {
+            mock_bedrock_service.create_gateway.return_value = {
                 'gatewayId': 'gw-12345',
                 'gatewayArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-12345',
             }
 
             # Mock successful user pool creation but failed client creation
-            mock_cognito_client.create_user_pool.return_value = {
+            mock_cognito_service.create_user_pool.return_value = {
                 'UserPool': {'Id': 'us-east-1_TEST123', 'Name': 'test-pool'}
             }
-            mock_cognito_client.create_user_pool_client.side_effect = Exception(
+            mock_cognito_service.create_user_pool_client.side_effect = Exception(
                 'Client creation failed'
             )
 
@@ -343,7 +349,7 @@ class TestCognitoOAuthSetup:
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'enable_oauth': True,
+                    'enable_oauth': True,  # noqa: S105
                     'region': 'us-east-1',
                 },
             )
@@ -371,31 +377,31 @@ class TestCognitoOAuthSetup:
             mock_expanduser.return_value = '/home/user/.agentcore_gateways'
 
             # Mock all AWS clients
-            mock_bedrock_client = Mock()
-            mock_cognito_client = Mock()
+            mock_bedrock_service = Mock()  # noqa: S105
+            mock_cognito_service = Mock()  # noqa: S105
 
             def get_client(service, **kwargs):
                 if service == 'bedrock-agentcore-control':
-                    return mock_bedrock_client
+                    return mock_bedrock_service
                 elif service == 'cognito-idp':
-                    return mock_cognito_client
+                    return mock_cognito_service
                 return Mock()
 
             mock_boto3.side_effect = get_client
 
             # Mock successful gateway creation
-            mock_bedrock_client.create_gateway.return_value = {
+            mock_bedrock_service.create_gateway.return_value = {
                 'gatewayId': 'gw-12345',
                 'gatewayArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-12345',
             }
 
             # Mock successful Cognito operations
-            mock_cognito_client.create_user_pool.return_value = {
+            mock_cognito_service.create_user_pool.return_value = {
                 'UserPool': {'Id': 'us-east-1_TEST123', 'Name': 'test-pool'}
             }
-            mock_cognito_client.create_user_pool_client.return_value = {
+            mock_cognito_service.create_user_pool_client.return_value = {
                 'UserPoolClient': {
-                    'ClientId': 'test-client-id',
+                    'ClientId': 'test-client-id',  # pragma: allowlist secret
                     'ClientSecret': 'test-client-secret',  # pragma: allowlist secret
                 }
             }
@@ -405,7 +411,7 @@ class TestCognitoOAuthSetup:
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'enable_oauth': True,
+                    'enable_oauth': True,  # noqa: S105
                     'region': 'us-east-1',
                 },
             )
@@ -430,18 +436,21 @@ class TestSmithyModelOperations:
 
     def _extract_result(self, result_tuple):
         """Extract string result from MCP response tuple."""
-        if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
-            result_content = result_tuple[0]
-            if hasattr(result_content, 'content'):
-                return str(result_content.content)
-            elif hasattr(result_content, 'text'):
-                return str(result_content.text)
-            return str(result_content)
-        elif hasattr(result_tuple, 'content'):
-            return str(result_tuple.content)
-        elif hasattr(result_tuple, 'text'):
-            return str(result_tuple.text)
-        return str(result_tuple)
+        try:
+            if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
+                result_content = result_tuple[0]
+                if hasattr(result_content, 'content'):
+                    return str(result_content.content)
+                elif hasattr(result_content, 'text'):
+                    return str(result_content.text)
+                return str(result_content)
+            elif hasattr(result_tuple, 'content'):
+                return str(result_tuple.content)  # type: ignore
+            elif hasattr(result_tuple, 'text'):
+                return str(result_tuple.text)  # type: ignore
+            return str(result_tuple)
+        except (AttributeError, TypeError):
+            return str(result_tuple)
 
     @pytest.mark.asyncio
     async def test_smithy_models_discover_action_github_api_error(self):
@@ -483,27 +492,27 @@ class TestSmithyModelOperations:
             patch('requests.get') as mock_get,
         ):
             # Mock all AWS clients
-            mock_bedrock_client = Mock()
-            mock_s3_client = Mock()
+            mock_bedrock_service = Mock()  # noqa: S105
+            mock_s3_service = Mock()  # noqa: S105
 
             def get_client(service, **kwargs):
                 if service == 'bedrock-agentcore-control':
-                    return mock_bedrock_client
+                    return mock_bedrock_service
                 elif service == 's3':
-                    return mock_s3_client
+                    return mock_s3_service
                 return Mock()
 
             mock_boto3.side_effect = get_client
 
             # Mock successful gateway creation
-            mock_bedrock_client.create_gateway.return_value = {
+            mock_bedrock_service.create_gateway.return_value = {
                 'gatewayId': 'gw-12345',
                 'gatewayArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-12345',
             }
 
             # Mock S3 operations
-            mock_s3_client.head_bucket.return_value = True
-            mock_s3_client.put_object.return_value = True
+            mock_s3_service.head_bucket.return_value = True
+            mock_s3_service.put_object.return_value = True
 
             # Mock successful requests for multiple services
             def mock_request_side_effect(url, **kwargs):
@@ -562,27 +571,27 @@ class TestSmithyModelOperations:
             patch('requests.get') as mock_get,
         ):
             # Mock all AWS clients
-            mock_bedrock_client = Mock()
-            mock_s3_client = Mock()
+            mock_bedrock_service = Mock()  # noqa: S105
+            mock_s3_service = Mock()  # noqa: S105
 
             def get_client(service, **kwargs):
                 if service == 'bedrock-agentcore-control':
-                    return mock_bedrock_client
+                    return mock_bedrock_service
                 elif service == 's3':
-                    return mock_s3_client
+                    return mock_s3_service
                 return Mock()
 
             mock_boto3.side_effect = get_client
 
             # Mock successful gateway creation
-            mock_bedrock_client.create_gateway.return_value = {
+            mock_bedrock_service.create_gateway.return_value = {
                 'gatewayId': 'gw-12345',
                 'gatewayArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-12345',
             }
 
             # Mock S3 operations to fail
-            mock_s3_client.head_bucket.return_value = True
-            mock_s3_client.put_object.side_effect = Exception('S3 upload failed')
+            mock_s3_service.head_bucket.return_value = True
+            mock_s3_service.put_object.side_effect = Exception('S3 upload failed')
 
             # Mock successful HTTP requests
             mock_response = Mock()
@@ -619,18 +628,21 @@ class TestGatewayIntegrationScenarios:
 
     def _extract_result(self, result_tuple):
         """Extract string result from MCP response tuple."""
-        if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
-            result_content = result_tuple[0]
-            if hasattr(result_content, 'content'):
-                return str(result_content.content)
-            elif hasattr(result_content, 'text'):
-                return str(result_content.text)
-            return str(result_content)
-        elif hasattr(result_tuple, 'content'):
-            return str(result_tuple.content)
-        elif hasattr(result_tuple, 'text'):
-            return str(result_tuple.text)
-        return str(result_tuple)
+        try:
+            if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
+                result_content = result_tuple[0]
+                if hasattr(result_content, 'content'):
+                    return str(result_content.content)
+                elif hasattr(result_content, 'text'):
+                    return str(result_content.text)
+                return str(result_content)
+            elif hasattr(result_tuple, 'content'):
+                return str(result_tuple.content)  # type: ignore
+            elif hasattr(result_tuple, 'text'):
+                return str(result_tuple.text)  # type: ignore
+            return str(result_tuple)
+        except (AttributeError, TypeError):
+            return str(result_tuple)
 
     @pytest.mark.asyncio
     async def test_agent_gateway_setup_with_oauth_and_smithy(self):
@@ -646,34 +658,34 @@ class TestGatewayIntegrationScenarios:
             patch('os.path.expanduser', return_value='/home/user/.agentcore_gateways'),
         ):
             # Mock all AWS clients
-            mock_bedrock_client = Mock()
-            mock_cognito_client = Mock()
-            mock_s3_client = Mock()
+            mock_bedrock_service = Mock()  # noqa: S105
+            mock_cognito_service = Mock()  # noqa: S105
+            mock_s3_service = Mock()  # noqa: S105
 
             def get_client(service, **kwargs):
                 if service == 'bedrock-agentcore-control':
-                    return mock_bedrock_client
+                    return mock_bedrock_service
                 elif service == 'cognito-idp':
-                    return mock_cognito_client
+                    return mock_cognito_service
                 elif service == 's3':
-                    return mock_s3_client
+                    return mock_s3_service
                 return Mock()
 
             mock_boto3.side_effect = get_client
 
             # Mock successful gateway creation
-            mock_bedrock_client.create_gateway.return_value = {
+            mock_bedrock_service.create_gateway.return_value = {
                 'gatewayId': 'gw-12345',
                 'gatewayArn': 'arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-12345',
             }
 
             # Mock successful Cognito setup
-            mock_cognito_client.create_user_pool.return_value = {
+            mock_cognito_service.create_user_pool.return_value = {
                 'UserPool': {'Id': 'us-east-1_TEST123', 'Name': 'test-pool'}
             }
-            mock_cognito_client.create_user_pool_client.return_value = {
+            mock_cognito_service.create_user_pool_client.return_value = {
                 'UserPoolClient': {
-                    'ClientId': 'test-client-id',
+                    'ClientId': 'test-client-id',  # pragma: allowlist secret
                     'ClientSecret': 'test-client-secret',  # pragma: allowlist secret
                 }
             }
@@ -688,8 +700,8 @@ class TestGatewayIntegrationScenarios:
             mock_requests.return_value = mock_response
 
             # Mock S3 operations
-            mock_s3_client.head_bucket.return_value = True
-            mock_s3_client.put_object.return_value = True
+            mock_s3_service.head_bucket.return_value = True
+            mock_s3_service.put_object.return_value = True
 
             result_tuple = await mcp.call_tool(
                 'agent_gateway',
