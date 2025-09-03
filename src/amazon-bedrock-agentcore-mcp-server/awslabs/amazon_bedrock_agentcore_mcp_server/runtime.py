@@ -168,11 +168,11 @@ def check_agent_oauth_status(
                 # Validate the file path is within expected directory
                 oauth_file = oauth_file.resolve()
                 if not str(oauth_file).startswith(str(Path.home() / '.agentcore_gateways')):
-                    oauth_available = False
+                    oauth_available = False  # pragma: allowlist secret
                 else:
-                    oauth_available = oauth_file.exists()
+                    oauth_available = oauth_file.exists()  # pragma: allowlist secret
             except (OSError, ValueError):
-                oauth_available = False
+                oauth_available = False  # pragma: allowlist secret
 
             # Determine OAuth status from AWS API response
             oauth_deployed = bool(
@@ -189,7 +189,9 @@ def check_agent_oauth_status(
                 if 'cognitoAuthorizer' in inbound_config:  # pragma: allowlist secret
                     # cognito_auth = inbound_config['cognitoAuthorizer']  # pragma: allowlist secret
 
-                    cognito_auth = inbound_config.get('cognitoAuthorizer')
+                    cognito_auth = inbound_config.get(
+                        'cognitoAuthorizer'
+                    )  # pragma: allowlist secret
                     if cognito_auth and isinstance(cognito_auth, dict):
                         # Validate required fields exist and are strings
                         user_pool_id = cognito_auth.get('userPoolId', 'Unknown')
@@ -1177,19 +1179,19 @@ For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
                 result.get('client_info', {}) if isinstance(result, dict) else {}
             )  # pragma: allowlist secret
             # Safely extract oauth_config with validation
-            oauth_config = {}
+            oauth_config = {}  # pragma: allowlist secret
             if isinstance(result, dict) and 'oauth_config' in result:
                 raw_config = result['oauth_config']
                 if isinstance(raw_config, dict):
                     # Validate and sanitize known oauth config fields
-                    oauth_config = {}
+                    oauth_config = {}  # pragma: allowlist secret
                     for key in ['client_id', 'client_secret', 'redirect_uri', 'scope']:
                         if key in raw_config and isinstance(raw_config[key], str):
                             oauth_config[key] = raw_config[key][:500]  # Limit length
                 else:
-                    oauth_config = {}
+                    oauth_config = {}  # pragma: allowlist secret
             else:
-                oauth_config = {}
+                oauth_config = {}  # pragma: allowlist secret
 
             print(f'OAuth Config: {oauth_config}')
 
