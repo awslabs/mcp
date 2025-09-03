@@ -21,6 +21,7 @@ BLOCKED_KEYWORDS = frozenset(
         ('secret',),
         ('session', 'token'),
         ('password',),
+        ('credentials',),
     ]
 )
 
@@ -28,20 +29,21 @@ BLOCKED_KEYWORDS = frozenset(
 class SensitiveDataScrubber:
     """Scrubber for removing sensitive credential information from JSON data."""
 
-    def scrub_creds(self, json_node: dict[str, Any]) -> dict[str, Any]:
+    def scrub_creds(self, json_node: Any) -> Any:
         """Recursively scrub credentials from JSON data."""
-        keys_to_update = []
         if isinstance(json_node, dict):
+            result = {}
             for key, nested_node in json_node.items():
                 if self._contains_combinations(key):
-                    keys_to_update.append(key)
+                    result[key] = '*****************'
                 else:
-                    self.scrub_creds(nested_node)
+                    result[key] = self.scrub_creds(nested_node)
 
-        for key in keys_to_update:
-            json_node[key] = '*****************'
-
-        return json_node
+            return result
+        elif isinstance(json_node, list):
+            return [self.scrub_creds(item) for item in json_node]
+        else:
+            return json_node
 
     def _contains_combination(self, text: str, combination: tuple[str, ...]) -> bool:
         """Check if text contains all words in a combination (case-insensitive)."""
