@@ -117,6 +117,14 @@ async def create_workflow(
         None,
         description='Optional parameter template for the workflow',
     ),
+    container_registry_map: Optional[Dict[str, Any]] = Field(
+        None,
+        description='Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs',
+    ),
+    container_registry_map_uri: Optional[str] = Field(
+        None,
+        description='Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
@@ -126,10 +134,21 @@ async def create_workflow(
         definition_zip_base64: Base64-encoded workflow definition ZIP file
         description: Optional description of the workflow
         parameter_template: Optional parameter template for the workflow
+        container_registry_map: Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs
+        container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
 
     Returns:
         Dictionary containing the created workflow information
     """
+    # Validate that both container registry parameters are not provided together
+    if container_registry_map is not None and container_registry_map_uri is not None:
+        error_message = (
+            'Cannot specify both container_registry_map and container_registry_map_uri parameters'
+        )
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
     # Validate base64 input first, before creating client
     try:
         definition_zip = decode_from_base64(definition_zip_base64)
@@ -151,6 +170,12 @@ async def create_workflow(
 
     if parameter_template:
         params['parameterTemplate'] = parameter_template
+
+    if container_registry_map:
+        params['containerRegistryMap'] = container_registry_map
+
+    if container_registry_map_uri:
+        params['containerRegistryMapUri'] = container_registry_map_uri
 
     try:
         response = client.create_workflow(**params)
@@ -229,6 +254,9 @@ async def get_workflow(
         if 'definition' in response:
             result['definition'] = response['definition']
 
+        if 'containerRegistryMap' in response:
+            result['containerRegistryMap'] = response['containerRegistryMap']
+
         return result
     except botocore.exceptions.BotoCoreError as e:
         error_message = f'AWS error getting workflow {workflow_id}: {str(e)}'
@@ -273,6 +301,14 @@ async def create_workflow_version(
         description='Storage capacity in GB (required for STATIC)',
         ge=1,
     ),
+    container_registry_map: Optional[Dict[str, Any]] = Field(
+        None,
+        description='Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs',
+    ),
+    container_registry_map_uri: Optional[str] = Field(
+        None,
+        description='Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -285,10 +321,21 @@ async def create_workflow_version(
         parameter_template: Optional parameter template for the workflow
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
+        container_registry_map: Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs
+        container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
 
     Returns:
         Dictionary containing the created workflow version information
     """
+    # Validate that both container registry parameters are not provided together
+    if container_registry_map is not None and container_registry_map_uri is not None:
+        error_message = (
+            'Cannot specify both container_registry_map and container_registry_map_uri parameters'
+        )
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
     # Validate inputs first, before creating client
     try:
         definition_zip = decode_from_base64(definition_zip_base64)
@@ -323,6 +370,12 @@ async def create_workflow_version(
 
     if storage_type == 'STATIC':
         params['storageCapacity'] = storage_capacity
+
+    if container_registry_map:
+        params['containerRegistryMap'] = container_registry_map
+
+    if container_registry_map_uri:
+        params['containerRegistryMapUri'] = container_registry_map_uri
 
     try:
         response = client.create_workflow_version(**params)
