@@ -28,8 +28,12 @@ MCP TOOLS IMPLEMENTED:
 
 """
 
+import boto3
+import json
 import os
 import subprocess
+import time
+import uuid
 from .utils import (
     RUNTIME_AVAILABLE,
     SDK_AVAILABLE,
@@ -159,7 +163,16 @@ def check_agent_oauth_status(
             oauth_file = (  # pragma: allowlist secret
                 Path.home() / '.agentcore_gateways' / f'{agent_name}_runtime.json'
             )  # pragma: allowlist secret
-            oauth_available = oauth_file.exists()  # pragma: allowlist secret
+
+            try:
+                # Validate the file path is within expected directory
+                oauth_file = oauth_file.resolve()
+                if not str(oauth_file).startswith(str(Path.home() / '.agentcore_gateways')):
+                    oauth_available = False
+                else:
+                    oauth_available = oauth_file.exists()
+            except (OSError, ValueError):
+                oauth_available = False
 
             # Determine OAuth status from AWS API response
             oauth_deployed = bool(
@@ -174,7 +187,19 @@ def check_agent_oauth_status(
                         f'JWT Auth (Client: {jwt_auth.get("clientId", "Unknown")})'
                     )
                 if 'cognitoAuthorizer' in inbound_config:  # pragma: allowlist secret
-                    cognito_auth = inbound_config['cognitoAuthorizer']  # pragma: allowlist secret
+                    # cognito_auth = inbound_config['cognitoAuthorizer']  # pragma: allowlist secret
+
+                    cognito_auth = inbound_config.get('cognitoAuthorizer')
+                    if cognito_auth and isinstance(cognito_auth, dict):
+                        # Validate required fields exist and are strings
+                        user_pool_id = cognito_auth.get('userPoolId', 'Unknown')
+                        if isinstance(user_pool_id, str) and user_pool_id:
+                            cognito_auth = {'userPoolId': user_pool_id}
+                        else:
+                            cognito_auth = {'userPoolId': 'Unknown'}
+                    else:
+                        cognito_auth = {'userPoolId': 'Unknown'}
+
                     auth_details.append(
                         f'Cognito Auth (Pool: {cognito_auth.get("userPoolId", "Unknown")})'
                     )
@@ -231,16 +256,23 @@ def validate_oauth_config(agent_name: str, region: str = 'us-east-1'):  # pragma
         - If success=False: result contains error message string
     """
     try:
-        import json
-        from pathlib import Path
-
         # First check if the agent is actually deployed with OAuth
-        oauth_deployed, oauth_available, oauth_status = (  # pragma: allowlist secret
-            check_agent_oauth_status(  # pragma: allowlist secret
-                agent_name,
-                region,  # pragma: allowlist secret
-            )  # pragma: allowlist secret
-        )  # pragma: allowlist secret
+        # Validate inputs before calling function
+        if not isinstance(agent_name, str) or not agent_name.strip():
+            raise ValueError('Invalid agent_name: must be non-empty string')
+        if not isinstance(region, str) or not region.strip():
+            raise ValueError('Invalid region: must be non-empty string')
+        # Sanitize agent_name to prevent path traversal
+        safe_agent_name = ''.join(c for c in agent_name if c.isalnum() or c in '-_')
+        if not safe_agent_name:
+            raise ValueError('Invalid agent_name: contains no valid characters')
+
+        oauth_deployed, oauth_available, oauth_status = check_agent_oauth_status(
+            safe_agent_name, region
+        )
+
+        print(oauth_available, oauth_deployed)  # pragma: allowlist secret
+        agent_name = safe_agent_name  # Use sanitized name going forward
 
         # Load OAuth configuration (same format as gateways)
         config_dir = Path.home() / '.agentcore_gateways'
@@ -269,7 +301,26 @@ Note: Check `.bedrock_agentcore.yaml` - if `oauth_configuration: null`, agent wa
         # Read and validate OAuth configuration
         try:
             with open(config_file, 'r') as f:  # pragma: allowlist secret
-                oauth_config = json.load(f)  # pragma: allowlist secret
+                try:
+                    # Limit file size to prevent DoS
+                    _ = f.seek(0, 2)  # Seek to end
+                    file_size = f.tell()
+                    f.seek(0)  # Reset to beginning
+
+                    if file_size > 1024 * 1024:  # 1MB limit
+                        raise ValueError('OAuth configuration file too large')
+
+                    content = f.read()
+                    oauth_config = json.loads(content)
+
+                    # Validate it's a dict and has expected structure
+                    if not isinstance(oauth_config, dict):
+                        raise ValueError('Invalid OAuth configuration format')
+
+                except (json.JSONDecodeError, ValueError, OSError) as e:
+                    raise ValueError(
+                        f'Failed to load OAuth configuration: {e}'
+                    )  # pragma: allowlist secret
 
             client_info = oauth_config.get('cognito_client_info', {})  # pragma: allowlist secret
             if not client_info:
@@ -692,9 +743,6 @@ To invoke deployed agents:
 2. Ensure agent is deployed
 3. Retry invocation
 """
-        import json
-        import os
-        import uuid
 
         config_dir = ''
         try:
@@ -870,10 +918,6 @@ Troubleshooting:
         For most users, this provides the same experience as invoke_agent but with OAuth security.
         """
         try:
-            import json
-            import uuid
-            from pathlib import Path
-
             # Generate session ID if not provided
             if not session_id:
                 session_id = str(uuid.uuid4())[:8]
@@ -1110,16 +1154,42 @@ For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
         """Get OAuth access token for runtime agent - reuses all gateway infrastructure."""
         try:
             # Use shared validation and token generation (DRY principle)
-            success, result = validate_oauth_config(agent_name, region)  # pragma: allowlist secret
+
+            # Validate inputs before calling function
+            if not isinstance(agent_name, str) or not agent_name.strip():
+                raise ValueError('Invalid agent_name: must be non-empty string')
+            if not isinstance(region, str) or not region.strip():
+                raise ValueError('Invalid region: must be non-empty string')
+            # Sanitize agent_name to prevent path traversal
+            safe_agent_name = ''.join(c for c in agent_name if c.isalnum() or c in '-_')
+            if not safe_agent_name:
+                raise ValueError('Invalid agent_name: contains no valid characters')
+
+            success, result = validate_oauth_config(
+                safe_agent_name, region
+            )  # pragma: allowlist secret
+            agent_name = safe_agent_name  # Use sanitized name going forward
+
             if not success:
                 return str(result)  # pragma: allowlist secret
 
             client_info = (
                 result.get('client_info', {}) if isinstance(result, dict) else {}
             )  # pragma: allowlist secret
-            oauth_config = (
-                result.get('oauth_config', {}) if isinstance(result, dict) else {}
-            )  # pragma: allowlist secret
+            # Safely extract oauth_config with validation
+            oauth_config = {}
+            if isinstance(result, dict) and 'oauth_config' in result:
+                raw_config = result['oauth_config']
+                if isinstance(raw_config, dict):
+                    # Validate and sanitize known oauth config fields
+                    oauth_config = {}
+                    for key in ['client_id', 'client_secret', 'redirect_uri', 'scope']:
+                        if key in raw_config and isinstance(raw_config[key], str):
+                            oauth_config[key] = raw_config[key][:500]  # Limit length
+                else:
+                    oauth_config = {}
+            else:
+                oauth_config = {}
 
             print(f'OAuth Config: {oauth_config}')
 
@@ -1190,9 +1260,6 @@ Troubleshooting:
     ) -> str:
         """Check the actual OAuth deployment status of an agent using AWS API (get_agent_runtime)."""
         try:
-            import json
-            from pathlib import Path
-
             # Check OAuth status via AWS API and config files
             oauth_deployed, oauth_available, oauth_message = check_agent_oauth_status(
                 agent_name, region
@@ -1398,10 +1465,6 @@ Fallback options:
         but adds OAuth token authentication. Keeps all existing functionality intact.
         """
         try:
-            import json
-            import uuid
-            from pathlib import Path
-
             # Generate session ID if not provided
             if not session_id:
                 session_id = str(uuid.uuid4())[:8]
@@ -2297,10 +2360,6 @@ Alternative: Use `execution_mode: "cli"` for CLI commands instead.
 """
 
     try:
-        import json
-        import time
-        from pathlib import Path
-
         # Validate entrypoint file exists
         if not Path(app_file).exists():
             return f"X App file '{app_file}' not found at path: {Path(app_file).absolute()}"
@@ -2573,11 +2632,6 @@ async def invoke_agent_via_aws_sdk(
 ) -> str:
     """Invoke agent directly via AWS SDK - for SDK deployed agents without local config."""
     try:
-        import boto3
-
-        # import json
-        import uuid
-
         # Generate session ID if not provided
         if not session_id:
             session_id = str(uuid.uuid4())[:8]
