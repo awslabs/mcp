@@ -207,7 +207,7 @@ async def call_aws(
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
 
-        if ir_validation.validation_failed:
+        if not ir.command or ir_validation.validation_failed:
             error_message = (
                 f'Error while validating the command: {ir_validation.model_dump_json()}'
             )
