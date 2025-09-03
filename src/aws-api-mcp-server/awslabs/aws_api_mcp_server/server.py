@@ -203,7 +203,6 @@ async def call_aws(
     ] = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
-    logger.info('Executing AWS CLI command: {}', cli_command)
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
@@ -228,6 +227,12 @@ async def call_aws(
         return AwsApiMcpServerErrorResponse(
             detail=error_message,
         )
+
+    logger.info(
+        'Attempting to execute AWS CLI command: aws {} {} *parameters redacted*',
+        ir.command.service_name,
+        ir.command.operation_cli_name,
+    )
 
     try:
         if READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX):
