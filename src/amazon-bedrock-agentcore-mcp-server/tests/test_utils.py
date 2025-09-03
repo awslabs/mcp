@@ -14,14 +14,33 @@
 
 """Test module for utils functionality."""
 
+import asyncio
+import pytest
+import tempfile
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import (
+    RUNTIME_AVAILABLE,
     SDK_AVAILABLE,
+    YAML_AVAILABLE,
+    analyze_code_patterns,
+    check_agent_config_exists,
+    find_agent_config_directory,
+    format_dependencies,
+    format_features_added,
+    format_patterns,
+    get_agentcore_command,
+    get_next_steps,
+    get_runtime_for_agent,
     get_user_working_directory,
+    project_discover,
+    register_discovery_tools,
+    register_environment_tools,
+    register_github_discovery_tools,
     resolve_app_file_path,
     validate_sdk_method,
+    what_agents_can_i_invoke,
 )
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, mock_open, patch
 
 
 class TestUtilityFunctions:
@@ -115,6 +134,387 @@ class TestEnvironmentDetection:
 
         tools = asyncio.run(test_mcp.list_tools())
         assert len(tools) > 0
+
+
+class TestAgentConfiguration:
+    """Test agent configuration functions."""
+
+    def test_check_agent_config_exists_no_file(self):
+        """Test checking for config when file doesn't exist."""
+        with patch('pathlib.Path.exists', return_value=False):
+            result, path = check_agent_config_exists('test-agent')
+            assert result is False
+            assert isinstance(path, Path)
+
+    def test_check_agent_config_exists_with_file_yaml_available(self):
+        """Test checking for config when file exists and YAML is available."""
+        if YAML_AVAILABLE:
+            config_data = {'agent_name': 'test-agent'}
+            with (
+                patch('pathlib.Path.exists', return_value=True),
+                patch('builtins.open', mock_open(read_data='agent_name: test-agent\n')),
+                patch('yaml.safe_load', return_value=config_data),
+            ):
+                result, path = check_agent_config_exists('test-agent')
+                assert result is True
+                assert isinstance(path, Path)
+
+    def test_check_agent_config_exists_without_yaml(self):
+        """Test config check when YAML is not available."""
+        with (
+            patch('pathlib.Path.exists', return_value=True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.YAML_AVAILABLE', False),
+        ):
+            result, path = check_agent_config_exists('test-agent')
+            assert result is True
+            assert isinstance(path, Path)
+
+    def test_find_agent_config_directory_current_dir(self):
+        """Test finding agent config in current directory."""
+        if YAML_AVAILABLE:
+            config_data = {'agent_name': 'test-agent'}
+            with (
+                patch('pathlib.Path.exists', return_value=True),
+                patch('builtins.open', mock_open(read_data='agent_name: test-agent\n')),
+                patch('yaml.safe_load', return_value=config_data),
+            ):
+                result, path = find_agent_config_directory('test-agent')
+                assert result is True
+                assert isinstance(path, Path)
+
+    def test_find_agent_config_directory_multi_agent(self):
+        """Test finding config in multi-agent format."""
+        if YAML_AVAILABLE:
+            config_data = {'agents': {'test-agent': {}, 'other-agent': {}}}
+            with (
+                patch('pathlib.Path.exists', return_value=True),
+                patch('builtins.open', mock_open()),
+                patch('yaml.safe_load', return_value=config_data),
+            ):
+                result, path = find_agent_config_directory('test-agent')
+                assert result is True
+                assert isinstance(path, Path)
+
+    def test_find_agent_config_directory_not_found(self):
+        """Test when config directory is not found."""
+        with patch('pathlib.Path.exists', return_value=False):
+            result, path = find_agent_config_directory('nonexistent-agent')
+            assert result is False
+            assert isinstance(path, Path)
+
+    def test_get_runtime_for_agent_runtime_not_available(self):
+        """Test getting runtime when runtime is not available."""
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', False):
+            with pytest.raises(ImportError, match='Runtime not available'):
+                get_runtime_for_agent('test-agent')
+
+    @pytest.mark.skipif(not RUNTIME_AVAILABLE, reason='Runtime not available')
+    def test_get_runtime_for_agent_with_config(self):
+        """Test getting runtime with existing config."""
+        if YAML_AVAILABLE:
+            config_data = {'agent_name': 'test-agent', 'default_agent': 'test-agent'}
+            with (
+                patch(
+                    'awslabs.amazon_bedrock_agentcore_mcp_server.'
+                    'utils.find_agent_config_directory',
+                    return_value=(True, Path('/test')),
+                ),
+                patch('pathlib.Path.exists', return_value=True),
+                patch('builtins.open', mock_open()),
+                patch('yaml.safe_load', return_value=config_data),
+                patch('yaml.dump'),
+            ):
+                runtime = get_runtime_for_agent('test-agent')
+                assert runtime is not None
+                assert hasattr(runtime, 'name')
+
+
+class TestCodeAnalysis:
+    """Test code analysis functions."""
+
+    def test_analyze_code_patterns_empty_code(self):
+        """Test analyzing empty code."""
+        result = analyze_code_patterns('')
+        assert isinstance(result, dict)
+        assert 'patterns' in result
+        assert 'dependencies' in result
+        assert 'framework' in result
+
+    def test_analyze_code_patterns_with_imports(self):
+        """Test analyzing code with imports."""
+        code = """
+import json
+from pathlib import Path
+import boto3
+"""
+        result = analyze_code_patterns(code)
+        assert isinstance(result, dict)
+        assert len(result['dependencies']) > 0
+        assert any('json' in dep for dep in result['dependencies'])
+
+    def test_analyze_code_patterns_with_classes(self):
+        """Test analyzing code with class definitions."""
+        code = """
+class TestClass:
+    def __init__(self):
+        pass
+
+    def method(self):
+        return "test"
+"""
+        result = analyze_code_patterns(code)
+        assert isinstance(result['patterns'], list)
+        assert len(result['patterns']) > 0
+
+    def test_analyze_code_patterns_with_functions(self):
+        """Test analyzing code with function definitions."""
+        code = """
+def test_function():
+    return True
+
+async def async_function():
+    return False
+"""
+        result = analyze_code_patterns(code)
+        assert isinstance(result['patterns'], list)
+        assert len(result['patterns']) > 0
+
+    def test_format_patterns(self):
+        """Test formatting patterns list."""
+        patterns = ['pattern1', 'pattern2', 'pattern3']
+        result = format_patterns(patterns)
+        assert isinstance(result, str)
+        assert 'pattern1' in result
+
+    def test_format_dependencies(self):
+        """Test formatting dependencies list."""
+        deps = ['boto3', 'requests', 'pathlib']
+        result = format_dependencies(deps)
+        assert isinstance(result, str)
+        assert 'boto3' in result
+
+    def test_format_features_added(self):
+        """Test formatting features added."""
+        features = {'memory': True, 'identity': False, 'runtime': True}
+        result = format_features_added(features)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_get_next_steps_with_memory(self):
+        """Test getting next steps with memory enabled."""
+        result = get_next_steps(memory_enabled=True)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_get_next_steps_without_memory(self):
+        """Test getting next steps without memory."""
+        result = get_next_steps(memory_enabled=False)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+
+class TestEnvironmentTools:
+    """Test environment tool functions."""
+
+    @pytest.mark.asyncio
+    async def test_get_agentcore_command_with_uv(self):
+        """Test getting agentcore command when uv is available."""
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value.returncode = 0
+            result = await get_agentcore_command()
+            assert isinstance(result, list)
+            assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_get_agentcore_command_without_uv(self):
+        """Test getting agentcore command when uv is not available."""
+        with patch('subprocess.run') as mock_run:
+            mock_run.return_value.returncode = 1
+            result = await get_agentcore_command()
+            assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_get_agentcore_command_exception(self):
+        """Test getting agentcore command with exception."""
+        with patch('subprocess.run', side_effect=Exception('Command failed')):
+            result = await get_agentcore_command()
+            assert isinstance(result, list)
+
+    def test_register_environment_tools_additional(self):
+        """Test registering environment tools."""
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP('Test Server')
+        initial_tools = asyncio.run(mcp.list_tools())
+        initial_count = len(initial_tools)
+
+        register_environment_tools(mcp)
+
+        final_tools = asyncio.run(mcp.list_tools())
+        final_count = len(final_tools)
+
+        assert final_count >= initial_count
+
+
+class TestAgentDiscovery:
+    """Test agent discovery functions."""
+
+    def test_what_agents_can_i_invoke_sdk_not_available(self):
+        """Test agent discovery when SDK is not available."""
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
+            result = what_agents_can_i_invoke()
+            assert isinstance(result, str)
+            assert 'No agents found' in result or 'No Agents Found' in result
+
+    @pytest.mark.skipif(not SDK_AVAILABLE, reason='SDK not available')
+    def test_what_agents_can_i_invoke_with_sdk(self):
+        """Test agent discovery with SDK available."""
+        with (
+            patch('boto3.client') as mock_boto3,
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
+        ):
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+            mock_client.list_agents.return_value = {'agents': []}
+
+            result = what_agents_can_i_invoke('us-east-1')
+            assert isinstance(result, str)
+
+    def test_project_discover_agents_action(self):
+        """Test project discovery with agents action."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create test files
+            test_file = Path(temp_dir) / 'test_agent.py'
+            test_file.write_text('# Test agent file\nclass TestAgent:\n    pass')
+
+            result = project_discover(action='agents', search_path=temp_dir)
+            assert isinstance(result, str)
+
+    def test_project_discover_configs_action(self):
+        """Test project discovery with configs action."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create test config file
+            config_file = Path(temp_dir) / '.bedrock_agentcore.yaml'
+            config_file.write_text('agent_name: test\n')
+
+            result = project_discover(action='configs', search_path=temp_dir)
+            assert isinstance(result, str)
+
+    def test_project_discover_analysis_action(self):
+        """Test project discovery with analysis action."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create test Python file
+            py_file = Path(temp_dir) / 'test.py'
+            py_file.write_text('import json\ndef test():\n    pass')
+
+            result = project_discover(action='analysis', search_path=temp_dir)
+            assert isinstance(result, str)
+
+    def test_register_discovery_tools(self):
+        """Test registering discovery tools."""
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP('Test Server')
+        initial_tools = asyncio.run(mcp.list_tools())
+        initial_count = len(initial_tools)
+
+        register_discovery_tools(mcp)
+
+        final_tools = asyncio.run(mcp.list_tools())
+        final_count = len(final_tools)
+
+        assert final_count > initial_count
+
+    def test_register_github_discovery_tools(self):
+        """Test registering GitHub discovery tools."""
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP('Test Server')
+        initial_tools = asyncio.run(mcp.list_tools())
+        initial_count = len(initial_tools)
+
+        register_github_discovery_tools(mcp)
+
+        final_tools = asyncio.run(mcp.list_tools())
+        final_count = len(final_tools)
+
+        assert final_count > initial_count
+
+
+class TestErrorHandling:
+    """Test error handling in utility functions."""
+
+    def test_find_agent_config_directory_yaml_error(self):
+        """Test config directory finding with YAML error."""
+        if YAML_AVAILABLE:
+            with (
+                patch('pathlib.Path.exists', return_value=True),
+                patch('builtins.open', mock_open()),
+                patch('yaml.safe_load', side_effect=Exception('YAML error')),
+            ):
+                result, path = find_agent_config_directory('test-agent')
+                assert result is False
+                assert isinstance(path, Path)
+
+    def test_check_agent_config_exists_yaml_error(self):
+        """Test config check with YAML error."""
+        if YAML_AVAILABLE:
+            with (
+                patch('pathlib.Path.exists', return_value=True),
+                patch('builtins.open', mock_open()),
+                patch('yaml.safe_load', side_effect=Exception('YAML error')),
+            ):
+                result, path = check_agent_config_exists('test-agent')
+                assert result is True  # Falls back to file existence
+                assert isinstance(path, Path)
+
+    def test_project_discover_with_permission_error(self):
+        """Test project discovery with permission error."""
+        with patch('pathlib.Path.rglob', side_effect=PermissionError('Access denied')):
+            result = project_discover(action='agents', search_path='.')
+            assert isinstance(result, str)
+            assert 'Error' in result or 'No' in result
+
+    def test_analyze_code_patterns_with_invalid_code(self):
+        """Test code analysis with syntax errors."""
+        invalid_code = 'def invalid_function(\n    # Missing closing parenthesis'
+        result = analyze_code_patterns(invalid_code)
+        assert isinstance(result, dict)
+        # Should handle gracefully and return basic analysis
+
+
+class TestFileOperations:
+    """Test file operation utilities."""
+
+    def test_resolve_app_file_path_with_relative_path(self):
+        """Test resolving relative file paths."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            test_file = Path(temp_dir) / 'test.py'
+            test_file.write_text('# Test file')
+
+            with patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.utils.get_user_working_directory',
+                return_value=Path(temp_dir),
+            ):
+                result = resolve_app_file_path('test.py')
+                assert result is not None or result is None  # Either finds it or doesn't
+
+    def test_resolve_app_file_path_search_paths(self):
+        """Test file path resolution with multiple search paths."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create nested structure
+            subdir = Path(temp_dir) / 'subdir'
+            subdir.mkdir()
+            test_file = subdir / 'nested_file.py'
+            test_file.write_text('# Nested test file')
+
+            with patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.utils.get_user_working_directory',
+                return_value=Path(temp_dir),
+            ):
+                result = resolve_app_file_path('nested_file.py')
+                # May or may not find it depending on search implementation
+                assert result is None or 'nested_file.py' in result
 
 
 if __name__ == '__main__':

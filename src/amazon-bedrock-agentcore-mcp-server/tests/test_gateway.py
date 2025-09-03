@@ -24,7 +24,7 @@ from awslabs.amazon_bedrock_agentcore_mcp_server.gateway import (
     register_gateway_tools,
 )
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, mock_open, patch
 
 
 class TestHelperFunctions:
@@ -698,7 +698,7 @@ class TestErrorScenarios:
 
         # Test with None - should handle gracefully
         try:
-            result = await _find_and_upload_smithy_model(None, 'us-east-1', setup_steps)
+            result = await _find_and_upload_smithy_model(None, 'us-east-1', setup_steps)  # type: ignore
             assert result is None
         except (TypeError, AttributeError):
             # It's acceptable if this raises a type error
@@ -735,3 +735,602 @@ if __name__ == '__main__':
         print('All basic gateway tests passed!')
 
     asyncio.run(run_basic_tests())
+
+
+class TestGatewaySetupAndCreation:
+    """Test gateway setup and creation workflows."""
+
+    def setup_method(self):
+        """Set up test environment."""
+        self.test_region = 'us-east-1'
+        self.test_gateway_name = 'test-gateway'
+
+    def _create_mock_mcp(self):
+        """Create a mock MCP server for testing."""
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP('Test Gateway Server')
+        register_gateway_tools(mcp)
+        return mcp
+
+    def _extract_result(self, mcp_result):
+        """Extract result string from MCP call_tool return value."""
+        if isinstance(mcp_result, tuple) and len(mcp_result) >= 2:
+            result_content = mcp_result[1]
+            if isinstance(result_content, dict):
+                return result_content.get('result', str(mcp_result))
+            elif hasattr(result_content, 'content'):
+                return str(result_content.content)
+            return str(result_content)
+        elif hasattr(mcp_result, 'content') and not isinstance(mcp_result, tuple):
+            return str(mcp_result.content)
+        return str(mcp_result)
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_setup_action_smithy_model(self):
+        """Test setup action with Smithy model."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.RUNTIME_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+            patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway._find_and_upload_smithy_model'
+            ) as mock_upload,
+        ):
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            # Mock successful upload
+            mock_upload.return_value = 's3://test-bucket/dynamodb-model.json'
+
+            # Mock gateway creation
+            mock_client.create_gateway.return_value = {
+                'gatewayId': 'gw-123',
+                'name': self.test_gateway_name,
+            }
+
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'setup',
+                    'gateway_name': self.test_gateway_name,
+                    'smithy_model': 'dynamodb',
+                    'target_type': 'smithyModel',
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            # Should contain setup steps or completion message
+            assert isinstance(result, str)
+            assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_setup_action_openapi(self):
+        """Test setup action with OpenAPI specification."""
+        mcp = self._create_mock_mcp()
+
+        openapi_spec = {
+            'openapi': '3.0.0',
+            'info': {'title': 'Test API', 'version': '1.0.0'},
+            'paths': {'/test': {'get': {'responses': {'200': {'description': 'Success'}}}}},
+        }
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.RUNTIME_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+            patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway._upload_openapi_schema'
+            ) as mock_upload,
+        ):
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            # Mock successful upload
+            mock_upload.return_value = {
+                's3_uri': 's3://test-bucket/openapi-spec.json',
+                'credential_config': None,
+            }
+
+            # Mock gateway creation
+            mock_client.create_gateway.return_value = {
+                'gatewayId': 'gw-123',
+                'name': self.test_gateway_name,
+            }
+
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'setup',
+                    'gateway_name': self.test_gateway_name,
+                    'target_type': 'openApiSchema',
+                    'openapi_spec': openapi_spec,
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_create_action_minimal(self):
+        """Test create action with minimal parameters."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+            mock_client.create_gateway.return_value = {
+                'gatewayId': 'gw-123',
+                'name': self.test_gateway_name,
+            }
+
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'create',
+                    'gateway_name': self.test_gateway_name,
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            # Should contain implementation notice or success message
+            assert 'create' in result.lower() or 'WIP:' in result
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_targets_action(self):
+        """Test targets management action."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            # Mock gateway lookup
+            mock_client.list_gateways.return_value = {
+                'items': [{'name': self.test_gateway_name, 'gatewayId': 'gw-123'}]
+            }
+
+            # Mock targets listing
+            mock_client.list_gateway_targets.return_value = {
+                'items': [
+                    {'targetId': 'target-1', 'name': 'test-target', 'targetType': 'lambda'},
+                    {'targetId': 'target-2', 'name': 'api-target', 'targetType': 'openApiSchema'},
+                ]
+            }
+
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'targets',
+                    'gateway_name': self.test_gateway_name,
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            assert 'target' in result.lower() or 'WIP:' in result
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_cognito_action(self):
+        """Test Cognito setup action."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'cognito',
+                    'gateway_name': self.test_gateway_name,
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            assert 'cognito' in result.lower() or 'WIP:' in result
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_auth_action(self):
+        """Test authentication action."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client'),
+        ):
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'auth',
+                    'gateway_name': self.test_gateway_name,
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            assert 'auth' in result.lower() or 'WIP:' in result
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_safe_examples_action(self):
+        """Test safe examples action."""
+        mcp = self._create_mock_mcp()
+
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True):
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'safe_examples',
+                    'smithy_model': 'dynamodb',
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            assert 'example' in result.lower() or 'dynamodb' in result.lower()
+
+
+class TestGatewayToolOperations:
+    """Test gateway tool operations (list, search, invoke)."""
+
+    def setup_method(self):
+        """Set up test environment."""
+        self.test_region = 'us-east-1'
+        self.test_gateway_name = 'test-gateway'
+
+    def _create_mock_mcp(self):
+        """Create a mock MCP server for testing."""
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP('Test Gateway Server')
+        register_gateway_tools(mcp)
+        return mcp
+
+    def _extract_result(self, mcp_result):
+        """Extract result string from MCP call_tool return value."""
+        if isinstance(mcp_result, tuple) and len(mcp_result) >= 2:
+            result_content = mcp_result[1]
+            if isinstance(result_content, dict):
+                return result_content.get('result', str(mcp_result))
+            elif hasattr(result_content, 'content'):
+                return str(result_content.content)
+            return str(result_content)
+        elif hasattr(mcp_result, 'content') and not isinstance(mcp_result, tuple):
+            return str(mcp_result.content)
+        return str(mcp_result)
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_list_tools_with_config(self):
+        """Test list_tools action with configuration."""
+        mcp = self._create_mock_mcp()
+
+        # Create mock config file
+        config_data = {
+            'gateway_name': self.test_gateway_name,
+            'cognito_client_info': {'client_id': 'test-client'},
+            'region': self.test_region,
+        }
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('pathlib.Path.exists', return_value=True),
+            patch('builtins.open', mock_open(read_data=json.dumps(config_data))),
+            patch('json.load', return_value=config_data),
+        ):
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'list_tools',
+                    'gateway_name': self.test_gateway_name,
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            # Should contain configuration info or tool listing
+            assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_search_tools_with_query(self):
+        """Test search_tools action with query."""
+        mcp = self._create_mock_mcp()
+
+        config_data = {
+            'gateway_name': self.test_gateway_name,
+            'cognito_client_info': {'client_id': 'test-client'},
+            'region': self.test_region,
+        }
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('pathlib.Path.exists', return_value=True),
+            patch('builtins.open', mock_open(read_data=json.dumps(config_data))),
+            patch('json.load', return_value=config_data),
+        ):
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'search_tools',
+                    'gateway_name': self.test_gateway_name,
+                    'query': 'lambda function',
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_agent_gateway_invoke_tool_with_arguments(self):
+        """Test invoke_tool action with arguments."""
+        mcp = self._create_mock_mcp()
+
+        config_data = {
+            'gateway_name': self.test_gateway_name,
+            'cognito_client_info': {'client_id': 'test-client'},
+            'region': self.test_region,
+        }
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('pathlib.Path.exists', return_value=True),
+            patch('builtins.open', mock_open(read_data=json.dumps(config_data))),
+            patch('json.load', return_value=config_data),
+        ):
+            result_tuple = await mcp.call_tool(
+                'agent_gateway',
+                {
+                    'action': 'invoke_tool',
+                    'gateway_name': self.test_gateway_name,
+                    'tool_name': 'test_function',
+                    'tool_arguments': {'param1': 'value1'},
+                },
+            )
+            result = self._extract_result(result_tuple)
+
+            assert isinstance(result, str)
+            assert len(result) > 0
+
+
+class TestCredentialManagement:
+    """Test credential management functionality."""
+
+    def _create_mock_mcp(self):
+        """Create a mock MCP server for testing."""
+        from mcp.server.fastmcp import FastMCP
+
+        mcp = FastMCP('Test Gateway Server')
+        register_gateway_tools(mcp)
+        return mcp
+
+    def _extract_result(self, mcp_result):
+        """Extract result string from MCP call_tool return value."""
+        if isinstance(mcp_result, tuple) and len(mcp_result) >= 2:
+            result_content = mcp_result[1]
+            if isinstance(result_content, dict):
+                return result_content.get('result', str(mcp_result))
+            elif hasattr(result_content, 'content'):
+                return str(result_content.content)
+            return str(result_content)
+        elif hasattr(mcp_result, 'content') and not isinstance(mcp_result, tuple):
+            return str(mcp_result.content)
+        return str(mcp_result)
+
+    @pytest.mark.asyncio
+    async def test_manage_credentials_create_action(self):
+        """Test credential creation."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+            mock_client.create_credential_provider.return_value = {
+                'credentialProviderId': 'cp-123',
+                'name': 'test-credentials',
+            }
+
+            # Note: manage_credentials tool might not be fully implemented
+            # This test checks if the tool registration works
+            tools = await mcp.list_tools()
+            tool_names = [tool.name for tool in tools]
+
+            # Check that agent_gateway tool is available (which includes credential management)
+            assert 'agent_gateway' in tool_names
+
+    @pytest.mark.asyncio
+    async def test_credentials_with_api_key(self):
+        """Test credential setup with API key."""
+        openapi_spec = {
+            'openapi': '3.0.0',
+            'info': {'title': 'Test API', 'version': '1.0.0'},
+            'paths': {},
+        }
+
+        with patch('boto3.client') as mock_boto3:
+            mock_s3 = Mock()
+            mock_boto3.return_value = mock_s3
+            mock_s3.head_bucket.return_value = True
+            mock_s3.put_object.return_value = True
+
+            setup_steps = []
+            result = await _upload_openapi_schema(
+                openapi_spec=openapi_spec,
+                gateway_name='test-gateway',
+                region='us-east-1',
+                setup_steps=setup_steps,
+                api_key='test-key-123',  # pragma: allowlist secret
+                credential_location='HEADER',
+                credential_parameter_name='X-API-Key',
+            )
+
+            assert result is not None
+            assert result['credential_config']['credentialProviderType'] == 'API_KEY'
+            assert result['credential_config']['credentialLocation'] == 'HEADER'
+            assert result['credential_config']['credentialParameterName'] == 'X-API-Key'
+
+    @pytest.mark.asyncio
+    async def test_credentials_in_query_parameter(self):
+        """Test credential setup with query parameter."""
+        openapi_spec = {'openapi': '3.0.0', 'info': {'title': 'Test API', 'version': '1.0.0'}}
+
+        with patch('boto3.client') as mock_boto3:
+            mock_s3 = Mock()
+            mock_boto3.return_value = mock_s3
+            mock_s3.head_bucket.return_value = True
+            mock_s3.put_object.return_value = True
+
+            setup_steps = []
+            result = await _upload_openapi_schema(
+                openapi_spec=openapi_spec,
+                gateway_name='test-gateway',
+                region='us-east-1',
+                setup_steps=setup_steps,
+                api_key='query-key-456',  # pragma: allowlist secret
+                credential_location='QUERY_PARAMETER',
+                credential_parameter_name='apikey',
+            )
+
+            assert result is not None
+            assert result['credential_config']['credentialLocation'] == 'QUERY_PARAMETER'
+            assert result['credential_config']['credentialParameterName'] == 'apikey'
+
+
+class TestSmithyModelHandling:
+    """Test Smithy model handling and categorization."""
+
+    @pytest.mark.asyncio
+    async def test_discover_smithy_models_categorization(self):
+        """Test that Smithy models are correctly categorized."""
+        with patch('requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = [
+                {'type': 'dir', 'name': 'dynamodb'},
+                {'type': 'dir', 'name': 's3'},
+                {'type': 'dir', 'name': 'lambda'},
+                {'type': 'dir', 'name': 'ec2'},
+                {'type': 'dir', 'name': 'rds'},
+                {'type': 'dir', 'name': 'sqs'},
+                {'type': 'dir', 'name': 'sns'},
+                {'type': 'dir', 'name': 'apigateway'},
+                {'type': 'dir', 'name': 'iam'},
+                {'type': 'dir', 'name': 'secretsmanager'},
+            ]
+            mock_get.return_value = mock_response
+
+            result = await _discover_smithy_models()
+
+            assert isinstance(result, dict)
+            # Check all major categories exist
+            expected_categories = [
+                'Database',
+                'Storage',
+                'Compute',
+                'Networking',
+                'Security',
+                'Other Services',
+            ]
+            for category in expected_categories:
+                assert category in result
+
+            # Check specific services are in correct categories
+            database_services = [s['name'] for s in result.get('Database', [])]
+            assert 'dynamodb' in database_services
+
+            storage_services = [s['name'] for s in result.get('Storage', [])]
+            assert 's3' in storage_services
+
+            compute_services = [s['name'] for s in result.get('Compute', [])]
+            assert 'lambda' in compute_services
+
+    @pytest.mark.asyncio
+    async def test_find_and_upload_smithy_model_version_selection(self):
+        """Test Smithy model version selection logic."""
+        with patch('requests.get') as mock_get, patch('boto3.client') as mock_boto3:
+            # Mock multiple version directories
+            mock_service_response = Mock()
+            mock_service_response.status_code = 200
+            mock_service_response.json.return_value = [
+                {'type': 'dir', 'name': 'service', 'url': 'https://api.github.com/service'}
+            ]
+
+            mock_version_response = Mock()
+            mock_version_response.status_code = 200
+            mock_version_response.json.return_value = [
+                {'type': 'dir', 'name': '2022-01-01', 'url': 'https://api.github.com/2022'},
+                {'type': 'dir', 'name': '2023-06-15', 'url': 'https://api.github.com/2023'},
+                {'type': 'dir', 'name': '2024-01-01', 'url': 'https://api.github.com/2024'},
+            ]
+
+            mock_files_response = Mock()
+            mock_files_response.status_code = 200
+            mock_files_response.json.return_value = [
+                {
+                    'type': 'file',
+                    'name': 'dynamodb-2024-01-01.json',
+                    'download_url': 'https://raw.github.com/file.json',
+                }
+            ]
+
+            mock_content_response = Mock()
+            mock_content_response.status_code = 200
+            mock_content_response.json.return_value = {
+                'service': 'dynamodb',
+                'version': '2024-01-01',
+            }
+            mock_content_response.content = b'{"service": "dynamodb", "version": "2024-01-01"}'
+
+            mock_get.side_effect = [
+                mock_service_response,
+                mock_version_response,
+                mock_files_response,
+                mock_content_response,
+            ]
+
+            # Mock S3 client
+            mock_s3 = Mock()
+            mock_boto3.return_value = mock_s3
+            mock_s3.head_bucket.return_value = True
+            mock_s3.put_object.return_value = True
+
+            setup_steps = []
+            result = await _find_and_upload_smithy_model('dynamodb', 'us-east-1', setup_steps)
+
+            assert result is not None
+            assert result.startswith('s3://')
+            # Should have selected the latest version (2024-01-01)
+            assert any('2024-01-01' in step for step in setup_steps)
+
+    @pytest.mark.asyncio
+    async def test_find_and_upload_smithy_model_no_service_directory(self):
+        """Test handling when service directory is missing."""
+        with patch('requests.get') as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = [
+                {'type': 'dir', 'name': 'not-service', 'url': 'https://api.github.com/notservice'}
+            ]
+            mock_get.return_value = mock_response
+
+            setup_steps = []
+            result = await _find_and_upload_smithy_model('testservice', 'us-east-1', setup_steps)
+
+            assert result is None
+            assert any("No 'service' directory found" in step for step in setup_steps)

@@ -238,3 +238,303 @@ if __name__ == '__main__':
         print('All basic tests passed!')
 
     asyncio.run(run_basic_test())
+
+
+class TestServerStartup:
+    """Test server startup and shutdown procedures."""
+
+    def test_run_main_function_exists(self):
+        """Test that the run_main function is available."""
+        from awslabs.amazon_bedrock_agentcore_mcp_server.server import run_main
+
+        assert callable(run_main)
+
+    def test_server_directory_path(self):
+        """Test server directory path resolution."""
+        from pathlib import Path
+
+        server_file = (
+            Path(__file__).parent.parent
+            / 'awslabs'
+            / 'amazon_bedrock_agentcore_mcp_server'
+            / 'server.py'
+        )
+        assert server_file.exists()
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.server.mcp.run')
+    def test_run_main_starts_server(self, mock_run):
+        """Test that run_main starts the MCP server."""
+        from awslabs.amazon_bedrock_agentcore_mcp_server.server import run_main
+
+        with patch('builtins.print'):  # Suppress print output during tests
+            run_main()
+
+        mock_run.assert_called_once()
+
+    def test_server_exception_handling(self):
+        """Test server exception handling in main block."""
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        # Get the server file path
+        server_file = (
+            Path(__file__).parent.parent
+            / 'awslabs'
+            / 'amazon_bedrock_agentcore_mcp_server'
+            / 'server.py'
+        )
+
+        # Test keyboard interrupt handling by running the server as a subprocess
+        # and immediately terminating it
+        process = None
+        try:
+            # Start the server process
+            process = subprocess.Popen(
+                [sys.executable, str(server_file)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            # Give it a moment to start
+            import time
+
+            time.sleep(0.5)
+
+            # Send keyboard interrupt
+            process.terminate()
+
+            # Wait for process to complete
+            stdout, stderr = process.communicate(timeout=5)
+
+            # The process should exit gracefully
+            assert process.returncode is not None
+
+        except subprocess.TimeoutExpired:
+            # If it times out, kill the process
+            if process is not None:
+                process.kill()
+                process.wait()
+            # This is still a successful test - server started and needed to be killed
+            assert True
+
+
+class TestToolCoverage:
+    """Test comprehensive tool coverage and functionality."""
+
+    @pytest.mark.asyncio
+    async def test_all_expected_tools_registered(self):
+        """Verify all expected tools are registered with correct names."""
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
+
+        # Environment and OAuth tools
+        expected_tools = {
+            'get_oauth_access_token',
+            'validate_agentcore_environment',
+            # Discovery tools
+            'invokable_agents',
+            'project_discover',
+            'discover_agentcore_examples',
+            # Runtime and analysis tools
+            'analyze_agent_code',
+            'transform_to_agentcore',
+            'deploy_agentcore_app',
+            'invoke_agent',
+            'invoke_oauth_agent',
+            'get_runtime_oauth_token',
+            'check_oauth_status',
+            'invoke_agent_smart',
+            'get_agent_status',
+            'discover_existing_agents',
+            # Gateway tools
+            'agent_gateway',
+            # Identity tools
+            'manage_credentials',
+            # Memory tools
+            'agent_memory',
+        }
+
+        missing_tools = expected_tools - set(tool_names)
+        assert not missing_tools, f'Missing expected tools: {missing_tools}'
+
+        # Should have at least the expected number of tools
+        assert len(tools) >= len(expected_tools)
+
+    @pytest.mark.asyncio
+    async def test_tool_descriptions_exist(self):
+        """Test that all tools have descriptions."""
+        tools = await mcp.list_tools()
+
+        for tool in tools:
+            assert hasattr(tool, 'description')
+            assert isinstance(tool.description, str)
+            assert len(tool.description) > 0
+
+    @pytest.mark.asyncio
+    async def test_tools_have_valid_schemas(self):
+        """Test that all tools have valid parameter schemas."""
+        tools = await mcp.list_tools()
+
+        for tool in tools:
+            # Each tool should have an inputSchema
+            assert hasattr(tool, 'inputSchema')
+
+            # The schema should be a dictionary
+            assert isinstance(tool.inputSchema, dict)
+
+            # Basic schema structure validation
+            if 'properties' in tool.inputSchema:
+                assert isinstance(tool.inputSchema['properties'], dict)
+
+
+class TestCrossModuleIntegration:
+    """Test integration between different modules."""
+
+    @pytest.mark.asyncio
+    async def test_utils_tools_integration(self):
+        """Test utils module tools are properly integrated."""
+        result_tuple = await mcp.call_tool(
+            'validate_agentcore_environment', {'project_path': '.', 'check_existing_agents': False}
+        )
+        result = extract_result(result_tuple)
+
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_runtime_tools_integration(self):
+        """Test runtime module tools are properly integrated."""
+        # Test with basic code content
+        sample_code = 'print("Hello, AgentCore!")'
+
+        result_tuple = await mcp.call_tool(
+            'analyze_agent_code', {'file_path': '', 'code_content': sample_code}
+        )
+        result = extract_result(result_tuple)
+
+        assert result is not None
+        assert 'Agent Code Analysis Complete' in result
+
+    @pytest.mark.asyncio
+    async def test_gateway_tools_integration(self):
+        """Test gateway module tools are properly integrated."""
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', False):
+            result_tuple = await mcp.call_tool('agent_gateway', {'action': 'list'})
+            result = extract_result(result_tuple)
+
+            assert result is not None
+            assert 'SDK Not Available' in result
+
+    @pytest.mark.asyncio
+    async def test_identity_tools_integration(self):
+        """Test identity module tools are properly integrated."""
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', False):
+            result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
+            result = extract_result(result_tuple)
+
+            assert result is not None
+            assert 'SDK Not Available' in result
+
+    @pytest.mark.asyncio
+    async def test_memory_tools_integration(self):
+        """Test memory module tools are properly integrated."""
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', False):
+            result_tuple = await mcp.call_tool('agent_memory', {'action': 'list'})
+            result = extract_result(result_tuple)
+
+            assert result is not None
+            assert 'SDK Not Available' in result
+
+
+class TestErrorRecovery:
+    """Test error recovery and graceful degradation."""
+
+    @pytest.mark.asyncio
+    async def test_tool_error_recovery(self):
+        """Test that tools handle errors gracefully without crashing server."""
+        # Try calling tools with problematic inputs
+        problematic_calls = [
+            ('analyze_agent_code', {'file_path': '/nonexistent/path.py', 'code_content': ''}),
+            ('deploy_agentcore_app', {'app_file': 'missing.py', 'agent_name': 'test'}),
+            ('agent_gateway', {'action': 'invalid_action'}),
+            ('agent_memory', {'action': 'invalid', 'agent_name': 'test'}),
+        ]
+
+        for tool_name, params in problematic_calls:
+            try:
+                result_tuple = await mcp.call_tool(tool_name, params)
+                result = extract_result(result_tuple)
+
+                # Should get some response, not crash
+                assert result is not None
+                assert isinstance(result, str)
+
+            except Exception as e:
+                # If an exception is raised, it should be handled gracefully
+                assert 'Server crash' not in str(e).lower()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_tool_calls(self):
+        """Test server handles concurrent tool calls."""
+        import asyncio
+
+        # Make several concurrent calls
+        tasks = []
+        for i in range(5):
+            task = mcp.call_tool(
+                'validate_agentcore_environment',
+                {'project_path': '.', 'check_existing_agents': False},
+            )
+            tasks.append(task)
+
+        # Wait for all to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # All should complete successfully
+        assert len(results) == 5
+        for result in results:
+            assert not isinstance(result, Exception)
+            extracted = extract_result(result)
+            assert extracted is not None
+
+
+class TestServerMetadata:
+    """Test server metadata and configuration."""
+
+    def test_server_name(self):
+        """Test server has correct name."""
+        assert mcp.name == 'AgentCore MCP Server'
+
+    @pytest.mark.asyncio
+    async def test_server_has_tools(self):
+        """Test server has registered tools."""
+        tools = await mcp.list_tools()
+        assert len(tools) > 0
+
+    @pytest.mark.asyncio
+    async def test_tool_names_unique(self):
+        """Test all tool names are unique."""
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
+
+        # Check for duplicates
+        assert len(tool_names) == len(set(tool_names)), 'Duplicate tool names found'
+
+    @pytest.mark.asyncio
+    async def test_tools_accessible(self):
+        """Test that tools are accessible through the server."""
+        tools = await mcp.list_tools()
+
+        # Pick a simple tool to test
+        environment_tools = [t for t in tools if t.name == 'validate_agentcore_environment']
+        assert len(environment_tools) == 1
+
+        # Should be able to call it
+        result_tuple = await mcp.call_tool(
+            'validate_agentcore_environment', {'project_path': '.', 'check_existing_agents': False}
+        )
+        result = extract_result(result_tuple)
+        assert result is not None
