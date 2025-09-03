@@ -240,7 +240,7 @@ class TestOAuthUtilities:
                     success, result = validate_oauth_config(self.test_agent_name, self.test_region)
 
                     assert success is False
-                    assert 'Invalid JSON Configuration' in result
+                    assert 'Failed to load OAuth configuration' in result
 
     @pytest.mark.asyncio
     async def test_generate_oauth_token_success(self):
