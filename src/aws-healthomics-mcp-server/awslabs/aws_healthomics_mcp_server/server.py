@@ -33,6 +33,10 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
     list_runs,
     start_run,
 )
+from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
+    lint_workflow_bundle,
+    lint_workflow_definition,
+)
 from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     create_workflow,
     create_workflow_version,
@@ -77,6 +81,10 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 ### Troubleshooting
 - **DiagnoseAHORunFailure**: Diagnose a failed workflow run
 
+### Workflow Linting
+- **LintAHOWorkflowDefinition**: Lint single WDL or CWL workflow files using miniwdl and cwltool
+- **LintAHOWorkflowBundle**: Lint multi-file WDL or CWL workflow bundles with import/dependency support
+
 ### Helper Tools
 - **PackageAHOWorkflow**: Package workflow definition files into a base64-encoded ZIP
 - **GetAHOSupportedRegions**: Get the list of AWS regions where HealthOmics is available
@@ -88,6 +96,8 @@ AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegio
         'boto3',
         'pydantic',
         'loguru',
+        'miniwdl',
+        'cwltool',
     ],
 )
 
@@ -114,6 +124,10 @@ mcp.tool(name='AnalyzeAHORunPerformance')(analyze_run_performance)
 
 # Register troubleshooting tools
 mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
+
+# Register workflow linting tools
+mcp.tool(name='LintAHOWorkflowDefinition')(lint_workflow_definition)
+mcp.tool(name='LintAHOWorkflowBundle')(lint_workflow_bundle)
 
 # Register helper tools
 mcp.tool(name='PackageAHOWorkflow')(package_workflow)
