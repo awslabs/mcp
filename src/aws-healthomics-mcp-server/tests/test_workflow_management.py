@@ -896,11 +896,21 @@ async def test_create_workflow_with_container_registry_map():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
 
-    # Container registry map - using correct AWS API structure
+    # Container registry map - using complete structure with all required fields
     container_registry_map = {
         'registryMappings': [
-            {'upstreamRegistryUrl': 'registry-1.docker.io', 'ecrRepositoryPrefix': 'docker-hub'},
-            {'upstreamRegistryUrl': 'quay.io', 'ecrRepositoryPrefix': 'quay'},
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            },
+            {
+                'upstreamRegistryUrl': 'quay.io',
+                'ecrRepositoryPrefix': 'quay',
+                'upstreamRepositoryPrefix': 'biocontainers',
+                'ecrAccountId': '123456789012',
+            },
         ]
     }
 
@@ -1031,6 +1041,33 @@ async def test_create_workflow_with_container_registry_map_uri():
     assert result['status'] == 'ACTIVE'
     assert result['name'] == 'test-workflow'
     assert result['description'] == 'Test workflow with container registry map URI'
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_invalid_container_registry_map():
+    """Test workflow creation with invalid container registry map structure."""
+    # Mock context
+    mock_ctx = AsyncMock()
+
+    # Create base64 encoded workflow definition
+    definition_zip_base64 = base64.b64encode(b'test workflow content').decode('utf-8')
+
+    # Invalid container registry map - missing required fields
+    invalid_container_registry_map = {
+        'registryMappings': [
+            {'upstreamRegistryUrl': 'registry-1.docker.io'}  # Missing required fields
+        ]
+    }
+
+    # Should raise ValueError due to validation error
+    with pytest.raises(ValueError, match='Invalid container registry map structure'):
+        await create_workflow(
+            mock_ctx,
+            name='test-workflow',
+            definition_zip_base64=definition_zip_base64,
+            container_registry_map=invalid_container_registry_map,
+            container_registry_map_uri=None,
+        )
 
 
 @pytest.mark.asyncio
@@ -1282,11 +1319,21 @@ async def test_create_workflow_version_with_container_registry_map():
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    # Container registry map - using correct AWS API structure
+    # Container registry map - using complete structure with all required fields
     container_registry_map = {
         'registryMappings': [
-            {'upstreamRegistryUrl': 'registry-1.docker.io', 'ecrRepositoryPrefix': 'docker-hub'},
-            {'upstreamRegistryUrl': 'quay.io', 'ecrRepositoryPrefix': 'quay'},
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            },
+            {
+                'upstreamRegistryUrl': 'quay.io',
+                'ecrRepositoryPrefix': 'quay',
+                'upstreamRepositoryPrefix': 'biocontainers',
+                'ecrAccountId': '123456789012',
+            },
         ]
     }
 
@@ -1397,10 +1444,15 @@ async def test_create_workflow_version_with_static_storage_and_container_registr
     # Create base64 encoded workflow definition
     definition_zip_base64 = base64.b64encode(b'test workflow content v2').decode('utf-8')
 
-    # Container registry map - using correct AWS API structure
+    # Container registry map - using complete structure with all required fields
     container_registry_map = {
         'registryMappings': [
-            {'upstreamRegistryUrl': 'registry-1.docker.io', 'ecrRepositoryPrefix': 'docker-hub'}
+            {
+                'upstreamRegistryUrl': 'registry-1.docker.io',
+                'ecrRepositoryPrefix': 'docker-hub',
+                'upstreamRepositoryPrefix': 'library',
+                'ecrAccountId': '123456789012',
+            }
         ]
     }
 

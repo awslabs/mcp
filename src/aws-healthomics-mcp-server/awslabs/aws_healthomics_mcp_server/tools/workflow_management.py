@@ -19,13 +19,14 @@ import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_MAX_RESULTS,
 )
+from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     decode_from_base64,
     get_omics_client,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
-from pydantic import Field
+from pydantic import Field, ValidationError
 from typing import Any, Dict, Optional
 
 
@@ -119,7 +120,7 @@ async def create_workflow(
     ),
     container_registry_map: Optional[Dict[str, Any]] = Field(
         None,
-        description='Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs',
+        description='Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays',
     ),
     container_registry_map_uri: Optional[str] = Field(
         None,
@@ -134,7 +135,7 @@ async def create_workflow(
         definition_zip_base64: Base64-encoded workflow definition ZIP file
         description: Optional description of the workflow
         parameter_template: Optional parameter template for the workflow
-        container_registry_map: Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs
+        container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
 
     Returns:
@@ -148,6 +149,16 @@ async def create_workflow(
         logger.error(error_message)
         await ctx.error(error_message)
         raise ValueError(error_message)
+
+    # Validate container registry map structure if provided
+    if container_registry_map is not None:
+        try:
+            ContainerRegistryMap(**container_registry_map)
+        except ValidationError as e:
+            error_message = f'Invalid container registry map structure: {str(e)}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise ValueError(error_message)
 
     # Validate base64 input first, before creating client
     try:
@@ -303,7 +314,7 @@ async def create_workflow_version(
     ),
     container_registry_map: Optional[Dict[str, Any]] = Field(
         None,
-        description='Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs',
+        description='Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays',
     ),
     container_registry_map_uri: Optional[str] = Field(
         None,
@@ -321,7 +332,7 @@ async def create_workflow_version(
         parameter_template: Optional parameter template for the workflow
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
-        container_registry_map: Optional container registry map with registryMappings array containing upstreamRegistryUrl and ecrRepositoryPrefix pairs
+        container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
 
     Returns:
@@ -335,6 +346,16 @@ async def create_workflow_version(
         logger.error(error_message)
         await ctx.error(error_message)
         raise ValueError(error_message)
+
+    # Validate container registry map structure if provided
+    if container_registry_map is not None:
+        try:
+            ContainerRegistryMap(**container_registry_map)
+        except ValidationError as e:
+            error_message = f'Invalid container registry map structure: {str(e)}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise ValueError(error_message)
 
     # Validate inputs first, before creating client
     try:
