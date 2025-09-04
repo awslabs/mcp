@@ -78,6 +78,10 @@ class TestServiceConstants:
         """Test DEFAULT_STORAGE_TYPE constant."""
         assert consts.DEFAULT_STORAGE_TYPE == 'DYNAMIC'
 
+    def test_default_omics_service_name(self):
+        """Test DEFAULT_OMICS_SERVICE_NAME constant."""
+        assert consts.DEFAULT_OMICS_SERVICE_NAME == 'omics'
+
     def test_healthomics_supported_regions(self):
         """Test HEALTHOMICS_SUPPORTED_REGIONS constant."""
         expected_regions = [
