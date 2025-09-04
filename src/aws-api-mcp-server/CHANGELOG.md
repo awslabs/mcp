@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support for custom agent scripts directory via `AWS_API_MCP_AGENT_SCRIPTS_DIR` environment variable (#1227)
+- Scrubbing of sensitive logs (#1228)
 
 ## [0.2.11] - 2025-08-29
 

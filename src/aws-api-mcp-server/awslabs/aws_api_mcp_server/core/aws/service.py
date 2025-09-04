@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextlib
+import json
 from ..aws.services import driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
 from ..common.errors import AwsApiMcpError, Failure
@@ -29,6 +30,7 @@ from ..common.models import (
 )
 from ..common.models import Context as ContextAPIModel
 from ..common.models import ValidationFailure as FailureAPIModel
+from ..common.scrubber import sensitive_data_scrubber
 from ..metadata.read_only_operations_list import (
     ReadOnlyOperations,
 )
@@ -166,6 +168,8 @@ def interpret_command(
     else:
         response = None
 
+    _log_successful_execution(response)
+
     return ProgramInterpretationResponse(
         response=response,
         metadata=_ir_metadata(interpreted_program),
@@ -173,6 +177,14 @@ def interpret_command(
         missing_context_failures=_to_missing_context_failures(missing_context_failures),
         failed_constraints=failed_constraints,
     )
+
+
+def _log_successful_execution(response: InterpretationResponse | None):
+    if response and response.error_code is None and response.as_json is not None:
+        logger.info(
+            'AWS CLI command executed successfully: {}',
+            sensitive_data_scrubber.scrub_creds(json.loads(response.as_json)),
+        )
 
 
 def _ir_metadata(program: InterpretedProgram | None) -> InterpretationMetadata | None:
