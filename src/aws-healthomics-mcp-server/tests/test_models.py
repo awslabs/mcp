@@ -699,8 +699,8 @@ def test_container_registry_map():
     ]
 
     registry_map = ContainerRegistryMap(
-        registryMappings=registry_mappings,
-        imageMappings=image_mappings,
+        registryMappings=registry_mappings,  # type: ignore[arg-type]
+        imageMappings=image_mappings,  # type: ignore[arg-type]
     )
 
     assert len(registry_map.registryMappings) == 1
@@ -713,8 +713,8 @@ def test_container_registry_map_none_conversion():
     """Test ContainerRegistryMap None value conversion."""
     # Test None values are converted to empty lists
     registry_map = ContainerRegistryMap(
-        registryMappings=None,
-        imageMappings=None,
+        registryMappings=None,  # type: ignore[arg-type]
+        imageMappings=None,  # type: ignore[arg-type]
     )
 
     assert registry_map.registryMappings == []
@@ -743,7 +743,7 @@ def test_container_registry_map_dict_creation():
         ],
     }
 
-    registry_map = ContainerRegistryMap(**data)
+    registry_map = ContainerRegistryMap(**data)  # type: ignore[arg-type]
     assert len(registry_map.registryMappings) == 1
     assert len(registry_map.imageMappings) == 1
     assert registry_map.registryMappings[0].upstreamRegistryUrl == 'docker.io'
@@ -760,7 +760,7 @@ def test_container_registry_map_empty_dict():
 
     # Test with None values in dictionary
     data = {'registryMappings': None, 'imageMappings': None}
-    registry_map = ContainerRegistryMap(**data)
+    registry_map = ContainerRegistryMap(**data)  # type: ignore[arg-type]
     assert registry_map.registryMappings == []
     assert registry_map.imageMappings == []
 
@@ -770,7 +770,7 @@ def test_container_registry_map_validation_errors():
     # Test with invalid registry mapping structure
     with pytest.raises(ValidationError):
         ContainerRegistryMap(
-            registryMappings=[
+            registryMappings=[  # type: ignore[arg-type]
                 {
                     'upstreamRegistryUrl': 'docker.io',
                     # Missing required fields
@@ -781,7 +781,7 @@ def test_container_registry_map_validation_errors():
     # Test with invalid image mapping structure
     with pytest.raises(ValidationError):
         ContainerRegistryMap(
-            imageMappings=[
+            imageMappings=[  # type: ignore[arg-type]
                 {
                     'sourceImage': 'nginx:latest',
                     # Missing destinationImage
