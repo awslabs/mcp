@@ -22,19 +22,21 @@ class TestEcsTroubleshootingTool:
             _validate_action("invalid_action")
 
     def test_parameter_validation_with_app_name_required(self):
-        with pytest.raises(ValueError, match="Missing required parameter 'cluster_name'"):
+        with pytest.raises(ValueError, match="Missing required parameter 'ecs_cluster_name'"):
             _validate_parameters("get_ecs_troubleshooting_guidance", {})
 
-        _validate_parameters("get_ecs_troubleshooting_guidance", {"cluster_name": "test-cluster"})
+        _validate_parameters(
+            "get_ecs_troubleshooting_guidance", {"ecs_cluster_name": "test-cluster"}
+        )
 
     def test_parameter_validation_with_missing_required_params(self):
-        with pytest.raises(ValueError, match="Missing required parameter 'cluster_name'"):
-            _validate_parameters("fetch_service_events", {"service_name": "test-service"})
+        with pytest.raises(ValueError, match="Missing required parameter 'ecs_cluster_name'"):
+            _validate_parameters("fetch_service_events", {"ecs_service_name": "test-service"})
 
     def test_parameter_validation_success(self):
         _validate_parameters(
             "fetch_service_events",
-            {"cluster_name": "test-cluster", "service_name": "test-service"},
+            {"ecs_cluster_name": "test-cluster", "ecs_service_name": "test-service"},
         )
 
     def test_transformer_functions_exist(self):
@@ -45,7 +47,7 @@ class TestEcsTroubleshootingTool:
     def test_guidance_transformer(self):
         config = ACTIONS["get_ecs_troubleshooting_guidance"]
         result = config["transformer"](
-            {"cluster_name": "test-cluster", "symptoms_description": "ALB issues"}
+            {"ecs_cluster_name": "test-cluster", "symptoms_description": "ALB issues"}
         )
         expected = {
             "cluster_name": "test-cluster",
@@ -57,7 +59,7 @@ class TestEcsTroubleshootingTool:
     def test_cloudformation_transformer(self):
         config = ACTIONS["fetch_cloudformation_status"]
 
-        result = config["transformer"]({"stack_id": "custom-stack"})
+        result = config["transformer"]({"cfn_stack_name": "custom-stack"})
         expected = {"stack_id": "custom-stack"}
         assert result == expected
 
@@ -69,8 +71,8 @@ class TestEcsTroubleshootingTool:
         config = ACTIONS["fetch_service_events"]
         result = config["transformer"](
             {
-                "cluster_name": "test-cluster",
-                "service_name": "test-service",
+                "ecs_cluster_name": "test-cluster",
+                "ecs_service_name": "test-service",
                 "time_window": 7200,
                 "start_time": "2023-01-01T12:00:00Z",
             },
@@ -82,7 +84,7 @@ class TestEcsTroubleshootingTool:
 
     def test_task_failures_transformer(self):
         config = ACTIONS["fetch_task_failures"]
-        result = config["transformer"]({"cluster_name": "test-cluster"})
+        result = config["transformer"]({"ecs_cluster_name": "test-cluster"})
         expected = {
             "cluster_name": "test-cluster",
             "time_window": 3600,
@@ -113,7 +115,10 @@ class TestEcsTroubleshootingTool:
         try:
             result = await ecs_troubleshooting_tool(
                 action="get_ecs_troubleshooting_guidance",
-                parameters={"cluster_name": "test-cluster", "symptoms_description": "ALB issues"},
+                parameters={
+                    "ecs_cluster_name": "test-cluster",
+                    "symptoms_description": "ALB issues",
+                },
             )
 
             assert result == {"status": "success", "guidance": "test guidance"}
@@ -133,7 +138,7 @@ class TestEcsTroubleshootingTool:
         try:
             result = await ecs_troubleshooting_tool(
                 action="fetch_cloudformation_status",
-                parameters={"stack_id": "test-stack"},
+                parameters={"cfn_stack_name": "test-stack"},
             )
 
             assert result == {"status": "success", "stack_status": "CREATE_COMPLETE"}
@@ -155,7 +160,7 @@ class TestEcsTroubleshootingTool:
         )
 
         assert result["status"] == "error"
-        assert "Missing required parameter 'cluster_name'" in result["error"]
+        assert "Missing required parameter 'ecs_cluster_name'" in result["error"]
 
     @pytest.mark.anyio
     async def test_ecs_troubleshooting_tool_function_exception(self):
@@ -167,7 +172,7 @@ class TestEcsTroubleshootingTool:
         try:
             result = await ecs_troubleshooting_tool(
                 action="get_ecs_troubleshooting_guidance",
-                parameters={"cluster_name": "test-cluster"},
+                parameters={"ecs_cluster_name": "test-cluster"},
             )
 
             assert result["status"] == "error"
@@ -186,7 +191,7 @@ class TestEcsTroubleshootingTool:
             # We need to provide cluster_name since it's required
             result = await ecs_troubleshooting_tool(
                 action="get_ecs_troubleshooting_guidance",
-                parameters={"cluster_name": "test-cluster"},
+                parameters={"ecs_cluster_name": "test-cluster"},
             )
 
             assert result == {"status": "success"}
@@ -230,8 +235,8 @@ class TestTransformerFunctions:
         config = ACTIONS["fetch_service_events"]
         result = config["transformer"](
             {
-                "cluster_name": "test-cluster",
-                "service_name": "test-service",
+                "ecs_cluster_name": "test-cluster",
+                "ecs_service_name": "test-service",
                 "time_window": 1800,
                 "start_time": "2023-01-01T10:00:00Z",
                 "end_time": "2023-01-01T11:00:00Z",
@@ -246,8 +251,8 @@ class TestTransformerFunctions:
         config = ACTIONS["fetch_task_logs"]
         result = config["transformer"](
             {
-                "cluster_name": "test-cluster",
-                "task_id": "task-abc123",
+                "ecs_cluster_name": "test-cluster",
+                "ecs_task_id": "task-abc123",
                 "time_window": 1200,
                 "filter_pattern": '[timestamp, request_id, level="ERROR"]',
                 "start_time": "2023-01-01T10:00:00Z",
@@ -266,11 +271,11 @@ class TestTransformerFunctions:
 
 class TestEdgeCases:
     def test_empty_app_name(self):
-        with pytest.raises(ValueError, match="Missing required parameter 'cluster_name'"):
+        with pytest.raises(ValueError, match="Missing required parameter 'ecs_cluster_name'"):
             _validate_parameters("get_ecs_troubleshooting_guidance", {})
 
     def test_whitespace_app_name(self):
-        with pytest.raises(ValueError, match="Missing required parameter 'cluster_name'"):
+        with pytest.raises(ValueError, match="Missing required parameter 'ecs_cluster_name'"):
             _validate_parameters("get_ecs_troubleshooting_guidance", {})
 
     def test_case_sensitive_action(self):
@@ -376,7 +381,7 @@ class TestSensitiveDataHandling:
             mock_get_config.return_value = {"allow-sensitive-data": False}
 
             result = await ecs_troubleshooting_tool(
-                action="fetch_task_logs", parameters={"cluster_name": "test-cluster"}
+                action="fetch_task_logs", parameters={"ecs_cluster_name": "test-cluster"}
             )
 
             assert result["status"] == "error"
@@ -396,7 +401,7 @@ class TestSensitiveDataHandling:
 
             try:
                 result = await ecs_troubleshooting_tool(
-                    action="fetch_task_logs", parameters={"cluster_name": "test-cluster"}
+                    action="fetch_task_logs", parameters={"ecs_cluster_name": "test-cluster"}
                 )
 
                 assert result["status"] == "success"
@@ -419,7 +424,7 @@ class TestSensitiveDataHandling:
             try:
                 result = await ecs_troubleshooting_tool(
                     action="get_ecs_troubleshooting_guidance",
-                    parameters={"cluster_name": "test-cluster"},
+                    parameters={"ecs_cluster_name": "test-cluster"},
                 )
 
                 assert result["status"] == "success"
@@ -432,23 +437,24 @@ class TestDetectImagePullFailuresValidation:
     """Test the special validation logic for detect_image_pull_failures."""
 
     def test_detect_image_pull_failures_valid_cluster_service(self):
-        """Test valid cluster_name + service_name combination."""
+        """Test valid ecs_cluster_name + ecs_service_name combination."""
         _validate_parameters(
             "detect_image_pull_failures",
-            {"cluster_name": "test-cluster", "service_name": "test-service"},
+            {"ecs_cluster_name": "test-cluster", "ecs_service_name": "test-service"},
         )
         # Should not raise an exception
 
     def test_detect_image_pull_failures_valid_cluster_task(self):
-        """Test valid cluster_name + task_id combination."""
+        """Test valid ecs_cluster_name + ecs_task_id combination."""
         _validate_parameters(
-            "detect_image_pull_failures", {"cluster_name": "test-cluster", "task_id": "task-123"}
+            "detect_image_pull_failures",
+            {"ecs_cluster_name": "test-cluster", "ecs_task_id": "task-123"},
         )
         # Should not raise an exception
 
     def test_detect_image_pull_failures_valid_stack_name(self):
-        """Test valid stack_name parameter."""
-        _validate_parameters("detect_image_pull_failures", {"stack_name": "test-stack"})
+        """Test valid cfn_stack_name parameter."""
+        _validate_parameters("detect_image_pull_failures", {"cfn_stack_name": "test-stack"})
         # Should not raise an exception
 
     def test_detect_image_pull_failures_valid_family_prefix(self):
@@ -458,16 +464,28 @@ class TestDetectImagePullFailuresValidation:
 
     def test_detect_image_pull_failures_invalid_combinations(self):
         """Test invalid parameter combinations for detect_image_pull_failures."""
-        with pytest.raises(ValueError, match="At least one of"):
+        with pytest.raises(
+            ValueError,
+            match=(
+                "At least one of: ecs_cluster_name\\+ecs_service_name, "
+                "ecs_cluster_name\\+ecs_task_id, cfn_stack_name, or family_prefix"
+            ),
+        ):
             _validate_parameters(
                 "detect_image_pull_failures",
                 {},  # No valid parameters
             )
 
-        with pytest.raises(ValueError, match="At least one of"):
+        with pytest.raises(
+            ValueError,
+            match=(
+                "At least one of: ecs_cluster_name\\+ecs_service_name, "
+                "ecs_cluster_name\\+ecs_task_id, cfn_stack_name, or family_prefix"
+            ),
+        ):
             _validate_parameters(
                 "detect_image_pull_failures",
-                {"cluster_name": "test-cluster"},  # cluster_name alone is not sufficient
+                {"ecs_cluster_name": "test-cluster"},  # ecs_cluster_name alone is not sufficient
             )
 
 
@@ -505,7 +523,7 @@ class TestGuardrails:
             "fetch_task_failures": {"required": 1, "optional": 3},
             "fetch_task_logs": {"required": 1, "optional": 5},
             "detect_image_pull_failures": {"required": 0, "optional": 5},
-            "fetch_network_configuration": {"required": 0, "optional": 2},
+            "fetch_network_configuration": {"required": 1, "optional": 1},
         }
 
         for action_name, expected_counts in expected_param_counts.items():

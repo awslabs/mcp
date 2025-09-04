@@ -88,7 +88,7 @@ async def find_services(cluster_name: str) -> List[str]:
     Parameters
     ----------
     cluster_name : str
-        Name of the cluster to find services in.
+        Name of the ECS Cluster to find services in.
 
     Returns
     -------
@@ -135,9 +135,9 @@ async def find_load_balancers(cluster_name: str, service_name: str) -> List[Dict
     Parameters
     ----------
     cluster_name : str
-        Name of the ECS cluster.
+        Name of the ECS Cluster.
     service_name : str
-        Name of the ECS service.
+        Name of the ECS Service.
 
     Returns
     -------
@@ -241,15 +241,15 @@ async def find_task_definitions(
     Parameters
     ----------
     cluster_name : str, optional
-        Name of the ECS cluster. Required if service_name or task_id is provided.
+        Name of the ECS Cluster. Required if service_name or task_id is provided.
     service_name : str, optional
-        Name of the ECS service. Requires cluster_name.
+        Name of the ECS Service. Requires cluster_name.
     stack_name : str, optional
-        Name of the CloudFormation stack to find related task definitions.
+        Name of the CloudFormation Stack to find related Task Definitions.
     family_prefix : str, optional
-        Prefix to filter task definition families (e.g., "my-app").
+        Prefix to filter Task Definition families (e.g., "my-app").
     task_id : str, optional
-        ID of a task to get its task definition. Requires cluster_name.
+        ID of an ECS Task to get its Task Definition. Requires cluster_name.
 
     Returns
     -------
@@ -267,8 +267,8 @@ async def find_task_definitions(
         [(cluster_name and service_name), (cluster_name and task_id), stack_name, family_prefix]
     ):
         logger.warning(
-            "At least one of: cluster_name+service_name, cluster_name+task_id, "
-            "stack_name, or family_prefix must be provided"
+            "At least one of: ecs_cluster_name+ecs_service_name, ecs_cluster_name+ecs_task_id, "
+            "cfn_stack_name, or family_prefix must be provided"
         )
         return []
 
@@ -373,9 +373,9 @@ async def _get_task_definition_by_service(
     Parameters
     ----------
     cluster_name : str
-        Name of the ECS cluster.
+        Name of the ECS Cluster.
     service_name : str
-        Name of the ECS service.
+        Name of the ECS Service.
     ecs_client : BaseClient
         Boto3 ECS client instance.
 
@@ -423,9 +423,9 @@ async def _get_task_definition_by_task(
     Parameters
     ----------
     task_id : str
-        ID of the ECS task.
+        ID of the ECS Task.
     cluster_name : str
-        Name of the ECS cluster.
+        Name of the ECS Cluster.
     ecs_client : BaseClient
         Boto3 ECS client instance.
 
@@ -471,7 +471,7 @@ async def _get_task_definitions_by_stack(
     Parameters
     ----------
     stack_name : str
-        Name of the CloudFormation stack.
+        Name of the CloudFormation Stack.
     ecs_client : BaseClient
         Boto3 ECS client instance.
 

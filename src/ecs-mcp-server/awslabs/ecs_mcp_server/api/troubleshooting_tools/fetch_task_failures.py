@@ -190,7 +190,7 @@ async def fetch_task_failures(
     Parameters
     ----------
     cluster_name : str
-        The name of the ECS cluster
+        The name of the ECS Cluster
     time_window : int, optional
         Time window in seconds to look back for failures (default: 3600)
     start_time : datetime, optional

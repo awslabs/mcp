@@ -48,8 +48,8 @@ class TestFetchNetworkConfiguration(
     async def test_fetch_network_configuration_calls_get_network_data(self):
         """Test that fetch_network_configuration calls get_network_data with correct params."""
         # Setup
-        vpc_id = "vpc-12345678"
         cluster_name = "test-cluster"
+        vpc_id = "vpc-12345678"
 
         # Setup mock for get_network_data
         expected_result = {"status": "success", "data": {"vpc_ids": [vpc_id]}}
@@ -63,11 +63,11 @@ class TestFetchNetworkConfiguration(
         ) as mock_get_network_data:
             mock_get_network_data.return_value = expected_result
 
-            # Call the function (no client parameters)
-            result = await fetch_network_configuration(vpc_id, cluster_name)
+            # Call the function with required cluster_name parameter
+            result = await fetch_network_configuration(cluster_name, vpc_id)
 
             # Assertions
-            mock_get_network_data.assert_called_once_with(vpc_id, cluster_name)
+            mock_get_network_data.assert_called_once_with(cluster_name, vpc_id)
             self.assertEqual(result, expected_result)
 
     @pytest.mark.anyio
@@ -81,9 +81,9 @@ class TestFetchNetworkConfiguration(
         ) as mock_get_network_data:
             mock_get_network_data.side_effect = Exception("Test exception")
 
-            result = await fetch_network_configuration()
+            result = await fetch_network_configuration("test-cluster")
 
-            mock_get_network_data.assert_called_once_with(None, None)
+            mock_get_network_data.assert_called_once_with("test-cluster", None)
             self.assertEqual(result["status"], "error")
             self.assertIn("Internal error", result["error"])
             self.assertIn("Test exception", result["error"])
@@ -181,26 +181,19 @@ class TestFetchNetworkConfiguration(
         }
 
         with self.mock_aws_clients(mock_clients):
-            with mock.patch.object(
-                sys.modules[
-                    "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
-                ],
-                "find_clusters",
-                return_value=["test-cluster"],
-            ):
-                # Call the function with specific VPC ID
-                result = await get_network_data("vpc-12345678")
+            # Call the function with required cluster name and specific VPC ID
+            result = await get_network_data("test-cluster", "vpc-12345678")
 
-                # Verify result structure
-                self.assertEqual(result["status"], "success")
-                self.assertIn("data", result)
-                self.assertIn("timestamp", result["data"])
-                self.assertIn("vpc_ids", result["data"])
-                self.assertIn("raw_resources", result["data"])
-                self.assertIn("analysis_guide", result["data"])
+            # Verify result structure
+            self.assertEqual(result["status"], "success")
+            self.assertIn("data", result)
+            self.assertIn("timestamp", result["data"])
+            self.assertIn("vpc_ids", result["data"])
+            self.assertIn("raw_resources", result["data"])
+            self.assertIn("analysis_guide", result["data"])
 
-                # Verify VPC ID was used
-                self.assertEqual(result["data"]["vpc_ids"], ["vpc-12345678"])
+            # Verify VPC ID was used
+            self.assertEqual(result["data"]["vpc_ids"], ["vpc-12345678"])
 
     async def test_get_network_data_no_vpc(self):
         """Test get_network_data when no VPC is found."""
@@ -224,19 +217,12 @@ class TestFetchNetworkConfiguration(
         }
 
         with self.mock_aws_clients(mock_clients):
-            with mock.patch.object(
-                sys.modules[
-                    "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
-                ],
-                "find_clusters",
-                return_value=[],
-            ):
-                # Call the function with no parameters
-                result = await get_network_data()
+            # Call the function with required cluster name but no VPC
+            result = await get_network_data("test-cluster")
 
-                # Verify result
-                self.assertEqual(result["status"], "warning")
-                self.assertIn("No VPCs found", result["message"])
+            # Verify result
+            self.assertEqual(result["status"], "warning")
+            self.assertIn("No VPCs found", result["message"])
 
     @pytest.mark.anyio
     async def test_discover_vpcs_from_clusters(self):
@@ -840,19 +826,12 @@ class TestFetchNetworkConfiguration(
         }
 
         with self.mock_aws_clients(mock_clients):
-            with mock.patch.object(
-                sys.modules[
-                    "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
-                ],
-                "find_clusters",
-                return_value=[],
-            ):
-                # Call the function (no client parameters)
-                result = await get_network_data()
+            # Call the function with required cluster name
+            result = await get_network_data("test-cluster")
 
-                # Verify result is warning status
-                self.assertEqual(result["status"], "warning")
-                self.assertIn("No VPCs found", result["message"])
+            # Verify result is warning status
+            self.assertEqual(result["status"], "warning")
+            self.assertIn("No VPCs found", result["message"])
 
     @pytest.mark.anyio
     async def test_get_ec2_resource_with_null_vpc_ids(self):
@@ -1236,22 +1215,15 @@ class TestFetchNetworkConfiguration(
         }
 
         with self.mock_aws_clients(mock_clients):
-            with mock.patch.object(
-                sys.modules[
-                    "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
-                ],
-                "find_clusters",
-                return_value=[],
-            ):
-                # Call the function (no client parameters)
-                result = await get_network_data()
+            # Call the function with required cluster name
+            result = await get_network_data("test-cluster")
 
-                # Verify success status
-                self.assertEqual(result["status"], "success")
+            # Verify success status
+            self.assertEqual(result["status"], "success")
 
-                # Verify both vpc_ids were discovered
-                self.assertIn(vpc_id, result["data"]["vpc_ids"])
-                self.assertIn("vpc-87654321", result["data"]["vpc_ids"])
+            # Verify both vpc_ids were discovered
+            self.assertIn(vpc_id, result["data"]["vpc_ids"])
+            self.assertIn("vpc-87654321", result["data"]["vpc_ids"])
 
     @pytest.mark.anyio
     async def test_get_network_data_null_vpc_in_response(self):
@@ -1291,19 +1263,12 @@ class TestFetchNetworkConfiguration(
         }
 
         with self.mock_aws_clients(mock_clients):
-            with mock.patch.object(
-                sys.modules[
-                    "awslabs.ecs_mcp_server.api.troubleshooting_tools.fetch_network_configuration"
-                ],
-                "find_clusters",
-                return_value=[],
-            ):
-                # Call the function (no client parameters)
-                result = await get_network_data()
+            # Call the function with required cluster name
+            result = await get_network_data("test-cluster")
 
-                # Verify success status
-                self.assertEqual(result["status"], "success")
+            # Verify success status
+            self.assertEqual(result["status"], "success")
 
-                # Verify vpc_id was discovered from valid entry
-                self.assertEqual(len(result["data"]["vpc_ids"]), 1)
-                self.assertEqual(result["data"]["vpc_ids"][0], "vpc-12345678")
+            # Verify vpc_id was discovered from valid entry
+            self.assertEqual(len(result["data"]["vpc_ids"]), 1)
+            self.assertEqual(result["data"]["vpc_ids"][0], "vpc-12345678")

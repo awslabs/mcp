@@ -682,4 +682,3 @@ async def test_detect_image_pull_failures_general_outer_exception(test_module_se
     # Verify the result
     assert result["status"] == "error"
     assert "Special exception" in result["error"]
-    assert len(result["image_issues"]) == 0

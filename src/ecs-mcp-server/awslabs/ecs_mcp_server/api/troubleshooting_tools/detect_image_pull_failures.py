@@ -51,15 +51,15 @@ async def detect_image_pull_failures(
     Parameters
     ----------
     cluster_name : str, optional
-        Name of the ECS cluster (required if service_name or task_id is provided)
+        Name of the ECS Cluster (required if service_name or task_id is provided)
     service_name : str, optional
-        Name of the ECS service (requires cluster_name)
+        Name of the ECS Service (requires cluster_name)
     stack_name : str, optional
-        Name of the CloudFormation stack to find related task definitions
+        Name of the CloudFormation Stack to find related Task Definitions
     family_prefix : str, optional
-        Prefix to filter task definition families (e.g., "my-app")
+        Prefix to filter Task Definition families (e.g., "my-app")
     task_id : str, optional
-        ID of a task to get its task definition (requires cluster_name)
+        ID of an ECS Task to get its Task Definition (requires cluster_name)
 
     Returns
     -------
@@ -79,15 +79,13 @@ async def detect_image_pull_failures(
             [(cluster_name and service_name), (cluster_name and task_id), stack_name, family_prefix]
         ):
             error_msg = (
-                "At least one of: cluster_name+service_name, cluster_name+task_id, "
-                "stack_name, or family_prefix must be provided"
+                "At least one of: ecs_cluster_name+ecs_service_name, ecs_cluster_name+ecs_task_id, "
+                "cfn_stack_name, or family_prefix must be provided"
             )
             logger.error(error_msg)
             return {
                 "status": "error",
                 "error": error_msg,
-                "assessment": error_msg,
-                "image_issues": [],
             }
 
         # Find related task definitions
@@ -105,7 +103,6 @@ async def detect_image_pull_failures(
                 "status": "error",
                 "error": str(e),
                 "assessment": f"Error checking for image pull failures: {str(e)}",
-                "image_issues": [],
             }
 
         if not task_definitions:

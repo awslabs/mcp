@@ -62,49 +62,51 @@ TroubleshootingAction = Literal[
 ACTIONS = {
     "get_ecs_troubleshooting_guidance": {
         "func": get_ecs_troubleshooting_guidance,
-        "required_params": ["cluster_name"],
-        "optional_params": ["service_name", "symptoms_description"],
+        "required_params": ["ecs_cluster_name"],
+        "optional_params": ["ecs_service_name", "symptoms_description"],
         "transformer": lambda params: {
-            "cluster_name": params["cluster_name"],
-            "service_name": params.get("service_name"),
+            "cluster_name": params["ecs_cluster_name"],
+            "service_name": params.get("ecs_service_name"),
             "symptoms_description": params.get("symptoms_description"),
         },
         "description": "Initial assessment and data collection",
         "param_descriptions": {
-            "cluster_name": "The name of the ECS cluster to troubleshoot",
-            "service_name": "The name of the ECS service to troubleshoot (optional)",
-            "symptoms_description": "Description of symptoms experienced by the user",
+            "ecs_cluster_name": "The name of the ECS Cluster to troubleshoot",
+            "ecs_service_name": "The name of the ECS Service to troubleshoot (optional)",
+            "symptoms_description": "Description of symptoms experienced by the uhser",
         },
         "example": (
             'action="get_ecs_troubleshooting_guidance", '
-            'parameters={"cluster_name": "my-cluster", "service_name": "my-service", '
+            'parameters={"ecs_cluster_name": "my-cluster", "ecs_service_name": "my-service", '
             '"symptoms_description": "ALB returning 503 errors"}'
         ),
     },
     "fetch_cloudformation_status": {
         "func": fetch_cloudformation_status,
-        "required_params": ["stack_id"],
+        "required_params": ["cfn_stack_name"],
         "optional_params": [],
-        "transformer": lambda params: {"stack_id": params.get("stack_id")},
-        "description": "Infrastructure-level diagnostics for CloudFormation stacks",
-        "param_descriptions": {"stack_id": "The CloudFormation stack identifier to analyze"},
-        "example": 'action="fetch_cloudformation_status", parameters={"stack_id": "my-app-stack"}',
+        "transformer": lambda params: {"stack_id": params.get("cfn_stack_name")},
+        "description": "Infrastructure-level diagnostics for CloudFormation Stacks",
+        "param_descriptions": {"cfn_stack_name": "The CloudFormation Stack identifier to analyze"},
+        "example": (
+            'action="fetch_cloudformation_status", parameters={"cfn_stack_name": "my-app-stack"}'
+        ),
     },
     "fetch_service_events": {
         "func": fetch_service_events,
-        "required_params": ["cluster_name", "service_name"],
+        "required_params": ["ecs_cluster_name", "ecs_service_name"],
         "optional_params": ["time_window", "start_time", "end_time"],
         "transformer": lambda params: {
-            "cluster_name": params["cluster_name"],
-            "service_name": params["service_name"],
+            "cluster_name": params["ecs_cluster_name"],
+            "service_name": params["ecs_service_name"],
             "time_window": params.get("time_window", 3600),
             "start_time": params.get("start_time"),
             "end_time": params.get("end_time"),
         },
-        "description": "Service-level diagnostics for ECS services",
+        "description": "Service-level diagnostics for ECS Services",
         "param_descriptions": {
-            "cluster_name": "The name of the ECS cluster",
-            "service_name": "The name of the ECS service to analyze",
+            "ecs_cluster_name": "The name of the ECS Cluster",
+            "ecs_service_name": "The name of the ECS Service to analyze",
             "time_window": "Time window in seconds to look back for events (default: 3600)",
             "start_time": (
                 "Explicit start time for the analysis window "
@@ -117,23 +119,23 @@ ACTIONS = {
         },
         "example": (
             'action="fetch_service_events", '
-            'parameters={"cluster_name": "my-cluster", "service_name": "my-service", '
+            'parameters={"ecs_cluster_name": "my-cluster", "ecs_service_name": "my-service", '
             '"time_window": 7200}'
         ),
     },
     "fetch_task_failures": {
         "func": fetch_task_failures,
-        "required_params": ["cluster_name"],
+        "required_params": ["ecs_cluster_name"],
         "optional_params": ["time_window", "start_time", "end_time"],
         "transformer": lambda params: {
-            "cluster_name": params["cluster_name"],
+            "cluster_name": params["ecs_cluster_name"],
             "time_window": params.get("time_window", 3600),
             "start_time": params.get("start_time"),
             "end_time": params.get("end_time"),
         },
-        "description": "Task-level diagnostics for ECS task failures",
+        "description": "Task-level diagnostics for ECS Task failures",
         "param_descriptions": {
-            "cluster_name": "The name of the ECS cluster",
+            "ecs_cluster_name": "The name of the ECS Cluster",
             "time_window": "Time window in seconds to look back for failures (default: 3600)",
             "start_time": (
                 "Explicit start time for the analysis window "
@@ -146,27 +148,33 @@ ACTIONS = {
         },
         "example": (
             'action="fetch_task_failures", '
-            'parameters={"cluster_name": "my-cluster", "time_window": 3600}'
+            'parameters={"ecs_cluster_name": "my-cluster", "time_window": 3600}'
         ),
     },
     "fetch_task_logs": {
         "func": fetch_task_logs,
-        "required_params": ["cluster_name"],
-        "optional_params": ["task_id", "time_window", "filter_pattern", "start_time", "end_time"],
+        "required_params": ["ecs_cluster_name"],
+        "optional_params": [
+            "ecs_task_id",
+            "time_window",
+            "filter_pattern",
+            "start_time",
+            "end_time",
+        ],
         "transformer": lambda params: {
-            "cluster_name": params["cluster_name"],
-            "task_id": params.get("task_id"),
+            "cluster_name": params["ecs_cluster_name"],
+            "task_id": params.get("ecs_task_id"),
             "time_window": params.get("time_window", 3600),
             "filter_pattern": params.get("filter_pattern"),
             "start_time": params.get("start_time"),
             "end_time": params.get("end_time"),
         },
-        "description": "Application-level diagnostics through CloudWatch logs",
+        "description": "Application-level diagnostics through CloudWatch Logs",
         "param_descriptions": {
-            "cluster_name": "The name of the ECS cluster",
-            "task_id": "Specific task ID to retrieve logs for",
+            "ecs_cluster_name": "The name of the ECS Cluster",
+            "ecs_task_id": "Specific ECS Task ID to retrieve logs for",
             "time_window": "Time window in seconds to look back for logs (default: 3600)",
-            "filter_pattern": "CloudWatch logs filter pattern",
+            "filter_pattern": "CloudWatch Logs filter pattern",
             "start_time": (
                 "Explicit start time for the analysis window "
                 "(UTC, takes precedence over time_window if provided)"
@@ -178,7 +186,7 @@ ACTIONS = {
         },
         "example": (
             'action="fetch_task_logs", '
-            'parameters={"cluster_name": "my-cluster", "filter_pattern": "ERROR", '
+            'parameters={"ecs_cluster_name": "my-cluster", "filter_pattern": "ERROR", '
             '"time_window": 1800}'
         ),
     },
@@ -186,46 +194,53 @@ ACTIONS = {
         "func": detect_image_pull_failures,
         "required_params": [],  # No single required param, but need at least one combo
         "optional_params": [
-            "cluster_name",
-            "service_name",
-            "stack_name",
+            "ecs_cluster_name",
+            "ecs_service_name",
+            "cfn_stack_name",
             "family_prefix",
-            "task_id",
+            "ecs_task_id",
         ],
         "transformer": lambda params: {
-            "cluster_name": params.get("cluster_name"),
-            "service_name": params.get("service_name"),
-            "stack_name": params.get("stack_name"),
+            "cluster_name": params.get("ecs_cluster_name"),
+            "service_name": params.get("ecs_service_name"),
+            "stack_name": params.get("cfn_stack_name"),
             "family_prefix": params.get("family_prefix"),
-            "task_id": params.get("task_id"),
+            "task_id": params.get("ecs_task_id"),
         },
         "description": "Specialized tool for detecting container image pull failures",
         "param_descriptions": {
-            "cluster_name": "Name of the ECS cluster (required if service_name/task_id provided)",
-            "service_name": "Name of the ECS service (requires cluster_name)",
-            "stack_name": "Name of the CloudFormation stack to find related task definitions",
-            "family_prefix": "Prefix to filter task definition families (e.g., 'my-app')",
-            "task_id": "ID of a task to get its task definition (requires cluster_name)",
+            "ecs_cluster_name": (
+                "Name of the ECS Cluster (required if ecs_service_name/ecs_task_id provided)"
+            ),
+            "ecs_service_name": "Name of the ECS Service (requires ecs_cluster_name)",
+            "cfn_stack_name": "Name of the CloudFormation Stack to find related Task Definitions",
+            "family_prefix": "Prefix to filter Task Definition families (e.g., 'my-app')",
+            "ecs_task_id": (
+                "ID of an ECS Task to get its Task Definition (requires ecs_cluster_name)"
+            ),
         },
-        "example": 'action="detect_image_pull_failures", parameters={"family_prefix": "my-app"}',
+        "example": (
+            'action="detect_image_pull_failures", '
+            'parameters={"ecs_cluster_name": "my-cluster", "ecs_service_name": "my-service"}'
+        ),
     },
     "fetch_network_configuration": {
         "func": fetch_network_configuration,
-        "required_params": [],
-        "optional_params": ["vpc_id", "cluster_name"],
+        "required_params": ["ecs_cluster_name"],
+        "optional_params": ["vpc_id"],
         "transformer": lambda params: {
+            "cluster_name": params["ecs_cluster_name"],
             "vpc_id": params.get("vpc_id"),
-            "cluster_name": params.get("cluster_name"),
         },
         "description": "Network-level diagnostics for ECS deployments",
         "param_descriptions": {
-            "vpc_id": "Specific VPC ID to analyze",
-            "cluster_name": "Specific ECS cluster name",
+            "ecs_cluster_name": "Name of the ECS Cluster to analyze",
+            "vpc_id": "Specific VPC ID to analyze (optional)",
         },
         "example": (
             'action="fetch_network_configuration", '
-            'parameters={"vpc_id": "vpc-12345678", '
-            '"cluster_name": "my-cluster"}'
+            'parameters={"ecs_cluster_name": "my-cluster", '
+            '"vpc_id": "vpc-12345678"}'
         ),
     },
 }
@@ -331,15 +346,15 @@ def _validate_parameters(action: str, parameters: Dict[str, Any]) -> None:
     if action == "detect_image_pull_failures":
         if not any(
             [
-                (parameters.get("cluster_name") and parameters.get("service_name")),
-                (parameters.get("cluster_name") and parameters.get("task_id")),
-                parameters.get("stack_name"),
+                (parameters.get("ecs_cluster_name") and parameters.get("ecs_service_name")),
+                (parameters.get("ecs_cluster_name") and parameters.get("ecs_task_id")),
+                parameters.get("cfn_stack_name"),
                 parameters.get("family_prefix"),
             ]
         ):
             raise ValueError(
-                "At least one of: cluster_name+service_name, cluster_name+task_id, "
-                "stack_name, or family_prefix must be provided for 'detect_image_pull_failures'"
+                "At least one of: ecs_cluster_name+ecs_service_name, ecs_cluster_name+ecs_task_id, "
+                "cfn_stack_name, or family_prefix must be provided for 'detect_image_pull_failures'"
             )
         return
 

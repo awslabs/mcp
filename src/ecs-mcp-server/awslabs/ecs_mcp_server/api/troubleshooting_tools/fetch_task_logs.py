@@ -44,9 +44,9 @@ async def fetch_task_logs(
     Parameters
     ----------
     cluster_name : str
-        The name of the ECS cluster
+        The name of the ECS Cluster
     task_id : str, optional
-        Specific task ID to retrieve logs for
+        Specific ECS Task ID to retrieve logs for
     time_window : int, optional
         Time window in seconds to look back for logs (default: 3600)
     filter_pattern : str, optional

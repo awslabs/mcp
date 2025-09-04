@@ -83,10 +83,10 @@ test_get_ecs_troubleshooting_guidance() {
     fi
 
     local params="{"
-    params="$params\"cluster_name\":\"$cluster_name\""
+    params="$params\"ecs_cluster_name\":\"$cluster_name\""
 
     if [ -n "$service_name" ]; then
-        params="$params,\"service_name\":\"$service_name\""
+        params="$params,\"ecs_service_name\":\"$service_name\""
     fi
 
     if [ -n "$symptoms" ]; then
@@ -108,7 +108,7 @@ test_detect_image_pull_failures() {
     local has_param=false
 
     if [ -n "$cluster_name" ]; then
-        params="$params\"cluster_name\":\"$cluster_name\""
+        params="$params\"ecs_cluster_name\":\"$cluster_name\""
         has_param=true
     fi
 
@@ -116,7 +116,7 @@ test_detect_image_pull_failures() {
         if [ "$has_param" = true ]; then
             params="$params,"
         fi
-        params="$params\"service_name\":\"$service_name\""
+        params="$params\"ecs_service_name\":\"$service_name\""
         has_param=true
     fi
 
@@ -145,8 +145,8 @@ test_fetch_service_events() {
     fi
 
     local params="{"
-    params="$params\"cluster_name\":\"$cluster_name\""
-    params="$params,\"service_name\":\"$service_name\""
+    params="$params\"ecs_cluster_name\":\"$cluster_name\""
+    params="$params,\"ecs_service_name\":\"$service_name\""
 
     if [ -n "$time_window" ]; then
         params="$params,\"time_window\":$time_window"
@@ -168,7 +168,7 @@ test_fetch_task_failures() {
     fi
 
     local params="{"
-    params="$params\"cluster_name\":\"$cluster_name\""
+    params="$params\"ecs_cluster_name\":\"$cluster_name\""
 
     if [ -n "$time_window" ]; then
         params="$params,\"time_window\":$time_window"
@@ -192,10 +192,10 @@ test_fetch_task_logs() {
     fi
 
     local params="{"
-    params="$params\"cluster_name\":\"$cluster_name\""
+    params="$params\"ecs_cluster_name\":\"$cluster_name\""
 
     if [ -n "$task_id" ]; then
-        params="$params,\"task_id\":\"$task_id\""
+        params="$params,\"ecs_task_id\":\"$task_id\""
     fi
 
     if [ -n "$filter_pattern" ]; then
@@ -213,23 +213,19 @@ test_fetch_task_logs() {
 
 # Test fetch_network_configuration tool
 test_fetch_network_configuration() {
-    local vpc_id="$1"
-    local cluster_name="$2"
+    local cluster_name="$1"
+    local vpc_id="$2"
 
-    local params="{"
-    local has_param=false
-
-    if [ -n "$vpc_id" ]; then
-        params="$params\"vpc_id\":\"$vpc_id\""
-        has_param=true
+    if [ -z "$cluster_name" ]; then
+        echo "❌ Error: cluster_name is required for fetch_network_configuration"
+        return 1
     fi
 
-    if [ -n "$cluster_name" ]; then
-        if [ "$has_param" = true ]; then
-            params="$params,"
-        fi
-        params="$params\"cluster_name\":\"$cluster_name\""
-        has_param=true
+    local params="{"
+    params="$params\"ecs_cluster_name\":\"$cluster_name\""
+
+    if [ -n "$vpc_id" ]; then
+        params="$params,\"vpc_id\":\"$vpc_id\""
     fi
 
     params="$params}"

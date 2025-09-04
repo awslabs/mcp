@@ -269,7 +269,7 @@ TOTAL_TESTS=$((TOTAL_TESTS + 1))
 
 echo "🔍 Running fetch_network_configuration..."
 
-RESPONSE6=$(test_fetch_network_configuration "$VPC_ID" "$CLUSTER_NAME")
+RESPONSE6=$(test_fetch_network_configuration "$CLUSTER_NAME" "$VPC_ID")
 TEST6_EXIT_CODE=$?
 
 # Log and show assertions

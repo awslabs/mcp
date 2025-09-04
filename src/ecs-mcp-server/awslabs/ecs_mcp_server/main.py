@@ -82,12 +82,12 @@ WORKFLOW:
 2. create_ecs_infrastructure:
    - Create the necessary AWS infrastructure for ECS deployment
    - Set up VPC, subnets, security groups, and IAM roles
-   - Configure ECS cluster, task definitions, and services
+   - Configure ECS Cluster, ECS Task Definitions, and ECS Services
 
 3. get_deployment_status:
    - Check the status of your ECS deployment
    - Get the ALB URL to access your application
-   - Monitor the health of your ECS service
+   - Monitor the health of your ECS Service
 
 IMPORTANT:
 - Make sure your application has a clear entry point

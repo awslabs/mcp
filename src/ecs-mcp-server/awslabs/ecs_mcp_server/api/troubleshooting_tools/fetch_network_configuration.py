@@ -25,9 +25,6 @@ from typing import Any, Dict, List, Optional
 
 from botocore.exceptions import ClientError
 
-from awslabs.ecs_mcp_server.api.troubleshooting_tools.utils import (
-    find_clusters,
-)
 from awslabs.ecs_mcp_server.utils.aws import get_aws_client
 
 logger = logging.getLogger(__name__)
@@ -53,8 +50,8 @@ def handle_aws_api_call(func, error_value=None, *args, **kwargs):
 
 
 async def fetch_network_configuration(
+    cluster_name: str,
     vpc_id: Optional[str] = None,
-    cluster_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Network-level diagnostics for ECS deployments.
@@ -62,10 +59,10 @@ async def fetch_network_configuration(
 
     Parameters
     ----------
+    cluster_name : str
+        Name of the ECS Cluster to analyze
     vpc_id : str, optional
         Specific VPC ID to analyze
-    cluster_name : str, optional
-        Specific ECS cluster name
 
     Returns
     -------
@@ -73,15 +70,15 @@ async def fetch_network_configuration(
         Raw network configuration data for LLM analysis
     """
     try:
-        return await get_network_data(vpc_id, cluster_name)
+        return await get_network_data(cluster_name, vpc_id)
     except Exception as e:
         logger.exception(f"Error in fetch_network_configuration: {e}")
         return {"status": "error", "error": f"Internal error: {str(e)}"}
 
 
 async def get_network_data(
+    cluster_name: str,
     vpc_id: Optional[str] = None,
-    cluster_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Collect all relevant networking data with minimal processing."""
     try:
@@ -89,17 +86,8 @@ async def get_network_data(
         ec2 = await get_aws_client("ec2")
         elbv2 = await get_aws_client("elbv2")
 
-        # Identify relevant clusters
-        clusters = []
-        if cluster_name:
-            clusters.append(cluster_name)
-        else:
-            all_clusters = await find_clusters()
-            clusters.extend(all_clusters)
-
-            # Add default cluster as a fallback if no clusters found
-            if not clusters:
-                clusters.append("default")
+        # Use the provided cluster name
+        clusters = [cluster_name]
 
         # Identify relevant VPCs
         vpc_ids = [vpc_id] if vpc_id else []

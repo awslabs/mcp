@@ -241,7 +241,7 @@ async def collect_cluster_details(
     Parameters
     ----------
     cluster_name : str
-        The name of the ECS cluster to describe
+        The name of the ECS Cluster to describe
     ecs_client : BaseClient
         Boto3 ECS client instance
 
@@ -287,9 +287,9 @@ async def collect_service_details(
     Parameters
     ----------
     cluster_name : str
-        The name of the ECS cluster
+        The name of the ECS Cluster
     service_name : Optional[str]
-        The name of specific service, or None for cluster-wide discovery
+        The name of specific ECS Service, or None for cluster-wide discovery
     ecs_client : BaseClient
         Boto3 ECS client instance
 
@@ -335,9 +335,9 @@ async def collect_task_details(
     Parameters
     ----------
     cluster_name : str
-        The name of the ECS cluster
+        The name of the ECS Cluster
     service_name : Optional[str]
-        The name of specific service, if applicable
+        The name of specific ECS Service, if applicable
 
     Returns
     -------
@@ -441,9 +441,9 @@ async def get_ecs_troubleshooting_guidance(
     Parameters
     ----------
     cluster_name : str
-        The name of the ECS cluster to troubleshoot
+        The name of the ECS Cluster to troubleshoot
     service_name : str, optional
-        The name of the ECS service to troubleshoot
+        The name of the ECS Service to troubleshoot
     symptoms_description : str, optional
         Description of symptoms experienced by the user
 
