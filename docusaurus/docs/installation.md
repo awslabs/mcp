@@ -171,7 +171,6 @@ See [Kiro Model Context Protocol Documentation](https://kiro.dev/docs/mcp/config
 
 #### `kiro_mcp_settings.json`
 
-For macOS/Linux:
 
 ```json
 {
@@ -187,30 +186,7 @@ For macOS/Linux:
 }
 ```
 
-For Windows:
 
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "disabled": false,
-      "timeout": 60,
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "tool",
-        "run",
-        "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
 
 ### Getting Started with Cline and Amazon Bedrock
 
