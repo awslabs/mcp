@@ -580,16 +580,3 @@ def test_interpret_command_creates_output_file_for_streaming_operations(
 
             assert 'Body' not in response_data
             assert 'Payload' not in response_data
-
-
-@pytest.mark.parametrize(
-    'command',
-    [
-        'aws s3api get-object --bucket test-bucket --key test-key relative/path/file.txt',
-        'aws lambda invoke --function-name my-function response.json',
-    ],
-)
-def test_validate_output_file_raises_error_for_relative_paths(command):
-    """Test that _validate_output_file raises ValueError for streaming operations with relative paths."""
-    with pytest.raises(ValueError, match=r'.* should be an aboslute path'):
-        interpret_command(cli_command=command)

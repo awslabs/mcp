@@ -32,6 +32,7 @@ from ..common.errors import (
     CommandValidationError,
     DeniedGlobalArgumentsError,
     ExpectedArgumentError,
+    FileParameterError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
@@ -571,6 +572,10 @@ def _validate_customization_arguments(
             operation_command, command_metadata, operation_args, service, operation
         )
 
+        # Run custom validations for S3 customizations
+        if service == 's3':
+            _validate_s3_file_paths(service, operation, parameters)
+
         return _construct_command(
             command_metadata=command_metadata,
             global_args=global_args,
@@ -697,6 +702,28 @@ def _run_custom_validations(service: str, operation: str, parameters: dict[str, 
         validate_ec2_parameter_values(parameters)
 
 
+def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, Any]):
+    if operation != 'cp':
+        return
+
+    paths = parameters.get('--paths')
+    if not paths or not isinstance(paths, list) or len(paths) < 2:
+        return
+
+    source_path, dest_path = paths
+
+    if source_path == '-' or dest_path == '-':
+        file_path = source_path if source_path == '-' else dest_path
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason="streaming file ('-') is not allowed",
+        )
+    _validate_file_path(source_path, service, operation)
+    _validate_file_path(dest_path, service, operation)
+
+
 def _validate_request_serialization(
     operation: str,
     service_model: ServiceModel,
@@ -720,9 +747,24 @@ def _validate_request_serialization(
 
 def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
     if command_metadata.has_streaming_output:
-        output_file_path = parsed_args.operation_args.outfile
-        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
-            raise ValueError(f'{output_file_path} should be an aboslute path')
+        _validate_file_path(
+            parsed_args.operation_args.outfile,
+            command_metadata.service_sdk_name,
+            command_metadata.operation_sdk_name,
+        )
+
+
+def _validate_file_path(file_path: str, service: str, operation: str):
+    if file_path == '-' or file_path.startswith('s3://'):
+        return
+
+    if not os.path.isabs(Path(file_path)):
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason='should be an absolute path',
+        )
 
 
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
