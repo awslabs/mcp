@@ -53,6 +53,11 @@ class IRCommand:
         return xform_name(self.command_metadata.operation_sdk_name)
 
     @property
+    def operation_cli_name(self):
+        """Return the Pythonic operation name for the command."""
+        return xform_name(self.command_metadata.operation_sdk_name).replace('_', '-')
+
+    @property
     def operation_name(self):
         """Return the operation name for the command."""
         return self.command_metadata.operation_sdk_name
