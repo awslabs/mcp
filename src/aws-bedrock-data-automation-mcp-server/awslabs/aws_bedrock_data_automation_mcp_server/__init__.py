@@ -15,4 +15,4 @@
 
 """awslabs.aws-bedrock-data-automation-mcp-server"""
 
-__version__ = '0.0.6'
+__version__ = '0.0.8'

@@ -1,5 +1,9 @@
 import pytest
-from awslabs.aws_api_mcp_server.core.common.config import get_region, get_server_directory
+from awslabs.aws_api_mcp_server.core.common.config import (
+    get_region,
+    get_server_directory,
+    get_transport_from_env,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -55,9 +59,7 @@ def test_get_server_directory_windows_macos(
     ],
 )
 @patch('awslabs.aws_api_mcp_server.core.common.config.boto3.Session')
-@patch('awslabs.aws_api_mcp_server.core.common.config.os.getenv')
 def test_get_region_parametrized(
-    mock_getenv: MagicMock,
     mock_session_class: MagicMock,
     aws_region: str,
     profile_name: str,
@@ -66,8 +68,6 @@ def test_get_region_parametrized(
     expected_region: str,
 ):
     """Parametrized test for various combinations of region sources."""
-    mock_getenv.return_value = aws_region
-
     profile_session = MagicMock()
     profile_session.region_name = profile_region
 
@@ -82,10 +82,54 @@ def test_get_region_parametrized(
 
     mock_session_class.side_effect = session_side_effect
 
-    with patch(
-        'awslabs.aws_api_mcp_server.core.common.config.AWS_API_MCP_PROFILE_NAME', profile_name
-    ):
-        result = get_region()
+    with patch('awslabs.aws_api_mcp_server.core.common.config.AWS_REGION', aws_region):
+        result = get_region(profile_name)
 
     assert result == expected_region
-    mock_getenv.assert_called_once_with('AWS_REGION')
+
+
+@pytest.mark.parametrize(
+    'transport_value,expected',
+    [
+        ('stdio', 'stdio'),
+        ('streamable-http', 'streamable-http'),
+    ],
+)
+def test_get_transport_from_env_valid_values(monkeypatch, transport_value, expected):
+    """Test get_transport_from_env with valid transport values."""
+    monkeypatch.setenv('AWS_API_MCP_TRANSPORT', transport_value)
+
+    result = get_transport_from_env()
+
+    assert result == expected
+
+
+def test_get_transport_from_env_default_value(monkeypatch):
+    """Test get_transport_from_env returns default value when env var is not set."""
+    # Ensure the environment variable is not set
+    monkeypatch.delenv('AWS_API_MCP_TRANSPORT', raising=False)
+
+    result = get_transport_from_env()
+
+    assert result == 'stdio'
+
+
+@pytest.mark.parametrize(
+    'invalid_transport',
+    [
+        'http',
+        'websocket',
+        'tcp',
+        'invalid',
+        'STDIO',
+        'STREAMABLE-HTTP',
+        '',
+        'stdio-http',
+    ],
+)
+def test_get_transport_from_env_invalid_values(monkeypatch, invalid_transport):
+    """Test get_transport_from_env raises ValueError for invalid transport values."""
+    monkeypatch.setenv('AWS_API_MCP_TRANSPORT', invalid_transport)
+
+    with pytest.raises(ValueError, match=f'Invalid transport: {invalid_transport}'):
+        get_transport_from_env()
