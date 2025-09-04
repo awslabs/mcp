@@ -14,6 +14,8 @@
 """Tests for the response type classes in server.py."""
 
 import pytest
+
+# Import directly from the server module
 from awslabs.core_mcp_server.server import ContentItem, McpResponse
 from typing import get_type_hints
 

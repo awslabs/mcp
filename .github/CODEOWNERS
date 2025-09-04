@@ -27,6 +27,7 @@ NOTICE                                                                    @awsla
 /src/amazon-rekognition-mcp-server      @ayush987goyal                    @awslabs/mcp-admins
 /src/amazon-sns-sqs-mcp-server          @kenliao94 @hashimsharkh          @awslabs/mcp-admins
 /src/aws-api-mcp-server                 @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh @awslabs/mcp-admins
+/src/aws-appsync-mcp-server             @phani-srikar @maxi114 @Harshith15 @awslabs/mcp-admins
 #/src/aurora-dsql-mcp-server            @awslabs/mcp-maintainers          @awslabs/mcp-admins
 #/src/aws-bedrock-custom-model-import-mcp-server @saidrhs                 @awslabs/mcp-admins
 #/src/aws-bedrock-data-automation-mcp-server @awslabs/mcp-maintainers     @awslabs/mcp-admins
@@ -60,6 +61,7 @@ NOTICE                                                                    @awsla
 /src/finch-mcp-server                   @Shubhranshu153 @pendo324         @awslabs/mcp-admins
 /src/frontend-mcp-server                @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/git-repo-research-mcp-server       @jonslo                           @awslabs/mcp-admins
+/src/healthlake-mcp-server              @aws-steve @awsri                   @awslabs/mcp-admins
 /src/iam-mcp-server                     @oshardik                         @awslabs/mcp-admins
 /src/lambda-tool-mcp-server             @danilop @jsamuel1                @awslabs/mcp-admins
 /src/mcp-lambda-handler                 @mikegc-aws @Lukas-Xue            @awslabs/mcp-admins
