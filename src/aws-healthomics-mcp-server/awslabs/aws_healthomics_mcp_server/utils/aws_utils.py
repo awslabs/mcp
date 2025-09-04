@@ -21,7 +21,7 @@ import io
 import os
 import zipfile
 from awslabs.aws_healthomics_mcp_server import __version__
-from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_REGION
+from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_OMICS_SERVICE_NAME, DEFAULT_REGION
 from loguru import logger
 from typing import Any, Dict
 
@@ -33,6 +33,58 @@ def get_region() -> str:
         str: AWS region name
     """
     return os.environ.get('AWS_REGION', DEFAULT_REGION)
+
+
+def get_omics_service_name() -> str:
+    """Get the HealthOmics service name from environment variable or default.
+
+    Returns:
+        str: HealthOmics service name
+    """
+    service_name = os.environ.get('HEALTHOMICS_SERVICE_NAME', DEFAULT_OMICS_SERVICE_NAME)
+
+    # Check if service name is empty or only whitespace
+    if not service_name or not service_name.strip():
+        logger.warning(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            f'Using default service name: {DEFAULT_OMICS_SERVICE_NAME}'
+        )
+        return DEFAULT_OMICS_SERVICE_NAME
+
+    return service_name.strip()
+
+
+def get_omics_endpoint_url() -> str | None:
+    """Get the HealthOmics service endpoint URL from environment variable.
+
+    Returns:
+        str | None: HealthOmics endpoint URL if valid, None otherwise
+    """
+    endpoint_url = os.environ.get('HEALTHOMICS_ENDPOINT_URL')
+
+    # If environment variable is not set, return None (no warning needed)
+    if endpoint_url is None:
+        return None
+
+    endpoint_url = endpoint_url.strip()
+
+    # Check if endpoint URL is empty or only whitespace
+    if not endpoint_url:
+        logger.warning(
+            'HEALTHOMICS_ENDPOINT_URL environment variable is empty or contains only whitespace. '
+            'Using default endpoint.'
+        )
+        return None
+
+    # Validate that endpoint URL starts with http:// or https://
+    if not (endpoint_url.startswith('http://') or endpoint_url.startswith('https://')):
+        logger.warning(
+            f'HEALTHOMICS_ENDPOINT_URL environment variable "{endpoint_url}" must begin with '
+            'http:// or https://. Using default endpoint.'
+        )
+        return None
+
+    return endpoint_url
 
 
 def get_aws_session() -> boto3.Session:
@@ -118,7 +170,18 @@ def get_omics_client() -> Any:
     Raises:
         Exception: If client creation fails
     """
-    return create_aws_client('omics')
+    session = get_aws_session()
+    service_name = get_omics_service_name()
+    endpoint_url = get_omics_endpoint_url()
+
+    try:
+        if endpoint_url:
+            return session.client(service_name, endpoint_url=endpoint_url)
+        else:
+            return session.client(service_name)
+    except Exception as e:
+        logger.error(f'Failed to create {service_name} client in region {get_region()}: {str(e)}')
+        raise
 
 
 def get_logs_client() -> Any:

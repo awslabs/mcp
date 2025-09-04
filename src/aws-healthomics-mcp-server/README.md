@@ -233,6 +233,23 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 - `FASTMCP_LOG_LEVEL` - Server logging level (default: WARNING)
 - `HEALTHOMICS_DEFAULT_MAX_RESULTS` - Default maximum number of results for paginated API calls (default: 10)
 
+#### Testing Configuration Variables
+
+The following environment variables are primarily intended for testing scenarios, such as integration testing against mock service endpoints:
+
+- `HEALTHOMICS_SERVICE_NAME` - Override the AWS service name used by the HealthOmics client (default: omics)
+  - **Use case**: Testing against mock services or alternative implementations
+  - **Validation**: Cannot be empty or whitespace-only; falls back to default with warning if invalid
+  - **Example**: `export HEALTHOMICS_SERVICE_NAME=omics-mock`
+
+- `HEALTHOMICS_ENDPOINT_URL` - Override the endpoint URL used by the HealthOmics client
+  - **Use case**: Integration testing against local mock services or alternative endpoints
+  - **Validation**: Must begin with `http://` or `https://`; ignored with warning if invalid
+  - **Example**: `export HEALTHOMICS_ENDPOINT_URL=http://localhost:8080`
+  - **Note**: Only affects the HealthOmics client; other AWS services use default endpoints
+
+> **Important**: These testing configuration variables should only be used in development and testing environments. In production, always use the default AWS HealthOmics service endpoints for security and reliability.
+
 ### AWS Credentials
 
 This server requires AWS credentials with appropriate permissions for HealthOmics operations. Configure using:
@@ -302,6 +319,28 @@ Add to your Claude Desktop configuration:
 }
 ```
 
+#### Testing Configuration Example
+
+For integration testing against mock services:
+
+```json
+{
+  "mcpServers": {
+    "aws-healthomics-test": {
+      "command": "uvx",
+      "args": ["awslabs.aws-healthomics-mcp-server"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "test-profile",
+        "HEALTHOMICS_SERVICE_NAME": "omics-mock",
+        "HEALTHOMICS_ENDPOINT_URL": "http://localhost:8080",
+        "FASTMCP_LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}
+```
+
 ### Other MCP Clients
 
 Configure according to your client's documentation, using:
@@ -332,6 +371,37 @@ For Windows users, the MCP server configuration format is slightly different:
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+#### Windows Testing Configuration
+
+For testing scenarios on Windows:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-healthomics-mcp-server-test": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.aws-healthomics-mcp-server@latest",
+        "awslabs.aws-healthomics-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "DEBUG",
+        "AWS_PROFILE": "test-profile",
+        "AWS_REGION": "us-east-1",
+        "HEALTHOMICS_SERVICE_NAME": "omics-mock",
+        "HEALTHOMICS_ENDPOINT_URL": "http://localhost:8080"
       }
     }
   }
