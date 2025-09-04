@@ -67,10 +67,10 @@ class TestImagePullFailureDetection(unittest.TestCase):
         result = await validate_container_images(task_defs)
 
         # Verify the result
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["image"], "non-existent-repo/non-existent-image:latest")
-        self.assertEqual(result[0]["exists"], "unknown")  # External images have unknown status
-        self.assertEqual(result[0]["repository_type"], "external")
+        assert len(result) == 1
+        assert result[0]["image"] == "non-existent-repo/non-existent-image:latest"
+        assert result[0]["exists"] == "unknown"  # External images have unknown status
+        assert result[0]["repository_type"] == "external"
 
     @pytest.mark.anyio
     @patch(
@@ -112,10 +112,10 @@ class TestImagePullFailureDetection(unittest.TestCase):
         result = await detect_image_pull_failures("test-failure-prbqv")
 
         # Verify the result
-        self.assertTrue("success" in result["status"])
-        self.assertTrue(len(result["image_issues"]) > 0)
-        self.assertIn("container image", result["assessment"])
-        self.assertTrue(len(result["recommendations"]) > 0)
+        assert "success" in result["status"]
+        assert len(result["image_issues"]) > 0
+        assert "container image" in result["assessment"]
+        assert len(result["recommendations"]) > 0
 
         # Make sure it contains a specific recommendation
         found_recommendation = False
@@ -125,9 +125,78 @@ class TestImagePullFailureDetection(unittest.TestCase):
             ):
                 found_recommendation = True
                 break
-        self.assertTrue(
-            found_recommendation, "Should recommend verifying the external image accessibility"
+        assert found_recommendation, "Should recommend verifying the external image accessibility"
+
+    @pytest.mark.anyio
+    async def test_detect_image_pull_failures_parameter_validation(self):
+        """Test parameter validation in detect_image_pull_failures."""
+        # Expected error message from parameter validation
+        expected_error_msg = (
+            "At least one of: ecs_cluster_name+ecs_service_name, ecs_cluster_name+ecs_task_id, "
+            "cfn_stack_name, or family_prefix must be provided"
         )
+
+        # Call with no parameters - should trigger validation error
+        result = await detect_image_pull_failures()
+
+        # Verify the result shows parameter validation error
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+        # Specific assertion for the exact error message
+        assert result["error"] == expected_error_msg, (
+            f"Expected exact error message, got: {result['error']}"
+        )
+
+        # Call with incomplete parameters - should also trigger validation error
+        result = await detect_image_pull_failures(cluster_name="test-cluster")
+
+        # Verify the result shows parameter validation error
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+        # Test other incomplete parameter combinations
+        result = await detect_image_pull_failures(service_name="test-service")
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+        result = await detect_image_pull_failures(task_id="test-task-id")
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+
+@pytest.mark.anyio
+async def test_detect_image_pull_failures_parameter_validation_standalone():
+    """Standalone test for parameter validation in detect_image_pull_failures."""
+    # Expected error message from parameter validation
+    expected_error_msg = (
+        "At least one of: ecs_cluster_name+ecs_service_name, ecs_cluster_name+ecs_task_id, "
+        "cfn_stack_name, or family_prefix must be provided"
+    )
+
+    # Call with no parameters - should trigger validation error
+    result = await detect_image_pull_failures()
+
+    # Verify the result shows parameter validation error
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
+
+    # Specific assertion for the exact error message
+    assert result["error"] == expected_error_msg
+
+    # Call with incomplete parameters - should also trigger validation error
+    result = await detect_image_pull_failures(cluster_name="test-cluster")
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
+
+    # Test other incomplete parameter combinations
+    result = await detect_image_pull_failures(service_name="test-service")
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
+
+    result = await detect_image_pull_failures(task_id="test-task-id")
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
 
 
 if __name__ == "__main__":

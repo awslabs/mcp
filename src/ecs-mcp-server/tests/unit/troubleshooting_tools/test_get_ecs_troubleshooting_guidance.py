@@ -885,3 +885,175 @@ class TestComprehensiveSystem(TestGuidanceBase):
         # Verify symptoms description is included in result
         assert result["status"] == "success"
         assert result["raw_data"]["symptoms_description"] == symptoms
+
+    @pytest.mark.anyio
+    async def test_collect_task_details_with_find_task_definitions_client_error(
+        self, mock_aws_clients
+    ):
+        """Test collect_task_details when find_task_definitions raises ClientError."""
+        # Mock find_task_definitions to raise ClientError
+        with mock.patch(
+            "awslabs.ecs_mcp_server.api.troubleshooting_tools.utils.find_task_definitions"
+        ) as mock_find_task_definitions:
+            mock_find_task_definitions.side_effect = ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "Access denied"}}, "DescribeServices"
+            )
+
+            # Import the function to test
+            from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (  # noqa: E501
+                collect_task_details,
+            )
+
+            # Call the function
+            task_definitions, load_balancers, image_check_results = await collect_task_details(
+                "test-cluster", "test-service"
+            )
+
+            # Should return empty results due to exception
+            assert task_definitions == []
+            assert load_balancers == []
+            assert image_check_results == []
+
+    @pytest.mark.anyio
+    async def test_collect_task_details_validate_container_images_exception(self, mock_aws_clients):
+        """Test collect_task_details when validate_container_images raises exception."""
+        # Mock find_task_definitions to return task definitions
+        with mock.patch(
+            "awslabs.ecs_mcp_server.api.troubleshooting_tools.utils.find_task_definitions"
+        ) as mock_find_task_definitions:
+            mock_find_task_definitions.return_value = [{"taskDefinitionArn": "test-arn"}]
+
+            # Mock validate_container_images to raise an exception using sys.modules
+            import sys
+
+            with mock.patch.object(
+                sys.modules[
+                    "awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance"
+                ],
+                "validate_container_images",
+            ) as mock_validate_images:
+                mock_validate_images.side_effect = Exception("Image validation error")
+
+                # Import the function to test
+                from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (  # noqa: E501
+                    collect_task_details,
+                )
+
+                # Call the function
+                task_definitions, load_balancers, image_check_results = await collect_task_details(
+                    "test-cluster", "test-service"
+                )
+
+                # Should return empty results due to exception
+                assert task_definitions == []
+                assert load_balancers == []
+                assert image_check_results == []
+
+    @pytest.mark.anyio
+    async def test_collect_task_details_find_load_balancers_exception(self, mock_aws_clients):
+        """Test collect_task_details when find_load_balancers raises exception."""
+        # Mock find_task_definitions to succeed
+        with mock.patch(
+            "awslabs.ecs_mcp_server.api.troubleshooting_tools.utils.find_task_definitions"
+        ) as mock_find_task_definitions:
+            mock_find_task_definitions.return_value = []
+
+            # Mock find_load_balancers to raise an exception
+            with mock.patch(
+                "awslabs.ecs_mcp_server.api.troubleshooting_tools.utils.find_load_balancers"
+            ) as mock_find_load_balancers:
+                mock_find_load_balancers.side_effect = Exception("Load balancer discovery error")
+
+                # Import the function to test
+                from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (  # noqa: E501
+                    collect_task_details,
+                )
+
+                # Call the function with service_name to trigger find_load_balancers call
+                task_definitions, load_balancers, image_check_results = await collect_task_details(
+                    "test-cluster", "test-service"
+                )
+
+                # Should return empty results due to exception
+                assert task_definitions == []
+                assert load_balancers == []
+                assert image_check_results == []
+
+    @pytest.mark.anyio
+    async def test_collect_service_details_exception_handling(self, mock_aws_clients):
+        """Test collect_service_details exception handling - covers lines 324-325."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Make the ECS client describe_services call fail to trigger the exception block
+        mock_ecs.describe_services.side_effect = Exception("Service access error")
+
+        # Import the function to test
+        from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (  # noqa: E501
+            collect_service_details,
+        )
+
+        # Call the function with service_name to trigger describe_services call
+        result = await collect_service_details("test-cluster", "test-service", mock_ecs)
+
+        # Should return empty list due to exception
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_generate_assessment_exception_in_main_function(self, mock_aws_clients):
+        """Test exception handling when generate_assessment fails."""
+        import sys
+
+        mock_ecs = mock_aws_clients["ecs"]
+
+        # Setup clusters
+        mock_ecs.describe_clusters.return_value = {
+            "clusters": [create_sample_cluster_data("test-cluster")]
+        }
+
+        # Mock generate_assessment at the module level to raise an exception
+        with mock.patch.object(
+            sys.modules[
+                "awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance"
+            ],
+            "generate_assessment",
+        ) as mock_generate_assessment:
+            mock_generate_assessment.side_effect = Exception("Assessment generation failed")
+
+            # Mock boto3.client and call the main function
+            with self.mock_aws_clients({"ecs": mock_ecs}):
+                result = await get_ecs_troubleshooting_guidance(
+                    cluster_name="test-cluster",
+                )
+
+            # Should catch the exception and return error status
+            assert result["status"] == "error"
+            assert "Assessment generation failed" in result["error"]
+            assert "Error analyzing deployment" in result["assessment"]
+
+    @pytest.mark.anyio
+    async def test_collect_task_details_with_find_task_definitions_general_exception(
+        self, mock_aws_clients
+    ):
+        """Test collect_task_details when find_task_definitions raises general Exception."""
+        # Mock find_task_definitions to raise general Exception
+        with mock.patch(
+            "awslabs.ecs_mcp_server.api.troubleshooting_tools.utils.find_task_definitions"
+        ) as mock_find_task_definitions:
+            mock_find_task_definitions.side_effect = Exception(
+                "Unexpected error finding task definitions"
+            )
+
+            # Import the function to test
+            from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (  # noqa: E501
+                collect_task_details,
+            )
+
+            # Call the function
+            task_definitions, load_balancers, image_check_results = await collect_task_details(
+                "test-cluster", "test-service"
+            )
+
+            # Should return empty results due to exception
+            assert task_definitions == []
+            assert load_balancers == []
+            assert image_check_results == []
