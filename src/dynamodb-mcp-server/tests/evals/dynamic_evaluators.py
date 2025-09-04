@@ -6,6 +6,10 @@ from typing import Dict, Any, Type
 from evaluation_registry import registry, EvaluationConfig
 from pathlib import Path
 import json
+from logging_config import get_logger
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 
 def create_dspy_signature(evaluation_config: EvaluationConfig) -> Type[dspy.Signature]:
@@ -111,7 +115,7 @@ class DynamicEvaluationEngine:
                 prompt_path = Path(__file__).parent.parent.parent / 'awslabs' / 'dynamodb_mcp_server' / 'prompts' / 'dynamodb_architect.md'
                 self._expert_knowledge_cache = prompt_path.read_text(encoding='utf-8')
             except Exception as e:
-                print(f"Warning: Could not load expert knowledge: {e}")
+                logger.warning(f"Warning: Could not load expert knowledge: {e}")
                 self._expert_knowledge_cache = "Expert knowledge not available."
         
         return self._expert_knowledge_cache

@@ -5,9 +5,13 @@ import json
 import os
 import sys
 import time
+from logging_config import setup_evaluation_logging, get_logger
 from multiturn_evaluator import EnhancedMultiTurnEvaluator as MCPToolTester
 from scenarios import BASIC_SCENARIOS, get_scenario_by_name
 from typing import Any, Dict, Optional
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 
 ENHANCED_EVALUATION_AVAILABLE = True
@@ -57,7 +61,7 @@ def run_evaluation(
         return results
 
     except Exception as e:
-        print(f'❌ Enhanced evaluation failed: {e}')
+        logger.error(f'❌ Enhanced evaluation failed: {e}')
         import traceback
 
         traceback.print_exc()
@@ -93,7 +97,7 @@ def sanitize_model_input(model_input: str) -> Optional[str]:
         return cleaned
 
     # If it doesn't match expected patterns, still return it but warn
-    print(f"⚠️  Warning: Model '{cleaned}' doesn't match expected Bedrock format")
+    logger.warning(f"⚠️  Warning: Model '{cleaned}' doesn't match expected Bedrock format")
     return cleaned
 
 
@@ -115,11 +119,11 @@ def sanitize_scenario_input(scenario_input: str) -> Optional[str]:
         if cleaned.lower() == scenario_name.lower():
             return scenario_name
 
-    # If no match found, raise error with suggestions
-    print(f"❌ Error: Scenario '{cleaned}' not found.")
-    print('Available scenarios:')
+    # If no match found, log error with suggestions
+    logger.error(f"❌ Error: Scenario '{cleaned}' not found.")
+    logger.info('Available scenarios:')
     for scenario in BASIC_SCENARIOS:
-        print(f'  • {scenario["name"]} ({scenario["complexity"]})')
+        logger.info(f'  • {scenario["name"]} ({scenario["complexity"]})')
     return None
 
 
@@ -288,7 +292,17 @@ Examples:
         help='AWS profile to use for evaluation (default: bedrock)',
     )
 
+    parser.add_argument(
+        '--log-level',
+        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+        default='INFO',
+        help='Set logging level (default: INFO)',
+    )
+
     args = parser.parse_args()
+
+    # Setup logging based on CLI arguments
+    setup_evaluation_logging(level=args.log_level)
 
     # Handle list scenarios request
     if args.list_scenarios:

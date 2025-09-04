@@ -9,11 +9,15 @@ import time
 from botocore.config import Config as BotocoreConfig
 from dataclasses import dataclass
 from dynamic_evaluators import dynamic_engine
+from logging_config import get_logger
 from mcp import StdioServerParameters, stdio_client
 from strands import Agent
 from strands.models import BedrockModel
 from strands.tools.mcp import MCPClient
 from typing import Any, Dict, List, Optional
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -58,7 +62,7 @@ def extract_requirements_guidance_sections(final_guidance):
         markdown_blocks = markdown_content.split('```markdown\n')
 
         if len(markdown_blocks) < 3:
-            print('Error: Expected at least 2 markdown sections')
+            logger.error('Error: Expected at least 2 markdown sections')
             return None, None
 
         dynamodb_modeling_requirement = markdown_blocks[1].split('```')[0].strip()
@@ -66,7 +70,7 @@ def extract_requirements_guidance_sections(final_guidance):
         return dynamodb_modeling_requirement, dynamodb_data_model
 
     except (ValueError, SyntaxError, KeyError, IndexError) as e:
-        print(f'Error parsing guidance: {e}')
+        logger.error(f'Error parsing guidance: {e}')
         return None, None
 
 
@@ -189,7 +193,7 @@ class StrandsConversationHandler:
                 return _to_text(turn2_response), conversation
 
         except Exception as e:
-            print(f'❌ Error during Strands conversation: {e}')
+            logger.error(f'❌ Error during Strands conversation: {e}')
             import traceback
 
             traceback.print_exc()
@@ -240,10 +244,9 @@ class EnhancedMultiTurnEvaluator:
                 dspy_model = f'bedrock/{dspy_model}'
 
             dspy.configure(lm=dspy.LM(dspy_model, max_tokens=8192, temperature=0.1))
-            print(f'✅ DSPy configured with {dspy_model}')
 
         except Exception as e:
-            print(f'Warning: Could not configure EnhancedMultiTurnEvaluator: {e}')
+            logger.warning(f'Warning: Could not configure EnhancedMultiTurnEvaluator: {e}')
 
     async def evaluate_with_conversation(
         self, scenario: Dict[str, Any]
@@ -263,7 +266,6 @@ class EnhancedMultiTurnEvaluator:
             dynamodb_modeling_requirements, dynamodb_data_model_guidance = (
                 extract_requirements_guidance_sections(final_guidance)
             )
-            print(f'✅ Conversation completed in {conversation_duration:.2f}s')
 
             # Step 2: Run comprehensive evaluations if available
             requirement_evaluation_result = None
@@ -273,30 +275,22 @@ class EnhancedMultiTurnEvaluator:
 
             if dynamodb_modeling_requirements and dynamodb_data_model_guidance:
                 # Run Requirement evaluation
-                print('🔄 Running DSPy requirement evaluation...')
+                print('🔄 Running DSPy evaluation on requirement')
                 requirement_eval_start = time.time()
 
                 requirement_evaluation_result = self.dspy_engine.evaluate(
                     'requirement_evaluation', scenario, dynamodb_modeling_requirements
                 )
                 requirement_eval_duration = time.time() - requirement_eval_start
-                print(f'✅ Requirement evaluation completed in {requirement_eval_duration:.2f}s')
-                print(
-                    f'📊 Requirement Score: {requirement_evaluation_result.overall_score:.2f} ({requirement_evaluation_result.quality_level})'
-                )
 
                 # Run model evaluation
-                print('🔄 Running DSPy model evaluation...')
+                print('🔄 Running DSPy evaluation on data model')
                 model_eval_start = time.time()
 
                 model_evaluation_result = self.dspy_engine.evaluate(
                     'model_evaluation', scenario, dynamodb_data_model_guidance
                 )
                 model_eval_duration = time.time() - model_eval_start
-                print(f'✅ Model evaluation completed in {model_eval_duration:.2f}s')
-                print(
-                    f'📊 Model Score: {model_evaluation_result.overall_score:.2f} ({model_evaluation_result.quality_level})'
-                )
 
             # Step 3: Create comprehensive result with separate evaluations
             result = ComprehensiveEvaluationResult(
@@ -323,7 +317,7 @@ class EnhancedMultiTurnEvaluator:
             return result
 
         except Exception as e:
-            print(f'❌ Error during enhanced evaluation: {e}')
+            logger.error(f'❌ Error during enhanced evaluation: {e}')
             import traceback
 
             traceback.print_exc()
