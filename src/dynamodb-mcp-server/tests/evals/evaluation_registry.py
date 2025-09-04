@@ -31,6 +31,7 @@ class EvaluationRegistry:
     """Central registry for evaluation configurations."""
 
     def __init__(self):
+        """Initialize the evaluation registry and set up default evaluations."""
         self._evaluations: Dict[str, EvaluationConfig] = {}
         self._setup_default_evaluations()
 

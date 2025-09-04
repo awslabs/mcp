@@ -62,7 +62,7 @@ def create_result_dataclass(evaluation_config: EvaluationConfig) -> Type:
     )
 
     dataclass_name = f'{evaluation_config.name.title().replace("_", "")}Result'
-    annotations = {field_name: field_type for field_name, field_type in class_fields}
+    annotations = dict(class_fields)
     result_class = type(dataclass_name, (), {'__annotations__': annotations})
     result_class = dataclass(result_class)
 
@@ -90,6 +90,7 @@ class DynamicEvaluationEngine:
     """Dynamic evaluation engine that adapts to any registered evaluation type."""
 
     def __init__(self):
+        """Initialize the dynamic evaluation engine with empty caches."""
         self._evaluators = {}
         self._result_classes = {}
         self._expert_knowledge_cache = None
