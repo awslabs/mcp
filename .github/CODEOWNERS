@@ -55,7 +55,7 @@ NOTICE                                                                    @awsla
 /src/aws-dataprocessing-mcp-server          @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun                      @awslabs/mcp-admins
 #/src/documentdb-mcp-server             @awslabs/mcp-maintainers          @awslabs/mcp-admin
 /src/dynamodb-mcp-server                @erbenmo @shetsa-amzn @LeeroyHannigan                          @awslabs/mcp-admins
-/src/ecs-mcp-server                     @vibhav-ag @matthewgoodman13      @awslabs/mcp-admins
+/src/ecs-mcp-server                     @vibhav-ag @matthewgoodman13 @nineonine      @awslabs/mcp-admins
 /src/eks-mcp-server                     @patrick-yu-amzn @srhsrhsrhsrh    @awslabs/mcp-admins
 /src/elasticache-mcp-server             @seaofawareness                   @awslabs/mcp-admins
 /src/finch-mcp-server                   @Shubhranshu153 @pendo324         @awslabs/mcp-admins
