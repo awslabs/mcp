@@ -18,12 +18,13 @@ from awslabs.aws_iot_sitewise_mcp_server.client import create_sitewise_client
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp.tools import Tool
+from pydantic import Field
 from typing import Any, Dict, Optional
 
 
 @tool_metadata(readonly=True)
 def describe_default_encryption_configuration(
-    region: str = 'us-east-1',
+    region: str = Field('us-east-1', description="AWS region"),
 ) -> Dict[str, Any]:
     """Retrieve information about the default encryption configuration for your AWS account.
 
@@ -55,7 +56,9 @@ def describe_default_encryption_configuration(
 
 @tool_metadata(readonly=False)
 def put_default_encryption_configuration(
-    encryption_type: str, region: str = 'us-east-1', kms_key_id: Optional[str] = None
+    encryption_type: str = Field(..., description="The type of encryption used for the encryption configuration (SITEWISE_DEFAULT_ENCRYPTION, KMS_BASED_ENCRYPTION)"),
+    region: str = Field('us-east-1', description="AWS region"),
+    kms_key_id: Optional[str] = Field(None, description="The Key ID of the customer managed key used for KMS encryption")
 ) -> Dict[str, Any]:
     """Set the default encryption configuration for your AWS account.
 
@@ -94,7 +97,7 @@ def put_default_encryption_configuration(
 
 
 @tool_metadata(readonly=True)
-def describe_logging_options(region: str = 'us-east-1') -> Dict[str, Any]:
+def describe_logging_options(region: str = Field('us-east-1', description="AWS region")) -> Dict[str, Any]:
     """Retrieve the current AWS IoT SiteWise logging options.
 
     Args:
@@ -120,7 +123,8 @@ def describe_logging_options(region: str = 'us-east-1') -> Dict[str, Any]:
 
 @tool_metadata(readonly=False)
 def put_logging_options(
-    logging_options: Dict[str, Any], region: str = 'us-east-1'
+    logging_options: Dict[str, Any] = Field(..., description="Logging configuration with level (INFO, ERROR, OFF) and optional roleArn"),
+    region: str = Field('us-east-1', description="AWS region")
 ) -> Dict[str, Any]:
     """Set logging options for AWS IoT SiteWise.
 
@@ -146,7 +150,7 @@ def put_logging_options(
 
 
 @tool_metadata(readonly=True)
-def describe_storage_configuration(region: str = 'us-east-1') -> Dict[str, Any]:
+def describe_storage_configuration(region: str = Field('us-east-1', description="AWS region")) -> Dict[str, Any]:
     """Retrieve information about the storage configuration for your AWS account.
 
     Args:
@@ -184,13 +188,13 @@ def describe_storage_configuration(region: str = 'us-east-1') -> Dict[str, Any]:
 
 @tool_metadata(readonly=False)
 def put_storage_configuration(
-    storage_type: str,
-    region: str = 'us-east-1',
-    multi_layer_storage: Optional[Dict[str, Any]] = None,
-    disassociated_data_storage: str = 'ENABLED',
-    retention_period: Optional[Dict[str, Any]] = None,
-    warm_tier: str = 'ENABLED',
-    warm_tier_retention_period: Optional[Dict[str, Any]] = None,
+    storage_type: str = Field(..., description="The storage type (SITEWISE_DEFAULT_STORAGE, MULTI_LAYER_STORAGE)"),
+    region: str = Field('us-east-1', description="AWS region"),
+    multi_layer_storage: Optional[Dict[str, Any]] = Field(None, description="Multi-layer storage configuration details"),
+    disassociated_data_storage: str = Field('ENABLED', description="Disassociated data storage setting (ENABLED, DISABLED)"),
+    retention_period: Optional[Dict[str, Any]] = Field(None, description="Data retention period configuration"),
+    warm_tier: str = Field('ENABLED', description="Warm tier setting (ENABLED, DISABLED)"),
+    warm_tier_retention_period: Optional[Dict[str, Any]] = Field(None, description="Warm tier retention period configuration"),
 ) -> Dict[str, Any]:
     """Configure storage settings for AWS IoT SiteWise.
 

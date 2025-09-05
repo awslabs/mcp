@@ -17,6 +17,8 @@
 import boto3
 from botocore.config import Config
 
+from awslabs.aws_iot_sitewise_mcp_server import __version__
+
 
 def create_sitewise_client(region: str = 'us-east-1'):
     """Create a standardized AWS IoT SiteWise client with proper user agent.

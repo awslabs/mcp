@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/usr/bin/env python3
 """Example script demonstrating AWS IoT SiteWise MCP server usage.
 
 This example shows how to:
@@ -32,60 +32,19 @@ from typing import Any, Dict
 
 
 def create_wind_turbine_model() -> Dict[str, Any]:
-    """Create an asset model for wind turbines."""
-    # Define properties for the wind turbine model
-    # This would be used in the actual MCP server call (see commented code
-    # below)
-    # Example properties structure:
-    # properties = [
-    #     {
-    #         "name": "WindSpeed",
-    #         "dataType": "DOUBLE",
-    #         "unit": "m/s",
-    #         "type": {"measurement": {}},
-    #     },
-    #     {
-    #         "name": "PowerOutput",
-    #         "dataType": "DOUBLE",
-    #         "unit": "kW",
-    #         "type": {"measurement": {}},
-    #     },
-    #     {
-    #         "name": "RotorSpeed",
-    #         "dataType": "DOUBLE",
-    #         "unit": "rpm",
-    #         "type": {"measurement": {}},
-    #     },
-    #     {
-    #         "name": "Temperature",
-    #         "dataType": "DOUBLE",
-    #         "unit": "Celsius",
-    #         "type": {"measurement": {}},
-    #     },
-    #     {
-    #         "name": "Efficiency",
-    #         "dataType": "DOUBLE",
-    #         "unit": "Percent",
-    #         "type": {
-    #             "transform": {
-    #                 "expression": "PowerOutput / (WindSpeed * 100)",
-    #                 "variables": [
-    #                     {"name": "PowerOutput", "value": {"propertyId": "PowerOutput"}},
-    #                     {"name": "WindSpeed", "value": {"propertyId": "WindSpeed"}},
-    #                 ],
-    #             }
-    #         },
-    #     },
-    #     {
-    #         "name": "Status",
-    #         "dataType": "STRING",
-    #         "type": {"attribute": {"defaultValue": "OPERATIONAL"}},
-    #     },
-    # ]
-
-    # Create the asset model
+    """Create an asset model for wind turbines.
+    
+    The model includes properties for:
+    - WindSpeed (measurement in m/s)
+    - PowerOutput (measurement in kW)
+    - RotorSpeed (measurement in rpm)
+    - Temperature (measurement in Celsius)
+    - Efficiency (transform: PowerOutput / (WindSpeed * 100))
+    - Status (attribute with default value "OPERATIONAL")
+    """
     print('Creating wind turbine asset model...')
-    # This would be called through the MCP server
+    
+    # In a real implementation, call the MCP server:
     # result = sitewise_create_asset_model(
     #     asset_model_name="WindTurbineModel",
     #     asset_model_description="Asset model for wind turbine monitoring",
@@ -104,60 +63,16 @@ def create_wind_turbine_model() -> Dict[str, Any]:
 
 
 def create_wind_farm_model() -> Dict[str, Any]:
-    """Create an asset model for wind farms."""
-    # Define hierarchies for the wind farm
-    # This would be used in the actual MCP server call (see commented code
-    # below)
-    # hierarchies = [{"name": "Turbines", "childAssetModelId": "wind-turbine-model-123"}]
-
-    # Define aggregate properties for the wind farm
-    # This would be used in the actual MCP server call (see commented code
-    # below)
-    # properties = [
-    #     {
-    #         "name": "TotalPowerOutput",
-    #         "dataType": "DOUBLE",
-    #         "unit": "MW",
-    #         "type": {
-    #             "metric": {
-    #                 "expression": "sum(PowerOutput) / 1000",
-    #                 "variables": [
-    #                     {
-    #                         "name": "PowerOutput",
-    #                         "value": {
-    #                             "hierarchyId": "Turbines",
-    #                             "propertyId": "PowerOutput",
-    #                         },
-    #                     }
-    #                 ],
-    #                 "window": {"tumbling": {"interval": "1m"}},
-    #             }
-    #         },
-    #     },
-    #     {
-    #         "name": "AverageWindSpeed",
-    #         "dataType": "DOUBLE",
-    #         "unit": "m/s",
-    #         "type": {
-    #             "metric": {
-    #                 "expression": "avg(WindSpeed)",
-    #                 "variables": [
-    #                     {
-    #                         "name": "WindSpeed",
-    #                         "value": {
-    #                             "hierarchyId": "Turbines",
-    #                             "propertyId": "WindSpeed",
-    #                         },
-    #                     }
-    #                 ],
-    #                 "window": {"tumbling": {"interval": "5m"}},
-    #             }
-    #         },
-    #     },
-    # ]
-
+    """Create an asset model for wind farms.
+    
+    The model includes:
+    - Hierarchy: "Turbines" (child asset model: wind-turbine-model-123)
+    - TotalPowerOutput (metric: sum of turbine PowerOutput in MW)
+    - AverageWindSpeed (metric: average WindSpeed over 5m window)
+    """
     print('Creating wind farm asset model...')
-    # This would be called through the MCP server
+    
+    # In a real implementation, call the MCP server:
     # result = sitewise_create_asset_model(
     #     asset_model_name="WindFarmModel",
     #     asset_model_description="Asset model for wind farm management",
@@ -182,6 +97,7 @@ def create_assets() -> Dict[str, Any]:
 
     # Create wind farm asset
     print('Creating wind farm asset...')
+    # In a real implementation:
     # wind_farm = sitewise_create_asset(
     #     asset_name="North Field Wind Farm",
     #     asset_model_id="wind-farm-model-456",
@@ -200,6 +116,7 @@ def create_assets() -> Dict[str, Any]:
     turbines = []
     for i in range(1, 6):  # Create 5 turbines
         print(f'Creating wind turbine {i}...')
+        # In a real implementation:
         # turbine = sitewise_create_asset(
         #     asset_name=f"WindTurbine{i:03d}",
         #     asset_model_id="wind-turbine-model-123",
@@ -216,6 +133,7 @@ def create_assets() -> Dict[str, Any]:
 
         # Associate turbine with wind farm
         print(f'Associating turbine {i} with wind farm...')
+        # In a real implementation:
         # association = sitewise_associate_assets(
         #     asset_id=wind_farm["asset_id"],
         #     hierarchy_id="Turbines",
@@ -295,7 +213,7 @@ def ingest_sample_data(assets: Dict[str, Any]) -> None:
         ]
         entries.extend(turbine_entries)
 
-    # Batch put the data
+    # In a real implementation:
     # result = sitewise_batch_put_asset_property_value(entries=entries)
 
     print(f'✓ Ingested data for {len(assets["turbines"])} turbines')
@@ -310,8 +228,8 @@ def main():
     try:
         # Step 1: Create asset models
         print('\n📋 Step 1: Creating Asset Models')
-        create_wind_turbine_model()  # Used for demonstration
-        create_wind_farm_model()  # Used for demonstration
+        create_wind_turbine_model()
+        create_wind_farm_model()
 
         # Step 2: Create assets and hierarchies
         print('\n🏗️  Step 2: Creating Assets and Hierarchies')
