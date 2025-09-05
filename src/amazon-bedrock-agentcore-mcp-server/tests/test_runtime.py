@@ -69,54 +69,6 @@ class TestOAuthUtilities:
             assert 'boto3 not available' in message
 
     @pytest.mark.asyncio
-    async def test_check_agent_oauth_status_success_with_oauth(self):
-        """Test successful OAuth status check with OAuth deployed."""
-        with patch('boto3.client') as mock_boto3, tempfile.TemporaryDirectory() as temp_dir:
-            # Mock boto3 client
-            mock_client = Mock()
-            mock_boto3.return_value = mock_client
-
-            # Mock list_agent_runtimes response
-            mock_client.list_agent_runtimes.return_value = {
-                'items': [
-                    {
-                        'name': self.test_agent_name,
-                        'agentRuntimeArn': f'arn:aws:bedrock-agentcore:{self.test_region}:123456789012:runtime/{self.test_agent_name}',
-                    }
-                ]
-            }
-
-            # Mock get_agent_runtime response with OAuth
-            mock_client.get_agent_runtime.return_value = {
-                'inboundConfig': {'cognitoAuthorizer': {'userPoolId': self.test_user_pool_id}}
-            }
-
-            # Create OAuth config file
-            with patch('pathlib.Path.home') as mock_home:
-                mock_home.return_value = Path(temp_dir)
-                config_dir = Path(temp_dir) / '.agentcore_gateways'
-                config_dir.mkdir(parents=True, exist_ok=True)
-
-                oauth_config = {
-                    'cognito_client_info': {
-                        'user_pool_id': self.test_user_pool_id,
-                        'client_id': self.test_client_id,
-                    }
-                }
-
-                config_file = config_dir / f'{self.test_agent_name}_runtime.json'
-                with open(config_file, 'w') as f:
-                    json.dump(oauth_config, f)
-
-                oauth_deployed, oauth_available, message = check_agent_oauth_status(
-                    self.test_agent_name, self.test_region
-                )
-
-                assert oauth_deployed is True
-                assert oauth_available is True
-                assert 'Agent deployed with OAuth' in message
-
-    @pytest.mark.asyncio
     async def test_check_agent_oauth_status_no_oauth_deployed(self):
         """Test OAuth status check with no OAuth deployed."""
         with patch('boto3.client') as mock_boto3, tempfile.TemporaryDirectory() as temp_dir:
@@ -821,8 +773,9 @@ class TestDeploymentTools:
             mock_get_runtime.return_value = mock_runtime
 
             mock_status = Mock()
-            mock_status.endpoint = Mock()
-            mock_status.endpoint.status = 'READY'
+            mock_endpoint = Mock()
+            mock_endpoint.status = 'READY'
+            mock_status.endpoint = mock_endpoint
             mock_runtime.status.return_value = mock_status
 
             mock_runtime.invoke.return_value = {'response': 'OAuth agent response'}

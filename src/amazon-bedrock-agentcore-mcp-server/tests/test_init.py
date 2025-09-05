@@ -22,12 +22,33 @@ class TestPackageInitialization:
 
     def test_version_defined(self):
         """Test that the version is properly defined."""
+        # Import the __init__.py module directly to trigger coverage
+        import awslabs.amazon_bedrock_agentcore_mcp_server.__init__ as init_module
+
         assert hasattr(server_module, '__version__')
         assert server_module.__version__ == '0.1.0'
+
+        # Also check that the init module has the version
+        assert hasattr(init_module, '__version__')
+        assert init_module.__version__ == '0.1.0'
 
     def test_package_imports(self):
         """Test that the package can be imported without errors."""
         assert server_module is not None
+
+    def test_init_module_direct_import(self):
+        """Test direct import of __init__.py module for coverage."""
+        # Import the __init__.py module directly
+        import awslabs.amazon_bedrock_agentcore_mcp_server.__init__ as init_module
+
+        # Test that it has the expected attributes
+        assert hasattr(init_module, '__version__')
+        assert isinstance(init_module.__version__, str)
+        assert init_module.__version__
+
+        # Test the docstring
+        assert hasattr(init_module, '__doc__')
+        assert 'Amazon Bedrock Agent Core MCP Server' in init_module.__doc__
 
     def test_module_structure(self):
         """Test that expected modules are available."""

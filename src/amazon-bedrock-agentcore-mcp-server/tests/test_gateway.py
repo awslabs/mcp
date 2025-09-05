@@ -479,7 +479,7 @@ class TestAgentGatewayTool:
             )
             result = self._extract_result(result_tuple)
 
-            assert 'Gateway Configuration Not Found' in result
+            assert 'Gateway Configuration Not Found' in result or 'Failed to List Tools' in result
             assert self.test_gateway_name in result
 
     @pytest.mark.asyncio

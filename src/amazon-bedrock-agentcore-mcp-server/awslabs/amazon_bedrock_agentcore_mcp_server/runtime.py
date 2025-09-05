@@ -168,18 +168,18 @@ def check_agent_oauth_status(
                 # Validate the file path is within expected directory
                 oauth_file = oauth_file.resolve()
                 if not str(oauth_file).startswith(str(Path.home() / '.agentcore_gateways')):
-                    auth_file_exits = False  # noqa: nosec B105
+                    auth_file_exits = False  # noqa: S105
                 else:
-                    auth_file_exits = oauth_file.exists()  # nosec B105
+                    auth_file_exits = oauth_file.exists()  # noqa: S105
             except (OSError, ValueError):
-                auth_file_exits = False  # noqa: nosec B105
+                auth_file_exits = False  # noqa: S105
 
             # Determine OAuth status from AWS API response
             oauth_deployed = bool(
                 inbound_config
             )  # Any inbound config indicates auth requirements # pragma: allowlist secret
 
-            if oauth_deployed:  # noqa: nosec B105
+            if oauth_deployed:  # noqa: S105
                 auth_details = []
                 if 'customJWTAuthorizer' in inbound_config:
                     jwt_auth = inbound_config['customJWTAuthorizer']
@@ -189,9 +189,7 @@ def check_agent_oauth_status(
                 if 'cognitoAuthorizer' in inbound_config:  # pragma: allowlist secret
                     # cognito_auth = inbound_config['cognitoAuthorizer']  # pragma: allowlist secret
 
-                    cognito_auth = inbound_config.get(
-                        'cognitoAuthorizer'
-                    )  # pragma: allowlist secret
+                    cognito_auth = inbound_config.get('cognitoAuthorizer')  # noqa: S105
                     if cognito_auth and isinstance(cognito_auth, dict):
                         # Validate required fields exist and are strings
                         user_pool_id = cognito_auth.get('userPoolId', 'Unknown')
@@ -269,11 +267,11 @@ def validate_oauth_config(agent_name: str, region: str = 'us-east-1'):  # pragma
         if not safe_agent_name:
             raise ValueError('Invalid agent_name: contains no valid characters')
 
-        oauth_deployed, oauth_available, oauth_status = check_agent_oauth_status(  # noqa: nosec B105
+        oauth_deployed, oauth_available, oauth_status = check_agent_oauth_status(  # noqa: S105
             safe_agent_name, region
         )
 
-        print(oauth_available, oauth_deployed)  # noqa: nosec B105
+        print(oauth_available, oauth_deployed)  # noqa: S105
         agent_name = safe_agent_name  # Use sanitized name going forward
 
         # Load OAuth configuration (same format as gateways)
@@ -1184,14 +1182,14 @@ For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
                 raw_config = result['oauth_config']
                 if isinstance(raw_config, dict):
                     # Validate and sanitize known oauth config fields
-                    config_data = {}  # noqa: nosec B105
+                    config_data = {}  # noqa: S105
                     for key in ['client_id', 'client_secret', 'redirect_uri', 'scope']:
                         if key in raw_config and isinstance(raw_config[key], str):
                             config_data[key] = raw_config[key][:500]  # Limit length
                 else:
-                    config_data = {}  # noqa: nosec B105
+                    config_data = {}  # noqa: S105
             else:
-                config_data = {}  # noqa: nosec B105
+                config_data = {}  # noqa: S105
 
             print(f'OAuth Config: {config_data}')
 
