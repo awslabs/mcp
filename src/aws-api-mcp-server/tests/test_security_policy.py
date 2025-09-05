@@ -1,3 +1,4 @@
+import json
 import pytest
 from awslabs.aws_api_mcp_server.core.aws.service import (
     check_elicitation_support,
@@ -66,26 +67,42 @@ def test_security_policy_file_not_found():
 
 def test_security_policy_file_error_handling():
     """Test error handling for policy and customization files."""
-    # Test JSON parse error
-    invalid_json = '{"denylist": ["aws iam delete-user"'  # Missing closing bracket
+    # Test JSON parse error in policy file (should be handled gracefully)
+    invalid_policy_json = '{"denylist": ["aws iam delete-user"'  # Missing closing bracket
+    valid_customization_json = '{"customizations": {}}'
+
+    def mock_open_side_effect(file_path, *args, **kwargs):
+        if 'mcp-security-policy.json' in str(file_path):
+            return mock_open(read_data=invalid_policy_json)()
+        elif 'aws_api_customization.json' in str(file_path):
+            return mock_open(read_data=valid_customization_json)()
+        return mock_open()()
+
     with patch.object(Path, 'exists', return_value=True):
-        with patch('builtins.open', mock_open(read_data=invalid_json)):
+        with patch('builtins.open', side_effect=mock_open_side_effect):
             policy = SecurityPolicy()
             assert len(policy.denylist) == 0
             assert len(policy.elicit_list) == 0
 
-    # Test IO error
+    # Test IO error in policy file (should be handled gracefully)
+    def mock_open_io_error(file_path, *args, **kwargs):
+        if 'mcp-security-policy.json' in str(file_path):
+            raise IOError('File read error')
+        elif 'aws_api_customization.json' in str(file_path):
+            return mock_open(read_data=valid_customization_json)()
+        return mock_open()()
+
     with patch.object(Path, 'exists', return_value=True):
-        with patch('builtins.open', side_effect=IOError('File read error')):
+        with patch('builtins.open', side_effect=mock_open_io_error):
             policy = SecurityPolicy()
             assert len(policy.denylist) == 0
             assert len(policy.elicit_list) == 0
 
-    # Test customization JSON parse error
+    # Test customization JSON parse error (should raise since we control this file)
     mock_policy_data = '{"denylist": [], "elicitList": []}'
     invalid_customization_json = '{"customizations": {'  # Invalid JSON
 
-    def mock_open_side_effect(file_path, *args, **kwargs):
+    def mock_open_customization_error(file_path, *args, **kwargs):
         if 'mcp-security-policy.json' in str(file_path):
             return mock_open(read_data=mock_policy_data)()
         elif 'aws_api_customization.json' in str(file_path):
@@ -93,12 +110,12 @@ def test_security_policy_file_error_handling():
         return mock_open()()
 
     with patch.object(Path, 'exists', return_value=True):
-        with patch('builtins.open', side_effect=mock_open_side_effect):
-            policy = SecurityPolicy()
-            assert len(policy.customizations) == 0
+        with patch('builtins.open', side_effect=mock_open_customization_error):
+            with pytest.raises(json.JSONDecodeError):
+                SecurityPolicy()
 
-    # Test customization IO error
-    def mock_open_io_error(file_path, *args, **kwargs):
+    # Test customization IO error (should raise since we control this file)
+    def mock_open_customization_io_error(file_path, *args, **kwargs):
         if 'mcp-security-policy.json' in str(file_path):
             return mock_open(read_data=mock_policy_data)()
         elif 'aws_api_customization.json' in str(file_path):
@@ -106,25 +123,30 @@ def test_security_policy_file_error_handling():
         return mock_open()()
 
     with patch.object(Path, 'exists', return_value=True):
-        with patch('builtins.open', side_effect=mock_open_io_error):
-            policy = SecurityPolicy()
-            assert len(policy.customizations) == 0
+        with patch('builtins.open', side_effect=mock_open_customization_io_error):
+            with pytest.raises(IOError):
+                SecurityPolicy()
 
 
 def test_security_policy_customization_file_not_found():
-    """Test behavior when customization file doesn't exist."""
+    """Test behavior when customization file doesn't exist - should raise error."""
     mock_policy_data = '{"denylist": [], "elicitList": []}'
 
-    # Mock exists to return True for policy file, False for customization file
-    with patch.object(Path, 'exists', return_value=False):
-        with patch('builtins.open', mock_open(read_data=mock_policy_data)):
-            policy = SecurityPolicy()
+    def mock_open_side_effect(file_path, *args, **kwargs):
+        if 'mcp-security-policy.json' in str(file_path):
+            return mock_open(read_data=mock_policy_data)()
+        elif 'aws_api_customization.json' in str(file_path):
+            raise FileNotFoundError('Customization file not found')
+        return mock_open()()
 
-            assert len(policy.customizations) == 0
+    with patch.object(Path, 'exists', return_value=True):
+        with patch('builtins.open', side_effect=mock_open_side_effect):
+            with pytest.raises(FileNotFoundError):
+                SecurityPolicy()
 
 
 def test_security_policy_customization_missing_api_calls():
-    """Test customization loading when api_calls key is missing."""
+    """Test customization loading when api_calls key is missing - should load empty list."""
     mock_policy_data = '{"denylist": [], "elicitList": []}'
     mock_customization_data = '{"customizations": {"s3 ls": {"other_key": "value"}}}'
 
@@ -139,7 +161,9 @@ def test_security_policy_customization_missing_api_calls():
         with patch('builtins.open', side_effect=mock_open_side_effect):
             policy = SecurityPolicy()
 
-            assert 's3 ls' not in policy.customizations
+            # Should load with empty api_calls list since we control the file
+            assert 's3 ls' in policy.customizations
+            assert policy.customizations['s3 ls'] == []
 
 
 def test_security_policy_deny_takes_priority():
@@ -149,46 +173,7 @@ def test_security_policy_deny_takes_priority():
         policy.denylist = {'aws s3api list-buckets'}
         policy.elicit_list = {'aws s3api list-buckets'}
 
-        decision = policy.get_decision('s3api', 'list_buckets', True, True)
-        assert decision == PolicyDecision.DENY
-
-
-def test_security_policy_s3_service_mapping():
-    """Test S3 service mapping to s3api in CLI operations."""
-    with patch.object(Path, 'exists', return_value=False):
-        policy = SecurityPolicy()
-
-        # Test denylist mapping
-        policy.denylist = {'aws s3api list-buckets'}
-        decision = policy.get_decision('s3', 'list_buckets', True, True)
-        assert decision == PolicyDecision.DENY
-
-        # Test elicit list mapping
-        policy.denylist = set()
-        policy.elicit_list = {'aws s3api put-object'}
-        decision = policy.get_decision('s3', 'put_object', False, True)
-        assert decision == PolicyDecision.ELICIT
-
-        # Test both variants in denylist
-        policy.denylist = {'aws s3 ls', 'aws s3api list-buckets'}
-        policy.elicit_list = set()
-        decision = policy.get_decision('s3', 'list_buckets', True, True)
-        assert decision == PolicyDecision.DENY
-
-        # Test both variants in elicit list
-        policy.denylist = set()
-        policy.elicit_list = {'aws s3 cp', 'aws s3api put-object'}
-        decision = policy.get_decision('s3', 'put_object', False, True)
-        assert decision == PolicyDecision.ELICIT
-
-
-def test_security_policy_elicit_fallback_to_deny():
-    """Test elicitation fallback to deny when client doesn't support it."""
-    with patch.object(Path, 'exists', return_value=False):
-        policy = SecurityPolicy()
-        policy.elicit_list = {'aws s3api put-object'}
-
-        decision = policy.get_decision('s3api', 'put_object', False, False)
+        decision = policy.determine_policy_effect('s3api', 'list_buckets', True, True)
         assert decision == PolicyDecision.DENY
 
 
@@ -198,15 +183,15 @@ def test_security_policy_default_behavior():
         policy = SecurityPolicy()
 
         # Test read-only operations are allowed
-        decision = policy.get_decision('s3api', 'list_buckets', True, True)
+        decision = policy.determine_policy_effect('s3api', 'list_buckets', True, True)
         assert decision == PolicyDecision.ALLOW
 
         # Test mutations are allowed by default (with elicitation support)
-        decision = policy.get_decision('s3api', 'put_object', False, True)
+        decision = policy.determine_policy_effect('s3api', 'put_object', False, True)
         assert decision == PolicyDecision.ALLOW
 
         # Test mutations are allowed by default (without elicitation support)
-        decision = policy.get_decision('s3api', 'put_object', False, False)
+        decision = policy.determine_policy_effect('s3api', 'put_object', False, False)
         assert decision == PolicyDecision.ALLOW
 
 
@@ -217,15 +202,15 @@ def test_security_policy_operation_name_conversion():
         policy.denylist = {'aws s3api list-buckets', 'aws s3api list-objects-v2'}
 
         # Test camelCase operation name gets converted
-        decision = policy.get_decision('s3api', 'ListBuckets', True, True)
+        decision = policy.determine_policy_effect('s3api', 'ListBuckets', True, True)
         assert decision == PolicyDecision.DENY
 
         # Test operation name with multiple capitals
-        decision = policy.get_decision('s3api', 'ListObjectsV2', True, True)
+        decision = policy.determine_policy_effect('s3api', 'ListObjectsV2', True, True)
         assert decision == PolicyDecision.DENY
 
         # Test operation name already in kebab-case
-        decision = policy.get_decision('s3api', 'list-buckets', True, True)
+        decision = policy.determine_policy_effect('s3api', 'list-buckets', True, True)
         assert decision == PolicyDecision.DENY
 
 
@@ -413,7 +398,7 @@ def test_check_security_policy_customization_deny(mock_security_policy):
 def test_check_security_policy_no_customization(mock_security_policy):
     """Test security policy integration when no customization matches."""
     mock_security_policy.check_customization.return_value = None
-    mock_security_policy.get_decision.return_value = PolicyDecision.ALLOW
+    mock_security_policy.determine_policy_effect.return_value = PolicyDecision.ALLOW
 
     mock_ctx = Mock()
     mock_ctx.elicit = Mock()
@@ -429,7 +414,7 @@ def test_check_security_policy_no_customization(mock_security_policy):
     )
 
     assert decision == PolicyDecision.ALLOW
-    mock_security_policy.get_decision.assert_called_once()
+    mock_security_policy.determine_policy_effect.assert_called_once()
 
 
 def test_security_policy_customization_missing_customizations_key():
@@ -449,33 +434,6 @@ def test_security_policy_customization_missing_customizations_key():
             policy = SecurityPolicy()
 
             assert len(policy.customizations) == 0
-
-
-def test_check_customization_empty_decisions():
-    """Test check_customization when all decisions are ALLOW."""
-    with patch.object(Path, 'exists', return_value=False):
-        policy = SecurityPolicy()
-        policy.customizations = {'s3 ls': ['aws s3api list-buckets']}
-
-        def mock_is_read_only(service, operation):
-            return True  # All operations are read-only
-
-        decision = policy.check_customization('aws s3 ls my-bucket', mock_is_read_only, True)
-        assert decision == PolicyDecision.ALLOW
-
-
-def test_check_customization_elicit_priority():
-    """Test check_customization when some decisions are ELICIT."""
-    with patch.object(Path, 'exists', return_value=False):
-        policy = SecurityPolicy()
-        policy.elicit_list = {'aws s3api put-object'}  # Explicitly add to elicit list
-        policy.customizations = {'s3 sync': ['aws s3api list-buckets', 'aws s3api put-object']}
-
-        def mock_is_read_only(service, operation):
-            return operation == 'list_buckets'  # Only list-buckets is read-only
-
-        decision = policy.check_customization('aws s3 sync source dest', mock_is_read_only, True)
-        assert decision == PolicyDecision.ELICIT
 
 
 # Server Integration Tests
@@ -588,23 +546,111 @@ async def test_check_elicitation_support():
 
 
 @patch('awslabs.aws_api_mcp_server.core.aws.service.security_policy')
-def test_is_read_only_func_in_check_security_policy(mock_security_policy):
-    """Test the is_read_only_func lambda inside check_security_policy."""
+def test_check_security_policy_missing_metadata_with_elicitation(mock_security_policy):
+    """Test check_security_policy when IR has missing metadata and elicitation is supported."""
     mock_security_policy.check_customization.return_value = None
-    mock_security_policy.get_decision.return_value = PolicyDecision.ALLOW
 
     mock_ctx = MagicMock()
+    mock_ctx.elicit = MagicMock()  # Supports elicitation
+
+    mock_read_only_ops = MagicMock(spec=ReadOnlyOperations)
+    mock_ir = MagicMock(spec=IRTranslation)
+    mock_ir.command_metadata = None  # Missing metadata
+
+    decision = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+
+    assert decision == PolicyDecision.ELICIT
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.security_policy')
+def test_check_security_policy_missing_metadata_without_elicitation(mock_security_policy):
+    """Test check_security_policy when IR has missing metadata and elicitation is not supported."""
+    mock_security_policy.check_customization.return_value = None
+
+    mock_ctx = MagicMock()
+    del mock_ctx.elicit  # Remove elicit method to simulate no elicitation support
+
+    mock_read_only_ops = MagicMock(spec=ReadOnlyOperations)
+    mock_ir = MagicMock(spec=IRTranslation)
+    mock_ir.command_metadata = None  # Missing metadata
+
+    decision = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+
+    assert decision == PolicyDecision.DENY
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.security_policy')
+def test_check_security_policy_is_read_only_func_called(mock_security_policy):
+    """Test that is_read_only_func is properly called in check_security_policy."""
+    mock_security_policy.check_customization.return_value = None
+    mock_security_policy.determine_policy_effect.return_value = PolicyDecision.ALLOW
+
+    mock_ctx = MagicMock()
+    mock_ctx.elicit = MagicMock()
+
     mock_read_only_ops = MagicMock(spec=ReadOnlyOperations)
     mock_read_only_ops.has.return_value = True
 
     mock_ir = MagicMock(spec=IRTranslation)
     mock_ir.command_metadata = MagicMock()
-    mock_ir.command_metadata.service_sdk_name = 's3api'
-    mock_ir.command_metadata.operation_sdk_name = 'list_buckets'
+    mock_ir.command_metadata.service_sdk_name = 'test-service'
+    mock_ir.command_metadata.operation_sdk_name = 'test-operation'
 
-    # Call check_security_policy which will use the is_read_only_func
-    result = check_security_policy('aws s3api list-buckets', mock_ir, mock_read_only_ops, mock_ctx)
+    result = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
 
     # Verify that read_only_operations.has was called (via is_read_only_func)
-    mock_read_only_ops.has.assert_called_with(service='s3api', operation='list_buckets')
+    mock_read_only_ops.has.assert_called_with(service='test-service', operation='test-operation')
     assert result == PolicyDecision.ALLOW
+
+
+def test_validate_api_calls_invalid_format():
+    """Test _validate_api_calls with invalid API call format."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy()
+
+        # Test invalid format - should raise ValueError
+        with pytest.raises(
+            ValueError, match='Invalid API call format in "test cmd": invalid-format'
+        ):
+            policy._validate_api_calls('test cmd', ['invalid-format'])
+
+        # Test another invalid format
+        with pytest.raises(ValueError, match='Invalid API call format in "s3 ls": s3 ls'):
+            policy._validate_api_calls('s3 ls', ['s3 ls'])  # Missing 'aws' prefix
+
+
+def test_determine_policy_effect_s3_elicit_no_support():
+    """Test s3 service elicit without elicitation support."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy()
+        policy.elicit_list = {'aws s3 put-object'}
+
+        # Should return DENY when elicitation not supported
+        decision = policy.determine_policy_effect('s3', 'put_object', False, False)
+        assert decision == PolicyDecision.DENY
+
+
+def test_determine_policy_effect_non_s3_elicit_no_support():
+    """Test non-s3 service elicit without elicitation support."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy()
+        policy.elicit_list = {'aws ec2 terminate-instances'}
+
+        # Should return DENY when elicitation not supported
+        decision = policy.determine_policy_effect('ec2', 'terminate_instances', False, False)
+        assert decision == PolicyDecision.DENY
+
+
+def test_check_customization_elicit_decision():
+    """Test customization returning ELICIT decision."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy()
+        policy.elicit_list = {'aws s3api put-object'}
+        policy.customizations = {'s3 sync': ['aws s3api get-object', 'aws s3api put-object']}
+
+        def mock_is_read_only(service, operation):
+            return operation == 'get_object'  # Only get-object is read-only
+
+        # Should return ELICIT because put-object is in elicit list
+        decision = policy.check_customization('aws s3 sync source dest', mock_is_read_only, True)
+        assert decision == PolicyDecision.ELICIT

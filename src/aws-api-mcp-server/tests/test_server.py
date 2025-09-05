@@ -14,6 +14,36 @@ from tests.fixtures import DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
+def test_main_knowledge_base_setup_error(mock_kb):
+    """Test main function when knowledge base setup fails."""
+    mock_kb.setup.side_effect = Exception('KB setup failed')
+
+    with patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp/test'):
+        with patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1'):
+            with patch('awslabs.aws_api_mcp_server.server.validate_aws_region'):
+                with pytest.raises(
+                    RuntimeError,
+                    match='Error while setting up the knowledge base: KB setup failed',
+                ):
+                    main()
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
+@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
+@patch('awslabs.aws_api_mcp_server.server.server')
+def test_main_read_operations_index_load_failure(mock_server, mock_kb, mock_get_read_ops):
+    """Test main function when read operations index loading fails."""
+    mock_get_read_ops.side_effect = Exception('Failed to load operations')
+
+    with patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp/test'):
+        with patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1'):
+            with patch('awslabs.aws_api_mcp_server.server.validate_aws_region'):
+                # Should not raise exception, just log warning
+                main()
+                mock_server.run.assert_called_once()
+
+
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')

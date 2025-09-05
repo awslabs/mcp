@@ -124,7 +124,7 @@ def check_security_policy(
     operation_name = ir.command_metadata.operation_sdk_name
     is_read_only = is_operation_read_only(ir, read_only_operations)
 
-    return security_policy.get_decision(
+    return security_policy.determine_policy_effect(
         service_name, operation_name, is_read_only, supports_elicitation
     )
 

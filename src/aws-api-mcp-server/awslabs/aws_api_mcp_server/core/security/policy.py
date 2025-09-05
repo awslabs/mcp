@@ -40,49 +40,63 @@ class SecurityPolicy:
 
     def _load_policy(self):
         """Load security policy from user directory."""
-        policy_dir = Path.home() / '.aws' / 'aws-api-mcp'
-        policy_dir.mkdir(parents=True, exist_ok=True)
-        policy_path = policy_dir / 'mcp-security-policy.json'
-        security_dir = Path(__file__).parent
-        customization_path = security_dir / 'aws_api_customization.json'
+        policy_path = Path.home() / '.aws' / 'aws-api-mcp' / 'mcp-security-policy.json'
 
         if not policy_path.exists():
-            logger.info('No security policy file found at {}, using default behavior', policy_path)
-        else:
-            try:
-                with open(policy_path, 'r') as f:
-                    policy_data = json.load(f)
+            logger.warning(
+                'No security policy file found at {}, not applying any additional security policies',
+                policy_path,
+            )
+            return
 
-                # Load denylist
-                if 'denylist' in policy_data:
-                    self.denylist = set(policy_data['denylist'])
-                    logger.info('Loaded {} commands in denylist', len(self.denylist))
+        try:
+            with open(policy_path, 'r') as f:
+                policy_data = json.load(f)
 
-                # Load elicit list (consent list)
-                if 'elicitList' in policy_data:
-                    self.elicit_list = set(policy_data['elicitList'])
-                    logger.info('Loaded {} commands in elicit list', len(self.elicit_list))
+            # Load denylist
+            if 'denylist' in policy_data:
+                self.denylist = set(policy_data['denylist'])
+                logger.info('Loaded {} commands in denylist', len(self.denylist))
 
-            except Exception as e:
-                logger.error('Failed to load security policy from {}: {}', policy_path, e)
+            # Load elicit list (consent list)
+            if 'elicitList' in policy_data:
+                self.elicit_list = set(policy_data['elicitList'])
+                logger.info('Loaded {} commands in elicit list', len(self.elicit_list))
 
-        # Load customizations from separate file
-        if customization_path.exists():
-            try:
-                with open(customization_path, 'r') as f:
-                    customization_data = json.load(f)
+        except Exception as e:
+            logger.error('Failed to load security policy from {}: {}', policy_path, e)
 
-                if 'customizations' in customization_data:
-                    self.customizations = {}
-                    for cmd, config in customization_data['customizations'].items():
-                        if 'api_calls' in config:
-                            self.customizations[cmd] = config['api_calls']
-                    logger.info('Loaded {} customizations', len(self.customizations))
+        self._load_customizations()
 
-            except Exception as e:
-                logger.error('Failed to load customizations from {}: {}', customization_path, e)
+    def _load_customizations(self):
+        """Load customizations from separate file."""
+        customization_path = Path(__file__).parent / 'aws_api_customization.json'
 
-    def get_decision(
+        try:
+            with open(customization_path, 'r') as f:
+                data = json.load(f)
+
+            customizations = data.get('customizations', {})
+
+            for cmd, config in customizations.items():
+                api_calls = config.get('api_calls', [])
+                self._validate_api_calls(cmd, api_calls)
+                self.customizations[cmd] = api_calls
+
+            logger.info('Loaded {} customizations', len(self.customizations))
+
+        except Exception as e:
+            logger.error('Failed to load customizations from {}: {}', customization_path, e)
+            raise
+
+    def _validate_api_calls(self, cmd: str, api_calls: List[str]):
+        """Validate API calls format."""
+        for api_call in api_calls:
+            parts = api_call.strip().split()
+            if len(parts) < 3 or parts[0] != 'aws':
+                raise ValueError(f'Invalid API call format in "{cmd}": {api_call}')
+
+    def determine_policy_effect(
         self, service: str, operation: str, is_read_only: bool, supports_elicitation: bool
     ) -> PolicyDecision:
         """Get policy decision for a service/operation combination.
@@ -94,31 +108,16 @@ class SecurityPolicy:
 
         api_call = f'aws {service} {operation_kebab}'
 
-        # s3 service maps to s3api in CLI for some operations
-        if service == 's3':
-            # For s3 service, also check s3api variant
-            api_call_s3api = f'aws s3api {operation_kebab}'
+        # Check denylist first
+        if api_call in self.denylist:
+            return PolicyDecision.DENY
 
-            # Check denylist first
-            if api_call in self.denylist or api_call_s3api in self.denylist:
+        # Check elicit list
+        if api_call in self.elicit_list:
+            # If client doesn't support elicitation, treat the elicit list as deny
+            if not supports_elicitation:
                 return PolicyDecision.DENY
-
-            # Check elicit list
-            if api_call in self.elicit_list or api_call_s3api in self.elicit_list:
-                if not supports_elicitation:
-                    return PolicyDecision.DENY
-                return PolicyDecision.ELICIT
-        else:
-            # Check denylist first
-            if api_call in self.denylist:
-                return PolicyDecision.DENY
-
-            # Check elicit list
-            if api_call in self.elicit_list:
-                # If client doesn't support elicitation, treat the elicit list as deny
-                if not supports_elicitation:
-                    return PolicyDecision.DENY
-                return PolicyDecision.ELICIT
+            return PolicyDecision.ELICIT
 
         # Default behavior: allow all operations
         return PolicyDecision.ALLOW
@@ -156,7 +155,9 @@ class SecurityPolicy:
         for api_call in api_calls:
             # Parse service and operation from api_call
             api_parts = api_call.strip().split()
+            # This should never happen now due to validation at load time
             if len(api_parts) < 3 or api_parts[0] != 'aws':
+                logger.error('Unexpected invalid API call format: {}', api_call)
                 continue
 
             service = api_parts[1]
@@ -172,7 +173,7 @@ class SecurityPolicy:
             else:
                 # Check default behavior based on read-only status
                 is_read_only = is_read_only_func(service, operation)
-                decision = self.get_decision(
+                decision = self.determine_policy_effect(
                     service, operation, is_read_only, supports_elicitation
                 )
                 decisions.append(decision)
