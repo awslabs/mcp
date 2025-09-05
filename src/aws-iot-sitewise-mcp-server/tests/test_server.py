@@ -35,12 +35,11 @@ class TestServer:
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.get_package_version')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
-    async def test_run_server_setup(self, mock_get_version, mock_fastmcp, mock_task_group):
+    async def test_run_server_setup(self, mock_fastmcp, mock_task_group):
         """Test server setup with all tools and prompts."""
-        # Mock version
-        mock_get_version.return_value = '1.0.0'
+        # Version is mocked by the patch decorator
 
         # Mock FastMCP instance
         mock_mcp_instance = Mock()
@@ -87,13 +86,12 @@ class TestServer:
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.get_package_version')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_tool_categories(
-        self, mock_get_version, mock_fastmcp, mock_task_group
+        self, mock_fastmcp, mock_task_group
     ):
         """Test that all tool categories are properly included."""
-        mock_get_version.return_value = '1.0.0'
 
         mock_mcp_instance = Mock()
         mock_mcp_instance.add_tool = Mock()
@@ -125,11 +123,10 @@ class TestServer:
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.get_package_version')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
-    async def test_run_server_prompts(self, mock_get_version, mock_fastmcp, mock_task_group):
+    async def test_run_server_prompts(self, mock_fastmcp, mock_task_group):
         """Test that all prompts are properly added."""
-        mock_get_version.return_value = '1.0.0'
 
         mock_mcp_instance = Mock()
         mock_mcp_instance.add_tool = Mock()
@@ -163,51 +160,40 @@ class TestServer:
 
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.get_package_version')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_version_setting(
-        self, mock_get_version, mock_fastmcp, mock_task_group
+        self, mock_fastmcp, mock_task_group
     ):
         """Test that server version is properly set."""
-        # Test different version values
-        test_versions = ['0.1.0', '1.2.3', '2.0.0-beta']
+        mock_mcp_instance = Mock()
+        mock_mcp_instance.add_tool = Mock()
+        mock_mcp_instance.add_prompt = Mock()
+        mock_mcp_instance.run_stdio_async = AsyncMock()
+        mock_mcp_instance._mcp_server = Mock()
+        mock_fastmcp.return_value = mock_mcp_instance
 
-        for version in test_versions:
-            mock_get_version.return_value = version
+        mock_tg = AsyncMock()
+        mock_tg.__aenter__ = AsyncMock(return_value=mock_tg)
+        mock_tg.__aexit__ = AsyncMock(return_value=None)
+        mock_tg.start_soon = Mock()
+        mock_tg.cancel_scope = Mock()
+        mock_task_group.return_value = mock_tg
 
-            mock_mcp_instance = Mock()
-            mock_mcp_instance.add_tool = Mock()
-            mock_mcp_instance.add_prompt = Mock()
-            mock_mcp_instance.run_stdio_async = AsyncMock()
-            mock_mcp_instance._mcp_server = Mock()
-            mock_fastmcp.return_value = mock_mcp_instance
+        await run_server()
 
-            mock_tg = AsyncMock()
-            mock_tg.__aenter__ = AsyncMock(return_value=mock_tg)
-            mock_tg.__aexit__ = AsyncMock(return_value=None)
-            mock_tg.start_soon = Mock()
-            mock_tg.cancel_scope = Mock()
-            mock_task_group.return_value = mock_tg
-
-            await run_server()
-
-            # Verify version was set correctly
-            assert mock_mcp_instance._mcp_server.version == version
-
-            # Reset mocks for next iteration
-            mock_fastmcp.reset_mock()
-            mock_get_version.reset_mock()
+        # Verify version was set correctly (mocked as '1.0.0')
+        assert mock_mcp_instance._mcp_server.version == '1.0.0'
 
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.get_package_version')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_error_handling(
-        self, mock_get_version, mock_fastmcp, mock_task_group
+        self, mock_fastmcp, mock_task_group
     ):
         """Test server handles errors gracefully."""
-        mock_get_version.return_value = '1.0.0'
 
         mock_mcp_instance = Mock()
         mock_mcp_instance.add_tool = Mock()

@@ -185,7 +185,7 @@ class TestSiteWiseAccess:
         mock_response['encryptionType'] = 'SITEWISE_DEFAULT_ENCRYPTION'
         mock_response.pop('kmsKeyId', None)
         result = put_default_encryption_configuration(
-            encryption_type='SITEWISE_DEFAULT_ENCRYPTION', region='us-east-1'
+            encryption_type='SITEWISE_DEFAULT_ENCRYPTION', region='us-east-1', kms_key_id=None
         )
 
         assert result['success'] is True
@@ -276,7 +276,13 @@ class TestSiteWiseAccess:
         # Test with minimal parameters
         mock_client.reset_mock()
         result = put_storage_configuration(
-            storage_type='SITEWISE_DEFAULT_STORAGE', region='us-east-1'
+            storage_type='SITEWISE_DEFAULT_STORAGE',
+            region='us-east-1',
+            multi_layer_storage=None,
+            disassociated_data_storage='ENABLED',
+            retention_period=None,
+            warm_tier='ENABLED',
+            warm_tier_retention_period=None
         )
 
         assert result['success'] is True
