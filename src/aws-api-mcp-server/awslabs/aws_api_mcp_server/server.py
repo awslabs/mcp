@@ -346,7 +346,7 @@ def main():
     logger.info(f'CWD: {os.getcwd()}')
 
     if DEFAULT_REGION is None:
-        error_message = 'AWS_REGION environment variable is not defined.'
+        error_message = 'AWS_REGION environment variable is not defined..'
         logger.error(error_message)
         raise ValueError(error_message)
 
