@@ -232,3 +232,86 @@ description: Script with special characters in name
         script = manager.get_script('special-chars_123')
         assert script is not None
         assert script.name == 'special-chars_123'
+
+
+def test_custom_scripts_dir_valid():
+    """Test initialization with valid custom scripts directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        scripts_dir = Path(temp_dir) / 'scripts'
+        custom_dir = Path(temp_dir) / 'custom'
+        scripts_dir.mkdir()
+        custom_dir.mkdir()
+
+        # Create script in main directory
+        main_script = scripts_dir / 'main.script.md'
+        main_script.write_text("""---
+description: Main script
+---
+# Main Script""")
+
+        # Create script in custom directory
+        custom_script = custom_dir / 'custom.script.md'
+        custom_script.write_text("""---
+description: Custom script
+---
+# Custom Script""")
+
+        manager = AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
+
+        assert 'main' in manager.scripts
+        assert 'custom' in manager.scripts
+
+        main_script = manager.get_script('main')
+        assert main_script is not None
+        assert main_script.description == 'Main script'
+
+        custom_script = manager.get_script('custom')
+        assert custom_script is not None
+        assert custom_script.description == 'Custom script'
+
+
+def test_custom_scripts_dir_nonexistent():
+    """Test initialization with non-existent custom scripts directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        scripts_dir = Path(temp_dir) / 'scripts'
+        custom_dir = Path(temp_dir) / 'nonexistent'
+        scripts_dir.mkdir()
+
+        with pytest.raises(
+            RuntimeError, match=f'User scripts directory {custom_dir} does not exist'
+        ):
+            AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
+
+
+def test_custom_scripts_dir_no_read_permission():
+    """Test initialization with custom scripts directory without read permission."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        scripts_dir = Path(temp_dir) / 'scripts'
+        custom_dir = Path(temp_dir) / 'custom'
+        scripts_dir.mkdir()
+        custom_dir.mkdir()
+
+        with patch('os.access', return_value=False):
+            with pytest.raises(
+                RuntimeError, match=f'No read permission for user scripts directory {custom_dir}'
+            ):
+                AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
+
+
+def test_custom_scripts_dir_none():
+    """Test initialization with None custom scripts directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        scripts_dir = Path(temp_dir) / 'scripts'
+        scripts_dir.mkdir()
+
+        script_file = scripts_dir / 'test.script.md'
+        script_file.write_text("""---
+description: Test script
+---
+# Test Script""")
+
+        manager = AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=None)
+
+        assert len(manager.scripts_dirs) == 1
+        assert manager.scripts_dirs[0] == scripts_dir
+        assert 'test' in manager.scripts
