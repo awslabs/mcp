@@ -203,9 +203,10 @@ class TestMainFunctionBehavior:
 
     @patch('awslabs.finch_mcp_server.server.mcp')
     @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('sys.argv', ['finch-mcp-server'])
     def test_main_with_default_settings(self, mock_logger, mock_mcp):
         """Test main function with default settings."""
-        main(enable_aws_resource_write=False)
+        main()
 
         # Should log startup message
         mock_logger.info.assert_any_call('Starting Finch MCP server')
@@ -215,9 +216,10 @@ class TestMainFunctionBehavior:
 
     @patch('awslabs.finch_mcp_server.server.mcp')
     @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('sys.argv', ['finch-mcp-server', '--enable-aws-resource-write'])
     def test_main_with_aws_resource_write_enabled(self, mock_logger, mock_mcp):
         """Test main function with AWS resource write enabled."""
-        main(enable_aws_resource_write=True)
+        main()
 
         # Should log startup message
         mock_logger.info.assert_any_call('Starting Finch MCP server')
@@ -227,6 +229,7 @@ class TestMainFunctionBehavior:
 
     @patch('awslabs.finch_mcp_server.server.mcp')
     @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('sys.argv', ['finch-mcp-server'])
     def test_main_with_custom_log_file(self, mock_logger, mock_mcp):
         """Test main function with custom log file."""
         with tempfile.NamedTemporaryFile(suffix='.log', delete=False) as tmp_file:
@@ -247,6 +250,7 @@ class TestMainFunctionBehavior:
 
     @patch('awslabs.finch_mcp_server.server.mcp')
     @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('sys.argv', ['finch-mcp-server'])
     @patch.dict(os.environ, {'FINCH_DISABLE_FILE_LOGGING': 'true'})
     def test_main_with_file_logging_disabled(self, mock_logger, mock_mcp):
         """Test main function with file logging disabled."""
@@ -257,6 +261,7 @@ class TestMainFunctionBehavior:
 
     @patch('awslabs.finch_mcp_server.server.mcp')
     @patch('awslabs.finch_mcp_server.server.logger')
+    @patch('sys.argv', ['finch-mcp-server'])
     def test_main_with_default_logging(self, mock_logger, mock_mcp):
         """Test main function with default logging configuration."""
         # Clear any existing environment variables that might affect the test
