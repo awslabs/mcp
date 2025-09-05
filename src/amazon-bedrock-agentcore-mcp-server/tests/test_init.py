@@ -48,6 +48,7 @@ class TestPackageInitialization:
 
         # Test the docstring
         assert hasattr(init_module, '__doc__')
+        assert init_module.__doc__ is not None
         assert 'Amazon Bedrock Agent Core MCP Server' in init_module.__doc__
 
     def test_module_structure(self):

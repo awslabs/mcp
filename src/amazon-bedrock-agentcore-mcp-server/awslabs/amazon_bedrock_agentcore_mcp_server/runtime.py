@@ -271,7 +271,10 @@ def validate_oauth_config(agent_name: str, region: str = 'us-east-1'):  # pragma
             safe_agent_name, region
         )
 
-        print(oauth_available, oauth_deployed)  # noqa: S105
+        # Log OAuth status without sensitive information
+        print(
+            f'OAuth status - Available: {bool(oauth_available)}, Deployed: {bool(oauth_deployed)}'
+        )
         agent_name = safe_agent_name  # Use sanitized name going forward
 
         # Load OAuth configuration (same format as gateways)
@@ -1191,7 +1194,9 @@ For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
             else:
                 config_data = {}  # noqa: S105
 
-            print(f'OAuth Config: {config_data}')
+            # Log OAuth config status without exposing sensitive data
+            config_keys = list(config_data.keys()) if config_data else []
+            print(f'OAuth Config loaded with keys: {config_keys}')
 
             # Generate access token using shared utility
             token_success, access_token = generate_oauth_token(  # pragma: allowlist secret

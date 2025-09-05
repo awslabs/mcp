@@ -35,9 +35,9 @@ class TestGatewayDeletionRetryLogic:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
                 return str(result_tuple.content)  # type: ignore
@@ -235,9 +235,9 @@ class TestCognitoOAuthSetup:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
                 return str(result_tuple.content)  # type: ignore
@@ -440,9 +440,9 @@ class TestSmithyModelOperations:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
                 return str(result_tuple.content)  # type: ignore
@@ -632,9 +632,9 @@ class TestGatewayIntegrationScenarios:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
                 return str(result_tuple.content)  # type: ignore
@@ -830,14 +830,14 @@ class TestGatewaySetupWorkflow:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
-                return str(result_tuple.content)
+                return str(result_tuple.content)  # type: ignore
             elif hasattr(result_tuple, 'text'):
-                return str(result_tuple.text)
+                return str(result_tuple.text)  # type: ignore
             return str(result_tuple)
         except (AttributeError, TypeError):
             return str(result_tuple)
@@ -1133,14 +1133,14 @@ class TestGatewayListToolsFunctionality:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
-                return str(result_tuple.content)
+                return str(result_tuple.content)  # type: ignore
             elif hasattr(result_tuple, 'text'):
-                return str(result_tuple.text)
+                return str(result_tuple.text)  # type: ignore
             return str(result_tuple)
         except (AttributeError, TypeError):
             return str(result_tuple)
@@ -1409,14 +1409,14 @@ class TestGatewaySearchToolsFunctionality:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
-                return str(result_tuple.content)
+                return str(result_tuple.content)  # type: ignore
             elif hasattr(result_tuple, 'text'):
-                return str(result_tuple.text)
+                return str(result_tuple.text)  # type: ignore
             return str(result_tuple)
         except (AttributeError, TypeError):
             return str(result_tuple)
@@ -1521,13 +1521,6 @@ class TestGatewaySearchToolsFunctionality:
                     ]
                 }
             }
-            mock_search_result['get'] = (
-                lambda key, default=None: mock_search_result.get(key, default)
-                if hasattr(dict, 'get')
-                else mock_search_result[key]
-                if key in mock_search_result
-                else default
-            )
 
             mock_mcp_client.call_tool_sync.return_value = mock_search_result
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
@@ -1740,13 +1733,6 @@ class TestGatewaySearchToolsFunctionality:
                     'tools': [{'name': 'LongDescriptionTool', 'description': long_description}]
                 }
             }
-            mock_search_result['get'] = (
-                lambda key, default=None: mock_search_result.get(key, default)
-                if hasattr(dict, 'get')
-                else mock_search_result[key]
-                if key in mock_search_result
-                else default
-            )
 
             mock_mcp_client.call_tool_sync.return_value = mock_search_result
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
@@ -1786,14 +1772,14 @@ class TestGatewayInvokeToolFunctionality:
             if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
                 result_content = result_tuple[0]
                 if hasattr(result_content, 'content'):
-                    return str(result_content.content)
+                    return str(result_content.content)  # type: ignore
                 elif hasattr(result_content, 'text'):
-                    return str(result_content.text)
+                    return str(result_content.text)  # type: ignore
                 return str(result_content)
             elif hasattr(result_tuple, 'content'):
-                return str(result_tuple.content)
+                return str(result_tuple.content)  # type: ignore
             elif hasattr(result_tuple, 'text'):
-                return str(result_tuple.text)
+                return str(result_tuple.text)  # type: ignore
             return str(result_tuple)
         except (AttributeError, TypeError):
             return str(result_tuple)
