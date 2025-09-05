@@ -15,9 +15,8 @@
 """Centralized AWS IoT SiteWise client creation utility."""
 
 import boto3
-from botocore.config import Config
-
 from awslabs.aws_iot_sitewise_mcp_server import __version__
+from botocore.config import Config
 
 
 def create_sitewise_client(region: str = 'us-east-1'):

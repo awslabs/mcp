@@ -33,7 +33,7 @@ from typing import Any, Dict
 
 def create_wind_turbine_model() -> Dict[str, Any]:
     """Create an asset model for wind turbines.
-    
+
     The model includes properties for:
     - WindSpeed (measurement in m/s)
     - PowerOutput (measurement in kW)
@@ -43,7 +43,7 @@ def create_wind_turbine_model() -> Dict[str, Any]:
     - Status (attribute with default value "OPERATIONAL")
     """
     print('Creating wind turbine asset model...')
-    
+
     # In a real implementation, call the MCP server:
     # result = sitewise_create_asset_model(
     #     asset_model_name="WindTurbineModel",
@@ -64,14 +64,14 @@ def create_wind_turbine_model() -> Dict[str, Any]:
 
 def create_wind_farm_model() -> Dict[str, Any]:
     """Create an asset model for wind farms.
-    
+
     The model includes:
     - Hierarchy: "Turbines" (child asset model: wind-turbine-model-123)
     - TotalPowerOutput (metric: sum of turbine PowerOutput in MW)
     - AverageWindSpeed (metric: average WindSpeed over 5m window)
     """
     print('Creating wind farm asset model...')
-    
+
     # In a real implementation, call the MCP server:
     # result = sitewise_create_asset_model(
     #     asset_model_name="WindFarmModel",

@@ -15,6 +15,7 @@
 import os
 import signal
 from anyio import CancelScope, create_task_group, open_signal_receiver, run
+from awslabs.aws_iot_sitewise_mcp_server import __version__
 from awslabs.aws_iot_sitewise_mcp_server.prompts.asset_hierarchy import (
     asset_hierarchy_visualization_prompt,
 )
@@ -77,7 +78,6 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways import (
     update_gateway_capability_configuration_tool,
     update_gateway_tool,
 )
-from awslabs.aws_iot_sitewise_mcp_server import __version__
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools import Tool
 from typing import Any, Dict
