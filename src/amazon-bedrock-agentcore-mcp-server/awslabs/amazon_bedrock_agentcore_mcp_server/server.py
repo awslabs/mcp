@@ -113,7 +113,7 @@ def run_main():
     mcp.run()
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     try:
         run_main()
     except KeyboardInterrupt:

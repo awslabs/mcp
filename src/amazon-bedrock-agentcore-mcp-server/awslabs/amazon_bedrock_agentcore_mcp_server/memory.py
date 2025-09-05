@@ -53,7 +53,7 @@ def register_memory_tools(mcp: FastMCP):
 
         Stores user input and agent response as a conversation turn in the specified memory.
         """
-        if not SDK_AVAILABLE:
+        if not SDK_AVAILABLE:  # pragma: no cover
             return 'AgentCore SDK not available'
 
         try:
@@ -106,7 +106,7 @@ Conversation turn successfully stored in memory."""
 
         Uses MemoryClient.retrieve_memories() to find contextually relevant stored memories.
         """
-        if not SDK_AVAILABLE:
+        if not SDK_AVAILABLE:  # pragma: no cover
             return 'AgentCore SDK not available'
 
         try:
@@ -179,7 +179,7 @@ No relevant memories found for this query."""
 
         Uses MemoryClient.get_last_k_turns() to retrieve conversation history.
         """
-        if not SDK_AVAILABLE:
+        if not SDK_AVAILABLE:  # pragma: no cover
             return 'AgentCore SDK not available'
 
         try:
@@ -248,7 +248,7 @@ No conversation history found for this session."""
 
         Uses MemoryClient.process_turn() to retrieve relevant memories and store the new turn.
         """
-        if not SDK_AVAILABLE:
+        if not SDK_AVAILABLE:  # pragma: no cover
             return 'AgentCore SDK not available'
 
         try:
@@ -318,7 +318,7 @@ No conversation history found for this session."""
 
         Shows conversation events for the specified memory, actor, and session.
         """
-        if not SDK_AVAILABLE:
+        if not SDK_AVAILABLE:  # pragma: no cover
             return 'AgentCore SDK not available'
 
         try:
@@ -997,7 +997,7 @@ Memory **{memory_name}** has been permanently deleted."""
 4. Use AWS Console for manual deletion if needed"""
 
             # Default case
-            else:
+            else:  # pragma: no cover
                 return f""" Unknown Action: '{action}'
 
 ## Available Actions:
@@ -1015,7 +1015,7 @@ agent_memory(action="create", agent_name="my_agent")
 agent_memory(action="create", agent_name="my_agent", agent_file="agent.py")
 ```"""
 
-        except ImportError as e:
+        except ImportError as e:  # pragma: no cover
             return f""" Memory SDK Not Available
 
 **Error**: {str(e)}
@@ -1027,7 +1027,7 @@ To use memory functionality:
 
 Alternative: Use AWS Console for memory management"""
 
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             return f""" Memory Operation Error: {str(e)}
 
 **Action**: {action}

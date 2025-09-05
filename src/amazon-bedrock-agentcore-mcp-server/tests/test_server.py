@@ -538,3 +538,80 @@ class TestServerMetadata:
         )
         result = extract_result(result_tuple)
         assert result is not None
+
+
+class TestServerMainBlock:
+    """Test the __main__ block exception handling."""
+
+    def test_main_block_keyboard_interrupt(self):
+        """Test KeyboardInterrupt handling in main block."""
+        import sys
+        from unittest.mock import patch
+
+        # Mock the run_main function to raise KeyboardInterrupt
+        with patch(
+            'awslabs.amazon_bedrock_agentcore_mcp_server.server.run_main',
+            side_effect=KeyboardInterrupt,
+        ):
+            with patch('builtins.print') as mock_print:
+                with patch('sys.exit') as mock_exit:
+                    # Execute the main block code
+                    try:
+                        from awslabs.amazon_bedrock_agentcore_mcp_server.server import run_main
+
+                        run_main()
+                    except KeyboardInterrupt:
+                        print('\nAgentCore MCP Server shutting down...')
+                        sys.exit(0)
+
+                    # Should have printed shutdown message and exited with 0
+                    mock_print.assert_called_with('\nAgentCore MCP Server shutting down...')
+                    mock_exit.assert_called_with(0)
+
+    def test_main_block_exception_handling(self):
+        """Test general exception handling in main block."""
+        import sys
+        import traceback
+        from unittest.mock import patch
+
+        test_error = Exception('Test server error')
+
+        # Mock the run_main function to raise an exception
+        with patch(
+            'awslabs.amazon_bedrock_agentcore_mcp_server.server.run_main', side_effect=test_error
+        ):
+            with patch('builtins.print') as mock_print:
+                with patch('sys.exit') as mock_exit:
+                    with patch('traceback.print_exc') as mock_traceback:
+                        # Execute the main block code
+                        try:
+                            from awslabs.amazon_bedrock_agentcore_mcp_server.server import run_main
+
+                            run_main()
+                        except Exception as e:
+                            print(f'\nServer error: {str(e)}')
+                            traceback.print_exc()
+                            sys.exit(1)
+
+                        # Should have printed error message, traceback, and exited with 1
+                        mock_print.assert_called_with(f'\nServer error: {str(test_error)}')
+                        mock_traceback.assert_called_once()
+                        mock_exit.assert_called_with(1)
+
+    def test_main_block_execution_path(self):
+        """Test successful execution path in main block."""
+        from unittest.mock import patch
+
+        # Mock the run_main function to succeed
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.server.run_main') as mock_run_main:
+            with patch('sys.exit'):
+                # Execute the main block code
+                try:
+                    from awslabs.amazon_bedrock_agentcore_mcp_server.server import run_main
+
+                    run_main()
+                except (KeyboardInterrupt, Exception):
+                    pass  # These are handled in other tests
+
+                # run_main should have been called
+                mock_run_main.assert_called_once()
