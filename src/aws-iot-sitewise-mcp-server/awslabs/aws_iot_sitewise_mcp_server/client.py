@@ -27,6 +27,6 @@ def create_sitewise_client(region: str = 'us-east-1'):
     Returns:
         boto3 IoT SiteWise client instance
     """
-    config = Config(user_agent_extra='MCP/IoTSiteWiseServer')
+    config = Config(user_agent_extra=f'awslabs/mcp/aws-iot-sitewise-mcp-server/{__version__}')
 
     return boto3.client('iotsitewise', region_name=region, config=config)
