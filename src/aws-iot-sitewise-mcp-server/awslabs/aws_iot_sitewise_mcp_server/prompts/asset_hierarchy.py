@@ -31,8 +31,7 @@ def asset_hierarchy_visualization(asset_id: str) -> str:
         Comprehensive asset hierarchy analysis and visualization
     """
     return f"""
-You are an AWS IoT SiteWise expert helping to analyze and \
-    visualize asset hierarchies.
+You are an AWS IoT SiteWise expert helping to analyze and visualize asset hierarchies.
 
 Please analyze the asset hierarchy starting from asset ID: {asset_id}
 
