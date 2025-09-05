@@ -35,6 +35,7 @@ from ..metadata.read_only_operations_list import (
     ReadOnlyOperations,
 )
 from ..parser.lexer import split_cli_command
+from ..security.policy import PolicyDecision, security_policy
 from .driver import interpret_command as _interpret_command
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.helpers import operation_timer
@@ -85,6 +86,49 @@ def is_operation_read_only(ir: IRTranslation, read_only_operations: ReadOnlyOper
     service_name = ir.command_metadata.service_sdk_name
     operation_name = ir.command_metadata.operation_sdk_name
     return read_only_operations.has(service=service_name, operation=operation_name)
+
+
+def check_elicitation_support(ctx: Context) -> bool:
+    """Check if elicitation is supported."""
+    try:
+        return hasattr(ctx, 'elicit')
+    except Exception:
+        return False
+
+
+def check_security_policy(
+    cli_command: str, ir: IRTranslation, read_only_operations: ReadOnlyOperations, ctx: Context
+) -> PolicyDecision:
+    """Check security policy for the given command and return decision."""
+
+    def is_read_only_func(service: str, operation: str) -> bool:
+        return read_only_operations.has(service=service, operation=operation)
+
+    # Check if client supports elicitation
+    supports_elicitation = check_elicitation_support(ctx)
+
+    # First check if this matches a customization
+    customization_decision = security_policy.check_customization(
+        cli_command, is_read_only_func, supports_elicitation
+    )
+    if customization_decision is not None:
+        return customization_decision
+
+    # If no customization matches, check individual operation
+    if (
+        not ir.command_metadata
+        or not getattr(ir.command_metadata, 'service_sdk_name', None)
+        or not getattr(ir.command_metadata, 'operation_sdk_name', None)
+    ):
+        return PolicyDecision.ELICIT if supports_elicitation else PolicyDecision.DENY
+
+    service_name = ir.command_metadata.service_sdk_name
+    operation_name = ir.command_metadata.operation_sdk_name
+    is_read_only = is_operation_read_only(ir, read_only_operations)
+
+    return security_policy.determine_policy_effect(
+        service_name, operation_name, is_read_only, supports_elicitation
+    )
 
 
 def validate(ir: IRTranslation) -> ProgramValidationResponse:
