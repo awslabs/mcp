@@ -278,6 +278,36 @@ Logs of the MCP server are stored in the system's temporary directory, under **a
 - **Untrusted Data Sources**: When connecting to potentially untrusted data sources, use scoped-down credentials with minimal permissions.
 - **Regular Monitoring**: Monitor AWS CloudTrail logs to track actions performed by the MCP server.
 
+### Custom Security Policy Configuration
+
+You can create a custom security policy file to define additional security controls beyond IAM permissions. The MCP server will look for a security policy file at `~/.aws/aws-api-mcp/mcp-security-policy.json`.
+
+#### Security Policy File Format
+
+```json
+{
+  "version": "1.0",
+  "policy": {
+    "denyList": [],
+    "elicitList": []
+  }
+}
+```
+
+#### Policy Configuration Options
+
+- **`denyList`**: Array of AWS CLI call patterns that will be completely blocked.
+- **`elicitList`**: Array of AWS CLI call patternsthat will require explicit user consent before execution. This requires a client that supports [elicitation](https://modelcontextprotocol.io/docs/concepts/elicitation).
+
+#### Security Policy Precedence
+
+1. **Denylist** - Operations in the denylist are blocked completely
+2. **Elicitation Required** - Operations requiring consent will prompt the user
+3. **IAM Permissions** - Standard AWS IAM controls apply to all operations
+4. **READ_OPERATIONS_ONLY** - Environment variable restriction (if enabled)
+
+**Note**: The security policy file is locked exclusively when loaded to prevent concurrent modifications. IAM permissions remain the primary security control mechanism.
+
 ## License
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
