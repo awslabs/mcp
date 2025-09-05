@@ -185,7 +185,7 @@ jobs:
           echo "${{ toJson(needs.look-for-changes.outputs.changed-directories) }}" | \
             jq -r '.[]' | \
             xargs -I{} \
-            uv run --script .github/workflows/release.py bump-package --directory="$SRC_DIRECTORY/{}"
+            bash -c 'uv run --script .github/workflows/release.py bump-package --directory="$SRC_DIRECTORY/{}" && uv sync --directory="$SRC_DIRECTORY/{}"' bash
           echo "::debug::Version bumps completed"
       - name: Configure Git and GPG securely
         env:
