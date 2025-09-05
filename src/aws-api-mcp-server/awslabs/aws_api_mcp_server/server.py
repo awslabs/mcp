@@ -17,9 +17,9 @@ import sys
 from .core.agent_scripts.manager import AGENT_SCRIPTS_MANAGER
 from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
+    check_security_policy,
     execute_awscli_customization,
     interpret_command,
-    is_operation_read_only,
     request_consent,
     validate,
 )
@@ -45,6 +45,7 @@ from .core.common.models import (
 )
 from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
+from .core.security.policy import PolicyDecision
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -235,7 +236,17 @@ async def call_aws(
     )
 
     try:
-        if READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX):
+        # Check security policy
+        if READ_OPERATIONS_INDEX is not None:
+            policy_decision = check_security_policy(cli_command, ir, READ_OPERATIONS_INDEX, ctx)
+
+            if policy_decision == PolicyDecision.DENY:
+                error_message = 'Execution of this operation is denied by security policy.'
+                await ctx.error(error_message)
+                return AwsApiMcpServerErrorResponse(detail=error_message)
+            elif policy_decision == PolicyDecision.ELICIT:
+                await request_consent(cli_command, ctx)
+        else:
             if READ_OPERATIONS_ONLY_MODE:
                 error_message = (
                     'Execution of this operation is not allowed because read only mode is enabled. '
@@ -360,8 +371,12 @@ def main():
         logger.error(error_message)
         raise RuntimeError(error_message)
 
-    if READ_OPERATIONS_ONLY_MODE or REQUIRE_MUTATION_CONSENT:
+    # Always load read operations index for security policy checking
+    try:
         READ_OPERATIONS_INDEX = get_read_only_operations()
+    except Exception as e:
+        logger.warning('Failed to load read operations index: {}', e)
+        READ_OPERATIONS_INDEX = None
 
     server.run(transport=TRANSPORT)
 
