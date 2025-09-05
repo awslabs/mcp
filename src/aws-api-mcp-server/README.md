@@ -191,6 +191,7 @@ Once the server is running, connect to it using the following configuration (ens
 | `AWS_API_MCP_TRANSPORT`                                           | ❌ No     | `"stdio"`                                                | Transport protocol for the MCP server. Valid options are `"stdio"` (default) for local communication or `"streamable-http"` for HTTP-based communication. When using `"streamable-http"`, the server will listen on the host and port specified by `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `AWS_API_MCP_HOST`                                                | ❌ No     | `"127.0.0.1"`                                            | Host address for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `AWS_API_MCP_PORT`                                                | ❌ No     | `"8000"`                                                 | Port number for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `EXPERIMENTAL_AWS_API_MCP_LOG_GROUP`                                | ❌ No     | -                                                        | When set to a CloudWatch Logs group name (e.g., `/aws/mcp/aws-api-mcp-server`), the server forwards all logs to that group in addition to local file and stderr. The server will create the log group/stream if missing and use the current `AWS_REGION` for publishing. Requires IAM permissions for `logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`. |
 
 ### 🚀 Quick Start
 
@@ -269,6 +270,15 @@ This MCP server executes AWS CLI commands as instructed by an AI model, which ca
 ### Logging
 
 Logs of the MCP server are stored in the system's temporary directory, under **aws-api-mcp** subfolder - on Windows and macOS, this is the system temp directory, while on Linux it uses `XDG_RUNTIME_DIR`, `TMPDIR`, or `/tmp` as fallback. The logs contain MCP server operational data including command executions, errors, and debugging information to help users monitor and perform forensics of the MCP server.
+
+If you want logs in CloudWatch Logs, set the environment variable `EXPERIMENTAL_AWS_API_MCP_LOG_GROUP` to your desired log group name. Example MCP client config env section:
+
+```json
+"env": {
+  "AWS_REGION": "us-east-1",
+  "EXPERIMENTAL_AWS_API_MCP_LOG_GROUP": "/aws/mcp/aws-api-mcp-server"
+}
+```
 
 ### Security Best Practices
 

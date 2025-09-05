@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import boto3
 import botocore.exceptions
 from ..common.errors import (
     CliParsingError,
@@ -20,30 +19,12 @@ from ..common.errors import (
     MissingContextError,
 )
 from ..common.helpers import as_json
-from ..common.models import Credentials, InterpretedProgram, IRTranslation
+from ..common.models import InterpretedProgram, IRTranslation
 from ..parser.interpretation import interpret
 from ..parser.parser import parse
+from .credentials import get_local_credentials
 from .regions import GLOBAL_SERVICE_REGIONS
 from awslabs.aws_api_mcp_server.core.common.config import AWS_API_MCP_PROFILE_NAME
-from botocore.exceptions import NoCredentialsError
-
-
-def get_local_credentials(profile: str | None = None) -> Credentials:
-    """Get the local credentials for AWS profile."""
-    if profile is not None:
-        session = boto3.Session(profile_name=profile)
-    else:
-        session = boto3.Session()
-    aws_creds = session.get_credentials()
-
-    if aws_creds is None:
-        raise NoCredentialsError()
-
-    return Credentials(
-        access_key_id=aws_creds.access_key,
-        secret_access_key=aws_creds.secret_key,
-        session_token=aws_creds.token,
-    )
 
 
 def translate_cli_to_ir(cli_command: str) -> IRTranslation:
