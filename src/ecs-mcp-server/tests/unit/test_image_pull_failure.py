@@ -20,134 +20,12 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.detect_image_pull_failures
     detect_image_pull_failures,
 )
 from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance import (
-    discover_resources,
-    get_task_definitions,
     validate_container_images,
 )
 
 
 class TestImagePullFailureDetection(unittest.TestCase):
     """Test the image pull failure detection functionality."""
-
-    @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance.boto3.client"
-    )
-    async def test_discover_resources(self, mock_boto3_client):
-        """Test discovering related resources."""
-        # Mock the ECS client
-        mock_ecs = MagicMock()
-        mock_ecs.list_clusters.return_value = {
-            "clusterArns": [
-                "arn:aws:ecs:us-west-2:123456789012:cluster/test-failure-cluster-prbqv",
-                "arn:aws:ecs:us-west-2:123456789012:cluster/another-cluster",
-            ]
-        }
-
-        # Mock the paginator for list_task_definitions
-        mock_task_paginator = MagicMock()
-        mock_task_paginator.paginate.return_value = [
-            {
-                "taskDefinitionArns": [
-                    (
-                        "arn:aws:ecs:us-west-2:123456789012:task-definition/"
-                        "test-failure-task-def-prbqv:1"
-                    ),
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/other-task:1",
-                ]
-            }
-        ]
-
-        def get_paginator_side_effect(operation_name):
-            if operation_name == "list_task_definitions":
-                return mock_task_paginator
-            return MagicMock()
-
-        mock_ecs.get_paginator.side_effect = get_paginator_side_effect
-
-        # Mock describe_task_definition for the task definitions
-        mock_ecs.describe_task_definition.return_value = {
-            "taskDefinition": {
-                "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-failure-task-def-prbqv:1"
-                ),
-                "family": "test-failure-task-def-prbqv",
-                "revision": 1,
-            }
-        }
-
-        # Mock the ELBv2 client
-        mock_elbv2 = MagicMock()
-        mock_elbv2.describe_load_balancers.return_value = {
-            "LoadBalancers": [
-                {"LoadBalancerName": "test-failure-lb-prbqv"},
-                {"LoadBalancerName": "other-lb"},
-            ]
-        }
-
-        # Configure mock boto3 client to return our mocks
-        def mock_client(service_name):
-            if service_name == "ecs":
-                return mock_ecs
-            elif service_name == "elbv2":
-                return mock_elbv2
-            return MagicMock()
-
-        mock_boto3_client.side_effect = mock_client
-
-        result, _ = await discover_resources("test-failure")
-
-        # Verify the result
-        self.assertIn("test-failure-cluster-prbqv", result["clusters"])
-        self.assertIn("test-failure-task-def-prbqv:1", result["task_definitions"])
-        self.assertIn("test-failure-lb-prbqv", result["load_balancers"])
-
-    @pytest.mark.anyio
-    @patch(
-        "awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_guidance.boto3.client"
-    )
-    async def test_get_task_definitions(self, mock_boto3_client):
-        """Test getting related task definitions."""
-        # Mock the ECS client
-        mock_ecs = MagicMock()
-
-        # Mock paginator for list_task_definitions
-        mock_paginator = MagicMock()
-        mock_paginator.paginate.return_value = [
-            {
-                "taskDefinitionArns": [
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-failure-prbqv:1"
-                ]
-            }
-        ]
-        mock_ecs.get_paginator.return_value = mock_paginator
-
-        # Mock describe_task_definition
-        mock_ecs.describe_task_definition.return_value = {
-            "taskDefinition": {
-                "taskDefinitionArn": (
-                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-failure-prbqv:1"
-                ),
-                "family": "test-failure-prbqv",
-                "revision": 1,
-                "containerDefinitions": [
-                    {"name": "web", "image": "non-existent-repo/non-existent-image:latest"}
-                ],
-            }
-        }
-
-        # Configure mock boto3 client to return our mock
-        mock_boto3_client.return_value = mock_ecs
-
-        # Call the function
-        result = await get_task_definitions("test-failure-prbqv")
-
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["family"], "test-failure-prbqv")
-        self.assertEqual(
-            result[0]["containerDefinitions"][0]["image"],
-            "non-existent-repo/non-existent-image:latest",
-        )
 
     @pytest.mark.anyio
     @patch(
@@ -189,10 +67,10 @@ class TestImagePullFailureDetection(unittest.TestCase):
         result = await validate_container_images(task_defs)
 
         # Verify the result
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["image"], "non-existent-repo/non-existent-image:latest")
-        self.assertEqual(result[0]["exists"], "unknown")  # External images have unknown status
-        self.assertEqual(result[0]["repository_type"], "external")
+        assert len(result) == 1
+        assert result[0]["image"] == "non-existent-repo/non-existent-image:latest"
+        assert result[0]["exists"] == "unknown"  # External images have unknown status
+        assert result[0]["repository_type"] == "external"
 
     @pytest.mark.anyio
     @patch(
@@ -234,10 +112,10 @@ class TestImagePullFailureDetection(unittest.TestCase):
         result = await detect_image_pull_failures("test-failure-prbqv")
 
         # Verify the result
-        self.assertTrue("success" in result["status"])
-        self.assertTrue(len(result["image_issues"]) > 0)
-        self.assertIn("container image", result["assessment"])
-        self.assertTrue(len(result["recommendations"]) > 0)
+        assert "success" in result["status"]
+        assert len(result["image_issues"]) > 0
+        assert "container image" in result["assessment"]
+        assert len(result["recommendations"]) > 0
 
         # Make sure it contains a specific recommendation
         found_recommendation = False
@@ -247,9 +125,78 @@ class TestImagePullFailureDetection(unittest.TestCase):
             ):
                 found_recommendation = True
                 break
-        self.assertTrue(
-            found_recommendation, "Should recommend verifying the external image accessibility"
+        assert found_recommendation, "Should recommend verifying the external image accessibility"
+
+    @pytest.mark.anyio
+    async def test_detect_image_pull_failures_parameter_validation(self):
+        """Test parameter validation in detect_image_pull_failures."""
+        # Expected error message from parameter validation
+        expected_error_msg = (
+            "At least one of: ecs_cluster_name+ecs_service_name, ecs_cluster_name+ecs_task_id, "
+            "cfn_stack_name, or family_prefix must be provided"
         )
+
+        # Call with no parameters - should trigger validation error
+        result = await detect_image_pull_failures()
+
+        # Verify the result shows parameter validation error
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+        # Specific assertion for the exact error message
+        assert result["error"] == expected_error_msg, (
+            f"Expected exact error message, got: {result['error']}"
+        )
+
+        # Call with incomplete parameters - should also trigger validation error
+        result = await detect_image_pull_failures(cluster_name="test-cluster")
+
+        # Verify the result shows parameter validation error
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+        # Test other incomplete parameter combinations
+        result = await detect_image_pull_failures(service_name="test-service")
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+        result = await detect_image_pull_failures(task_id="test-task-id")
+        assert result["status"] == "error"
+        assert result["error"] == expected_error_msg
+
+
+@pytest.mark.anyio
+async def test_detect_image_pull_failures_parameter_validation_standalone():
+    """Standalone test for parameter validation in detect_image_pull_failures."""
+    # Expected error message from parameter validation
+    expected_error_msg = (
+        "At least one of: ecs_cluster_name+ecs_service_name, ecs_cluster_name+ecs_task_id, "
+        "cfn_stack_name, or family_prefix must be provided"
+    )
+
+    # Call with no parameters - should trigger validation error
+    result = await detect_image_pull_failures()
+
+    # Verify the result shows parameter validation error
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
+
+    # Specific assertion for the exact error message
+    assert result["error"] == expected_error_msg
+
+    # Call with incomplete parameters - should also trigger validation error
+    result = await detect_image_pull_failures(cluster_name="test-cluster")
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
+
+    # Test other incomplete parameter combinations
+    result = await detect_image_pull_failures(service_name="test-service")
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
+
+    result = await detect_image_pull_failures(task_id="test-task-id")
+    assert result["status"] == "error"
+    assert result["error"] == expected_error_msg
 
 
 if __name__ == "__main__":
