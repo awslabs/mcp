@@ -282,7 +282,7 @@ class TestSiteWiseAccess:
             disassociated_data_storage='ENABLED',
             retention_period=None,
             warm_tier='ENABLED',
-            warm_tier_retention_period=None
+            warm_tier_retention_period=None,
         )
 
         assert result['success'] is True
