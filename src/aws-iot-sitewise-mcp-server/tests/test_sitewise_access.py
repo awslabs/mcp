@@ -177,7 +177,7 @@ class TestSiteWiseAccess:
         assert result['encryption_type'] == 'KMS_BASED_ENCRYPTION'
         mock_client.put_default_encryption_configuration.assert_called_once_with(
             encryptionType='KMS_BASED_ENCRYPTION',
-            kmsKeyId='arn:aws:kms:us-east-1:<account-id>:key/test-key',
+            kmsKeyId='arn:aws:kms:us-east-1:<account-id>:key/test-key56789012',
         )
 
         # Test without KMS key (SiteWise default)
