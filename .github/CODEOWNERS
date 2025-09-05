@@ -34,6 +34,7 @@ NOTICE                                                                    @awsla
 /src/aws-diagram-mcp-server             @MichaelWalker-git                @awslabs/mcp-admins
 /src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim             @awslabs/mcp-admins
 /src/aws-healthomics-mcp-server         @markjschreiber @WIIASD           @awslabs/mcp-admins
+/src/aws-iot-sitewise-mcp-server        @ychamare                         @awslabs/mcp-admins
 #/src/aws-location-mcp-server           @awslabs/mcp-maintainers          @awslabs/mcp-admins
 /src/aws-msk-mcp-server                 @elmoctarebnou @dingyiheng        @awslabs/mcp-admins
 /src/aws-pricing-mcp-server             @nspring00 @aytech-in @s12v       @awslabs/mcp-admins
