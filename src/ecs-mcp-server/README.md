@@ -160,7 +160,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "run",
         "--from",
         "awslabs.ecs-mcp-server@latest",
-        "awslabs.ecs-mcp-server.exe"
+        "ecs-mcp-server.exe"
       ],
      "env": {
         "AWS_PROFILE": "your-aws-profile", // Optional - uses your local AWS configuration if not specified
