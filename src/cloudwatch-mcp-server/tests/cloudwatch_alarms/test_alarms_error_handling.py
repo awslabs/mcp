@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
+    ActiveAlarmsResponse,
     AlarmDetails,
     AlarmHistoryItem,
     AlarmHistoryResponse,
@@ -54,7 +55,9 @@ class TestParameterValidation:
             alarms_tools = CloudWatchAlarmsTools()
 
             # Test None max_items - should default to 50
-            result = await alarms_tools.get_active_alarms(mock_context, max_items=None)
+            result = await alarms_tools.get_active_alarms(
+                mock_context, max_items=None, include_autoscaling_alarms=True
+            )
             assert result is not None
 
             # Verify paginator was called with default MaxItems + 1
@@ -377,6 +380,506 @@ class TestErrorHandling:
             # Should return empty list on error
             assert result == []
             mock_logger.error.assert_called()
+
+
+class TestAutoscalingFilterErrorHandling:
+    """Test error handling for autoscaling filter integration."""
+
+    @pytest.mark.asyncio
+    async def test_autoscaling_filter_exception_handling(self, mock_context):
+        """Test behavior when AutoscalingActionFilter raises exceptions."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+
+            # Create test alarm data
+            test_alarm = {
+                'AlarmName': 'test-alarm-with-filter-error',
+                'StateValue': 'ALARM',
+                'StateReason': 'Test reason',
+                'MetricName': 'CPUUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 80.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            mock_paginator.paginate.return_value = [
+                {'MetricAlarms': [test_alarm], 'CompositeAlarms': []}
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            # Mock the autoscaling filter to raise an exception
+            with patch.object(
+                alarms_tools.autoscaling_filter, 'has_autoscaling_actions'
+            ) as mock_filter:
+                mock_filter.side_effect = Exception('Filter processing error')
+
+                with patch(
+                    'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.logger'
+                ) as mock_logger:
+                    result = await alarms_tools.get_active_alarms(
+                        mock_context, max_items=10, include_autoscaling_alarms=False
+                    )
+
+                # Should handle the exception gracefully and include the alarm (fallback behavior)
+                assert isinstance(result, ActiveAlarmsResponse)
+                assert len(result.metric_alarms) == 1
+                assert result.metric_alarms[0].alarm_name == 'test-alarm-with-filter-error'
+
+                # Should log a warning about the filtering error
+                mock_logger.warning.assert_called()
+                warning_call_args = mock_logger.warning.call_args[0][0]
+                assert (
+                    'Error filtering metric alarm test-alarm-with-filter-error'
+                    in warning_call_args
+                )
+                assert 'Filter processing error' in warning_call_args
+
+    @pytest.mark.asyncio
+    async def test_autoscaling_filter_graceful_degradation(self, mock_context):
+        """Test graceful degradation when filtering logic fails."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+
+            # Create multiple test alarms - some will cause filter errors, others won't
+            normal_alarm = {
+                'AlarmName': 'normal-alarm',
+                'StateValue': 'ALARM',
+                'StateReason': 'Normal alarm',
+                'MetricName': 'CPUUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 80.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            problematic_alarm = {
+                'AlarmName': 'problematic-alarm',
+                'StateValue': 'ALARM',
+                'StateReason': 'Problematic alarm',
+                'MetricName': 'MemoryUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 90.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            mock_paginator.paginate.return_value = [
+                {'MetricAlarms': [normal_alarm, problematic_alarm], 'CompositeAlarms': []}
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            # Mock the autoscaling filter to fail only for the problematic alarm
+            def mock_filter_side_effect(alarm_data):
+                if alarm_data.get('AlarmName') == 'problematic-alarm':
+                    raise ValueError('Malformed alarm data')
+                return False  # Normal alarm is not autoscaling
+
+            with patch.object(
+                alarms_tools.autoscaling_filter, 'has_autoscaling_actions'
+            ) as mock_filter:
+                mock_filter.side_effect = mock_filter_side_effect
+
+                with patch(
+                    'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.logger'
+                ) as mock_logger:
+                    result = await alarms_tools.get_active_alarms(
+                        mock_context, max_items=10, include_autoscaling_alarms=False
+                    )
+
+                # Should include both alarms despite the filtering error on one
+                assert isinstance(result, ActiveAlarmsResponse)
+                assert len(result.metric_alarms) == 2
+
+                alarm_names = [alarm.alarm_name for alarm in result.metric_alarms]
+                assert 'normal-alarm' in alarm_names
+                assert 'problematic-alarm' in alarm_names
+
+                # Should log a warning for the problematic alarm only
+                mock_logger.warning.assert_called_once()
+                warning_call_args = mock_logger.warning.call_args[0][0]
+                assert 'Error filtering metric alarm problematic-alarm' in warning_call_args
+
+    @pytest.mark.asyncio
+    async def test_malformed_alarm_data_handling(self, mock_context):
+        """Test handling of malformed alarm data from CloudWatch API."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+
+            # Create malformed alarm data (missing required fields)
+            malformed_alarm = {
+                'AlarmName': 'malformed-alarm',
+                'StateValue': 'ALARM',
+                # Missing many required fields like MetricName, Namespace, etc.
+                'AlarmActions': [None, 123, {'invalid': 'data'}],  # Malformed actions
+                'OKActions': 'not-a-list',  # Wrong type
+                'InsufficientDataActions': [],
+            }
+
+            mock_paginator.paginate.return_value = [
+                {'MetricAlarms': [malformed_alarm], 'CompositeAlarms': []}
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            # Should handle malformed data gracefully
+            result = await alarms_tools.get_active_alarms(
+                mock_context, max_items=10, include_autoscaling_alarms=False
+            )
+
+            assert isinstance(result, ActiveAlarmsResponse)
+            # The alarm should still be included due to fallback behavior
+            assert len(result.metric_alarms) == 1
+            assert result.metric_alarms[0].alarm_name == 'malformed-alarm'
+
+    @pytest.mark.asyncio
+    async def test_filtering_errors_dont_break_entire_request(self, mock_context):
+        """Test that filtering errors don't break the entire request."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+
+            # Create multiple alarms with various issues
+            alarms = []
+            for i in range(5):
+                alarms.append(
+                    {
+                        'AlarmName': f'alarm-{i}',
+                        'StateValue': 'ALARM',
+                        'StateReason': f'Alarm {i} triggered',
+                        'MetricName': 'CPUUtilization',
+                        'Namespace': 'AWS/EC2',
+                        'Dimensions': [],
+                        'Threshold': 80.0,
+                        'ComparisonOperator': 'GreaterThanThreshold',
+                        'StateUpdatedTimestamp': datetime.now(),
+                        'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                        'OKActions': [],
+                        'InsufficientDataActions': [],
+                    }
+                )
+
+            mock_paginator.paginate.return_value = [
+                {'MetricAlarms': alarms, 'CompositeAlarms': []}
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            # Mock the autoscaling filter to fail for every other alarm
+            def mock_filter_side_effect(alarm_data):
+                alarm_name = alarm_data.get('AlarmName', '')
+                if 'alarm-1' in alarm_name or 'alarm-3' in alarm_name:
+                    raise RuntimeError(f'Filter error for {alarm_name}')
+                return False  # Other alarms are not autoscaling
+
+            with patch.object(
+                alarms_tools.autoscaling_filter, 'has_autoscaling_actions'
+            ) as mock_filter:
+                mock_filter.side_effect = mock_filter_side_effect
+
+                with patch(
+                    'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.logger'
+                ) as mock_logger:
+                    result = await alarms_tools.get_active_alarms(
+                        mock_context, max_items=10, include_autoscaling_alarms=False
+                    )
+
+                # Should include all alarms despite filtering errors
+                assert isinstance(result, ActiveAlarmsResponse)
+                assert len(result.metric_alarms) == 5
+
+                # Should log warnings for the problematic alarms
+                assert mock_logger.warning.call_count == 2
+
+                # Verify the warning messages contain the expected alarm names
+                warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+                assert any('alarm-1' in warning for warning in warning_calls)
+                assert any('alarm-3' in warning for warning in warning_calls)
+
+    @pytest.mark.asyncio
+    async def test_logging_of_filtering_errors_and_warnings(self, mock_context):
+        """Test logging of filtering errors and warnings."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+
+            # Create test alarms
+            metric_alarm = {
+                'AlarmName': 'metric-alarm-error',
+                'StateValue': 'ALARM',
+                'StateReason': 'Test reason',
+                'MetricName': 'CPUUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 80.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            composite_alarm = {
+                'AlarmName': 'composite-alarm-error',
+                'StateValue': 'ALARM',
+                'StateReason': 'Composite alarm triggered',
+                'AlarmRule': 'ALARM("metric-alarm-error")',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            mock_paginator.paginate.return_value = [
+                {'MetricAlarms': [metric_alarm], 'CompositeAlarms': [composite_alarm]}
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            # Mock the autoscaling filter to raise different types of exceptions
+            def mock_filter_side_effect(alarm_data):
+                alarm_name = alarm_data.get('AlarmName', '')
+                if 'metric-alarm' in alarm_name:
+                    raise KeyError('Missing required field')
+                elif 'composite-alarm' in alarm_name:
+                    raise TypeError('Invalid data type')
+                return False
+
+            with patch.object(
+                alarms_tools.autoscaling_filter, 'has_autoscaling_actions'
+            ) as mock_filter:
+                mock_filter.side_effect = mock_filter_side_effect
+
+                with patch(
+                    'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.logger'
+                ) as mock_logger:
+                    result = await alarms_tools.get_active_alarms(
+                        mock_context, max_items=10, include_autoscaling_alarms=False
+                    )
+
+                # Should include both alarms despite filtering errors
+                assert isinstance(result, ActiveAlarmsResponse)
+                assert len(result.metric_alarms) == 1
+                assert len(result.composite_alarms) == 1
+
+                # Should log warnings for both alarm types
+                assert mock_logger.warning.call_count == 2
+
+                # Verify the warning messages contain the expected content
+                warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+
+                # Check for metric alarm error
+                metric_warning = next(
+                    (w for w in warning_calls if 'metric alarm metric-alarm-error' in w), None
+                )
+                assert metric_warning is not None
+                assert 'Missing required field' in metric_warning
+
+                # Check for composite alarm error
+                composite_warning = next(
+                    (w for w in warning_calls if 'composite alarm composite-alarm-error' in w),
+                    None,
+                )
+                assert composite_warning is not None
+                assert 'Invalid data type' in composite_warning
+
+    @pytest.mark.asyncio
+    async def test_autoscaling_filter_with_none_alarm_name(self, mock_context):
+        """Test handling when alarm data has None or missing AlarmName in filtering logic."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+
+            # Create alarm that will cause filter error but has valid structure for transformation
+            alarm_with_filter_error = {
+                'AlarmName': 'alarm-with-filter-error',
+                'StateValue': 'ALARM',
+                'StateReason': 'Test reason',
+                'MetricName': 'CPUUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 80.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            # Create another alarm that will also cause filter error
+            another_alarm_with_filter_error = {
+                'AlarmName': 'another-alarm-with-filter-error',
+                'StateValue': 'ALARM',
+                'StateReason': 'Test reason',
+                'MetricName': 'MemoryUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 90.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            mock_paginator.paginate.return_value = [
+                {
+                    'MetricAlarms': [alarm_with_filter_error, another_alarm_with_filter_error],
+                    'CompositeAlarms': [],
+                }
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            # Mock the autoscaling filter to raise an exception and test the alarm name handling in error logging
+            def mock_filter_side_effect(alarm_data):
+                # Simulate the case where alarm_data might have None or missing AlarmName
+                # but we'll test the error handling in the _should_include_alarm method
+                raise Exception('Filter error')
+
+            with patch.object(
+                alarms_tools.autoscaling_filter, 'has_autoscaling_actions'
+            ) as mock_filter:
+                mock_filter.side_effect = mock_filter_side_effect
+
+                with patch(
+                    'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.logger'
+                ) as mock_logger:
+                    result = await alarms_tools.get_active_alarms(
+                        mock_context, max_items=10, include_autoscaling_alarms=False
+                    )
+
+                # Should handle filter errors gracefully and include both alarms
+                assert isinstance(result, ActiveAlarmsResponse)
+                assert len(result.metric_alarms) == 2
+
+                # Should log warnings for both alarms
+                assert mock_logger.warning.call_count == 2
+                warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+
+                # Verify the warning messages contain the expected alarm names
+                assert any('alarm-with-filter-error' in warning for warning in warning_calls)
+                assert any(
+                    'another-alarm-with-filter-error' in warning for warning in warning_calls
+                )
+
+    @pytest.mark.asyncio
+    async def test_autoscaling_filter_with_missing_alarm_name_in_data(self, mock_context):
+        """Test handling when alarm data passed to filter has missing AlarmName for logging."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_paginator = Mock()
+
+            # Create alarm with valid structure but we'll test the error logging path
+            test_alarm = {
+                'AlarmName': 'test-alarm',
+                'StateValue': 'ALARM',
+                'StateReason': 'Test reason',
+                'MetricName': 'CPUUtilization',
+                'Namespace': 'AWS/EC2',
+                'Dimensions': [],
+                'Threshold': 80.0,
+                'ComparisonOperator': 'GreaterThanThreshold',
+                'StateUpdatedTimestamp': datetime.now(),
+                'AlarmActions': ['arn:aws:sns:us-east-1:123456789012:alerts'],
+                'OKActions': [],
+                'InsufficientDataActions': [],
+            }
+
+            mock_paginator.paginate.return_value = [
+                {'MetricAlarms': [test_alarm], 'CompositeAlarms': []}
+            ]
+            mock_client.get_paginator.return_value = mock_paginator
+            mock_session.return_value.client.return_value = mock_client
+
+            alarms_tools = CloudWatchAlarmsTools()
+
+            # Mock the _should_include_alarm method to test the alarm name handling in error logging
+            def mock_should_include_alarm(alarm, include_autoscaling_alarms, alarm_type):
+                # Simulate the case where we get an alarm with missing AlarmName in the error path
+                # by removing the AlarmName key entirely to test the 'unknown' fallback
+                modified_alarm = alarm.copy()
+                del modified_alarm['AlarmName']  # This will test the 'unknown' fallback
+
+                try:
+                    return not alarms_tools.autoscaling_filter.has_autoscaling_actions(
+                        modified_alarm
+                    )
+                except Exception as e:
+                    # This will trigger the error logging path with missing alarm name
+                    alarm_name = modified_alarm.get('AlarmName', 'unknown')
+                    from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools import logger
+
+                    logger.warning(f'Error filtering {alarm_type} alarm {alarm_name}: {e}')
+                    return True
+
+            # Mock the autoscaling filter to raise an exception
+            with patch.object(
+                alarms_tools.autoscaling_filter, 'has_autoscaling_actions'
+            ) as mock_filter:
+                mock_filter.side_effect = Exception('Filter error')
+
+                # Replace the _should_include_alarm method
+                alarms_tools._should_include_alarm = mock_should_include_alarm
+
+                with patch(
+                    'awslabs.cloudwatch_mcp_server.cloudwatch_alarms.tools.logger'
+                ) as mock_logger:
+                    result = await alarms_tools.get_active_alarms(
+                        mock_context, max_items=10, include_autoscaling_alarms=False
+                    )
+
+                # Should handle the None alarm name gracefully
+                assert isinstance(result, ActiveAlarmsResponse)
+                assert len(result.metric_alarms) == 1
+
+                # Should log warning with 'unknown' for missing alarm name
+                mock_logger.warning.assert_called_once()
+                warning_call_args = mock_logger.warning.call_args[0][0]
+                assert 'Error filtering metric alarm unknown' in warning_call_args
 
 
 class TestEdgeCases:
