@@ -3,8 +3,8 @@ import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
-    CommandValidationError,
     ExpectedArgumentError,
+    FileParameterError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
@@ -214,25 +214,6 @@ def test_invalid_choice_for_option(command, message):
 def test_invalid_type_for_parameter(command, message):
     """Test that an invalid type for a parameter raises InvalidTypeForParameterError."""
     with pytest.raises(InvalidTypeForParameterError, match=message):
-        parse(command)
-
-
-@pytest.mark.parametrize(
-    'command, message',
-    [
-        (
-            'aws lambda  update-function-code --function-name MyFunction --zip-file  fileb://newfunction.zip',
-            str(
-                CommandValidationError(
-                    '-zip-file must be a zip file with the fileb:// prefix.\nExample usage:  --zip-file fileb://path/to/file.zip'
-                )
-            ),
-        )
-    ],
-)
-def test_command_validation_error_for_parameter(command, message):
-    """Test that a command validation error is raised for invalid parameters."""
-    with pytest.raises(CommandValidationError, match=message):
         parse(command)
 
 
@@ -606,22 +587,6 @@ def test_client_side_filter_error():
         parse(command)
 
 
-@pytest.mark.parametrize(
-    'command',
-    [
-        'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template myfile.template',
-        'aws lambda invoke --function-name my-function response.json',
-    ],
-)
-def test_outfile_parameter_not_supported(command):
-    """Test that outfile parameters raise a validation error."""
-    with pytest.raises(
-        CommandValidationError,
-        match='Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.',
-    ):
-        parse(command)
-
-
 def test_valid_expand_user_home_directory():
     """Test that tilde is replaced with user home directory."""
     result = parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
@@ -629,9 +594,15 @@ def test_valid_expand_user_home_directory():
 
 
 def test_invalid_expand_user_home_directory():
-    """Test that tilde is not replaced."""
-    result = parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
-    assert any(param.startswith('~') for param in result.parameters['--paths'])
+    """Test that tilde is not expanded."""
+    expected_message = (
+        "Invalid file parameter '~user_that_does_not_exist/temp/test.txt' for service 's3' and operation 'cp': "
+        'should be an absolute path. Please provide a valid file path.'
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse(cli_command='aws s3 cp s3://my_file ~user_that_does_not_exist/temp/test.txt')
+
+    assert str(exc_info.value) == expected_message
 
 
 @patch('boto3.Session')
@@ -643,3 +614,34 @@ def test_profile(mock_boto3_session):
     result = parse(cli_command='aws s3api list-buckets --profile test-profile')
     assert result.profile == 'test-profile'
     mock_boto3_session.assert_called_with(profile_name='test-profile')
+
+
+@pytest.mark.parametrize(
+    'command,expected_service,expected_operation,expected_file_path',
+    [
+        (
+            'aws s3api get-object --bucket test-bucket --key test-key relative/path/file.txt',
+            's3',
+            'GetObject',
+            'relative/path/file.txt',
+        ),
+        (
+            'aws lambda invoke --function-name my-function response.json',
+            'lambda',
+            'Invoke',
+            'response.json',
+        ),
+    ],
+)
+def test_validate_output_file_raises_error_for_relative_paths(
+    command, expected_service, expected_operation, expected_file_path
+):
+    """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
+    expected_message = (
+        f'Invalid file parameter {expected_file_path!r} for service {expected_service!r} and operation {expected_operation!r}: '
+        f'should be an absolute path. Please provide a valid file path.'
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse(command)
+
+    assert str(exc_info.value) == expected_message

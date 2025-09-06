@@ -557,3 +557,35 @@ class ClientSideFilterError(CommandValidationError):
                 'msg': self._msg,
             },
         )
+
+
+class FileParameterError(CommandValidationError):
+    """Thrown when file parameters have validation issues (streaming files, relative paths, etc.)."""
+
+    _message = (
+        'Invalid file parameter {file_path!r} for service {service!r} and operation {operation!r}: {reason}. '
+        'Please provide a valid file path.'
+    )
+
+    def __init__(self, service: str, operation: str, file_path: str, reason: str):
+        """Initialize FileParameterError with service, operation, file path, and reason."""
+        message = self._message.format(
+            service=service, operation=operation, file_path=file_path, reason=reason
+        )
+        self._service = service
+        self._operation = operation
+        self._file_path = file_path
+        self._reason = reason
+        super().__init__(message)
+
+    def as_failure(self) -> Failure:
+        """Return a Failure object representing this error."""
+        return Failure(
+            reason=str(self),
+            context={
+                'service': self._service,
+                'operation': self._operation,
+                'file_path': self._file_path,
+                'reason': self._reason,
+            },
+        )

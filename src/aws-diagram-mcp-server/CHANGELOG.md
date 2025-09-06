@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING CHANGE:** Server Sent Events (SSE) support has been removed in accordance with the Model Context Protocol specification's [backwards compatibility guidelines](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility)
 - This change prepares for future support of [Streamable HTTP](https://modelcontextprotocol.io/specification/draft/basic/transports#streamable-http) transport
 
+## [1.0.7] - 2025-08-13
+
+### Fixed
+- Resolved "No module named 'sarif_om'" error by adding sarif-om dependency (#1041)
+
+### Dependencies
+- Added sarif-om>=1.0.0 to support Bandit SARIF output format
+
 ## Unreleased
 
 ### Added

@@ -14,7 +14,8 @@
       "**/*.pyc",
       "**/trivy-results.sarif",
       "**/py.typed",
-      "**/*.npz"
+      "**/*.npz",
+      "**/*.template"
     ],
     "include": [
       "**/*.py",
@@ -52,7 +53,8 @@
       "**/*.pyc",
       "**/trivy-results.sarif",
       "**/py.typed",
-      "**/*.npz"
+      "**/*.npz",
+      "**/*.template"
     ]
   }
 ]
