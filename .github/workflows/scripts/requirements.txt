@@ -1,0 +1,8 @@
+# Dependencies for automated code owner assignment script
+# Install with: pip install -r requirements.txt
+
+# MCP Python SDK for GitHub server integration
+mcp>=1.0.0
+
+# Additional utilities (if needed for fallback functionality)
+requests>=2.31.0
