@@ -1,0 +1,86 @@
+[project]
+name = "awslabs.aws-cicd-mcp-server"
+version = "0.1.0"
+description = "AWS CI/CD MCP Server for CodePipeline, CodeBuild, and CodeDeploy operations with best practices and security compliance"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.11.0",
+    "pydantic>=2.10.6",
+    "boto3>=1.38.18",
+    "botocore>=1.38.18",
+    "loguru>=0.7.3",
+    "httpx>=0.27.0",
+    "pyyaml>=6.0.0",
+    "typing-extensions>=4.0.0",
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE"]
+
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/servers/aws-cicd-mcp-server/"
+documentation = "https://awslabs.github.io/mcp/servers/aws-cicd-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-cicd-mcp-server/CHANGELOG.md"
+
+[project.scripts]
+"awslabs.aws-cicd-mcp-server" = "awslabs.aws_cicd_mcp_server.server:main"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "moto>=5.0.0",
+    "black>=24.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "EM", "EXE", "FA", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SLOT", "SIM", "TID", "TCH", "INT", "ARG", "PTH", "TD", "FIX", "ERA", "PD", "PGH", "PL", "TRY", "FLY", "NPY", "AIR", "PERF", "FURB", "LOG", "RUF"]
+ignore = ["S101", "S603", "S607", "PLR0913", "PLR0912", "PLR0915", "C901", "PLR2004"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "PLR2004", "SLF001"]
+
+[tool.pyright]
+include = ["awslabs"]
+exclude = ["tests"]
+reportMissingImports = true
+reportMissingTypeStubs = false
+pythonVersion = "3.10"
