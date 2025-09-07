@@ -195,60 +195,48 @@ manage_credentials(
 - Note: No hardcoded keys in agent code
 - Reuse: Reusable across multiple agents""")
 
-                    # Format results
-                    result_parts = []
-                    result_parts.append('# Security: Credential Providers')
-                    result_parts.append('')
-                    result_parts.append(f'Region: {region}')
-                    result_parts.append(f'Total Providers: {len(providers)}')
-                    result_parts.append('')
-
-                    # List each provider
+                    # Format results - build provider list
+                    provider_list = ''
                     for i, provider in enumerate(providers, 1):
                         name = provider.get('name', 'Unknown')
                         provider_type = provider.get('type', 'API Key')
                         created_at = provider.get('createdAt', 'Unknown')
                         description = provider.get('description', '')
 
-                        result_parts.append(f'## {i}. {name}')
-                        result_parts.append(f'- Type: {provider_type}')
-                        result_parts.append(f'- Created: {created_at}')
+                        provider_list += f"""## {i}. {name}
+- Type: {provider_type}
+- Created: {created_at}"""
                         if description:
-                            result_parts.append(f'- Description: {description}')
-                        result_parts.append(
-                            f'- Usage: `@requires_api_key(provider_name="{name}")`'
-                        )
-                        result_parts.append(
-                            f'- Delete: `manage_credentials(action="delete", provider_name="{name}")`'
-                        )
-                        result_parts.append('')
+                            provider_list += f'\n- Description: {description}'
+                        provider_list += f"""
+- Usage: `@requires_api_key(provider_name="{name}")`
+- Delete: `manage_credentials(action="delete", provider_name="{name}")`
 
-                    result_parts.append('## Usage Example:')
-                    result_parts.append('```python')
-                    result_parts.append(
-                        'from bedrock_agentcore.identity.auth import requires_api_key'
-                    )
-                    result_parts.append('')
-                    result_parts.append(
-                        f'@requires_api_key(provider_name="{providers[0].get("name", "your-provider")}")'
-                    )
-                    result_parts.append('async def call_external_api(*, api_key: str):')
-                    result_parts.append("    headers = {'Authorization': f'Bearer {api_key}'}")
-                    result_parts.append('    # Make your API calls...')
-                    result_parts.append('```')
-                    result_parts.append('')
-                    result_parts.append('## Management:')
-                    result_parts.append(
-                        '- Create new: `manage_credentials(action="create", provider_name="name", api_key="key")`'  # pragma: allowlist secret
-                    )
-                    result_parts.append(
-                        '- Get details: `manage_credentials(action="get", provider_name="name")`'
-                    )
-                    result_parts.append(
-                        '- Update: `manage_credentials(action="update", provider_name="name", api_key="new_key")`'  # pragma: allowlist secret
+"""
+
+                    first_provider_name = (
+                        providers[0].get('name', 'your-provider') if providers else 'your-provider'
                     )
 
-                    return '\n'.join(result_parts)
+                    return f"""# Security: Credential Providers
+
+Region: {region}
+Total Providers: {len(providers)}
+
+{provider_list}## Usage Example:
+```python
+from bedrock_agentcore.identity.auth import requires_api_key
+
+@requires_api_key(provider_name="{first_provider_name}")
+async def call_external_api(*, api_key: str):
+    headers = {{'Authorization': f'Bearer {{api_key}}'}}
+    # Make your API calls...
+```
+
+## Management:
+- Create new: `manage_credentials(action="create", provider_name="name", api_key="key")`  # pragma: allowlist secret
+- Get details: `manage_credentials(action="get", provider_name="name")`
+- Update: `manage_credentials(action="update", provider_name="name", api_key="new_key")`"""  # pragma: allowlist secret
 
                 except Exception as list_error:
                     raise MCPtoolError(f"""X Failed to List Credential Providers
