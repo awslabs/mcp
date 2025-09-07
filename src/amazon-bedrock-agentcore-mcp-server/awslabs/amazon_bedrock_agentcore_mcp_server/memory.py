@@ -27,7 +27,7 @@ MCP TOOLS IMPLEMENTED:
 """
 
 import time
-from .utils import SDK_AVAILABLE, resolve_app_file_path
+from .utils import SDK_AVAILABLE, MCPtoolError, resolve_app_file_path
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal
@@ -87,12 +87,12 @@ def register_memory_tools(mcp: FastMCP):
 Conversation turn successfully stored in memory."""
 
         except Exception as e:
-            return f"""Error saving conversation: {str(e)}
+            raise MCPtoolError(f"""Error saving conversation: {str(e)}
 
 **Parameters**:
 - Memory ID: {memory_id}
 - Actor ID: {actor_id}
-- Session ID: {session_id}"""
+- Session ID: {session_id}""")
 
     @mcp.tool()
     async def memory_retrieve(
@@ -161,12 +161,12 @@ No relevant memories found for this query."""
             return '\n'.join(result_parts)
 
         except Exception as e:
-            return f"""Error retrieving memories: {str(e)}
+            raise MCPtoolError(f"""Error retrieving memories: {str(e)}
 
 **Parameters**:
 - Memory ID: {memory_id}
 - Query: {query}
-- Namespace: {namespace}"""
+- Namespace: {namespace}""")
 
     @mcp.tool()
     async def memory_get_conversation(
@@ -249,7 +249,7 @@ No conversation history found for this session."""
         Uses MemoryClient.process_turn() to retrieve relevant memories and store the new turn.
         """
         if not SDK_AVAILABLE:  # pragma: no cover
-            return 'AgentCore SDK not available'
+            return 'AgentCore SDK not available'  # this should not happen
 
         try:
             from bedrock_agentcore.memory import MemoryClient
@@ -300,12 +300,12 @@ No conversation history found for this session."""
             return '\n'.join(result_parts)
 
         except Exception as e:
-            return f""" Error processing turn: {str(e)}
+            raise MCPtoolError(f""" Error processing turn: {str(e)}
 
 **Parameters**:
 - Memory ID: {memory_id}
 - Actor ID: {actor_id}
-- Session ID: {session_id}"""
+- Session ID: {session_id}""")
 
     @mcp.tool()
     async def memory_list_events(
@@ -373,12 +373,12 @@ No events found for this session."""
             return '\n'.join(result_parts)
 
         except Exception as e:
-            return f""" Error listing events: {str(e)}
+            raise MCPtoolError(f""" Error listing events: {str(e)}
 
 **Parameters**:
 - Memory ID: {memory_id}
 - Actor ID: {actor_id}
-- Session ID: {session_id}"""
+- Session ID: {session_id}""")
 
     @mcp.tool()
     async def memory_create_event(
@@ -471,16 +471,6 @@ Event successfully created in memory."""
         - Create memory only: agent_memory(action="create", agent_name="my-agent")
         - Create + integrate: agent_memory(action="create", agent_name="my-agent", agent_file="agent.py")
         """
-        if not SDK_AVAILABLE:
-            return """ AgentCore SDK Not Available
-
-To use memory functionality:
-1. Install: `uv add bedrock-agentcore bedrock-agentcore-starter-toolkit`
-2. Configure AWS credentials: `aws configure`
-3. Retry memory operations
-
-Alternative: Use AWS Console for memory management"""
-
         try:
             # Import memory-related classes
             from bedrock_agentcore.memory import MemoryClient, MemoryControlPlaneClient
@@ -589,7 +579,7 @@ agent_memory(action="create", agent_name="my-agent")
                     return '\n'.join(result_parts)
 
                 except Exception as e:
-                    return f"""❌ Memory List Error: {str(e)}
+                    raise MCPtoolError(f"""X Memory List Error: {str(e)}
 
 **Region**: {region}
 
@@ -601,12 +591,12 @@ agent_memory(action="create", agent_name="my-agent")
 **Troubleshooting**:
 1. Check credentials: `aws sts get-caller-identity`
 2. Verify region: AgentCore available in us-east-1, us-west-2
-3. Check permissions: bedrock-agentcore:ListMemories"""
+3. Check permissions: bedrock-agentcore:ListMemories""")
 
             # Action: create - Create memory resource and optionally integrate with agent
             elif action == 'create':
                 if not agent_name:
-                    return """❌ Error: agent_name is required for create action
+                    raise MCPtoolError("""❌ Error: agent_name is required for create action
 
 **Examples**:
 ```python
@@ -615,7 +605,7 @@ agent_memory(action="create", agent_name="my_agent")
 
 # Create memory and integrate with agent file
 agent_memory(action="create", agent_name="my_agent", agent_file="my_agent.py")
-```"""
+```""")
 
                 try:
                     memory_control = MemoryControlPlaneClient(region_name=region)
@@ -929,14 +919,14 @@ Memory diagnostic complete."""
             # Action: delete - Delete memory with confirmation
             elif action == 'delete':
                 if not memory_id:
-                    return """ Error: memory_id is required for delete action
+                    raise MCPtoolError(""" Error: memory_id is required for delete action
 
 **Example**:
 ```python
 agent_memory(action="delete", memory_id="mem-12345")
 ```
 
-To find memory IDs: `agent_memory(action="list")`"""
+To find memory IDs: `agent_memory(action="list")`""")
 
                 try:
                     memory_control = MemoryControlPlaneClient(region_name=region)
@@ -998,7 +988,7 @@ Memory **{memory_name}** has been permanently deleted."""
 
             # Default case
             else:  # pragma: no cover
-                return f""" Unknown Action: '{action}'
+                raise MCPtoolError(f""" Unknown Action: '{action}'
 
 ## Available Actions:
 - **create**: Create memory (+ optional integration)
@@ -1013,10 +1003,10 @@ agent_memory(action="create", agent_name="my_agent")
 
 # Create + integrate with agent file
 agent_memory(action="create", agent_name="my_agent", agent_file="agent.py")
-```"""
+```""")
 
         except ImportError as e:  # pragma: no cover
-            return f""" Memory SDK Not Available
+            raise ImportError(f""" Memory SDK Not Available
 
 **Error**: {str(e)}
 
@@ -1025,10 +1015,10 @@ To use memory functionality:
 2. Install starter toolkit: `uv add bedrock-agentcore-starter-toolkit`
 3. Configure AWS credentials: `aws configure`
 
-Alternative: Use AWS Console for memory management"""
+Alternative: Use AWS Console for memory management""")
 
         except Exception as e:  # pragma: no cover
-            return f""" Memory Operation Error: {str(e)}
+            raise MCPtoolError(f""" Memory Operation Error: {str(e)}
 
 **Action**: {action}
 **Agent**: {agent_name or 'Not specified'}
@@ -1039,7 +1029,7 @@ Alternative: Use AWS Console for memory management"""
 1. Check AWS credentials: `aws sts get-caller-identity`
 2. Verify permissions for bedrock-agentcore memory operations
 3. Check memory exists: `agent_memory(action="list")`
-4. Try individual actions for debugging"""
+4. Try individual actions for debugging""")
 
 
 # ============================================================================

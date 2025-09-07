@@ -39,6 +39,7 @@ from .utils import (
     SDK_AVAILABLE,
     SDK_IMPORT_ERROR,
     YAML_AVAILABLE,
+    MCPtoolError,
     analyze_code_patterns,
     check_agent_config_exists,
     find_agent_config_directory,
@@ -74,8 +75,6 @@ def check_agent_oauth_status(
     from pathlib import Path
 
     try:
-        import boto3
-
         # Get the actual deployed agent configuration from AWS
         agentcore_client = boto3.client('bedrock-agentcore-control', region_name=region)
 
@@ -132,10 +131,10 @@ def check_agent_oauth_status(
 
                             if agent_runtime_arn:  # pragma: no cover
                                 break
-                    except Exception:  # pragma: no cover
-                        continue
-        except Exception:  # pragma: no cover
-            pass
+                    except Exception as e:  # pragma: no cover
+                        raise MCPtoolError(f'YAML Parsing Error: {str(e)}')
+        except Exception as e:  # pragma: no cover
+            raise MCPtoolError(f'YAML Config Check Error: {str(e)}')
 
         # Method 2: If no ARN found locally, search for it via API
         if not agent_runtime_arn:
@@ -145,8 +144,8 @@ def check_agent_oauth_status(
                     if runtime.get('name') == agent_name:
                         agent_runtime_arn = runtime.get('agentRuntimeArn')
                         break
-            except Exception:
-                pass
+            except Exception as e:
+                raise MCPtoolError(f'API List Error: {str(e)}')
 
         if not agent_runtime_arn:
             return False, False, f'Agent runtime ARN not found for {agent_name}'
@@ -483,7 +482,7 @@ def register_analysis_tools(mcp: FastMCP):
                 with open(resolved_path, 'r') as f:
                     code_content = f.read()
             elif not code_content:
-                return f"""X No Code Found
+                raise MCPtoolError(f"""X No Code Found
 
 Please provide either:
 1. A valid file path to your agent code
@@ -497,7 +496,7 @@ Available Python files found:
 
 User working directory: {user_dir}
 Searched paths: {file_path if file_path else 'None provided'}
-"""
+""")
 
             # Analyze the code
             analysis = analyze_code_patterns(code_content)
@@ -538,7 +537,7 @@ Estimated Migration Time: {strategy['time_estimate']}
 """
 
         except Exception as e:
-            return f'X Analysis Error: {str(e)}'
+            raise MCPtoolError(f'X Analysis Error: {str(e)}')
 
     @mcp.tool()
     async def transform_to_agentcore(
@@ -563,7 +562,7 @@ Estimated Migration Time: {strategy['time_estimate']}
 Looking for: `{source_file}`
 User working directory: `{user_dir}`
 
-Tip: Try using just the filename (e.g., 'your_agent.py') or check the file exists in your project directory.
+Tip: Try using just the filename (e.g., 'your_agent.py') or check the file exists in the user's project directory.
 """
 
             source_file = resolved_source
@@ -608,17 +607,20 @@ Tip: Try using just the filename (e.g., 'your_agent.py') or check the file exist
 {transformed_code[:500]}...
 ```
 
+CAUTION: Please review the generated code to ensure it is correct before using. The code returned is a best-effort transformation and may require manual adjustments.
+
 ### Next Steps:
 1. OK Analysis Complete
 2. OK Transformation Complete
-3. Update: Ready: Use `deploy_agentcore_app` to deploy
-4. Pending: Pending: Configure advanced features if needed
+3. Pending: Please check code to see if the right transformations were applied. You may need to either make minor or major adjustments.
+4. After review 3: Use `deploy_agentcore_app` to deploy
+5. Pending: Pending: Configure advanced features if needed
 
 Ready to deploy! Your AgentCore app is in `{target_file}`
 """
 
         except Exception as e:
-            return f'X Transformation Error: {str(e)}'
+            raise MCPtoolError(f'X Transformation Error: {str(e)}')
 
 
 # ============================================================================
@@ -660,7 +662,7 @@ def register_deployment_tools(mcp: FastMCP):
                 user_dir = get_user_working_directory()
                 available_files = list(user_dir.glob('/*.py'))[:10]
 
-                return f"""X App file not found
+                raise MCPtoolError(f"""X App file not found
 
 Looking for: `{app_file}`
 User working directory: `{user_dir}`
@@ -673,7 +675,7 @@ Available Python files:
 {chr(10).join(f'- {f.relative_to(user_dir)}' for f in available_files) if available_files else '- No Python files found'}
 
 Please ensure the file exists or provide the correct path.
-"""
+""")
 
             app_file = resolved_app_file
 
@@ -729,8 +731,8 @@ Region: `{region}`
 
             return deployment_result
 
-        except Exception as e:
-            return f'X Deployment Error: {str(e)}'
+        except Exception:
+            raise MCPtoolError('X Deployment Error: {str(e)}')
 
     @mcp.tool()
     async def invoke_agent(
@@ -741,13 +743,13 @@ Region: `{region}`
     ) -> str:
         """Invoke deployed AgentCore agent - automatically finds config and switches directories."""
         if not RUNTIME_AVAILABLE:
-            return """X Runtime Not Available
+            raise MCPtoolError("""X Runtime Not Available
 
 To invoke deployed agents:
 1. Install: `uv add bedrock-agentcore-starter-toolkit`
 2. Ensure agent is deployed
 3. Retry invocation
-"""
+""")
 
         config_dir = ''
         try:
@@ -760,7 +762,7 @@ To invoke deployed agents:
                     # Try direct AWS invocation for SDK-deployed agents
                     return await invoke_agent_via_aws_sdk(agent_name, prompt, session_id, region)
                 except Exception as e:
-                    return f"""X Agent Configuration Not Found
+                    raise MCPtoolError(f"""X Agent Configuration Not Found
 Error invoking via AWS SDK: {str(e)}
 Agent: {agent_name}
 Issue: No configuration found and AWS SDK invoke failed
@@ -776,7 +778,7 @@ Search locations checked:
 - User working directory: {get_user_working_directory()}
 - examples/ subdirectory
 - Direct AWS SDK invocation (failed)
-"""
+""")
 
             # Switch to config directory (like the tutorial shows)
             original_cwd = Path.cwd()
@@ -818,15 +820,14 @@ Next Steps: Complete deployment with `deploy_agentcore_app`
 """
                 except ValueError as e:
                     if 'Must configure' in str(e):
-                        return f"""X Agent Not Configured
+                        raise MCPtoolError(f"""X Agent Not Configured
 
 Agent: {agent_name}
 Issue: Runtime configuration missing
 Config Directory: {config_dir}
 
 Next Steps: Deploy agent first with `deploy_agentcore_app`
-"""
-                    raise
+""")
 
                 # Generate session ID if not provided
                 if not session_id:
@@ -901,14 +902,14 @@ Next: Continue using same `agent_name` for consistent Runtime object
                     pass
 
         except Exception as e:
-            return f"""X Invocation Error: {str(e)}
+            raise MCPtoolError(f"""X Invocation Error: {str(e)}
 
 Troubleshooting:
 1. Check available agents: `discover_existing_agents`
 2. Verify agent status: `get_agent_status`
 3. Try from correct directory: Config in `{config_dir if 'config_dir' in locals() else 'unknown'}`
 4. Redeploy if needed: `deploy_agentcore_app`
-"""
+""")
 
     @mcp.tool()
     async def invoke_oauth_agent(  # pragma: no cover
@@ -949,14 +950,14 @@ Note: Alternative: Try `invoke_agent` instead - your agent may work without OAut
             # This is the key insight: OAuth agents can often be invoked normally via Runtime SDK
             try:
                 if not RUNTIME_AVAILABLE:
-                    return """X Runtime SDK not available
+                    raise ImportError("""X Runtime SDK not available
 
 Required: bedrock-agentcore-starter-toolkit
 Install: `uv add bedrock-agentcore-starter-toolkit`
 
 Note: OAuth token generated successfully - but Runtime SDK needed for invocation
 Token available for manual HTTP calls - use `get_runtime_oauth_token` for details
-"""
+""")
 
                 # Find agent config directory (same logic as invoke_agent)
                 config_dirs_to_check = [
@@ -977,7 +978,7 @@ Token available for manual HTTP calls - use `get_runtime_oauth_token` for detail
                         continue
 
                 if not config_dir_found:
-                    return f"""X Agent Configuration Not Found
+                    raise MCPtoolError(f"""X Agent Configuration Not Found
 
 Agent: {agent_name}
 Searched: {[str(d) for d in config_dirs_to_check]}
@@ -990,10 +991,9 @@ Fix:
 2. Or use manual HTTP: Use `get_runtime_oauth_token` for Bearer token details
 
 Note: OAuth token is ready - just need agent deployment config
-"""
+""")
 
                 # Change to agent directory and get Runtime object
-                import os
 
                 original_cwd = os.getcwd()
                 try:
@@ -1107,7 +1107,7 @@ OK OAuth authentication successful! Agent invoked via Runtime SDK.
 """
 
                     except Exception as invoke_error:
-                        return f"""X Runtime Invocation Failed: {str(invoke_error)}
+                        raise MCPtoolError(f"""X Runtime Invocation Failed: {str(invoke_error)}
 
 Agent: {agent_name}
 OAuth: OK Token generated and validated
@@ -1119,7 +1119,7 @@ Alternative Options:
 3. Check agent logs: Use `get_agent_status` for debugging
 
 The OAuth setup is correct - this appears to be a Runtime SDK issue, not OAuth.
-"""
+""")
 
                 finally:
                     os.chdir(original_cwd)
@@ -1139,7 +1139,7 @@ Note: Your OAuth setup is working - this is a Runtime SDK configuration issue.
 """
 
         except Exception as e:
-            return f"""X OAuth Invocation Error: {str(e)}
+            raise MCPtoolError(f"""X OAuth Invocation Error: {str(e)}
 
 Agent: {agent_name}
 
@@ -1149,7 +1149,7 @@ Quick Fixes:
 3. Get OAuth details: Use `get_runtime_oauth_token` if OAuth required
 
 For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
-"""
+""")
 
     @mcp.tool()
     async def get_runtime_oauth_token(  # pragma: no cover
@@ -1208,7 +1208,7 @@ For OAuth troubleshooting: Check ~/.agentcore_gateways/{agent_name}_runtime.json
             if not token_success:  # pragma: allowlist secret
                 return access_token  # pragma: allowlist secret
 
-            return f"""# OK Runtime OAuth Token Generated
+            return f"""# OK: Runtime OAuth Token Generated
 
 ### Agent Information:
 - Agent: `{agent_name}`
@@ -1251,14 +1251,14 @@ Success: Ready for OAuth-authenticated runtime invocation!
 """
 
         except Exception as e:
-            return f"""X OAuth Token Error: {str(e)}
+            raise MCPtoolError(f"""X OAuth Token Error: {str(e)}
 
 Agent: {agent_name}
 Troubleshooting:
 1. Check agent deployment: Use `get_agent_status`
 2. Verify OAuth config: ~/.agentcore_gateways/{agent_name}_runtime.json
 3. Redeploy with OAuth: Use `deploy_agentcore_app` with `enable_oauth: True`
-"""
+""")
 
     @mcp.tool()
     async def check_oauth_status(  # pragma: no cover
@@ -1342,7 +1342,7 @@ Note: To enable OAuth: Redeploy with `deploy_agentcore_app` and `enable_oauth: T
 """
 
         except Exception as e:
-            return f"""X OAuth Status Check Error: {str(e)}
+            raise MCPtoolError(f"""X OAuth Status Check Error: {str(e)}
 
 Agent: {agent_name}
 
@@ -1350,7 +1350,7 @@ Manual Check:
 1. Look at `.bedrock_agentcore.yaml` for `oauth_configuration`
 2. Check `~/.agentcore_gateways/{agent_name}_runtime.json`
 3. Try `invoke_agent` first (works for most agents)
-"""
+""")
 
     @mcp.tool()
     async def invoke_agent_smart(
@@ -1398,7 +1398,7 @@ Manual Check:
 
                 if oauth_config_file.exists():
                     # OAuth config exists, try OAuth invocation
-                    return f"""! Regular Invocation Failed - Trying OAuth
+                    raise MCPtoolError(f"""! Regular Invocation Failed - Trying OAuth
 
 Regular invocation error:
 ```
@@ -1410,15 +1410,15 @@ Attempting OAuth invocation...
 ---
 
 {await invoke_oauth_agent(agent_name=agent_name, prompt=prompt, session_id=session_id, region=region)}
-"""
+""")
                 else:
                     # No OAuth config, return regular error with helpful guidance
-                    return f"""{regular_result}
+                    raise MCPtoolError(f"""{regular_result}
 
 Note: OAuth Alternative: If this agent requires OAuth:
 1. Deploy with OAuth: Use `deploy_agentcore_app` with `enable_oauth: True`
 2. Then try: `invoke_oauth_agent` for authenticated invocation
-"""
+""")
 
             except Exception as regular_error:
                 # Regular invocation completely failed, check for OAuth
@@ -1426,14 +1426,14 @@ Note: OAuth Alternative: If this agent requires OAuth:
                 oauth_config_file = config_dir / f'{agent_name}_runtime.json'
 
                 if oauth_config_file.exists():
-                    return f"""! Regular Invocation Error - Using OAuth
+                    raise MCPtoolError(f"""! Regular Invocation Error - Using OAuth
 
 Switching to OAuth authentication...
 
 {await invoke_oauth_agent(agent_name=agent_name, prompt=prompt, session_id=session_id, region=region)}
-"""
+""")
                 else:
-                    return f"""X Agent Invocation Failed
+                    raise MCPtoolError(f"""X Agent Invocation Failed
 
 Agent: {agent_name}
 Error: {str(regular_error)}
@@ -1447,17 +1447,17 @@ Available options:
 - `invoke_agent` - Standard invocation
 - `invoke_oauth_agent` - OAuth-authenticated invocation
 - `get_agent_status` - Check agent status
-"""
+""")
 
         except Exception as e:
-            return f"""X Smart Invocation Error: {str(e)}
+            raise MCPtoolError(f"""X Smart Invocation Error: {str(e)}
 
 Agent: {agent_name}
 Fallback options:
 1. Try directly: `invoke_agent {agent_name} "your prompt"`
 2. For OAuth: `invoke_oauth_agent {agent_name} "your prompt"`
 3. Check status: `get_agent_status {agent_name}`
-"""
+""")
 
     @mcp.tool()
     async def invoke_oauth_agent_v2(  # pragma: no cover
@@ -1515,11 +1515,11 @@ Fallback options:
                         break
 
                 if not config_dir_found:  # pragma: no cover
-                    return f"""X Agent Configuration Not Found
+                    raise OSError(f"""X Agent Configuration Not Found
 Agent: {agent_name}
 Searched: {[str(d) for d in config_dirs_to_check]}
 Fix: Deploy agent first with `deploy_agentcore_app`
-"""
+""")
 
                 # Get Runtime object (same pattern as invoke_agent)
                 runtime = get_runtime_for_agent(agent_name)
@@ -1537,11 +1537,11 @@ Fix: Deploy agent first with `deploy_agentcore_app`
                         status = str(status_result)
 
                     if 'READY' not in str(status):
-                        return f"""X Agent Not Ready
+                        raise MCPtoolError(f"""X Agent Not Ready
 Agent: {agent_name}
 Status: {status}
 Fix: Wait for agent to be READY or redeploy
-"""
+""")
                 except Exception as status_error:
                     return f'X Status Check Failed: {str(status_error)}'
 
@@ -1584,7 +1584,7 @@ OK OAuth authentication successful with Runtime SDK pattern!
 
                 except Exception as invoke_error:
                     # Fallback: Provide instructions for manual OAuth invocation
-                    return f"""! Runtime SDK OAuth Limitation
+                    raise MCPtoolError(f"""! Runtime SDK OAuth Limitation
 
 Issue: Runtime SDK may not support direct OAuth headers
 Agent: {agent_name}
@@ -1608,26 +1608,25 @@ curl -H "Authorization: Bearer {access_token[:20]}..." \\
 - Use `get_agent_status` for endpoint information
 
 Error Details: {str(invoke_error)}
-"""
-
+""")
             except Exception as runtime_error:
-                return f"""X Runtime Error: {str(runtime_error)}
+                raise MCPtoolError(f"""X Runtime Error: {str(runtime_error)}
 Agent: {agent_name}
 Troubleshooting:
 1. Check agent deployment: `get_agent_status`
 2. Verify agent is READY
 3. Use regular invocation: `invoke_agent` (may work if OAuth optional)
-"""
+""")
 
         except Exception as e:
-            return f"""X OAuth Invocation Error (v2): {str(e)}
+            raise MCPtoolError(f"""X OAuth Invocation Error (v2): {str(e)}
 Agent: {agent_name}
 Troubleshooting:
 1. Check OAuth config: ~/.agentcore_gateways/{agent_name}_runtime.json
 2. Verify deployment: Use `get_agent_status`
 3. Get token separately: Use `get_runtime_oauth_token`
 4. Use regular invocation: If OAuth not required, use `invoke_agent`
-"""
+""")
 
     @mcp.tool()
     async def get_agent_status(
@@ -1676,7 +1675,7 @@ Troubleshooting:
 - Directory: May need to run from agent's config directory
 """
         except Exception as e:
-            return f'X Status Check Error: {str(e)}'
+            raise MCPtoolError(f'X Status Check Error: {str(e)}')
 
     @mcp.tool()
     async def discover_existing_agents(
@@ -1705,7 +1704,7 @@ Troubleshooting:
             config_files = list(path.rglob('.bedrock_agentcore*.yaml'))
 
             if not config_files:
-                return f"""# Search: No Existing Agent Configurations Found
+                raise OSError(f"""# Search: No Existing Agent Configurations Found
 
 ### Search Path: `{path.absolute()}`
 
@@ -1718,7 +1717,7 @@ Troubleshooting:
 1. Use `validate_agentcore_environment` to check your setup
 2. Use `analyze_agent_code` to migrate existing agents
 3. Use `deploy_agentcore_app` to deploy new agents
-"""
+""")
 
             discovered_agents = []
 
@@ -1832,7 +1831,7 @@ Troubleshooting:
                     agent_info['deployable'] = True
 
             if not discovered_agents:
-                return f"""# Search: Config Files Found But Invalid
+                raise MCPtoolError(f"""# Search: Config Files Found But Invalid
 
 Found {len(config_files)} config files but none were valid AgentCore configurations.
 
@@ -1842,7 +1841,7 @@ Found {len(config_files)} config files but none were valid AgentCore configurati
 ### Next Steps:
 1. Check if config files are corrupted
 2. Deploy new agents with `deploy_agentcore_app`
-"""
+""")
 
             # Format results
             result_parts = []
@@ -2241,7 +2240,7 @@ Available Python files:
         result = subprocess.run(configure_cmd, capture_output=True, text=True, timeout=60)
 
         if result.returncode != 0:
-            return f"""X Configuration Failed
+            raise MCPtoolError(f"""X Configuration Failed
 
 Error: {result.stderr}
 Command: `{' '.join(configure_cmd)}`
@@ -2255,7 +2254,7 @@ Troubleshooting:
 1. Install AgentCore from PyPI: `uv add bedrock-agentcore bedrock-agentcore-starter-toolkit`
 2. Check AWS credentials: `aws sts get-caller-identity`
 3. Verify file exists: `ls -la {app_file}`
-"""
+""")
 
         steps.append('OK Agent configured successfully')
 
@@ -2269,7 +2268,7 @@ Troubleshooting:
         result = subprocess.run(deploy_cmd, capture_output=True, text=True, timeout=300)
 
         if result.returncode != 0:
-            return f"""X Deployment Failed
+            raise MCPtoolError(f"""X Deployment Failed
 
 Error: {result.stderr}
 Command: `{' '.join(deploy_cmd)}`
@@ -2281,7 +2280,7 @@ Troubleshooting:
 1. Check agent configuration: `agentcore get-agent --name {agent_name}`
 2. Verify IAM permissions
 3. Check CloudWatch logs
-"""
+""")
 
         steps.append('OK Agent deployed successfully')
 
@@ -2321,7 +2320,7 @@ Your agent is live and ready to use!
 """
 
     except subprocess.TimeoutExpired:
-        return f"""X Deployment Timeout
+        raise MCPtoolError(f"""X Deployment Timeout
 
 Steps Completed:
 {chr(10).join(steps)}
@@ -2330,14 +2329,14 @@ The deployment is taking longer than expected. Check status:
 ```bash
 agentcore get-agent --name {agent_name}
 ```
-"""
+""")
     except Exception as e:
-        return f"""X Deployment Error
+        raise MCPtoolError(f"""X Deployment Error
 
 Error: {str(e)}
 Steps Completed:
 {chr(10).join(steps)}
-"""
+""")
 
 
 async def execute_agentcore_deployment_sdk(
@@ -2380,16 +2379,16 @@ Alternative: Use `execution_mode: "cli"` for CLI commands instead.
             app_content = f.read()
 
         if 'BedrockAgentCoreApp' not in app_content:
-            return f"""X Invalid AgentCore Application
+            raise MCPtoolError(f"""X Invalid AgentCore Application
 
 The file '{app_file}' doesn't appear to be a valid AgentCore application.
 It must contain 'BedrockAgentCoreApp' and '@app.entrypoint' decorator.
 
 Use the `transform_to_agentcore` tool first to convert your code.
-"""
+""")
 
         if 'app.run()' not in app_content:
-            return f"""X Missing app.run() in Agent Code
+            raise MCPtoolError(f"""X Missing app.run() in Agent Code
 
 The file '{app_file}' must contain 'app.run()' in the main block:
 ```python
@@ -2398,7 +2397,7 @@ if __name__ == "__main__":
 ```
 
 Use the `transform_to_agentcore` tool to fix this.
-"""
+""")
 
         # Handle OAuth configuration if enabled
         if enable_oauth:  # pragma: allowlist secret
@@ -2620,7 +2619,7 @@ Your agent is deployed and ready to use! Success:
 """
 
     except Exception as e:
-        return f"""X SDK Deployment Error
+        raise MCPtoolError(f"""X SDK Deployment Error
 
 Error: {str(e)}
 App File: {app_file}
@@ -2631,7 +2630,7 @@ Troubleshooting:
 2. Check file permissions: `ls -la {app_file}`
 3. Verify SDK installation: `python -c "import bedrock_agentcore; print('SDK OK')"`
 4. Try CLI mode instead: `execution_mode: "cli"`
-"""
+""")
 
 
 async def invoke_agent_via_aws_sdk(
@@ -2699,9 +2698,9 @@ response = client.invoke_agent_runtime(
 """
 
         except Exception as e:
-            return f'X AWS SDK Invocation Failed: {str(e)}'
+            raise MCPtoolError(f'X AWS SDK Invocation Failed: {str(e)}')
 
     except ImportError:
-        return 'X boto3 not available - cannot invoke via AWS SDK'
+        raise ImportError('X boto3 not available - cannot invoke via AWS SDK')
     except Exception as e:
-        return f'X AWS SDK Error: {str(e)}'
+        raise MCPtoolError(f'X AWS SDK Error: {str(e)}')

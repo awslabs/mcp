@@ -27,7 +27,7 @@ import json
 import os
 import requests
 import time
-from .utils import RUNTIME_AVAILABLE, SDK_AVAILABLE
+from .utils import RUNTIME_AVAILABLE, SDK_AVAILABLE, MCPtoolError
 from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from pydantic import Field
@@ -52,8 +52,6 @@ async def _find_and_upload_smithy_model(  # pragma: no cover
     Returns:
         S3 URI of uploaded Smithy model, or None if failed
     """
-    import json
-
     try:  # pragma: no cover
         # Step 1: Search GitHub API for the service directory
         setup_steps.append(
@@ -489,7 +487,7 @@ Alternative: Use AWS Console for gateway management"""
                     gateways = gateways_response.get('items', [])
 
                     if not gateways:
-                        return f"""# Gateway: No Gateways Found
+                        raise MCPtoolError(f"""# Gateway: No Gateways Found
 
 Region: {region}
 
@@ -504,7 +502,7 @@ Use `agent_gateway(action="discover")` to see all AWS services available for gat
 
 ## AWS Console:
 [Bedrock AgentCore Console](https://console.aws.amazon.com/bedrock/home?region={region}#/agentcore/gateways)
-"""
+""")
 
                     # Format results
                     result_parts = []
@@ -549,7 +547,7 @@ Use `agent_gateway(action="discover")` to see all AWS services available for gat
                     return '\n'.join(result_parts)
 
                 except Exception as e:
-                    return f"""X Gateway List Error: {str(e)}
+                    raise MCPtoolError(f"""X Gateway List Error: {str(e)}
 
 Region: {region}
 
@@ -561,7 +559,7 @@ Possible Causes:
 Troubleshooting:
 1. Check credentials: `aws sts get-caller-identity`
 2. Verify region: AgentCore available in us-east-1, us-west-2
-3. Check permissions: bedrock-agentcore-control:ListGateways"""
+3. Check permissions: bedrock-agentcore-control:ListGateways""")
 
             # Action: delete - Delete gateway with robust target cleanup
             elif action == 'delete':
@@ -760,7 +758,7 @@ AWS Console: [Bedrock AgentCore Console](https://console.aws.amazon.com/bedrock/
                                 deletion_steps.append(
                                     f'X Could not perform final verification: {str(final_verify_error)}'
                                 )
-                                return f"""X Gateway Deletion Failed - Cannot Verify Final State
+                                raise MCPtoolError(f"""X Gateway Deletion Failed - Cannot Verify Final State
 
 Gateway: `{gateway_name}` ({gateway_id})
 Issue: Cannot verify target deletion status after {max_deletion_attempts} attempts
@@ -770,7 +768,8 @@ Issue: Cannot verify target deletion status after {max_deletion_attempts} attemp
 
 Verification Error: {str(final_verify_error)}
 
-Manual Action Required: Use AWS Console to check and complete deletion"""
+Manual Action Required: Use AWS Console to check and complete deletion""")
+
                     else:
                         deletion_steps.append('Info: No targets to delete')
 
@@ -818,7 +817,7 @@ Manual Action Required: Use AWS Console to check and complete deletion"""
 
                             if gateway_attempt == gateway_deletion_attempts - 1:
                                 # Final attempt failed
-                                return f"""X Gateway Deletion Failed
+                                raise MCPtoolError(f"""X Gateway Deletion Failed
 
 Gateway: `{gateway_name}` ({gateway_id})
 Region: {region}
@@ -840,7 +839,7 @@ Troubleshooting:
 3. Verify permissions: Ensure your AWS role has `bedrock-agentcore-control:DeleteGateway` permission
 4. Retry deletion: `agent_gateway(action="delete", gateway_name="{gateway_name}")`
 
-If problem persists, this may be an AWS service issue."""
+If problem persists, this may be an AWS service issue.""")
 
                     # Success case - gateway was deleted
                     return f"""# OK Gateway Deleted Successfully
@@ -874,7 +873,7 @@ If problem persists, this may be an AWS service issue."""
 Gateway `{gateway_name}` has been completely removed from your AWS account."""
 
                 except Exception as e:
-                    return f"""X Gateway Deletion Error: {str(e)}
+                    raise MCPtoolError(f"""X Gateway Deletion Error: {str(e)}
 
 Gateway: `{gateway_name}`
 Region: {region}
@@ -885,7 +884,7 @@ Possible Causes:
 - Network connectivity issues
 - Insufficient permissions
 
-Check Status: `agent_gateway(action="list")` to see available gateways"""
+Check Status: `agent_gateway(action="list")` to see available gateways""")
 
             # Action: discover - Dynamically discover available AWS services for Smithy models
             elif action == 'discover':
@@ -1025,14 +1024,14 @@ agent_gateway(action="setup", gateway_name="my-gateway", smithy_model="dynamodb"
 ```"""
 
                 if not RUNTIME_AVAILABLE:
-                    return """X Starter Toolkit Not Available
+                    raise MCPtoolError("""X Starter Toolkit Not Available
 
 To use complete gateway setup:
 1. Install: `uv add bedrock-agentcore-starter-toolkit`
 2. Configure AWS credentials
 3. Retry setup
 
-Alternative: Use individual actions (create, targets, cognito)"""
+Alternative: Use individual actions (create, targets, cognito)""")
 
                 try:
                     # Use the starter toolkit GatewayClient for complete setup
@@ -1097,7 +1096,7 @@ Alternative: Use individual actions (create, targets, cognito)"""
 
                     except Exception as gateway_error:
                         setup_steps.append(f'X Gateway creation failed: {str(gateway_error)}')
-                        return f"""X Gateway Setup Failed
+                        raise MCPtoolError(f"""X Gateway Setup Failed
 
 ## Setup Steps Attempted:
 {chr(10).join(f'- {step}' for step in setup_steps)}
@@ -1108,7 +1107,7 @@ Troubleshooting:
 1. Check AWS credentials: `aws sts get-caller-identity`
 2. Verify permissions for bedrock-agentcore-control
 3. Try individual setup steps manually
-4. Check AWS Console for partial resources"""
+4. Check AWS Console for partial resources""")
 
                     # Step 3: Add targets if specified
                     if smithy_model or openapi_spec:
@@ -1357,7 +1356,7 @@ agent_gateway(action="list_tools", gateway_name="{gateway_name}")
 Your gateway is ready for MCP client connections! Success!"""
 
                 except Exception as e:
-                    return f"""X Gateway Setup Error: {str(e)}
+                    raise MCPtoolError(f"""X Gateway Setup Error: {str(e)}
 
 Gateway Name: `{gateway_name}`
 Region: {region}
@@ -1366,7 +1365,7 @@ Troubleshooting:
 1. Check bedrock-agentcore-starter-toolkit installation
 2. Verify AWS credentials and permissions
 3. Try individual setup actions for debugging
-4. Check AWS Console for partial resources"""
+4. Check AWS Console for partial resources""")
 
             # Action: test - Test gateway with MCP functionality
             elif action == 'test':  # pragma: no cover
@@ -1444,7 +1443,7 @@ Complete these steps to fully test your gateway's MCP functionality."""
             # Action: list_tools - List available tools from gateway via MCP protocol
             elif action == 'list_tools':  # pragma: no cover
                 if not gateway_name:
-                    return 'X Error: gateway_name is required for list_tools action'
+                    raise ValueError('X Error: gateway_name is required for list_tools action')
 
                 try:
                     # Load gateway configuration
@@ -1452,14 +1451,14 @@ Complete these steps to fully test your gateway's MCP functionality."""
                     config_file = config_dir / f'{gateway_name}.json'
 
                     if not config_file.exists():
-                        return f"""X Gateway Configuration Not Found
+                        raise MCPtoolError(f"""X Gateway Configuration Not Found
 
 Gateway: `{gateway_name}`
 Expected Config: `{config_file}`
 
 Solutions:
 1. Check gateway name: `agent_gateway(action="list")`
-2. Recreate configuration: `agent_gateway(action="setup", gateway_name="{gateway_name}")`"""
+2. Recreate configuration: `agent_gateway(action="setup", gateway_name="{gateway_name}")`""")
 
                     with open(config_file, 'r') as f:
                         config = json.load(f)
@@ -1500,7 +1499,7 @@ Solutions:
                                 raise Exception(f"Gateway '{gateway_name}' not found")
 
                     except Exception as e:
-                        return f"""X Failed to get gateway details: {str(e)}
+                        raise MCPtoolError(f"""X Failed to get gateway details: {str(e)}
 
 Gateway: `{gateway_name}`
 Region: {region}
@@ -1508,7 +1507,7 @@ Region: {region}
 Possible Solutions:
 1. Check gateway exists: `agent_gateway(action="list")`
 2. Verify AWS permissions for bedrock-agentcore:GetGateway
-3. Ensure gateway name is correct"""
+3. Ensure gateway name is correct""")
 
                     # Use MCP client to list tools (following working Strands example)
                     from mcp.client.streamable_http import streamablehttp_client
@@ -1582,7 +1581,7 @@ agent_gateway(
 OK Gateway is ready for MCP tool invocation!"""
 
                 except Exception as e:
-                    return f"""X Failed to List Tools: {str(e)}
+                    raise MCPtoolError(f"""X Failed to List Tools: {str(e)}
 
 Gateway: `{gateway_name}`
 Region: {region}
@@ -1591,14 +1590,14 @@ Possible Solutions:
 1. Check gateway exists: `agent_gateway(action="list")`
 2. Verify AWS credentials
 3. Ensure gateway is in READY state
-4. Get new access token if expired"""
+4. Get new access token if expired""")
 
             # Action: search_tools - Semantic search for tools through gateway
             elif action == 'search_tools':  # pragma: no cover
                 if not gateway_name:
-                    return 'X Error: gateway_name is required for search_tools action'
+                    raise ValueError('X Error: gateway_name is required for search_tools action')
                 if not query:
-                    return 'X Error: query is required for search_tools action'
+                    raise ValueError('X Error: query is required for search_tools action')
 
                 try:
                     # Use the built-in semantic search tool directly
@@ -1607,14 +1606,14 @@ Possible Solutions:
                     config_file = config_dir / f'{gateway_name}.json'
 
                     if not config_file.exists():
-                        return f"""X Gateway Configuration Not Found
+                        raise MCPtoolError(f"""X Gateway Configuration Not Found
 
 Gateway: `{gateway_name}`
 Expected Config: `{config_file}`
 
 Solutions:
 1. Check gateway name: `agent_gateway(action="list")`
-2. Recreate configuration: `agent_gateway(action="setup", gateway_name="{gateway_name}")`"""
+2. Recreate configuration: `agent_gateway(action="setup", gateway_name="{gateway_name}")`""")
 
                     with open(config_file, 'r') as f:
                         config = json.load(f)
@@ -1639,7 +1638,7 @@ Solutions:
                             break
 
                     if not gateway_id:
-                        return f"X Gateway '{gateway_name}' not found"
+                        raise ValueError(f"X Gateway '{gateway_name}' not found")
 
                     response = boto3_client.get_gateway(gatewayIdentifier=gateway_id)
                     gateway_url = response['gatewayUrl']
@@ -1718,12 +1717,12 @@ agent_gateway(
 Note: This uses the gateway's built-in semantic search for highly accurate, context-aware results"""
 
                 except Exception as e:
-                    return f"""X Search Failed: {str(e)}
+                    raise MCPtoolError(f"""X Search Failed: {str(e)}
 
 Gateway: `{gateway_name}`
 Query: `{query}`
 
-Try: `agent_gateway(action="list_tools", gateway_name="{gateway_name}")` first"""
+Try: `agent_gateway(action="list_tools", gateway_name="{gateway_name}")` first""")
 
             # Action: invoke_tool - Invoke specific tools through gateway
             elif action == 'invoke_tool':  # pragma: no cover
@@ -1738,14 +1737,14 @@ Try: `agent_gateway(action="list_tools", gateway_name="{gateway_name}")` first""
                     config_file = config_dir / f'{gateway_name}.json'
 
                     if not config_file.exists():
-                        return f"""X Gateway Configuration Not Found
+                        raise MCPtoolError(f"""X Gateway Configuration Not Found
 
 Gateway: `{gateway_name}`
 Expected Config: `{config_file}`
 
 Solutions:
 1. Check gateway name: `agent_gateway(action="list")`
-2. Recreate configuration: `agent_gateway(action="setup", gateway_name="{gateway_name}")`"""
+2. Recreate configuration: `agent_gateway(action="setup", gateway_name="{gateway_name}")`""")
 
                     with open(config_file, 'r') as f:
                         config = json.load(f)
@@ -1786,7 +1785,7 @@ Solutions:
                                 raise Exception(f"Gateway '{gateway_name}' not found")
 
                     except Exception as e:
-                        return f"""X Failed to get gateway details: {str(e)}
+                        raise MCPtoolError(f"""X Failed to get gateway details: {str(e)}
 
 Gateway: `{gateway_name}`
 Region: {region}
@@ -1794,7 +1793,7 @@ Region: {region}
 Possible Solutions:
 1. Check gateway exists: `agent_gateway(action="list")`
 2. Verify AWS permissions for bedrock-agentcore:GetGateway
-3. Ensure gateway name is correct"""
+3. Ensure gateway name is correct""")
 
                     # Use MCP client to invoke tool (following working Strands example)
                     from mcp.client.streamable_http import streamablehttp_client
@@ -1842,7 +1841,7 @@ Arguments: `{args}`
 - Search tools: `agent_gateway(action="search_tools", gateway_name="{gateway_name}", query="your_query")`"""
 
                 except Exception as e:
-                    return f"""X Tool Invocation Failed: {str(e)}
+                    raise MCPtoolError(f"""X Tool Invocation Failed: {str(e)}
 
 Gateway: `{gateway_name}`
 Tool: `{tool_name}`
@@ -1852,7 +1851,7 @@ Possible Solutions:
 1. Check tool exists: `agent_gateway(action="list_tools", gateway_name="{gateway_name}")`
 2. Verify tool arguments match expected schema
 3. Ensure gateway is accessible and credentials are valid
-4. Check tool name spelling and case sensitivity"""
+4. Check tool name spelling and case sensitivity""")
 
             # For other actions, return appropriate not-implemented messages
             else:
@@ -1879,7 +1878,7 @@ This action is available but requires additional implementation.
 For now, use `action="setup"` for complete gateway creation or `action="list"` to manage existing gateways."""
 
         except ImportError as e:
-            return f"""X Required Dependencies Missing
+            raise ImportError(f"""X Required Dependencies Missing
 
 Error: {str(e)}
 
@@ -1888,10 +1887,10 @@ To use gateway functionality:
 2. Install AgentCore: `uv add bedrock-agentcore bedrock-agentcore-starter-toolkit`
 3. Configure AWS: `aws configure`
 
-Alternative: Use AWS Console for gateway management"""
+Alternative: Use AWS Console for gateway management""")
 
         except Exception as e:
-            return f"""X Gateway Operation Error: {str(e)}
+            raise MCPtoolError(f"""X Gateway Operation Error: {str(e)}
 
 Action: {action}
 Gateway: {gateway_name or 'Not specified'}
@@ -1901,4 +1900,4 @@ Troubleshooting:
 1. Check AWS credentials: `aws sts get-caller-identity`
 2. Verify permissions for bedrock-agentcore-control
 3. Check gateway exists: `agent_gateway(action="list")`
-4. Try individual actions for debugging"""
+4. Try individual actions for debugging""")

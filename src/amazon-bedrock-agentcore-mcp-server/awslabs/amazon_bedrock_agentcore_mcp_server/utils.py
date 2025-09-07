@@ -46,9 +46,18 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 
+class MCPtoolError(Exception):
+    """Custom exception for MCP tool errors."""
+
+    def __init__(self, message: str):
+        """Initialize MCPToolError with message."""
+        super().__init__(message)
+        self.message = message
+
+
 # from bedrock_agentcore_starter_toolkit.operations.gateway.client import GatewayClient
 
-SDK_AVAILABLE = True
+SDK_AVAILABLE = True  # Assume avaialable since project dependencies include bedrock-agentcore
 RUNTIME_AVAILABLE = True
 SDK_IMPORT_ERROR = None
 YAML_AVAILABLE = True
@@ -190,8 +199,8 @@ def check_agent_config_exists(agent_name: str) -> tuple[bool, Path]:
                     if config and config.get('agent_name') == agent_name:
                         return True, config_path
             except Exception as e:
-                print(f'Error reading config file: {e}')
-                pass
+                raise IOError(f'Error reading config file: {e}')
+
         ## If YAML not available, assume config exists if file exists
         return True, config_path
 
@@ -221,8 +230,7 @@ def find_agent_config_directory(agent_name: str) -> tuple[bool, Path]:
                         if 'agents' in config and agent_name in config['agents']:
                             return True, search_path
             except Exception as e:
-                print(f'Error reading config file: {e}')
-                continue
+                raise IOError(f'Error reading config file: {e}')
 
     return False, Path.cwd()
 
@@ -235,8 +243,7 @@ async def get_agentcore_command():
         if result.returncode == 0:
             return ['uv', 'run', 'agentcore']
     except Exception as e:
-        print(f'Error checking uv command: {e}')
-        pass
+        raise OSError(f'Error checking uv command: {e}')
 
     ## Check for virtual environment
     if Path('.venv/bin/python').exists():
@@ -450,8 +457,7 @@ def register_environment_tools(mcp: FastMCP):
                         if 'BedrockAgentCoreApp' in content:
                             agentcore_apps.append(py_file.name)
                 except Exception as e:
-                    print(f'Error reading: {str(e)}')
-                    pass
+                    raise OSError(f'Error reading: {str(e)}')
 
             if agentcore_apps:
                 validation_results.append(
@@ -488,8 +494,7 @@ def register_environment_tools(mcp: FastMCP):
                                 }
                             )
                     except Exception as e:
-                        print(f'Error reading config: {str(e)}')
-                        continue
+                        raise IOError(f'Error reading config: {str(e)}')
 
                 if existing_agents:
                     validation_results.append(
@@ -524,7 +529,7 @@ def register_environment_tools(mcp: FastMCP):
 #### Next Steps:
 {get_environment_next_steps(issues, existing_agents)}"""
         except Exception as e:
-            return f'Environment Validation Error: {str(e)}'
+            raise OSError(f'Environment Validation Error: {str(e)}')
 
 
 def get_environment_next_steps(issues: List[str], existing_agents: List[dict] = []) -> str:
@@ -824,12 +829,12 @@ Next Steps:
         return '\\n'.join(result_parts)
 
     except ImportError:
-        return """Boto3 Not Available
+        raise ImportError("""Boto3 Not Available
 
 Install boto3: `pip install boto3` or `uv add boto3`
 Purpose: Query actual AWS deployed agents (source of truth)
 Benefit: See real deployments vs potentially stale local YAML files
-"""
+""")
     except Exception as e:
         ## Fallback to local-only analysis if everything fails
         return f"""Tool Error: {str(e)[:200]}...
@@ -921,8 +926,7 @@ Next Steps:
                         }
                     )
                 except Exception as e:  # pragma: no cover
-                    print(f'Error processing {file_path}: {e}')
-                    continue
+                    raise IOError(f'Error processing {file_path}: {e}')
 
             files_list = []
             for file_info in analyzed_files:
@@ -1195,7 +1199,7 @@ Example: `project_discover(action="agents")`
 """
 
     except Exception as e:
-        return f'Discovery Error: {str(e)}'
+        raise OSError(f'Discovery Error: {str(e)}')
 
 
 ## ============================================================================
@@ -1274,14 +1278,14 @@ This could mean:
 - Agent deployment issue"""
 
             except Exception as e:
-                return f"""# Agent Logs - Access Error
+                raise MCPtoolError(f"""# Agent Logs - Access Error
 
 Agent: {agent_name}
 Runtime ID: {agent_runtime_id}
 Log Group: {log_group_name}
 Error: {str(e)}
 
-Check AWS permissions for CloudWatch Logs access."""
+Check AWS permissions for CloudWatch Logs access.""")
 
             # Calculate time range
             end_time = datetime.now()
@@ -1305,7 +1309,7 @@ Check AWS permissions for CloudWatch Logs access."""
 
                 if not events:
                     status_msg = 'No error logs found' if error_only else 'No logs found'
-                    return f"""# Agent Logs - No Events
+                    raise MCPtoolError(f"""# Agent Logs - No Events
 
 Agent: {agent_name}
 Runtime ID: {agent_runtime_id}
@@ -1316,7 +1320,7 @@ Status: {status_msg}
 Try:
 - Increasing hours_back parameter
 - Invoking the agent to generate logs
-- Setting error_only=False to see all logs"""
+- Setting error_only=False to see all logs""")
 
                 # Format log events
                 log_lines = []
@@ -1353,7 +1357,7 @@ Try:
 - For runtime errors, review the error messages above"""
 
             except Exception as e:
-                return f"""# Agent Logs - Retrieval Error
+                raise MCPtoolError(f"""# Agent Logs - Retrieval Error
 
 Agent: {agent_name}
 Runtime ID: {agent_runtime_id}
@@ -1363,10 +1367,10 @@ Error: {str(e)}
 This could indicate:
 - CloudWatch Logs permission issues
 - Log group access restrictions
-- Network connectivity issues"""
+- Network connectivity issues""")
 
         except Exception as e:
-            return f'Agent Logs Error: {str(e)}'
+            raise MCPtoolError(f'Agent Logs Error: {str(e)}')
 
     @mcp.tool()
     async def invokable_agents(region: str = 'us-east-1') -> str:
@@ -1513,7 +1517,7 @@ def discover_agentcore_examples_from_github(
                                     }
                                 )
                 except (subprocess.TimeoutExpired, json.JSONDecodeError):
-                    pass
+                    raise ValueError('GitHub CLI search failed, or local JSON parsing error')
 
                 # Search for code files with individual terms
                 for term in query_terms:
@@ -1560,7 +1564,9 @@ def discover_agentcore_examples_from_github(
                                                 }
                                             )
                         except (subprocess.TimeoutExpired, json.JSONDecodeError):
-                            continue
+                            raise ValueError(
+                                'GitHub CLI search failed, or local JSON parsing error'
+                            )
 
                 # Search for specific combinations
                 if len(query_terms) >= 2:
@@ -1616,7 +1622,7 @@ def discover_agentcore_examples_from_github(
                                             }
                                         )
                     except (subprocess.TimeoutExpired, json.JSONDecodeError):
-                        pass
+                        raise ValueError('GitHub CLI search failed, or local JSON parsing error')
 
                 # Sort by relevance and return
                 relevance_order = {'very_high': 0, 'high': 1, 'medium': 2}
@@ -1626,8 +1632,8 @@ def discover_agentcore_examples_from_github(
                     :15
                 ]  # Limit results to avoid too many API calls  # pragma: no cover
 
-            except Exception:  # pragma: no cover
-                return []
+            except Exception as e:  # pragma: no cover
+                raise MCPtoolError(f'GitHub CLI Search Error: {str(e)}')
 
         def github_search_api(query_terms: List[str]) -> List[Dict]:
             """Try GitHub's search API - first with CLI auth, then fallback."""
@@ -1665,8 +1671,8 @@ def discover_agentcore_examples_from_github(
 
                 return search_results[:15]
 
-            except Exception:
-                return []
+            except Exception as e:
+                raise MCPtoolError(f'GitHub Search API Error: {str(e)}')
 
         def fetch_repository_structure() -> Dict[str, List[str]]:
             """Fetch the repository structure organized by section."""
@@ -1703,8 +1709,8 @@ def discover_agentcore_examples_from_github(
                 cache['structure'] = structure
                 return structure
 
-            except requests.RequestException:
-                return {}
+            except requests.RequestException as e:
+                raise MCPtoolError(f'GitHub Repo Structure Error: {str(e)}')
 
         def extract_metadata_from_readme(readme_content: str) -> Dict[str, str]:
             """Extract metadata from README content with enhanced table parsing."""
@@ -1870,8 +1876,8 @@ def discover_agentcore_examples_from_github(
 
                 return metadata
 
-            except Exception:
-                return {}
+            except Exception as e:
+                raise MCPtoolError(f'Metadata Extraction Error: {str(e)}')
 
         def fetch_example_details(section: str, example_name: str) -> Optional[ExampleMetadata]:
             """Fetch detailed information about a specific example."""
@@ -1928,8 +1934,7 @@ def discover_agentcore_examples_from_github(
                         elif has_dockerfile:
                             format_type = 'docker'
                 except Exception as e:
-                    print(f'Error determining format type: {e}')
-                    pass
+                    raise ValueError(f'Error determining format type: {e}')
 
                 ## Parse components
                 components = []
@@ -2354,7 +2359,7 @@ Repository Structure:
             return '\\n'.join(result_parts)
 
         except Exception as e:
-            return f"""GitHub Discovery Error: {str(e)[:200]}...
+            raise MCPtoolError(f"""GitHub Discovery Error: {str(e)[:200]}...
 
 Manual Browse: [AgentCore Samples Repository](https://github.com/awslabs/amazon-bedrock-agentcore-samples)
 
@@ -2362,12 +2367,13 @@ Repository Sections:
 - Tutorials: Learning-focused examples for each AgentCore component
 - Use Cases: Real-world application implementations
 - Integrations: Framework integration patterns (Strands, LangChain, etc.)
-"""
+""")
 
-    except ImportError:
-        return """Requests Library Required
+    except ImportError as e:
+        raise MCPtoolError(f"""Requests Library Required
 
 Missing: `requests` library needed for GitHub API access
+Full Error: {str(e)}
 
 Install:
 ```bash
@@ -2379,7 +2385,7 @@ uv add requests
 Purpose: Dynamically discover working examples from AgentCore samples repository
 
 Manual Browse: [AgentCore Samples](https://github.com/awslabs/amazon-bedrock-agentcore-samples)
-"""
+""")
 
 
 def register_github_discovery_tools(mcp: FastMCP):

@@ -25,8 +25,11 @@ MCP TOOLS IMPLEMENTED:
 
 """
 
+import json
+import os
+import subprocess
 import time
-from .utils import RUNTIME_AVAILABLE, SDK_AVAILABLE
+from .utils import RUNTIME_AVAILABLE, MCPtoolError
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Literal
@@ -62,15 +65,6 @@ def register_identity_tools(mcp: FastMCP):
         - get: Get details of a specific provider
         - update: Update an existing provider
         """
-        if not SDK_AVAILABLE:
-            return """X AgentCore SDK Not Available
-
-To use credential provider functionality:
-1. Install: `uv add bedrock-agentcore bedrock-agentcore-starter-toolkit`
-2. Configure AWS credentials: `aws configure`
-3. Retry credential operations
-
-Alternative: Use AWS Console for credential management"""
         from bedrock_agentcore.services.identity import IdentityClient
 
         try:
@@ -80,7 +74,7 @@ Alternative: Use AWS Console for credential management"""
             # Action: create - Create new API key credential provider
             if action == 'create':
                 if not provider_name:
-                    return """X Error: provider_name is required for create action
+                    raise MCPtoolError("""X Error: provider_name is required for create action
 
 Example:
 ```python
@@ -90,10 +84,10 @@ manage_credentials(
     api_key="sk-...", # pragma: allowlist secret
     description="OpenAI API key for GPT models" # pragma: allowlist secret
 )
-```"""
+```""")
 
                 if not api_key:
-                    return """X Error: api_key is required for create action
+                    raise MCPtoolError("""X Error: api_key is required for create action
 
 Example:
 ```python
@@ -102,7 +96,7 @@ manage_credentials(
     provider_name="my-api-provider", # pragma: allowlist secret
     api_key="your-actual-api-key-here" # pragma: allowlist secret
 )
-```"""
+```""")
 
                 try:
                     # Create the credential provider
@@ -143,7 +137,7 @@ async def my_function(*, api_key: str):
 Secure: Security: API key is securely stored and encrypted by AWS AgentCore Identity service."""
 
                 except Exception as create_error:
-                    return f"""X Failed to Create Credential Provider
+                    raise MCPtoolError(f"""X Failed to Create Credential Provider
 
 Provider Name: `{provider_name}`
 Error: {str(create_error)}
@@ -158,7 +152,7 @@ Troubleshooting:
 1. Check if provider exists: `manage_credentials(action="list")`
 2. Verify AWS credentials: `aws sts get-caller-identity`
 3. Ensure unique provider name
-4. Check API key format"""
+4. Check API key format""")
 
             # Action: list - List all credential providers
             elif action == 'list':
@@ -174,7 +168,7 @@ Troubleshooting:
                     ) + oauth2_providers.get('credentialProviders', [])
 
                     if not providers or len(providers) == 0:
-                        return f"""# Security: No Credential Providers Found
+                        raise MCPtoolError(f"""# Security: No Credential Providers Found
 
 Region: {region}
 
@@ -199,7 +193,7 @@ manage_credentials(
 - Secure: Secure storage with AWS encryption
 - Target: Runtime injection via decorators
 - Note: No hardcoded keys in agent code
-- Reuse: Reusable across multiple agents"""
+- Reuse: Reusable across multiple agents""")
 
                     # Format results
                     result_parts = []
@@ -257,7 +251,7 @@ manage_credentials(
                     return '\n'.join(result_parts)
 
                 except Exception as list_error:
-                    return f"""X Failed to List Credential Providers
+                    raise MCPtoolError(f"""X Failed to List Credential Providers
 
 Region: {region}
 Error: {str(list_error)}
@@ -270,7 +264,7 @@ Possible Causes:
 Troubleshooting:
 1. Check AWS credentials: `aws sts get-caller-identity`
 2. Verify AgentCore permissions
-3. Try creating a provider first"""
+3. Try creating a provider first""")
 
             # Action: delete - Delete credential provider
             elif action == 'delete':
@@ -376,9 +370,9 @@ Check Available: `manage_credentials(action="list")`"""
             # Action: update - Update credential provider
             elif action == 'update':
                 if not provider_name:
-                    return 'X Error: provider_name is required for update action'
+                    raise MCPtoolError('X Error: provider_name is required for update action')
                 if not api_key:
-                    return 'X Error: api_key is required for update action'
+                    raise MCPtoolError('X Error: api_key is required for update action')
 
                 try:
                     # Update the credential provider
@@ -424,7 +418,7 @@ Check Available: `manage_credentials(action="list")`"""
 Secure: Security: Old API key is securely deleted and new key is encrypted."""
 
                 except Exception as update_error:
-                    return f"""X Failed to Update Credential Provider
+                    raise MCPtoolError(f"""X Failed to Update Credential Provider
 
 Provider Name: `{provider_name}`
 Error: {str(update_error)}
@@ -434,10 +428,10 @@ Possible Causes:
 - Invalid API key format
 - Insufficient permissions
 
-Check Status: `manage_credentials(action="get", provider_name="{provider_name}")`"""
+Check Status: `manage_credentials(action="get", provider_name="{provider_name}")`""")
 
             else:  # pragma: no cover
-                return f"""X Unknown Action: {action}
+                raise MCPtoolError(f"""X Unknown Action: {action}
 
 ## Available Actions:
 - create: Create new credential provider
@@ -449,10 +443,10 @@ Check Status: `manage_credentials(action="get", provider_name="{provider_name}")
 ## Example:
 ```python
 manage_credentials(action="create", provider_name="my-key", api_key="secret") # pragma: allowlist secret
-```"""
+```""")
 
         except ImportError as e:
-            return f"""X Required Dependencies Missing
+            raise MCPtoolError(f"""X Required Dependencies Missing
 
 Error: {str(e)}
 
@@ -460,10 +454,10 @@ To use credential provider functionality:
 1. Install AgentCore: `uv add bedrock-agentcore bedrock-agentcore-starter-toolkit`
 2. Configure AWS: `aws configure`
 
-Alternative: Use AWS Console for credential management"""
+Alternative: Use AWS Console for credential management""")
 
         except Exception as e:
-            return f"""X Credential Management Error: {str(e)}
+            raise MCPtoolError(f"""X Credential Management Error: {str(e)}
 
 Action: {action}
 Provider: {provider_name or 'Not specified'}
@@ -472,7 +466,7 @@ Region: {region}
 Troubleshooting:
 1. Check AWS credentials: `aws sts get-caller-identity`
 2. Verify AgentCore permissions
-3. Check provider exists: `manage_credentials(action="list")`"""
+3. Check provider exists: `manage_credentials(action="list")`""")
 
 
 ## ============================================================================
@@ -576,11 +570,10 @@ pip install bedrock-agentcore-starter-toolkit
 
 Alternative: Use `method="manual_curl"` with explicit credentials"""
 
-                    ## Use the starter toolkit GatewayClient approach
-                    import json
+                    # Use the starter toolkit GatewayClient approach
 
                     ## Load gateway configuration
-                    import os
+
                     from bedrock_agentcore_starter_toolkit.operations.gateway.client import (
                         GatewayClient,
                     )
@@ -623,15 +616,14 @@ Config Directory: `{config_dir}`"""
                         )  # pragma: no cover
 
                     if not client_info:  # pragma: no cover
-                        return f"""Missing OAuth Configuration: `{gateway_name}`
+                        raise MCPtoolError(f"""Missing OAuth Configuration: `{gateway_name}`
 
 Issue: Gateway exists but missing OAuth client info
 
 Solutions:
 1. Recreate gateway: `agent_gateway(action="setup", gateway_name="{gateway_name}")`
 2. Use manual method: Get credentials from AWS Cognito Console
-3. Check configuration: `{config_file}`"""
-
+3. Check configuration: `{config_file}`""")
                     ## Get access token using GatewayClient
                     gateway_client = GatewayClient(region_name=region)
                     access_token = gateway_client.get_access_token_for_cognito(client_info)
@@ -684,7 +676,7 @@ curl -H "Authorization: Bearer {access_token}" \\
 Success: Ready to connect to gateway with simplified token management!"""
 
                 except Exception as e:  # pragma: no cover
-                    return f"""Gateway Client Error: {str(e)}
+                    raise MCPtoolError(f"""Gateway Client Error: {str(e)}
 
 Gateway: `{gateway_name}`
 Method: gateway_client
@@ -699,12 +691,12 @@ Solutions:
 1. Check gateway exists: `agent_gateway(action="list")`
 2. Recreate gateway: `agent_gateway(action="setup", gateway_name="{gateway_name}")`
 3. Try manual method: Use explicit OAuth credentials
-4. Check AWS Console: Verify Cognito User Pool exists"""
+4. Check AWS Console: Verify Cognito User Pool exists""")
 
             ## Method: manual_curl - Direct OAuth 2.0 flow
             elif method == 'manual_curl':
                 if not all([client_id, client_secret, token_endpoint, scope]):
-                    return """Missing Required Parameters for Manual cURL
+                    raise MCPtoolError("""Missing Required Parameters for Manual cURL
 
 Required Parameters:
 - `client_id`: OAuth client ID from Cognito
@@ -725,9 +717,7 @@ get_oauth_access_token(
 
 To get credentials:
 1. From existing gateway: `agent_gateway(action="auth", gateway_name="your-gateway")`
-2. From AWS Console: Cognito → User Pools → App clients"""
-                import json
-                import subprocess
+2. From AWS Console: Cognito → User Pools → App clients""")
 
                 try:
                     ## Build curl command for OAuth 2.0 client credentials flow
@@ -829,7 +819,7 @@ def get_fresh_token():
 Success: Ready to use with full manual control over OAuth flow!"""
 
                         except json.JSONDecodeError:
-                            return f"""Invalid JSON Response
+                            raise MCPtoolError(f"""Invalid JSON Response
 
 Raw Response: {result.stdout}
 Error Response: {result.stderr}
@@ -839,7 +829,7 @@ Possible Issues:
 - Token endpoint URL is incorrect
 - OAuth server returned HTML error page
 - Network connectivity issues
-- DNS resolution problems"""
+- DNS resolution problems""")
 
                     else:
                         return f"""OAuth Request Failed
