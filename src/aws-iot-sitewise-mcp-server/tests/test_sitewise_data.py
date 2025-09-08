@@ -476,7 +476,15 @@ class TestSiteWiseData:
         result = get_asset_property_aggregates(
             asset_id='test-asset-123',
             property_id='test-prop-456',
+            property_alias=None,
             aggregate_types=None,  # Should default to ["AVERAGE"]
+            resolution='1h',
+            start_date=None,
+            end_date=None,
+            qualities=None,
+            time_ordering='ASCENDING',
+            next_token=None,
+            max_results=100,
             region='us-east-1',
         )
 
@@ -561,7 +569,11 @@ class TestSiteWiseData:
 
         # Test without next_token
         mock_client.reset_mock()
-        result = batch_get_asset_property_value(entries=entries, region='us-east-1')
+        result = batch_get_asset_property_value(
+            entries=entries,
+            next_token=None,
+            region='us-east-1',
+        )
 
         assert result['success'] is True
         mock_client.batch_get_asset_property_value.assert_called_once_with(entries=entries)
@@ -598,7 +610,10 @@ class TestSiteWiseData:
         # Test without next_token
         mock_client.reset_mock()
         result = batch_get_asset_property_value_history(
-            entries=entries, max_results=200, region='us-east-1'
+            entries=entries,
+            next_token=None,
+            max_results=200,
+            region='us-east-1',
         )
 
         assert result['success'] is True
@@ -638,7 +653,10 @@ class TestSiteWiseData:
         # Test without next_token
         mock_client.reset_mock()
         result = batch_get_asset_property_aggregates(
-            entries=entries, max_results=300, region='us-east-1'
+            entries=entries,
+            next_token=None,
+            max_results=300,
+            region='us-east-1',
         )
 
         assert result['success'] is True
@@ -682,7 +700,9 @@ class TestSiteWiseData:
         # Test next token too long
         result = execute_query(
             query_statement='SELECT asset_id FROM asset',
+            region='us-east-1',
             next_token='x' * 4097,  # Exceeds 4096 character limit
+            max_results=100,
         )
         assert result['success'] is False
         assert 'Next token too long' in result['error']

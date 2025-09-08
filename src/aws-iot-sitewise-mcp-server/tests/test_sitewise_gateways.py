@@ -365,7 +365,11 @@ class TestSiteWiseGateways:
 
         # Test without next_token
         mock_client.reset_mock()
-        result = list_gateways(region='us-east-1', max_results=25)
+        result = list_gateways(
+            region='us-east-1',
+            next_token=None,
+            max_results=25,
+        )
 
         assert result['success'] is True
         mock_client.list_gateways.assert_called_once_with(maxResults=25)
@@ -405,7 +409,14 @@ class TestSiteWiseGateways:
 
         # Test with minimal parameters
         mock_client.reset_mock()
-        result = list_time_series(region='us-east-1')
+        result = list_time_series(
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_id=None,
+            alias_prefix=None,
+            time_series_type=None,
+        )
 
         assert result['success'] is True
         mock_client.list_time_series.assert_called_once_with(maxResults=50)
@@ -432,7 +443,12 @@ class TestSiteWiseGateways:
         mock_client.describe_time_series.return_value = mock_response
 
         # Test with alias only
-        result = describe_time_series(alias='/company/plant/temperature', region='us-west-2')
+        result = describe_time_series(
+            alias='/company/plant/temperature',
+            asset_id=None,
+            property_id=None,
+            region='us-west-2',
+        )
 
         assert result['success'] is True
         mock_client.describe_time_series.assert_called_once_with(
@@ -442,7 +458,10 @@ class TestSiteWiseGateways:
         # Test with asset_id and property_id
         mock_client.reset_mock()
         result = describe_time_series(
-            asset_id='asset-123', property_id='prop-456', region='us-east-1'
+            alias=None,
+            asset_id='asset-123',
+            property_id='prop-456',
+            region='us-east-1',
         )
 
         assert result['success'] is True
@@ -496,6 +515,7 @@ class TestSiteWiseGateways:
             asset_id='asset-123',
             property_id='prop-456',
             region='us-east-1',
+            client_token=None,
         )
 
         assert result['success'] is True
@@ -535,6 +555,7 @@ class TestSiteWiseGateways:
             asset_id='asset-123',
             property_id='prop-456',
             region='us-east-1',
+            client_token=None,
         )
 
         assert result['success'] is True
@@ -551,7 +572,13 @@ class TestSiteWiseGateways:
         mock_boto_client.return_value = mock_client
 
         # Test with alias only
-        result = delete_time_series(alias='/company/plant/temperature', region='us-west-2')
+        result = delete_time_series(
+            alias='/company/plant/temperature',
+            asset_id=None,
+            property_id=None,
+            region='us-west-2',
+            client_token=None,
+        )
 
         assert result['success'] is True
         mock_client.delete_time_series.assert_called_once_with(alias='/company/plant/temperature')
@@ -559,7 +586,11 @@ class TestSiteWiseGateways:
         # Test with asset_id and property_id
         mock_client.reset_mock()
         result = delete_time_series(
-            asset_id='asset-123', property_id='prop-456', region='us-east-1'
+            alias=None,
+            asset_id='asset-123',
+            property_id='prop-456',
+            region='us-east-1',
+            client_token=None,
         )
 
         assert result['success'] is True
@@ -587,7 +618,13 @@ class TestSiteWiseGateways:
 
         # Test without client_token but with alias
         mock_client.reset_mock()
-        result = delete_time_series(alias='/company/plant/temperature', region='us-east-1')
+        result = delete_time_series(
+            alias='/company/plant/temperature',
+            asset_id=None,
+            property_id=None,
+            region='us-east-1',
+            client_token=None,
+        )
 
         assert result['success'] is True
         mock_client.delete_time_series.assert_called_once_with(alias='/company/plant/temperature')
