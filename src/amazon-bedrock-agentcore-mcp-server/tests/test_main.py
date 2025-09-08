@@ -163,8 +163,10 @@ if __name__ == "__main__":
             )
 
         # Test GitHub examples discovery
-        examples_result_tuple = await mcp.call_tool('discover_agentcore_examples', {})
-        examples_result = extract_result(examples_result_tuple)
+        helper = SmartTestHelper()
+        examples_result = await helper.call_tool_and_extract(
+            mcp, 'discover_agentcore_examples', {}
+        )
 
         # Should either show examples or network error
         assert (
