@@ -47,8 +47,8 @@ class TestMetadataHandling:
                         'metadata': {
                             'seo_abstract': 'SEO optimized abstract',
                             'abstract': 'Regular abstract',
-                            'summary': 'Metadata summary'
-                        }
+                            'summary': 'Metadata summary',
+                        },
                     }
                 }
             ]
@@ -79,8 +79,8 @@ class TestMetadataHandling:
                         'suggestionBody': 'Suggestion body text',
                         'metadata': {
                             'abstract': 'Regular abstract',
-                            'summary': 'Metadata summary'
-                        }
+                            'summary': 'Metadata summary',
+                        },
                     }
                 }
             ]
@@ -109,7 +109,7 @@ class TestMetadataHandling:
                         'title': 'Test Page',
                         'summary': 'Regular summary',
                         'suggestionBody': 'Suggestion body text',
-                        'metadata': {}
+                        'metadata': {},
                     }
                 }
             ]
@@ -137,7 +137,7 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test',
                         'title': 'Test Page',
                         'suggestionBody': 'Suggestion body text',
-                        'metadata': {}
+                        'metadata': {},
                     }
                 }
             ]
@@ -164,7 +164,7 @@ class TestMetadataHandling:
                     'textExcerptSuggestion': {
                         'link': 'https://docs.aws.amazon.com/test',
                         'title': 'Test Page',
-                        'metadata': {}
+                        'metadata': {},
                     }
                 }
             ]
@@ -192,7 +192,7 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test',
                         'title': 'Test Page',
                         'summary': 'Regular summary',
-                        'metadata': {}
+                        'metadata': {},
                     }
                 }
             ]
@@ -220,9 +220,7 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test1',
                         'title': 'Test Page 1',
                         'summary': 'Regular summary 1',
-                        'metadata': {
-                            'seo_abstract': 'SEO abstract 1'
-                        }
+                        'metadata': {'seo_abstract': 'SEO abstract 1'},
                     }
                 },
                 {
@@ -230,9 +228,7 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test2',
                         'title': 'Test Page 2',
                         'summary': 'Regular summary 2',
-                        'metadata': {
-                            'abstract': 'Regular abstract 2'
-                        }
+                        'metadata': {'abstract': 'Regular abstract 2'},
                     }
                 },
                 {
@@ -240,7 +236,7 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test3',
                         'title': 'Test Page 3',
                         'summary': 'Regular summary 3',
-                        'metadata': {}
+                        'metadata': {},
                     }
                 },
                 {
@@ -248,9 +244,9 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test4',
                         'title': 'Test Page 4',
                         'suggestionBody': 'Suggestion body 4',
-                        'metadata': {}
+                        'metadata': {},
                     }
-                }
+                },
             ]
         }
 
@@ -282,11 +278,11 @@ class TestMetadataHandling:
                         'suggestionBody': 'What is Amazon S3?',
                         'summary': 'Store data in the cloud and learn the core concepts of buckets and objects with the Amazon S3 web service.',
                         'metadata': {
-                            'abstract': 'This document introduces Amazon S3, a scalable object storage service offering various storage classes, management features, access controls, and data processing capabilities. It covers S3\'s core concepts, bucket types, versioning, consistency model, and integration with other AWS services.',
+                            'abstract': "This document introduces Amazon S3, a scalable object storage service offering various storage classes, management features, access controls, and data processing capabilities. It covers S3's core concepts, bucket types, versioning, consistency model, and integration with other AWS services.",
                             'last_updated': '2025-07-29T22:20:53.000Z',
-                            'summary': 'This document introduces Amazon S3, a scalable object storage service offering various storage classes, management features, access controls, and data processing capabilities. It covers S3\'s core concepts, bucket types, versioning, consistency model, and integration with other AWS services.',
-                            'seo_abstract': 'Amazon S3 offers object storage service with scalability, availability, security, and performance. Manage storage classes, lifecycle policies, access permissions, data transformations, usage metrics, and query tabular data.'
-                        }
+                            'summary': "This document introduces Amazon S3, a scalable object storage service offering various storage classes, management features, access controls, and data processing capabilities. It covers S3's core concepts, bucket types, versioning, consistency model, and integration with other AWS services.",
+                            'seo_abstract': 'Amazon S3 offers object storage service with scalability, availability, security, and performance. Manage storage classes, lifecycle policies, access permissions, data transformations, usage metrics, and query tabular data.',
+                        },
                     }
                 },
                 {
@@ -294,12 +290,9 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/sdk-for-kotlin/api/latest/qbusiness/aws.sdk.kotlin.services.qbusiness.model/-document-content/-s3/index.html',
                         'title': 'S3',
                         'suggestionBody': 'funasS3OrNull():S3?',
-                        'metadata': {
-                            'last_updated': '2025-08-23T15:00:48.000Z',
-                            'summary': 'S3'
-                        }
+                        'metadata': {'last_updated': '2025-08-23T15:00:48.000Z', 'summary': 'S3'},
                     }
-                }
+                },
             ]
         }
 
@@ -310,7 +303,10 @@ class TestMetadataHandling:
 
             assert len(results) == 2
             # First result should use seo_abstract
-            assert results[0].context == 'Amazon S3 offers object storage service with scalability, availability, security, and performance. Manage storage classes, lifecycle policies, access permissions, data transformations, usage metrics, and query tabular data.'
+            assert (
+                results[0].context
+                == 'Amazon S3 offers object storage service with scalability, availability, security, and performance. Manage storage classes, lifecycle policies, access permissions, data transformations, usage metrics, and query tabular data.'
+            )
             # Second result should use suggestionBody since no seo_abstract or abstract in metadata
             assert results[1].context == 'funasS3OrNull():S3?'
 
@@ -327,7 +323,7 @@ class TestMetadataHandling:
                     'textExcerptSuggestion': {
                         'link': 'https://docs.aws.amazon.com/test',
                         'title': 'Test Page',
-                        'summary': 'Regular summary'
+                        'summary': 'Regular summary',
                         # No metadata field at all
                     }
                 }
