@@ -27,15 +27,214 @@ from typing import Any, Dict, Optional
 # Constants
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S UTC'
 UTC_TIMEZONE_OFFSET = '+00:00'
+BCM_PRICING_CALCULATOR_SERVICE_NAME = 'BCM Pricing Calculator'
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
-    name='bcm-pricing-calculator-tools',
-    instructions='BCM Pricing Calculator tools for working with AWS Billing and Cost Management Pricing Calculator API',
+    name='bcm-pricing-calc-tools',
+    instructions=f'{BCM_PRICING_CALCULATOR_SERVICE_NAME} tools for working with AWS Billing and Cost Management Pricing Calculator API',
 )
 
 
-async def get_preferences(ctx: Context, bcm_client) -> bool:
+async def bcm_pricing_calc_core(
+    ctx: Context,
+    operation: str,
+    identifier: Optional[str] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    expires_after: Optional[str] = None,
+    expires_before: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    name_filter: Optional[str] = None,
+    name_match_option: str = 'CONTAINS',
+    usage_account_id_filter: Optional[str] = None,
+    service_code_filter: Optional[str] = None,
+    usage_type_filter: Optional[str] = None,
+    operation_filter: Optional[str] = None,
+    location_filter: Optional[str] = None,
+    usage_group_filter: Optional[str] = None,
+    next_token: Optional[str] = None,
+    max_results: int = 25,
+) -> Dict[str, Any]:
+    """Core business logic for BCM Pricing Calculator.
+
+    Args:
+        ctx: The MCP context object
+        operation: The operation to perform
+        identifier: Identifier for specific operations
+        created_after: Filter estimates created after this timestamp
+        created_before: Filter estimates created before this timestamp
+        expires_after: Filter estimates expiring after this timestamp
+        expires_before: Filter estimates expiring before this timestamp
+        status_filter: Filter by status
+        name_filter: Filter by name
+        name_match_option: Match option for name filter
+        usage_account_id_filter: Filter by AWS account ID
+        service_code_filter: Filter by AWS service code
+        usage_type_filter: Filter by usage type
+        operation_filter: Filter by operation name
+        location_filter: Filter by location/region
+        usage_group_filter: Filter by usage group
+        next_token: Token for pagination
+        max_results: Maximum number of results to return
+
+    Returns:
+        Dict containing the response data
+    """
+    try:
+        # Log the request
+        await ctx.info(f'Received BCM Pricing Calculator operation: {operation}')
+
+        # Check if the operation is valid
+        if operation not in [
+            'get_workload_estimate',
+            'list_workload_estimates',
+            'list_workload_estimate_usage',
+            'get_preferences',
+        ]:
+            return format_response(
+                'error',
+                {'invalid_parameter': 'operation'},
+                f'Invalid operation: {operation}. Valid operations are: get_workload_estimates, get_preferences, describe_workload_estimates',
+            )
+
+        # Call the appropriate operation
+        if operation == 'get_workload_estimate':
+            return await get_workload_estimate(ctx, identifier)
+        elif operation == 'list_workload_estimates':
+            return await list_workload_estimates(
+                ctx,
+                created_after,
+                created_before,
+                expires_after,
+                expires_before,
+                status_filter,
+                name_filter,
+                name_match_option,
+                next_token,
+                max_results,
+            )
+        elif operation == 'list_workload_estimate_usage':
+            return await list_workload_estimate_usage(
+                ctx,
+                identifier,
+                usage_account_id_filter,
+                service_code_filter,
+                usage_type_filter,
+                operation_filter,
+                location_filter,
+                usage_group_filter,
+                next_token,
+                max_results,
+            )
+        elif operation == 'get_preferences':
+            if not await get_preferences(ctx):
+                return format_response(
+                    'error',
+                    {'error': PREFERENCES_NOT_CONFIGURED_ERROR},
+                    PREFERENCES_NOT_CONFIGURED_ERROR,
+                )
+            else:
+                return format_response(
+                    'success', {'message': 'Preferences are properly configured'}
+                )
+        else:
+            return format_response('error', {'message': f'Unknown operation: {operation}'})
+
+    except Exception as e:
+        # Use shared error handler for consistent error handling
+        error_response = await handle_aws_error(
+            ctx, e, operation, 'AWS Billing and Cost Management Pricing Calculator'
+        )
+        await ctx.error(
+            f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_response.get("data", {}).get("error", str(e))}'
+        )
+        return format_response(
+            'error',
+            {'error': error_response.get('data', {}).get('error', str(e))},
+            f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_response.get("data", {}).get("error", str(e))}',
+        )
+
+
+@bcm_pricing_calculator_server.tool(
+    name='bcm-pricing-calc',
+    description="""Allows working with workload estimates using the AWS Billing and Cost Management Pricing Calculator API.
+
+IMPORTANT USAGE GUIDELINES:
+- Always first check the rate preference setting for the authorized principal by calling the get_preferences operation.
+
+USE THIS TOOL FOR:
+- Listing available **workload estimates** for the logged in account.
+- **Filter list of available workload estimates** using name, status, created date, or expiration date.
+- Get **details of a workload estimate**.
+- Get the list of **services, usage type, operation, and usage amount** modeled within a workload estimate.
+
+## OPERATIONS
+
+1) list_workload_estimates - list of available workload estimates
+   Required: operation="list_workload_estimates"
+   Optional: created_after, created_before, expires_after, expires_before, status_filter, name_filter, name_match_option, next_token, max_results
+   Returns: List of all workload estimates for the account.
+
+2) get_workload_estimate - get details of a workload estimate
+   Required: operation="get_workload_estimate", identifier
+   Returns: Details of a specific workload estimate.
+
+3) list_workload_estimate_usage - list of modeled usage lines within a workload estimate
+   Required: operation="get_workload_estimate", identifier
+   Optional: usage_account_id_filter, service_code_filter, usage_type_filter, operation_filter, location_filter, usage_group_filter, next_token, max_results
+   Returns: List of usage associated with a workload estimate.
+
+4) get_preferences - get the rate preferences available to an account
+   Required: operation="get_preferences"
+   Returns: Retrieves the current preferences for AWS Billing and Cost Management Pricing Calculator.
+""",
+)
+async def bcm_pricing_calc(
+    ctx: Context,
+    operation: str,
+    identifier: Optional[str] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    expires_after: Optional[str] = None,
+    expires_before: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    name_filter: Optional[str] = None,
+    name_match_option: str = 'CONTAINS',
+    usage_account_id_filter: Optional[str] = None,
+    service_code_filter: Optional[str] = None,
+    usage_type_filter: Optional[str] = None,
+    operation_filter: Optional[str] = None,
+    location_filter: Optional[str] = None,
+    usage_group_filter: Optional[str] = None,
+    next_token: Optional[str] = None,
+    max_results: int = 25,
+) -> Dict[str, Any]:
+    """FastMCP tool wrapper for BCM Pricing Calculator operations."""
+    # need this wrapper to improve code coverage as FastMCP decorated methods cannot be tested directly.
+    return await bcm_pricing_calc_core(
+        ctx,
+        operation,
+        identifier,
+        created_after,
+        created_before,
+        expires_after,
+        expires_before,
+        status_filter,
+        name_filter,
+        name_match_option,
+        usage_account_id_filter,
+        service_code_filter,
+        usage_type_filter,
+        operation_filter,
+        location_filter,
+        usage_group_filter,
+        next_token,
+        max_results,
+    )
+
+
+async def get_preferences(ctx: Context) -> bool:
     """Check if BCM Pricing Calculator preferences are properly configured.
 
     Args:
@@ -46,6 +245,9 @@ async def get_preferences(ctx: Context, bcm_client) -> bool:
         bool: True if preferences are valid, False otherwise
     """
     try:
+        # Get the BCM Pricing Calculator client
+        bcm_client = create_aws_client('bcm-pricing-calculator', region_name='us-east-1')
+
         await ctx.info('Checking BCM Pricing Calculator preferences...')
         response = bcm_client.get_preferences()
 
@@ -77,7 +279,7 @@ async def get_preferences(ctx: Context, bcm_client) -> bool:
     except Exception as e:
         # Use shared error handler for consistent error handling
         error_response = await handle_aws_error(
-            ctx, e, 'get_preferences', 'BCM Pricing Calculator'
+            ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
         await ctx.error(
             f'Failed to check BCM Pricing Calculator preferences: {error_response.get("data", {}).get("error", str(e))}'
@@ -85,7 +287,7 @@ async def get_preferences(ctx: Context, bcm_client) -> bool:
         return False
 
 
-async def describe_workload_estimates(
+async def list_workload_estimates(
     ctx: Context,
     created_after: Optional[str] = None,
     created_before: Optional[str] = None,
@@ -97,7 +299,7 @@ async def describe_workload_estimates(
     next_token: Optional[str] = None,
     max_results: int = 25,
 ) -> Dict[str, Any]:
-    """Core business logic for listing workload estimates.
+    """Lists all workload estimates for the account.
 
     Args:
         ctx: The MCP context object
@@ -112,7 +314,10 @@ async def describe_workload_estimates(
         max_results: Maximum number of results to return (1-100, default: 100)
 
     Returns:
-        Dict containing the workload estimates information
+        Dict containing the workload estimates information. This contains the following information about a workload estimate:
+        id: The unique identifier of the workload estimate.
+        name: The name of the workload estimate.
+        status: The current status of the workload estimate. Possible values are UPDATIN, VALID, INVALID, ACTION_NEEDED
     """
     try:
         # Log the request
@@ -125,7 +330,7 @@ async def describe_workload_estimates(
         bcm_client = create_aws_client('bcm-pricing-calculator')
 
         # Check preferences before proceeding
-        if not await get_preferences(ctx, bcm_client):
+        if not await get_preferences(ctx):
             return format_response(
                 'error',
                 {
@@ -206,96 +411,54 @@ async def describe_workload_estimates(
 
     except Exception as e:
         # Use shared error handler for all exceptions (ClientError and others)
-        return await handle_aws_error(ctx, e, 'list_workload_estimates', 'BCM Pricing Calculator')
+        return await handle_aws_error(
+            ctx, e, 'list_workload_estimates', BCM_PRICING_CALCULATOR_SERVICE_NAME
+        )
 
 
-@bcm_pricing_calculator_server.tool(
-    name='list_workload_estimates',
-    description="""Lists all workload estimates for the account using the AWS Billing and Cost Management Pricing Calculator API.
-    The AWS Billing and Cost Management Pricing Calculator is available within an AWS account. This is NOT the same as AWS
-    Pricing Calculator available at https://calculator.aws
-
-This tool uses the ListWorkloadEstimates API to retrieve workload estimates with optional filtering capabilities.
-
-The API returns information about:
-- Workload estimate IDs and names
-- Creation and expiration timestamps
-- Rate types and timestamps. Possible rate types are BEFORE_DISCOUNTS, AFTER_DISCOUNTS, AFTER_DISCOUNTS_AND_COMMITMENTS
-- Current status of estimates. Possible values are UPDATIN, VALID, INVALID, ACTION_NEEDED
-- Total estimated costs and currency
-- Failure messages if applicable
-
-FILTERING OPTIONS:
-- createdAtFilter: Filter by creation date (afterTimestamp, beforeTimestamp)
-- expiresAtFilter: Filter by expiration date (afterTimestamp, beforeTimestamp)
-- filters: Additional filters by STATUS or NAME with match options (EQUALS, STARTS_WITH, CONTAINS)
-
-PAGINATION:
-- Use nextToken for pagination through large result sets
-- maxResults controls the number of results per page (default: 25)
-
-The tool automatically handles pagination and provides formatted results for easy analysis.""",
-)
-async def list_workload_estimates(
+async def get_workload_estimate(
     ctx: Context,
-    created_after: Optional[str] = None,
-    created_before: Optional[str] = None,
-    expires_after: Optional[str] = None,
-    expires_before: Optional[str] = None,
-    status_filter: Optional[str] = None,
-    name_filter: Optional[str] = None,
-    name_match_option: str = 'CONTAINS',
-    next_token: Optional[str] = None,
-    max_results: int = 25,
+    identifier: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Lists all workload estimates for the account.
+    """Retrieves details of a specific workload estimate using the AWS Billing and Cost Management Pricing Calculator API.
 
-    Args:
-        ctx: The MCP context object
-        created_after: Filter estimates created after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        created_before: Filter estimates created before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        expires_after: Filter estimates expiring after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        expires_before: Filter estimates expiring before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED)
-        name_filter: Filter by name (supports partial matching)
-        name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
-        next_token: Token for pagination
-        max_results: Maximum number of results to return (1-100, default: 100)
+    This tool uses the GetWorkloadEstimate API to retrieve detailed information about a single workload estimate.
 
-    Returns:
-        Dict containing the workload estimates information. This contains the following information about a workload estimate:
-        id: The unique identifier of the workload estimate.
-        name: The name of the workload estimate.
-        status: The current status of the workload estimate. Possible values are UPDATIN, VALID, INVALID, ACTION_NEEDED
-    """
-    return await describe_workload_estimates(
-        ctx,
-        created_after,
-        created_before,
-        expires_after,
-        expires_before,
-        status_filter,
-        name_filter,
-        name_match_option,
-        next_token,
-        max_results,
-    )
+    The API returns comprehensive information about:
+    - Workload estimate ID and name
+    - Creation and expiration timestamps
+    - Rate type and timestamp
+    - Current status of the estimate
+    - Total estimated cost and currency
+    - Failure message if applicable
 
+    REQUIRED PARAMETER:
+    - identifier: The unique identifier of the workload estimate to retrieve
 
-async def describe_workload_estimate(
-    ctx: Context,
-    identifier: str,
-) -> Dict[str, Any]:
-    """Core business logic for retrieving details of a specific workload estimate.
+    POSSIBLE STATUSES:
+    - UPDATING: The estimate is being updated
+    - VALID: The estimate is valid and up-to-date
+    - INVALID: The estimate is invalid
+    - ACTION_NEEDED: User action is required
 
-    Args:
-        ctx: The MCP context object
-        identifier: The unique identifier of the workload estimate to retrieve
-
-    Returns:
-        Dict containing the workload estimate details
+    The tool provides formatted results with human-readable timestamps and cost information.
     """
     try:
+        # The reason to have the following "unnecessary" check is because how each MCP tool is registered.
+        # Each MCP tool is registered with a unique name, irrespective of operations it can perform.
+        # Thereby there is a single entry point that accepts params required across all operations and routes the call flow to an operation.
+        # So some paramters could required for one operation while not be required for some other operation.
+        # Thereby all parameters to the entry point are optional, requiring this check.
+        if identifier is None:
+            await ctx.error('Identifier is required when calling get_workload_estimate')
+            return format_response(
+                'error',
+                {
+                    'error': 'Identifier is required when calling get_workload_estimate',
+                    'error_code': 'MISSING_PARAMETER',
+                },
+            )
+
         # Log the request
         await ctx.info(f'Getting workload estimate details for identifier: {identifier}')
 
@@ -303,7 +466,7 @@ async def describe_workload_estimate(
         bcm_client = create_aws_client('bcm-pricing-calculator')
 
         # Check preferences before proceeding
-        if not await get_preferences(ctx, bcm_client):
+        if not await get_preferences(ctx):
             return format_response(
                 'error',
                 {
@@ -338,53 +501,14 @@ async def describe_workload_estimate(
 
     except Exception as e:
         # Use shared error handler for all exceptions (ClientError and others)
-        return await handle_aws_error(ctx, e, 'get_workload_estimate', 'BCM Pricing Calculator')
+        return await handle_aws_error(
+            ctx, e, 'get_workload_estimate', BCM_PRICING_CALCULATOR_SERVICE_NAME
+        )
 
 
-@bcm_pricing_calculator_server.tool(
-    name='get_workload_estimate',
-    description="""Retrieves details of a specific workload estimate using the AWS Billing and Cost Management Pricing Calculator API.
-
-This tool uses the GetWorkloadEstimate API to retrieve detailed information about a single workload estimate.
-
-The API returns comprehensive information about:
-- Workload estimate ID and name
-- Creation and expiration timestamps
-- Rate type and timestamp
-- Current status of the estimate
-- Total estimated cost and currency
-- Failure message if applicable
-
-REQUIRED PARAMETER:
-- identifier: The unique identifier of the workload estimate to retrieve
-
-POSSIBLE STATUSES:
-- UPDATING: The estimate is being updated
-- VALID: The estimate is valid and up-to-date
-- INVALID: The estimate is invalid
-- ACTION_NEEDED: User action is required
-
-The tool provides formatted results with human-readable timestamps and cost information.""",
-)
-async def get_workload_estimate(
+async def list_workload_estimate_usage(
     ctx: Context,
-    identifier: str,
-) -> Dict[str, Any]:
-    """Retrieves details of a specific workload estimate.
-
-    Args:
-        ctx: The MCP context object
-        identifier: The unique identifier of the workload estimate to retrieve
-
-    Returns:
-        Dict containing the workload estimate details
-    """
-    return await describe_workload_estimate(ctx, identifier)
-
-
-async def describe_workload_estimate_usage(
-    ctx: Context,
-    workload_estimate_id: str,
+    workload_estimate_id: Optional[str] = None,
     usage_account_id_filter: Optional[str] = None,
     service_code_filter: Optional[str] = None,
     usage_type_filter: Optional[str] = None,
@@ -412,6 +536,23 @@ async def describe_workload_estimate_usage(
         Dict containing the workload estimate usage information
     """
     try:
+        # The reason to have the following "unnecessary" check is because how each MCP tool is registered.
+        # Each MCP tool is registered with a unique name, irrespective of operations it can perform.
+        # Thereby there is a single entry point that accepts params required across all operations and routes the call flow to an operation.
+        # So some paramters could required for one operation while not be required for some other operation.
+        # Thereby all parameters to the entry point are optional, requiring this check.
+        if workload_estimate_id is None:
+            await ctx.error(
+                'workload_estimate_id is required when calling list_workload_estimate_usage'
+            )
+            return format_response(
+                'error',
+                {
+                    'error': 'workload_estimate_id is required when calling list_workload_estimate_usage',
+                    'error_code': 'MISSING_PARAMETER',
+                },
+            )
+
         # Log the request
         await ctx.info(
             f'Listing workload estimate usage (workload_estimate_id={workload_estimate_id}, '
@@ -422,7 +563,7 @@ async def describe_workload_estimate_usage(
         bcm_client = create_aws_client('bcm-pricing-calculator')
 
         # Check preferences before proceeding
-        if not await get_preferences(ctx, bcm_client):
+        if not await get_preferences(ctx):
             return format_response(
                 'error',
                 {
@@ -508,83 +649,8 @@ async def describe_workload_estimate_usage(
     except Exception as e:
         # Use shared error handler for all exceptions (ClientError and others)
         return await handle_aws_error(
-            ctx, e, 'list_workload_estimate_usage', 'BCM Pricing Calculator'
+            ctx, e, 'list_workload_estimate_usage', BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
-
-
-@bcm_pricing_calculator_server.tool(
-    name='list_workload_estimate_usage',
-    description="""Lists usage entries for a specific workload estimate using the AWS Billing and Cost Management Pricing Calculator API.
-
-This tool uses the ListWorkloadEstimateUsage API to retrieve detailed usage information for a workload estimate.
-
-The API returns information about:
-- Usage entries with service codes and operation details
-- Usage amounts and units
-- Cost estimates for each usage entry
-- Historical usage data if available
-- Usage account IDs and locations
-
-REQUIRED PARAMETER:
-- workload_estimate_id: The unique identifier of the workload estimate
-
-OPTIONAL PARAMETERS:
-- filters: Filter usage entries by various criteria
-- next_token: Token for pagination through large result sets
-- max_results: Maximum number of results to return (default: 25, max: 100)
-
-FILTERING OPTIONS:
-- USAGE_ACCOUNT_ID: Filter by AWS account ID
-- SERVICE_CODE: Filter by AWS service code (e.g., AmazonEC2, AmazonS3)
-- USAGE_TYPE: Filter by usage type
-- OPERATION: Filter by operation name
-- LOCATION: Filter by location/region
-- USAGE_GROUP: Filter by usage group
-- HISTORICAL_*: Filter by historical usage criteria
-
-The tool automatically handles pagination and provides formatted results for easy analysis.""",
-)
-async def list_workload_estimate_usage(
-    ctx: Context,
-    workload_estimate_id: str,
-    usage_account_id_filter: Optional[str] = None,
-    service_code_filter: Optional[str] = None,
-    usage_type_filter: Optional[str] = None,
-    operation_filter: Optional[str] = None,
-    location_filter: Optional[str] = None,
-    usage_group_filter: Optional[str] = None,
-    next_token: Optional[str] = None,
-    max_results: int = 25,
-) -> Dict[str, Any]:
-    """Lists usage entries for a specific workload estimate.
-
-    Args:
-        ctx: The MCP context object
-        workload_estimate_id: The unique identifier of the workload estimate
-        usage_account_id_filter: Filter by AWS account ID
-        service_code_filter: Filter by AWS service code (e.g., AmazonEC2, AmazonS3)
-        usage_type_filter: Filter by usage type
-        operation_filter: Filter by operation name
-        location_filter: Filter by location/region
-        usage_group_filter: Filter by usage group
-        next_token: Token for pagination
-        max_results: Maximum number of results to return (1-300, default: 25)
-
-    Returns:
-        Dict containing the workload estimate usage information
-    """
-    return await describe_workload_estimate_usage(
-        ctx,
-        workload_estimate_id,
-        usage_account_id_filter,
-        service_code_filter,
-        usage_type_filter,
-        operation_filter,
-        location_filter,
-        usage_group_filter,
-        next_token,
-        max_results,
-    )
 
 
 def format_usage_item_response(usage_item: Dict[str, Any]) -> Dict[str, Any]:

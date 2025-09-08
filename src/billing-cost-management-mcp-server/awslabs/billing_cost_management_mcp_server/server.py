@@ -89,7 +89,7 @@ TOOLS:
 - storage-lens: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
 - pricing: Access AWS service pricing information
-- bcm-pricing-calculator: Work with workload estimates from BCM Pricing Calculator
+- bcm-pricing-calc: Work with workload estimates from AWS Billing and Cost Management Pricing Calculator
 - budget: Retrieve AWS budget information
 - cost-anomaly: Identify cost anomalies in AWS accounts
 - cost-comparison: Compare costs between time periods
@@ -162,7 +162,7 @@ async def setup():
         'cost-optimization',
         'storage-lens',
         'pricing',
-        'bcm-pricing-calculator',
+        'bcm-pricing-calc',
         'budget',
         'cost-anomaly',
         'cost-comparison',

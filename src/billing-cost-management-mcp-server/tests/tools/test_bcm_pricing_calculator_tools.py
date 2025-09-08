@@ -1,115 +1,25 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""Tests for BCM Pricing Calculator Tools.
 
-"""Unit tests for the bcm_pricing_calculator_tools module.
-
-These tests verify the functionality of the BCM Pricing Calculator tools, including:
-- Getting preferences and validating configuration
-- Listing workload estimates with various filters
-- Getting specific workload estimate details
-- Listing workload estimate usage with filters
-- Formatting response objects
-- Error handling for invalid parameters and API exceptions
+This module contains comprehensive tests for all methods in the BCM Pricing Calculator Tools,
+ensuring complete code coverage and proper error handling.
 """
 
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     PREFERENCES_NOT_CONFIGURED_ERROR,
+    bcm_pricing_calc_core,
     bcm_pricing_calculator_server,
-    describe_workload_estimate,
-    describe_workload_estimate_usage,
-    describe_workload_estimates,
     format_usage_item_response,
     format_workload_estimate_response,
     get_preferences,
+    get_workload_estimate,
+    list_workload_estimate_usage,
+    list_workload_estimates,
 )
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from datetime import datetime
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
-
-
-@pytest.fixture
-def mock_bcm_client():
-    """Create a mock BCM Pricing Calculator boto3 client."""
-    mock_client = MagicMock()
-
-    # Set up mock responses for different operations
-    mock_client.get_preferences.return_value = {
-        'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS'],
-        'memberAccountRateTypeSelections': ['AFTER_DISCOUNTS'],
-        'standaloneAccountRateTypeSelections': ['AFTER_DISCOUNTS_AND_COMMITMENTS'],
-    }
-
-    mock_client.list_workload_estimates.return_value = {
-        'items': [
-            {
-                'id': '7ef37735-f7b9-444c-99b2-4faad224ead6',
-                'name': 'Test-Workload-Estimate',
-                'status': 'VALID',
-                'rateType': 'AFTER_DISCOUNTS',
-                'createdAt': datetime(2023, 1, 1, 12, 0, 0),
-                'expiresAt': datetime(2023, 12, 31, 23, 59, 59),
-                'rateTimestamp': datetime(2023, 1, 1, 0, 0, 0),
-                'totalCost': 1500.50,
-                'costCurrency': 'USD',
-            }
-        ],
-        'nextToken': 'next-token-123',
-    }
-
-    mock_client.get_workload_estimate.return_value = {
-        'id': '70f54b81-73b2-471f-bbb8-c92c6eda87f6',
-        'name': 'Detailed Workload Estimate',
-        'status': 'UPDATING',
-        'rateType': 'BEFORE_DISCOUNTS',
-        'createdAt': datetime(2023, 2, 1, 10, 30, 0),
-        'expiresAt': datetime(2023, 11, 30, 23, 59, 59),
-        'rateTimestamp': datetime(2023, 2, 1, 0, 0, 0),
-        'totalCost': 2750.75,
-        'costCurrency': 'USD',
-        'failureMessage': None,
-    }
-
-    mock_client.list_workload_estimate_usage.return_value = {
-        'items': [
-            {
-                'id': 'd4422ec0-2265-4079-be5b-baad6ade5672',
-                'serviceCode': 'AmazonEC2',
-                'usageType': 'BoxUsage:t3.medium',
-                'operation': 'RunInstances',
-                'location': 'US East (N. Virginia)',
-                'usageAccountId': '123456789012',
-                'group': 'compute',
-                'status': 'VALID',
-                'currency': 'USD',
-                'quantity': {'amount': 744.0, 'unit': 'Hrs'},
-                'cost': 50.25,
-                'historicalUsage': {
-                    'serviceCode': 'AmazonEC2',
-                    'usageType': 'BoxUsage:t3.medium',
-                    'operation': 'RunInstances',
-                    'location': 'US East (N. Virginia)',
-                    'usageAccountId': '123456789012',
-                    'billInterval': {'start': datetime(2023, 1, 1), 'end': datetime(2023, 1, 31)},
-                },
-            }
-        ],
-        'nextToken': 'usage-next-token-456',
-    }
-
-    return mock_client
 
 
 @pytest.fixture
@@ -121,360 +31,636 @@ def mock_context():
     return context
 
 
+@pytest.fixture
+def mock_bcm_pricing_calculator_client():
+    """Create a mock BCM Pricing Calculator boto3 client."""
+    mock_client = MagicMock()
+
+    # Set up mock responses for different operations
+    mock_client.get_preferences.return_value = {
+        'managementAccountRateTypeSelections': ['ON_DEMAND'],
+        'memberAccountRateTypeSelections': ['ON_DEMAND'],
+        'standaloneAccountRateTypeSelections': ['ON_DEMAND'],
+    }
+
+    mock_client.list_workload_estimates.return_value = {
+        'items': [
+            {
+                'id': 'estimate-123',
+                'name': 'Test Workload Estimate',
+                'status': 'VALID',
+                'rateType': 'ON_DEMAND',
+                'createdAt': datetime(2023, 1, 1, 12, 0, 0),
+                'expiresAt': datetime(2023, 12, 31, 23, 59, 59),
+                'rateTimestamp': datetime(2023, 1, 1, 0, 0, 0),
+                'totalCost': 1500.50,
+                'costCurrency': 'USD',
+            },
+            {
+                'id': 'estimate-456',
+                'name': 'Another Estimate',
+                'status': 'UPDATING',
+                'rateType': 'RESERVED',
+                'createdAt': datetime(2023, 2, 1, 10, 0, 0),
+                'expiresAt': datetime(2023, 12, 31, 23, 59, 59),
+                'rateTimestamp': datetime(2023, 2, 1, 0, 0, 0),
+                'totalCost': 2000.75,
+                'costCurrency': 'USD',
+            },
+        ],
+        'nextToken': None,
+    }
+
+    mock_client.get_workload_estimate.return_value = {
+        'id': 'estimate-123',
+        'name': 'Test Workload Estimate',
+        'status': 'VALID',
+        'rateType': 'ON_DEMAND',
+        'createdAt': datetime(2023, 1, 1, 12, 0, 0),
+        'expiresAt': datetime(2023, 12, 31, 23, 59, 59),
+        'rateTimestamp': datetime(2023, 1, 1, 0, 0, 0),
+        'totalCost': 1500.50,
+        'costCurrency': 'USD',
+    }
+
+    mock_client.list_workload_estimate_usage.return_value = {
+        'items': [
+            {
+                'id': 'usage-123',
+                'serviceCode': 'AmazonEC2',
+                'usageType': 'BoxUsage:t3.medium',
+                'operation': 'RunInstances',
+                'location': 'US East (N. Virginia)',
+                'usageAccountId': '123456789012',
+                'group': 'EC2-Instance',
+                'status': 'VALID',
+                'currency': 'USD',
+                'quantity': {
+                    'amount': 744.0,
+                    'unit': 'Hrs',
+                },
+                'cost': 50.25,
+                'historicalUsage': {
+                    'serviceCode': 'AmazonEC2',
+                    'usageType': 'BoxUsage:t3.medium',
+                    'operation': 'RunInstances',
+                    'location': 'US East (N. Virginia)',
+                    'usageAccountId': '123456789012',
+                    'billInterval': {
+                        'start': datetime(2023, 1, 1),
+                        'end': datetime(2023, 1, 31),
+                    },
+                },
+            },
+        ],
+        'nextToken': None,
+    }
+
+    return mock_client
+
+
+@pytest.mark.asyncio
 class TestGetPreferences:
-    """Test the get_preferences function."""
+    """Tests for get_preferences function."""
 
-    @pytest.mark.asyncio
-    async def test_get_preferences_success_all_account_types(self, mock_context, mock_bcm_client):
-        """Test get_preferences with all account types configured."""
-        result = await get_preferences(mock_context, mock_bcm_client)
-
-        assert result is True
-        mock_bcm_client.get_preferences.assert_called_once()
-        mock_context.info.assert_called()
-
-        # Check that info was called with the expected message about account types
-        info_calls = [call.args[0] for call in mock_context.info.call_args_list]
-        assert any(
-            'management account, member account, standalone account' in call for call in info_calls
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_preferences_success_partial_account_types(
-        self, mock_context, mock_bcm_client
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_preferences_success_management_account(
+        self, mock_create_client, mock_context, mock_bcm_pricing_calculator_client
     ):
-        """Test get_preferences with only some account types configured."""
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
+        """Test get_preferences returns True when management account preferences are configured."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_bcm_pricing_calculator_client.get_preferences.return_value = {
+            'managementAccountRateTypeSelections': ['ON_DEMAND']
         }
 
-        result = await get_preferences(mock_context, mock_bcm_client)
+        # Execute
+        result = await get_preferences(mock_context)
 
+        # Assert
+        mock_create_client.assert_called_once_with(
+            'bcm-pricing-calculator', region_name='us-east-1'
+        )
+        mock_bcm_pricing_calculator_client.get_preferences.assert_called_once()
         assert result is True
-        mock_bcm_client.get_preferences.assert_called_once()
         mock_context.info.assert_called()
 
-        # Check that info was called with only management account
-        info_calls = [call.args[0] for call in mock_context.info.call_args_list]
-        assert any(
-            'management account' in call and 'member account' not in call for call in info_calls
-        )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_preferences_success_member_account(
+        self, mock_create_client, mock_context, mock_bcm_pricing_calculator_client
+    ):
+        """Test get_preferences returns True when member account preferences are configured."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_bcm_pricing_calculator_client.get_preferences.return_value = {
+            'memberAccountRateTypeSelections': ['RESERVED']
+        }
 
-    @pytest.mark.asyncio
-    async def test_get_preferences_no_rate_selections(self, mock_context, mock_bcm_client):
-        """Test get_preferences with no rate type selections."""
-        mock_bcm_client.get_preferences.return_value = {}
+        # Execute
+        result = await get_preferences(mock_context)
 
-        result = await get_preferences(mock_context, mock_bcm_client)
+        # Assert
+        assert result is True
 
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_preferences_success_standalone_account(
+        self, mock_create_client, mock_context, mock_bcm_pricing_calculator_client
+    ):
+        """Test get_preferences returns True when standalone account preferences are configured."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_bcm_pricing_calculator_client.get_preferences.return_value = {
+            'standaloneAccountRateTypeSelections': ['SAVINGS_PLANS']
+        }
+
+        # Execute
+        result = await get_preferences(mock_context)
+
+        # Assert
+        assert result is True
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_preferences_not_configured(
+        self, mock_create_client, mock_context, mock_bcm_pricing_calculator_client
+    ):
+        """Test get_preferences returns False when no preferences are configured."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_bcm_pricing_calculator_client.get_preferences.return_value = {}
+
+        # Execute
+        result = await get_preferences(mock_context)
+
+        # Assert
         assert result is False
-        mock_bcm_client.get_preferences.assert_called_once()
-        mock_context.error.assert_called_once()
+        mock_context.error.assert_called()
 
-        error_call = mock_context.error.call_args[0][0]
-        assert 'no rate type selections found' in error_call
-
-    @pytest.mark.asyncio
-    async def test_get_preferences_empty_response(self, mock_context, mock_bcm_client):
-        """Test get_preferences with empty response."""
-        mock_bcm_client.get_preferences.return_value = None
-
-        result = await get_preferences(mock_context, mock_bcm_client)
-
-        assert result is False
-        mock_bcm_client.get_preferences.assert_called_once()
-        mock_context.error.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_get_preferences_client_error(self, mock_context, mock_bcm_client):
-        """Test get_preferences with client error."""
-        mock_bcm_client.get_preferences.side_effect = ClientError(
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
+    )
+    async def test_get_preferences_exception(
+        self, mock_handle_error, mock_create_client, mock_context
+    ):
+        """Test get_preferences handles exceptions properly."""
+        # Setup
+        error = ClientError(
             {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetPreferences'
         )
+        mock_create_client.side_effect = error
+        mock_handle_error.return_value = {'data': {'error': 'Access denied'}}
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
-        ) as mock_handle_error:
-            mock_handle_error.return_value = {'data': {'error': 'Access denied'}}
+        # Execute
+        result = await get_preferences(mock_context)
 
-            result = await get_preferences(mock_context, mock_bcm_client)
-
-            assert result is False
-            mock_handle_error.assert_called_once()
-            mock_context.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_get_preferences_generic_exception(self, mock_context, mock_bcm_client):
-        """Test get_preferences with generic exception."""
-        mock_bcm_client.get_preferences.side_effect = Exception('Network error')
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
-        ) as mock_handle_error:
-            mock_handle_error.return_value = {'data': {'error': 'Network error'}}
-
-            result = await get_preferences(mock_context, mock_bcm_client)
-
-            assert result is False
-            mock_handle_error.assert_called_once()
-            mock_context.error.assert_called()
-
-
-class TestListWorkloadEstimates:
-    """Test the list_workload_estimates function."""
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_success(self, mock_context, mock_bcm_client):
-        """Test successful list_workload_estimates call."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context, status_filter='VALID', name_filter='Test', max_results=10
-            )
-
-        assert result['status'] == 'success'
-        assert 'data' in result
-        assert 'workload_estimates' in result['data']
-        assert len(result['data']['workload_estimates']) == 1
-        assert (
-            result['data']['workload_estimates'][0]['id'] == '7ef37735-f7b9-444c-99b2-4faad224ead6'
+        # Assert
+        mock_handle_error.assert_called_once_with(
+            mock_context, error, 'get_preferences', 'BCM Pricing Calculator'
         )
-        assert result['data']['workload_estimates'][0]['name'] == 'Test-Workload-Estimate'
-        assert result['data']['total_count'] == 1
-        assert result['data']['next_token'] == 'next-token-123'
-        assert result['data']['has_more_results'] is True
+        assert result is False
+        mock_context.error.assert_called()
 
-        mock_bcm_client.list_workload_estimates.assert_called_once()
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-        assert call_kwargs['maxResults'] == 10
-        assert len(call_kwargs['filters']) == 2  # status and name filters
 
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_with_date_filters(self, mock_context, mock_bcm_client):
-        """Test list_workload_estimates with date filters."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                created_after='2023-01-01T00:00:00',
-                created_before='2023-12-31T23:59:59',
-                expires_after='2023-06-01T00:00:00',
-                expires_before='2023-12-31T23:59:59',
-            )
+@pytest.mark.asyncio
+class TestListWorkloadEstimates:
+    """Tests for list_workload_estimates function."""
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_success(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates returns formatted estimates."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute
+        result = await list_workload_estimates(mock_context, max_results=50)
+
+        # Assert
+        mock_create_client.assert_called_once_with('bcm-pricing-calculator')
+        mock_get_preferences.assert_called_once()
+        mock_bcm_pricing_calculator_client.list_workload_estimates.assert_called_once()
 
         assert result['status'] == 'success'
-        mock_bcm_client.list_workload_estimates.assert_called_once()
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
+        assert 'workload_estimates' in result['data']
+        assert len(result['data']['workload_estimates']) == 2
+        assert result['data']['total_count'] == 2
+        assert result['data']['has_more_results'] is False
+
+        # Check first estimate details
+        first_estimate = result['data']['workload_estimates'][0]
+        assert first_estimate['id'] == 'estimate-123'
+        assert first_estimate['name'] == 'Test Workload Estimate'
+        assert first_estimate['status'] == 'VALID'
+        assert first_estimate['status_indicator'] == 'Valid'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_with_filters(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates with various filters."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute
+        result = await list_workload_estimates(
+            mock_context,
+            created_after='2023-01-01T00:00:00Z',
+            created_before='2023-12-31T23:59:59Z',
+            expires_after='2023-06-01T00:00:00Z',
+            expires_before='2024-01-01T00:00:00Z',
+            status_filter='VALID',
+            name_filter='Test',
+            name_match_option='CONTAINS',
+            max_results=25,
+        )
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert call_kwargs['maxResults'] == 25
         assert 'createdAtFilter' in call_kwargs
         assert 'expiresAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['createdAtFilter']
-        assert 'beforeTimestamp' in call_kwargs['createdAtFilter']
+        assert 'filters' in call_kwargs
+        assert len(call_kwargs['filters']) == 2  # status and name filters
 
-    @pytest.mark.asyncio
+        assert result['status'] == 'success'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
     async def test_list_workload_estimates_preferences_not_configured(
-        self, mock_context, mock_bcm_client
+        self, mock_get_preferences, mock_context
     ):
         """Test list_workload_estimates when preferences are not configured."""
-        # Mock get_preferences to return False (preferences not configured)
-        mock_bcm_client.get_preferences.return_value = {}  # Empty response means no preferences
+        # Setup
+        mock_get_preferences.return_value = False
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(mock_context)
+        # Execute
+        result = await list_workload_estimates(mock_context)
 
+        # Assert
         assert result['status'] == 'error'
-        assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
         assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
-        mock_bcm_client.list_workload_estimates.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_client_error(self, mock_context, mock_bcm_client):
-        """Test list_workload_estimates with client error."""
-        mock_bcm_client.list_workload_estimates.side_effect = ClientError(
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
+    )
+    async def test_list_workload_estimates_exception(
+        self, mock_handle_error, mock_create_client, mock_get_preferences, mock_context
+    ):
+        """Test list_workload_estimates handles exceptions properly."""
+        # Setup
+        error = ClientError(
             {'Error': {'Code': 'ValidationException', 'Message': 'Invalid parameter'}},
             'ListWorkloadEstimates',
         )
+        mock_get_preferences.return_value = True
+        mock_create_client.return_value.list_workload_estimates.side_effect = error
+        mock_handle_error.return_value = {'status': 'error', 'message': 'Invalid parameter'}
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            with patch(
-                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
-            ) as mock_handle_error:
-                mock_handle_error.return_value = {
-                    'status': 'error',
-                    'data': {'error': 'Invalid parameter'},
-                }
+        # Execute
+        result = await list_workload_estimates(mock_context)
 
-                result = await describe_workload_estimates(mock_context)
-
+        # Assert
+        mock_handle_error.assert_called_once_with(
+            mock_context, error, 'list_workload_estimates', 'BCM Pricing Calculator'
+        )
         assert result['status'] == 'error'
-        mock_handle_error.assert_called_once()
 
 
+@pytest.mark.asyncio
 class TestGetWorkloadEstimate:
-    """Test the get_workload_estimate function."""
+    """Tests for get_workload_estimate function."""
 
-    @pytest.mark.asyncio
-    async def test_get_workload_estimate_success(self, mock_context, mock_bcm_client):
-        """Test successful get_workload_estimate call."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimate(mock_context, 'estimate-456')
-
-        assert result['status'] == 'success'
-        assert 'data' in result
-        assert 'workload_estimate' in result['data']
-        assert result['data']['workload_estimate']['id'] == '70f54b81-73b2-471f-bbb8-c92c6eda87f6'
-        assert result['data']['workload_estimate']['name'] == 'Detailed Workload Estimate'
-        assert result['data']['workload_estimate']['status'] == 'UPDATING'
-        assert result['data']['identifier'] == 'estimate-456'
-
-        mock_bcm_client.get_workload_estimate.assert_called_once()
-        call_kwargs = mock_bcm_client.get_workload_estimate.call_args[1]
-        assert call_kwargs['identifier'] == 'estimate-456'
-
-    @pytest.mark.asyncio
-    async def test_get_workload_estimate_preferences_not_configured(
-        self, mock_context, mock_bcm_client
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_workload_estimate_success(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
     ):
-        """Test get_workload_estimate when preferences are not configured."""
-        # Mock get_preferences to return False (preferences not configured)
-        mock_bcm_client.get_preferences.return_value = {}  # Empty response means no preferences
+        """Test get_workload_estimate returns formatted estimate."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimate(mock_context, 'estimate-456')
+        # Execute
+        result = await get_workload_estimate(mock_context, identifier='estimate-123')
 
-        assert result['status'] == 'error'
-        assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
-        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
-        mock_bcm_client.get_workload_estimate.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_get_workload_estimate_not_found(self, mock_context, mock_bcm_client):
-        """Test get_workload_estimate with not found error."""
-        mock_bcm_client.get_workload_estimate.side_effect = ClientError(
-            {
-                'Error': {
-                    'Code': 'ResourceNotFoundException',
-                    'Message': 'Workload estimate not found',
-                }
-            },
-            'GetWorkloadEstimate',
+        # Assert
+        mock_create_client.assert_called_once_with('bcm-pricing-calculator')
+        mock_get_preferences.assert_called_once()
+        mock_bcm_pricing_calculator_client.get_workload_estimate.assert_called_once_with(
+            identifier='estimate-123'
         )
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            with patch(
-                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
-            ) as mock_handle_error:
-                mock_handle_error.return_value = {
-                    'status': 'error',
-                    'data': {'error': 'Workload estimate not found'},
-                }
+        assert result['status'] == 'success'
+        assert 'workload_estimate' in result['data']
+        assert result['data']['identifier'] == 'estimate-123'
 
-                result = await describe_workload_estimate(mock_context, 'nonexistent-estimate')
+        estimate = result['data']['workload_estimate']
+        assert estimate['id'] == 'estimate-123'
+        assert estimate['name'] == 'Test Workload Estimate'
+        assert estimate['status'] == 'VALID'
 
+    async def test_get_workload_estimate_missing_identifier(self, mock_context):
+        """Test get_workload_estimate returns error when identifier is missing."""
+        # Execute
+        result = await get_workload_estimate(mock_context, identifier=None)
+
+        # Assert
         assert result['status'] == 'error'
-        mock_handle_error.assert_called_once()
+        assert 'Identifier is required' in result['data']['error']
+        assert result['data']['error_code'] == 'MISSING_PARAMETER'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    async def test_get_workload_estimate_preferences_not_configured(
+        self, mock_get_preferences, mock_context
+    ):
+        """Test get_workload_estimate when preferences are not configured."""
+        # Setup
+        mock_get_preferences.return_value = False
+
+        # Execute
+        result = await get_workload_estimate(mock_context, identifier='estimate-123')
+
+        # Assert
+        assert result['status'] == 'error'
+        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
 
 
+@pytest.mark.asyncio
 class TestListWorkloadEstimateUsage:
-    """Test the list_workload_estimate_usage function."""
+    """Tests for list_workload_estimate_usage function."""
 
-    @pytest.mark.asyncio
-    async def test_list_workload_estimate_usage_success(self, mock_context, mock_bcm_client):
-        """Test successful list_workload_estimate_usage call."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimate_usage(
-                mock_context,
-                '7ef37735-f7b9-444c-99b2-4faad224ead6',
-                service_code_filter='AmazonEC2',
-                usage_type_filter='BoxUsage',
-                max_results=25,
-            )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimate_usage_success(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimate_usage returns formatted usage items."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute
+        result = await list_workload_estimate_usage(
+            mock_context,
+            workload_estimate_id='estimate-123',
+            service_code_filter='AmazonEC2',
+            max_results=50,
+        )
+
+        # Assert
+        mock_create_client.assert_called_once_with('bcm-pricing-calculator')
+        mock_get_preferences.assert_called_once()
+        mock_bcm_pricing_calculator_client.list_workload_estimate_usage.assert_called_once()
+
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimate_usage.call_args[1]
+        assert call_kwargs['workloadEstimateId'] == 'estimate-123'
+        assert call_kwargs['maxResults'] == 50
+        assert 'filters' in call_kwargs
+        assert len(call_kwargs['filters']) == 1  # service_code_filter
 
         assert result['status'] == 'success'
-        assert 'data' in result
         assert 'usage_items' in result['data']
         assert len(result['data']['usage_items']) == 1
-        assert result['data']['usage_items'][0]['id'] == 'd4422ec0-2265-4079-be5b-baad6ade5672'
-        assert result['data']['usage_items'][0]['service_code'] == 'AmazonEC2'
-        assert result['data']['total_count'] == 1
-        assert result['data']['next_token'] == 'usage-next-token-456'
-        assert result['data']['workload_estimate_id'] == '7ef37735-f7b9-444c-99b2-4faad224ead6'
+        assert result['data']['workload_estimate_id'] == 'estimate-123'
 
-        mock_bcm_client.list_workload_estimate_usage.assert_called_once()
-        call_kwargs = mock_bcm_client.list_workload_estimate_usage.call_args[1]
-        assert call_kwargs['workloadEstimateId'] == '7ef37735-f7b9-444c-99b2-4faad224ead6'
-        assert call_kwargs['maxResults'] == 25
-        assert len(call_kwargs['filters']) == 2  # service_code and usage_type filters
+        # Check usage item details
+        usage_item = result['data']['usage_items'][0]
+        assert usage_item['id'] == 'usage-123'
+        assert usage_item['service_code'] == 'AmazonEC2'
+        assert usage_item['usage_type'] == 'BoxUsage:t3.medium'
 
-    @pytest.mark.asyncio
-    async def test_list_workload_estimate_usage_all_filters(self, mock_context, mock_bcm_client):
-        """Test list_workload_estimate_usage with all filter types."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimate_usage(
-                mock_context,
-                'estimate-123',
-                usage_account_id_filter='123456789012',
-                service_code_filter='AmazonEC2',
-                usage_type_filter='BoxUsage',
-                operation_filter='RunInstances',
-                location_filter='US East (N. Virginia)',
-                usage_group_filter='compute',
-            )
+    async def test_list_workload_estimate_usage_missing_id(self, mock_context):
+        """Test list_workload_estimate_usage returns error when workload_estimate_id is missing."""
+        # Execute
+        result = await list_workload_estimate_usage(mock_context, workload_estimate_id=None)
 
-        assert result['status'] == 'success'
-        mock_bcm_client.list_workload_estimate_usage.assert_called_once()
-        call_kwargs = mock_bcm_client.list_workload_estimate_usage.call_args[1]
-        assert len(call_kwargs['filters']) == 6  # All filter types
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimate_usage_preferences_not_configured(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test list_workload_estimate_usage when preferences are not configured."""
-        # Mock get_preferences to return False (preferences not configured)
-        mock_bcm_client.get_preferences.return_value = {}  # Empty response means no preferences
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimate_usage(mock_context, 'estimate-123')
-
+        # Assert
         assert result['status'] == 'error'
-        assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
-        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
-        mock_bcm_client.list_workload_estimate_usage.assert_not_called()
+        assert 'workload_estimate_id is required' in result['data']['error']
+        assert result['data']['error_code'] == 'MISSING_PARAMETER'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimate_usage_with_all_filters(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimate_usage with all possible filters."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute
+        result = await list_workload_estimate_usage(
+            mock_context,
+            workload_estimate_id='estimate-123',
+            usage_account_id_filter='123456789012',
+            service_code_filter='AmazonEC2',
+            usage_type_filter='BoxUsage',
+            operation_filter='RunInstances',
+            location_filter='US East (N. Virginia)',
+            usage_group_filter='EC2-Instance',
+            max_results=100,
+        )
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimate_usage.call_args[1]
+        assert len(call_kwargs['filters']) == 6  # All filters applied
+        assert result['status'] == 'success'
+
+
+class TestFormatWorkloadEstimateResponse:
+    """Tests for format_workload_estimate_response function."""
+
+    def test_format_workload_estimate_response_basic(self):
+        """Test format_workload_estimate_response with basic fields."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'VALID',
+            'rateType': 'ON_DEMAND',
+        }
+
+        # Execute
+        result = format_workload_estimate_response(estimate)
+
+        # Assert
+        assert result['id'] == 'estimate-123'
+        assert result['name'] == 'Test Estimate'
+        assert result['status'] == 'VALID'
+        assert result['rate_type'] == 'ON_DEMAND'
+        assert result['status_indicator'] == 'Valid'
+
+    def test_format_workload_estimate_response_with_timestamps(self):
+        """Test format_workload_estimate_response with timestamp fields."""
+        # Setup
+        created_at = datetime(2023, 1, 1, 12, 0, 0)
+        expires_at = datetime(2023, 12, 31, 23, 59, 59)
+        rate_timestamp = datetime(2023, 1, 1, 0, 0, 0)
+
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'UPDATING',
+            'createdAt': created_at,
+            'expiresAt': expires_at,
+            'rateTimestamp': rate_timestamp,
+        }
+
+        # Execute
+        result = format_workload_estimate_response(estimate)
+
+        # Assert
+        assert 'created_at' in result
+        assert result['created_at']['timestamp'] == created_at.isoformat()
+        assert result['created_at']['formatted'] == '2023-01-01 12:00:00 UTC'
+
+        assert 'expires_at' in result
+        assert result['expires_at']['timestamp'] == expires_at.isoformat()
+
+        assert 'rate_timestamp' in result
+        assert result['rate_timestamp']['timestamp'] == rate_timestamp.isoformat()
+
+        assert result['status_indicator'] == 'Updating'
+
+    def test_format_workload_estimate_response_with_cost(self):
+        """Test format_workload_estimate_response with cost information."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'VALID',
+            'totalCost': 1500.50,
+            'costCurrency': 'USD',
+        }
+
+        # Execute
+        result = format_workload_estimate_response(estimate)
+
+        # Assert
+        assert 'cost' in result
+        assert result['cost']['amount'] == 1500.50
+        assert result['cost']['currency'] == 'USD'
+        assert result['cost']['formatted'] == 'USD 1,500.50'
+
+    def test_format_workload_estimate_response_with_failure_message(self):
+        """Test format_workload_estimate_response with failure message."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'INVALID',
+            'failureMessage': 'Invalid configuration detected',
+        }
+
+        # Execute
+        result = format_workload_estimate_response(estimate)
+
+        # Assert
+        assert result['failure_message'] == 'Invalid configuration detected'
+        assert result['status_indicator'] == 'Invalid'
+
+    def test_format_workload_estimate_response_action_needed_status(self):
+        """Test format_workload_estimate_response with ACTION_NEEDED status."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'ACTION_NEEDED',
+        }
+
+        # Execute
+        result = format_workload_estimate_response(estimate)
+
+        # Assert
+        assert result['status_indicator'] == 'Action Needed'
+
+    def test_format_workload_estimate_response_unknown_status(self):
+        """Test format_workload_estimate_response with unknown status."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'UNKNOWN_STATUS',
+        }
+
+        # Execute
+        result = format_workload_estimate_response(estimate)
+
+        # Assert
+        assert result['status_indicator'] == '❓ UNKNOWN_STATUS'
 
 
 class TestFormatUsageItemResponse:
-    """Test the format_usage_item_response function."""
+    """Tests for format_usage_item_response function."""
 
-    def test_format_usage_item_response_complete(self):
-        """Test formatting a complete usage item response."""
+    def test_format_usage_item_response_basic(self):
+        """Test format_usage_item_response with basic fields."""
+        # Setup
         usage_item = {
             'id': 'usage-123',
             'serviceCode': 'AmazonEC2',
@@ -482,1181 +668,1171 @@ class TestFormatUsageItemResponse:
             'operation': 'RunInstances',
             'location': 'US East (N. Virginia)',
             'usageAccountId': '123456789012',
-            'group': 'compute',
+            'group': 'EC2-Instance',
             'status': 'VALID',
             'currency': 'USD',
-            'quantity': {'amount': 744.0, 'unit': 'Hrs'},
-            'cost': 50.25,
-            'historicalUsage': {
-                'serviceCode': 'AmazonEC2',
-                'usageType': 'BoxUsage:t3.medium',
-                'operation': 'RunInstances',
-                'location': 'US East (N. Virginia)',
-                'usageAccountId': '123456789012',
-                'billInterval': {'start': datetime(2023, 1, 1), 'end': datetime(2023, 1, 31)},
-            },
         }
 
+        # Execute
         result = format_usage_item_response(usage_item)
 
+        # Assert
         assert result['id'] == 'usage-123'
         assert result['service_code'] == 'AmazonEC2'
         assert result['usage_type'] == 'BoxUsage:t3.medium'
         assert result['operation'] == 'RunInstances'
         assert result['location'] == 'US East (N. Virginia)'
         assert result['usage_account_id'] == '123456789012'
-        assert result['group'] == 'compute'
+        assert result['group'] == 'EC2-Instance'
         assert result['status'] == 'VALID'
         assert result['currency'] == 'USD'
         assert result['status_indicator'] == 'Valid'
 
-        # Check quantity formatting
+    def test_format_usage_item_response_with_quantity(self):
+        """Test format_usage_item_response with quantity information."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'quantity': {
+                'amount': 744.0,
+                'unit': 'Hrs',
+            },
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'quantity' in result
         assert result['quantity']['amount'] == 744.0
         assert result['quantity']['unit'] == 'Hrs'
         assert result['quantity']['formatted'] == '744.00 Hrs'
 
-        # Check cost formatting
+    def test_format_usage_item_response_with_cost(self):
+        """Test format_usage_item_response with cost information."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'cost': 50.25,
+            'currency': 'USD',
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'cost' in result
         assert result['cost']['amount'] == 50.25
         assert result['cost']['currency'] == 'USD'
         assert result['cost']['formatted'] == 'USD 50.25'
 
-        # Check historical usage
-        assert 'historical_usage' in result
-        assert result['historical_usage']['service_code'] == 'AmazonEC2'
-        assert 'bill_interval' in result['historical_usage']
-        assert result['historical_usage']['bill_interval']['start'] == '2023-01-01T00:00:00'
-        assert result['historical_usage']['bill_interval']['end'] == '2023-01-31T00:00:00'
+    def test_format_usage_item_response_with_historical_usage(self):
+        """Test format_usage_item_response with historical usage information."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'historicalUsage': {
+                'serviceCode': 'AmazonEC2',
+                'usageType': 'BoxUsage:t3.medium',
+                'operation': 'RunInstances',
+                'location': 'US East (N. Virginia)',
+                'usageAccountId': '123456789012',
+                'billInterval': {
+                    'start': datetime(2023, 1, 1),
+                    'end': datetime(2023, 1, 31),
+                },
+            },
+        }
 
-    def test_format_usage_item_response_minimal(self):
-        """Test formatting a minimal usage item response."""
-        usage_item = {'id': 'usage-456', 'serviceCode': 'AmazonS3', 'status': 'INVALID'}
-
+        # Execute
         result = format_usage_item_response(usage_item)
 
-        assert result['id'] == 'usage-456'
-        assert result['service_code'] == 'AmazonS3'
-        assert result['status'] == 'INVALID'
-        assert result['currency'] == 'USD'  # Default value
+        # Assert
+        assert 'historical_usage' in result
+        historical = result['historical_usage']
+        assert historical['service_code'] == 'AmazonEC2'
+        assert historical['usage_type'] == 'BoxUsage:t3.medium'
+        assert historical['operation'] == 'RunInstances'
+        assert historical['location'] == 'US East (N. Virginia)'
+        assert historical['usage_account_id'] == '123456789012'
+        assert 'bill_interval' in historical
+        assert historical['bill_interval']['start'] == '2023-01-01T00:00:00'
+        assert historical['bill_interval']['end'] == '2023-01-31T00:00:00'
+
+    def test_format_usage_item_response_quantity_none_amount(self):
+        """Test format_usage_item_response with None quantity amount."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'quantity': {
+                'amount': None,
+                'unit': 'Hrs',
+            },
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'quantity' in result
+        assert result['quantity']['amount'] is None
+        assert result['quantity']['unit'] == 'Hrs'
+        assert result['quantity']['formatted'] is None
+
+    def test_format_usage_item_response_stale_status(self):
+        """Test format_usage_item_response with STALE status."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'status': 'STALE',
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert result['status_indicator'] == 'Stale'
+
+    def test_format_usage_item_response_invalid_status(self):
+        """Test format_usage_item_response with INVALID status."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'status': 'INVALID',
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
         assert result['status_indicator'] == 'Invalid'
-        assert 'quantity' not in result
-        assert 'cost' not in result
-        assert 'historical_usage' not in result
 
     def test_format_usage_item_response_unknown_status(self):
-        """Test formatting usage item with unknown status."""
-        usage_item = {'id': 'usage-789', 'serviceCode': 'AmazonRDS', 'status': 'UNKNOWN_STATUS'}
+        """Test format_usage_item_response with unknown status."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'status': 'UNKNOWN_STATUS',
+        }
 
+        # Execute
         result = format_usage_item_response(usage_item)
 
+        # Assert
         assert result['status_indicator'] == '❓ UNKNOWN_STATUS'
 
 
-class TestFormatWorkloadEstimateResponse:
-    """Test the format_workload_estimate_response function."""
+def test_bcm_pricing_calculator_server_initialization():
+    """Test that the bcm_pricing_calculator_server is properly initialized."""
+    # Verify the server name
+    assert bcm_pricing_calculator_server.name == 'bcm-pricing-calc-tools'
 
-    def test_format_workload_estimate_response_complete(self):
-        """Test formatting a complete workload estimate response."""
+    # Verify the server instructions
+    instructions = bcm_pricing_calculator_server.instructions
+    assert instructions is not None
+    assert 'BCM Pricing Calculator tools' in instructions if instructions else False
+
+
+class TestAdditionalFormattingCases:
+    """Tests for additional formatting edge cases to achieve complete coverage."""
+
+    def test_format_usage_item_response_no_quantity(self):
+        """Test format_usage_item_response with no quantity field."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'status': 'VALID',
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'quantity' not in result
+        assert result['id'] == 'usage-123'
+        assert result['service_code'] == 'AmazonEC2'
+        assert result['status'] == 'VALID'
+
+    def test_format_usage_item_response_no_cost(self):
+        """Test format_usage_item_response with no cost field."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'status': 'VALID',
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'cost' not in result
+        assert result['id'] == 'usage-123'
+        assert result['service_code'] == 'AmazonEC2'
+
+    def test_format_usage_item_response_no_status(self):
+        """Test format_usage_item_response with no status field."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'status_indicator' not in result
+        assert result['id'] == 'usage-123'
+        assert result['service_code'] == 'AmazonEC2'
+
+    def test_format_usage_item_response_default_currency(self):
+        """Test format_usage_item_response uses default USD currency."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            # No currency field provided
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert result['currency'] == 'USD'
+
+    def test_format_usage_item_response_historical_usage_no_bill_interval_start_end(self):
+        """Test format_usage_item_response with historical usage but no start/end in bill interval."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'historicalUsage': {
+                'serviceCode': 'AmazonEC2',
+                'usageType': 'BoxUsage:t3.medium',
+                'operation': 'RunInstances',
+                'location': 'US East (N. Virginia)',
+                'usageAccountId': '123456789012',
+                'billInterval': {
+                    'start': None,
+                    'end': None,
+                },
+            },
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'historical_usage' in result
+        historical = result['historical_usage']
+        assert 'bill_interval' in historical
+        assert historical['bill_interval']['start'] is None
+        assert historical['bill_interval']['end'] is None
+
+    def test_format_workload_estimate_response_no_status(self):
+        """Test format_workload_estimate_response with no status field."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'rateType': 'ON_DEMAND',
+        }
+
+        # Execute
+        result = format_workload_estimate_response(estimate)
+
+        # Assert
+        assert 'status_indicator' not in result
+        assert result['id'] == 'estimate-123'
+        assert result['name'] == 'Test Estimate'
+
+    def test_format_workload_estimate_response_no_failure_message(self):
+        """Test format_workload_estimate_response with no failure message."""
+        # Setup
         estimate = {
             'id': 'estimate-123',
             'name': 'Test Estimate',
             'status': 'VALID',
-            'rateType': 'AFTER_DISCOUNTS',
-            'createdAt': datetime(2023, 1, 1, 12, 0, 0),
-            'expiresAt': datetime(2023, 12, 31, 23, 59, 59),
-            'rateTimestamp': datetime(2023, 1, 1, 0, 0, 0),
-            'totalCost': 1500.50,
-            'costCurrency': 'USD',
-            'failureMessage': 'Some failure message',
         }
 
+        # Execute
         result = format_workload_estimate_response(estimate)
 
-        assert result['id'] == 'estimate-123'
-        assert result['name'] == 'Test Estimate'
-        assert result['status'] == 'VALID'
-        assert result['rate_type'] == 'AFTER_DISCOUNTS'
-        assert result['status_indicator'] == 'Valid'
-        assert result['failure_message'] == 'Some failure message'
-
-        # Check timestamp formatting
-        assert result['created_at']['timestamp'] == '2023-01-01T12:00:00'
-        assert result['created_at']['formatted'] == '2023-01-01 12:00:00 UTC'
-        assert result['expires_at']['timestamp'] == '2023-12-31T23:59:59'
-        assert result['expires_at']['formatted'] == '2023-12-31 23:59:59 UTC'
-        assert result['rate_timestamp']['timestamp'] == '2023-01-01T00:00:00'
-        assert result['rate_timestamp']['formatted'] == '2023-01-01 00:00:00 UTC'
-
-        # Check cost formatting
-        assert result['cost']['amount'] == 1500.50
-        assert result['cost']['currency'] == 'USD'
-        assert result['cost']['formatted'] == 'USD 1,500.50'
-
-    def test_format_workload_estimate_response_minimal(self):
-        """Test formatting a minimal workload estimate response."""
-        estimate = {'id': 'estimate-456', 'name': 'Minimal Estimate', 'status': 'UPDATING'}
-
-        result = format_workload_estimate_response(estimate)
-
-        assert result['id'] == 'estimate-456'
-        assert result['name'] == 'Minimal Estimate'
-        assert result['status'] == 'UPDATING'
-        assert result['status_indicator'] == 'Updating'
-        assert 'created_at' not in result
-        assert 'expires_at' not in result
-        assert 'rate_timestamp' not in result
-        assert 'cost' not in result
+        # Assert
         assert 'failure_message' not in result
-
-    def test_format_workload_estimate_response_string_timestamps(self):
-        """Test formatting workload estimate with string timestamps."""
-        estimate = {
-            'id': 'estimate-789',
-            'name': 'String Timestamp Estimate',
-            'status': 'ACTION_NEEDED',
-            'createdAt': '2023-01-01T12:00:00',
-            'totalCost': None,  # Test null cost
-        }
-
-        result = format_workload_estimate_response(estimate)
-
-        assert result['created_at']['timestamp'] == '2023-01-01T12:00:00'
-        assert result['created_at']['formatted'] == '2023-01-01T12:00:00'
-        assert result['status_indicator'] == 'Action Needed'
-        assert result['cost']['formatted'] is None
-
-    def test_format_workload_estimate_response_unknown_status(self):
-        """Test formatting workload estimate with unknown status."""
-        estimate = {
-            'id': 'estimate-999',
-            'name': 'Unknown Status Estimate',
-            'status': 'UNKNOWN_STATUS',
-        }
-
-        result = format_workload_estimate_response(estimate)
-
-        assert result['status_indicator'] == '❓ UNKNOWN_STATUS'
+        assert result['id'] == 'estimate-123'
+        assert result['status'] == 'VALID'
 
 
-class TestConstants:
-    """Test module constants."""
+@pytest.mark.asyncio
+class TestMissingCoverageBranches:
+    """Tests specifically targeting lines 100-148 that are missing coverage."""
 
-    def test_preferences_not_configured_error_constant(self):
-        """Test that the error constant is properly defined."""
-        assert (
-            PREFERENCES_NOT_CONFIGURED_ERROR
-            == 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
-        )
-        assert isinstance(PREFERENCES_NOT_CONFIGURED_ERROR, str)
-        assert len(PREFERENCES_NOT_CONFIGURED_ERROR) > 0
-
-
-class TestServerInitialization:
-    """Test server initialization."""
-
-    def test_bcm_pricing_calculator_server_initialization(self):
-        """Test that the server is properly initialized."""
-        assert bcm_pricing_calculator_server.name == 'bcm-pricing-calculator-tools'
-        assert isinstance(bcm_pricing_calculator_server.instructions, str)
-        assert len(bcm_pricing_calculator_server.instructions) > 0
-        assert 'BCM Pricing Calculator' in bcm_pricing_calculator_server.instructions
-
-
-class TestIntegrationTests:
-    """Integration tests for the BCM Pricing Calculator tools."""
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_integration(self, mock_context):
-        """Test list_workload_estimates integration with mocked AWS client."""
-        mock_client = MagicMock()
-        mock_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
-        }
-        mock_client.list_workload_estimates.return_value = {
-            'items': [
-                {
-                    'id': 'integration-test-estimate',
-                    'name': 'Integration Test Estimate',
-                    'status': 'VALID',
-                    'rateType': 'BEFORE_DISCOUNTS',
-                    'createdAt': datetime(2023, 1, 1),
-                    'totalCost': 100.0,
-                    'costCurrency': 'USD',
-                }
-            ]
-        }
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_client,
-        ):
-            result = await describe_workload_estimates(mock_context, max_results=1)
-
-        assert result['status'] == 'success'
-        assert len(result['data']['workload_estimates']) == 1
-        assert result['data']['workload_estimates'][0]['id'] == 'integration-test-estimate'
-
-    @pytest.mark.asyncio
-    async def test_get_workload_estimate_integration(self, mock_context):
-        """Test get_workload_estimate integration with mocked AWS client."""
-        mock_client = MagicMock()
-        mock_client.get_preferences.return_value = {
-            'standaloneAccountRateTypeSelections': ['AFTER_DISCOUNTS']
-        }
-        mock_client.get_workload_estimate.return_value = {
-            'id': 'integration-test-detail',
-            'name': 'Integration Test Detail',
-            'status': 'VALID',
-            'rateType': 'AFTER_DISCOUNTS',
-            'totalCost': 250.0,
-            'costCurrency': 'USD',
-        }
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_client,
-        ):
-            result = await describe_workload_estimate(mock_context, 'integration-test-detail')
-
-        assert result['status'] == 'success'
-        assert result['data']['workload_estimate']['id'] == 'integration-test-detail'
-        assert result['data']['workload_estimate']['name'] == 'Integration Test Detail'
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimate_usage_integration(self, mock_context):
-        """Test list_workload_estimate_usage integration with mocked AWS client."""
-        mock_client = MagicMock()
-        mock_client.get_preferences.return_value = {
-            'memberAccountRateTypeSelections': ['AFTER_DISCOUNTS_AND_COMMITMENTS']
-        }
-        mock_client.list_workload_estimate_usage.return_value = {
-            'items': [
-                {
-                    'id': 'integration-usage-item',
-                    'serviceCode': 'AmazonS3',
-                    'usageType': 'StandardStorage',
-                    'status': 'VALID',
-                    'cost': 25.50,
-                    'currency': 'USD',
-                }
-            ]
-        }
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_client,
-        ):
-            result = await describe_workload_estimate_usage(mock_context, 'test-estimate-id')
-
-        assert result['status'] == 'success'
-        assert len(result['data']['usage_items']) == 1
-        assert result['data']['usage_items'][0]['id'] == 'integration-usage-item'
-        assert result['data']['usage_items'][0]['service_code'] == 'AmazonS3'
-
-
-class TestDateTimeHandling:
-    """Test datetime parsing and timezone handling in list_workload_estimates."""
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_datetime_parsing_with_z_suffix(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test datetime parsing with Z suffix (UTC timezone)."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                created_after='2023-01-01T00:00:00Z',
-                created_before='2023-12-31T23:59:59Z',
-            )
-
-        assert result['status'] == 'success'
-        mock_bcm_client.list_workload_estimates.assert_called_once()
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify that datetime parsing worked correctly
-        assert 'createdAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['createdAtFilter']
-        assert 'beforeTimestamp' in call_kwargs['createdAtFilter']
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_datetime_parsing_without_z_suffix(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test datetime parsing without Z suffix."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                expires_after='2023-06-01T12:00:00',
-                expires_before='2023-12-31T12:00:00',
-            )
-
-        assert result['status'] == 'success'
-        mock_bcm_client.list_workload_estimates.assert_called_once()
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify that datetime parsing worked correctly
-        assert 'expiresAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['expiresAtFilter']
-        assert 'beforeTimestamp' in call_kwargs['expiresAtFilter']
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_only_created_after_filter(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test with only created_after filter."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context, created_after='2023-01-01T00:00:00Z'
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify only afterTimestamp is set
-        assert 'createdAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['createdAtFilter']
-        assert 'beforeTimestamp' not in call_kwargs['createdAtFilter']
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_only_expires_before_filter(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test with only expires_before filter."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context, expires_before='2023-12-31T23:59:59Z'
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify only beforeTimestamp is set
-        assert 'expiresAtFilter' in call_kwargs
-        assert 'beforeTimestamp' in call_kwargs['expiresAtFilter']
-        assert 'afterTimestamp' not in call_kwargs['expiresAtFilter']
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_name_match_options(self, mock_context, mock_bcm_client):
-        """Test different name match options."""
-        # Test EQUALS match option
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context, name_filter='Exact Name', name_match_option='EQUALS'
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-        name_filter = next((f for f in call_kwargs['filters'] if f['name'] == 'NAME'), None)
-        assert name_filter is not None
-        assert name_filter['matchOption'] == 'EQUALS'
-        assert name_filter['values'] == ['Exact Name']
-
-        # Test STARTS_WITH match option
-        mock_bcm_client.reset_mock()
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context, name_filter='Prefix', name_match_option='STARTS_WITH'
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-        name_filter = next((f for f in call_kwargs['filters'] if f['name'] == 'NAME'), None)
-        assert name_filter is not None
-        assert name_filter['matchOption'] == 'STARTS_WITH'
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_max_results_conversion(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test that max_results is properly converted to int."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                max_results=50,  # This should be converted to int
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-        assert call_kwargs['maxResults'] == 50
-        assert isinstance(call_kwargs['maxResults'], int)
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_next_token_handling(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test next_token parameter handling."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(mock_context, next_token='test-token-123')
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-        assert call_kwargs['nextToken'] == 'test-token-123'
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_no_filters(self, mock_context, mock_bcm_client):
-        """Test list_workload_estimates with no filters applied."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(mock_context)
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Should only have maxResults, no filters
-        assert 'filters' not in call_kwargs
-        assert 'createdAtFilter' not in call_kwargs
-        assert 'expiresAtFilter' not in call_kwargs
-        assert call_kwargs['maxResults'] == 25  # default value
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_comprehensive_parameter_building(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test comprehensive parameter building with all possible combinations."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                created_after='2023-01-01T00:00:00Z',
-                created_before='2023-06-30T23:59:59Z',
-                expires_after='2023-07-01T00:00:00Z',
-                expires_before='2023-12-31T23:59:59Z',
-                status_filter='VALID',
-                name_filter='Production',
-                name_match_option='STARTS_WITH',
-                next_token='pagination-token-456',
-                max_results=75,
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify all parameters are correctly built
-        assert call_kwargs['maxResults'] == 75
-        assert call_kwargs['nextToken'] == 'pagination-token-456'
-
-        # Verify date filters
-        assert 'createdAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['createdAtFilter']
-        assert 'beforeTimestamp' in call_kwargs['createdAtFilter']
-        assert 'expiresAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['expiresAtFilter']
-        assert 'beforeTimestamp' in call_kwargs['expiresAtFilter']
-
-        # Verify filters
-        assert 'filters' in call_kwargs
-        assert len(call_kwargs['filters']) == 2
-
-        status_filter = next((f for f in call_kwargs['filters'] if f['name'] == 'STATUS'), None)
-        assert status_filter is not None
-        assert status_filter['values'] == ['VALID']
-        assert status_filter['matchOption'] == 'EQUALS'
-
-        name_filter = next((f for f in call_kwargs['filters'] if f['name'] == 'NAME'), None)
-        assert name_filter is not None
-        assert name_filter['values'] == ['Production']
-        assert name_filter['matchOption'] == 'STARTS_WITH'
-
-
-class TestDescribeWorkloadEstimates:
-    """Test the describe_workload_estimates helper function directly."""
-
-    @pytest.mark.asyncio
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
     )
-    async def test_describe_workload_estimates_success(self, mock_create_client, mock_context):
-        """Test successful describe_workload_estimates call."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
+    async def test_get_preferences_management_account_only(self, mock_create_client, mock_context):
+        """Test get_preferences with only management account preferences (covers lines ~100-110)."""
+        # Setup - only management account preferences
+        mock_client = MagicMock()
+        mock_client.get_preferences.return_value = {
+            'managementAccountRateTypeSelections': ['ON_DEMAND', 'RESERVED']
+            # No member or standalone account selections
         }
-        mock_bcm_client.list_workload_estimates.return_value = {
-            'items': [
-                {
-                    'id': 'test-estimate-123',
-                    'name': 'Test Estimate',
-                    'status': 'VALID',
-                    'rateType': 'BEFORE_DISCOUNTS',
-                    'createdAt': datetime(2023, 1, 1, 12, 0, 0),
-                    'totalCost': 100.0,
-                    'costCurrency': 'USD',
-                }
-            ],
-            'nextToken': 'test-token',
-        }
-        mock_create_client.return_value = mock_bcm_client
+        mock_create_client.return_value = mock_client
 
-        result = await describe_workload_estimates(
-            mock_context, status_filter='VALID', name_filter='Test', max_results=10
+        # Execute
+        result = await get_preferences(mock_context)
+
+        # Assert
+        assert result is True
+        mock_context.info.assert_called()
+        # Verify the specific log message for management account
+        info_calls = [call.args[0] for call in mock_context.info.call_args_list]
+        assert any('management account' in call for call in info_calls)
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_preferences_member_account_only(self, mock_create_client, mock_context):
+        """Test get_preferences with only member account preferences (covers lines ~100-110)."""
+        # Setup - only member account preferences
+        mock_client = MagicMock()
+        mock_client.get_preferences.return_value = {
+            'memberAccountRateTypeSelections': ['ON_DEMAND']
+            # No management or standalone account selections
+        }
+        mock_create_client.return_value = mock_client
+
+        # Execute
+        result = await get_preferences(mock_context)
+
+        # Assert
+        assert result is True
+        mock_context.info.assert_called()
+        # Verify the specific log message for member account
+        info_calls = [call.args[0] for call in mock_context.info.call_args_list]
+        assert any('member account' in call for call in info_calls)
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_preferences_standalone_account_only(self, mock_create_client, mock_context):
+        """Test get_preferences with only standalone account preferences (covers lines ~100-110)."""
+        # Setup - only standalone account preferences
+        mock_client = MagicMock()
+        mock_client.get_preferences.return_value = {
+            'standaloneAccountRateTypeSelections': ['SAVINGS_PLANS']
+            # No management or member account selections
+        }
+        mock_create_client.return_value = mock_client
+
+        # Execute
+        result = await get_preferences(mock_context)
+
+        # Assert
+        assert result is True
+        mock_context.info.assert_called()
+        # Verify the specific log message for standalone account
+        info_calls = [call.args[0] for call in mock_context.info.call_args_list]
+        assert any('standalone account' in call for call in info_calls)
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_get_preferences_multiple_account_types(self, mock_create_client, mock_context):
+        """Test get_preferences with multiple account type preferences (covers lines ~100-110)."""
+        # Setup - multiple account type preferences
+        mock_client = MagicMock()
+        mock_client.get_preferences.return_value = {
+            'managementAccountRateTypeSelections': ['ON_DEMAND'],
+            'memberAccountRateTypeSelections': ['RESERVED'],
+            'standaloneAccountRateTypeSelections': ['SAVINGS_PLANS'],
+        }
+        mock_create_client.return_value = mock_client
+
+        # Execute
+        result = await get_preferences(mock_context)
+
+        # Assert
+        assert result is True
+        mock_context.info.assert_called()
+        # Verify the log message contains all account types
+        info_calls = [call.args[0] for call in mock_context.info.call_args_list]
+        combined_message = ' '.join(info_calls)
+        assert 'management account' in combined_message
+        assert 'member account' in combined_message
+        assert 'standalone account' in combined_message
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_datetime_parsing_created_after_only(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates datetime parsing for created_after only (covers lines ~120-130)."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute with only created_after
+        result = await list_workload_estimates(mock_context, created_after='2023-01-01T00:00:00Z')
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert 'createdAtFilter' in call_kwargs
+        created_filter = call_kwargs['createdAtFilter']
+        assert 'afterTimestamp' in created_filter
+        assert 'beforeTimestamp' not in created_filter
+        assert result['status'] == 'success'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_datetime_parsing_created_before_only(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates datetime parsing for created_before only (covers lines ~120-130)."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute with only created_before
+        result = await list_workload_estimates(mock_context, created_before='2023-12-31T23:59:59Z')
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert 'createdAtFilter' in call_kwargs
+        created_filter = call_kwargs['createdAtFilter']
+        assert 'beforeTimestamp' in created_filter
+        assert 'afterTimestamp' not in created_filter
+        assert result['status'] == 'success'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_datetime_parsing_expires_after_only(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates datetime parsing for expires_after only (covers lines ~130-140)."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute with only expires_after
+        result = await list_workload_estimates(mock_context, expires_after='2023-06-01T00:00:00Z')
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert 'expiresAtFilter' in call_kwargs
+        expires_filter = call_kwargs['expiresAtFilter']
+        assert 'afterTimestamp' in expires_filter
+        assert 'beforeTimestamp' not in expires_filter
+        assert result['status'] == 'success'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_datetime_parsing_expires_before_only(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates datetime parsing for expires_before only (covers lines ~130-140)."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute with only expires_before
+        result = await list_workload_estimates(mock_context, expires_before='2024-01-01T00:00:00Z')
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert 'expiresAtFilter' in call_kwargs
+        expires_filter = call_kwargs['expiresAtFilter']
+        assert 'beforeTimestamp' in expires_filter
+        assert 'afterTimestamp' not in expires_filter
+        assert result['status'] == 'success'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_filter_building_status_only(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates filter building for status only (covers lines ~140-148)."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute with only status filter
+        result = await list_workload_estimates(mock_context, status_filter='VALID')
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert 'filters' in call_kwargs
+        filters = call_kwargs['filters']
+        assert len(filters) == 1
+        assert filters[0]['name'] == 'STATUS'
+        assert filters[0]['values'] == ['VALID']
+        assert filters[0]['matchOption'] == 'EQUALS'
+        assert result['status'] == 'success'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_filter_building_name_only(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates filter building for name only (covers lines ~140-148)."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute with only name filter
+        result = await list_workload_estimates(
+            mock_context, name_filter='Test', name_match_option='STARTS_WITH'
         )
 
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert 'filters' in call_kwargs
+        filters = call_kwargs['filters']
+        assert len(filters) == 1
+        assert filters[0]['name'] == 'NAME'
+        assert filters[0]['values'] == ['Test']
+        assert filters[0]['matchOption'] == 'STARTS_WITH'
         assert result['status'] == 'success'
-        assert len(result['data']['workload_estimates']) == 1
-        assert result['data']['workload_estimates'][0]['id'] == 'test-estimate-123'
-        assert result['data']['next_token'] == 'test-token'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_no_filters_applied(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates with no filters (covers the filters conditional logic)."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+
+        # Execute with no filters
+        result = await list_workload_estimates(mock_context)
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        # Should not have filters key when no filters are applied
+        assert 'filters' not in call_kwargs or not call_kwargs.get('filters')
+        assert result['status'] == 'success'
+
+
+@pytest.mark.asyncio
+class TestAdditionalConditionalBranches:
+    """Tests for additional conditional branches to achieve complete coverage."""
+
+
+@pytest.mark.asyncio
+class TestListWorkloadEstimateUsagePreferencesNotConfigured:
+    """Test for line 476 - preferences not configured in list_workload_estimate_usage."""
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    async def test_list_workload_estimate_usage_preferences_not_configured(
+        self, mock_get_preferences, mock_context
+    ):
+        """Test list_workload_estimate_usage when preferences are not configured (line 476)."""
+        # Setup
+        mock_get_preferences.return_value = False
+
+        # Execute
+        result = await list_workload_estimate_usage(
+            mock_context, workload_estimate_id='estimate-123'
+        )
+
+        # Assert
+        assert result['status'] == 'error'
+        assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
+        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+
+
+@pytest.mark.asyncio
+class TestEdgeCases:
+    """Tests for edge cases and error conditions."""
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+    )
+    async def test_list_workload_estimates_with_pagination(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
+    ):
+        """Test list_workload_estimates with pagination token."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+        mock_bcm_pricing_calculator_client.list_workload_estimates.return_value = {
+            'items': [],
+            'nextToken': 'next-page-token',
+        }
+
+        # Execute
+        result = await list_workload_estimates(mock_context, next_token='current-token')
+
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimates.call_args[1]
+        assert call_kwargs['nextToken'] == 'current-token'
+        assert result['data']['next_token'] == 'next-page-token'
         assert result['data']['has_more_results'] is True
 
-        # Verify API call parameters
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-        assert call_kwargs['maxResults'] == 10
-        assert len(call_kwargs['filters']) == 2
-
-    @pytest.mark.asyncio
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
     )
-    async def test_describe_workload_estimates_datetime_parsing(
-        self, mock_create_client, mock_context
+    async def test_list_workload_estimate_usage_with_pagination(
+        self,
+        mock_create_client,
+        mock_get_preferences,
+        mock_context,
+        mock_bcm_pricing_calculator_client,
     ):
-        """Test datetime parsing with Z suffix replacement."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
+        """Test list_workload_estimate_usage with pagination token."""
+        # Setup
+        mock_create_client.return_value = mock_bcm_pricing_calculator_client
+        mock_get_preferences.return_value = True
+        mock_bcm_pricing_calculator_client.list_workload_estimate_usage.return_value = {
+            'items': [],
+            'nextToken': 'usage-next-token',
         }
-        mock_bcm_client.list_workload_estimates.return_value = {'items': []}
-        mock_create_client.return_value = mock_bcm_client
 
-        result = await describe_workload_estimates(
-            mock_context,
-            created_after='2023-01-01T00:00:00Z',
-            expires_before='2023-12-31T23:59:59Z',
+        # Execute
+        result = await list_workload_estimate_usage(
+            mock_context, workload_estimate_id='estimate-123', next_token='usage-current-token'
         )
 
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
+        # Assert
+        call_kwargs = mock_bcm_pricing_calculator_client.list_workload_estimate_usage.call_args[1]
+        assert call_kwargs['nextToken'] == 'usage-current-token'
+        assert result['data']['next_token'] == 'usage-next-token'
+        assert result['data']['has_more_results'] is True
 
-        # Verify datetime filters were created
-        assert 'createdAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['createdAtFilter']
-        assert 'expiresAtFilter' in call_kwargs
-        assert 'beforeTimestamp' in call_kwargs['expiresAtFilter']
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    async def test_describe_workload_estimates_preferences_not_configured(
-        self, mock_create_client, mock_context
-    ):
-        """Test when preferences are not configured."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {}  # No preferences
-        mock_create_client.return_value = mock_bcm_client
-
-        result = await describe_workload_estimates(mock_context)
-
-        assert result['status'] == 'error'
-        assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
-        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
-        mock_bcm_client.list_workload_estimates.assert_not_called()
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
-    )
-    async def test_describe_workload_estimates_client_error(
-        self, mock_handle_error, mock_create_client, mock_context
-    ):
-        """Test client error handling."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
-        }
-        mock_bcm_client.list_workload_estimates.side_effect = ClientError(
-            {'Error': {'Code': 'ValidationException', 'Message': 'Invalid parameter'}},
-            'ListWorkloadEstimates',
-        )
-        mock_create_client.return_value = mock_bcm_client
-        mock_handle_error.return_value = {
-            'status': 'error',
-            'data': {'error': 'Invalid parameter'},
+    def test_format_workload_estimate_response_with_string_timestamps(self):
+        """Test format_workload_estimate_response with string timestamps."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'VALID',
+            'createdAt': '2023-01-01T12:00:00Z',
+            'expiresAt': '2023-12-31T23:59:59Z',
+            'rateTimestamp': '2023-01-01T00:00:00Z',
         }
 
-        result = await describe_workload_estimates(mock_context)
+        # Execute
+        result = format_workload_estimate_response(estimate)
 
-        assert result['status'] == 'error'
-        mock_handle_error.assert_called_once()
+        # Assert
+        assert result['created_at']['timestamp'] == '2023-01-01T12:00:00Z'
+        assert result['created_at']['formatted'] == '2023-01-01T12:00:00Z'
+        assert result['expires_at']['timestamp'] == '2023-12-31T23:59:59Z'
+        assert result['rate_timestamp']['timestamp'] == '2023-01-01T00:00:00Z'
 
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    async def test_describe_workload_estimates_all_filters(self, mock_create_client, mock_context):
-        """Test with all possible filters and parameters."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
-        }
-        mock_bcm_client.list_workload_estimates.return_value = {'items': []}
-        mock_create_client.return_value = mock_bcm_client
-
-        result = await describe_workload_estimates(
-            mock_context,
-            created_after='2023-01-01T00:00:00Z',
-            created_before='2023-06-30T23:59:59Z',
-            expires_after='2023-07-01T00:00:00Z',
-            expires_before='2023-12-31T23:59:59Z',
-            status_filter='VALID',
-            name_filter='Production',
-            name_match_option='STARTS_WITH',
-            next_token='pagination-token',
-            max_results=25,
-        )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify all parameters
-        assert call_kwargs['maxResults'] == 25
-        assert call_kwargs['nextToken'] == 'pagination-token'
-        assert 'createdAtFilter' in call_kwargs
-        assert 'expiresAtFilter' in call_kwargs
-        assert len(call_kwargs['filters']) == 2
-
-
-class TestDescribeWorkloadEstimate:
-    """Test the describe_workload_estimate helper function directly."""
-
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    async def test_describe_workload_estimate_success(self, mock_create_client, mock_context):
-        """Test successful describe_workload_estimate call."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'standaloneAccountRateTypeSelections': ['AFTER_DISCOUNTS']
-        }
-        mock_bcm_client.get_workload_estimate.return_value = {
-            'id': 'estimate-456',
-            'name': 'Detailed Estimate',
-            'status': 'UPDATING',
-            'rateType': 'AFTER_DISCOUNTS',
-            'totalCost': 250.0,
+    def test_format_workload_estimate_response_none_cost(self):
+        """Test format_workload_estimate_response with None total cost."""
+        # Setup
+        estimate = {
+            'id': 'estimate-123',
+            'name': 'Test Estimate',
+            'status': 'VALID',
+            'totalCost': None,
             'costCurrency': 'USD',
         }
-        mock_create_client.return_value = mock_bcm_client
 
-        result = await describe_workload_estimate(mock_context, 'estimate-456')
+        # Execute
+        result = format_workload_estimate_response(estimate)
 
-        assert result['status'] == 'success'
-        assert result['data']['workload_estimate']['id'] == 'estimate-456'
-        assert result['data']['workload_estimate']['name'] == 'Detailed Estimate'
-        assert result['data']['identifier'] == 'estimate-456'
+        # Assert
+        assert 'cost' in result
+        assert result['cost']['amount'] is None
+        assert result['cost']['currency'] == 'USD'
+        assert result['cost']['formatted'] is None
 
-        # Verify API call parameters
-        call_kwargs = mock_bcm_client.get_workload_estimate.call_args[1]
-        assert call_kwargs['identifier'] == 'estimate-456'
+    def test_format_usage_item_response_no_historical_bill_interval(self):
+        """Test format_usage_item_response with historical usage but no bill interval."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'historicalUsage': {
+                'serviceCode': 'AmazonEC2',
+                'usageType': 'BoxUsage:t3.medium',
+                'operation': 'RunInstances',
+                'location': 'US East (N. Virginia)',
+                'usageAccountId': '123456789012',
+                # No billInterval
+            },
+        }
 
-    @pytest.mark.asyncio
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        assert 'historical_usage' in result
+        historical = result['historical_usage']
+        assert 'bill_interval' not in historical
+
+    def test_format_usage_item_response_empty_historical_usage(self):
+        """Test format_usage_item_response with empty historical usage."""
+        # Setup
+        usage_item = {
+            'id': 'usage-123',
+            'serviceCode': 'AmazonEC2',
+            'historicalUsage': {},
+        }
+
+        # Execute
+        result = format_usage_item_response(usage_item)
+
+        # Assert
+        # Empty historicalUsage dict should not add historical_usage to result
+        assert 'historical_usage' not in result
+        assert result['id'] == 'usage-123'
+        assert result['service_code'] == 'AmazonEC2'
+
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
     )
-    async def test_describe_workload_estimate_preferences_not_configured(
-        self, mock_create_client, mock_context
-    ):
-        """Test when preferences are not configured."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {}  # No preferences
-        mock_create_client.return_value = mock_bcm_client
-
-        result = await describe_workload_estimate(mock_context, 'estimate-456')
-
-        assert result['status'] == 'error'
-        assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
-        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
-        mock_bcm_client.get_workload_estimate.assert_not_called()
-
-    @pytest.mark.asyncio
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
     )
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
     )
-    async def test_describe_workload_estimate_not_found(
-        self, mock_handle_error, mock_create_client, mock_context
+    async def test_get_workload_estimate_exception(
+        self, mock_handle_error, mock_create_client, mock_get_preferences, mock_context
     ):
-        """Test workload estimate not found error."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
-        }
-        mock_bcm_client.get_workload_estimate.side_effect = ClientError(
-            {
-                'Error': {
-                    'Code': 'ResourceNotFoundException',
-                    'Message': 'Workload estimate not found',
-                }
-            },
+        """Test get_workload_estimate handles exceptions properly."""
+        # Setup
+        error = ClientError(
+            {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Estimate not found'}},
             'GetWorkloadEstimate',
         )
-        mock_create_client.return_value = mock_bcm_client
-        mock_handle_error.return_value = {
-            'status': 'error',
-            'data': {'error': 'Workload estimate not found'},
-        }
+        mock_get_preferences.return_value = True
+        mock_create_client.return_value.get_workload_estimate.side_effect = error
+        mock_handle_error.return_value = {'status': 'error', 'message': 'Estimate not found'}
 
-        result = await describe_workload_estimate(mock_context, 'nonexistent-estimate')
+        # Execute
+        result = await get_workload_estimate(mock_context, identifier='nonexistent-estimate')
 
+        # Assert
+        mock_handle_error.assert_called_once_with(
+            mock_context, error, 'get_workload_estimate', 'BCM Pricing Calculator'
+        )
         assert result['status'] == 'error'
-        mock_handle_error.assert_called_once()
 
-
-class TestDescribeWorkloadEstimateUsage:
-    """Test the describe_workload_estimate_usage helper function directly."""
-
-    @pytest.mark.asyncio
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
     )
-    async def test_describe_workload_estimate_usage_success(
-        self, mock_create_client, mock_context
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
+    )
+    async def test_list_workload_estimate_usage_exception(
+        self, mock_handle_error, mock_create_client, mock_get_preferences, mock_context
     ):
-        """Test successful describe_workload_estimate_usage call."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'memberAccountRateTypeSelections': ['AFTER_DISCOUNTS_AND_COMMITMENTS']
-        }
-        mock_bcm_client.list_workload_estimate_usage.return_value = {
-            'items': [
-                {
-                    'id': 'usage-item-123',
-                    'serviceCode': 'AmazonEC2',
-                    'usageType': 'BoxUsage:t3.medium',
-                    'operation': 'RunInstances',
-                    'status': 'VALID',
-                    'cost': 50.25,
-                    'currency': 'USD',
-                }
-            ],
-            'nextToken': 'usage-token',
-        }
-        mock_create_client.return_value = mock_bcm_client
+        """Test list_workload_estimate_usage handles exceptions properly."""
+        # Setup
+        error = BotoCoreError()
+        mock_get_preferences.return_value = True
+        mock_create_client.return_value.list_workload_estimate_usage.side_effect = error
+        mock_handle_error.return_value = {'status': 'error', 'message': 'Connection error'}
 
-        result = await describe_workload_estimate_usage(
-            mock_context,
-            'estimate-123',
-            service_code_filter='AmazonEC2',
-            usage_type_filter='BoxUsage',
-            max_results=25,
+        # Execute
+        result = await list_workload_estimate_usage(
+            mock_context, workload_estimate_id='estimate-123'
         )
 
-        assert result['status'] == 'success'
-        assert len(result['data']['usage_items']) == 1
-        assert result['data']['usage_items'][0]['id'] == 'usage-item-123'
-        assert result['data']['usage_items'][0]['service_code'] == 'AmazonEC2'
-        assert result['data']['workload_estimate_id'] == 'estimate-123'
-        assert result['data']['next_token'] == 'usage-token'
+        # Assert
+        mock_handle_error.assert_called_once_with(
+            mock_context, error, 'list_workload_estimate_usage', 'BCM Pricing Calculator'
+        )
+        assert result['status'] == 'error'
 
-        # Verify API call parameters
-        call_kwargs = mock_bcm_client.list_workload_estimate_usage.call_args[1]
-        assert call_kwargs['workloadEstimateId'] == 'estimate-123'
-        assert call_kwargs['maxResults'] == 25
-        assert len(call_kwargs['filters']) == 2
 
-    @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'status,expected_indicator',
+    [
+        ('VALID', 'Valid'),
+        ('UPDATING', 'Updating'),
+        ('INVALID', 'Invalid'),
+        ('ACTION_NEEDED', 'Action Needed'),
+        ('UNKNOWN', '❓ UNKNOWN'),
+    ],
+)
+def test_format_workload_estimate_response_status_indicators(status, expected_indicator):
+    """Test format_workload_estimate_response status indicators."""
+    # Setup
+    estimate = {
+        'id': 'estimate-123',
+        'name': 'Test Estimate',
+        'status': status,
+    }
+
+    # Execute
+    result = format_workload_estimate_response(estimate)
+
+    # Assert
+    assert result['status_indicator'] == expected_indicator
+
+
+@pytest.mark.parametrize(
+    'status,expected_indicator',
+    [
+        ('VALID', 'Valid'),
+        ('INVALID', 'Invalid'),
+        ('STALE', 'Stale'),
+        ('UNKNOWN', '❓ UNKNOWN'),
+    ],
+)
+def test_format_usage_item_response_status_indicators(status, expected_indicator):
+    """Test format_usage_item_response status indicators."""
+    # Setup
+    usage_item = {
+        'id': 'usage-123',
+        'serviceCode': 'AmazonEC2',
+        'status': status,
+    }
+
+    # Execute
+    result = format_usage_item_response(usage_item)
+
+    # Assert
+    assert result['status_indicator'] == expected_indicator
+
+
+@pytest.mark.asyncio
+class TestBcmPricingCalcCoreFunction:
+    """Tests for the core bcm_pricing_calc_core function (lines 101-149)."""
+
+    async def test_bcm_pricing_calc_core_invalid_operation(self, mock_context):
+        """Test bcm_pricing_calc_core with invalid operation (covers lines 106-113)."""
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(mock_context, operation='invalid_operation')
+
+        # Assert
+        assert result['status'] == 'error'
+        assert 'Invalid operation' in result['message']
+        assert 'invalid_parameter' in result['data']
+        mock_context.info.assert_called_with(
+            'Received BCM Pricing Calculator operation: invalid_operation'
+        )
+
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_workload_estimate'
     )
-    async def test_describe_workload_estimate_usage_all_filters(
-        self, mock_create_client, mock_context
+    async def test_bcm_pricing_calc_core_get_workload_estimate_operation(
+        self, mock_get_workload_estimate, mock_context
     ):
-        """Test with all possible filter types."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
+        """Test bcm_pricing_calc_core with get_workload_estimate operation (covers lines 115-117)."""
+        # Setup
+        mock_get_workload_estimate.return_value = {
+            'status': 'success',
+            'data': {'workload_estimate': {}},
         }
-        mock_bcm_client.list_workload_estimate_usage.return_value = {'items': []}
-        mock_create_client.return_value = mock_bcm_client
 
-        result = await describe_workload_estimate_usage(
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(
+            mock_context, operation='get_workload_estimate', identifier='estimate-123'
+        )
+
+        # Assert
+        mock_get_workload_estimate.assert_called_once_with(mock_context, 'estimate-123')
+        assert result['status'] == 'success'
+        mock_context.info.assert_called_with(
+            'Received BCM Pricing Calculator operation: get_workload_estimate'
+        )
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.list_workload_estimates'
+    )
+    async def test_bcm_pricing_calc_core_list_workload_estimates_operation(
+        self, mock_list_workload_estimates, mock_context
+    ):
+        """Test bcm_pricing_calc_core with list_workload_estimates operation (covers lines 118-121)."""
+        # Setup
+        mock_list_workload_estimates.return_value = {
+            'status': 'success',
+            'data': {'workload_estimates': []},
+        }
+
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(
             mock_context,
-            'estimate-123',
+            operation='list_workload_estimates',
+            created_after='2023-01-01T00:00:00Z',
+            created_before='2023-12-31T23:59:59Z',
+            expires_after='2023-06-01T00:00:00Z',
+            expires_before='2024-01-01T00:00:00Z',
+            status_filter='VALID',
+            name_filter='Test',
+            name_match_option='CONTAINS',
+            next_token='token123',
+            max_results=50,
+        )
+
+        # Assert
+        mock_list_workload_estimates.assert_called_once_with(
+            mock_context,
+            '2023-01-01T00:00:00Z',
+            '2023-12-31T23:59:59Z',
+            '2023-06-01T00:00:00Z',
+            '2024-01-01T00:00:00Z',
+            'VALID',
+            'Test',
+            'CONTAINS',
+            'token123',
+            50,
+        )
+        assert result['status'] == 'success'
+        mock_context.info.assert_called_with(
+            'Received BCM Pricing Calculator operation: list_workload_estimates'
+        )
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.list_workload_estimate_usage'
+    )
+    async def test_bcm_pricing_calc_core_list_workload_estimate_usage_operation(
+        self, mock_list_usage, mock_context
+    ):
+        """Test bcm_pricing_calc_core with list_workload_estimate_usage operation (covers lines 122-125)."""
+        # Setup
+        mock_list_usage.return_value = {'status': 'success', 'data': {'usage_items': []}}
+
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(
+            mock_context,
+            operation='list_workload_estimate_usage',
+            identifier='estimate-123',
             usage_account_id_filter='123456789012',
             service_code_filter='AmazonEC2',
             usage_type_filter='BoxUsage',
             operation_filter='RunInstances',
             location_filter='US East (N. Virginia)',
-            usage_group_filter='compute',
-            next_token='test-token',
-            max_results=50,
+            usage_group_filter='EC2-Instance',
+            next_token='usage-token',
+            max_results=100,
         )
 
+        # Assert
+        mock_list_usage.assert_called_once_with(
+            mock_context,
+            'estimate-123',
+            '123456789012',
+            'AmazonEC2',
+            'BoxUsage',
+            'RunInstances',
+            'US East (N. Virginia)',
+            'EC2-Instance',
+            'usage-token',
+            100,
+        )
         assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimate_usage.call_args[1]
+        mock_context.info.assert_called_with(
+            'Received BCM Pricing Calculator operation: list_workload_estimate_usage'
+        )
 
-        # Verify all parameters
-        assert call_kwargs['workloadEstimateId'] == 'estimate-123'
-        assert call_kwargs['maxResults'] == 50
-        assert call_kwargs['nextToken'] == 'test-token'
-        assert len(call_kwargs['filters']) == 6  # All filter types
-
-        # Verify specific filter configurations
-        filters = call_kwargs['filters']
-        usage_account_filter = next((f for f in filters if f['name'] == 'USAGE_ACCOUNT_ID'), None)
-        assert usage_account_filter is not None
-        assert usage_account_filter['matchOption'] == 'EQUALS'
-        assert usage_account_filter['values'] == ['123456789012']
-
-        service_code_filter = next((f for f in filters if f['name'] == 'SERVICE_CODE'), None)
-        assert service_code_filter is not None
-        assert service_code_filter['matchOption'] == 'EQUALS'
-
-        usage_type_filter = next((f for f in filters if f['name'] == 'USAGE_TYPE'), None)
-        assert usage_type_filter is not None
-        assert usage_type_filter['matchOption'] == 'CONTAINS'
-
-    @pytest.mark.asyncio
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
     )
-    async def test_describe_workload_estimate_usage_preferences_not_configured(
-        self, mock_create_client, mock_context
+    async def test_bcm_pricing_calc_core_get_preferences_operation_success(
+        self, mock_get_preferences, mock_context
     ):
-        """Test when preferences are not configured."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {}  # No preferences
-        mock_create_client.return_value = mock_bcm_client
+        """Test bcm_pricing_calc_core with get_preferences operation - success case (covers lines 126-133)."""
+        # Setup
+        mock_get_preferences.return_value = True
 
-        result = await describe_workload_estimate_usage(mock_context, 'estimate-123')
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(mock_context, operation='get_preferences')
 
+        # Assert
+        mock_get_preferences.assert_called_once_with(mock_context)
+        assert result['status'] == 'success'
+        assert result['data']['message'] == 'Preferences are properly configured'
+        mock_context.info.assert_called_with(
+            'Received BCM Pricing Calculator operation: get_preferences'
+        )
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    async def test_bcm_pricing_calc_core_get_preferences_operation_not_configured(
+        self, mock_get_preferences, mock_context
+    ):
+        """Test bcm_pricing_calc_core with get_preferences operation - not configured case (covers lines 127-131)."""
+        # Setup
+        mock_get_preferences.return_value = False
+
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(mock_context, operation='get_preferences')
+
+        # Assert
+        mock_get_preferences.assert_called_once_with(mock_context)
         assert result['status'] == 'error'
         assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
-        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
-        mock_bcm_client.list_workload_estimate_usage.assert_not_called()
+        assert result['message'] == PREFERENCES_NOT_CONFIGURED_ERROR
+        mock_context.info.assert_called_with(
+            'Received BCM Pricing Calculator operation: get_preferences'
+        )
 
-    @pytest.mark.asyncio
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_workload_estimate'
     )
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
     )
-    async def test_describe_workload_estimate_usage_client_error(
-        self, mock_handle_error, mock_create_client, mock_context
+    async def test_bcm_pricing_calc_core_exception_handling(
+        self, mock_handle_error, mock_get_workload_estimate, mock_context
     ):
-        """Test client error handling."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
-        }
-        mock_bcm_client.list_workload_estimate_usage.side_effect = ClientError(
-            {'Error': {'Code': 'ValidationException', 'Message': 'Invalid workload estimate ID'}},
-            'ListWorkloadEstimateUsage',
-        )
-        mock_create_client.return_value = mock_bcm_client
+        """Test bcm_pricing_calc_core exception handling (covers lines 137-149)."""
+        # Setup
+        test_error = Exception('Test error')
+        mock_get_workload_estimate.side_effect = test_error
         mock_handle_error.return_value = {
+            'data': {'error': 'Test error message'},
             'status': 'error',
-            'data': {'error': 'Invalid workload estimate ID'},
         }
 
-        result = await describe_workload_estimate_usage(mock_context, 'invalid-estimate')
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(
+            mock_context, operation='get_workload_estimate', identifier='estimate-123'
+        )
+
+        # Assert
+        mock_handle_error.assert_called_once_with(
+            mock_context,
+            test_error,
+            'get_workload_estimate',
+            'AWS Billing and Cost Management Pricing Calculator',
+        )
+        mock_context.error.assert_called_once()
+        error_call_args = mock_context.error.call_args[0][0]
+        assert (
+            'Failed to process AWS Billing and Cost Management Pricing Calculator request'
+            in error_call_args
+        )
+        assert 'Test error message' in error_call_args
 
         assert result['status'] == 'error'
-        mock_handle_error.assert_called_once()
+        assert result['data']['error'] == 'Test error message'
+        assert (
+            'Failed to process AWS Billing and Cost Management Pricing Calculator request'
+            in result['message']
+        )
 
-    @pytest.mark.asyncio
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.list_workload_estimates'
     )
-    async def test_describe_workload_estimate_usage_no_filters(
-        self, mock_create_client, mock_context
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.handle_aws_error'
+    )
+    async def test_bcm_pricing_calc_core_exception_handling_no_error_in_response(
+        self, mock_handle_error, mock_list_estimates, mock_context
     ):
-        """Test with no filters applied."""
-        mock_bcm_client = MagicMock()
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS']
-        }
-        mock_bcm_client.list_workload_estimate_usage.return_value = {'items': []}
-        mock_create_client.return_value = mock_bcm_client
-
-        result = await describe_workload_estimate_usage(mock_context, 'estimate-123')
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimate_usage.call_args[1]
-
-        # Should only have required parameters, no filters
-        assert 'filters' not in call_kwargs
-        assert call_kwargs['workloadEstimateId'] == 'estimate-123'
-        assert call_kwargs['maxResults'] == 25  # default value
-
-
-class TestEdgeCases:
-    """Test edge cases and boundary conditions."""
-
-    def test_format_usage_item_response_zero_quantity(self):
-        """Test formatting usage item with zero quantity."""
-        usage_item = {
-            'id': 'zero-usage',
-            'serviceCode': 'AmazonEC2',
-            'quantity': {'amount': 0.0, 'unit': 'Hrs'},
-            'cost': 0.0,
-            'currency': 'USD',
+        """Test bcm_pricing_calc_core exception handling when error response has no error field (covers lines 137-149)."""
+        # Setup
+        test_error = Exception('Direct error message')
+        mock_list_estimates.side_effect = test_error
+        mock_handle_error.return_value = {
+            'data': {},  # No error field in data
+            'status': 'error',
         }
 
-        result = format_usage_item_response(usage_item)
+        # Execute - call the core function directly
+        result = await bcm_pricing_calc_core(mock_context, operation='list_workload_estimates')
 
-        assert result['quantity']['formatted'] == '0.00 Hrs'
-        assert result['cost']['formatted'] == 'USD 0.00'
+        # Assert
+        mock_handle_error.assert_called_once_with(
+            mock_context,
+            test_error,
+            'list_workload_estimates',
+            'AWS Billing and Cost Management Pricing Calculator',
+        )
+        mock_context.error.assert_called_once()
+        error_call_args = mock_context.error.call_args[0][0]
+        assert (
+            'Failed to process AWS Billing and Cost Management Pricing Calculator request'
+            in error_call_args
+        )
+        assert 'Direct error message' in error_call_args
 
-    def test_format_usage_item_response_none_quantity_amount(self):
-        """Test formatting usage item with None quantity amount."""
-        usage_item = {
-            'id': 'none-usage',
-            'serviceCode': 'AmazonS3',
-            'quantity': {'amount': None, 'unit': 'GB'},
-        }
-
-        result = format_usage_item_response(usage_item)
-
-        assert result['quantity']['formatted'] is None
-
-    def test_format_workload_estimate_response_zero_cost(self):
-        """Test formatting workload estimate with zero cost."""
-        estimate = {
-            'id': 'zero-cost-estimate',
-            'name': 'Zero Cost Estimate',
-            'status': 'VALID',
-            'totalCost': 0.0,
-            'costCurrency': 'USD',
-        }
-
-        result = format_workload_estimate_response(estimate)
-
-        assert result['cost']['formatted'] == 'USD 0.00'
-
-    def test_format_usage_item_response_missing_bill_interval(self):
-        """Test formatting usage item with historical usage but no bill interval."""
-        usage_item = {
-            'id': 'no-interval-usage',
-            'serviceCode': 'AmazonRDS',
-            'historicalUsage': {
-                'serviceCode': 'AmazonRDS',
-                'usageType': 'InstanceUsage:db.t3.micro',
-                # billInterval intentionally missing
-            },
-        }
-
-        result = format_usage_item_response(usage_item)
-
-        assert 'historical_usage' in result
-        assert 'bill_interval' not in result['historical_usage']
-
-    @pytest.mark.asyncio
-    async def test_get_preferences_partial_response_fields(self, mock_context, mock_bcm_client):
-        """Test get_preferences with response containing only some expected fields."""
-        mock_bcm_client.get_preferences.return_value = {
-            'managementAccountRateTypeSelections': ['BEFORE_DISCOUNTS'],
-            'unexpectedField': 'unexpected_value',
-        }
-
-        result = await get_preferences(mock_context, mock_bcm_client)
-
-        assert result is True
-        mock_context.info.assert_called()
-        info_calls = [call.args[0] for call in mock_context.info.call_args_list]
-        assert any('management account' in call for call in info_calls)
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_empty_response_items(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test list_workload_estimates with empty items in response."""
-        mock_bcm_client.list_workload_estimates.return_value = {
-            'items': [],  # Empty list
-            'nextToken': None,
-        }
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(mock_context)
-
-        assert result['status'] == 'success'
-        assert result['data']['workload_estimates'] == []
-        assert result['data']['total_count'] == 0
-
-
-class TestUncoveredLines:
-    """Test specific uncovered lines to increase code coverage."""
-
-    @pytest.mark.asyncio
-    async def test_describe_workload_estimates_created_before_only(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test lines 138-140: created_before filter logic specifically."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                created_before='2023-12-31T23:59:59Z',
-                # created_after intentionally omitted to test lines 138-140
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify only beforeTimestamp is set (lines 138-140)
-        assert 'createdAtFilter' in call_kwargs
-        assert 'beforeTimestamp' in call_kwargs['createdAtFilter']
-        assert 'afterTimestamp' not in call_kwargs['createdAtFilter']
-
-    @pytest.mark.asyncio
-    async def test_describe_workload_estimates_expires_before_only(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test lines 149-151: expires_before filter logic specifically."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                expires_before='2023-12-31T23:59:59Z',
-                # expires_after intentionally omitted to test lines 149-151
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify only beforeTimestamp is set (lines 149-151)
-        assert 'expiresAtFilter' in call_kwargs
-        assert 'beforeTimestamp' in call_kwargs['expiresAtFilter']
-        assert 'afterTimestamp' not in call_kwargs['expiresAtFilter']
-
-    @pytest.mark.asyncio
-    async def test_describe_workload_estimates_created_after_only(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test created_after filter logic."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                created_after='2023-01-01T00:00:00Z',
-                # created_before intentionally omitted
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify only afterTimestamp is set
-        assert 'createdAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['createdAtFilter']
-        assert 'beforeTimestamp' not in call_kwargs['createdAtFilter']
-
-    @pytest.mark.asyncio
-    async def test_describe_workload_estimates_expires_after_only(
-        self, mock_context, mock_bcm_client
-    ):
-        """Test expires_after filter logic."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(
-                mock_context,
-                expires_after='2023-06-01T00:00:00Z',
-                # expires_before intentionally omitted
-            )
-
-        assert result['status'] == 'success'
-        call_kwargs = mock_bcm_client.list_workload_estimates.call_args[1]
-
-        # Verify only afterTimestamp is set
-        assert 'expiresAtFilter' in call_kwargs
-        assert 'afterTimestamp' in call_kwargs['expiresAtFilter']
-        assert 'beforeTimestamp' not in call_kwargs['expiresAtFilter']
-
-    def test_format_workload_estimate_response_status_indicators(self):
-        """Test lines 716-725: status indicator logic in format_workload_estimate_response."""
-        # Test all known status indicators
-        test_cases = [
-            ('VALID', 'Valid'),
-            ('UPDATING', 'Updating'),
-            ('INVALID', 'Invalid'),
-            ('ACTION_NEEDED', 'Action Needed'),
-            ('UNKNOWN_STATUS', '❓ UNKNOWN_STATUS'),  # Test unknown status fallback
-        ]
-
-        for status, expected_indicator in test_cases:
-            estimate = {
-                'id': f'test-estimate-{status.lower()}',
-                'name': f'Test Estimate {status}',
-                'status': status,
-            }
-
-            result = format_workload_estimate_response(estimate)
-
-            # Test lines 716-723: status indicator mapping
-            assert result['status_indicator'] == expected_indicator
-            assert result['status'] == status
-
-    def test_format_workload_estimate_response_no_status(self):
-        """Test format_workload_estimate_response when status is None or missing."""
-        estimate = {
-            'id': 'no-status-estimate',
-            'name': 'No Status Estimate',
-            # status intentionally omitted
-        }
-
-        result = format_workload_estimate_response(estimate)
-
-        # When status is None/missing, status_indicator should not be added
-        assert 'status_indicator' not in result
-        assert result.get('status') is None
-
-    @pytest.mark.asyncio
-    async def test_list_workload_estimates_missing_items_key(self, mock_context, mock_bcm_client):
-        """Test list_workload_estimates when response doesn't have 'items' key."""
-        mock_bcm_client.list_workload_estimates.return_value = {
-            # 'items' key is missing
-            'nextToken': None
-        }
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
-            return_value=mock_bcm_client,
-        ):
-            result = await describe_workload_estimates(mock_context)
-
-        assert result['status'] == 'success'
-        assert result['data']['workload_estimates'] == []
-        assert result['data']['total_count'] == 0
+        assert result['status'] == 'error'
+        assert result['data']['error'] == 'Direct error message'
+        assert (
+            'Failed to process AWS Billing and Cost Management Pricing Calculator request'
+            in result['message']
+        )
