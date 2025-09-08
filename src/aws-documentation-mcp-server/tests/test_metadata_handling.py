@@ -33,7 +33,7 @@ class TestMetadataHandling:
     async def test_seo_abstract_priority(self):
         """Test that seo_abstract is used when available."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -56,9 +56,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 1
             assert results[0].context == 'SEO optimized abstract'
 
@@ -66,7 +66,7 @@ class TestMetadataHandling:
     async def test_abstract_fallback(self):
         """Test that abstract is used when seo_abstract is not available."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -88,9 +88,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 1
             assert results[0].context == 'Regular abstract'
 
@@ -98,7 +98,7 @@ class TestMetadataHandling:
     async def test_summary_fallback(self):
         """Test that summary is used when metadata abstracts are not available."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -117,9 +117,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 1
             assert results[0].context == 'Regular summary'
 
@@ -127,7 +127,7 @@ class TestMetadataHandling:
     async def test_suggestion_body_fallback(self):
         """Test that suggestionBody is used when no other context is available."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -145,9 +145,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 1
             assert results[0].context == 'Suggestion body text'
 
@@ -155,7 +155,7 @@ class TestMetadataHandling:
     async def test_no_context_available(self):
         """Test that context is None when no context fields are available."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -172,9 +172,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 1
             assert results[0].context is None
 
@@ -182,7 +182,7 @@ class TestMetadataHandling:
     async def test_empty_metadata(self):
         """Test handling when metadata field is empty."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -200,9 +200,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 1
             assert results[0].context == 'Regular summary'
 
@@ -210,7 +210,7 @@ class TestMetadataHandling:
     async def test_mixed_metadata_availability(self):
         """Test handling multiple results with different metadata availability."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -256,9 +256,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 4
             assert results[0].context == 'SEO abstract 1'
             assert results[1].context == 'Regular abstract 2'
@@ -269,7 +269,7 @@ class TestMetadataHandling:
     async def test_real_world_example_with_metadata(self):
         """Test with real-world example data that includes metadata."""
         ctx = MockContext()
-        
+
         # Using actual structure from the provided CURL response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -305,9 +305,9 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='s3', limit=10)
-            
+
             assert len(results) == 2
             # First result should use seo_abstract
             assert results[0].context == 'Amazon S3 offers object storage service with scalability, availability, security, and performance. Manage storage classes, lifecycle policies, access permissions, data transformations, usage metrics, and query tabular data.'
@@ -318,7 +318,7 @@ class TestMetadataHandling:
     async def test_missing_metadata_field(self):
         """Test handling when metadata field is missing entirely."""
         ctx = MockContext()
-        
+
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -336,8 +336,8 @@ class TestMetadataHandling:
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
-            
+
             results = await search_documentation(ctx, search_phrase='test', limit=10)
-            
+
             assert len(results) == 1
             assert results[0].context == 'Regular summary'
