@@ -21,13 +21,6 @@ from tests.fixtures import DummyCtx
 from unittest.mock import MagicMock, Mock, mock_open, patch
 
 
-@pytest.fixture(autouse=True)
-def mock_file_locking():
-    """Auto-use fixture to mock file locking for all tests except the locking test."""
-    with patch('fcntl.flock'):
-        yield
-
-
 def create_mock_ir(service: str, operation: str):
     """Helper function to create mock IR objects for testing."""
     mock_ir = Mock(spec=IRTranslation)
