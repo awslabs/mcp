@@ -62,9 +62,14 @@ class TestIdentityTools:
         """Test behavior when SDK is not available."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', False):
-            result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(
+                mcp, 'manage_credentials', {'action': 'list'}
+            )
 
             assert 'AgentCore SDK Not Available' in result
             assert 'uv add bedrock-agentcore' in result
@@ -111,11 +116,14 @@ class TestIdentityTools:
         """Test create action without provider name."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool(
-                'manage_credentials', {'action': 'create', 'api_key': self.test_api_key}
+            result = await helper.call_tool_and_extract(
+                mcp, 'manage_credentials', {'action': 'create', 'api_key': self.test_api_key}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'provider_name is required' in result
 
@@ -124,12 +132,16 @@ class TestIdentityTools:
         """Test create action without API key."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'manage_credentials',
                 {'action': 'create', 'provider_name': self.test_provider_name},
             )
-            result = self._extract_result(result_tuple)
 
             assert 'api_key is required' in result
 
@@ -137,6 +149,10 @@ class TestIdentityTools:
     async def test_manage_credentials_create_action_error(self):
         """Test create action with error from AWS service."""
         mcp = self._create_mock_mcp()
+
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
 
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True),
@@ -148,7 +164,8 @@ class TestIdentityTools:
                 'Provider already exists'
             )
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'manage_credentials',
                 {
                     'action': 'create',
@@ -156,7 +173,6 @@ class TestIdentityTools:
                     'api_key': self.test_api_key,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Failed to Create Credential Provider' in result
             assert 'Provider already exists' in result
@@ -165,6 +181,10 @@ class TestIdentityTools:
     async def test_manage_credentials_list_action_no_providers(self):
         """Test list action when no providers exist."""
         mcp = self._create_mock_mcp()
+
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
 
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True),
@@ -183,8 +203,9 @@ class TestIdentityTools:
                 'credentialProviders': []
             }
 
-            result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(
+                mcp, 'manage_credentials', {'action': 'list'}
+            )
 
             assert 'No Credential Providers Found' in result
             assert 'Getting Started' in result
@@ -240,6 +261,10 @@ class TestIdentityTools:
         """Test list action with error from AWS service."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.services.identity.IdentityClient') as mock_identity_client,
@@ -253,8 +278,9 @@ class TestIdentityTools:
                 'Access denied'
             )
 
-            result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(
+                mcp, 'manage_credentials', {'action': 'list'}
+            )
 
             assert 'Failed to List Credential Providers' in result
             assert 'Access denied' in result
@@ -476,27 +502,35 @@ class TestIdentityTools:
         """Test update action with missing required parameters."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True):
             # Missing provider name
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'manage_credentials',
                 {'action': 'update', 'api_key': 'new-key'},  # pragma: allowlist secret
             )
-            result = self._extract_result(result_tuple)
             assert 'provider_name is required' in result
 
             # Missing API key
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'manage_credentials',
                 {'action': 'update', 'provider_name': self.test_provider_name},
             )
-            result = self._extract_result(result_tuple)
             assert 'api_key is required' in result
 
     @pytest.mark.asyncio
     async def test_manage_credentials_invalid_action(self):
         """Test invalid action - this would be caught by Pydantic validation."""
         mcp = self._create_mock_mcp()
+
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
 
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True),
@@ -507,8 +541,9 @@ class TestIdentityTools:
             mock_identity_client.return_value = mock_client_instance
 
             # Invalid actions are caught by Pydantic validation, so test with a valid action
-            result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(
+                mcp, 'manage_credentials', {'action': 'list'}
+            )
 
             # Should work or show no providers
             assert (
@@ -522,14 +557,19 @@ class TestIdentityTools:
         """Test behavior when required modules cannot be imported."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True):
             # Mock import error by patching where the import actually happens (inside the function)
             with patch(
                 'bedrock_agentcore.services.identity.IdentityClient',
                 side_effect=ImportError('Module not found'),
             ):
-                result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-                result = self._extract_result(result_tuple)
+                result = await helper.call_tool_and_extract(
+                    mcp, 'manage_credentials', {'action': 'list'}
+                )
 
                 assert (
                     'Required Dependencies Missing' in result
@@ -541,6 +581,10 @@ class TestIdentityTools:
         """Test general exception handling."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.services.identity.IdentityClient') as mock_identity_client,
@@ -548,8 +592,9 @@ class TestIdentityTools:
             # Mock unexpected exception
             mock_identity_client.side_effect = Exception('Unexpected error')
 
-            result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(
+                mcp, 'manage_credentials', {'action': 'list'}
+            )
 
             assert 'Credential Management Error' in result
             assert 'Unexpected error' in result
@@ -1277,6 +1322,10 @@ class TestEdgeCases:
         """Test update action when both API key and OAuth2 updates fail."""
         mcp = self._create_mock_mcp()
 
+        from .test_helpers import SmartTestHelper
+
+        helper = SmartTestHelper()
+
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.services.identity.IdentityClient') as mock_identity_client,
@@ -1295,7 +1344,8 @@ class TestEdgeCases:
                 'OAuth2 update failed'
             )
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'manage_credentials',
                 {
                     'action': 'update',
@@ -1303,7 +1353,6 @@ class TestEdgeCases:
                     'api_key': 'new-key',  # pragma: allowlist secret
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Failed to Update Credential Provider' in result
             assert 'OAuth2 update failed' in result

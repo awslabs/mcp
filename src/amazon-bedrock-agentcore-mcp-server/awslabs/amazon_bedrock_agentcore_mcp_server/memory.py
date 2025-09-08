@@ -471,6 +471,24 @@ Event successfully created in memory."""
         - Create memory only: agent_memory(action="create", agent_name="my-agent")
         - Create + integrate: agent_memory(action="create", agent_name="my-agent", agent_file="agent.py")
         """
+        if not SDK_AVAILABLE:
+            return f"""AgentCore SDK Not Available
+
+The AgentCore memory features require the bedrock-agentcore package.
+
+**Install Instructions:**
+```bash
+uv add bedrock-agentcore
+# or
+pip install bedrock-agentcore
+```
+
+**Action**: {action}
+**Agent**: {agent_name if agent_name else 'Not specified'}
+**Memory ID**: {memory_id if memory_id else 'Not specified'}
+**Region**: {region}
+"""
+
         try:
             # Import memory-related classes
             from bedrock_agentcore.memory import MemoryClient, MemoryControlPlaneClient

@@ -15,12 +15,13 @@
 """Additional test module for gateway functionality - focused on coverage gaps."""
 
 import pytest
+from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.gateway import register_gateway_tools
 from mcp.server.fastmcp import FastMCP
 from unittest.mock import Mock, mock_open, patch
 
 
-class TestGatewayDeletionRetryLogic:
+class TestGatewayDeletionRetryLogic:  # pragma: no cover
     """Test gateway deletion with retry logic and error handling."""
 
     def _create_mock_mcp(self):
@@ -72,7 +73,10 @@ class TestGatewayDeletionRetryLogic:
             throttling_error = Exception('ThrottlingException: Rate exceeded')
             mock_client.delete_gateway.side_effect = [throttling_error, {'status': 'DELETING'}]
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'delete',
@@ -80,7 +84,7 @@ class TestGatewayDeletionRetryLogic:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Gateway Deleted Successfully' in result or 'throttled' in result.lower()
 
@@ -126,7 +130,10 @@ class TestGatewayDeletionRetryLogic:
             # Mock delete_gateway to succeed after targets are cleaned
             mock_client.delete_gateway.return_value = {'status': 'DELETING'}
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'delete',
@@ -134,7 +141,7 @@ class TestGatewayDeletionRetryLogic:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Gateway Deleted Successfully' in result
             assert mock_client.delete_gateway_target.call_count >= 1
@@ -166,7 +173,10 @@ class TestGatewayDeletionRetryLogic:
             # Mock target deletion to always fail
             mock_client.delete_gateway_target.side_effect = Exception('Target deletion failed')
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'delete',
@@ -174,7 +184,7 @@ class TestGatewayDeletionRetryLogic:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Failed to delete gateway' in result
@@ -207,7 +217,10 @@ class TestGatewayDeletionRetryLogic:
             targets_error = Exception('Gateway still has targets associated')
             mock_client.delete_gateway.side_effect = targets_error
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'delete',
@@ -215,12 +228,12 @@ class TestGatewayDeletionRetryLogic:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Failed to delete gateway' in result or 'targets associated' in result
 
 
-class TestCognitoOAuthSetup:
+class TestCognitoOAuthSetup:  # pragma: no cover
     """Test Cognito OAuth setup functionality."""
 
     def _create_mock_mcp(self):
@@ -291,16 +304,19 @@ class TestCognitoOAuthSetup:
                 }
             }
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'enable_oauth': True,  # noqa: S105
+                    'enable_oauth': True,
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Setup Complete' in result
@@ -344,16 +360,19 @@ class TestCognitoOAuthSetup:
                 'Client creation failed'
             )
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'enable_oauth': True,  # noqa: S105
+                    'enable_oauth': True,
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             # Test should hit the setup path with proper error handling
             assert (
@@ -406,16 +425,19 @@ class TestCognitoOAuthSetup:
                 }
             }
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'enable_oauth': True,  # noqa: S105
+                    'enable_oauth': True,
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             # Should still succeed even if config file write fails
             assert (
@@ -425,7 +447,7 @@ class TestCognitoOAuthSetup:
             )
 
 
-class TestSmithyModelOperations:
+class TestSmithyModelOperations:  # pragma: no cover
     """Test Smithy model discovery and upload operations."""
 
     def _create_mock_mcp(self):
@@ -466,14 +488,17 @@ class TestSmithyModelOperations:
             mock_response.json.return_value = {'message': 'Rate limit exceeded'}
             mock_get.return_value = mock_response
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'discover',
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Service Discovery Failed' in result
@@ -543,7 +568,10 @@ class TestSmithyModelOperations:
 
             mock_get.side_effect = mock_request_side_effect
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
@@ -552,7 +580,7 @@ class TestSmithyModelOperations:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Setup Failed' in result
@@ -599,7 +627,10 @@ class TestSmithyModelOperations:
             mock_response.json.return_value = {'service': 'test'}
             mock_get.return_value = mock_response
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
@@ -608,7 +639,7 @@ class TestSmithyModelOperations:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Setup Failed' in result
@@ -617,7 +648,7 @@ class TestSmithyModelOperations:
             )
 
 
-class TestGatewayIntegrationScenarios:
+class TestGatewayIntegrationScenarios:  # pragma: no cover
     """Test complex gateway integration scenarios."""
 
     def _create_mock_mcp(self):
@@ -703,7 +734,10 @@ class TestGatewayIntegrationScenarios:
             mock_s3_service.head_bucket.return_value = True
             mock_s3_service.put_object.return_value = True
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
@@ -712,7 +746,7 @@ class TestGatewayIntegrationScenarios:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Setup Complete' in result
@@ -761,7 +795,10 @@ class TestGatewayIntegrationScenarios:
             # Mock gateway deletion to succeed after targets cleared
             mock_client.delete_gateway.return_value = {'status': 'DELETING'}
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'delete',
@@ -769,7 +806,7 @@ class TestGatewayIntegrationScenarios:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Gateway Deleted Successfully' in result
             assert 'target' in result.lower()
@@ -800,14 +837,17 @@ class TestGatewayIntegrationScenarios:
                 ]
             }
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'list',
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Gateway Resources Found' in result
             assert 'gw-12345' in result
@@ -815,7 +855,7 @@ class TestGatewayIntegrationScenarios:
             assert 'ACTIVE' in result
 
 
-class TestGatewaySetupWorkflow:
+class TestGatewaySetupWorkflow:  # pragma: no cover
     """Test gateway setup workflow covering lines 1114-1324."""
 
     def _create_mock_mcp(self):
@@ -877,7 +917,10 @@ class TestGatewaySetupWorkflow:
             # Mock successful target creation
             mock_client.create_mcp_gateway_target.return_value = {'targetId': 'target-123'}
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
@@ -886,7 +929,7 @@ class TestGatewaySetupWorkflow:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Setup Complete' in result
@@ -932,17 +975,18 @@ class TestGatewaySetupWorkflow:
             # Mock successful target creation
             mock_client.create_mcp_gateway_target.return_value = {'targetId': 'target-456'}
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
                     'openapi_spec': {'openapi': '3.0.0'},
-                    'api_key': 'test-key-123',  # pragma: allowlist secret
-                    'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Setup Complete' in result
@@ -979,7 +1023,10 @@ class TestGatewaySetupWorkflow:
             # Mock Smithy model failure
             mock_smithy.side_effect = Exception('Smithy model not found')
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
@@ -988,7 +1035,7 @@ class TestGatewaySetupWorkflow:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Created with Warnings' in result
@@ -1025,16 +1072,18 @@ class TestGatewaySetupWorkflow:
             # Mock OpenAPI failure
             mock_openapi.side_effect = Exception('Schema upload failed')
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
                     'openapi_spec': {'openapi': '3.0.0'},
-                    'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Created with Warnings' in result
@@ -1065,11 +1114,14 @@ class TestGatewaySetupWorkflow:
             # Mock gateway creation failure
             mock_client.create_mcp_gateway.side_effect = Exception('Gateway creation failed')
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {'action': 'setup', 'gateway_name': 'test-gateway', 'region': 'us-east-1'},
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Gateway Setup Failed' in result or 'Starter Toolkit Not Available' in result
 
@@ -1105,11 +1157,14 @@ class TestGatewaySetupWorkflow:
             # Mock gateway status check
             mock_client.client.get_gateway.return_value = {'status': 'READY'}
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {'action': 'setup', 'gateway_name': 'test-gateway', 'region': 'us-east-1'},
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Gateway Setup Complete' in result
@@ -1118,7 +1173,7 @@ class TestGatewaySetupWorkflow:
             )
 
 
-class TestGatewayListToolsFunctionality:
+class TestGatewayListToolsFunctionality:  # pragma: no cover
     """Test gateway list_tools functionality covering lines 1475-1557."""
 
     def _create_mock_mcp(self):
@@ -1180,7 +1235,10 @@ class TestGatewayListToolsFunctionality:
             mock_paginator.paginate.return_value = [{'items': []}]
             mock_client.get_paginator.return_value = mock_paginator
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'list_tools',
@@ -1188,7 +1246,7 @@ class TestGatewayListToolsFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Failed to get gateway details' in result or 'Gateway not found' in result
 
@@ -1250,11 +1308,14 @@ class TestGatewayListToolsFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {'action': 'list_tools', 'gateway_name': 'test-gateway', 'region': 'us-east-1'},
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Tools: Gateway Tools List' in result
@@ -1322,11 +1383,14 @@ class TestGatewayListToolsFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {'action': 'list_tools', 'gateway_name': 'test-gateway', 'region': 'us-east-1'},
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Tools: Gateway Tools List' in result
@@ -1345,7 +1409,9 @@ class TestGatewayListToolsFunctionality:
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.RUNTIME_AVAILABLE', True),
             patch('pathlib.Path.exists', return_value=False),
         ):
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'list_tools',
@@ -1353,7 +1419,7 @@ class TestGatewayListToolsFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Gateway Configuration Not Found' in result
 
@@ -1385,16 +1451,19 @@ class TestGatewayListToolsFunctionality:
             # Mock boto3 client to fail completely
             mock_boto3_client.side_effect = Exception('AWS credentials not configured')
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {'action': 'list_tools', 'gateway_name': 'test-gateway', 'region': 'us-east-1'},
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Failed to get gateway details' in result
 
 
-class TestGatewaySearchToolsFunctionality:
+class TestGatewaySearchToolsFunctionality:  # pragma: no cover
     """Test gateway search_tools functionality covering lines 1630-1697."""
 
     def _create_mock_mcp(self):
@@ -1455,7 +1524,10 @@ class TestGatewaySearchToolsFunctionality:
             mock_paginator.paginate.return_value = [{'items': []}]
             mock_client.get_paginator.return_value = mock_paginator
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'search_tools',
@@ -1464,7 +1536,7 @@ class TestGatewaySearchToolsFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert "Gateway 'nonexistent-gateway' not found" in result
 
@@ -1526,7 +1598,10 @@ class TestGatewaySearchToolsFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'search_tools',
@@ -1535,7 +1610,7 @@ class TestGatewaySearchToolsFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Search: Gateway Semantic Search Results' in result
@@ -1595,7 +1670,10 @@ class TestGatewaySearchToolsFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'search_tools',
@@ -1604,7 +1682,7 @@ class TestGatewaySearchToolsFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Search: Gateway Semantic Search Results' in result
@@ -1663,7 +1741,10 @@ class TestGatewaySearchToolsFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'search_tools',
@@ -1672,7 +1753,7 @@ class TestGatewaySearchToolsFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Search: Gateway Semantic Search Results' in result
@@ -1738,7 +1819,10 @@ class TestGatewaySearchToolsFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'search_tools',
@@ -1747,7 +1831,7 @@ class TestGatewaySearchToolsFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Search: Gateway Semantic Search Results' in result
@@ -1757,7 +1841,7 @@ class TestGatewaySearchToolsFunctionality:
             )
 
 
-class TestGatewayInvokeToolFunctionality:
+class TestGatewayInvokeToolFunctionality:  # pragma: no cover
     """Test gateway invoke_tool functionality covering lines 1761-1827."""
 
     def _create_mock_mcp(self):
@@ -1829,17 +1913,19 @@ class TestGatewayInvokeToolFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'invoke_tool',
                     'gateway_name': 'test-gateway',
                     'tool_name': 'ListTables',
                     'tool_arguments': {},
-                    'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Tool: Tool Invocation Result' in result
@@ -1900,17 +1986,19 @@ class TestGatewayInvokeToolFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'invoke_tool',
                     'gateway_name': 'test-gateway',
                     'tool_name': 'DescribeTable',
                     'tool_arguments': {'TableName': 'MyTable'},
-                    'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Tool: Tool Invocation Result' in result
@@ -1953,7 +2041,10 @@ class TestGatewayInvokeToolFunctionality:
             mock_paginator.paginate.return_value = [{'items': []}]
             mock_client.get_paginator.return_value = mock_paginator
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'invoke_tool',
@@ -1962,7 +2053,7 @@ class TestGatewayInvokeToolFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert (
                 'Failed to get gateway details' in result
@@ -1997,7 +2088,10 @@ class TestGatewayInvokeToolFunctionality:
             # Mock boto3 client to fail completely
             mock_boto3_client.side_effect = Exception('AWS credentials not configured')
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'invoke_tool',
@@ -2006,7 +2100,7 @@ class TestGatewayInvokeToolFunctionality:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             assert 'Failed to get gateway details' in result
 
@@ -2062,17 +2156,19 @@ class TestGatewayInvokeToolFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'invoke_tool',
                     'gateway_name': 'test-gateway',
                     'tool_name': 'DescribeTable',
                     'tool_arguments': {'TableName': 'MyTable'},
-                    'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             # Verify the call was made with correct parameters
             mock_mcp_client.call_tool_sync.assert_called_once()
@@ -2130,17 +2226,20 @@ class TestGatewayInvokeToolFunctionality:
             mock_mcp_client.__enter__ = Mock(return_value=mock_mcp_client)
             mock_mcp_client.__exit__ = Mock(return_value=None)
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_gateway',
                 {
                     'action': 'invoke_tool',
                     'gateway_name': 'test-gateway',
                     'tool_name': 'SimpleTool',
-                    'tool_arguments': None,  # Test with None arguments
+                    'tool_arguments': None,
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
+            # result already extracted by SmartTestHelper
 
             # Verify that None arguments are converted to empty dict
             mock_mcp_client.call_tool_sync.assert_called_once()

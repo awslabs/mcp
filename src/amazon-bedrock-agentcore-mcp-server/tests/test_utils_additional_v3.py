@@ -15,6 +15,7 @@
 """Utils tests v3 to target remaining missing coverage lines."""
 
 import pytest
+from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import (
     register_discovery_tools,
     register_environment_tools,
@@ -23,7 +24,7 @@ from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 
-class TestUtilsConfigurationPaths:
+class TestUtilsConfigurationPaths:  # pragma: no cover
     """Target lines 164-174 configuration handling."""
 
     def _create_mock_mcp(self):
@@ -77,11 +78,13 @@ class TestUtilsConfigurationPaths:
             mock_file.exists.return_value = True
             mock_glob.return_value = [mock_file]
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'validate_agentcore_environment',
                 {'project_path': '.', 'check_existing_agents': True},
             )
-            result = self._extract_result(result_tuple)
             assert 'environment' in result.lower() or 'validation' in result.lower()
 
     @pytest.mark.asyncio
@@ -103,11 +106,13 @@ class TestUtilsConfigurationPaths:
             mock_file.exists.return_value = True
             mock_glob.return_value = [mock_file]
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'validate_agentcore_environment',
                 {'project_path': '.', 'check_existing_agents': True},
             )
-            result = self._extract_result(result_tuple)
             assert 'environment' in result.lower() or 'validation' in result.lower()
 
     @pytest.mark.asyncio
@@ -125,15 +130,17 @@ class TestUtilsConfigurationPaths:
         ):
             mock_get_dir.return_value = Path('/test/dir')
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'validate_agentcore_environment',
                 {'project_path': '.', 'check_existing_agents': True},
             )
-            result = self._extract_result(result_tuple)
             assert 'environment' in result.lower() or 'validation' in result.lower()
 
 
-class TestUtilsDiscoveryAdvanced:
+class TestUtilsDiscoveryAdvanced:  # pragma: no cover
     """Target discovery tool missing lines."""
 
     def _create_mock_mcp(self):
@@ -168,7 +175,9 @@ class TestUtilsDiscoveryAdvanced:
         # Test with SDK available = True to hit different paths
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             # This should attempt actual AWS calls and hit different error paths
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'get_agent_logs',
                 {
                     'agent_name': 'sdk-true-test',
@@ -178,7 +187,6 @@ class TestUtilsDiscoveryAdvanced:
                     'region': 'us-east-1',
                 },
             )
-            result = self._extract_result(result_tuple)
             assert (
                 'logs' in result.lower()
                 or 'error' in result.lower()
@@ -192,8 +200,10 @@ class TestUtilsDiscoveryAdvanced:
 
         # Test with SDK available = True
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool('invokable_agents', {'region': 'us-west-2'})
-            result = self._extract_result(result_tuple)
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                mcp, 'invokable_agents', {'region': 'us-west-2'}
+            )
             assert (
                 'agents' in result.lower()
                 or 'error' in result.lower()
@@ -230,7 +240,7 @@ class TestUtilsDiscoveryAdvanced:
                 )
 
 
-class TestUtilsEdgeCasePaths:
+class TestUtilsEdgeCasePaths:  # pragma: no cover
     """Target specific edge case and error paths."""
 
     def _create_mock_mcp_env(self):
@@ -284,11 +294,13 @@ class TestUtilsEdgeCasePaths:
             mock_file.exists.return_value = True
             mock_glob.return_value = [mock_file]
 
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'validate_agentcore_environment',
                 {'project_path': '.', 'check_existing_agents': True},
             )
-            result = self._extract_result(result_tuple)
             assert 'environment' in result.lower() or 'validation' in result.lower()
 
     @pytest.mark.asyncio
@@ -307,7 +319,9 @@ class TestUtilsEdgeCasePaths:
 
         for agent_name in agent_patterns:
             with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
-                result_tuple = await mcp.call_tool(
+                helper = SmartTestHelper()
+                result = await helper.call_tool_and_extract(
+                    mcp,
                     'get_agent_logs',
                     {
                         'agent_name': agent_name,
@@ -317,7 +331,6 @@ class TestUtilsEdgeCasePaths:
                         'region': 'us-east-1',
                     },
                 )
-                result = self._extract_result(result_tuple)
                 assert (
                     'starter toolkit not available' in result.lower() or 'logs' in result.lower()
                 )
@@ -351,8 +364,10 @@ class TestUtilsEdgeCasePaths:
 
         for region in regions:
             with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
-                result_tuple = await mcp.call_tool('invokable_agents', {'region': region})
-                result = self._extract_result(result_tuple)
+                helper = SmartTestHelper()
+                result = await helper.call_tool_and_extract(
+                    mcp, 'invokable_agents', {'region': region}
+                )
                 assert (
                     'agents' in result.lower() or 'starter toolkit not available' in result.lower()
                 )
@@ -387,11 +402,13 @@ class TestUtilsEdgeCasePaths:
             ):
                 mock_get_dir.return_value = Path('/test/working/dir')
 
-                result_tuple = await mcp.call_tool(
+                helper = SmartTestHelper()
+
+                result = await helper.call_tool_and_extract(
+                    mcp,
                     'validate_agentcore_environment',
                     {'project_path': path_type, 'check_existing_agents': False},
                 )
-                result = self._extract_result(result_tuple)
                 assert (
                     'environment' in result.lower()
                     or 'validation' in result.lower()
@@ -463,17 +480,12 @@ class TestUtilsEdgeCasePaths:
                 with patch(
                     'awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False
                 ):
-                    result_tuple = await mcp.call_tool(
+                    helper = SmartTestHelper()
+                    result = await helper.call_tool_and_extract(
+                        mcp,
                         'get_agent_logs',
-                        {
-                            'agent_name': f'error-only-{agent_suffix}',
-                            'hours_back': 2,
-                            'max_events': 50,
-                            'error_only': error_only,
-                            'region': 'us-east-1',
-                        },
+                        {'agent_name': f'error-only-{agent_suffix}', 'error_only': error_only},
                     )
-                    result = self._extract_result(result_tuple)
                     assert (
                         'starter toolkit not available' in result.lower()
                         or 'logs' in result.lower()

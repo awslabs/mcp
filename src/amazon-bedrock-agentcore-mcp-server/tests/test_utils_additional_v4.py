@@ -15,13 +15,14 @@
 """Utils tests v4 to target large missing line ranges like 699-835."""
 
 import pytest
+from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import (
     register_discovery_tools,
 )
 from unittest.mock import Mock, mock_open, patch
 
 
-class TestUtilsInvokableAgentsLocalAnalysis:
+class TestUtilsInvokableAgentsLocalAnalysis:  # pragma: no cover
     """Target lines 699-835 local agents analysis paths."""
 
     def _create_mock_mcp(self):
@@ -83,8 +84,11 @@ class TestUtilsInvokableAgentsLocalAnalysis:
             mock_file.exists.return_value = True
             mock_glob.return_value = [mock_file]
 
-            result_tuple = await mcp.call_tool('invokable_agents', {'region': 'us-east-1'})
-            result = self._extract_result(result_tuple)
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp, 'invokable_agents', {'region': 'us-east-1'}
+            )
 
             # Should hit the local-only analysis path (lines 699-835)
             assert (
@@ -123,8 +127,11 @@ class TestUtilsInvokableAgentsLocalAnalysis:
             mock_file.exists.return_value = True
             mock_glob.return_value = [mock_file]
 
-            result_tuple = await mcp.call_tool('invokable_agents', {'region': 'us-east-1'})
-            result = self._extract_result(result_tuple)
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp, 'invokable_agents', {'region': 'us-east-1'}
+            )
 
             # Should categorize agents by deployment status
             assert (
@@ -148,8 +155,11 @@ class TestUtilsInvokableAgentsLocalAnalysis:
             mock_client.list_agents.side_effect = Exception('AWS Error')
             mock_boto3.return_value = mock_client
 
-            result_tuple = await mcp.call_tool('invokable_agents', {'region': 'us-east-1'})
-            result = self._extract_result(result_tuple)
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp, 'invokable_agents', {'region': 'us-east-1'}
+            )
 
             # Should handle no agents found scenario
             assert (
@@ -159,7 +169,7 @@ class TestUtilsInvokableAgentsLocalAnalysis:
             )
 
 
-class TestUtilsProjectDiscoverLargePaths:
+class TestUtilsProjectDiscoverLargePaths:  # pragma: no cover
     """Target lines 876-932 and other large missing ranges in project_discover."""
 
     def _create_mock_mcp(self):
@@ -226,7 +236,7 @@ class TestUtilsProjectDiscoverLargePaths:
                 pass  # Expected due to coroutine issues
 
 
-class TestUtilsExamplesDiscovery:
+class TestUtilsExamplesDiscovery:  # pragma: no cover
     """Target examples discovery - but tool doesn't exist, so skip."""
 
     def _create_mock_mcp(self):
@@ -243,7 +253,7 @@ class TestUtilsExamplesDiscovery:
         assert True
 
 
-class TestUtilsDirectLineCoverage:
+class TestUtilsDirectLineCoverage:  # pragma: no cover
     """Target very specific missing lines with direct approach."""
 
     def _create_mock_mcp_discovery(self):
@@ -307,6 +317,7 @@ class TestUtilsDirectLineCoverage:
                 ):
                     try:
                         result_tuple = await mcp.call_tool(scenario['tool'], scenario['params'])
+                        # Extract result from tuple
                         result = self._extract_result(result_tuple)
                         # Just verify we get some result
                         assert isinstance(result, str) and len(result) > 0

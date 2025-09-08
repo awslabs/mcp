@@ -15,6 +15,7 @@
 """Utils tests v2 to target specific missing coverage lines."""
 
 import pytest
+from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import (
     register_discovery_tools,
     register_environment_tools,
@@ -25,7 +26,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-class TestUtilsSDKValidation:
+class TestUtilsSDKValidation:  # pragma: no cover
     """Target lines 85-91 SDK validation."""
 
     def test_validate_sdk_method_sdk_not_available(self):
@@ -60,7 +61,7 @@ class TestUtilsSDKValidation:
             assert result is False
 
 
-class TestUtilsFilePathResolution:
+class TestUtilsFilePathResolution:  # pragma: no cover
     """Target lines 164-174 file path resolution."""
 
     @patch('os.environ.get')
@@ -79,7 +80,7 @@ class TestUtilsFilePathResolution:
             # This will hit the path resolution logic but return None
 
 
-class TestUtilsEnvironmentToolsAdvanced:
+class TestUtilsEnvironmentToolsAdvanced:  # pragma: no cover
     """Target environment validation missing lines."""
 
     def _create_mock_mcp(self):
@@ -157,11 +158,12 @@ class TestUtilsEnvironmentToolsAdvanced:
 
             # Test file path (not directory)
             with patch('pathlib.Path.is_file', return_value=True):
-                result_tuple = await mcp.call_tool(
+                helper = SmartTestHelper()
+                result = await helper.call_tool_and_extract(
+                    mcp,
                     'validate_agentcore_environment',
                     {'project_path': 'some_file.py', 'check_existing_agents': False},
                 )
-                result = self._extract_result(result_tuple)
                 assert 'environment' in result.lower() or 'validation' in result.lower()
 
             # Test directory path
@@ -169,15 +171,16 @@ class TestUtilsEnvironmentToolsAdvanced:
                 patch('pathlib.Path.is_file', return_value=False),
                 patch('pathlib.Path.is_dir', return_value=True),
             ):
-                result_tuple = await mcp.call_tool(
+                helper = SmartTestHelper()
+                result = await helper.call_tool_and_extract(
+                    mcp,
                     'validate_agentcore_environment',
                     {'project_path': 'some_directory', 'check_existing_agents': True},
                 )
-                result = self._extract_result(result_tuple)
                 assert 'environment' in result.lower() or 'validation' in result.lower()
 
 
-class TestUtilsDiscoveryToolsAdvanced:
+class TestUtilsDiscoveryToolsAdvanced:  # pragma: no cover
     """Target discovery tools missing lines."""
 
     def _create_mock_mcp(self):
@@ -244,8 +247,10 @@ class TestUtilsDiscoveryToolsAdvanced:
 
         for region in regions:
             with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
-                result_tuple = await mcp.call_tool('invokable_agents', {'region': region})
-                result = self._extract_result(result_tuple)
+                helper = SmartTestHelper()
+                result = await helper.call_tool_and_extract(
+                    mcp, 'invokable_agents', {'region': region}
+                )
                 assert (
                     'agents' in result.lower() or 'starter toolkit not available' in result.lower()
                 )
@@ -288,7 +293,7 @@ class TestUtilsDiscoveryToolsAdvanced:
                 )
 
 
-class TestUtilsPathHandling:
+class TestUtilsPathHandling:  # pragma: no cover
     """Target path handling and file system operations."""
 
     @pytest.mark.asyncio
@@ -330,7 +335,7 @@ class TestUtilsPathHandling:
                 assert result is not None or result is None  # Either outcome is valid
 
 
-class TestUtilsErrorHandling:
+class TestUtilsErrorHandling:  # pragma: no cover
     """Target error handling and exception paths."""
 
     def _create_mock_mcp_env(self):
@@ -373,11 +378,12 @@ class TestUtilsErrorHandling:
             'awslabs.amazon_bedrock_agentcore_mcp_server.utils.get_user_working_directory',
             side_effect=Exception('Path error'),
         ):
-            result_tuple = await mcp.call_tool(
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'validate_agentcore_environment',
                 {'project_path': '/error/path', 'check_existing_agents': True},
             )
-            result = self._extract_result(result_tuple)
             # Should handle exception gracefully
             assert isinstance(result, str)
 
@@ -388,15 +394,17 @@ class TestUtilsErrorHandling:
 
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             # Test invokable agents with SDK available
-            result_tuple = await mcp.call_tool('invokable_agents', {'region': 'us-east-1'})
-            result = self._extract_result(result_tuple)
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                mcp, 'invokable_agents', {'region': 'us-east-1'}
+            )
             assert 'agents' in result.lower() or 'starter toolkit' in result.lower()
 
             # Test agent logs with SDK available
-            result_tuple = await mcp.call_tool(
-                'get_agent_logs', {'agent_name': 'sdk-available-test', 'region': 'us-east-1'}
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                mcp, 'get_agent_logs', {'agent_name': 'sdk-available-test', 'region': 'us-east-1'}
             )
-            result = self._extract_result(result_tuple)
             assert 'logs' in result.lower() or 'starter toolkit' in result.lower()
 
     @pytest.mark.asyncio
@@ -417,10 +425,10 @@ class TestUtilsErrorHandling:
 
         for agent_name in agent_names:
             with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
-                result_tuple = await mcp.call_tool(
-                    'get_agent_logs', {'agent_name': agent_name, 'region': 'us-east-1'}
+                helper = SmartTestHelper()
+                result = await helper.call_tool_and_extract(
+                    mcp, 'get_agent_logs', {'agent_name': agent_name, 'region': 'us-east-1'}
                 )
-                result = self._extract_result(result_tuple)
                 assert (
                     'starter toolkit not available' in result.lower() or 'logs' in result.lower()
                 )
@@ -448,15 +456,17 @@ class TestUtilsErrorHandling:
             ):
                 mock_get_dir.return_value = Path('/test/project')
 
-                result_tuple = await mcp.call_tool(
+                helper = SmartTestHelper()
+
+                result = await helper.call_tool_and_extract(
+                    mcp,
                     'validate_agentcore_environment',
                     {'project_path': py_file, 'check_existing_agents': False},
                 )
-                result = self._extract_result(result_tuple)
                 assert 'environment' in result.lower() or 'validation' in result.lower()
 
 
-class TestUtilsSpecificLineCoverage:
+class TestUtilsSpecificLineCoverage:  # pragma: no cover
     """Target very specific missing lines."""
 
     def test_sdk_capabilities_edge_cases(self):

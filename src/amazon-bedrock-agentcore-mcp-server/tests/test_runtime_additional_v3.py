@@ -16,7 +16,7 @@ def _create_mock_mcp():
     return mcp
 
 
-class TestRuntimeDeploymentPaths:
+class TestRuntimeDeploymentPaths:  # pragma: no cover
     """Test deployment path functionality in runtime."""
 
     async def test_deployment_with_oauth_configuration(self):
@@ -85,7 +85,7 @@ class TestRuntimeDeploymentPaths:
                 pass  # Expected due to mocking
 
 
-class TestRuntimeStatusOperations:
+class TestRuntimeStatusOperations:  # pragma: no cover
     """Test status operations in runtime."""
 
     async def test_agent_status_retrieval(self):
@@ -124,7 +124,7 @@ class TestRuntimeStatusOperations:
                     pass  # Expected error handling
 
 
-class TestRuntimeConfigurationParsing:
+class TestRuntimeConfigurationParsing:  # pragma: no cover
     """Test configuration parsing in runtime."""
 
     async def test_yaml_configuration_parsing(self):
@@ -168,7 +168,7 @@ class TestRuntimeConfigurationParsing:
                 pass  # Expected validation errors
 
 
-class TestRuntimeInvocationPaths:
+class TestRuntimeInvocationPaths:  # pragma: no cover
     """Test runtime invocation paths."""
 
     async def test_agent_invocation_with_parameters(self):
@@ -220,7 +220,7 @@ class TestRuntimeInvocationPaths:
                     pass  # Expected error handling
 
 
-class TestRuntimeDirectLineCoverage:
+class TestRuntimeDirectLineCoverage:  # pragma: no cover
     """Test direct line coverage for specific ranges."""
 
     async def test_comprehensive_runtime_coverage(self):

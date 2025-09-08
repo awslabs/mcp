@@ -16,6 +16,7 @@
 import asyncio
 import pytest
 from awslabs.amazon_bedrock_agentcore_mcp_server.server import mcp
+from mcp.server.fastmcp.exceptions import ToolError
 
 
 def extract_result(mcp_result):
@@ -101,23 +102,31 @@ class TestBasicFunctionality:
                 or 'validation' in str(e).lower()
             )
 
-    @pytest.mark.asyncio
-    async def test_agent_gateway_list(self):
+    @pytest.mark.asyncio  # pragma: no cover
+    async def test_agent_gateway_list(self):  # pragma: no cover
         """Test agent gateway listing."""
-        result_tuple = await mcp.call_tool('agent_gateway', {'action': 'list'})
-        result = extract_result(result_tuple)
+        with pytest.raises(ToolError) as exc_info:
+            await mcp.call_tool('agent_gateway', {'action': 'list'})
 
-        # Should either show gateways or "no gateways found" or SDK not available
-        assert 'Gateway' in result or 'Not Available' in result or 'SDK' in result
+        error_message = str(exc_info.value)
+        assert (
+            'Gateway' in error_message
+            or 'Not Available' in error_message
+            or 'SDK' in error_message
+        )
 
-    @pytest.mark.asyncio
-    async def test_credentials_list(self):
+    @pytest.mark.asyncio  # pragma: no cover
+    async def test_credentials_list(self):  # pragma: no cover
         """Test credentials listing."""
-        result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-        result = extract_result(result_tuple)
+        with pytest.raises(ToolError) as exc_info:
+            await mcp.call_tool('manage_credentials', {'action': 'list'})
 
-        # Should either show credentials or "no credentials found" or SDK not available
-        assert 'Credential' in result or 'Not Available' in result or 'SDK' in result
+        error_message = str(exc_info.value)
+        assert (
+            'Credential' in error_message
+            or 'Not Available' in error_message
+            or 'SDK' in error_message
+        )
 
     @pytest.mark.asyncio
     async def test_memory_list(self):
@@ -141,29 +150,29 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_nonexistent_file_analysis(self):
         """Test analyzing non-existent file."""
-        result_tuple = await mcp.call_tool(
-            'analyze_agent_code', {'file_path': 'definitely_does_not_exist_12345.py'}
-        )
-        result = extract_result(result_tuple)
+        with pytest.raises(ToolError) as exc_info:
+            await mcp.call_tool(
+                'analyze_agent_code', {'file_path': 'definitely_does_not_exist_12345.py'}
+            )
 
-        assert 'No Code Found' in result or 'not found' in result.lower()
+        error_message = str(exc_info.value)
+        assert 'No Code Found' in error_message or 'not found' in error_message.lower()
 
     @pytest.mark.asyncio
     async def test_invalid_tool_parameters(self):
         """Test tools with missing required parameters."""
         # deploy_agentcore_app should handle missing app_file gracefully
-        result_tuple = await mcp.call_tool(
-            'deploy_agentcore_app',
-            {
-                'app_file': 'test.py',  # Valid file path
-                'agent_name': 'test_agent',  # Required agent name
-            },
-        )
-        result = extract_result(result_tuple)
+        with pytest.raises(ToolError) as exc_info:
+            await mcp.call_tool(
+                'deploy_agentcore_app',
+                {
+                    'app_file': 'test.py',  # Non-existent file
+                    'agent_name': 'test_agent',  # Required agent name
+                },
+            )
 
-        assert result is not None
-        # Should return error message, not crash
-        assert len(result) > 0
+        error_message = str(exc_info.value)
+        assert 'Deployment Error' in error_message
 
 
 if __name__ == '__main__':

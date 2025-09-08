@@ -15,6 +15,7 @@
 """Test module for memory functionality."""
 
 import pytest
+from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.memory import (
     get_memory_health_next_steps,
     get_memory_health_recommendations,
@@ -23,7 +24,7 @@ from awslabs.amazon_bedrock_agentcore_mcp_server.memory import (
 from unittest.mock import Mock, mock_open, patch
 
 
-class TestMemoryConversationTools:
+class TestMemoryConversationTools:  # pragma: no cover
     """Test memory conversation management tools."""
 
     def setup_method(self):
@@ -56,12 +57,14 @@ class TestMemoryConversationTools:
         return str(mcp_result)
 
     @pytest.mark.asyncio
-    async def test_memory_save_conversation_sdk_not_available(self):
+    async def test_memory_save_conversation_sdk_not_available(self):  # pragma: no cover
         """Test behavior when SDK is not available."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', False):
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_save_conversation',
                 {
                     'memory_id': self.test_memory_id,
@@ -71,15 +74,15 @@ class TestMemoryConversationTools:
                     'agent_response': self.test_agent_response,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'AgentCore SDK not available' in result
 
     @pytest.mark.asyncio
-    async def test_memory_save_conversation_success(self):
+    async def test_memory_save_conversation_success(self):  # pragma: no cover
         """Test successful conversation save."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -90,7 +93,8 @@ class TestMemoryConversationTools:
             mock_save_result = {'eventId': 'event-123', 'eventTimestamp': '2024-01-01T12:00:00Z'}
             mock_client_instance.save_turn.return_value = mock_save_result
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_save_conversation',
                 {
                     'memory_id': self.test_memory_id,
@@ -100,7 +104,6 @@ class TestMemoryConversationTools:
                     'agent_response': self.test_agent_response,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Conversation Saved' in result
             assert self.test_memory_id in result
@@ -119,10 +122,11 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_save_conversation_error(self):
+    async def test_memory_save_conversation_error(self):  # pragma: no cover
         """Test error handling in conversation save."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -131,7 +135,8 @@ class TestMemoryConversationTools:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.save_turn.side_effect = Exception('Memory service error')
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_save_conversation',
                 {
                     'memory_id': self.test_memory_id,
@@ -141,17 +146,17 @@ class TestMemoryConversationTools:
                     'agent_response': self.test_agent_response,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Error saving conversation' in result
             assert 'Memory service error' in result
             assert self.test_memory_id in result
 
     @pytest.mark.asyncio
-    async def test_memory_retrieve_success(self):
+    async def test_memory_retrieve_success(self):  # pragma: no cover
         """Test successful memory retrieval."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -173,7 +178,8 @@ class TestMemoryConversationTools:
             ]
             mock_client_instance.retrieve_memories.return_value = mock_memories
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_retrieve',
                 {
                     'memory_id': self.test_memory_id,
@@ -183,7 +189,6 @@ class TestMemoryConversationTools:
                     'top_k': 3,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Retrieved Memories (2 found)' in result
             assert 'weather conversation' in result
@@ -201,10 +206,11 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_retrieve_no_actor_id(self):
+    async def test_memory_retrieve_no_actor_id(self):  # pragma: no cover
         """Test memory retrieval without actor_id."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -213,7 +219,8 @@ class TestMemoryConversationTools:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.retrieve_memories.return_value = []
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_retrieve',
                 {
                     'memory_id': self.test_memory_id,
@@ -222,7 +229,6 @@ class TestMemoryConversationTools:
                     'top_k': 3,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'No Memories Found' in result
 
@@ -232,10 +238,11 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_retrieve_no_memories(self):
+    async def test_memory_retrieve_no_memories(self):  # pragma: no cover
         """Test memory retrieval when no memories found."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -244,7 +251,8 @@ class TestMemoryConversationTools:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.retrieve_memories.return_value = []
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_retrieve',
                 {
                     'memory_id': self.test_memory_id,
@@ -252,16 +260,16 @@ class TestMemoryConversationTools:
                     'query': 'non-existent query',
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'No Memories Found' in result
             assert 'non-existent query' in result
 
     @pytest.mark.asyncio
-    async def test_memory_retrieve_error(self):
+    async def test_memory_retrieve_error(self):  # pragma: no cover
         """Test error handling in memory retrieval."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -270,20 +278,21 @@ class TestMemoryConversationTools:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.retrieve_memories.side_effect = Exception('Retrieval failed')
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_retrieve',
                 {'memory_id': self.test_memory_id, 'namespace': 'default', 'query': 'test query'},
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Error retrieving memories' in result
             assert 'Retrieval failed' in result
 
     @pytest.mark.asyncio
-    async def test_memory_get_conversation_success(self):
+    async def test_memory_get_conversation_success(self):  # pragma: no cover
         """Test successful conversation history retrieval."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -303,7 +312,8 @@ class TestMemoryConversationTools:
             ]
             mock_client_instance.get_last_k_turns.return_value = mock_conversation_turns
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_get_conversation',
                 {
                     'memory_id': self.test_memory_id,
@@ -312,7 +322,6 @@ class TestMemoryConversationTools:
                     'k': 5,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Conversation History (2 turns)' in result
             assert 'Hello' in result
@@ -328,10 +337,11 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_get_conversation_no_history(self):
+    async def test_memory_get_conversation_no_history(self):  # pragma: no cover
         """Test conversation retrieval when no history exists."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -340,7 +350,8 @@ class TestMemoryConversationTools:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.get_last_k_turns.return_value = []
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_get_conversation',
                 {
                     'memory_id': self.test_memory_id,
@@ -348,16 +359,16 @@ class TestMemoryConversationTools:
                     'session_id': self.test_session_id,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'No Conversation History' in result
             assert self.test_memory_id in result
 
     @pytest.mark.asyncio
-    async def test_memory_process_turn_success(self):
+    async def test_memory_process_turn_success(self):  # pragma: no cover
         """Test successful turn processing with retrieval and storage."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -373,7 +384,8 @@ class TestMemoryConversationTools:
                 mock_turn_result,
             )
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_process_turn',
                 {
                     'memory_id': self.test_memory_id,
@@ -386,7 +398,6 @@ class TestMemoryConversationTools:
                     'top_k': 2,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Turn Processed' in result
             assert 'Retrieved Memories (1)' in result
@@ -407,10 +418,11 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_process_turn_no_optional_params(self):
+    async def test_memory_process_turn_no_optional_params(self):  # pragma: no cover
         """Test turn processing without optional parameters."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -419,7 +431,8 @@ class TestMemoryConversationTools:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.process_turn.return_value = ([], {'eventId': 'event-789'})
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_process_turn',
                 {
                     'memory_id': self.test_memory_id,
@@ -429,7 +442,6 @@ class TestMemoryConversationTools:
                     'agent_response': self.test_agent_response,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Turn Processed' in result
             assert 'event-789' in result
@@ -445,10 +457,11 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_list_events_success(self):
+    async def test_memory_list_events_success(self):  # pragma: no cover
         """Test successful event listing."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -471,7 +484,8 @@ class TestMemoryConversationTools:
             ]
             mock_client_instance.list_events.return_value = mock_events
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_list_events',
                 {
                     'memory_id': self.test_memory_id,
@@ -480,7 +494,6 @@ class TestMemoryConversationTools:
                     'max_results': 50,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Events (2 found)' in result
             assert 'event-1' in result
@@ -496,10 +509,11 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_list_events_no_events(self):
+    async def test_memory_list_events_no_events(self):  # pragma: no cover
         """Test event listing when no events exist."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -508,7 +522,8 @@ class TestMemoryConversationTools:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.list_events.return_value = []
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_list_events',
                 {
                     'memory_id': self.test_memory_id,
@@ -516,16 +531,16 @@ class TestMemoryConversationTools:
                     'session_id': self.test_session_id,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'No Events Found' in result
             assert self.test_memory_id in result
 
     @pytest.mark.asyncio
-    async def test_memory_create_event_success(self):
+    async def test_memory_create_event_success(self):  # pragma: no cover
         """Test successful event creation."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -539,7 +554,8 @@ class TestMemoryConversationTools:
             }
             mock_client_instance.create_event.return_value = mock_create_result
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_create_event',
                 {
                     'memory_id': self.test_memory_id,
@@ -548,7 +564,6 @@ class TestMemoryConversationTools:
                     'messages': ['user:Hello there', 'assistant:Hi, how can I help?'],
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Event Created' in result
             assert 'event-created-123' in result
@@ -563,12 +578,14 @@ class TestMemoryConversationTools:
             )
 
     @pytest.mark.asyncio
-    async def test_memory_create_event_invalid_format(self):
+    async def test_memory_create_event_invalid_format(self):  # pragma: no cover
         """Test event creation with invalid message format."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_create_event',
                 {
                     'memory_id': self.test_memory_id,
@@ -577,13 +594,12 @@ class TestMemoryConversationTools:
                     'messages': ['invalid message format'],
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Invalid message format' in result
             assert "Use 'role:content' format" in result
 
 
-class TestAgentMemoryTool:
+class TestAgentMemoryTool:  # pragma: no cover
     """Test the main agent_memory tool with comprehensive coverage."""
 
     def setup_method(self):
@@ -615,22 +631,23 @@ class TestAgentMemoryTool:
         return str(mcp_result)
 
     @pytest.mark.asyncio
-    async def test_agent_memory_sdk_not_available(self):
+    async def test_agent_memory_sdk_not_available(self):  # pragma: no cover
         """Test behavior when SDK is not available."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', False):
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'list'})
 
             assert 'AgentCore SDK Not Available' in result
             assert 'uv add bedrock-agentcore' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_list_action_no_memories(self):
+    async def test_agent_memory_list_action_no_memories(self):  # pragma: no cover
         """Test list action when no memories exist."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -639,17 +656,17 @@ class TestAgentMemoryTool:
             mock_control_client.return_value = mock_client_instance
             mock_client_instance.list_memories.return_value = {'memories': []}
 
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'list'})
 
             assert 'No Memory Resources Found' in result
             assert 'Getting Started' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_list_action_with_memories(self):
+    async def test_agent_memory_list_action_with_memories(self):  # pragma: no cover
         """Test list action with existing memories."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -673,8 +690,7 @@ class TestAgentMemoryTool:
             ]
             mock_client_instance.list_memories.return_value = mock_memories
 
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'list'})
 
             assert 'Memory Resources (2 found)' in result
             assert 'Active Memories (1)' in result
@@ -683,10 +699,11 @@ class TestAgentMemoryTool:
             assert 'creating-memory' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_list_action_error(self):
+    async def test_agent_memory_list_action_error(self):  # pragma: no cover
         """Test list action with error from AWS service."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -695,28 +712,28 @@ class TestAgentMemoryTool:
             mock_control_client.return_value = mock_client_instance
             mock_client_instance.list_memories.side_effect = Exception('AWS service error')
 
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'list'})
 
             assert 'Memory List Error' in result
             assert 'AWS service error' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_create_action_missing_agent_name(self):
+    async def test_agent_memory_create_action_missing_agent_name(self):  # pragma: no cover
         """Test create action without agent name."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'create'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'create'})
 
             assert 'agent_name is required' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_create_action_success(self):
+    async def test_agent_memory_create_action_success(self):  # pragma: no cover
         """Test successful memory creation."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -732,7 +749,8 @@ class TestAgentMemoryTool:
             mock_client_instance.create_memory.return_value = {'memoryId': self.test_memory_id}
             mock_client_instance.get_memory.return_value = {'status': 'ACTIVE'}
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_memory',
                 {
                     'action': 'create',
@@ -740,7 +758,6 @@ class TestAgentMemoryTool:
                     'strategy_types': ['semantic', 'summary'],
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Created Successfully' in result
             assert self.test_memory_id in result
@@ -751,10 +768,11 @@ class TestAgentMemoryTool:
             mock_client_instance.get_memory.assert_called_with(memory_id=self.test_memory_id)
 
     @pytest.mark.asyncio
-    async def test_agent_memory_create_action_with_agent_file(self):
+    async def test_agent_memory_create_action_with_agent_file(self):  # pragma: no cover
         """Test memory creation with agent file integration."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -776,7 +794,8 @@ class TestAgentMemoryTool:
 
             mock_resolve.return_value = '/path/to/test_agent.py'
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_memory',
                 {
                     'action': 'create',
@@ -784,17 +803,17 @@ class TestAgentMemoryTool:
                     'agent_file': self.test_agent_file,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Created Successfully' in result
             assert 'Agent Integration Complete' in result
             assert 'Backup Created' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_create_action_agent_file_not_found(self):
+    async def test_agent_memory_create_action_agent_file_not_found(self):  # pragma: no cover
         """Test memory creation when agent file is not found."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -810,7 +829,8 @@ class TestAgentMemoryTool:
 
             mock_resolve.return_value = None  # File not found
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_memory',
                 {
                     'action': 'create',
@@ -818,16 +838,16 @@ class TestAgentMemoryTool:
                     'agent_file': self.test_agent_file,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Created Successfully' in result
             assert 'integration skipped - file not found' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_create_action_error(self):
+    async def test_agent_memory_create_action_error(self):  # pragma: no cover
         """Test create action with error from AWS service."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -836,30 +856,30 @@ class TestAgentMemoryTool:
             mock_control_client.return_value = mock_client_instance
             mock_client_instance.create_memory.side_effect = Exception('Memory creation failed')
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'create', 'agent_name': self.test_agent_name}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'create', 'agent_name': self.test_agent_name}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Creation Error' in result
             assert 'Memory creation failed' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_health_action_missing_memory_id(self):
+    async def test_agent_memory_health_action_missing_memory_id(self):  # pragma: no cover
         """Test health action without memory ID."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'health'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'health'})
 
             assert 'memory_id is required' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_health_action_success(self):
+    async def test_agent_memory_health_action_success(self):  # pragma: no cover
         """Test successful health check."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -880,10 +900,9 @@ class TestAgentMemoryTool:
             mock_client_instance = Mock()
             mock_memory_client.return_value = mock_client_instance
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Health Check' in result
             assert 'HEALTHY' in result
@@ -891,10 +910,11 @@ class TestAgentMemoryTool:
             assert 'test-memory' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_health_action_unhealthy(self):
+    async def test_agent_memory_health_action_unhealthy(self):  # pragma: no cover
         """Test health check for unhealthy memory."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -910,31 +930,31 @@ class TestAgentMemoryTool:
             }
             mock_control_instance.get_memory.return_value = mock_memory_details
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'UNHEALTHY' in result
             assert 'CREATE_FAILED' in result
             assert 'failed-memory' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_delete_action_missing_memory_id(self):
+    async def test_agent_memory_delete_action_missing_memory_id(self):  # pragma: no cover
         """Test delete action without memory ID."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'delete'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'delete'})
 
             assert 'memory_id is required' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_delete_action_success(self):
+    async def test_agent_memory_delete_action_success(self):  # pragma: no cover
         """Test successful memory deletion."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -946,10 +966,9 @@ class TestAgentMemoryTool:
             mock_control_instance.get_memory.return_value = mock_memory_details
             mock_control_instance.delete_memory.return_value = {'status': 'DELETED'}
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'delete', 'memory_id': self.test_memory_id}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'delete', 'memory_id': self.test_memory_id}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Deleted Successfully' in result
             assert self.test_memory_id in result
@@ -961,10 +980,11 @@ class TestAgentMemoryTool:
             )
 
     @pytest.mark.asyncio
-    async def test_agent_memory_delete_action_error(self):
+    async def test_agent_memory_delete_action_error(self):  # pragma: no cover
         """Test delete action with error from AWS service."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -973,47 +993,48 @@ class TestAgentMemoryTool:
             mock_control_client.return_value = mock_control_instance
             mock_control_instance.get_memory.side_effect = Exception('Memory not found')
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'delete', 'memory_id': self.test_memory_id}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'delete', 'memory_id': self.test_memory_id}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Deletion Error' in result
             assert 'Memory not found' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_import_error(self):
+    async def test_agent_memory_import_error(self):  # pragma: no cover
         """Test behavior when required modules cannot be imported."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True):
             with patch(
                 'bedrock_agentcore.memory.MemoryControlPlaneClient',
                 side_effect=ImportError('Module not found'),
             ):
-                result_tuple = await mcp.call_tool('agent_memory', {'action': 'list'})
-                result = self._extract_result(result_tuple)
+                result = await helper.call_tool_and_extract(
+                    mcp, 'agent_memory', {'action': 'list'}
+                )
 
                 assert 'Memory List Error' in result or 'Module not found' in result
 
     @pytest.mark.asyncio
-    async def test_agent_memory_general_exception(self):
+    async def test_agent_memory_general_exception(self):  # pragma: no cover
         """Test general exception handling."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
         ):
             mock_control_client.side_effect = Exception('Unexpected error')
 
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'list'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'list'})
 
             assert 'Memory List Error' in result and 'Unexpected error' in result
 
 
-class TestMemoryHelperFunctions:
+class TestMemoryHelperFunctions:  # pragma: no cover
     """Test memory helper functions."""
 
     def test_get_memory_health_recommendations_active_passed(self):
@@ -1070,7 +1091,7 @@ class TestMemoryHelperFunctions:
         assert 'Support' in result
 
 
-class TestToolRegistration:
+class TestToolRegistration:  # pragma: no cover
     """Test memory tool registration."""
 
     def test_register_memory_tools(self):
@@ -1096,7 +1117,7 @@ class TestToolRegistration:
         assert final_count > initial_count
 
     @pytest.mark.asyncio
-    async def test_memory_tools_available_in_tools_list(self):
+    async def test_memory_tools_available_in_tools_list(self):  # pragma: no cover
         """Test that memory tools appear in tools list."""
         from mcp.server.fastmcp import FastMCP
 
@@ -1147,7 +1168,7 @@ if __name__ == '__main__':
     asyncio.run(run_basic_tests())
 
 
-class TestMemoryAdvancedScenarios:
+class TestMemoryAdvancedScenarios:  # pragma: no cover
     """Test advanced scenarios and edge cases for memory functionality."""
 
     def setup_method(self):
@@ -1179,10 +1200,11 @@ class TestMemoryAdvancedScenarios:
         return str(mcp_result)
 
     @pytest.mark.asyncio
-    async def test_memory_create_timeout_scenario(self):
+    async def test_memory_create_timeout_scenario(self):  # pragma: no cover
         """Test memory creation that times out during status check."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -1195,7 +1217,8 @@ class TestMemoryAdvancedScenarios:
             mock_client_instance.create_memory.return_value = {'memoryId': self.test_memory_id}
             mock_client_instance.get_memory.return_value = {'status': 'CREATING'}
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_memory',
                 {
                     'action': 'create',
@@ -1203,28 +1226,28 @@ class TestMemoryAdvancedScenarios:
                     'strategy_types': ['semantic'],
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Created Successfully' in result
             # Memory creation succeeded, timeout handling may not be implemented
             assert 'Memory Created Successfully' in result
 
     @pytest.mark.asyncio
-    async def test_memory_health_action_missing_memory_id_additional(self):
+    async def test_memory_health_action_missing_memory_id_additional(self):  # pragma: no cover
         """Test health action without memory ID (additional test)."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool('agent_memory', {'action': 'health'})
-            result = self._extract_result(result_tuple)
+            result = await helper.call_tool_and_extract(mcp, 'agent_memory', {'action': 'health'})
 
             assert 'memory_id is required' in result
 
     @pytest.mark.asyncio
-    async def test_memory_health_action_success_additional(self):
+    async def test_memory_health_action_success_additional(self):  # pragma: no cover
         """Test successful memory health check (additional test)."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -1245,20 +1268,20 @@ class TestMemoryAdvancedScenarios:
             mock_client_instance = Mock()
             mock_memory_client.return_value = mock_client_instance
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Health Check' in result
             assert 'ACTIVE' in result
             assert 'test-memory-health' in result
 
     @pytest.mark.asyncio
-    async def test_memory_health_action_error_additional(self):
+    async def test_memory_health_action_error_additional(self):  # pragma: no cover
         """Test health action with error from AWS service (additional test)."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -1267,19 +1290,19 @@ class TestMemoryAdvancedScenarios:
             mock_control_client.return_value = mock_client_instance
             mock_client_instance.get_memory.side_effect = Exception('Memory not accessible')
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Health Error' in result or 'error' in result.lower()
             assert 'Memory not accessible' in result
 
     @pytest.mark.asyncio
-    async def test_memory_retrieve_complex_query(self):
+    async def test_memory_retrieve_complex_query(self):  # pragma: no cover
         """Test memory retrieval with complex query and metadata."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -1303,7 +1326,8 @@ class TestMemoryAdvancedScenarios:
             mock_client_instance.retrieve.return_value = mock_retrieved_memories
             mock_memory_client.return_value = mock_client_instance
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_retrieve',
                 {
                     'memory_id': self.test_memory_id,
@@ -1312,16 +1336,16 @@ class TestMemoryAdvancedScenarios:
                     'max_results': 5,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Error retrieving memories' in result
             assert 'mem-test-12345' in result
 
     @pytest.mark.asyncio
-    async def test_memory_create_event_with_metadata(self):
+    async def test_memory_create_event_with_metadata(self):  # pragma: no cover
         """Test creating memory event with metadata."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -1336,7 +1360,8 @@ class TestMemoryAdvancedScenarios:
             }
             mock_client_instance.create_memory_event.return_value = mock_event_result
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_create_event',
                 {
                     'memory_id': self.test_memory_id,
@@ -1351,16 +1376,16 @@ class TestMemoryAdvancedScenarios:
                     },
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Invalid message format' in result
             assert 'role:content' in result
 
     @pytest.mark.asyncio
-    async def test_memory_get_conversation_with_pagination(self):
+    async def test_memory_get_conversation_with_pagination(self):  # pragma: no cover
         """Test getting conversation with pagination parameters."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -1384,7 +1409,8 @@ class TestMemoryAdvancedScenarios:
             mock_client_instance.get_conversation.return_value = mock_conversation
             mock_memory_client.return_value = mock_client_instance
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_get_conversation',
                 {
                     'memory_id': self.test_memory_id,
@@ -1395,16 +1421,16 @@ class TestMemoryAdvancedScenarios:
                     'end_time': '2024-01-01T11:00:00Z',
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Error getting conversation' in result
             assert 'mem-test-12345' in result
 
     @pytest.mark.asyncio
-    async def test_memory_process_turn_error_handling(self):
+    async def test_memory_process_turn_error_handling(self):  # pragma: no cover
         """Test memory process turn with error handling."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -1413,7 +1439,8 @@ class TestMemoryAdvancedScenarios:
             mock_memory_client.return_value = mock_client_instance
             mock_client_instance.process_turn.side_effect = Exception('Processing failed')
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_process_turn',
                 {
                     'memory_id': self.test_memory_id,
@@ -1423,16 +1450,16 @@ class TestMemoryAdvancedScenarios:
                     'session_id': self.test_session_id,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Error processing turn' in result
             assert 'Processing failed' in result
 
     @pytest.mark.asyncio
-    async def test_memory_list_events_with_filters(self):
+    async def test_memory_list_events_with_filters(self):  # pragma: no cover
         """Test listing memory events with filters."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryClient') as mock_memory_client,
@@ -1458,7 +1485,8 @@ class TestMemoryAdvancedScenarios:
             ]
             mock_client_instance.list_events.return_value = mock_events
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'memory_list_events',
                 {
                     'memory_id': self.test_memory_id,
@@ -1470,7 +1498,6 @@ class TestMemoryAdvancedScenarios:
                     'max_results': 20,
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Events' in result
             assert 'event-1' in result
@@ -1479,10 +1506,11 @@ class TestMemoryAdvancedScenarios:
             assert 'conversation' in result
 
     @pytest.mark.asyncio
-    async def test_memory_health_with_client_connectivity_failure(self):
+    async def test_memory_health_with_client_connectivity_failure(self):  # pragma: no cover
         """Test health check when client connectivity fails."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -1502,20 +1530,20 @@ class TestMemoryAdvancedScenarios:
             # Mock memory client connectivity failure
             mock_memory_client.side_effect = Exception('Connection failed')
 
-            result_tuple = await mcp.call_tool(
-                'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
+            result = await helper.call_tool_and_extract(
+                mcp, 'agent_memory', {'action': 'health', 'memory_id': self.test_memory_id}
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Health Check' in result
             assert 'ACTIVE' in result
             assert 'connectivity has issues' in result
 
     @pytest.mark.asyncio
-    async def test_memory_integration_with_agent_file_error(self):
+    async def test_memory_integration_with_agent_file_error(self):  # pragma: no cover
         """Test memory integration when agent file operations fail."""
         mcp = self._create_mock_mcp()
 
+        helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
             patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
@@ -1532,7 +1560,8 @@ class TestMemoryAdvancedScenarios:
 
             mock_resolve.return_value = '/path/to/test_agent.py'
 
-            result_tuple = await mcp.call_tool(
+            result = await helper.call_tool_and_extract(
+                mcp,
                 'agent_memory',
                 {
                     'action': 'create',
@@ -1540,7 +1569,6 @@ class TestMemoryAdvancedScenarios:
                     'agent_file': 'test_agent.py',
                 },
             )
-            result = self._extract_result(result_tuple)
 
             assert 'Memory Created Successfully' in result
             assert 'integration failed' in result or 'Access denied' in result

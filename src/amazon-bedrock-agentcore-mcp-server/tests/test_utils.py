@@ -43,7 +43,7 @@ from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 
-class TestUtilityFunctions:
+class TestUtilityFunctions:  # pragma: no cover
     """Test utility functions."""
 
     def test_get_user_working_directory(self):
@@ -90,7 +90,7 @@ class TestUtilityFunctions:
         assert result is False
 
 
-class TestPathResolution:
+class TestPathResolution:  # pragma: no cover
     """Test path resolution strategies."""
 
     def test_resolve_current_file(self):
@@ -112,7 +112,7 @@ class TestPathResolution:
         assert result is None
 
 
-class TestEnvironmentDetection:
+class TestEnvironmentDetection:  # pragma: no cover
     """Test environment detection functionality."""
 
     @patch('subprocess.run')
@@ -136,7 +136,7 @@ class TestEnvironmentDetection:
         assert len(tools) > 0
 
 
-class TestAgentConfiguration:
+class TestAgentConfiguration:  # pragma: no cover
     """Test agent configuration functions."""
 
     def test_check_agent_config_exists_no_file(self):
@@ -229,7 +229,7 @@ class TestAgentConfiguration:
                 assert hasattr(runtime, 'name')
 
 
-class TestCodeAnalysis:
+class TestCodeAnalysis:  # pragma: no cover
     """Test code analysis functions."""
 
     def test_analyze_code_patterns_empty_code(self):
@@ -255,7 +255,7 @@ import boto3
     def test_analyze_code_patterns_with_classes(self):
         """Test analyzing code with class definitions."""
         code = """
-class TestClass:
+class TestClass:  # pragma: no cover
     def __init__(self):
         pass
 
@@ -313,11 +313,11 @@ async def async_function():
         assert len(result) > 0
 
 
-class TestEnvironmentTools:
+class TestEnvironmentTools:  # pragma: no cover
     """Test environment tool functions."""
 
     @pytest.mark.asyncio
-    async def test_get_agentcore_command_with_uv(self):
+    async def test_get_agentcore_command_with_uv(self):  # pragma: no cover
         """Test getting agentcore command when uv is available."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value.returncode = 0
@@ -326,7 +326,7 @@ class TestEnvironmentTools:
             assert len(result) > 0
 
     @pytest.mark.asyncio
-    async def test_get_agentcore_command_without_uv(self):
+    async def test_get_agentcore_command_without_uv(self):  # pragma: no cover
         """Test getting agentcore command when uv is not available."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value.returncode = 1
@@ -334,11 +334,11 @@ class TestEnvironmentTools:
             assert isinstance(result, list)
 
     @pytest.mark.asyncio
-    async def test_get_agentcore_command_exception(self):
+    async def test_get_agentcore_command_exception(self):  # pragma: no cover
         """Test getting agentcore command with exception."""
         with patch('subprocess.run', side_effect=Exception('Command failed')):
-            result = await get_agentcore_command()
-            assert isinstance(result, list)
+            with pytest.raises(OSError, match='Error checking uv command'):
+                await get_agentcore_command()
 
     def test_register_environment_tools_additional(self):
         """Test registering environment tools."""
@@ -356,7 +356,7 @@ class TestEnvironmentTools:
         assert final_count >= initial_count
 
 
-class TestAgentDiscovery:
+class TestAgentDiscovery:  # pragma: no cover
     """Test agent discovery functions."""
 
     def test_what_agents_can_i_invoke_sdk_not_available(self):
@@ -441,7 +441,7 @@ class TestAgentDiscovery:
         assert final_count > initial_count
 
 
-class TestErrorHandling:
+class TestErrorHandling:  # pragma: no cover
     """Test error handling in utility functions."""
 
     def test_find_agent_config_directory_yaml_error(self):
@@ -470,10 +470,9 @@ class TestErrorHandling:
 
     def test_project_discover_with_permission_error(self):
         """Test project discovery with permission error."""
-        with patch('pathlib.Path.rglob', side_effect=PermissionError('Access denied')):
-            result = project_discover(action='agents', search_path='.')
-            assert isinstance(result, str)
-            assert 'Error' in result or 'No' in result
+        with patch('pathlib.Path.glob', side_effect=PermissionError('Access denied')):
+            with pytest.raises(OSError, match='Discovery Error'):
+                project_discover(action='agents', search_path='.')
 
     def test_analyze_code_patterns_with_invalid_code(self):
         """Test code analysis with syntax errors."""
@@ -483,7 +482,7 @@ class TestErrorHandling:
         # Should handle gracefully and return basic analysis
 
 
-class TestFileOperations:
+class TestFileOperations:  # pragma: no cover
     """Test file operation utilities."""
 
     def test_resolve_app_file_path_with_relative_path(self):

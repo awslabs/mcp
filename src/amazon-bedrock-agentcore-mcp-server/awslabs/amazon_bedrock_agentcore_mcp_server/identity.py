@@ -29,7 +29,7 @@ import json
 import os
 import subprocess
 import time
-from .utils import RUNTIME_AVAILABLE, MCPtoolError
+from .utils import RUNTIME_AVAILABLE, SDK_AVAILABLE, MCPtoolError
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Literal
@@ -65,6 +65,16 @@ def register_identity_tools(mcp: FastMCP):
         - get: Get details of a specific provider
         - update: Update an existing provider
         """
+        if not SDK_AVAILABLE:
+            raise MCPtoolError("""X AgentCore SDK Not Available
+
+To use credential provider functionality:
+1. Install: `uv add bedrock-agentcore bedrock-agentcore-starter-toolkit`
+2. Configure AWS credentials: `aws configure`
+3. Retry credential operations
+
+Alternative: Use AWS Console for credential management""")
+
         from bedrock_agentcore.services.identity import IdentityClient
 
         try:

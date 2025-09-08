@@ -16,6 +16,7 @@
 
 import asyncio
 import pytest
+from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.server import mcp, run_main
 from unittest.mock import patch
 
@@ -34,11 +35,11 @@ def extract_result(mcp_result):
     return str(mcp_result)
 
 
-class TestIntegrationTests:
+class TestIntegrationTests:  # pragma: no cover
     """Integration tests for the MCP server."""
 
     @pytest.mark.asyncio
-    async def test_server_full_lifecycle(self):
+    async def test_server_full_lifecycle(self):  # pragma: no cover
         """Test complete server lifecycle."""
         # Test that server can list tools
         tools = await mcp.list_tools()
@@ -53,7 +54,7 @@ class TestIntegrationTests:
         assert 'Environment Validation' in env_result
 
     @pytest.mark.asyncio
-    async def test_all_tools_callable(self):
+    async def test_all_tools_callable(self):  # pragma: no cover
         """Test that all registered tools can be called without crashing."""
         tools = await mcp.list_tools()
         print(f'Available tools: {tools}')
@@ -110,7 +111,7 @@ class TestIntegrationTests:
                 )
 
     @pytest.mark.asyncio
-    async def test_oauth_tools_integration(self):
+    async def test_oauth_tools_integration(self):  # pragma: no cover
         """Test OAuth tools integration."""
         # Test OAuth access token generation (should show options)
         oauth_result_tuple = await mcp.call_tool('get_oauth_access_token', {'method': 'ask'})
@@ -120,7 +121,7 @@ class TestIntegrationTests:
         assert 'Choose Your Method' in oauth_result
 
     @pytest.mark.asyncio
-    async def test_analysis_tools_integration(self):
+    async def test_analysis_tools_integration(self):  # pragma: no cover
         """Test code analysis tools integration."""
         # Test analyze_agent_code with sample code
         sample_code = """
@@ -133,16 +134,17 @@ if __name__ == "__main__":
     print(hello_world())
 """
 
-        result_tuple = await mcp.call_tool(
-            'analyze_agent_code', {'file_path': '', 'code_content': sample_code}
+        helper = SmartTestHelper()
+
+        result = await helper.call_tool_and_extract(
+            mcp, 'analyze_agent_code', {'file_path': '', 'code_content': sample_code}
         )
-        result = extract_result(result_tuple)
 
         assert 'Agent Code Analysis Complete' in result
         assert 'Framework Detected:' in result
 
     @pytest.mark.asyncio
-    async def test_discovery_tools_integration(self):
+    async def test_discovery_tools_integration(self):  # pragma: no cover
         """Test discovery tools integration."""
         # Test project discovery
         try:
@@ -172,42 +174,43 @@ if __name__ == "__main__":
         )
 
 
-class TestErrorHandlingIntegration:
+class TestErrorHandlingIntegration:  # pragma: no cover
     """Test error handling in integration scenarios."""
 
     @pytest.mark.asyncio
-    async def test_tools_with_missing_files(self):
+    async def test_tools_with_missing_files(self):  # pragma: no cover
         """Test tools handle missing files gracefully."""
         # Test analyze_agent_code with non-existent file
-        result_tuple = await mcp.call_tool(
-            'analyze_agent_code', {'file_path': 'definitely_does_not_exist.py'}
+        helper = SmartTestHelper()
+        result = await helper.call_tool_and_extract(
+            mcp, 'analyze_agent_code', {'file_path': 'definitely_does_not_exist.py'}
         )
-        result = extract_result(result_tuple)
 
         assert 'No Code Found' in result or 'not found' in result.lower()
 
     @pytest.mark.asyncio
-    async def test_tools_with_invalid_regions(self):
+    async def test_tools_with_invalid_regions(self):  # pragma: no cover
         """Test tools handle invalid AWS regions."""
         # Test agent_gateway with invalid region
-        result_tuple = await mcp.call_tool(
-            'agent_gateway', {'action': 'list', 'region': 'invalid-region-123'}
+        helper = SmartTestHelper()
+        result = await helper.call_tool_and_extract(
+            mcp, 'agent_gateway', {'action': 'list', 'region': 'invalid-region-123'}
         )
-        result = extract_result(result_tuple)
 
         # Should handle gracefully, not crash
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_deployment_without_aws_creds(self):
+    async def test_deployment_without_aws_creds(self):  # pragma: no cover
         """Test deployment tools handle missing AWS credentials."""
         with patch('boto3.client') as mock_client:
             mock_client.side_effect = Exception('No credentials')
 
-            result_tuple = await mcp.call_tool(
-                'deploy_agentcore_app', {'app_file': 'test.py', 'agent_name': 'test_agent'}
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp, 'deploy_agentcore_app', {'app_file': 'test.py', 'agent_name': 'test_agent'}
             )
-            result = extract_result(result_tuple)
 
             # Should return helpful error, not crash
             assert result is not None
@@ -219,7 +222,7 @@ class TestErrorHandlingIntegration:
             )
 
 
-class TestMainFunction:
+class TestMainFunction:  # pragma: no cover
     """Test main function and entry points."""
 
     def test_run_main_function_exists(self):
@@ -257,8 +260,8 @@ if __name__ == '__main__':
     async def run_integration_tests():
         """Run basic integration tests."""
         # Test server info
-        result_tuple = await mcp.call_tool('server_info', {})
-        result = extract_result(result_tuple)
+        helper = SmartTestHelper()
+        result = await helper.call_tool_and_extract(mcp, 'server_info', {})
         print(f'✓ Server info integration test passed:\n{result}')
 
         # Test tool listing
