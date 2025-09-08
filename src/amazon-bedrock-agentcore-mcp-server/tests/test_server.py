@@ -14,6 +14,7 @@
 """Test module for modular server implementation."""
 
 import pytest
+from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.server import mcp
 from unittest.mock import patch
 
@@ -98,10 +99,10 @@ class TestAgentCoreMCPServer:
     @pytest.mark.asyncio
     async def test_analyze_agent_code_tool_error_handling(self):
         """Test analyze_agent_code tool handles missing files correctly."""
-        result_tuple = await mcp.call_tool(
-            'analyze_agent_code', {'file_path': 'nonexistent_file.py', 'code_content': ''}
+        helper = SmartTestHelper()
+        result = await helper.call_tool_and_extract(
+            mcp, 'analyze_agent_code', {'file_path': 'nonexistent_file.py', 'code_content': ''}
         )
-        result = extract_result(result_tuple)
 
         assert result is not None
         assert 'No Code Found' in result or 'not found' in result or 'Error' in result
@@ -183,14 +184,15 @@ class TestErrorHandling:
     async def test_tool_with_invalid_params(self):
         """Test tools handle invalid parameters gracefully."""
         # This should not crash but return an error message
-        result_tuple = await mcp.call_tool(
+        helper = SmartTestHelper()
+        result = await helper.call_tool_and_extract(
+            mcp,
             'deploy_agentcore_app',
             {
                 'app_file': 'test.py',  # Valid file path
                 'agent_name': 'test_agent',  # Required agent name
             },
         )
-        result = extract_result(result_tuple)
 
         assert result is not None
         assert (
@@ -218,10 +220,12 @@ class TestSDKAvailability:
             test_mcp = FastMCP('Test Server')
             register_deployment_tools(test_mcp)
 
-            result_tuple = await test_mcp.call_tool(
-                'deploy_agentcore_app', {'app_file': 'test.py', 'agent_name': 'test_agent'}
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                test_mcp,
+                'deploy_agentcore_app',
+                {'app_file': 'test.py', 'agent_name': 'test_agent'},
             )
-            result = extract_result(result_tuple)
 
             assert result is not None
 
@@ -432,8 +436,10 @@ class TestCrossModuleIntegration:
     async def test_identity_tools_integration(self):
         """Test identity module tools are properly integrated."""
         with patch('awslabs.amazon_bedrock_agentcore_mcp_server.identity.SDK_AVAILABLE', False):
-            result_tuple = await mcp.call_tool('manage_credentials', {'action': 'list'})
-            result = extract_result(result_tuple)
+            helper = SmartTestHelper()
+            result = await helper.call_tool_and_extract(
+                mcp, 'manage_credentials', {'action': 'list'}
+            )
 
             assert result is not None
             assert 'SDK Not Available' in result
