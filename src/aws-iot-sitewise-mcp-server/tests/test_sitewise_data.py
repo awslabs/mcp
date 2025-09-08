@@ -133,6 +133,13 @@ class TestSiteWiseData:
         result = get_asset_property_value_history(
             asset_id='test-asset-123',
             property_id='test-property-456',
+            property_alias=None,
+            start_date=None,
+            end_date=None,
+            qualities=None,
+            time_ordering='ASCENDING',
+            next_token=None,
+            max_results=100,
             region='us-east-1',
         )
 
@@ -159,6 +166,15 @@ class TestSiteWiseData:
         result = get_asset_property_aggregates(
             asset_id='test-asset-123',
             property_id='test-property-456',
+            property_alias=None,
+            aggregate_types=None,
+            resolution='1h',
+            start_date=None,
+            end_date=None,
+            qualities=None,
+            time_ordering='ASCENDING',
+            next_token=None,
+            max_results=100,
             region='us-east-1',
         )
 
@@ -271,6 +287,8 @@ class TestSiteWiseData:
         result = execute_query(
             query_statement='SELECT asset_id FROM asset',
             region='us-east-1',
+            next_token=None,
+            max_results=100,
         )
 
         assert result['success'] is True
@@ -303,7 +321,12 @@ class TestSiteWiseData:
         error_response = {'Error': {'Code': 'InvalidRequestException', 'Message': 'Invalid query'}}
         mock_client.execute_query.side_effect = ClientError(error_response, 'ExecuteQuery')
 
-        result = execute_query(query_statement='SELECT * FROM invalid_table', region='us-east-1')
+        result = execute_query(
+            query_statement='SELECT * FROM invalid_table',
+            region='us-east-1',
+            next_token=None,
+            max_results=100,
+        )
 
         assert result['success'] is False
         assert result['error_code'] == 'InvalidRequestException'
@@ -325,7 +348,10 @@ class TestSiteWiseData:
 
         # Test with asset_id and property_id
         result = get_asset_property_value(
-            asset_id='test-asset-123', property_id='test-prop-456', region='us-west-2'
+            asset_id='test-asset-123',
+            property_id='test-prop-456',
+            property_alias=None,
+            region='us-west-2',
         )
 
         assert result['success'] is True
@@ -336,7 +362,10 @@ class TestSiteWiseData:
         # Test with property_alias only
         mock_client.reset_mock()
         result = get_asset_property_value(
-            property_alias='/company/plant/temperature', region='us-east-1'
+            asset_id=None,
+            property_id=None,
+            property_alias='/company/plant/temperature',
+            region='us-east-1',
         )
 
         assert result['success'] is True
@@ -620,18 +649,33 @@ class TestSiteWiseData:
     def test_execute_query_additional_validation_errors(self):
         """Test execute query validation error cases."""
         # Test empty query
-        result = execute_query(query_statement='')
+        result = execute_query(
+            query_statement='',
+            region='us-east-1',
+            next_token=None,
+            max_results=100,
+        )
         assert result['success'] is False
         assert 'Query statement cannot be empty' in result['error']
 
         # Test whitespace-only query
-        result = execute_query(query_statement='   ')
+        result = execute_query(
+            query_statement='   ',
+            region='us-east-1',
+            next_token=None,
+            max_results=100,
+        )
         assert result['success'] is False
         assert 'Query statement cannot be empty' in result['error']
 
         # Test query too long (over 64KB)
         long_query = "SELECT * FROM asset WHERE asset_name = '" + 'x' * 65537 + "'"
-        result = execute_query(query_statement=long_query)
+        result = execute_query(
+            query_statement=long_query,
+            region='us-east-1',
+            next_token=None,
+            max_results=100,
+        )
         assert result['success'] is False
         assert 'Query statement cannot exceed 64KB' in result['error']
 
@@ -692,7 +736,12 @@ class TestSiteWiseData:
         mock_client.execute_query.return_value = mock_response
 
         query = 'SELECT COUNT(*) FROM asset'
-        result = execute_query(query_statement=query)
+        result = execute_query(
+            query_statement=query,
+            region='us-east-1',
+            next_token=None,
+            max_results=100,
+        )
 
         assert result['success'] is True
 
@@ -724,7 +773,12 @@ class TestSiteWiseData:
         mock_client.get_asset_property_value.side_effect = ClientError(
             error_response, 'GetAssetPropertyValue'
         )
-        result = get_asset_property_value(asset_id='test-123')
+        result = get_asset_property_value(
+            asset_id='test-123',
+            property_id=None,
+            property_alias=None,
+            region='us-east-1',
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -732,7 +786,18 @@ class TestSiteWiseData:
         mock_client.get_asset_property_value_history.side_effect = ClientError(
             error_response, 'GetAssetPropertyValueHistory'
         )
-        result = get_asset_property_value_history(asset_id='test-123')
+        result = get_asset_property_value_history(
+            asset_id='test-123',
+            property_id=None,
+            property_alias=None,
+            start_date=None,
+            end_date=None,
+            qualities=None,
+            time_ordering='ASCENDING',
+            next_token=None,
+            max_results=100,
+            region='us-east-1',
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -740,7 +805,20 @@ class TestSiteWiseData:
         mock_client.get_asset_property_aggregates.side_effect = ClientError(
             error_response, 'GetAssetPropertyAggregates'
         )
-        result = get_asset_property_aggregates(asset_id='test-123')
+        result = get_asset_property_aggregates(
+            asset_id='test-123',
+            property_id=None,
+            property_alias=None,
+            aggregate_types=None,
+            resolution='1h',
+            start_date=None,
+            end_date=None,
+            qualities=None,
+            time_ordering='ASCENDING',
+            next_token=None,
+            max_results=100,
+            region='us-east-1',
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -760,7 +838,11 @@ class TestSiteWiseData:
         mock_client.batch_get_asset_property_value.side_effect = ClientError(
             error_response, 'BatchGetAssetPropertyValue'
         )
-        result = batch_get_asset_property_value(entries=[{'entryId': 'test'}])
+        result = batch_get_asset_property_value(
+            entries=[{'entryId': 'test'}],
+            next_token=None,
+            region='us-east-1',
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -768,7 +850,12 @@ class TestSiteWiseData:
         mock_client.batch_get_asset_property_value_history.side_effect = ClientError(
             error_response, 'BatchGetAssetPropertyValueHistory'
         )
-        result = batch_get_asset_property_value_history(entries=[{'entryId': 'test'}])
+        result = batch_get_asset_property_value_history(
+            entries=[{'entryId': 'test'}],
+            next_token=None,
+            max_results=100,
+            region='us-east-1',
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -776,13 +863,23 @@ class TestSiteWiseData:
         mock_client.batch_get_asset_property_aggregates.side_effect = ClientError(
             error_response, 'BatchGetAssetPropertyAggregates'
         )
-        result = batch_get_asset_property_aggregates(entries=[{'entryId': 'test'}])
+        result = batch_get_asset_property_aggregates(
+            entries=[{'entryId': 'test'}],
+            next_token=None,
+            max_results=100,
+            region='us-east-1',
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
         # Test execute_query error handling
         mock_client.execute_query.side_effect = ClientError(error_response, 'ExecuteQuery')
-        result = execute_query(query_statement='SELECT asset_id FROM asset')
+        result = execute_query(
+            query_statement='SELECT asset_id FROM asset',
+            region='us-east-1',
+            next_token=None,
+            max_results=100,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 

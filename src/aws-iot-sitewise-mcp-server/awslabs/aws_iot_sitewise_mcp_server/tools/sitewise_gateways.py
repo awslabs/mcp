@@ -18,15 +18,18 @@ from awslabs.aws_iot_sitewise_mcp_server.client import create_sitewise_client
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp.tools import Tool
+from pydantic import Field
 from typing import Any, Dict, Optional
 
 
 @tool_metadata(readonly=False)
 def create_gateway(
-    gateway_name: str,
-    gateway_platform: Dict[str, Any],
-    region: str = 'us-east-1',
-    tags: Optional[Dict[str, str]] = None,
+    gateway_name: str = Field(..., description='A unique, friendly name for the gateway'),
+    gateway_platform: Dict[str, Any] = Field(
+        ..., description="The gateway's platform configuration"
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
+    tags: Optional[Dict[str, str]] = Field(None, description='Metadata tags for the gateway'),
 ) -> Dict[str, Any]:
     """Create a gateway in AWS IoT SiteWise.
 
@@ -66,7 +69,10 @@ def create_gateway(
 
 
 @tool_metadata(readonly=True)
-def describe_gateway(gateway_id: str, region: str = 'us-east-1') -> Dict[str, Any]:
+def describe_gateway(
+    gateway_id: str = Field(..., description='The ID of the gateway device'),
+    region: str = Field('us-east-1', description='AWS region'),
+) -> Dict[str, Any]:
     """Retrieve information about a gateway.
 
     Args:
@@ -102,7 +108,11 @@ def describe_gateway(gateway_id: str, region: str = 'us-east-1') -> Dict[str, An
 
 @tool_metadata(readonly=True)
 def list_gateways(
-    region: str = 'us-east-1', next_token: Optional[str] = None, max_results: int = 50
+    region: str = Field('us-east-1', description='AWS region'),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(50, description='The maximum number of results to return (1-250)'),
 ) -> Dict[str, Any]:
     """Retrieve a paginated list of gateways.
 
@@ -141,7 +151,9 @@ def list_gateways(
 
 @tool_metadata(readonly=False)
 def update_gateway(
-    gateway_id: str, gateway_name: str, region: str = 'us-east-1'
+    gateway_id: str = Field(..., description='The ID of the gateway to update'),
+    gateway_name: str = Field(..., description='A unique, friendly name for the gateway'),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Update a gateway's name.
 
@@ -169,7 +181,10 @@ def update_gateway(
 
 
 @tool_metadata(readonly=False)
-def delete_gateway(gateway_id: str, region: str = 'us-east-1') -> Dict[str, Any]:
+def delete_gateway(
+    gateway_id: str = Field(..., description='The ID of the gateway to delete'),
+    region: str = Field('us-east-1', description='AWS region'),
+) -> Dict[str, Any]:
     """Delete a gateway.
 
     Args:
@@ -195,7 +210,13 @@ def delete_gateway(gateway_id: str, region: str = 'us-east-1') -> Dict[str, Any]
 
 @tool_metadata(readonly=True)
 def describe_gateway_capability_configuration(
-    gateway_id: str, capability_namespace: str, region: str = 'us-east-1'
+    gateway_id: str = Field(
+        ..., description='The ID of the gateway that defines the capability configuration'
+    ),
+    capability_namespace: str = Field(
+        ..., description='The namespace of the capability configuration'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Retrieve information about a gateway capability configuration.
 
@@ -233,10 +254,15 @@ def describe_gateway_capability_configuration(
 
 @tool_metadata(readonly=False)
 def update_gateway_capability_configuration(
-    gateway_id: str,
-    capability_namespace: str,
-    capability_configuration: str,
-    region: str = 'us-east-1',
+    gateway_id: str = Field(..., description='The ID of the gateway to be updated'),
+    capability_namespace: str = Field(
+        ..., description='The namespace of the gateway capability configuration to be updated'
+    ),
+    capability_configuration: str = Field(
+        ...,
+        description='The JSON document that defines the configuration for the gateway capability',
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Update a gateway capability configuration.
 
@@ -276,12 +302,18 @@ def update_gateway_capability_configuration(
 
 @tool_metadata(readonly=True)
 def list_time_series(
-    region: str = 'us-east-1',
-    next_token: Optional[str] = None,
-    max_results: int = 50,
-    asset_id: Optional[str] = None,
-    alias_prefix: Optional[str] = None,
-    time_series_type: Optional[str] = None,
+    region: str = Field('us-east-1', description='AWS region'),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(50, description='The maximum number of results to return (1-250)'),
+    asset_id: Optional[str] = Field(
+        None, description='The ID of the asset in which the asset property was created'
+    ),
+    alias_prefix: Optional[str] = Field(None, description='The alias prefix of the time series'),
+    time_series_type: Optional[str] = Field(
+        None, description='The type of the time series (ASSOCIATED, DISASSOCIATED)'
+    ),
 ) -> Dict[str, Any]:
     """Retrieve a paginated list of time series (data streams).
 
@@ -336,10 +368,12 @@ def list_time_series(
 
 @tool_metadata(readonly=True)
 def describe_time_series(
-    alias: Optional[str] = None,
-    asset_id: Optional[str] = None,
-    property_id: Optional[str] = None,
-    region: str = 'us-east-1',
+    alias: Optional[str] = Field(None, description='The alias that identifies the time series'),
+    asset_id: Optional[str] = Field(
+        None, description='The ID of the asset in which the asset property was created'
+    ),
+    property_id: Optional[str] = Field(None, description='The ID of the asset property'),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Retrieve information about a time series (data stream).
 
@@ -388,11 +422,15 @@ def describe_time_series(
 
 @tool_metadata(readonly=False)
 def associate_time_series_to_asset_property(
-    alias: str,
-    asset_id: str,
-    property_id: str,
-    region: str = 'us-east-1',
-    client_token: Optional[str] = None,
+    alias: str = Field(..., description='The alias that identifies the time series'),
+    asset_id: str = Field(
+        ..., description='The ID of the asset in which the asset property was created'
+    ),
+    property_id: str = Field(..., description='The ID of the asset property'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
 ) -> Dict[str, Any]:
     """Associate a time series (data stream) with an asset property.
 
@@ -431,11 +469,15 @@ def associate_time_series_to_asset_property(
 
 @tool_metadata(readonly=False)
 def disassociate_time_series_from_asset_property(
-    alias: str,
-    asset_id: str,
-    property_id: str,
-    region: str = 'us-east-1',
-    client_token: Optional[str] = None,
+    alias: str = Field(..., description='The alias that identifies the time series'),
+    asset_id: str = Field(
+        ..., description='The ID of the asset in which the asset property was created'
+    ),
+    property_id: str = Field(..., description='The ID of the asset property'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
 ) -> Dict[str, Any]:
     """Disassociate a time series (data stream) from an asset property.
 
@@ -474,11 +516,15 @@ def disassociate_time_series_from_asset_property(
 
 @tool_metadata(readonly=False)
 def delete_time_series(
-    alias: Optional[str] = None,
-    asset_id: Optional[str] = None,
-    property_id: Optional[str] = None,
-    region: str = 'us-east-1',
-    client_token: Optional[str] = None,
+    alias: Optional[str] = Field(None, description='The alias that identifies the time series'),
+    asset_id: Optional[str] = Field(
+        None, description='The ID of the asset in which the asset property was created'
+    ),
+    property_id: Optional[str] = Field(None, description='The ID of the asset property'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
 ) -> Dict[str, Any]:
     """Delete a time series (data stream).
 

@@ -27,19 +27,24 @@ from awslabs.aws_iot_sitewise_mcp_server.validation import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp.tools import Tool
+from pydantic import Field
 from typing import Any, Dict, Optional
 
 
 @tool_metadata(readonly=False)
 def create_asset(
-    asset_name: str,
-    asset_model_id: str,
-    region: str = 'us-east-1',
-    client_token: Optional[str] = None,
-    tags: Optional[Dict[str, str]] = None,
-    asset_description: Optional[str] = None,
-    asset_id: Optional[str] = None,
-    asset_external_id: Optional[str] = None,
+    asset_name: str = Field(..., description='A friendly name for the asset'),
+    asset_model_id: str = Field(
+        ..., description='The ID of the asset model from which to create the asset'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
+    tags: Optional[Dict[str, str]] = Field(None, description='Metadata tags for the asset'),
+    asset_description: Optional[str] = Field(None, description='A description for the asset'),
+    asset_id: Optional[str] = Field(None, description='The ID of the asset'),
+    asset_external_id: Optional[str] = Field(None, description='An external ID for the asset'),
 ) -> Dict[str, Any]:
     """Create a new asset in AWS IoT SiteWise.
 
@@ -122,7 +127,11 @@ def create_asset(
 
 @tool_metadata(readonly=True)
 def describe_asset(
-    asset_id: str, region: str = 'us-east-1', exclude_properties: bool = False
+    asset_id: str = Field(..., description='The ID of the asset'),
+    region: str = Field('us-east-1', description='AWS region'),
+    exclude_properties: bool = Field(
+        False, description='Whether to exclude asset properties from the response'
+    ),
 ) -> Dict[str, Any]:
     """Retrieve information about an asset.
 
@@ -170,11 +179,15 @@ def describe_asset(
 
 @tool_metadata(readonly=True)
 def list_assets(
-    region: str = 'us-east-1',
-    next_token: Optional[str] = None,
-    max_results: int = 50,
-    asset_model_id: Optional[str] = None,
-    filter_type: Optional[str] = None,
+    region: str = Field('us-east-1', description='AWS region'),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(50, description='The maximum number of results to return (1-250)'),
+    asset_model_id: Optional[str] = Field(
+        None, description='The ID of the asset model by which to filter the list of assets'
+    ),
+    filter_type: Optional[str] = Field(None, description='Filter assets by ALL or TOP_LEVEL'),
 ) -> Dict[str, Any]:
     """Retrieve a paginated list of asset summaries.
 
@@ -237,12 +250,16 @@ def list_assets(
 
 @tool_metadata(readonly=False)
 def update_asset(
-    asset_id: str,
-    asset_name: str,
-    region: str = 'us-east-1',
-    client_token: Optional[str] = None,
-    asset_description: Optional[str] = None,
-    asset_external_id: Optional[str] = None,
+    asset_id: str = Field(..., description='The ID of the asset to update'),
+    asset_name: str = Field(..., description='A friendly name for the asset'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
+    asset_description: Optional[str] = Field(None, description='A description for the asset'),
+    asset_external_id: Optional[str] = Field(
+        None, description='An external ID to assign to the asset'
+    ),
 ) -> Dict[str, Any]:
     """Update an asset's name, description, and external ID.
 
@@ -282,7 +299,11 @@ def update_asset(
 
 @tool_metadata(readonly=False)
 def delete_asset(
-    asset_id: str, region: str = 'us-east-1', client_token: Optional[str] = None
+    asset_id: str = Field(..., description='The ID of the asset to delete'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
 ) -> Dict[str, Any]:
     """Delete an asset.
 
@@ -314,11 +335,16 @@ def delete_asset(
 
 @tool_metadata(readonly=False)
 def associate_assets(
-    asset_id: str,
-    hierarchy_id: str,
-    child_asset_id: str,
-    region: str = 'us-east-1',
-    client_token: Optional[str] = None,
+    asset_id: str = Field(..., description='The ID of the parent asset'),
+    hierarchy_id: str = Field(
+        ...,
+        description='The ID of the hierarchy by which the child asset is associated to the parent',
+    ),
+    child_asset_id: str = Field(..., description='The ID of the child asset to be associated'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
 ) -> Dict[str, Any]:
     """Associate a child asset with the given parent asset through a hierarchy.
 
@@ -357,11 +383,15 @@ def associate_assets(
 
 @tool_metadata(readonly=False)
 def disassociate_assets(
-    asset_id: str,
-    hierarchy_id: str,
-    child_asset_id: str,
-    region: str = 'us-east-1',
-    client_token: Optional[str] = None,
+    asset_id: str = Field(..., description='The ID of the parent asset'),
+    hierarchy_id: str = Field(
+        ..., description="The ID of a hierarchy in the parent asset's model"
+    ),
+    child_asset_id: str = Field(..., description='The ID of the child asset to be disassociated'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
 ) -> Dict[str, Any]:
     """Disassociate a child asset from the given parent asset through a hierarchy.
 
@@ -400,12 +430,18 @@ def disassociate_assets(
 
 @tool_metadata(readonly=True)
 def list_associated_assets(
-    asset_id: str,
-    region: str = 'us-east-1',
-    hierarchy_id: Optional[str] = None,
-    traversal_direction: str = 'PARENT',
-    next_token: Optional[str] = None,
-    max_results: int = 50,
+    asset_id: str = Field(..., description='The ID of the asset to query'),
+    region: str = Field('us-east-1', description='AWS region'),
+    hierarchy_id: Optional[str] = Field(
+        None, description='The ID of the hierarchy by which child assets are associated'
+    ),
+    traversal_direction: str = Field(
+        'PARENT', description='The direction to list associated assets (PARENT, CHILD)'
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(50, description='The maximum number of results to return (1-250)'),
 ) -> Dict[str, Any]:
     """Retrieve a paginated list of associated assets.
 

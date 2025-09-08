@@ -59,7 +59,14 @@ class TestSiteWiseAssets:
 
         # Call the function
         result = create_asset(
-            asset_name='Test Asset', asset_model_id='test-model-456', region='us-east-1'
+            asset_name='Test Asset',
+            asset_model_id='test-model-456',
+            region='us-east-1',
+            client_token=None,
+            tags=None,
+            asset_description=None,
+            asset_id=None,
+            asset_external_id=None,
         )
 
         # Verify the result
@@ -96,6 +103,11 @@ class TestSiteWiseAssets:
             asset_name='Test Asset',
             asset_model_id='nonexistent-model',
             region='us-east-1',
+            client_token=None,
+            tags=None,
+            asset_description=None,
+            asset_id=None,
+            asset_external_id=None,
         )
 
         # Verify the result
@@ -164,7 +176,11 @@ class TestSiteWiseAssets:
         mock_client.describe_asset.return_value = mock_response
 
         # Call the function
-        result = describe_asset(asset_id='test-asset-123', region='us-east-1')
+        result = describe_asset(
+            asset_id='test-asset-123',
+            region='us-east-1',
+            exclude_properties=False,
+        )
 
         # Verify the result
         assert result['success'] is True
@@ -187,7 +203,13 @@ class TestSiteWiseAssets:
         }
         mock_client.list_assets.return_value = mock_response
 
-        result = list_assets(region='us-east-1', max_results=10)
+        result = list_assets(
+            region='us-east-1',
+            next_token=None,
+            max_results=10,
+            asset_model_id=None,
+            filter_type=None,
+        )
 
         assert result['success'] is True
         assert len(result['asset_summaries']) == 2
@@ -203,7 +225,12 @@ class TestSiteWiseAssets:
         mock_client.update_asset.return_value = mock_response
 
         result = update_asset(
-            asset_id='test-asset-123', asset_name='Updated Asset', region='us-east-1'
+            asset_id='test-asset-123',
+            asset_name='Updated Asset',
+            region='us-east-1',
+            client_token=None,
+            asset_description=None,
+            asset_external_id=None,
         )
 
         assert result['success'] is True
@@ -218,7 +245,11 @@ class TestSiteWiseAssets:
         mock_response = {'assetStatus': {'state': 'DELETING'}}
         mock_client.delete_asset.return_value = mock_response
 
-        result = delete_asset(asset_id='test-asset-123', region='us-east-1')
+        result = delete_asset(
+            asset_id='test-asset-123',
+            region='us-east-1',
+            client_token=None,
+        )
 
         assert result['success'] is True
         assert result['asset_status']['state'] == 'DELETING'
@@ -234,6 +265,7 @@ class TestSiteWiseAssets:
             hierarchy_id='hierarchy-456',
             child_asset_id='child-asset-789',
             region='us-east-1',
+            client_token=None,
         )
 
         assert result['success'] is True
@@ -250,6 +282,7 @@ class TestSiteWiseAssets:
             hierarchy_id='hierarchy-456',
             child_asset_id='child-asset-789',
             region='us-east-1',
+            client_token=None,
         )
 
         assert result['success'] is True
@@ -267,7 +300,14 @@ class TestSiteWiseAssets:
         }
         mock_client.list_associated_assets.return_value = mock_response
 
-        result = list_associated_assets(asset_id='parent-asset-123', region='us-east-1')
+        result = list_associated_assets(
+            asset_id='parent-asset-123',
+            region='us-east-1',
+            hierarchy_id=None,
+            traversal_direction='PARENT',
+            next_token=None,
+            max_results=50,
+        )
 
         assert result['success'] is True
         assert len(result['asset_summaries']) == 2
@@ -293,7 +333,14 @@ class TestSiteWiseAssets:
 
             # Call the function
             result = create_asset(
-                asset_name='Test Asset', asset_model_id='test-model', region='us-east-1'
+                asset_name='Test Asset',
+                asset_model_id='test-model',
+                region='us-east-1',
+                client_token=None,
+                tags=None,
+                asset_description=None,
+                asset_id=None,
+                asset_external_id=None,
             )
 
             # Verify error handling
@@ -307,7 +354,12 @@ class TestSiteWiseAssets:
         result = create_asset(
             asset_name='Test Asset',
             asset_model_id='test-model-456',
+            region='us-east-1',
+            client_token=None,
+            tags=None,
             asset_description='x' * 2049,  # Exceeds 2048 character limit
+            asset_id=None,
+            asset_external_id=None,
         )
         assert result['success'] is False
         assert 'Asset description cannot exceed 2048 characters' in result['error']
@@ -316,7 +368,12 @@ class TestSiteWiseAssets:
         result = create_asset(
             asset_name='Test Asset',
             asset_model_id='test-model-456',
+            region='us-east-1',
             client_token='x' * 65,  # Exceeds 64 character limit
+            tags=None,
+            asset_description=None,
+            asset_id=None,
+            asset_external_id=None,
         )
         assert result['success'] is False
         assert 'Client token cannot exceed 64 characters' in result['error']
@@ -327,7 +384,12 @@ class TestSiteWiseAssets:
         result = create_asset(
             asset_name='Test Asset',
             asset_model_id='test-model-456',
+            region='us-east-1',
+            client_token=None,
             tags=too_many_tags,
+            asset_description=None,
+            asset_id=None,
+            asset_external_id=None,
         )
         assert result['success'] is False
         assert 'Cannot have more than 50 tags per asset' in result['error']
@@ -352,7 +414,9 @@ class TestSiteWiseAssets:
         mock_client.describe_asset.return_value = mock_response
 
         result = describe_asset(
-            asset_id='test-asset-123', region='us-east-1', exclude_properties=True
+            asset_id='test-asset-123',
+            region='us-east-1',
+            exclude_properties=True,
         )
 
         assert result['success'] is True
@@ -363,13 +427,25 @@ class TestSiteWiseAssets:
     def test_list_assets_validation_errors(self):
         """Test list assets validation error cases."""
         # Test invalid filter type
-        result = list_assets(filter_type='INVALID_FILTER')
+        result = list_assets(
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_id=None,
+            filter_type='INVALID_FILTER',
+        )
         assert result['success'] is False
         assert "Filter type must be 'ALL' or 'TOP_LEVEL'" in result['error']
 
         # Test next token too long
         # Exceeds 4096 character limit
-        result = list_assets(next_token='x' * 4097)
+        result = list_assets(
+            region='us-east-1',
+            next_token='x' * 4097,
+            max_results=50,
+            asset_model_id=None,
+            filter_type=None,
+        )
         assert result['success'] is False
         assert 'Next token too long' in result['error']
 
@@ -535,31 +611,58 @@ class TestSiteWiseAssets:
 
         # Test describe_asset error handling
         mock_client.describe_asset.side_effect = ClientError(error_response, 'DescribeAsset')
-        result = describe_asset(asset_id='test-123')
+        result = describe_asset(
+            asset_id='test-123',
+            region='us-east-1',
+            exclude_properties=False,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
         # Test list_assets error handling
         mock_client.list_assets.side_effect = ClientError(error_response, 'ListAssets')
-        result = list_assets()
+        result = list_assets(
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_id=None,
+            filter_type=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
         # Test update_asset error handling
         mock_client.update_asset.side_effect = ClientError(error_response, 'UpdateAsset')
-        result = update_asset(asset_id='test-123', asset_name='Updated')
+        result = update_asset(
+            asset_id='test-123',
+            asset_name='Updated',
+            region='us-east-1',
+            client_token=None,
+            asset_description=None,
+            asset_external_id=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
         # Test delete_asset error handling
         mock_client.delete_asset.side_effect = ClientError(error_response, 'DeleteAsset')
-        result = delete_asset(asset_id='test-123')
+        result = delete_asset(
+            asset_id='test-123',
+            region='us-east-1',
+            client_token=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
         # Test associate_assets error handling
         mock_client.associate_assets.side_effect = ClientError(error_response, 'AssociateAssets')
-        result = associate_assets('parent', 'hier', 'child')
+        result = associate_assets(
+            asset_id='parent',
+            hierarchy_id='hier',
+            child_asset_id='child',
+            region='us-east-1',
+            client_token=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -567,7 +670,13 @@ class TestSiteWiseAssets:
         mock_client.disassociate_assets.side_effect = ClientError(
             error_response, 'DisassociateAssets'
         )
-        result = disassociate_assets('parent', 'hier', 'child')
+        result = disassociate_assets(
+            asset_id='parent',
+            hierarchy_id='hier',
+            child_asset_id='child',
+            region='us-east-1',
+            client_token=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -575,7 +684,14 @@ class TestSiteWiseAssets:
         mock_client.list_associated_assets.side_effect = ClientError(
             error_response, 'ListAssociatedAssets'
         )
-        result = list_associated_assets(asset_id='test-123')
+        result = list_associated_assets(
+            asset_id='test-123',
+            region='us-east-1',
+            hierarchy_id=None,
+            traversal_direction='PARENT',
+            next_token=None,
+            max_results=50,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 

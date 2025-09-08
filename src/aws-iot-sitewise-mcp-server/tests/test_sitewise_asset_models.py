@@ -59,7 +59,19 @@ class TestSiteWiseAssetModels:
         mock_client.create_asset_model.return_value = mock_response
 
         # Call the function
-        result = create_asset_model(asset_model_name='Test Model', region='us-east-1')
+        result = create_asset_model(
+            asset_model_name='Test Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
+            tags=None,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
+        )
 
         # Verify the result
         assert result['success'] is True
@@ -97,7 +109,12 @@ class TestSiteWiseAssetModels:
         mock_response['assetModelLastUpdateDate'].isoformat.return_value = '2023-01-01T00:00:00Z'
         mock_client.describe_asset_model.return_value = mock_response
 
-        result = describe_asset_model(asset_model_id='test-model-123', region='us-east-1')
+        result = describe_asset_model(
+            asset_model_id='test-model-123',
+            region='us-east-1',
+            exclude_properties=False,
+            asset_model_version='LATEST',
+        )
 
         assert result['success'] is True
         assert result['asset_model_id'] == 'test-model-123'
@@ -120,7 +137,9 @@ class TestSiteWiseAssetModels:
         }
         mock_client.list_asset_models.return_value = mock_response
 
-        result = list_asset_models(region='us-east-1')
+        result = list_asset_models(
+            region='us-east-1', next_token=None, max_results=50, asset_model_types=None
+        )
 
         assert result['success'] is True
         assert len(result['asset_model_summaries']) == 2
@@ -140,6 +159,12 @@ class TestSiteWiseAssetModels:
             asset_model_id='test-model-123',
             asset_model_name='Updated Model',
             region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
+            asset_model_external_id=None,
         )
 
         assert result['success'] is True
@@ -156,7 +181,9 @@ class TestSiteWiseAssetModels:
         mock_response = {'assetModelStatus': {'state': 'DELETING'}}
         mock_client.delete_asset_model.return_value = mock_response
 
-        result = delete_asset_model(asset_model_id='test-model-123', region='us-east-1')
+        result = delete_asset_model(
+            asset_model_id='test-model-123', region='us-east-1', client_token=None
+        )
 
         assert result['success'] is True
         assert result['asset_model_status']['state'] == 'DELETING'
@@ -178,7 +205,14 @@ class TestSiteWiseAssetModels:
         }
         mock_client.list_asset_model_properties.return_value = mock_response
 
-        result = list_asset_model_properties(asset_model_id='test-model-123', region='us-east-1')
+        result = list_asset_model_properties(
+            asset_model_id='test-model-123',
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_version='LATEST',
+            filter_type=None,
+        )
 
         assert result['success'] is True
         assert len(result['asset_model_property_summaries']) == 2
@@ -203,6 +237,13 @@ class TestSiteWiseAssetModels:
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='AWS/ALARM',
             region='us-east-1',
+            asset_model_composite_model_description=None,
+            asset_model_composite_model_properties=None,
+            client_token=None,
+            asset_model_composite_model_id=None,
+            asset_model_composite_model_external_id=None,
+            parent_asset_model_composite_model_id=None,
+            composed_asset_model_id=None,
         )
 
         assert result['success'] is True
@@ -230,6 +271,14 @@ class TestSiteWiseAssetModels:
             asset_model_name='Test Model',
             region='us-east-1',
             asset_model_description='a' * 2049,  # Exceeds limit
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
+            tags=None,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
         )
         assert result['success'] is False
         assert result['error_code'] == 'ValidationException'
@@ -238,7 +287,15 @@ class TestSiteWiseAssetModels:
         result = create_asset_model(
             asset_model_name='Test Model',
             region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
             tags={f'key{i}': f'value{i}' for i in range(51)},  # Exceeds limit
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
         )
         assert result['success'] is False
         assert result['error_code'] == 'ValidationException'
@@ -258,7 +315,19 @@ class TestSiteWiseAssetModels:
             error_response, 'CreateAssetModel'
         )
 
-        result = create_asset_model(asset_model_name='Test Model', region='us-east-1')
+        result = create_asset_model(
+            asset_model_name='Test Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
+            tags=None,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
+        )
 
         assert result['success'] is False
         assert result['error_code'] == 'ConflictException'
@@ -268,7 +337,16 @@ class TestSiteWiseAssetModels:
         # Test asset model description too long
         result = create_asset_model(
             asset_model_name='Test Model',
+            region='us-east-1',
             asset_model_description='x' * 2049,  # Exceeds 2048 character limit
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
+            tags=None,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
         )
         assert result['success'] is False
         assert 'Asset model description cannot exceed 2048 characters' in result['error']
@@ -276,7 +354,16 @@ class TestSiteWiseAssetModels:
         # Test client token too long
         result = create_asset_model(
             asset_model_name='Test Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
             client_token='x' * 65,  # Exceeds 64 character limit
+            tags=None,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
         )
         assert result['success'] is False
         assert 'Client token cannot exceed 64 characters' in result['error']
@@ -286,7 +373,16 @@ class TestSiteWiseAssetModels:
         too_many_tags = {f'key{i}': f'value{i}' for i in range(51)}
         result = create_asset_model(
             asset_model_name='Test Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
             tags=too_many_tags,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
         )
         assert result['success'] is False
         assert 'Cannot have more than 50 tags per asset model' in result['error']
@@ -295,7 +391,16 @@ class TestSiteWiseAssetModels:
         too_many_hierarchies = [{'name': f'hierarchy{i}'} for i in range(11)]  # Exceeds 10 limit
         result = create_asset_model(
             asset_model_name='Test Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
             asset_model_hierarchies=too_many_hierarchies,
+            asset_model_composite_models=None,
+            client_token=None,
+            tags=None,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
         )
         assert result['success'] is False
         assert 'Cannot have more than 10 hierarchies per asset model' in result['error']
@@ -304,7 +409,16 @@ class TestSiteWiseAssetModels:
         too_many_composite = [{'name': f'composite{i}'} for i in range(11)]  # Exceeds 10 limit
         result = create_asset_model(
             asset_model_name='Test Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
             asset_model_composite_models=too_many_composite,
+            client_token=None,
+            tags=None,
+            asset_model_id=None,
+            asset_model_external_id=None,
+            asset_model_type='ASSET_MODEL',
         )
         assert result['success'] is False
         assert 'Cannot have more than 10 composite models per asset model' in result['error']
@@ -361,7 +475,10 @@ class TestSiteWiseAssetModels:
         """Test describe asset model validation error cases."""
         # Test invalid asset model version
         result = describe_asset_model(
-            asset_model_id='test-model-123', asset_model_version='INVALID_VERSION'
+            asset_model_id='test-model-123',
+            region='us-east-1',
+            exclude_properties=False,
+            asset_model_version='INVALID_VERSION',
         )
         assert result['success'] is False
         assert "Asset model version must be 'LATEST' or 'ACTIVE'" in result['error']
@@ -412,12 +529,22 @@ class TestSiteWiseAssetModels:
         """Test list asset models validation error cases."""
         # Test next token too long
         # Exceeds 4096 character limit
-        result = list_asset_models(next_token='x' * 4097)
+        result = list_asset_models(
+            region='us-east-1',
+            next_token='x' * 4097,
+            max_results=50,
+            asset_model_types=None,
+        )
         assert result['success'] is False
         assert 'Next token too long' in result['error']
 
         # Test invalid asset model type
-        result = list_asset_models(asset_model_types=['INVALID_TYPE'])
+        result = list_asset_models(
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_types=['INVALID_TYPE'],
+        )
         assert result['success'] is False
         assert "Asset model type must be 'ASSET_MODEL' or 'COMPONENT_MODEL'" in result['error']
 
@@ -455,7 +582,13 @@ class TestSiteWiseAssetModels:
         result = update_asset_model(
             asset_model_id='test-model-123',
             asset_model_name='Updated Model',
+            region='us-east-1',
             asset_model_description='x' * 2049,  # Exceeds 2048 character limit
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
+            asset_model_external_id=None,
         )
         assert result['success'] is False
         assert 'Asset model description cannot exceed 2048 characters' in result['error']
@@ -464,7 +597,13 @@ class TestSiteWiseAssetModels:
         result = update_asset_model(
             asset_model_id='test-model-123',
             asset_model_name='Updated Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
             client_token='x' * 65,  # Exceeds 64 character limit
+            asset_model_external_id=None,
         )
         assert result['success'] is False
         assert 'Client token cannot exceed 64 characters' in result['error']
@@ -474,7 +613,13 @@ class TestSiteWiseAssetModels:
         result = update_asset_model(
             asset_model_id='test-model-123',
             asset_model_name='Updated Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
             asset_model_hierarchies=too_many_hierarchies,
+            asset_model_composite_models=None,
+            client_token=None,
+            asset_model_external_id=None,
         )
         assert result['success'] is False
         assert 'Cannot have more than 10 hierarchies per asset model' in result['error']
@@ -484,7 +629,13 @@ class TestSiteWiseAssetModels:
         result = update_asset_model(
             asset_model_id='test-model-123',
             asset_model_name='Updated Model',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
             asset_model_composite_models=too_many_composite,
+            client_token=None,
+            asset_model_external_id=None,
         )
         assert result['success'] is False
         assert 'Cannot have more than 10 composite models per asset model' in result['error']
@@ -534,6 +685,7 @@ class TestSiteWiseAssetModels:
         # Test client token too long
         result = delete_asset_model(
             asset_model_id='test-model-123',
+            region='us-east-1',
             client_token='x' * 65,  # Exceeds 64 character limit
         )
         assert result['success'] is False
@@ -565,23 +717,36 @@ class TestSiteWiseAssetModels:
         """Test list asset model properties validation error cases."""
         # Test next token too long
         result = list_asset_model_properties(
-            # Exceeds 4096 character limit
             asset_model_id='test-model-123',
-            next_token='x' * 4097,
+            region='us-east-1',
+            next_token='x' * 4097,  # Exceeds 4096 character limit
+            max_results=50,
+            asset_model_version='LATEST',
+            filter_type=None,
         )
         assert result['success'] is False
         assert 'Next token too long' in result['error']
 
         # Test invalid asset model version
         result = list_asset_model_properties(
-            asset_model_id='test-model-123', asset_model_version='INVALID_VERSION'
+            asset_model_id='test-model-123',
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_version='INVALID_VERSION',
+            filter_type=None,
         )
         assert result['success'] is False
         assert "Asset model version must be 'LATEST' or 'ACTIVE'" in result['error']
 
         # Test invalid filter type
         result = list_asset_model_properties(
-            asset_model_id='test-model-123', filter_type='INVALID_FILTER'
+            asset_model_id='test-model-123',
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_version='LATEST',
+            filter_type='INVALID_FILTER',
         )
         assert result['success'] is False
         assert "Filter type must be 'ALL' or 'BASE'" in result['error']
@@ -625,7 +790,14 @@ class TestSiteWiseAssetModels:
             asset_model_id='test-model-123',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
+            region='us-east-1',
             asset_model_composite_model_description='x' * 2049,  # Exceeds 2048 character limit
+            asset_model_composite_model_properties=None,
+            client_token=None,
+            asset_model_composite_model_id=None,
+            asset_model_composite_model_external_id=None,
+            parent_asset_model_composite_model_id=None,
+            composed_asset_model_id=None,
         )
         assert result['success'] is False
         assert 'Composite model description cannot exceed 2048 characters' in result['error']
@@ -635,7 +807,14 @@ class TestSiteWiseAssetModels:
             asset_model_id='test-model-123',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
+            region='us-east-1',
+            asset_model_composite_model_description=None,
+            asset_model_composite_model_properties=None,
             client_token='x' * 65,  # Exceeds 64 character limit
+            asset_model_composite_model_id=None,
+            asset_model_composite_model_external_id=None,
+            parent_asset_model_composite_model_id=None,
+            composed_asset_model_id=None,
         )
         assert result['success'] is False
         assert 'Client token cannot exceed 64 characters' in result['error']
@@ -646,7 +825,14 @@ class TestSiteWiseAssetModels:
             asset_model_id='test-model-123',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
+            region='us-east-1',
+            asset_model_composite_model_description=None,
             asset_model_composite_model_properties=too_many_properties,
+            client_token=None,
+            asset_model_composite_model_id=None,
+            asset_model_composite_model_external_id=None,
+            parent_asset_model_composite_model_id=None,
+            composed_asset_model_id=None,
         )
         assert result['success'] is False
         assert 'Cannot have more than 200 properties per composite model' in result['error']
@@ -713,13 +899,23 @@ class TestSiteWiseAssetModels:
         mock_client.describe_asset_model.side_effect = ClientError(
             error_response, 'DescribeAssetModel'
         )
-        result = describe_asset_model(asset_model_id='test-123')
+        result = describe_asset_model(
+            asset_model_id='test-123',
+            region='us-east-1',
+            exclude_properties=False,
+            asset_model_version='LATEST',
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
         # Test list_asset_models error handling
         mock_client.list_asset_models.side_effect = ClientError(error_response, 'ListAssetModels')
-        result = list_asset_models()
+        result = list_asset_models(
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_types=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -727,7 +923,17 @@ class TestSiteWiseAssetModels:
         mock_client.update_asset_model.side_effect = ClientError(
             error_response, 'UpdateAssetModel'
         )
-        result = update_asset_model(asset_model_id='test-123', asset_model_name='Updated')
+        result = update_asset_model(
+            asset_model_id='test-123',
+            asset_model_name='Updated',
+            region='us-east-1',
+            asset_model_description=None,
+            asset_model_properties=None,
+            asset_model_hierarchies=None,
+            asset_model_composite_models=None,
+            client_token=None,
+            asset_model_external_id=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -735,7 +941,11 @@ class TestSiteWiseAssetModels:
         mock_client.delete_asset_model.side_effect = ClientError(
             error_response, 'DeleteAssetModel'
         )
-        result = delete_asset_model(asset_model_id='test-123')
+        result = delete_asset_model(
+            asset_model_id='test-123',
+            region='us-east-1',
+            client_token=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -743,7 +953,14 @@ class TestSiteWiseAssetModels:
         mock_client.list_asset_model_properties.side_effect = ClientError(
             error_response, 'ListAssetModelProperties'
         )
-        result = list_asset_model_properties(asset_model_id='test-123')
+        result = list_asset_model_properties(
+            asset_model_id='test-123',
+            region='us-east-1',
+            next_token=None,
+            max_results=50,
+            asset_model_version='LATEST',
+            filter_type=None,
+        )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
 
@@ -755,6 +972,14 @@ class TestSiteWiseAssetModels:
             asset_model_id='test-123',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
+            region='us-east-1',
+            asset_model_composite_model_description=None,
+            asset_model_composite_model_properties=None,
+            client_token=None,
+            asset_model_composite_model_id=None,
+            asset_model_composite_model_external_id=None,
+            parent_asset_model_composite_model_id=None,
+            composed_asset_model_id=None,
         )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'

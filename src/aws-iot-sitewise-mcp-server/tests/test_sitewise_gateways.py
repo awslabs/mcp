@@ -337,6 +337,7 @@ class TestSiteWiseGateways:
             gateway_name='Test Gateway',
             gateway_platform=gateway_platform,
             region='us-east-1',
+            tags=None,
         )
 
         assert result['success'] is True

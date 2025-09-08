@@ -26,22 +26,39 @@ from awslabs.aws_iot_sitewise_mcp_server.validation import (
 )
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp.tools import Tool
+from pydantic import Field
 from typing import Any, Dict, List, Optional
 
 
 @tool_metadata(readonly=False)
 def create_asset_model(
-    asset_model_name: str,
-    region: str = 'us-east-1',
-    asset_model_description: Optional[str] = None,
-    asset_model_properties: Optional[List[Dict]] = None,
-    asset_model_hierarchies: Optional[List[Dict]] = None,
-    asset_model_composite_models: Optional[List[Dict]] = None,
-    client_token: Optional[str] = None,
-    tags: Optional[Dict[str, str]] = None,
-    asset_model_id: Optional[str] = None,
-    asset_model_external_id: Optional[str] = None,
-    asset_model_type: str = 'ASSET_MODEL',
+    asset_model_name: str = Field(..., description='A unique, friendly name for the asset model'),
+    region: str = Field('us-east-1', description='AWS region'),
+    asset_model_description: Optional[str] = Field(
+        None, description='A description for the asset model'
+    ),
+    asset_model_properties: Optional[List[Dict]] = Field(
+        None, description='List of asset model properties'
+    ),
+    asset_model_hierarchies: Optional[List[Dict]] = Field(
+        None, description='List of asset model hierarchies'
+    ),
+    asset_model_composite_models: Optional[List[Dict]] = Field(
+        None, description='List of composite models'
+    ),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
+    tags: Optional[Dict[str, str]] = Field(None, description='Metadata tags for the asset model'),
+    asset_model_id: Optional[str] = Field(
+        None, description='The ID of the asset model (for update operations)'
+    ),
+    asset_model_external_id: Optional[str] = Field(
+        None, description='An external ID for the asset model'
+    ),
+    asset_model_type: str = Field(
+        'ASSET_MODEL', description='The type of asset model (ASSET_MODEL or COMPONENT_MODEL)'
+    ),
 ) -> Dict[str, Any]:
     """Create an asset model in AWS IoT SiteWise.
 
@@ -141,10 +158,14 @@ def create_asset_model(
 
 @tool_metadata(readonly=True)
 def describe_asset_model(
-    asset_model_id: str,
-    region: str = 'us-east-1',
-    exclude_properties: bool = False,
-    asset_model_version: str = 'LATEST',
+    asset_model_id: str = Field(..., description='The ID of the asset model'),
+    region: str = Field('us-east-1', description='AWS region'),
+    exclude_properties: bool = Field(
+        False, description='Whether to exclude asset model properties'
+    ),
+    asset_model_version: str = Field(
+        'LATEST', description='The version of the asset model (LATEST, ACTIVE)'
+    ),
 ) -> Dict[str, Any]:
     """Retrieve information about an asset model.
 
@@ -211,10 +232,14 @@ def describe_asset_model(
 
 @tool_metadata(readonly=True)
 def list_asset_models(
-    region: str = 'us-east-1',
-    next_token: Optional[str] = None,
-    max_results: int = 50,
-    asset_model_types: Optional[List[str]] = None,
+    region: str = Field('us-east-1', description='AWS region'),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(50, description='The maximum number of results to return (1-250)'),
+    asset_model_types: Optional[List[str]] = Field(
+        None, description='The type of asset model (ASSET_MODEL, COMPONENT_MODEL)'
+    ),
 ) -> Dict[str, Any]:
     """Retrieve a paginated list of summaries for all asset models.
 
@@ -275,15 +300,27 @@ def list_asset_models(
 
 @tool_metadata(readonly=False)
 def update_asset_model(
-    asset_model_id: str,
-    asset_model_name: str,
-    region: str = 'us-east-1',
-    asset_model_description: Optional[str] = None,
-    asset_model_properties: Optional[List[Dict]] = None,
-    asset_model_hierarchies: Optional[List[Dict]] = None,
-    asset_model_composite_models: Optional[List[Dict]] = None,
-    client_token: Optional[str] = None,
-    asset_model_external_id: Optional[str] = None,
+    asset_model_id: str = Field(..., description='The ID of the asset model to update'),
+    asset_model_name: str = Field(..., description='A unique, friendly name for the asset model'),
+    region: str = Field('us-east-1', description='AWS region'),
+    asset_model_description: Optional[str] = Field(
+        None, description='A description for the asset model'
+    ),
+    asset_model_properties: Optional[List[Dict]] = Field(
+        None, description='List of asset model properties'
+    ),
+    asset_model_hierarchies: Optional[List[Dict]] = Field(
+        None, description='List of asset model hierarchies'
+    ),
+    asset_model_composite_models: Optional[List[Dict]] = Field(
+        None, description='List of composite models'
+    ),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
+    asset_model_external_id: Optional[str] = Field(
+        None, description='An external ID for the asset model'
+    ),
 ) -> Dict[str, Any]:
     """Update an asset model.
 
@@ -362,7 +399,11 @@ def update_asset_model(
 
 @tool_metadata(readonly=False)
 def delete_asset_model(
-    asset_model_id: str, region: str = 'us-east-1', client_token: Optional[str] = None
+    asset_model_id: str = Field(..., description='The ID of the asset model to delete'),
+    region: str = Field('us-east-1', description='AWS region'),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
 ) -> Dict[str, Any]:
     """Delete an asset model.
 
@@ -407,12 +448,16 @@ def delete_asset_model(
 
 @tool_metadata(readonly=True)
 def list_asset_model_properties(
-    asset_model_id: str,
-    region: str = 'us-east-1',
-    next_token: Optional[str] = None,
-    max_results: int = 50,
-    asset_model_version: str = 'LATEST',
-    filter_type: Optional[str] = None,
+    asset_model_id: str = Field(..., description='The ID of the asset model'),
+    region: str = Field('us-east-1', description='AWS region'),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(50, description='The maximum number of results to return (1-250)'),
+    asset_model_version: str = Field(
+        'LATEST', description='The version of the asset model (LATEST, ACTIVE)'
+    ),
+    filter_type: Optional[str] = Field(None, description='Filter properties by type (ALL, BASE)'),
 ) -> Dict[str, Any]:
     """Retrieve a paginated list of properties associated with an asset model.
 
@@ -485,17 +530,37 @@ def list_asset_model_properties(
 
 @tool_metadata(readonly=False)
 def create_asset_model_composite_model(
-    asset_model_id: str,
-    asset_model_composite_model_name: str,
-    asset_model_composite_model_type: str,
-    region: str = 'us-east-1',
-    asset_model_composite_model_description: Optional[str] = None,
-    asset_model_composite_model_properties: Optional[List[Dict]] = None,
-    client_token: Optional[str] = None,
-    asset_model_composite_model_id: Optional[str] = None,
-    asset_model_composite_model_external_id: Optional[str] = None,
-    parent_asset_model_composite_model_id: Optional[str] = None,
-    composed_asset_model_id: Optional[str] = None,
+    asset_model_id: str = Field(
+        ..., description='The ID of the asset model this composite model is a part of'
+    ),
+    asset_model_composite_model_name: str = Field(
+        ..., description='A unique, friendly name for the composite model'
+    ),
+    asset_model_composite_model_type: str = Field(
+        ..., description='The type of the composite model'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
+    asset_model_composite_model_description: Optional[str] = Field(
+        None, description='A description for the composite model'
+    ),
+    asset_model_composite_model_properties: Optional[List[Dict]] = Field(
+        None, description='List of composite model properties'
+    ),
+    client_token: Optional[str] = Field(
+        None, description='A unique case-sensitive identifier for the request'
+    ),
+    asset_model_composite_model_id: Optional[str] = Field(
+        None, description='The ID of the composite model'
+    ),
+    asset_model_composite_model_external_id: Optional[str] = Field(
+        None, description='An external ID for the composite model'
+    ),
+    parent_asset_model_composite_model_id: Optional[str] = Field(
+        None, description='The ID of the parent composite model'
+    ),
+    composed_asset_model_id: Optional[str] = Field(
+        None, description='The ID of the composed asset model'
+    ),
 ) -> Dict[str, Any]:
     """Create a composite model for an existing asset model.
 

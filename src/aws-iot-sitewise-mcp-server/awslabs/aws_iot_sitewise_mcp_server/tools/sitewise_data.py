@@ -20,12 +20,16 @@ from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
 from botocore.exceptions import ClientError
 from datetime import datetime
 from mcp.server.fastmcp.tools import Tool
+from pydantic import Field
 from typing import Any, Dict, List, Optional
 
 
 @tool_metadata(readonly=False)
 def batch_put_asset_property_value(
-    entries: List[Dict[str, Any]], region: str = 'us-east-1'
+    entries: List[Dict[str, Any]] = Field(
+        ..., description='List of asset property value entries to send to AWS IoT SiteWise'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Send a list of asset property values to AWS IoT SiteWise.
 
@@ -53,10 +57,12 @@ def batch_put_asset_property_value(
 
 @tool_metadata(readonly=True)
 def get_asset_property_value(
-    asset_id: Optional[str] = None,
-    property_id: Optional[str] = None,
-    property_alias: Optional[str] = None,
-    region: str = 'us-east-1',
+    asset_id: Optional[str] = Field(None, description='The ID of the asset'),
+    property_id: Optional[str] = Field(None, description='The ID of the asset property'),
+    property_alias: Optional[str] = Field(
+        None, description='The alias that identifies the property'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Get the current value for the given asset property.
 
@@ -100,16 +106,28 @@ def get_asset_property_value(
 
 @tool_metadata(readonly=True)
 def get_asset_property_value_history(
-    asset_id: Optional[str] = None,
-    property_id: Optional[str] = None,
-    property_alias: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    qualities: Optional[List[str]] = None,
-    time_ordering: str = 'ASCENDING',
-    next_token: Optional[str] = None,
-    max_results: int = 100,
-    region: str = 'us-east-1',
+    asset_id: Optional[str] = Field(None, description='The ID of the asset'),
+    property_id: Optional[str] = Field(None, description='The ID of the asset property'),
+    property_alias: Optional[str] = Field(
+        None, description='The alias that identifies the property'
+    ),
+    start_date: Optional[str] = Field(
+        None, description='The exclusive start of the range (ISO 8601 format)'
+    ),
+    end_date: Optional[str] = Field(
+        None, description='The inclusive end of the range (ISO 8601 format)'
+    ),
+    qualities: Optional[List[str]] = Field(
+        None, description='The quality by which to filter asset data (GOOD, BAD, UNCERTAIN)'
+    ),
+    time_ordering: str = Field(
+        'ASCENDING', description='The chronological sorting order (ASCENDING, DESCENDING)'
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(100, description='The maximum number of results to return (1-4000)'),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Get the history of an asset property's values.
 
@@ -170,18 +188,33 @@ def get_asset_property_value_history(
 
 @tool_metadata(readonly=True)
 def get_asset_property_aggregates(
-    asset_id: Optional[str] = None,
-    property_id: Optional[str] = None,
-    property_alias: Optional[str] = None,
-    aggregate_types: Optional[List[str]] = None,
-    resolution: str = '1h',
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    qualities: Optional[List[str]] = None,
-    time_ordering: str = 'ASCENDING',
-    next_token: Optional[str] = None,
-    max_results: int = 100,
-    region: str = 'us-east-1',
+    asset_id: Optional[str] = Field(None, description='The ID of the asset'),
+    property_id: Optional[str] = Field(None, description='The ID of the asset property'),
+    property_alias: Optional[str] = Field(
+        None, description='The alias that identifies the property'
+    ),
+    aggregate_types: Optional[List[str]] = Field(
+        None,
+        description='The data aggregating function (AVERAGE, COUNT, MAXIMUM, MINIMUM, SUM, STANDARD_DEVIATION)',
+    ),
+    resolution: str = Field('1h', description='The time interval over which to aggregate data'),
+    start_date: Optional[str] = Field(
+        None, description='The exclusive start of the range (ISO 8601 format)'
+    ),
+    end_date: Optional[str] = Field(
+        None, description='The inclusive end of the range (ISO 8601 format)'
+    ),
+    qualities: Optional[List[str]] = Field(
+        None, description='The quality by which to filter asset data (GOOD, BAD, UNCERTAIN)'
+    ),
+    time_ordering: str = Field(
+        'ASCENDING', description='The chronological sorting order (ASCENDING, DESCENDING)'
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(100, description='The maximum number of results to return (1-4000)'),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Get aggregated values for an asset property.
 
@@ -250,18 +283,35 @@ def get_asset_property_aggregates(
 
 @tool_metadata(readonly=True)
 def get_interpolated_asset_property_values(
-    asset_id: Optional[str] = None,
-    property_id: Optional[str] = None,
-    property_alias: Optional[str] = None,
-    start_time_in_seconds: Optional[int] = None,
-    end_time_in_seconds: Optional[int] = None,
-    quality: str = 'GOOD',
-    interval_in_seconds: int = 3600,
-    next_token: Optional[str] = None,
-    max_results: int = 100,
-    interpolation_type: str = 'LINEAR_INTERPOLATION',
-    interval_window_in_seconds: Optional[int] = None,
-    region: str = 'us-east-1',
+    asset_id: Optional[str] = Field(None, description='The ID of the asset'),
+    property_id: Optional[str] = Field(None, description='The ID of the asset property'),
+    property_alias: Optional[str] = Field(
+        None, description='The alias that identifies the property'
+    ),
+    start_time_in_seconds: Optional[int] = Field(
+        None, description='The exclusive start of the range (Unix epoch time in seconds)'
+    ),
+    end_time_in_seconds: Optional[int] = Field(
+        None, description='The inclusive end of the range (Unix epoch time in seconds)'
+    ),
+    quality: str = Field(
+        'GOOD', description='The quality of the asset property value (GOOD, BAD, UNCERTAIN)'
+    ),
+    interval_in_seconds: int = Field(
+        3600, description='The time interval in seconds over which to interpolate data'
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(100, description='The maximum number of results to return (1-250)'),
+    interpolation_type: str = Field(
+        'LINEAR_INTERPOLATION',
+        description='The interpolation type (LINEAR_INTERPOLATION, LOCF_INTERPOLATION)',
+    ),
+    interval_window_in_seconds: Optional[int] = Field(
+        None, description='The query interval for interpolated values'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Get interpolated values for an asset property for a specified time interval.
 
@@ -327,9 +377,13 @@ def get_interpolated_asset_property_values(
 
 @tool_metadata(readonly=True)
 def batch_get_asset_property_value(
-    entries: List[Dict[str, Any]],
-    next_token: Optional[str] = None,
-    region: str = 'us-east-1',
+    entries: List[Dict[str, Any]] = Field(
+        ..., description='The list of asset property identifiers for the batch get request'
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Get the current values for multiple asset properties.
 
@@ -368,10 +422,15 @@ def batch_get_asset_property_value(
 
 @tool_metadata(readonly=True)
 def batch_get_asset_property_value_history(
-    entries: List[Dict[str, Any]],
-    next_token: Optional[str] = None,
-    max_results: int = 100,
-    region: str = 'us-east-1',
+    entries: List[Dict[str, Any]] = Field(
+        ...,
+        description='The list of asset property historical value entries for the batch get request',
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(100, description='The maximum number of results to return (1-4000)'),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Get the historical values for multiple asset properties.
 
@@ -412,10 +471,14 @@ def batch_get_asset_property_value_history(
 
 @tool_metadata(readonly=True)
 def batch_get_asset_property_aggregates(
-    entries: List[Dict[str, Any]],
-    next_token: Optional[str] = None,
-    max_results: int = 100,
-    region: str = 'us-east-1',
+    entries: List[Dict[str, Any]] = Field(
+        ..., description='The list of asset property aggregate entries for the batch get request'
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(100, description='The maximum number of results to return (1-4000)'),
+    region: str = Field('us-east-1', description='AWS region'),
 ) -> Dict[str, Any]:
     """Get aggregated values for multiple asset properties.
 
@@ -455,10 +518,14 @@ def batch_get_asset_property_aggregates(
 
 @tool_metadata(readonly=True)
 def execute_query(
-    query_statement: str,
-    region: str = 'us-east-1',
-    next_token: Optional[str] = None,
-    max_results: int = 100,
+    query_statement: str = Field(
+        ..., description='SQL query statement to execute against AWS IoT SiteWise data'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(100, description='The maximum number of results to return (1-10000)'),
 ) -> Dict[str, Any]:
     """Execute comprehensive SQL queries against AWS IoT SiteWise data using the executeQuery API.
 
