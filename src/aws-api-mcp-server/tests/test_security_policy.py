@@ -1,7 +1,5 @@
 import json
-import os
 import pytest
-import tempfile
 from awslabs.aws_api_mcp_server.core.aws.service import (
     check_security_policy,
 )
@@ -718,36 +716,3 @@ def test_check_customization_elicit_decision():
         mock_ir = create_mock_ir('s3', 'sync')
         decision = policy.check_customization(mock_ir, mock_is_read_only)
         assert decision == PolicyDecision.ELICIT
-
-
-@pytest.mark.usefixtures('mock_file_locking')
-def test_security_policy_file_locking():
-    """Test that security policy file is locked during runtime."""
-    # Create a temporary policy file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        json.dump({'denyList': ['aws s3 rm'], 'elicitList': []}, f)
-        temp_policy_path = f.name
-
-    try:
-        # Mock the policy path to use our temp file
-        with patch.object(Path, 'home') as mock_home:
-            mock_home.return_value = Path(temp_policy_path).parent
-            with patch.object(Path, '__truediv__') as mock_truediv:
-                mock_truediv.return_value = Path(temp_policy_path)
-                with patch.object(Path, 'exists', return_value=True):
-                    # Disable the auto-use fixture for this test
-                    with patch('fcntl.flock', side_effect=[None, BlockingIOError()]):
-                        # Create first policy instance - should acquire lock
-                        policy1 = SecurityPolicy()
-                        assert 'aws s3 rm' in policy1.denylist
-
-                        # Try to create second instance - should fail due to lock
-                        with pytest.raises(RuntimeError, match='Security policy file is locked'):
-                            policy2 = SecurityPolicy()
-
-                        # Clean up first instance
-                        del policy1
-
-    finally:
-        # Clean up temp file
-        os.unlink(temp_policy_path)

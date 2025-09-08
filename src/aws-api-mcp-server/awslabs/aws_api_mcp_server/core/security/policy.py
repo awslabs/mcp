@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import fcntl
 import json
 import re
 from enum import Enum
@@ -47,24 +46,14 @@ class SecurityPolicy:
         self.denylist: Set[str] = set()
         self.elicit_list: Set[str] = set()
         self.customizations: Dict[str, List[str]] = {}
-        self._policy_file_lock = None
 
         # Determine elicitation support once during initialization
         self.supports_elicitation = check_elicitation_support(ctx)
 
         self._load_policy()
 
-    def __del__(self):
-        """Release file lock when object is destroyed."""
-        if self._policy_file_lock:
-            try:
-                fcntl.flock(self._policy_file_lock.fileno(), fcntl.LOCK_UN)
-                self._policy_file_lock.close()
-            except Exception as e:
-                logger.warning('Failed to release security policy file lock during cleanup: {}', e)
-
     def _load_policy(self):
-        """Load security policy from user directory and lock the file."""
+        """Load security policy from user directory."""
         policy_path = Path.home() / '.aws' / 'aws-api-mcp' / 'mcp-security-policy.json'
 
         if not policy_path.exists():
@@ -75,13 +64,9 @@ class SecurityPolicy:
             return
 
         try:
-            # Open file and acquire exclusive lock
-            self._policy_file_lock = open(policy_path, 'r')
-            fcntl.flock(self._policy_file_lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            logger.info('Acquired exclusive lock on security policy file: {}', policy_path)
-
             # Read and parse the file
-            policy_data = json.load(self._policy_file_lock)
+            with open(policy_path, 'r') as policy_file:
+                policy_data = json.load(policy_file)
 
             # Load denylist
             if 'denyList' in policy_data:
@@ -93,14 +78,8 @@ class SecurityPolicy:
                 self.elicit_list = set(policy_data['elicitList'])
                 logger.info('Loaded {} commands in elicit list', len(self.elicit_list))
 
-        except BlockingIOError:
-            logger.error('Security policy file is locked by another process: {}', policy_path)
-            raise RuntimeError(f'Security policy file is locked: {policy_path}')
         except Exception as e:
             logger.error('Failed to load security policy from {}: {}', policy_path, e)
-            if self._policy_file_lock:
-                self._policy_file_lock.close()
-                self._policy_file_lock = None
 
         self._load_customizations()
 
