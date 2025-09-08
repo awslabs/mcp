@@ -85,6 +85,7 @@ const sidebars: SidebarsConfig = {
             'servers/aws-dataprocessing-mcp-server',
             'servers/redshift-mcp-server',
             'servers/s3-tables-mcp-server',
+            'servers/aws-appsync-mcp-server',
           ],
         },
         {
@@ -130,7 +131,10 @@ const sidebars: SidebarsConfig = {
         {
           type: 'category',
           label: 'Healthcare & Lifesciences',
-          items: ['servers/aws-healthomics-mcp-server'],
+          items: [
+            'servers/aws-healthomics-mcp-server',
+            'servers/healthlake-mcp-server',
+          ],
         },
       ],
     },
