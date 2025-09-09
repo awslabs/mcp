@@ -28,14 +28,28 @@ class PolicyDecision(Enum):
     ALLOW = 'allow'
 
 
+def check_elicitation_support(ctx) -> bool:
+    """Check if the context supports elicitation."""
+    if ctx is None:
+        return False
+    try:
+        return hasattr(ctx, 'elicit')
+    except Exception:
+        return False
+
+
 class SecurityPolicy:
     """Class to determine if the command is in he security policy or not."""
 
-    def __init__(self):
+    def __init__(self, ctx=None):
         """Initialize the policy lists."""
         self.denylist: Set[str] = set()
         self.elicit_list: Set[str] = set()
         self.customizations: Dict[str, List[str]] = {}
+
+        # Determine elicitation support once during initialization
+        self.supports_elicitation = check_elicitation_support(ctx)
+
         self._load_policy()
 
     def _load_policy(self):
@@ -50,12 +64,13 @@ class SecurityPolicy:
             return
 
         try:
-            with open(policy_path, 'r') as f:
-                policy_data = json.load(f)
+            # Read and parse the file
+            with open(policy_path, 'r') as policy_file:
+                policy_data = json.load(policy_file)
 
             # Load denylist
-            if 'denylist' in policy_data:
-                self.denylist = set(policy_data['denylist'])
+            if 'denyList' in policy_data:
+                self.denylist = set(policy_data['denyList'])
                 logger.info('Loaded {} commands in denylist', len(self.denylist))
 
             # Load elicit list (consent list)
@@ -80,7 +95,6 @@ class SecurityPolicy:
 
             for cmd, config in customizations.items():
                 api_calls = config.get('api_calls', [])
-                self._validate_api_calls(cmd, api_calls)
                 self.customizations[cmd] = api_calls
 
             logger.info('Loaded {} customizations', len(self.customizations))
@@ -89,15 +103,8 @@ class SecurityPolicy:
             logger.error('Failed to load customizations from {}: {}', customization_path, e)
             raise
 
-    def _validate_api_calls(self, cmd: str, api_calls: List[str]):
-        """Validate API calls format."""
-        for api_call in api_calls:
-            parts = api_call.strip().split()
-            if len(parts) < 3 or parts[0] != 'aws':
-                raise ValueError(f'Invalid API call format in "{cmd}": {api_call}')
-
     def determine_policy_effect(
-        self, service: str, operation: str, is_read_only: bool, supports_elicitation: bool
+        self, service: str, operation: str, is_read_only: bool
     ) -> PolicyDecision:
         """Get policy decision for a service/operation combination.
 
@@ -115,26 +122,35 @@ class SecurityPolicy:
         # Check elicit list
         if api_call in self.elicit_list:
             # If client doesn't support elicitation, treat the elicit list as deny
-            if not supports_elicitation:
+            if not self.supports_elicitation:
                 return PolicyDecision.DENY
             return PolicyDecision.ELICIT
 
         # Default behavior: allow all operations
         return PolicyDecision.ALLOW
 
-    def check_customization(
-        self, cli_command: str, is_read_only_func, supports_elicitation: bool
-    ) -> Optional[PolicyDecision]:
+    def check_customization(self, ir, is_read_only_func) -> Optional[PolicyDecision]:
         """Check if command matches a customization and return the highest priority decision.
 
         Returns None if no customization matches.
         """
-        # Extract base command (e.g., "s3 ls" from "aws s3 ls bucket-name")
-        parts = cli_command.strip().split()
-        if len(parts) < 3 or parts[0] != 'aws':
+        # Check if IR has the required metadata
+        if (
+            not ir.command_metadata
+            or not getattr(ir.command_metadata, 'service_sdk_name', None)
+            or not getattr(ir.command_metadata, 'operation_sdk_name', None)
+        ):
             return None
 
-        base_cmd = f'{parts[1]} {parts[2]}'
+        # Extract base command from IR (e.g., "s3 cp")
+        service = ir.command_metadata.service_sdk_name
+        operation = ir.command_metadata.operation_sdk_name
+
+        # Convert operation to kebab-case if needed
+        operation_kebab = operation.replace('_', '-')
+        operation_kebab = re.sub('([A-Z])', r'-\1', operation_kebab).lower().lstrip('-')
+
+        base_cmd = f'{service} {operation_kebab}'
 
         if base_cmd not in self.customizations:
             return None
@@ -147,7 +163,7 @@ class SecurityPolicy:
         if parent_api_call in self.denylist:
             return PolicyDecision.DENY
         elif parent_api_call in self.elicit_list:
-            if not supports_elicitation:
+            if not self.supports_elicitation:
                 return PolicyDecision.DENY
             decisions.append(PolicyDecision.ELICIT)
 
@@ -167,15 +183,13 @@ class SecurityPolicy:
             if api_call in self.denylist:
                 return PolicyDecision.DENY
             elif api_call in self.elicit_list:
-                if not supports_elicitation:
+                if not self.supports_elicitation:
                     return PolicyDecision.DENY
                 decisions.append(PolicyDecision.ELICIT)
             else:
                 # Check default behavior based on read-only status
                 is_read_only = is_read_only_func(service, operation)
-                decision = self.determine_policy_effect(
-                    service, operation, is_read_only, supports_elicitation
-                )
+                decision = self.determine_policy_effect(service, operation, is_read_only)
                 decisions.append(decision)
 
         # Return highest priority decision: DENY > ELICIT > ALLOW
@@ -186,6 +200,3 @@ class SecurityPolicy:
             return PolicyDecision.ELICIT
         else:
             return PolicyDecision.ALLOW
-
-
-security_policy = SecurityPolicy()

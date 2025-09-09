@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .policy import SecurityPolicy, PolicyDecision, security_policy
+from .policy import SecurityPolicy, PolicyDecision
 
-__all__ = [
-    'SecurityPolicy',
-    'PolicyDecision',
-    'security_policy',
-]
+__all__ = ['SecurityPolicy', 'PolicyDecision']

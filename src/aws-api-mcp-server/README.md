@@ -278,6 +278,91 @@ Logs of the MCP server are stored in the system's temporary directory, under **a
 - **Untrusted Data Sources**: When connecting to potentially untrusted data sources, use scoped-down credentials with minimal permissions.
 - **Regular Monitoring**: Monitor AWS CloudTrail logs to track actions performed by the MCP server.
 
+### Custom Security Policy Configuration
+
+You can create a custom security policy file to define additional security controls beyond IAM permissions. The MCP server will look for a security policy file at `~/.aws/aws-api-mcp/mcp-security-policy.json`.
+
+#### Security Policy File Format
+
+```json
+{
+  "version": "1.0",
+  "policy": {
+    "denyList": [],
+    "elicitList": []
+  }
+}
+```
+
+#### Command Format Requirements
+
+**Important**: Commands must be specified in the exact format that the AWS CLI uses internally:
+
+- **Format**: `aws <service> <operation>`
+- **Service names**: Use the AWS CLI service name (e.g., `s3api`, `ec2`, `iam`, `lambda`)
+- **Operation names**: Use kebab-case format (e.g., `delete-user`, `list-buckets`, `stop-instances`)
+
+#### Examples of Correct Command Formats
+
+| AWS CLI Command | Security Policy Format |
+|-----------------|------------------------|
+| `aws iam delete-user --user-name john` | `"aws iam delete-user"` |
+| `aws s3api list-buckets` | `"aws s3api list-buckets"` |
+| `aws ec2 describe-instances` | `"aws ec2 describe-instances"` |
+| `aws lambda delete-function --function-name my-func` | `"aws lambda delete-function"` |
+| `aws s3 cp file.txt s3://bucket/` | `"aws s3 cp"` |
+| `aws cloudformation delete-stack --stack-name my-stack` | `"aws cloudformation delete-stack"` |
+
+#### Policy Configuration Options
+
+- **`denyList`**: Array of AWS CLI commands that will be completely blocked. Commands in this list will never be executed.
+- **`elicitList`**: Array of AWS CLI commands that will require explicit user consent before execution. This requires a client that supports [elicitation](https://modelcontextprotocol.io/docs/concepts/elicitation).
+
+#### Pattern Matching and Wildcards
+
+**Current Limitation**: The security policy uses **exact string matching only**. Wildcard patterns (like `iam:delete-*` or `organizations:*`) are **not supported** in the current implementation.
+
+Each command must be specified exactly as it appears in the AWS CLI format. For comprehensive blocking, you need to list each command individually:
+
+```json
+{
+  "version": "1.0",
+  "policy": {
+    "denyList": [
+      "aws iam delete-user",
+      "aws iam delete-role",
+      "aws iam delete-group",
+      "aws iam delete-policy",
+      "aws iam delete-access-key"
+    ],
+    "elicitList": [
+      "aws s3api delete-object",
+      "aws ec2 stop-instances",
+      "aws lambda delete-function",
+      "aws rds delete-db-instance",
+      "aws cloudformation delete-stack"
+    ]
+  }
+}
+```
+
+#### Finding the Correct Command Format
+
+To determine the exact format for a command:
+
+1. **Check AWS CLI documentation**: Look up the service and operation names
+2. **Use kebab-case**: Convert camelCase operations to kebab-case (e.g., `ListBuckets` → `list-buckets`)
+3. **Test with logging**: Enable debug logging to see how commands are parsed internally
+
+#### Security Policy Precedence
+
+1. **Denylist** - Operations in the denylist are blocked completely
+2. **Elicitation Required** - Operations requiring consent will prompt the user
+3. **IAM Permissions** - Standard AWS IAM controls apply to all operations
+4. **READ_OPERATIONS_ONLY** - Environment variable restriction (if enabled)
+
+**Note**: IAM permissions remain the primary security control mechanism. The security policy provides an additional layer of protection but cannot override IAM restrictions.
+
 ## License
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
