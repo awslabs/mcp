@@ -268,7 +268,57 @@ This MCP server executes AWS CLI commands as instructed by an AI model, which ca
 
 ### Logging
 
-Logs of the MCP server are stored in the system's temporary directory, under **aws-api-mcp** subfolder - on Windows and macOS, this is the system temp directory, while on Linux it uses `XDG_RUNTIME_DIR`, `TMPDIR`, or `/tmp` as fallback. The logs contain MCP server operational data including command executions, errors, and debugging information to help users monitor and perform forensics of the MCP server.
+The AWS API MCP server writes logs to help you monitor command executions, troubleshoot issues, and perform debugging. These logs are automatically rotated and contain operational data including command executions, errors, and debug information.
+
+#### Log file location
+
+Logs are written to a rotating file at:
+
+- **macOS/Linux**: `<HOME>/.aws/aws-api-mcp/aws-api-mcp-server.log`
+- **Windows**: `%USERPROFILE%\.aws\aws-api-mcp\aws-api-mcp-server.log`
+
+#### Shipping logs to Amazon CloudWatch Logs
+
+To centralize your logs in AWS CloudWatch for better monitoring and analysis, you can use the CloudWatch Agent to automatically ship the MCP server logs to a CloudWatch log group.
+
+**Prerequisites:**
+
+1. **Install the CloudWatch Agent** on your machine:
+   - **Amazon Linux 2/2023**: `sudo yum install amazon-cloudwatch-agent`
+   - **Other platforms**: Download from [CloudWatch Agent download page](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/download-CloudWatch-Agent-on-EC2-Instance-commandline-first.html)
+   - **Learn more**: [CloudWatch Agent overview](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html)
+
+2. **Configure IAM permissions**: Ensure your instance/user has permissions to write to CloudWatch Logs. You can attach the `CloudWatchAgentServerPolicy` or create a custom policy with these permissions:
+   - `logs:CreateLogGroup`
+   - `logs:CreateLogStream`
+   - `logs:PutLogEvents`
+
+**Configuration steps:**
+
+1. **Run the configuration wizard** to set up log collection. The wizard will guide you through configuring the log group name, stream name, and other settings. For detailed wizard documentation, see [Create the CloudWatch agent configuration file with the wizard](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/create-cloudwatch-agent-configuration-file-wizard.html).:
+
+   **Linux/macOS:**
+   ```bash
+   sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-config-wizard
+   ```
+
+   **Windows:**
+   ```cmd
+   cd "C:\Program Files\Amazon\AmazonCloudWatchAgent"
+   .\amazon-cloudwatch-agent-config-wizard.exe
+   ```
+
+2. **When prompted for log file path**, specify the MCP server log location:
+   - **macOS**: `/Users/<user>/.aws/aws-api-mcp/aws-api-mcp-server.log`
+   - **Linux**: `/home/<user>/.aws/aws-api-mcp/aws-api-mcp-server.log`
+   - **Windows**: `C:\Users\<user>\.aws\aws-api-mcp\aws-api-mcp-server.log`
+
+3. **Start the CloudWatch Agent** following the official AWS documentation:
+   - [Starting the CloudWatch agent](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/start-CloudWatch-Agent-on-premise-SSM-onprem.html)
+
+#### Troubleshooting
+
+If you encounter issues with the CloudWatch Agent setup or log shipping, refer to the [Troubleshooting the CloudWatch agent](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/troubleshooting-CloudWatch-Agent.html).
 
 ### Security Best Practices
 
