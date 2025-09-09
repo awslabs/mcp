@@ -34,7 +34,6 @@ from .core.common.config import (
     REQUIRE_MUTATION_CONSENT,
     TRANSPORT,
     WORKING_DIRECTORY,
-    get_server_directory,
 )
 from .core.common.errors import AwsApiMcpError
 from .core.common.helpers import validate_aws_region
@@ -50,6 +49,7 @@ from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
+from pathlib import Path
 from pydantic import Field
 from typing import Annotated, Any, Optional
 
@@ -57,9 +57,8 @@ from typing import Annotated, Any, Optional
 logger.remove()
 logger.add(sys.stderr, level=FASTMCP_LOG_LEVEL)
 
-# Add file sink
-log_dir = get_server_directory()
-log_dir.mkdir(exist_ok=True)
+log_dir = Path.home() / '.aws' / 'aws-api-mcp'
+log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
