@@ -396,7 +396,7 @@ class TestValidation:
         # Length truncation
         long_string = 'a' * 2000
         sanitized = sanitize_string(long_string)
-        assert len(sanitized) == 1000
+        assert sanitized is not None and len(sanitized) == 1000
 
         # Control character removal
         assert sanitize_string('test\x00string\x1b') == 'teststring'

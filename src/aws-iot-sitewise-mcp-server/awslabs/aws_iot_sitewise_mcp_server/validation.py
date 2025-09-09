@@ -394,7 +394,7 @@ def validate_string_for_injection(text: str, field_name: str = 'input') -> None:
         raise ValidationError(f'{field_name} contains control characters which are not allowed')
 
 
-def sanitize_string(text: str, max_length: int = 1000) -> str:
+def sanitize_string(text: Union[str, None], max_length: int = 1000) -> Union[str, None]:
     """Sanitize a string by escaping HTML entities and limiting length.
 
     Args:
@@ -404,7 +404,7 @@ def sanitize_string(text: str, max_length: int = 1000) -> str:
     Returns:
         Sanitized string
     """
-    if not text:
+    if text is None or not text:
         return text
 
     # Escape HTML entities
