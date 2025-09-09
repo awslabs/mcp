@@ -14,6 +14,7 @@
 
 """AWS IoT SiteWise parameter validation utilities."""
 
+import html
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Union
@@ -52,6 +53,8 @@ def validate_asset_name(asset_name: str) -> None:
         raise ValidationError('Asset name cannot be empty')
     if len(asset_name) > 256:
         raise ValidationError('Asset name cannot exceed 256 characters')
+    # Check for injection attempts
+    validate_string_for_injection(asset_name, 'Asset name')
     # Asset names have specific character restrictions
     if not re.match(r'^[a-zA-Z0-9_\-\s\.]+$', asset_name):
         raise ValidationError('Asset name contains invalid characters')
@@ -183,6 +186,9 @@ def validate_asset_model_properties(properties: List[Dict[str, Any]]) -> None:
         if not prop_name or len(prop_name) > 256:
             raise ValidationError('Property name must be 1-256 characters')
 
+        # Check for injection attempts in property name
+        validate_string_for_injection(prop_name, 'Property name')
+
         # Validate data type
         validate_data_type(prop['dataType'])
 
@@ -297,3 +303,192 @@ def validate_service_quotas(operation: str, current_count: int = 0) -> None:
 
     if operation in quotas and current_count >= quotas[operation]:
         raise ValidationError(f'Service quota exceeded for {operation}: {quotas[operation]}')
+
+
+def validate_string_for_injection(text: str, field_name: str = 'input') -> None:
+    """Validate string for potential injection attacks or dangerous patterns.
+
+    Args:
+        text: The string to validate
+        field_name: Name of the field being validated for error messages
+
+    Raises:
+        ValidationError: If dangerous patterns are detected
+    """
+    if not text:
+        return
+
+    # Check for common prompt injection patterns
+    prompt_injection_patterns = [
+        # Direct instruction attempts
+        r'(?i)(ignore|forget|disregard|skip|bypass)\s+(all\s+)?previous\s+(instructions?|rules?|commands?)',
+        r'(?i)new\s+instructions?:',
+        r'(?i)system\s+prompt:',
+        r'(?i)\\u0000|\\x00',  # Null byte injection
+        r'(?i)<\s*script\s*>',  # Script tags
+        r'(?i)javascript:',  # JavaScript protocol
+        r'(?i)on\w+\s*=',  # Event handlers
+        # Common prompt manipulation attempts
+        r'(?i)(act|pretend|imagine|roleplay)\s+(as|like|you\s+are)',
+        r'(?i)you\s+are\s+now',
+        r'(?i)from\s+now\s+on',
+        r'(?i)new\s+role:',
+        r'(?i)switch\s+to\s+\w+\s+mode',
+        # Instruction boundary attempts
+        r'(?i)###\s*(system|instruction|command)',
+        r'(?i)---\s*(end|stop)\s+(of\s+)?(instructions?|rules?)',
+        r'(?i)\[\[.*\]\]',  # Common delimiter pattern
+        r'(?i){{.*}}',  # Template injection pattern
+    ]
+
+    for pattern in prompt_injection_patterns:
+        if re.search(pattern, text):
+            raise ValidationError(
+                f'{field_name} contains potentially dangerous patterns that could be used for injection attacks'
+            )
+
+    # Check for command injection patterns first (more specific)
+    command_injection_patterns = [
+        r'[;&|`](?=.*\b(rm|ls|cat|echo|bash|sh|cmd|powershell|del|dir)\b)',  # Command separators with shell commands
+        r'\$\(',  # Command substitution
+        r'(?i)\b(sh|bash|cmd|powershell)\s',  # Shell invocation with space
+        r'(?i)(>|>>|<|<<)\s*[/\w]',  # Redirections to files
+    ]
+
+    for pattern in command_injection_patterns:
+        if re.search(pattern, text):
+            raise ValidationError(
+                f'{field_name} contains patterns that could be used for command injection'
+            )
+
+    # Check for SQL injection patterns
+    sql_injection_patterns = [
+        r'(?i)(\b(union|select|insert|update|delete|drop|create|alter|exec|execute)\b.*\b(from|into|where|table)\b)',
+        r"(?i)('.*'.*=.*'|\".*\".*=.*\")|--.*$|\*/.*\*/|xp_\w+|sp_\w+",  # SQL injection with quotes and comparison
+        r'(?i)(\bor\b\s*\d+\s*=\s*\d+|\band\b\s*\d+\s*=\s*\d+)',  # OR 1=1, AND 1=1
+        r'(?i);.*\b(drop|delete|truncate|update|insert)\b',  # Semicolon followed by destructive SQL
+        r"(?i)'.*;\s*(drop|delete|truncate|update|insert)\b",  # Quote followed by semicolon and SQL
+    ]
+
+    for pattern in sql_injection_patterns:
+        if re.search(pattern, text):
+            raise ValidationError(
+                f'{field_name} contains patterns that could be used for SQL injection'
+            )
+
+    # Check for excessive special characters that might indicate obfuscation
+    special_char_count = len(re.findall(r'[^\w\s\-._/]', text))
+    if special_char_count > len(text) * 0.3:  # More than 30% special characters
+        raise ValidationError(
+            f'{field_name} contains excessive special characters which could indicate an obfuscation attempt'
+        )
+
+    # Check for excessive length (potential buffer overflow or DoS)
+    if len(text) > 10000:
+        raise ValidationError(
+            f'{field_name} is excessively long (maximum 10000 characters allowed)'
+        )
+
+    # Check for control characters
+    if re.search(r'[\x00-\x1F\x7F-\x9F]', text):
+        raise ValidationError(f'{field_name} contains control characters which are not allowed')
+
+
+def sanitize_string(text: str, max_length: int = 1000) -> str:
+    """Sanitize a string by escaping HTML entities and limiting length.
+
+    Args:
+        text: The string to sanitize
+        max_length: Maximum allowed length
+
+    Returns:
+        Sanitized string
+    """
+    if not text:
+        return text
+
+    # Escape HTML entities
+    text = html.escape(text)
+
+    # Truncate to max length
+    if len(text) > max_length:
+        text = text[:max_length]
+
+    # Remove control characters
+    text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)
+
+    return text
+
+
+def validate_json_string(json_str: str, field_name: str = 'JSON') -> None:
+    """Validate JSON strings for injection attempts.
+
+    Args:
+        json_str: JSON string to validate
+        field_name: Name of the field for error messages
+
+    Raises:
+        ValidationError: If dangerous patterns are detected
+    """
+    if not json_str:
+        return
+
+    # Check for basic length limits
+    if len(json_str) > 10000:
+        raise ValidationError(
+            f'{field_name} is excessively long (maximum 10000 characters allowed)'
+        )
+
+    # Check for control characters
+    if re.search(r'[\x00-\x1F\x7F-\x9F]', json_str):
+        raise ValidationError(f'{field_name} contains control characters which are not allowed')
+
+    # Check for prompt injection patterns (more specific for JSON context)
+    prompt_injection_patterns = [
+        r'(?i)(ignore|forget|disregard|skip|bypass)\s+(all\s+)?previous\s+(instructions?|rules?|commands?)',
+        r'(?i)new\s+instructions?:',
+        r'(?i)system\s+prompt:',
+        r'(?i)(act|pretend|imagine|roleplay)\s+(as|like|you\s+are)',
+        r'(?i)you\s+are\s+now',
+        r'(?i)from\s+now\s+on',
+    ]
+
+    for pattern in prompt_injection_patterns:
+        if re.search(pattern, json_str):
+            raise ValidationError(
+                f'{field_name} contains potentially dangerous patterns that could be used for injection attacks'
+            )
+
+    # JSON-specific security checks
+    if re.search(r'__proto__|constructor|prototype', json_str):
+        raise ValidationError(
+            f'{field_name} contains patterns that could be used for prototype pollution'
+        )
+
+    # Check for script injection in JSON values
+    if re.search(r'(?i)<\s*script\s*>|javascript:|on\w+\s*=', json_str):
+        raise ValidationError(
+            f'{field_name} contains patterns that could be used for script injection'
+        )
+
+
+def validate_safe_identifier(identifier: str, field_name: str = 'identifier') -> None:
+    """Validate that a string is a safe identifier (alphanumeric, underscore, hyphen only).
+
+    Args:
+        identifier: The identifier to validate
+        field_name: Name of the field for error messages
+
+    Raises:
+        ValidationError: If the identifier contains unsafe characters
+    """
+    if not identifier:
+        raise ValidationError(f'{field_name} cannot be empty')
+
+    if not re.match(r'^[a-zA-Z0-9_-]+$', identifier):
+        raise ValidationError(
+            f'{field_name} must contain only alphanumeric characters, underscores, and hyphens'
+        )
+
+    if len(identifier) > 256:
+        raise ValidationError(f'{field_name} cannot exceed 256 characters')
