@@ -14,6 +14,8 @@
 
 """Utils tests v3 to target remaining missing coverage lines."""
 
+# Import mock setup first to ensure modules are available
+
 import pytest
 from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import (

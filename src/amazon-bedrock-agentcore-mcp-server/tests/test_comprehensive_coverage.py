@@ -1,5 +1,7 @@
 # Final comprehensive test to maximize coverage for both runtime.py and utils.py
 
+# Import mock setup first to ensure modules are available
+
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
@@ -45,7 +47,7 @@ class TestComprehensiveCoverage:
         # Test both SDK available and not available scenarios
         for sdk_available in [True, False]:
             with patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', sdk_available
+                'awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', sdk_available
             ):
                 for tool_name, params in test_params.items():
                     if tool_name in runtime_tools:

@@ -3,6 +3,8 @@
 Target simple utility functions and import paths to boost coverage.
 """
 
+# Import mock setup first to ensure modules are available
+
 from unittest.mock import patch
 
 
@@ -20,7 +22,6 @@ class TestRuntimeImports:
         """Test access to runtime constants and utilities."""
         from awslabs.amazon_bedrock_agentcore_mcp_server.runtime import (
             generate_migration_strategy,
-            generate_strands_agentcore_code,
             generate_tutorial_based_guidance,
             validate_oauth_config,
         )
@@ -29,7 +30,6 @@ class TestRuntimeImports:
         assert callable(validate_oauth_config)
         assert callable(generate_migration_strategy)
         assert callable(generate_tutorial_based_guidance)
-        assert callable(generate_strands_agentcore_code)
 
 
 class TestRuntimeUtilityFunctions:
@@ -67,28 +67,31 @@ class TestRuntimeUtilityFunctions:
             # Should return some guidance text or empty string
             assert len(result) >= 0
 
-    def test_generate_strands_agentcore_code_basic(self):
-        """Test generate_strands_agentcore_code with basic inputs."""
+    def test_generate_migration_strategy_simple(self):
+        """Test generate_migration_strategy with simple inputs."""
         from awslabs.amazon_bedrock_agentcore_mcp_server.runtime import (
-            generate_strands_agentcore_code,
+            generate_migration_strategy,
         )
 
-        # Test with simple code and options
-        original_code = "def hello():\n    return 'world'"
-        options = {'add_memory': True, 'add_tools': False, 'add_guardrails': True}
+        # Test with simple analysis dict
+        analysis = {
+            'framework': 'basic',
+            'patterns_found': ['simple_function'],
+            'complexity_level': 'low',
+        }
 
-        result = generate_strands_agentcore_code(original_code, options)
+        result = generate_migration_strategy(analysis)
 
         # Basic validation
-        assert isinstance(result, str)
-        assert len(result) > 0  # Should generate some code
+        assert isinstance(result, dict)
+        assert len(result) > 0  # Should generate some strategy
 
     def test_validate_oauth_config_basic(self):
         """Test validate_oauth_config with minimal mocking."""
         from awslabs.amazon_bedrock_agentcore_mcp_server.runtime import validate_oauth_config
 
         # Mock only the external AWS calls, not the function logic
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ) as mock_runtime:
@@ -127,18 +130,18 @@ class TestRuntimeErrorPaths:
         result = generate_migration_strategy(analysis)
         assert isinstance(result, dict)
 
-    def test_generate_strands_agentcore_code_empty_input(self):
-        """Test generate_strands_agentcore_code with empty inputs."""
+    def test_generate_tutorial_based_guidance_empty_input(self):
+        """Test generate_tutorial_based_guidance with empty inputs."""
         from awslabs.amazon_bedrock_agentcore_mcp_server.runtime import (
-            generate_strands_agentcore_code,
+            generate_tutorial_based_guidance,
         )
 
-        # Test with empty code to hit edge cases
-        result = generate_strands_agentcore_code('', {})
+        # Test with empty query to hit edge cases
+        result = generate_tutorial_based_guidance('')
         assert isinstance(result, str)
 
-        # Test with None options
-        result = generate_strands_agentcore_code("print('test')", {})
+        # Test with basic query
+        result = generate_tutorial_based_guidance('getting started')
         assert isinstance(result, str)
 
 

@@ -14,6 +14,8 @@
 
 """Test module for integration and end-to-end functionality."""
 
+# Import mock setup first to ensure modules are available
+
 import asyncio
 import pytest
 from .test_helpers import SmartTestHelper

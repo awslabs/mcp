@@ -14,6 +14,8 @@
 
 """Runtime tests v2 to target specific missing coverage lines."""
 
+# Import mock setup first to ensure modules are available
+
 import pytest
 from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.runtime import register_deployment_tools
@@ -60,7 +62,7 @@ agents:
 """
 
         with (
-            patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
             patch('pathlib.Path.glob') as mock_glob,
             patch('pathlib.Path.exists', return_value=True),
             patch('builtins.open', mock_open(read_data=yaml_content)),
@@ -89,7 +91,7 @@ agents:
         mcp = self._create_mock_mcp()
 
         with (
-            patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
             patch('pathlib.Path.glob') as mock_glob,
             patch('pathlib.Path.exists', return_value=True),
             patch('builtins.open', side_effect=Exception('File error')),
@@ -144,7 +146,7 @@ class TestRuntimeInvocationPaths:  # pragma: no cover
         """Target lines 183-210 - session handling in invocation."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             helper = SmartTestHelper()
             result = await helper.call_tool_and_extract(
                 mcp,
@@ -204,7 +206,7 @@ class TestRuntimeUtilityPaths:  # pragma: no cover
         ]
 
         for agent_name in test_names:
-            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
                 helper = SmartTestHelper()
                 result = await helper.call_tool_and_extract(
                     mcp, 'get_agent_status', {'agent_name': agent_name, 'region': 'us-east-1'}
@@ -220,7 +222,7 @@ class TestRuntimeUtilityPaths:  # pragma: no cover
         """Target line 213 and error handling."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             helper = SmartTestHelper()
             result = await helper.call_tool_and_extract(
                 mcp, 'get_agent_status', {'agent_name': '', 'region': 'us-east-1'}
@@ -264,7 +266,7 @@ class TestRuntimeOAuthAdvanced:  # pragma: no cover
         """Target OAuth-related missing lines."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             helper = SmartTestHelper()
             result = await helper.call_tool_and_extract(
                 mcp,
@@ -282,7 +284,7 @@ class TestRuntimeOAuthAdvanced:  # pragma: no cover
         """Target OAuth status checking paths."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             helper = SmartTestHelper()
             result = await helper.call_tool_and_extract(
                 mcp,
@@ -300,7 +302,7 @@ class TestRuntimeOAuthAdvanced:  # pragma: no cover
         """Target OAuth v2 invocation paths."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             helper = SmartTestHelper()
             result = await helper.call_tool_and_extract(
                 mcp,
@@ -396,7 +398,7 @@ class TestRuntimeErrorHandlingPaths:  # pragma: no cover
 
         helper = SmartTestHelper()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', False):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
             # Multiple different deployment scenarios
             scenarios = [
                 {'app_file': 'nonexistent.py', 'agent_name': 'test1', 'region': 'us-east-1'},
@@ -420,7 +422,7 @@ class TestRuntimeErrorHandlingPaths:  # pragma: no cover
         agents = ['smart-test-1', 'smart-test-2', 'smart-test-3']
 
         for agent in agents:
-            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
                 helper = SmartTestHelper()
                 result = await helper.call_tool_and_extract(
                     mcp,
@@ -441,7 +443,7 @@ class TestRuntimeErrorHandlingPaths:  # pragma: no cover
         regions = ['us-east-2', 'us-west-1', 'eu-north-1', 'ap-south-1', 'ca-central-1']
 
         for region in regions:
-            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
                 helper = SmartTestHelper()
                 result = await helper.call_tool_and_extract(
                     mcp,

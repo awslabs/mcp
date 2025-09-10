@@ -3,6 +3,8 @@
 Focus on specific line ranges to maximize coverage numbers.
 """
 
+# Import mock setup first to ensure modules are available
+
 from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from unittest.mock import Mock, patch

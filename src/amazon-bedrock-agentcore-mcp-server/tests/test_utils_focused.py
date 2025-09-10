@@ -3,6 +3,8 @@
 Target simple utility functions and import paths to boost coverage.
 """
 
+# Import mock setup first to ensure modules are available
+
 from pathlib import Path
 from unittest.mock import patch
 

@@ -14,6 +14,8 @@
 
 """Test server.py main execution block for 100% coverage."""
 
+# Import mock setup first to ensure modules are available
+
 import sys
 from unittest.mock import patch
 

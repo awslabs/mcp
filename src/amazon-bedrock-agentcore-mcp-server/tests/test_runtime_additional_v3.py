@@ -3,6 +3,8 @@
 Focus on specific line ranges to maximize coverage numbers.
 """
 
+# Import mock setup first to ensure modules are available
+
 from mcp.server.fastmcp import FastMCP
 from unittest.mock import Mock, patch
 
@@ -23,7 +25,7 @@ class TestRuntimeDeploymentPaths:  # pragma: no cover
         """Test deployment with OAuth configuration - lines 250-290."""
         mcp = _create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ) as mock_runtime:
@@ -49,7 +51,7 @@ class TestRuntimeDeploymentPaths:  # pragma: no cover
         """Test OAuth status checking during deployment - lines 270-280."""
         mcp = _create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ) as mock_runtime:
@@ -92,7 +94,7 @@ class TestRuntimeStatusOperations:  # pragma: no cover
         """Test agent status retrieval - lines 300-350."""
         mcp = _create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ) as mock_runtime:
@@ -111,7 +113,7 @@ class TestRuntimeStatusOperations:  # pragma: no cover
         """Test status checking with error handling - lines 350-400."""
         mcp = _create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ) as mock_runtime:
@@ -175,7 +177,7 @@ class TestRuntimeInvocationPaths:  # pragma: no cover
         """Test agent invocation with different parameters - lines 400-450."""
         mcp = _create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ) as mock_runtime:
@@ -204,7 +206,7 @@ class TestRuntimeInvocationPaths:  # pragma: no cover
         """Test invocation error handling - lines 450-500."""
         mcp = _create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ) as mock_runtime:
@@ -245,7 +247,7 @@ class TestRuntimeDirectLineCoverage:  # pragma: no cover
         """Test runtime initialization paths - lines 50-100."""
         mcp = _create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.RUNTIME_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.RUNTIME_AVAILABLE', True):
             with patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.get_runtime_for_agent'
             ):

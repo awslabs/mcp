@@ -1,5 +1,7 @@
 # Test to achieve 100% coverage on server.py
 
+# Import mock setup first to ensure modules are available
+
 import sys
 import traceback
 from unittest.mock import patch

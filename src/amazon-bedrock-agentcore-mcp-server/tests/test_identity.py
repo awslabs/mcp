@@ -14,6 +14,8 @@
 
 """Test module for identity functionality."""
 
+# Import mock setup first to ensure modules are available
+
 import json
 import pytest
 import subprocess

@@ -3,6 +3,8 @@
 Target the main block and run_main function execution paths.
 """
 
+# Import mock setup first to ensure modules are available
+
 import sys
 import traceback
 from unittest.mock import patch

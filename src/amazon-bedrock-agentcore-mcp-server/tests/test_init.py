@@ -14,6 +14,8 @@
 
 """Test module for package initialization."""
 
+# Import mock setup first to ensure modules are available
+
 import awslabs.amazon_bedrock_agentcore_mcp_server as server_module
 
 

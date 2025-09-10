@@ -1,5 +1,7 @@
 """Test helpers for handling both string results and ToolError exceptions."""
 
+# Import mock setup first to ensure modules are available
+
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import MCPtoolError
 from mcp.server.fastmcp.exceptions import ToolError
 

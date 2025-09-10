@@ -14,6 +14,8 @@
 
 """Utils tests v4 to target large missing line ranges like 699-835."""
 
+# Import mock setup first to ensure modules are available
+
 import pytest
 from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import (

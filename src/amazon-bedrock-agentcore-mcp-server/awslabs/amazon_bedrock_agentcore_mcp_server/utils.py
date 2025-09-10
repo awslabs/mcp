@@ -25,6 +25,7 @@ Implemented MCP Tools:
 - discover_agentcore_examples: GitHub examples repository integration
 """
 
+import ast
 import boto3
 import os
 import re
@@ -124,7 +125,7 @@ def resolve_app_file_path(file_path: str) -> Optional[str]:
 
     for path in search_paths:
         if path.exists() and path.is_file():
-            return str(path.absolute())
+            return str(path.resolve())
 
     return None
 
@@ -259,6 +260,34 @@ async def get_agentcore_command():
     return 'agentcore'
 
 
+def get_detailed_imports(code):
+    """Extract detailed imports from code using AST parsing."""
+    try:
+        tree = ast.parse(code)
+        imports = {'modules': [], 'from_imports': [], 'aliases': {}, 'syntax_errors': []}
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports['modules'].append(alias.name)
+                    if alias.asname:
+                        imports['aliases'][alias.asname] = alias.name
+
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ''
+                for alias in node.names:
+                    if alias.name == '*':
+                        imports['from_imports'].append(f'{module}.*')
+                    else:
+                        imports['from_imports'].append(f'{module}.{alias.name}')
+                        if alias.asname:
+                            imports['aliases'][alias.asname] = f'{module}.{alias.name}'
+
+        return imports
+    except SyntaxError as e:
+        return {'modules': [], 'from_imports': [], 'aliases': {}, 'syntax_errors': [str(e)]}
+
+
 def analyze_code_patterns(code: str) -> Dict[str, Any]:
     """Analyze code to detect framework and patterns."""
     patterns = {
@@ -287,7 +316,8 @@ def analyze_code_patterns(code: str) -> Dict[str, Any]:
         patterns['patterns'].append('Custom agent implementation')
 
     ## Extract imports
-    import_matches = re.findall(r'(?:from|import)\s+([a-zA-Z_][a-zA-Z0-9_]*)', code)
+    # import_matches = re.findall(r'(?:from|import)\s+([a-zA-Z_][a-zA-Z0-9_]*)', code)
+    import_matches = get_detailed_imports(code)
     patterns['dependencies'] = list(set(import_matches))
 
     ## Find agent creation
@@ -394,7 +424,7 @@ def register_environment_tools(mcp: FastMCP):
             if not path.exists():
                 return f"Project path '{project_path}' does not exist"
 
-            validation_results.append(f'OK Project directory: {path.absolute()}')
+            validation_results.append(f'OK Project directory: {path.resolve()}')
 
             ## Check virtual environment
             if Path('.venv').exists():
@@ -532,7 +562,7 @@ def register_environment_tools(mcp: FastMCP):
 {chr(10).join(issues) if issues else 'OK No issues found'}
 
 #### Project Summary:
-- Directory: `{path.absolute()}`
+- Directory: `{path.resolve()}`
 - Python files: {len(python_files)}
 - AgentCore apps: {len(agentcore_apps)}
 - Existing agents: {len(existing_agents)}
@@ -873,7 +903,7 @@ def project_discover(action: str = 'agents', search_path: str = '.') -> str:
     """
     search_path_str = str(search_path) or '.'
     try:
-        search_path_obj = Path(search_path_str).absolute()
+        search_path_obj = Path(search_path_str).resolve()
         print(f'Searching in: {search_path_obj}')
         if action == 'agents':
             ## Find potential agent files

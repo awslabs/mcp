@@ -14,6 +14,8 @@
 
 """Additional runtime tests for coverage improvement."""
 
+# Import mock setup first to ensure modules are available
+
 import pytest
 from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.runtime import register_deployment_tools
@@ -62,7 +64,7 @@ agents:
 """
 
         with (
-            patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
             patch('pathlib.Path.glob') as mock_glob,
             patch('builtins.open', mock_open(read_data=yaml_content)),
             patch('yaml.safe_load') as mock_yaml_load,
@@ -105,7 +107,7 @@ agents:
         mcp = self._create_mock_mcp()
 
         with (
-            patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
             patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.resolve_app_file_path'
             ) as mock_resolve,
@@ -175,7 +177,7 @@ class TestRuntimeAgentInvocation:  # pragma: no cover
         """Test basic agent invocation setup - covers lines 173-175."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             result_tuple = await mcp.call_tool(
                 'invoke_agent',
                 {'agent_name': 'test-agent', 'prompt': 'Hello world', 'region': 'us-east-1'},
@@ -195,7 +197,7 @@ class TestRuntimeAgentInvocation:  # pragma: no cover
         """Test agent invocation with session ID - covers lines 183-210."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             result_tuple = await mcp.call_tool(
                 'invoke_agent',
                 {
@@ -250,7 +252,7 @@ class TestRuntimeUtilityFunctions:  # pragma: no cover
         """Test agent status checking - covers lines 213, 222-231."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             result_tuple = await mcp.call_tool(
                 'get_agent_status', {'agent_name': 'test-agent', 'region': 'us-east-1'}
             )
@@ -269,7 +271,7 @@ class TestRuntimeUtilityFunctions:  # pragma: no cover
         """Test agent name sanitization - covers lines 235-247."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             # Test with special characters that need sanitization
             result_tuple = await mcp.call_tool(
                 'get_agent_status', {'agent_name': 'test-agent@#$%^&*()', 'region': 'us-east-1'}
@@ -319,7 +321,7 @@ class TestRuntimeErrorHandling:  # pragma: no cover
         """Test handling of invalid agent names - covers lines 262, 264, 268."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             # Test with completely invalid name (empty after sanitization)
             result_tuple = await mcp.call_tool(
                 'get_agent_status',
@@ -372,7 +374,7 @@ class TestRuntimeOAuthFunctionality:  # pragma: no cover
         """Test basic OAuth agent setup - covers lines 311, 318, 327."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             result_tuple = await mcp.call_tool(
                 'invoke_oauth_agent',
                 {'agent_name': 'test-oauth-agent', 'prompt': 'test setup', 'region': 'us-east-1'},
@@ -422,7 +424,7 @@ class TestRuntimeCoverageBoost:  # pragma: no cover
         mcp = self._create_mock_mcp()
 
         with (
-            patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', False),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False),
             patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.resolve_app_file_path'
             ) as mock_resolve,
@@ -457,7 +459,7 @@ class TestRuntimeCoverageBoost:  # pragma: no cover
         """Test various tool calls to hit more code paths."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', False):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
             # Test discover_existing_agents
             result_tuple = await mcp.call_tool('discover_existing_agents', {'search_path': '.'})
             result = self._extract_result(result_tuple)
@@ -489,7 +491,7 @@ class TestRuntimeCoverageBoost:  # pragma: no cover
         """Test OAuth-related tools without SDK - covers OAuth paths."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', False):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
             helper = SmartTestHelper()
 
             # Test invoke_oauth_agent_v2
@@ -519,7 +521,7 @@ class TestRuntimeCoverageBoost:  # pragma: no cover
         mcp = self._create_mock_mcp()
 
         # Test with empty agent names
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             result_tuple = await mcp.call_tool(
                 'get_agent_status', {'agent_name': '', 'region': 'us-east-1'}
             )
@@ -535,7 +537,7 @@ class TestRuntimeCoverageBoost:  # pragma: no cover
         """Test OAuth error handling paths."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', False):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', False):
             # Test invoke_oauth_agent with various parameters
             result_tuple = await mcp.call_tool(
                 'invoke_oauth_agent',
@@ -557,7 +559,7 @@ class TestRuntimeCoverageBoost:  # pragma: no cover
         helper = SmartTestHelper()
 
         with (
-            patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
             patch('pathlib.Path.exists', return_value=False),
         ):
             # Test with non-existent app file
@@ -581,7 +583,7 @@ agents:
 """
 
         with (
-            patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True),
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
             patch(
                 'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.resolve_app_file_path'
             ) as mock_resolve,
@@ -620,7 +622,7 @@ agents:
         """Test session management paths for coverage."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             # Test invoke with long session ID
             result_tuple = await mcp.call_tool(
                 'invoke_agent',
@@ -644,7 +646,7 @@ agents:
         """Test region handling and validation."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.runtime.SDK_AVAILABLE', True):
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
             # Test with different region formats
             for region in ['us-east-1', 'eu-west-1', 'ap-southeast-1']:
                 result_tuple = await mcp.call_tool(

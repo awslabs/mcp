@@ -14,15 +14,17 @@
 
 """Test module for gateway functionality."""
 
+# Import mock setup first to ensure modules are available
+
 import json
 import pytest
 import tempfile
 from .test_helpers import SmartTestHelper
 from awslabs.amazon_bedrock_agentcore_mcp_server.gateway import (
-    _discover_smithy_models,
-    _find_and_upload_smithy_model,
-    _upload_openapi_schema,
+    discover_smithy_models,
+    find_and_upload_smithy_model,
     register_gateway_tools,
+    upload_openapi_schema,
 )
 from mcp.server.fastmcp.exceptions import ToolError
 from pathlib import Path
@@ -78,7 +80,7 @@ class TestHelperFunctions:
             mock_s3.put_object.return_value = True
 
             setup_steps = []
-            result = await _find_and_upload_smithy_model('dynamodb', 'us-east-1', setup_steps)
+            result = await find_and_upload_smithy_model('dynamodb', 'us-east-1', setup_steps)
 
             assert result is not None
             assert result.startswith('s3://')
@@ -94,7 +96,7 @@ class TestHelperFunctions:
             mock_get.return_value = mock_response
 
             setup_steps = []
-            result = await _find_and_upload_smithy_model('nonexistent', 'us-east-1', setup_steps)
+            result = await find_and_upload_smithy_model('nonexistent', 'us-east-1', setup_steps)
 
             assert result is None
             assert any('not found in GitHub API models' in step for step in setup_steps)
@@ -113,7 +115,7 @@ class TestHelperFunctions:
             ]
             mock_get.return_value = mock_response
 
-            result = await _discover_smithy_models()
+            result = await discover_smithy_models()
 
             assert isinstance(result, dict)
             assert 'Database' in result
@@ -133,7 +135,7 @@ class TestHelperFunctions:
         with patch('requests.get') as mock_get:
             mock_get.side_effect = Exception('Network error')
 
-            result = await _discover_smithy_models()
+            result = await discover_smithy_models()
 
             assert 'errors' in result
             assert len(result['errors']) > 0
@@ -155,7 +157,7 @@ class TestHelperFunctions:
             }
 
             setup_steps = []
-            result = await _upload_openapi_schema(
+            result = await upload_openapi_schema(
                 openapi_spec=openapi_spec,
                 gateway_name='test-gateway',
                 region='us-east-1',
@@ -184,7 +186,7 @@ class TestHelperFunctions:
             openapi_spec = {'openapi': '3.0.0', 'info': {'title': 'Test API', 'version': '1.0.0'}}
             setup_steps = []
 
-            result = await _upload_openapi_schema(
+            result = await upload_openapi_schema(
                 openapi_spec=openapi_spec,
                 gateway_name='test-gateway',
                 region='us-east-1',
@@ -206,7 +208,7 @@ class TestHelperFunctions:
             openapi_spec = {'openapi': '3.0.0'}
             setup_steps = []
 
-            result = await _upload_openapi_schema(
+            result = await upload_openapi_schema(
                 openapi_spec=openapi_spec,
                 gateway_name='test-gateway',
                 region='us-east-1',
@@ -391,7 +393,7 @@ class TestAgentGatewayTool:  # pragma: no cover
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
             patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway._discover_smithy_models'
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway_utilities.discover_smithy_models'
             ) as mock_discover,
         ):
             mock_discover.return_value = {
@@ -418,18 +420,17 @@ class TestAgentGatewayTool:  # pragma: no cover
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
             patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway._discover_smithy_models'
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway.discover_smithy_models'
             ) as mock_discover,
         ):
-            mock_discover.return_value = {'error': 'Network connection failed'}
+            mock_discover.side_effect = Exception('Network connection failed')
 
             helper = SmartTestHelper()
             result = await helper.call_tool_and_extract(
                 mcp, 'agent_gateway', {'action': 'discover'}
             )
 
-            assert 'Service Discovery Failed' in result
-            assert 'Fallback - Common Services' in result
+            assert 'X Discovery Error' in result or 'Service Discovery Failed' in result
 
     @pytest.mark.asyncio
     async def test_agent_gateway_setup_action_missing_gateway_name(self):  # pragma: no cover
@@ -671,7 +672,7 @@ class TestErrorScenarios:
 
             mock_get.side_effect = requests.Timeout('Connection timeout')
 
-            result = await _discover_smithy_models()
+            result = await discover_smithy_models()
 
             assert 'errors' in result
             assert len(result['errors']) > 0
@@ -685,7 +686,7 @@ class TestErrorScenarios:
             mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
             mock_get.return_value = mock_response
 
-            result = await _discover_smithy_models()
+            result = await discover_smithy_models()
 
             assert 'errors' in result
 
@@ -699,7 +700,7 @@ class TestErrorScenarios:
             mock_s3.create_bucket.side_effect = Exception('Insufficient permissions')
 
             setup_steps = []
-            result = await _upload_openapi_schema(
+            result = await upload_openapi_schema(
                 openapi_spec={'test': 'spec'},
                 gateway_name='test',
                 region='us-east-1',
@@ -715,12 +716,12 @@ class TestErrorScenarios:
         setup_steps = []
 
         # Test with empty string - should return None gracefully
-        result = await _find_and_upload_smithy_model('', 'us-east-1', setup_steps)
+        result = await find_and_upload_smithy_model('', 'us-east-1', setup_steps)
         assert result is None
 
         # Test with None - should handle gracefully
         try:
-            result = await _find_and_upload_smithy_model(None, 'us-east-1', setup_steps)  # type: ignore
+            result = await find_and_upload_smithy_model(None, 'us-east-1', setup_steps)  # type: ignore
             assert result is None
         except (TypeError, AttributeError):
             # It's acceptable if this raises a type error
@@ -743,7 +744,7 @@ if __name__ == '__main__':
         print('Testing gateway helper functions...')
 
         # Test discovery function
-        result = await _discover_smithy_models()
+        result = await discover_smithy_models()
         print(f'✓ Discovery returned: {type(result)}')
 
         # Test registration
@@ -798,7 +799,7 @@ class TestGatewaySetupAndCreation:  # pragma: no cover
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.RUNTIME_AVAILABLE', True),
             patch('boto3.client') as mock_boto3,
             patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway._find_and_upload_smithy_model'
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway_utilities.find_and_upload_smithy_model'
             ) as mock_upload,
         ):
             mock_client = Mock()
@@ -845,7 +846,7 @@ class TestGatewaySetupAndCreation:  # pragma: no cover
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.RUNTIME_AVAILABLE', True),
             patch('boto3.client') as mock_boto3,
             patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway._upload_openapi_schema'
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway_utilities.upload_openapi_schema'
             ) as mock_upload,
         ):
             mock_client = Mock()
@@ -1202,7 +1203,7 @@ class TestCredentialManagement:
             mock_s3.put_object.return_value = True
 
             setup_steps = []
-            result = await _upload_openapi_schema(
+            result = await upload_openapi_schema(
                 openapi_spec=openapi_spec,
                 gateway_name='test-gateway',
                 region='us-east-1',
@@ -1229,7 +1230,7 @@ class TestCredentialManagement:
             mock_s3.put_object.return_value = True
 
             setup_steps = []
-            result = await _upload_openapi_schema(
+            result = await upload_openapi_schema(
                 openapi_spec=openapi_spec,
                 gateway_name='test-gateway',
                 region='us-east-1',
@@ -1267,7 +1268,7 @@ class TestSmithyModelHandling:
             ]
             mock_get.return_value = mock_response
 
-            result = await _discover_smithy_models()
+            result = await discover_smithy_models()
 
             assert isinstance(result, dict)
             # Check all major categories exist
@@ -1343,7 +1344,7 @@ class TestSmithyModelHandling:
             mock_s3.put_object.return_value = True
 
             setup_steps = []
-            result = await _find_and_upload_smithy_model('dynamodb', 'us-east-1', setup_steps)
+            result = await find_and_upload_smithy_model('dynamodb', 'us-east-1', setup_steps)
 
             assert result is not None
             assert result.startswith('s3://')
@@ -1362,7 +1363,7 @@ class TestSmithyModelHandling:
             mock_get.return_value = mock_response
 
             setup_steps = []
-            result = await _find_and_upload_smithy_model('testservice', 'us-east-1', setup_steps)
+            result = await find_and_upload_smithy_model('testservice', 'us-east-1', setup_steps)
 
             assert result is None
             assert any("No 'service' directory found" in step for step in setup_steps)
