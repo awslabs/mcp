@@ -767,3 +767,76 @@ async def test_stop_application_verification_exception(handler, mock_aws_helper,
 
     assert response.isError
     assert 'Cannot stop application' in response.content[0].text
+
+
+# Test ValueError exception handling
+@pytest.mark.asyncio
+async def test_create_application_value_error(handler, mock_context):
+    """Test ValueError handling during application creation."""
+    handler.emr_serverless_client = MagicMock()
+    handler.emr_serverless_client.create_application.side_effect = ValueError(
+        'Invalid parameter value'
+    )
+
+    response = await handler.manage_aws_emr_serverless_applications(
+        mock_context,
+        operation='create-application',
+        name='TestApplication',
+        release_label='emr-7.9.0',
+        type='Spark',
+    )
+
+    assert response.isError
+    assert 'Invalid parameter value' in response.content[0].text
+
+
+# Test error response creation for different operation types
+@pytest.mark.asyncio
+async def test_create_error_response_coverage(mock_aws_helper, mock_context):
+    """Test _create_error_response for different operation types."""
+    # Create a fresh handler instance for this test to avoid state interference
+    mcp = MagicMock()
+    mcp.tool = MagicMock(return_value=lambda f: f)
+    handler = EMRServerlessApplicationHandler(
+        mcp, allow_write=True, allow_sensitive_data_access=True
+    )
+
+    # Test update-application error response
+    response = await handler.manage_aws_emr_serverless_applications(
+        mock_context, operation='update-application', application_id=None
+    )
+    assert response.isError
+    assert isinstance(response, UpdateApplicationResponse)
+
+    # Test delete-application error response
+    response = await handler.manage_aws_emr_serverless_applications(
+        mock_context, operation='delete-application', application_id=None
+    )
+    assert response.isError
+    assert isinstance(response, DeleteApplicationResponse)
+
+    # Test list-applications success (properly mock the response)
+    handler.emr_serverless_client = MagicMock()
+    handler.emr_serverless_client.list_applications.return_value = {
+        'applications': [],
+        'nextToken': None,  # Explicitly set to None instead of letting it be a MagicMock
+    }
+    response = await handler.manage_aws_emr_serverless_applications(
+        mock_context, operation='list-applications'
+    )
+    assert not response.isError
+    assert isinstance(response, ListApplicationsResponse)
+
+    # Test start-application error response
+    response = await handler.manage_aws_emr_serverless_applications(
+        mock_context, operation='start-application', application_id=None
+    )
+    assert response.isError
+    assert isinstance(response, StartApplicationResponse)
+
+    # Test stop-application error response
+    response = await handler.manage_aws_emr_serverless_applications(
+        mock_context, operation='stop-application', application_id=None
+    )
+    assert response.isError
+    assert isinstance(response, StopApplicationResponse)

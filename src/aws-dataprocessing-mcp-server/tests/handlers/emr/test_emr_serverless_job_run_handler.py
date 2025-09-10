@@ -705,3 +705,77 @@ async def test_list_job_runs_date_filtering(handler, mock_context):
     call_args = handler.emr_serverless_client.list_job_runs.call_args[1]
     assert call_args['createdAtAfter'] == '2023-05-01T00:00:00Z'
     assert call_args['createdAtBefore'] == '2023-07-01T00:00:00Z'
+
+
+# Test ValueError exception handling
+@pytest.mark.asyncio
+async def test_start_job_run_value_error(handler, mock_context):
+    """Test ValueError handling during job run start."""
+    handler.emr_serverless_client = MagicMock()
+    handler.emr_serverless_client.start_job_run.side_effect = ValueError('Invalid parameter value')
+
+    response = await handler.manage_aws_emr_serverless_job_runs(
+        mock_context,
+        operation='start-job-run',
+        application_id='app-1234567890abcdef0',
+        execution_role_arn='arn:aws:iam::123456789012:role/EMRServerlessRole',
+        job_driver={'sparkSubmit': {'entryPoint': 's3://bucket/script.py'}},
+    )
+
+    assert response.isError
+    assert 'Invalid parameter value' in str(response.content[0])
+
+
+# Test get dashboard with mode parameter
+@pytest.mark.asyncio
+async def test_get_dashboard_for_job_run_with_mode(handler, mock_context):
+    """Test getting dashboard with mode parameter."""
+    handler.emr_serverless_client = MagicMock()
+    handler.emr_serverless_client.get_dashboard_for_job_run.return_value = {
+        'url': 'https://console.aws.amazon.com/emr/serverless/dashboard/job-1234567890abcdef0'
+    }
+
+    response = await handler.manage_aws_emr_serverless_job_runs(
+        mock_context,
+        operation='get-dashboard-for-job-run',
+        application_id='app-1234567890abcdef0',
+        job_run_id='job-1234567890abcdef0',
+        mode='STREAMING',
+    )
+
+    assert not response.isError
+    call_args = handler.emr_serverless_client.get_dashboard_for_job_run.call_args[1]
+    assert call_args['mode'] == 'STREAMING'
+
+
+# Test get dashboard error handling
+@pytest.mark.asyncio
+async def test_get_dashboard_for_job_run_error(handler, mock_context):
+    """Test error handling during get dashboard operation."""
+    handler.emr_serverless_client = MagicMock()
+    handler.emr_serverless_client.get_dashboard_for_job_run.side_effect = Exception(
+        'Dashboard error'
+    )
+
+    response = await handler.manage_aws_emr_serverless_job_runs(
+        mock_context,
+        operation='get-dashboard-for-job-run',
+        application_id='app-1234567890abcdef0',
+        job_run_id='job-1234567890abcdef0',
+    )
+
+    assert response.isError
+    assert 'Error in manage_aws_emr_serverless_job_runs: Dashboard error' in str(
+        response.content[0]
+    )
+
+
+# Test additional error response creation coverage
+@pytest.mark.asyncio
+async def test_create_error_response_additional_coverage(handler, mock_context):
+    """Test _create_error_response for additional operation types."""
+    # Test with an unknown operation to trigger the else clause
+    response = handler._create_error_response('unknown-operation', 'Test error')
+    assert response.isError
+    assert isinstance(response, GetJobRunResponse)
+    assert 'Test error' in str(response.content[0])

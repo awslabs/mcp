@@ -178,7 +178,6 @@ class EMRServerlessJobRunHandler:
                 description='Mode for the dashboard (optional for get-dashboard-for-job-run).',
             ),
         ] = None,
-        # Additional parameters expected by tests
         job_timeout_minutes: Annotated[
             Optional[int],
             Field(
@@ -313,7 +312,7 @@ class EMRServerlessJobRunHandler:
                     resource_tags.update(tags)
 
                 # Prepare parameters
-                params = {
+                params: Dict[str, Any] = {
                     'applicationId': application_id,
                     'executionRoleArn': execution_role_arn,
                     'jobDriver': job_driver,
