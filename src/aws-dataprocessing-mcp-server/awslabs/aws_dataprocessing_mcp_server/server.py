@@ -45,6 +45,12 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_instance_handler
 from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_steps_handler import (
     EMREc2StepsHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_serverless_application_handler import (
+    EMRServerlessApplicationHandler,
+)
+from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_serverless_job_run_handler import (
+    EMRServerlessJobRunHandler,
+)
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler import (
     CrawlerHandler,
 )
@@ -372,6 +378,19 @@ def main():
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,
     )
+
+    EMRServerlessApplicationHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
+    EMRServerlessJobRunHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+
     CommonResourceHandler(mcp, allow_write=allow_write)
 
     # Run server
