@@ -2274,3 +2274,271 @@ class TestGatewayInvokeToolFunctionality:  # pragma: no cover
                 or 'Simple string result from tool' in result
                 or 'Tool Invocation Failed' in result
             )
+
+
+class TestGatewayDeleteErrorConditions:  # pragma: no cover
+    """Test uncovered error conditions in gateway delete action."""
+
+    def _create_mock_mcp(self):
+        """Create a mock MCP server for testing."""
+        mcp = FastMCP('Test Gateway Server')
+        register_gateway_tools(mcp)
+        return mcp
+
+    def _extract_result(self, result_tuple):
+        """Extract string result from MCP response tuple."""
+        try:
+            if isinstance(result_tuple, tuple) and len(result_tuple) >= 1:
+                result_content = result_tuple[0]
+                if hasattr(result_content, 'content'):
+                    return str(result_content.content)  # type: ignore
+                elif hasattr(result_content, 'text'):
+                    return str(result_content.text)  # type: ignore
+                return str(result_content)
+            elif hasattr(result_tuple, 'content'):
+                return str(result_tuple.content)  # type: ignore
+            elif hasattr(result_tuple, 'text'):
+                return str(result_tuple.text)  # type: ignore
+            return str(result_tuple)
+        except (AttributeError, TypeError):
+            return str(result_tuple)
+
+    @pytest.mark.asyncio
+    async def test_delete_gateway_missing_gateway_name(self):
+        """Test delete action without gateway_name parameter."""
+        mcp = self._create_mock_mcp()
+
+        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True):
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
+                'agent_gateway',
+                {
+                    'action': 'delete',
+                    'region': 'us-east-1',
+                },
+            )
+
+            assert 'Error: gateway_name is required for delete action' in result
+
+    @pytest.mark.asyncio
+    async def test_delete_gateway_list_targets_error(self):
+        """Test delete action when listing targets fails."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_bedrock_service = Mock()
+            mock_boto3.return_value = mock_bedrock_service
+
+            # Mock gateway exists
+            mock_bedrock_service.list_gateways.return_value = {
+                'items': [{'name': 'test-gateway', 'gatewayId': 'gw-12345'}]
+            }
+
+            # Mock list_gateway_targets fails
+            mock_bedrock_service.list_gateway_targets.side_effect = Exception(
+                'Failed to list targets'
+            )
+
+            # Mock successful gateway deletion
+            mock_bedrock_service.delete_gateway.return_value = {}
+
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
+                'agent_gateway',
+                {
+                    'action': 'delete',
+                    'gateway_name': 'test-gateway',
+                    'region': 'us-east-1',
+                },
+            )
+
+            assert 'Could not list targets: Failed to list targets' in result
+
+    @pytest.mark.asyncio
+    async def test_delete_gateway_target_throttling_detected(self):
+        """Test delete action with throttling error handling."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+            patch('time.sleep') as mock_sleep,
+        ):
+            mock_bedrock_service = Mock()
+            mock_boto3.return_value = mock_bedrock_service
+
+            # Mock gateway exists
+            mock_bedrock_service.list_gateways.return_value = {
+                'items': [{'name': 'test-gateway', 'gatewayId': 'gw-12345'}]
+            }
+
+            # Mock targets exist
+            mock_bedrock_service.list_gateway_targets.return_value = {
+                'items': [{'targetId': 'target-123', 'name': 'test-target'}]
+            }
+
+            # Mock delete_gateway_target with throttling error first time
+            throttling_error = Exception('throttling detected - please retry')
+            success_on_retry = Mock()
+            mock_bedrock_service.delete_gateway_target.side_effect = [
+                throttling_error,  # First call fails with throttling
+                success_on_retry,  # Second call succeeds
+            ]
+
+            # Mock successful gateway deletion
+            mock_bedrock_service.delete_gateway.return_value = {}
+
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
+                'agent_gateway',
+                {
+                    'action': 'delete',
+                    'gateway_name': 'test-gateway',
+                    'region': 'us-east-1',
+                },
+            )
+
+            assert 'Throttling detected for test-target, will retry after delay' in result
+            # Could be sleep(10) for throttling or sleep(2) for regular deletion delay
+            assert mock_sleep.called
+
+    @pytest.mark.asyncio
+    async def test_delete_gateway_target_not_found_already_deleted(self):
+        """Test delete action when target is already deleted."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_bedrock_service = Mock()
+            mock_boto3.return_value = mock_bedrock_service
+
+            # Mock gateway exists
+            mock_bedrock_service.list_gateways.return_value = {
+                'items': [{'name': 'test-gateway', 'gatewayId': 'gw-12345'}]
+            }
+
+            # Mock targets exist
+            mock_bedrock_service.list_gateway_targets.return_value = {
+                'items': [{'targetId': 'target-123', 'name': 'test-target'}]
+            }
+
+            # Mock delete_gateway_target with not found error
+            not_found_error = Exception('target does not exist or was already deleted')
+            mock_bedrock_service.delete_gateway_target.side_effect = not_found_error
+
+            # Mock successful gateway deletion
+            mock_bedrock_service.delete_gateway.return_value = {}
+
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
+                'agent_gateway',
+                {
+                    'action': 'delete',
+                    'gateway_name': 'test-gateway',
+                    'region': 'us-east-1',
+                },
+            )
+
+            assert 'OK Target test-target already deleted' in result
+
+    @pytest.mark.asyncio
+    async def test_delete_gateway_final_verification_confirms_all_deleted(self):
+        """Test delete action final verification when all targets are confirmed deleted."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_bedrock_service = Mock()
+            mock_boto3.return_value = mock_bedrock_service
+
+            # Mock gateway exists
+            mock_bedrock_service.list_gateways.return_value = {
+                'items': [{'name': 'test-gateway', 'gatewayId': 'gw-12345'}]
+            }
+
+            # Mock targets exist initially, then empty after verification
+            mock_bedrock_service.list_gateway_targets.side_effect = [
+                {'items': [{'targetId': 'target-123', 'name': 'test-target'}]},  # Initial list
+                {'items': []},  # After deletion verification
+                {'items': []},  # Final verification
+            ]
+
+            # Mock successful target deletion
+            mock_bedrock_service.delete_gateway_target.return_value = {}
+
+            # Mock successful gateway deletion
+            mock_bedrock_service.delete_gateway.return_value = {}
+
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
+                'agent_gateway',
+                {
+                    'action': 'delete',
+                    'gateway_name': 'test-gateway',
+                    'region': 'us-east-1',
+                },
+            )
+
+            assert 'OK All targets successfully deleted' in result
+
+    @pytest.mark.asyncio
+    async def test_delete_gateway_final_verification_error(self):
+        """Test delete action when final verification fails."""
+        mcp = self._create_mock_mcp()
+
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.gateway.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            mock_bedrock_service = Mock()
+            mock_boto3.return_value = mock_bedrock_service
+
+            # Mock gateway exists
+            mock_bedrock_service.list_gateways.return_value = {
+                'items': [{'name': 'test-gateway', 'gatewayId': 'gw-12345'}]
+            }
+
+            # Mock targets exist initially
+            mock_bedrock_service.list_gateway_targets.side_effect = [
+                {'items': [{'targetId': 'target-123', 'name': 'test-target'}]},  # Initial list
+                {'items': []},  # After deletion
+                Exception('Final verification failed'),  # Final verification error
+            ]
+
+            # Mock successful target deletion
+            mock_bedrock_service.delete_gateway_target.return_value = {}
+
+            helper = SmartTestHelper()
+
+            result = await helper.call_tool_and_extract(
+                mcp,
+                'agent_gateway',
+                {
+                    'action': 'delete',
+                    'gateway_name': 'test-gateway',
+                    'region': 'us-east-1',
+                },
+            )
+
+            # Test should complete successfully even if final verification fails
+            assert (
+                'Gateway Deleted Successfully' in result
+                or 'Could not perform final verification' in result
+            )
