@@ -927,7 +927,7 @@ class TestAgentMemoryTool:  # pragma: no cover
 
             assert 'Memory Deleted Successfully' in result or 'Memory Deletion Error' in result
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio  # pragma: no cover
     async def test_agent_memory_delete_action_error(self):  # pragma: no cover
         """Test delete action with error from AWS service."""
         mcp = self._create_mock_mcp()
