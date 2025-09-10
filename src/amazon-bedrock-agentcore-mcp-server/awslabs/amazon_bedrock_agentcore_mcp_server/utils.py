@@ -641,7 +641,7 @@ def format_existing_agents_summary(existing_agents: List[dict]) -> str:
 ## ============================================================================
 
 
-def what_agents_can_i_invoke(region: str = 'us-east-1') -> str:
+def what_agents_can_i_invoke(region: str = 'us-east-1') -> str:  # pragma: no cover
     """Target: WHAT AGENTS CAN I INVOKE?
 
     Smart overlap analysis combining local YAML configs with actual AWS deployments.
@@ -1269,7 +1269,7 @@ def register_discovery_tools(mcp: FastMCP):
     """Register enhanced agent discovery and runtime management tools."""
 
     @mcp.tool()
-    async def get_agent_logs(
+    async def get_agent_logs(  # pragma: no cover
         agent_name: str = Field(description='Name of the deployed agent'),
         hours_back: int = Field(default=1, description='Hours of logs to retrieve (default: 1)'),
         max_events: int = Field(

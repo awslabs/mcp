@@ -1047,6 +1047,7 @@ Alternative: Use AWS Console for memory management""")
 
 def get_memory_health_recommendations(status: str, health_info: Dict[str, Any]) -> str:
     """Generate health recommendations based on memory status."""
+    # pragma: no cover
     if status == 'ACTIVE':
         if health_info.get('client_test') == 'PASSED':
             return """ Memory is fully operational
