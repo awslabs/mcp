@@ -334,7 +334,7 @@ class EMRServerlessApplicationHandler:
                     return self._create_error_response(operation, error_message)
 
                 # Prepare parameters
-                params = {
+                params: Dict[str, Any] = {
                     'name': name,
                     'releaseLabel': release_label,
                     'type': type,
@@ -432,7 +432,7 @@ class EMRServerlessApplicationHandler:
                     return self._create_error_response(operation, error_message)
 
                 # Prepare parameters
-                params = {
+                params: Dict[str, Any] = {
                     'applicationId': application_id,
                 }
 
@@ -518,7 +518,7 @@ class EMRServerlessApplicationHandler:
 
             elif operation == 'list-applications':
                 # Prepare parameters
-                params = {}
+                params: Dict[str, Any] = {}
                 if next_token is not None:
                     params['nextToken'] = next_token
                 if max_results is not None:
