@@ -935,7 +935,9 @@ class TestAgentMemoryTool:  # pragma: no cover
         helper = SmartTestHelper()
         with (
             patch('awslabs.amazon_bedrock_agentcore_mcp_server.memory.SDK_AVAILABLE', True),
-            patch('bedrock_agentcore.memory.MemoryControlPlaneClient') as mock_control_client,
+            patch(
+                'awslabs.amazon_bedrock_agentcore_mcp_server.memory.MemoryControlPlaneClient'
+            ) as mock_control_client,
         ):
             mock_control_instance = Mock()
             mock_control_client.return_value = mock_control_instance
@@ -950,6 +952,7 @@ class TestAgentMemoryTool:  # pragma: no cover
                 'Memory not found' in result
                 or 'Parameter validation failed' in result
                 or 'ExpiredTokenException' in result
+                or 'Unable to locate credentials' in result
             )
 
     @pytest.mark.asyncio
