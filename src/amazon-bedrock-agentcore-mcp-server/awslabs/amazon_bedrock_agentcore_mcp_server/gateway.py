@@ -39,13 +39,11 @@ from .gateway_return_stmts import (
     return_list_gateway_error,
     return_no_gateways_found,
     return_sdk_not_available,
-    return_service_discovery_error,
     return_smithy_gateway_creation_ok,
 )
 from .gateway_utilities import (
-    discover_smithy_models,
-    find_and_upload_smithy_model,
     upload_openapi_schema,
+    upload_smithy_model,
 )
 from .utils import RUNTIME_AVAILABLE, SDK_AVAILABLE, MCPtoolError
 from mcp.client.streamable_http import streamablehttp_client
@@ -85,8 +83,8 @@ def register_gateway_tools(mcp: FastMCP):
         target_type: Literal['lambda', 'openApiSchema', 'smithyModel'] = Field(
             default='lambda', description='Target type'
         ),
-        smithy_model: str = Field(
-            default='', description="AWS Smithy model name (e.g., 's3', 'dynamodb')"
+        smithy_model: Optional[dict] = Field(
+            default=None, description='Smithy model to use as dict'
         ),
         openapi_spec: Optional[dict] = Field(
             default=None, description='OpenAPI specification as dict'
@@ -127,7 +125,6 @@ def register_gateway_tools(mcp: FastMCP):
         - search_tools: Semantic search for tools through gateway
         - invoke_tool: Invoke specific tools through gateway
         - safe_examples: Show validated patterns for any Smithy model (prevents multiple creation)
-        - discover: Discover AWS service models for Smithy targets
         - create: Create new gateway only
         - targets: Manage gateway targets (lambda, openapi, smithy)
         - cognito: Setup Cognito OAuth authorization
@@ -480,101 +477,6 @@ Manual Action Required: Use AWS Console to check and complete deletion""")
                         )
                     )
 
-            # Action: discover - Dynamically discover available AWS services for Smithy models
-            elif action == 'discover':
-                try:
-                    # Get live data from GitHub API
-                    discovered_services = await discover_smithy_models()
-
-                    # Check for errors
-                    if 'error' in discovered_services:
-                        raise MCPtoolError(
-                            return_service_discovery_error.format(
-                                discovery_error=discovered_services.get('error', 'Unknown error')
-                            )
-                        )
-
-                    # Format the discovered services
-                    result_parts = []
-                    result_parts.append('# Search: AWS Service Discovery - Live Results')
-                    result_parts.append('')
-                    result_parts.append('Network: Source: GitHub AWS API Models Repository (Live)')
-                    result_parts.append(
-                        f'Target: Total Services Found: {sum(len(services) for services in discovered_services.values())}'
-                    )
-                    result_parts.append('')
-
-                    # Add each category
-                    for category, services in discovered_services.items():
-                        if services:  # Only show categories with services
-                            result_parts.append(f'### {category} ({len(services)} services):')
-                            for service in services:
-                                result_parts.append(
-                                    f'- {service["name"]} - {service["description"]}'
-                                )
-                            result_parts.append('')
-
-                    # Add usage examples
-                    result_parts.append('## Usage Examples:')
-                    result_parts.append('')
-
-                    # Find popular services for examples
-                    all_services = []
-                    for services in discovered_services.values():
-                        all_services.extend([s['name'] for s in services])
-
-                    popular = ['dynamodb', 's3', 'lambda', 'ec2', 'iam']
-                    available_popular = [s for s in popular if s in all_services]
-
-                    if available_popular:
-                        for service in available_popular[:3]:  # Show top 3
-                            result_parts.append(f'### Create {service.upper()} Gateway:')
-                            result_parts.append('```python')
-                            result_parts.append('agent_gateway(')
-                            result_parts.append('    action="setup",')
-                            result_parts.append(f'    gateway_name="my-{service}-gateway",')
-                            result_parts.append(f'    smithy_model="{service}"')
-                            result_parts.append(')')
-                            result_parts.append('```')
-                            result_parts.append('')
-
-                    # Add OpenAPI example
-                    result_parts.append('### Create OpenAPI Gateway:')
-                    result_parts.append('```python')
-                    result_parts.append('agent_gateway(')
-                    result_parts.append('    action="setup",')
-                    result_parts.append('    gateway_name="my-api-gateway",')
-                    result_parts.append('    openapi_spec=your_openapi_spec,')
-                    result_parts.append('    api_key="your-api-key"')  # pragma: allowlist secret
-                    result_parts.append(')')
-                    result_parts.append('```')
-                    result_parts.append('')
-
-                    result_parts.append('## Model Names:')
-                    result_parts.append('- Use exact names from the list above')
-                    result_parts.append('- Names are case-sensitive (use lowercase)')
-                    result_parts.append("- Some services use hyphens (e.g., 'cognito-idp')")
-                    result_parts.append('')
-
-                    result_parts.append('## Next Steps:')
-                    result_parts.append('```python')
-                    result_parts.append('# Choose any service from above and create gateway')
-                    result_parts.append(
-                        'agent_gateway(action="setup", gateway_name="my-gateway", smithy_model="SERVICE_NAME")'
-                    )
-                    result_parts.append('```')
-                    result_parts.append('')
-                    result_parts.append(
-                        'OK All services shown are verified to exist in the AWS API models repository!'
-                    )
-
-                    return '\n'.join(result_parts)
-
-                except Exception as e:
-                    raise MCPtoolError(
-                        f"""X Discovery Error: {str(e)}. You may want to visit Visit: https://github.com/aws/api-models-aws/tree/main/models"""
-                    )
-
             # Action: setup - Complete gateway setup workflow (the comprehensive approach)
             elif action == 'setup':  # pragma: no cover
                 if not gateway_name:
@@ -582,7 +484,7 @@ Manual Action Required: Use AWS Console to check and complete deletion""")
 
 Example:
 ```python
-agent_gateway(action="setup", gateway_name="my-gateway", smithy_model="dynamodb")
+agent_gateway(action="setup", gateway_name="my-gateway", ...)
 ```"""
 
                 if not RUNTIME_AVAILABLE:
@@ -677,25 +579,22 @@ Troubleshooting:
 
                         try:
                             if smithy_model:
-                                # Complete Smithy model workflow:
-                                # 1. Search GitHub API models repo
-                                # 2. Download JSON model
-                                # 3. Upload to S3
-                                # 4. Create target with S3 URI
+                                # 2. Upload to S3
+                                # 2. Create target with S3 URI
 
                                 setup_steps.append(
-                                    f'Search: Searching for {smithy_model} Smithy model in GitHub...'
+                                    f'Search: Using the provided smithy model -  {smithy_model} ...'
                                 )
 
                                 try:
                                     # Search for the Smithy model in AWS API models repository
-                                    smithy_s3_uri = await find_and_upload_smithy_model(
-                                        smithy_model, region, setup_steps
+                                    smithy_s3_uri = await upload_smithy_model(
+                                        smithy_model, gateway_name + '_smithy', region, setup_steps
                                     )
 
                                     if not smithy_s3_uri:
                                         raise Exception(
-                                            f'Could not find or upload Smithy model for {smithy_model}'
+                                            f'Could not  upload Smithy model for {smithy_model}'
                                         )
 
                                     setup_steps.append(
@@ -731,7 +630,7 @@ Gateway `{gateway_name}` was created but Smithy target setup failed.
 Error: {str(smithy_error)}
 
 Manual Steps to Add Target:
-1. Download Smithy model from: https://github.com/aws/api-models-aws/tree/main/models/{smithy_model}
+1. Download Smithy model (maybe in json format)
 2. Upload to S3 bucket
 3. Use AWS Console to add target with S3 URI
 

@@ -152,28 +152,6 @@ Possible Causes:
 
 Check Status: `agent_gateway(action="list")` to see available gateways"""
 
-# --------------------------------------------------------------------------------------
-
-return_service_discovery_error = """X Service Discovery Failed
-
-Error: {discovery_error}
-
-## Fallback - Common Services:
-Use these well-known AWS services while discovery is unavailable:
-
-Popular Services: `dynamodb`, `s3`, `lambda`, `ec2`, `iam`, `sts`
-Storage: `s3`, `efs`, `fsx`
-Database: `dynamodb`, `rds`, `redshift`
-Compute: `lambda`, `ec2`, `ecs`
-Security: `iam`, `sts`, `cognito-idp`
-
-## Manual Check:
-Visit: https://github.com/aws/api-models-aws/tree/main/models
-
-## Usage:
-```python
-agent_gateway(action="setup", gateway_name="my-gateway", smithy_model="dynamodb")
-```"""
 
 # --------------------------------------------------------------------------------------
 
