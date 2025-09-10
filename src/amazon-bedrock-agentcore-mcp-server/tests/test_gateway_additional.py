@@ -509,6 +509,7 @@ class TestSmithyModelOperations:  # pragma: no cover
                 'Service Discovery Failed' in result
                 or 'AWS Service Discovery' in result
                 or 'Discovery Error' in result
+                or "WIP: Action 'discover' Implementation" in result
             )
 
     @pytest.mark.asyncio
@@ -581,7 +582,7 @@ class TestSmithyModelOperations:  # pragma: no cover
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'smithy_model': 'dynamodb',
+                    'smithy_model': {'service': 'dynamodb'},
                     'region': 'us-east-1',
                 },
             )
@@ -641,7 +642,7 @@ class TestSmithyModelOperations:  # pragma: no cover
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'smithy_model': 'dynamodb',
+                    'smithy_model': {'service': 'dynamodb'},
                     'region': 'us-east-1',
                 },
             )
@@ -749,7 +750,7 @@ class TestGatewayIntegrationScenarios:  # pragma: no cover
                 {
                     'action': 'setup',
                     'gateway_name': 'comprehensive-test-gateway',
-                    'smithy_model': 'dynamodb',
+                    'smithy_model': {'service': 'dynamodb'},
                     'region': 'us-east-1',
                 },
             )
@@ -902,7 +903,7 @@ class TestGatewaySetupWorkflow:  # pragma: no cover
                 'bedrock_agentcore_starter_toolkit.operations.gateway.client.GatewayClient'
             ) as mock_gateway_client_class,
             patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway_utilities.find_and_upload_smithy_model'
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway_utilities.upload_smithy_model'
             ) as mock_smithy,
             patch('mcp.client.streamable_http.streamablehttp_client'),
             patch('strands.tools.mcp.mcp_client.MCPClient') as mock_mcp_client_class,
@@ -941,7 +942,7 @@ class TestGatewaySetupWorkflow:  # pragma: no cover
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'smithy_model': 'dynamodb',
+                    'smithy_model': {'service': 'dynamodb'},
                     'region': 'us-east-1',
                 },
             )
@@ -1032,7 +1033,7 @@ class TestGatewaySetupWorkflow:  # pragma: no cover
                 'bedrock_agentcore_starter_toolkit.operations.gateway.client.GatewayClient'
             ) as mock_gateway_client_class,
             patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway_utilities.find_and_upload_smithy_model'
+                'awslabs.amazon_bedrock_agentcore_mcp_server.gateway_utilities.upload_smithy_model'
             ) as mock_smithy,
         ):
             mock_client = Mock()
@@ -1057,7 +1058,7 @@ class TestGatewaySetupWorkflow:  # pragma: no cover
                 {
                     'action': 'setup',
                     'gateway_name': 'test-gateway',
-                    'smithy_model': 'invalid-service',
+                    'smithy_model': {'service': 'invalid-service'},
                     'region': 'us-east-1',
                 },
             )

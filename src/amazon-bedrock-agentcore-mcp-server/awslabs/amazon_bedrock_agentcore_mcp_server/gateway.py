@@ -397,7 +397,8 @@ Gateway: `{gateway_name}` ({gateway_id})
 Issue: Cannot verify target deletion status after {max_deletion_attempts} attempts
 
 ## Deletion Steps Attempted:
-{chr(10).join(f'- {step}' for step in deletion_steps)}
+{chr(10) + ' - '.join(deletion_steps)}
+
 
 Verification Error: {str(final_verify_error)}
 

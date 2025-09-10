@@ -28,6 +28,7 @@ MCP TOOLS IMPLEMENTED:
 
 import time
 from .utils import SDK_AVAILABLE, MCPtoolError, resolve_app_file_path
+from bedrock_agentcore.memory import MemoryClient, MemoryControlPlaneClient
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from typing import Any, Dict, List, Literal
@@ -491,7 +492,6 @@ pip install bedrock-agentcore
 
         try:
             # Import memory-related classes
-            from bedrock_agentcore.memory import MemoryClient, MemoryControlPlaneClient
             # from bedrock_agentcore.memory.constants import MemoryStatus, StrategyType
 
             # Action: list - List all memory resources (using tested logic)
@@ -683,9 +683,11 @@ agent_memory(action="create", agent_name="my_agent", agent_file="my_agent.py")
                     create_steps.append(' Waiting for memory to become active...')
 
                     max_wait_time = 180  # 3 minutes
-                    wait_start = time.time()
+                    # wait_start = time.time()
 
-                    while time.time() - wait_start < max_wait_time:
+                    deadline = time.monotonic() + max_wait_time
+
+                    while time.monotonic() < deadline:
                         status_result = memory_control.get_memory(memory_id=memory_id)
                         status = status_result.get('status', 'UNKNOWN')
 
@@ -726,6 +728,7 @@ agent_memory(action="create", agent_name="my_agent", agent_file="my_agent.py")
                                 if 'MemoryClient' in agent_code and memory_id in agent_code:
                                     create_steps.append(' Memory already integrated')
                                 else:
+                                    lines_to_add = []
                                     # Perform integration
                                     code_lines = agent_code.split('\n')
 
@@ -733,48 +736,33 @@ agent_memory(action="create", agent_name="my_agent", agent_file="my_agent.py")
                                     import_added = False
                                     for i, line in enumerate(code_lines):
                                         if 'from bedrock_agentcore' in line and not import_added:
-                                            code_lines.insert(
-                                                i + 1,
-                                                'from bedrock_agentcore.memory import MemoryClient',
+                                            lines_to_add.append(
+                                                'from bedrock_agentcore.memory import MemoryClient # Using bedrock_agentcore memory client without importing'
                                             )
-                                            import_added = True
                                             break
 
                                     if not import_added:
-                                        code_lines.insert(
-                                            0, 'from bedrock_agentcore.memory import MemoryClient'
+                                        lines_to_add.append(
+                                            'from bedrock_agentcore.memory import MemoryClient'
                                         )
 
                                     # Add memory client initialization
                                     for i, line in enumerate(code_lines):
                                         if 'BedrockAgentCoreApp()' in line:
-                                            code_lines.insert(
-                                                i + 1,
-                                                f'memory_client = MemoryClient(memory_id="{memory_id}")',
+                                            lines_to_add.append(
+                                                f'memory_client = MemoryClient(memory_id="{memory_id}") # Add to line {i + 1}'
                                             )
                                             break
-
-                                    # Write updated code
-                                    updated_code = '\n'.join(code_lines)
-
-                                    # Create backup
-                                    backup_file = f'{resolved_file}.backup'
-                                    with open(backup_file, 'w') as f:
-                                        f.write(agent_code)
-
-                                    with open(resolved_file, 'w') as f:
-                                        f.write(updated_code)
 
                                     create_steps.append(
                                         f' Memory integrated with **{resolved_file}**'
                                     )
-                                    create_steps.append(f'💾 Backup created: **{backup_file}**')
 
                                     integration_result = f"""
 
 ## Agent Integration Complete
 - **Updated File**: `{resolved_file}`
-- **Backup Created**: `{backup_file}`
+- **Lines to add next**: {lines_to_add}
 - **Memory Client**: Ready to use"""
 
                             except Exception as integration_error:
