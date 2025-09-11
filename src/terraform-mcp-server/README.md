@@ -113,7 +113,6 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-
 or docker after a successful `docker build -t awslabs/terraform-mcp-server .`:
 
 ```json
@@ -135,6 +134,16 @@ or docker after a successful `docker build -t awslabs/terraform-mcp-server .`:
       }
     }
   }
+```
+
+## Disabling Tools
+
+To reduce token usage, you can disable specific tools you don't need:
+
+```json
+"env": {
+  "DISABLED_TOOLS": "ExecuteTerragruntCommand,RunCheckovScan"
+}
 ```
 
 ## Security Considerations
