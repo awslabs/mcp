@@ -36,6 +36,7 @@ This tool provides systematic methodology for creating production-ready multi-ta
 advanced optimizations, cost analysis, and integration patterns.
 """
 
+
 def create_server():
     """Create and configure the MCP server instance."""
     return FastMCP(
@@ -43,7 +44,9 @@ def create_server():
         instructions=SERVER_INSTRUCTIONS,
     )
 
+
 app = create_server()
+
 
 @app.tool()
 @handle_exceptions
@@ -68,9 +71,11 @@ async def dynamodb_data_modeling() -> str:
     architect_prompt = prompt_file.read_text(encoding='utf-8')
     return architect_prompt
 
+
 def main():
     """Main entry point for the MCP server application."""
     app.run()
+
 
 if __name__ == '__main__':
     main()

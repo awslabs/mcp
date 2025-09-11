@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The following functionality has been removed:
   - Table Operations
-  - Item Operations  
+  - Item Operations
   - Query and Scan Operations
   - Backup and Recovery Operations
   - Time to Live Operations
