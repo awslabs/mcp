@@ -14,7 +14,9 @@ The Core MCP Server implements a proxy server strategy that dynamically imports 
 
 #### Role-Based Server Configuration
 
-You can enable specific roles by setting environment variables. Each role corresponds to a logical grouping of MCP servers that are commonly used together for specific use cases:
+You can enable specific roles by setting environment variables. Each role corresponds to a logical grouping of MCP servers that are commonly used together for specific use cases.
+
+> **Important**: Environment variable names can be either lowercase with hyphens or uppercase with underscores (e.g., `aws-foundation` or `AWS_FOUNDATION`). Some systems may not support the hyphenated format, so choose the format that works best for your environment.
 
 | Role Environment Variable | Description | Included MCP Servers |
 |---------------------------|-------------|----------------------|
