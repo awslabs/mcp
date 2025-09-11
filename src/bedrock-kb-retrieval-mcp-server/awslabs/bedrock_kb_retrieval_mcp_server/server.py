@@ -190,7 +190,7 @@ async def query_knowledge_bases_tool(
 
 def main():
     """Run the MCP server with CLI argument support."""
-    mcp.run()
+    mcp.run(transport=os.getenv('BEDROCK_KB_MCP_TRANSPORT', "stdio"))
 
 
 if __name__ == '__main__':
