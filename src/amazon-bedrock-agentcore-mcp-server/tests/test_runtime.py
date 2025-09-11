@@ -1335,7 +1335,11 @@ if __name__ == "__main__":
             # Mock dir() to return some methods
             with patch('builtins.dir', return_value=['invoke_agent_runtime', 'list_agents']):
                 result = await invoke_agent_via_aws_sdk(
-                    'test-agent', 'Hello, AWS!', 'aws-session', 'us-east-1'
+                    'test-agent',
+                    'arn:aws:bedrock-agentcore:us-east-1:acct:runtime/some_random_agentL9wqRu4QWX',
+                    'Hello, AWS!',
+                    'aws-session',
+                    'us-east-1',
                 )
 
         assert 'Direct AWS SDK Invocation Attempted' in result
@@ -1687,7 +1691,11 @@ if __name__ == "__main__":
             # Mock dir() to return no relevant methods
             with patch('builtins.dir', return_value=['list_buckets', 'create_bucket']):
                 result = await invoke_agent_via_aws_sdk(
-                    'test-agent', 'Hello, AWS!', 'aws-session', 'us-east-1'
+                    'test-agent',
+                    'arn:aws:bedrock-agentcore:us-east-1:acct:runtime/some_random_agentL9wqRu4QWX',
+                    'Hello, AWS!',
+                    'aws-session',
+                    'us-east-1',
                 )
 
                 # The function returns detailed AWS SDK guidance instead of a short error

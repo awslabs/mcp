@@ -1071,71 +1071,66 @@ Troubleshooting:
 
 
 async def invoke_agent_via_aws_sdk(
-    agent_name: str, prompt: str, session_id: str, region: str
+    agent_name: str, agent_arn: str, prompt: str, session_id: str, region: str
 ) -> str:
     """Invoke agent directly via AWS SDK - for SDK deployed agents without local config."""
     try:
+        import json
+
         # Generate session ID if not provided
         if not session_id:
-            session_id = str(uuid.uuid4())[:8]
+            session_id = str(uuid.uuid4())
 
-        # Try to find agent ARN from deployment status
-        # Look for existing deployment info from the MCP server deployment process
         agentcore_client = boto3.client('bedrock-agentcore', region_name=region)
-        print(dir(agentcore_client))
-        # First try to find the agent by listing (common pattern for SDK deployed agents)
-        # Agent names from SDK deployment often have suffixes like -mJRQCB4c47
-        try:
-            # Look for deployed agents with this base name
-            # This is a heuristic - actual implementation would need agent registry
-            agent_runtime_arn = f'arn:aws:bedrock-agentcore:{region}:*:runtime/{agent_name}-*'
-            print(agent_runtime_arn)
-            # For now, return a helpful message about direct AWS invocation
-            return f"""# Search: Direct AWS SDK Invocation Attempted
+        # If no ARN provided, find it via list_agent_runtimes
+        if not agent_arn:
+            try:
+                control_client = boto3.client('bedrock-agentcore-control', region_name=region)
+                list_response = control_client.list_agent_runtimes()
+                for runtime in list_response.get('agentRuntimes', []):
+                    if runtime.get('agentRuntimeName') == agent_name:
+                        agent_arn = runtime.get('agentRuntimeArn')
+                        break
 
-Agent: {agent_name}
-Region: {region}
-Session: {session_id}
+                if not agent_arn:
+                    raise MCPtoolError(f'Agent runtime not found: {agent_name}')
+            except Exception as e:
+                raise MCPtoolError(f'Failed to find agent ARN: {str(e)}')
 
-Issue: Agent appears to be SDK-deployed but local config not found.
+        # Use correct payload format: JSON string
+        payload = json.dumps({'prompt': prompt})
 
-To invoke SDK-deployed agents, you need the full agent ARN.
+        req = {'agentRuntimeArn': agent_arn, 'runtimeSessionId': session_id, 'payload': payload}
 
-Next Steps:
-1. Get the full agent ARN from AWS Console or deployment logs
-2. Use AWS CLI directly:
-   ```bash
-   aws bedrock-agentcore invoke-agent-runtime \\
-     --agent-runtime-arn "arn:aws:bedrock-agentcore:{region}:ACCOUNT:runtime/{agent_name}-SUFFIX" \\
-     --payload '{{"prompt": "{prompt}"}}'
-   ```
+        response = agentcore_client.invoke_agent_runtime(**req)
 
-Alternative: Use `get_agent_status` to find the full ARN and agent ID.
-3. With boto3, you need to use the data plane client directly:
+        # Handle StreamingBody response
+        if 'response' in response:
+            response_content = response['response'].read().decode('utf-8')
+            try:
+                parsed_response = json.loads(response_content)
+                return f"""# Agent: AWS SDK Invocation Successful
 
-import boto3
+### Request:
+- Agent: {agent_name}
+- ARN: {agent_arn}
+- Prompt: "{prompt}"
+- Session: {session_id}
 
-client = boto3.client('bedrock-agentcore')
+### Response:
+```json
+{json.dumps(parsed_response, indent=2)}
+```
 
-response = client.invoke_agent_runtime(
-    contentType='string',
-    accept='string',
-    mcpSessionId='string',
-    runtimeSessionId='string',
-    mcpProtocolVersion='string',
-    runtimeUserId='string',
-    traceId='string',
-    traceParent='string',
-    traceState='string',
-    baggage='string',
-    agentRuntimeArn='string',
-    qualifier='string',
-    payload=b'bytes'|file
-)
+### Session Info:
+- Session ID: `{session_id}`
+- Method: Direct AWS SDK
+- Status: {response.get('statusCode', 'Unknown')}
 """
+            except json.JSONDecodeError:
+                return f'Raw response: {response_content}'
 
-        except Exception as e:
-            raise MCPtoolError(f'X AWS SDK Invocation Failed: {str(e)}')
+        return str(response)
 
     except ImportError:
         raise ImportError('X boto3 not available - cannot invoke via AWS SDK')

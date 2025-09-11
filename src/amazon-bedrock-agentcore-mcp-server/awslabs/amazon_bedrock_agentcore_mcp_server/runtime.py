@@ -307,8 +307,12 @@ Please ensure the file exists or provide the correct path.
     @mcp.tool()
     async def invoke_agent(  # pragma: no cover
         agent_name: str = Field(description='Agent name to invoke'),
+        agent_arn: str = Field(default='', description='Agent ARN for direct invocation'),
         prompt: str = Field(description='Message to send to agent'),
-        session_id: str = Field(default='', description='Session ID for conversation continuity'),
+        session_id: str = Field(
+            default='',
+            description='Session ID for conversation continuity (uuid, min 33 characters)',
+        ),
         region: str = Field(default='us-east-1', description='AWS region'),
     ) -> str:
         """Invoke deployed AgentCore agent - automatically finds config and switches directories."""
@@ -330,7 +334,9 @@ To invoke deployed agents:
             if not config_found:
                 try:
                     # Try direct AWS invocation for SDK-deployed agents
-                    return await invoke_agent_via_aws_sdk(agent_name, prompt, session_id, region)
+                    return await invoke_agent_via_aws_sdk(
+                        agent_name, '', prompt, session_id, region
+                    )
                 except Exception as e:
                     raise MCPtoolError(f"""X Agent Configuration Not Found
 Error invoking via AWS SDK: {str(e)}
@@ -914,7 +920,7 @@ Manual Check:
 
             # Generate session ID if not provided
             if not session_id:
-                session_id = str(uuid.uuid4())[:8]
+                session_id = str(uuid.uuid4())
 
             # Step 1: Try regular invocation first (most agents work this way)
             try:

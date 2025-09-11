@@ -19,7 +19,7 @@
 import asyncio
 import pytest
 from .test_helpers import SmartTestHelper
-from awslabs.amazon_bedrock_agentcore_mcp_server.server import mcp, run_main
+from awslabs.amazon_bedrock_agentcore_mcp_server.server import main, mcp
 from unittest.mock import patch
 
 
@@ -230,26 +230,26 @@ class TestMainFunction:  # pragma: no cover
     """Test main function and entry points."""
 
     def test_run_main_function_exists(self):
-        """Test that run_main function exists and is callable."""
-        assert callable(run_main)
+        """Test that main function exists and is callable."""
+        assert callable(main)
 
     def test_main_entry_point_import(self):
         """Test that main entry point can be imported."""
         # Should be able to import without errors
-        from awslabs.amazon_bedrock_agentcore_mcp_server.server import mcp, run_main
+        from awslabs.amazon_bedrock_agentcore_mcp_server.server import main, mcp
 
-        assert run_main is not None
+        assert main is not None
         assert mcp is not None
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.server.mcp.run')
     def test_run_main_calls_mcp_run(self, mock_mcp_run):
-        """Test that run_main calls mcp.run()."""
+        """Test that main calls mcp.run()."""
         # Mock mcp.run to avoid actually starting server
         mock_mcp_run.return_value = None
 
         # Should not crash when called
         try:
-            run_main()
+            main()
         except SystemExit:
             pass  # Expected if mcp.run() returns
 

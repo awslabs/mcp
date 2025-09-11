@@ -19,13 +19,13 @@ def test_direct_main_execution():
         server_module.__name__ = '__main__'
 
         # Test the main block with KeyboardInterrupt
-        with patch.object(server_module, 'run_main', side_effect=KeyboardInterrupt):
+        with patch.object(server_module, 'main', side_effect=KeyboardInterrupt):
             with patch('builtins.print'):
                 with patch('sys.exit'):
                     # Execute the main block condition and content
                     if server_module.__name__ == '__main__':
                         try:
-                            server_module.run_main()
+                            server_module.main()
                         except KeyboardInterrupt:
                             print('\nAgentCore MCP Server shutting down...')
                             sys.exit(0)
@@ -35,14 +35,14 @@ def test_direct_main_execution():
                             sys.exit(1)
 
         # Test the main block with Exception
-        with patch.object(server_module, 'run_main', side_effect=Exception('Test')):
+        with patch.object(server_module, 'main', side_effect=Exception('Test')):
             with patch('builtins.print'):
                 with patch('sys.exit'):
                     with patch('traceback.print_exc'):
                         # Execute the main block condition and content
                         if server_module.__name__ == '__main__':
                             try:
-                                server_module.run_main()
+                                server_module.main()
                             except KeyboardInterrupt:
                                 print('\nAgentCore MCP Server shutting down...')
                                 sys.exit(0)

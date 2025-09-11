@@ -29,12 +29,12 @@ class TestServerMainExecution:
         import awslabs.amazon_bedrock_agentcore_mcp_server.server as server_module
 
         # Test the KeyboardInterrupt path
-        with patch.object(server_module, 'run_main', side_effect=KeyboardInterrupt):
+        with patch.object(server_module, 'main', side_effect=KeyboardInterrupt):
             with patch('builtins.print') as mock_print:
                 with patch('sys.exit') as mock_exit:
                     # Execute the main block logic directly
                     try:
-                        server_module.run_main()
+                        server_module.main()
                     except KeyboardInterrupt:
                         print('\nAgentCore MCP Server shutting down...')
                         sys.exit(0)
@@ -44,12 +44,12 @@ class TestServerMainExecution:
 
         # Test the Exception path
         test_exception = Exception('Direct test error')
-        with patch.object(server_module, 'run_main', side_effect=test_exception):
+        with patch.object(server_module, 'main', side_effect=test_exception):
             with patch('builtins.print') as mock_print:
                 with patch('sys.exit') as mock_exit:
                     with patch('traceback.print_exc') as mock_traceback:
                         try:
-                            server_module.run_main()
+                            server_module.main()
                         except Exception as e:
                             print(f'\nServer error: {str(e)}')
                             import traceback
@@ -76,13 +76,13 @@ class TestServerMainExecution:
             server_module.__name__ = '__main__'
 
             # Test scenario 1: KeyboardInterrupt
-            with patch.object(server_module, 'run_main', side_effect=KeyboardInterrupt):
+            with patch.object(server_module, 'main', side_effect=KeyboardInterrupt):
                 with patch('builtins.print') as mock_print:
                     with patch('sys.exit') as mock_exit:
                         # Simulate the if __name__ == '__main__': block
                         if server_module.__name__ == '__main__':
                             try:
-                                server_module.run_main()
+                                server_module.main()
                             except KeyboardInterrupt:
                                 print('\nAgentCore MCP Server shutting down...')
                                 sys.exit(0)
@@ -96,14 +96,14 @@ class TestServerMainExecution:
 
             # Test scenario 2: General Exception
             test_error = Exception('Main block test error')
-            with patch.object(server_module, 'run_main', side_effect=test_error):
+            with patch.object(server_module, 'main', side_effect=test_error):
                 with patch('builtins.print') as mock_print:
                     with patch('sys.exit') as mock_exit:
                         with patch('traceback.print_exc') as mock_traceback:
                             # Simulate the if __name__ == '__main__': block
                             if server_module.__name__ == '__main__':
                                 try:
-                                    server_module.run_main()
+                                    server_module.main()
                                 except KeyboardInterrupt:
                                     print('\nAgentCore MCP Server shutting down...')
                                     sys.exit(0)

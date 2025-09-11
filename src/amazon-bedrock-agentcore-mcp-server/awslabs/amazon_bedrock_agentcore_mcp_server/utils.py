@@ -757,131 +757,131 @@ Next Steps:
 
         ## If only local agents and AWS failed, show local-only analysis
         if not aws_agents and local_agents:
-            result_parts = ['## Target: Local Agents Analysis (AWS Query Failed)']
-            result_parts.append('')
-            result_parts.append('Analysis: Local configs only (AWS not accessible)')
-            result_parts.append('')
-
+            locally_deployed_details = ''
             if locally_deployed:
-                result_parts.append(
-                    f'#### Ready: Deployed Locally ({len(locally_deployed)} agents):'
-                )
-                result_parts.append('*These have agent ARNs in local config*')
-                result_parts.append('')
+                agent_sections = []
                 for name in locally_deployed:
                     agent_arn = local_agents[name].get('agent_arn', 'unknown')
-                    result_parts.append(f'##### {name}')
-                    result_parts.append('- Status: Deployed (has ARN in config) OK')
-                    result_parts.append(
-                        f'- ARN: `{agent_arn[:60] if agent_arn else "unknown"}...`'
-                    )
-                    result_parts.append(
-                        f"- Try Invoke: `invoke_agent(agent_name='{name}', prompt='Hello!')`"
-                    )
-                    result_parts.append('')
+                    agent_sections.append(f"""##### {name}
+        - Status: Deployed (has ARN in config) OK
+        - ARN: `{agent_arn[:60] if agent_arn else 'unknown'}...`
+        - Try Invoke: `invoke_agent(agent_name='{name}', prompt='Hello!')`
+        """)
+                locally_deployed_details = f"""#### Ready: Deployed Locally ({len(locally_deployed)} agents):
+        *These have agent ARNs in local config*
+
+        {''.join(agent_sections)}"""
 
             not_deployed = [
                 name for name in local_agents if not local_agents[name].get('is_deployed')
             ]
+            not_deployed_details = ''
             if not_deployed:
-                result_parts.append(f'#### Pending: Not Deployed ({len(not_deployed)} agents):')
-                for name in not_deployed:
-                    entrypoint = local_agents[name]['entrypoint']
-                    result_parts.append(
-                        f"- {name}: Deploy first `deploy_agentcore_app(agent_file='{entrypoint}', execution_mode='sdk')`"
-                    )
+                not_deployed_items = [
+                    f"- {name}: Deploy first `deploy_agentcore_app(agent_file='{local_agents[name]['entrypoint']}', execution_mode='sdk')`"
+                    for name in not_deployed
+                ]
+                not_deployed_details = f"""#### Pending: Not Deployed ({len(not_deployed)} agents):
+        {chr(10).join(not_deployed_items)}
 
-            result_parts.append('')
-            result_parts.append('Note: AWS query failed - showing local config analysis only')
-            return '\\n'.join(result_parts)
+        """
 
-        result_parts = ['## Target: What Agents Can I Invoke?']
-        result_parts.append('')
-        result_parts.append(f'Region: {region}')
-        result_parts.append('Analysis: Local configs + AWS deployments')
-        result_parts.append('')
+            return f"""## Target: Local Agents Analysis (AWS Query Failed)
 
-        ## Category 1: Ready to Invoke (AWS deployed & ready)  # pragma: no cover
+        Analysis: Local configs only (AWS not accessible)
+
+        {locally_deployed_details}{not_deployed_details}
+        Note: AWS query failed - showing local config analysis only"""
+
+        # Main report section
+        ready_to_invoke_details = ''
         if ready_to_invoke:  # pragma: no cover
-            result_parts.append(f'#### Ready: Ready to Invoke ({len(ready_to_invoke)} agents):')
-            result_parts.append('*These are deployed on AWS and ready for immediate invocation*')
-            result_parts.append('')
+            invoke_sections = []
             for name in ready_to_invoke:  # pragma: no cover
-                result_parts.append(f'##### {name}')
-                result_parts.append('- Status: READY on AWS OK')
-                if name in both:
-                    result_parts.append('- Config: Local + AWS (synced)')
-                else:
-                    result_parts.append('- Config: AWS only (deployed elsewhere)')
-                result_parts.append(
-                    f"- Invoke: `invoke_agent(agent_name='{name}', prompt='Hello!')`"
+                config_status = (
+                    'Local + AWS (synced)' if name in both else 'AWS only (deployed elsewhere)'
                 )
-                result_parts.append('')
+                invoke_sections.append(f"""##### {name}
+        - Status: READY on AWS OK
+        - Config: {config_status}
+        - Invoke: `invoke_agent(agent_name='{name}', prompt='Hello!')`
+        """)
+            ready_to_invoke_details = f"""#### Ready: Ready to Invoke ({len(ready_to_invoke)} agents):
+        *These are deployed on AWS and ready for immediate invocation*
 
-        ## Category 2: Ready to Launch (Local config only, not deployed)  # pragma: no cover
+        {''.join(invoke_sections)}"""
+
+        ready_to_launch_details = ''
         if ready_to_launch:  # pragma: no cover
-            result_parts.append(f'#### Pending: Ready to Launch ({len(ready_to_launch)} agents):')
-            result_parts.append('*These are configured locally but not deployed to AWS*')
-            result_parts.append('')
+            launch_sections = []
             for name in ready_to_launch:
                 entrypoint = local_agents[name]['entrypoint']
-                result_parts.append(f'##### {name}')
-                result_parts.append('- Status: Configured locally only')
-                result_parts.append(f'- Entrypoint: `{entrypoint}`')
-                result_parts.append(
-                    f"- Launch: `deploy_agentcore_app(agent_file='{entrypoint}', execution_mode='sdk')`"
-                )
-                result_parts.append(
-                    f"- Then Invoke: `invoke_agent(agent_name='{name}', prompt='test')`"
-                )
-                result_parts.append('')
+                launch_sections.append(f"""##### {name}
+        - Status: Configured locally only
+        - Entrypoint: `{entrypoint}`
+        - Launch: `deploy_agentcore_app(agent_file='{entrypoint}', execution_mode='sdk')`
+        - Then Invoke: `invoke_agent(agent_name='{name}', prompt='test')`
+        """)
+            ready_to_launch_details = f"""#### Pending: Ready to Launch ({len(ready_to_launch)} agents):
+        *These are configured locally but not deployed to AWS*
 
-        ## Category 3: Ready to Update (Both local + AWS but not ready)
+        {''.join(launch_sections)}"""
+
+        ready_to_update_details = ''
         if ready_to_update:
-            result_parts.append(f'#### 🔵 Ready to Update ({len(ready_to_update)} agents):')
-            result_parts.append(
-                '*These exist in both local + AWS but may need updating/relaunching*'
-            )
-            result_parts.append('')
+            update_sections = []
             for name in ready_to_update:
                 entrypoint = local_agents[name]['entrypoint']
                 aws_status = aws_agents[name]['endpoint_status']
-                result_parts.append(f'##### {name}')
-                result_parts.append(f'- Status: {aws_status} on AWS')
-                result_parts.append('- Config: Local + AWS (may be out of sync)')
-                result_parts.append(
-                    f"- Update: `deploy_agentcore_app(agent_file='{entrypoint}', execution_mode='sdk')`"
-                )
-                result_parts.append(
-                    f"- Then Invoke: `invoke_agent(agent_name='{name}', prompt='test')`"
-                )
-                result_parts.append('')
+                update_sections.append(f"""##### {name}
+        - Status: {aws_status} on AWS
+        - Config: Local + AWS (may be out of sync)
+        - Update: `deploy_agentcore_app(agent_file='{entrypoint}', execution_mode='sdk')`
+        - Then Invoke: When to Use Each:
+                invoke_agent_smart - When testing unknown agents or want automatic handling
 
-        ## AWS-only agents that are not ready
+                invoke_agent - When you know the agent works with standard auth
+
+                invoke_oauth_agent - When you know the agent requires OAuth
+        """)
+            ready_to_update_details = f"""#### 🔵 Ready to Update ({len(ready_to_update)} agents):
+        *These exist in both local + AWS but may need updating/relaunching*
+
+        {''.join(update_sections)}"""
+
+        aws_not_ready_details = ''
         if aws_not_ready:
-            result_parts.append(f'#### ! AWS Agents Not Ready ({len(aws_not_ready)} agents):')
+            not_ready_items = []
             for name in aws_not_ready:
                 if name in aws_agents:
                     status = aws_agents[name]['endpoint_status']
-                    result_parts.append(f'- {name}: Status {status} (wait or redeploy)')
-            result_parts.append('')
+                    not_ready_items.append(f'- {name}: Status {status} (wait or redeploy)')
+            aws_not_ready_details = f"""#### ! AWS Agents Not Ready ({len(aws_not_ready)} agents):
+        {chr(10).join(not_ready_items)}
 
-        ## Summary
-        result_parts.append('#### Stats: Summary:')
+        """
+
+        # Build summary stats
+        summary_stats = []
         if ready_to_invoke:
-            result_parts.append(f'- Can invoke now: {len(ready_to_invoke)} agents')
+            summary_stats.append(f'- Can invoke now: {len(ready_to_invoke)} agents')
         if ready_to_update:
-            result_parts.append(f'- Can update then invoke: {len(ready_to_update)} agents')
+            summary_stats.append(f'- Can update then invoke: {len(ready_to_update)} agents')
         if ready_to_launch:
-            result_parts.append(f'- Can launch then invoke: {len(ready_to_launch)} agents')
+            summary_stats.append(f'- Can launch then invoke: {len(ready_to_launch)} agents')
 
+        quick_test = ''
         if ready_to_invoke:
-            result_parts.append('')
-            result_parts.append(
-                f"Launch: Quick Test: `invoke_agent(agent_name='{ready_to_invoke[0]}', prompt='Hello!')`"
-            )
+            quick_test = f"""
+        Launch: Quick Test: `invoke_agent(agent_name='{ready_to_invoke[0]}', prompt='Hello!')`"""
 
-        return '\\n'.join(result_parts)
+        return f"""## Target: What Agents Can I Invoke?
+
+        Region: {region}
+        Analysis: Local configs + AWS deployments
+
+        {ready_to_invoke_details}{ready_to_launch_details}{ready_to_update_details}{aws_not_ready_details}#### Stats: Summary:
+        {chr(10).join(summary_stats)}{quick_test}"""
 
     except ImportError:
         raise ImportError("""Boto3 Not Available
@@ -1121,57 +1121,65 @@ Next Steps: Use `deploy_agentcore_app()` to create new valid configurations
             ]
             error_agents = [a for a in discovered_agents if a['status'] in ['ERROR', 'UNKNOWN']]
 
-            result_parts = ['## Config: AgentCore Configurations Discovered']
-            result_parts.append('')
-            result_parts.append(f'Search Path: `{search_path}`')
-            result_parts.append(f'Total Agents: {len(discovered_agents)}')
-            result_parts.append('')
-
+            ready_agents_details = ''
             if ready_agents:
-                result_parts.append(f'#### Ready: Ready to Invoke ({len(ready_agents)} agents):')
+                ready_sections = []
                 for agent in ready_agents:
-                    result_parts.append(f'##### {agent["name"]}')
-                    result_parts.append('- Status: READY OK')
-                    result_parts.append(f'- Config: `{agent["config_file"]}`')
-                    result_parts.append(
-                        f"- Invoke: `invoke_agent(agent_name='{agent['name']}', prompt='test')`"
-                    )
-                    result_parts.append('')
+                    ready_sections.append(f"""##### {agent['name']}
+            - Status: READY OK
+            - Config: `{agent['config_file']}`
+            - Invoke: `invoke_agent(agent_name='{agent['name']}', prompt='test')`
+            """)
+                ready_agents_details = f"""#### Ready: Ready to Invoke ({len(ready_agents)} agents):
+            {''.join(ready_sections)}"""
 
+            configured_agents_details = ''
             if configured_agents:
-                result_parts.append(
-                    f'#### Pending: Configured But Not Deployed ({len(configured_agents)} agents):'
-                )
+                configured_sections = []
                 for agent in configured_agents:
-                    result_parts.append(f'##### {agent["name"]}')
-                    result_parts.append(f'- Status: {agent["status"]}')
-                    result_parts.append(f'- Config: `{agent["config_file"]}`')
-                    result_parts.append(
-                        f"- Deploy: `deploy_agentcore_app(app_file='{agent['entrypoint']}', agent_name='{agent['name']}', execution_mode='sdk')`"
-                    )
-                    result_parts.append('')
+                    configured_sections.append(f"""##### {agent['name']}
+            - Status: {agent['status']}
+            - Config: `{agent['config_file']}`
+            - Deploy: `deploy_agentcore_app(app_file='{agent['entrypoint']}', agent_name='{agent['name']}', execution_mode='sdk')`
+            """)
+                configured_agents_details = f"""#### Pending: Configured But Not Deployed ({len(configured_agents)} agents):
+            {''.join(configured_sections)}"""
 
+            error_agents_details = ''
             if error_agents:
-                result_parts.append(
-                    f'#### Error: Agents with Issues ({len(error_agents)} agents):'
-                )
+                error_sections = []
                 for agent in error_agents:
-                    result_parts.append(f'##### {agent["name"]}')
-                    result_parts.append(f'- Status: {agent["status"]}')
-                    result_parts.append(f'- Config: `{agent["config_file"]}`')
-                    result_parts.append('')
+                    error_sections.append(f"""##### {agent['name']}
+            - Status: {agent['status']}
+            - Config: `{agent['config_file']}`
+            """)
+                error_agents_details = f"""#### Error: Agents with Issues ({len(error_agents)} agents):
+            {''.join(error_sections)}"""
 
-            result_parts.append('#### Quick Actions:')
+            # Build quick actions
+            quick_actions = []
             if ready_agents:
-                result_parts.append(
+                quick_actions.append(
                     f"- Test Ready Agent: `invoke_agent(agent_name='{ready_agents[0]['name']}', prompt='Hello!')`"
                 )
             if configured_agents:
-                result_parts.append(
+                quick_actions.append(
                     f"- Deploy Agent: `deploy_agentcore_app(app_file='{configured_agents[0]['entrypoint']}', agent_name='{configured_agents[0]['name']}', execution_mode='sdk')`"
                 )
 
-            return '\\n'.join(result_parts)
+            quick_actions_section = (
+                f"""#### Quick Actions:
+            {chr(10).join(quick_actions)}"""
+                if quick_actions
+                else '#### Quick Actions:'
+            )
+
+            return f"""## Config: AgentCore Configurations Discovered
+
+            Search Path: `{search_path}`
+            Total Agents: {len(discovered_agents)}
+
+            {ready_agents_details}{configured_agents_details}{error_agents_details}{quick_actions_section}"""
 
         elif action == 'memories':
             if not SDK_AVAILABLE:
@@ -2254,76 +2262,60 @@ Repository Structure:  # pragma: no cover
 
             ## Format results
             if not examples:  # pragma: no cover
-                no_results_msg = ['## Search: No AgentCore Examples Found']  # pragma: no cover
-                no_results_msg.append('')
-                no_results_msg.append(f'Query: "{query}" (no matches)')
-                no_results_msg.append(f'Category: {category}')
-                no_results_msg.append(f'Format: {format_type}')
-                no_results_msg.append('')
-
-                # Add authentication prompt if needed
+                # Build authentication section
+                auth_section = ''
                 if auth_status:  # pragma: no cover
                     if auth_status.get('gh_available'):  # pragma: no cover
-                        no_results_msg.append('🔍 **Enhanced Search Available**')
-                        no_results_msg.append('')
-                        no_results_msg.append(
-                            "You're not authenticated with GitHub CLI. For much better search results:"
-                        )
-                        no_results_msg.append('')
-                        no_results_msg.append('```bash')
-                        no_results_msg.append('gh auth login')
-                        no_results_msg.append('```')
-                        no_results_msg.append('')
-                        no_results_msg.append('This enables:')
-                        no_results_msg.append('- Real-time GitHub code search')
-                        no_results_msg.append('- Semantic matching in README files')
-                        no_results_msg.append('- Much faster and more accurate results')
-                        no_results_msg.append('')
-                        no_results_msg.append('After authentication, try your search again!')
-                        no_results_msg.append('')
+                        auth_section = """**Enhanced Search Available**
+
+            You're not authenticated with GitHub CLI. For much better search results:
+
+            ```bash
+            gh auth login
+            ```
+
+            This enables:
+            - Real-time GitHub code search
+            - Semantic matching in README files
+            - Much faster and more accurate results
+
+            After authentication, try your search again!
+
+            """
                     else:
-                        no_results_msg.append('🔍 **Enhanced Search Available**')
-                        no_results_msg.append('')
-                        no_results_msg.append('Install GitHub CLI for much better search results:')
-                        no_results_msg.append('')
-                        no_results_msg.append('```bash')
-                        no_results_msg.append('# Install GitHub CLI')
-                        no_results_msg.append('brew install gh  # macOS')
-                        no_results_msg.append('# or: apt install gh  # Linux')
-                        no_results_msg.append('# or: winget install GitHub.cli  # Windows')
-                        no_results_msg.append('')
-                        no_results_msg.append('# Then authenticate')
-                        no_results_msg.append('gh auth login')
-                        no_results_msg.append('```')
-                        no_results_msg.append('')
+                        auth_section = """🔍 **Enhanced Search Available**
 
-                no_results_msg.append('Available Categories:')
-                no_results_msg.append(
-                    f'- `tutorials` - Learning-focused examples ({len(structure.get("01-tutorials", []))} available)'
-                )
-                no_results_msg.append(
-                    f'- `use-cases` - Real-world applications ({len(structure.get("02-use-cases", []))} available)'
-                )
-                no_results_msg.append(
-                    f'- `integrations` - Framework integrations ({len(structure.get("03-integrations", []))})'
-                )
-                no_results_msg.append('')
-                no_results_msg.append('Try:')
-                no_results_msg.append(
-                    '- Broader search terms: `discover_agentcore_examples_from_github(query="memory")`'
-                )
-                no_results_msg.append(
-                    '- All examples: `discover_agentcore_examples_from_github()`'
-                )
-                no_results_msg.append(
-                    '- Specific category: `discover_agentcore_examples_from_github(category="tutorials")`'
-                )
-                no_results_msg.append('')
-                no_results_msg.append(
-                    'Direct Browse: [GitHub Repository](https://github.com/awslabs/amazon-bedrock-agentcore-samples)'
-                )
+            Install GitHub CLI for much better search results:
 
-                return '\\n'.join(no_results_msg)
+            ```bash
+            # Install GitHub CLI
+            brew install gh  # macOS
+            # or: apt install gh  # Linux
+            # or: winget install GitHub.cli  # Windows
+
+            # Then authenticate
+            gh auth login
+            ```
+
+            """
+
+                return f"""## Search: No AgentCore Examples Found
+
+            Query: "{query}" (no matches)
+            Category: {category}
+            Format: {format_type}
+
+            {auth_section}Available Categories:
+            - `tutorials` - Learning-focused examples ({len(structure.get('01-tutorials', []))} available)
+            - `use-cases` - Real-world applications ({len(structure.get('02-use-cases', []))} available)
+            - `integrations` - Framework integrations ({len(structure.get('03-integrations', []))})
+
+            Try:
+            - Broader search terms: `discover_agentcore_examples_from_github(query="memory")`
+            - All examples: `discover_agentcore_examples_from_github()`
+            - Specific category: `discover_agentcore_examples_from_github(category="tutorials")`
+
+            Direct Browse: [GitHub Repository](https://github.com/awslabs/amazon-bedrock-agentcore-samples)"""
 
             ## Group by section for display  # pragma: no cover
             sections = {}  # pragma: no cover
