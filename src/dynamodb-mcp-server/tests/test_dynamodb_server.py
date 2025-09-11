@@ -4,12 +4,14 @@ from awslabs.dynamodb_mcp_server.server import (
     dynamodb_data_modeling,
 )
 
+
 @pytest_asyncio.fixture
 async def aws_credentials():
     """Mocked AWS Credentials for moto."""
     import os
 
     os.environ['AWS_DEFAULT_REGION'] = 'us-west-2'
+
 
 @pytest.mark.asyncio
 async def test_dynamodb_data_modeling():
