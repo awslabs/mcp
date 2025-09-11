@@ -572,8 +572,7 @@ create_gateway_tool = Tool.from_function(
 describe_gateway_tool = Tool.from_function(
     fn=describe_gateway,
     name='describe_gateway',
-    description='Retrieve detailed information about an AWS IoT SiteWise \
-        gateway.',
+    description="""Retrieve detailed information about an AWS IoT SiteWise gateway.""",
 )
 
 list_gateways_tool = Tool.from_function(
@@ -605,8 +604,7 @@ describe_gateway_capability_configuration_tool = Tool.from_function(
 update_gateway_capability_configuration_tool = Tool.from_function(
     fn=update_gateway_capability_configuration,
     name='update_gateway_capability_config',
-    description='Update a gateway capability configuration in AWS IoT \
-        SiteWise.',
+    description="""Update a gateway capability configuration in AWS IoT SiteWise.""",
 )
 
 list_time_series_tool = Tool.from_function(

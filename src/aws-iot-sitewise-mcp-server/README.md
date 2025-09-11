@@ -466,35 +466,6 @@ pytest -v
 pytest test/test_sitewise_tools.py -v
 ```
 
-#### Manual Resource Cleanup
-```bash
-# Check for orphaned test resources
-python scripts/cleanup_test_resources.py --dry-run
-
-# Clean up all test resources
-python scripts/cleanup_test_resources.py
-
-# Clean up with custom prefix
-python scripts/cleanup_test_resources.py --prefix my-test
-
-# Force cleanup without confirmation
-python scripts/cleanup_test_resources.py --force
-```
-
-#### API Constraint Verification
-```bash
-# Verify all API constraints and quotas
-python scripts/verify_api_constraints.py
-
-# Type checking
-mypy awslabs
-
-# Code formatting and linting
-black awslabs test
-isort awslabs test
-flake8 awslabs test
-```
-
 ### Resource Cleanup Guarantees
 
 The test suite includes **comprehensive resource cleanup** to prevent AWS resource leaks:
