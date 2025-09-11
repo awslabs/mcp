@@ -115,6 +115,7 @@ async def call_import_server(server, prefix, server_name, imported_servers=None)
 
     return imported_servers
 
+
 def is_role_set(name: str) -> bool:
     """Returns true when the role is set in the environment variables.
 
@@ -125,9 +126,12 @@ def is_role_set(name: str) -> bool:
     """
     value = os.environ.get(name)
     if value is None or value.strip() == '':
-        alt_name = name.replace('-', '_').upper() if '-' in name else name.replace('_', '-').lower()
+        alt_name = (
+            name.replace('-', '_').upper() if '-' in name else name.replace('_', '-').lower()
+        )
         value = os.environ.get(alt_name)
     return value is not None and value.strip() != ''
+
 
 async def import_aws_knowledge_server(imported_servers: set) -> set:
     """Import the AWS Knowledge MCP server if not already imported.
@@ -157,6 +161,7 @@ async def import_aws_knowledge_server(imported_servers: set) -> set:
     return await call_import_server(
         config, 'aws_knowledge', 'aws_knowledge_server', imported_servers
     )
+
 
 # Import subservers based on role configuration
 async def setup():
