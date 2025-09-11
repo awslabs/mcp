@@ -193,7 +193,7 @@ class TestSetup:
         This test verifies that when a specific role environment variable is set,
         the setup function attempts to import the expected server prefixes.
 
-        The test also checks for both uppercase with underscores and lowercase with hyphens
+        The test also checks for both uppercase with underscores and lowercase with hyphens.
 
         Args:
             monkeypatch: Pytest fixture for modifying environment variables
