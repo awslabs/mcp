@@ -1,7 +1,3 @@
----
-description: Standard format for Agent scripts
-globs: **/*.script.md
----
 # Agent Script Format Specification
 
 ## Overview
