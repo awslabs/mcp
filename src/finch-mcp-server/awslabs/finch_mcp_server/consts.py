@@ -47,6 +47,12 @@ ECR_REFERENCE_PATTERN = r'(\d{12})\.dkr[-.]ecr(\-fips)?\.([a-zA-Z0-9][a-zA-Z0-9-
 if sys.platform == 'win32':
     # Windows path using %LocalAppData%
     FINCH_YAML_PATH = os.path.join(os.environ.get('LOCALAPPDATA', ''), '.finch', 'finch.yaml')
+    # Default log file path for Windows
+    LOG_FILE = os.path.join(
+        os.environ.get('LOCALAPPDATA', ''), 'finch-mcp-server', 'finch_mcp_server.log'
+    )
 else:
-    # macOS path
+    # macOS/Unix path
     FINCH_YAML_PATH = '~/.finch/finch.yaml'
+    # Default log file path for macOS/Unix
+    LOG_FILE = os.path.expanduser('~/.finch/finch-mcp-server/finch_mcp_server.log')
