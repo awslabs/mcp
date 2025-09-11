@@ -182,6 +182,7 @@ async def setup():
                         'streamablehttp',
                         'https://knowledge-mcp.global.api.aws',
                     ],
+                    'env': os.environ,
                 }
             }
         }
@@ -210,6 +211,7 @@ async def setup():
                         'streamablehttp',
                         'https://knowledge-mcp.global.api.aws',
                     ],
+                    'env': os.environ,
                 }
             }
         }
@@ -356,6 +358,7 @@ async def setup():
                         'streamablehttp',
                         'https://knowledge-mcp.global.api.aws',
                     ],
+                    'env': os.environ,
                 }
             }
         }
