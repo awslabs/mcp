@@ -1,5 +1,5 @@
 ---
-description: This script helps debug Lambda function timeout failures by analyzing function configuration, CloudWatch logs, metrics, and dependencies to identify root causes and provide actionable solutions.
+description: Helps debug Lambda function timeout failures by analyzing function configuration, CloudWatch logs, metrics, and dependencies to identify root causes and provide actionable solutions.
 ---
 # Lambda Timeout Debugging
 
