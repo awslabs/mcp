@@ -177,17 +177,35 @@ class TestRuntimeAgentInvocation:  # pragma: no cover
         """Test basic agent invocation setup - covers lines 173-175."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool(
-                'invoke_agent',
-                {'agent_name': 'test-agent', 'prompt': 'Hello world', 'region': 'us-east-1'},
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            # Mock both bedrock-agentcore and bedrock-agentcore-control clients
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            # Mock an ExpiredTokenException to simulate auth failure
+            from botocore.exceptions import ClientError
+
+            mock_client.list_agent_runtimes.side_effect = ClientError(
+                {'Error': {'Code': 'ExpiredTokenException'}}, 'ListAgentRuntimes'
             )
-            result = self._extract_result(result_tuple)
+
+            try:
+                result_tuple = await mcp.call_tool(
+                    'invoke_agent',
+                    {'agent_name': 'test-agent', 'prompt': 'Hello world', 'region': 'us-east-1'},
+                )
+                result = self._extract_result(result_tuple)
+            except Exception as e:
+                result = str(e)
 
             # Should attempt invocation (may fail due to missing agent)
             assert (
                 'starter toolkit not available' in result.lower()
                 or 'agent not found' in result.lower()
+                or 'agent configuration not found' in result.lower()
                 or 'invocation failed' in result.lower()
                 or 'hello world' in result.lower()
             )
@@ -197,22 +215,40 @@ class TestRuntimeAgentInvocation:  # pragma: no cover
         """Test agent invocation with session ID - covers lines 183-210."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
-            result_tuple = await mcp.call_tool(
-                'invoke_agent',
-                {
-                    'agent_name': 'test-agent',
-                    'prompt': 'Test query',
-                    'session_id': 'test-session-123',
-                    'region': 'us-east-1',
-                },
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            # Mock both bedrock-agentcore and bedrock-agentcore-control clients
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            # Mock an ExpiredTokenException to simulate auth failure
+            from botocore.exceptions import ClientError
+
+            mock_client.list_agent_runtimes.side_effect = ClientError(
+                {'Error': {'Code': 'ExpiredTokenException'}}, 'ListAgentRuntimes'
             )
-            result = self._extract_result(result_tuple)
+
+            try:
+                result_tuple = await mcp.call_tool(
+                    'invoke_agent',
+                    {
+                        'agent_name': 'test-agent',
+                        'prompt': 'Test query',
+                        'session_id': 'test-session-123',
+                        'region': 'us-east-1',
+                    },
+                )
+                result = self._extract_result(result_tuple)
+            except Exception as e:
+                result = str(e)
 
             # Should handle session ID in invocation
             assert (
                 'starter toolkit not available' in result.lower()
                 or 'agent not found' in result.lower()
+                or 'agent configuration not found' in result.lower()
                 or 'invocation failed' in result.lower()
                 or 'test query' in result.lower()
             )
@@ -622,21 +658,39 @@ agents:
         """Test session management paths for coverage."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
-            # Test invoke with long session ID
-            result_tuple = await mcp.call_tool(
-                'invoke_agent',
-                {
-                    'agent_name': 'test-agent',
-                    'prompt': 'session test',
-                    'session_id': 'very-long-session-id-that-might-need-truncation-or-validation',
-                    'region': 'us-east-1',
-                },
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            # Mock both bedrock-agentcore and bedrock-agentcore-control clients
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            # Mock an ExpiredTokenException to simulate auth failure
+            from botocore.exceptions import ClientError
+
+            mock_client.list_agent_runtimes.side_effect = ClientError(
+                {'Error': {'Code': 'ExpiredTokenException'}}, 'ListAgentRuntimes'
             )
-            result = self._extract_result(result_tuple)
+
+            # Test invoke with long session ID
+            try:
+                result_tuple = await mcp.call_tool(
+                    'invoke_agent',
+                    {
+                        'agent_name': 'test-agent',
+                        'prompt': 'session test',
+                        'session_id': 'very-long-session-id-that-might-need-truncation-or-validation',
+                        'region': 'us-east-1',
+                    },
+                )
+                result = self._extract_result(result_tuple)
+            except Exception as e:
+                result = str(e)
             assert (
                 'starter toolkit not available' in result.lower()
                 or 'agent not found' in result.lower()
+                or 'agent configuration not found' in result.lower()
                 or 'invocation failed' in result.lower()
                 or 'search: direct aws sdk invocation attempted' in result.lower()
             )

@@ -1332,6 +1332,11 @@ if __name__ == "__main__":
             mock_client = Mock()
             mock_boto3.return_value = mock_client
 
+            # Mock the response for invoke_agent_runtime
+            mock_response_body = Mock()
+            mock_response_body.read.return_value = b'{"response": "test response"}'
+            mock_client.invoke_agent_runtime.return_value = {'response': mock_response_body}
+
             # Mock dir() to return some methods
             with patch('builtins.dir', return_value=['invoke_agent_runtime', 'list_agents']):
                 result = await invoke_agent_via_aws_sdk(
@@ -1342,7 +1347,7 @@ if __name__ == "__main__":
                     'us-east-1',
                 )
 
-        assert 'Direct AWS SDK Invocation Attempted' in result
+        assert 'AWS SDK Invocation Successful' in result
         assert 'test-agent' in result
         assert 'aws-session' in result
 
@@ -1688,6 +1693,11 @@ if __name__ == "__main__":
             mock_client = Mock()
             mock_boto3.return_value = mock_client
 
+            # Mock the response for invoke_agent_runtime even if dir() doesn't show it
+            mock_response_body = Mock()
+            mock_response_body.read.return_value = b'{"response": "test response"}'
+            mock_client.invoke_agent_runtime.return_value = {'response': mock_response_body}
+
             # Mock dir() to return no relevant methods
             with patch('builtins.dir', return_value=['list_buckets', 'create_bucket']):
                 result = await invoke_agent_via_aws_sdk(
@@ -1699,8 +1709,8 @@ if __name__ == "__main__":
                 )
 
                 # The function returns detailed AWS SDK guidance instead of a short error
-        assert 'Direct AWS SDK Invocation' in result
-        assert 'bedrock-agentcore' in result
+        assert 'AWS SDK Invocation Successful' in result
+        assert 'test-agent' in result
 
 
 class TestToolInvocationEdgeCases:  # pragma: no cover

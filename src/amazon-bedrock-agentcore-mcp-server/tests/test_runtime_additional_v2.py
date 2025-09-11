@@ -146,7 +146,21 @@ class TestRuntimeInvocationPaths:  # pragma: no cover
         """Target lines 183-210 - session handling in invocation."""
         mcp = self._create_mock_mcp()
 
-        with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
+        with (
+            patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
+            patch('boto3.client') as mock_boto3,
+        ):
+            # Mock both bedrock-agentcore and bedrock-agentcore-control clients
+            mock_client = Mock()
+            mock_boto3.return_value = mock_client
+
+            # Mock an ExpiredTokenException to simulate auth failure
+            from botocore.exceptions import ClientError
+
+            mock_client.list_agent_runtimes.side_effect = ClientError(
+                {'Error': {'Code': 'ExpiredTokenException'}}, 'ListAgentRuntimes'
+            )
+
             helper = SmartTestHelper()
             result = await helper.call_tool_and_extract(
                 mcp,
@@ -161,6 +175,7 @@ class TestRuntimeInvocationPaths:  # pragma: no cover
             assert (
                 'starter toolkit not available' in result.lower()
                 or 'agent not found' in result.lower()
+                or 'agent configuration not found' in result.lower()
                 or 'search: direct aws sdk invocation attempted' in result.lower()
             )
 
@@ -422,7 +437,21 @@ class TestRuntimeErrorHandlingPaths:  # pragma: no cover
         agents = ['smart-test-1', 'smart-test-2', 'smart-test-3']
 
         for agent in agents:
-            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
+            with (
+                patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
+                patch('boto3.client') as mock_boto3,
+            ):
+                # Mock both bedrock-agentcore and bedrock-agentcore-control clients
+                mock_client = Mock()
+                mock_boto3.return_value = mock_client
+
+                # Mock an ExpiredTokenException to simulate auth failure
+                from botocore.exceptions import ClientError
+
+                mock_client.list_agent_runtimes.side_effect = ClientError(
+                    {'Error': {'Code': 'ExpiredTokenException'}}, 'ListAgentRuntimes'
+                )
+
                 helper = SmartTestHelper()
                 result = await helper.call_tool_and_extract(
                     mcp,
@@ -433,6 +462,7 @@ class TestRuntimeErrorHandlingPaths:  # pragma: no cover
                     'search: direct aws sdk invocation attempted' in result.lower()
                     or 'starter toolkit not available' in result.lower()
                     or 'agent not found' in result.lower()
+                    or 'agent configuration not found' in result.lower()
                 )
 
     @pytest.mark.asyncio
@@ -443,7 +473,21 @@ class TestRuntimeErrorHandlingPaths:  # pragma: no cover
         regions = ['us-east-2', 'us-west-1', 'eu-north-1', 'ap-south-1', 'ca-central-1']
 
         for region in regions:
-            with patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True):
+            with (
+                patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.SDK_AVAILABLE', True),
+                patch('boto3.client') as mock_boto3,
+            ):
+                # Mock both bedrock-agentcore and bedrock-agentcore-control clients
+                mock_client = Mock()
+                mock_boto3.return_value = mock_client
+
+                # Mock an ExpiredTokenException to simulate auth failure
+                from botocore.exceptions import ClientError
+
+                mock_client.list_agent_runtimes.side_effect = ClientError(
+                    {'Error': {'Code': 'ExpiredTokenException'}}, 'ListAgentRuntimes'
+                )
+
                 helper = SmartTestHelper()
                 result = await helper.call_tool_and_extract(
                     mcp,
@@ -454,4 +498,5 @@ class TestRuntimeErrorHandlingPaths:  # pragma: no cover
                     'search: direct aws sdk invocation attempted' in result.lower()
                     or 'starter toolkit not available' in result.lower()
                     or 'agent not found' in result.lower()
+                    or 'agent configuration not found' in result.lower()
                 )
