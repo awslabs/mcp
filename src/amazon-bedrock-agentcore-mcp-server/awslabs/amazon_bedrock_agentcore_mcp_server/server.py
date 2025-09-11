@@ -102,7 +102,7 @@ register_identity_tools(mcp)
 register_memory_tools(mcp)
 
 
-def run_main():
+def main():
     """Run the main function, handling asyncio properly."""
     print('Starting AgentCore MCP Server ...')
 
@@ -115,7 +115,7 @@ def run_main():
 
 if __name__ == '__main__':  # pragma: no cover
     try:
-        run_main()
+        main()
     except KeyboardInterrupt:
         print('\nAgentCore MCP Server shutting down...')
         sys.exit(0)
