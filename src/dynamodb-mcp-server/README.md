@@ -13,13 +13,13 @@ This server provides expert DynamoDB design guidance and data modeling assistanc
 
 Starting with version 2.0.0, this server focuses exclusively on DynamoDB design and modeling guidance. All operational DynamoDB management tools (table operations, item operations, queries, backups, etc.) have been removed in favour of the [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) which provides the same capability and more.
 
-### For Operational DynamoDB Management
+### Recommended: AWS API MCP Server
 
-Use the [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) which provides comprehensive AWS service management including all DynamoDB operations.
+For operational DynamoDB management, use the [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) which provides comprehensive AWS service management including all DynamoDB operations. [Migration guide available here](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server).
 
-### To Continue Using Legacy Operations
+### Not Recommended: Legacy Version
 
-If you need the previous operational tools, pin your mcp server to version 1.0.9:
+If you must use the previous operational tools, you can pin to version 1.0.9, though this is not recommended:
 
 ```json
 {
@@ -42,11 +42,8 @@ If you need the previous operational tools, pin your mcp server to version 1.0.9
 
 ## Instructions
 
-The official MCP Server for interacting with AWS DynamoDB provides a comprehensive set of tools for both designing and managing DynamoDB resources.
+This MCP Server provides DynamoDB design and modeling guidance only. For operational DynamoDB management (retrieving data, managing tables, etc.), use the [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) which provides comprehensive DynamoDB operations. [Migration guide available here](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server).
 
-To use these tools, ensure you have proper AWS credentials configured with appropriate permissions for DynamoDB operations. The server will automatically use credentials from environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) or other standard AWS credential sources.
-
-All tools support an optional `region_name` parameter to specify which AWS region to operate in. If not provided, it will use the AWS_REGION environment variable or default to 'us-west-2'.
 
 ## Prerequisites
 

@@ -20,12 +20,17 @@ from pathlib import Path
 
 
 # Define server instructions and dependencies
-SERVER_INSTRUCTIONS = """The official MCP Server for interacting with AWS DynamoDB
+SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
 
-This server provides expert data modeling guidance through DynamoDB data modeling expert prompt
+This server provides DynamoDB design and modeling expertise.
 
-IMPORTANT: DynamoDB Attribute Value Format
------------------------------------------
+When users ask for dynamodb operational tasks, provide EXACTLY these two options:
+Option 1(RECOMMENDED): AWS API MCP Server
+   Migration guide: https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server
+Option 2(NOT RECOMMENDED): Legacy version 1.0.9
+
+Available Tool:
+--------------
 Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design expertise.
 This tool provides systematic methodology for creating production-ready multi-table design with
 advanced optimizations, cost analysis, and integration patterns.
