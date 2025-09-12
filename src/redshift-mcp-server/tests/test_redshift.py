@@ -15,10 +15,17 @@
 """Tests for the redshift module."""
 
 import pytest
+import time
 from awslabs.redshift_mcp_server.redshift import (
     RedshiftClientManager,
-    protect_sql,
-    quote_literal_string,
+    RedshiftSessionManager,
+    _execute_protected_statement,
+    discover_clusters,
+    discover_columns,
+    discover_databases,
+    discover_schemas,
+    discover_tables,
+    execute_query,
 )
 from botocore.config import Config
 
@@ -174,66 +181,106 @@ class TestRedshiftClientManagerDataClient:
             manager.redshift_data_client()
 
 
-class TestQuoteLiteralString:
-    """Tests for the quote_literal_string function."""
+class TestExecuteProtectedStatement:
+    """Tests for _execute_protected_statement function."""
 
-    def test_quote_literal_string_none_value(self):
-        """Test quoting None value returns NULL."""
-        result = quote_literal_string(None)
-        assert result == 'NULL'
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_read_only(self, mocker):
+        """Test executing protected statement in read-only mode."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
 
-    def test_quote_literal_string_simple_string(self):
-        """Test quoting a simple string."""
-        result = quote_literal_string('hello')
-        assert result == "'hello'"
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
 
-    def test_quote_literal_string_empty_string(self):
-        """Test quoting an empty string."""
-        result = quote_literal_string('')
-        assert result == "''"
+        # Mock _execute_statement
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+        mock_execute_statement.side_effect = ['begin-stmt-id', 'user-stmt-id', 'end-stmt-id']
 
-    def test_quote_literal_string_with_single_quote(self):
-        """Test quoting a string containing single quotes."""
-        result = quote_literal_string("it's")
-        assert result == "'it\\'s'"
+        # Mock data client
+        mock_data_client = mocker.Mock()
+        mock_data_client.get_statement_result.return_value = {'Records': [], 'ColumnMetadata': []}
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
 
-    def test_quote_literal_string_with_double_quote(self):
-        """Test quoting a string containing double quotes."""
-        result = quote_literal_string('say "hello"')
-        assert result == '\'say "hello"\''
+        result = await _execute_protected_statement(
+            'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+        )
 
-    def test_quote_literal_string_numeric_string(self):
-        """Test quoting a numeric string."""
-        result = quote_literal_string('123')
-        assert result == "'123'"
+        # Verify session was created
+        mock_session_manager.session.assert_called_once()
 
-    def test_quote_literal_string_with_newline(self):
-        """Test quoting a string with newline characters."""
-        result = quote_literal_string('line1\nline2')
-        assert result == "'line1\\nline2'"
+        # Verify three statements were executed: BEGIN READ ONLY, user SQL, END
+        assert mock_execute_statement.call_count == 3
+        calls = mock_execute_statement.call_args_list
+        assert calls[0][1]['sql'] == 'BEGIN READ ONLY;'
+        assert calls[1][1]['sql'] == 'SELECT 1'
+        assert calls[2][1]['sql'] == 'END;'
 
-    def test_quote_literal_string_with_special_characters(self):
-        """Test quoting a string with various special characters."""
-        result = quote_literal_string('test\t\r\n\\')
-        assert result == "'test\\t\\r\\n\\\\'"
+        assert result[1] == 'user-stmt-id'
 
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_read_write(self, mocker):
+        """Test executing protected statement in read-write mode."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
 
-class TestProtectSQL:
-    """Tests for the protect_sql function."""
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
 
-    def test_protect_sql_allow_read_write(self):
-        """Test protecting with read-write allowed."""
-        result = protect_sql(sql='DROP TABLE public.test', allow_read_write=True)
-        assert result == ['BEGIN READ WRITE;', 'DROP TABLE public.test', 'END;']
+        # Mock _execute_statement
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+        mock_execute_statement.side_effect = ['begin-stmt-id', 'user-stmt-id', 'end-stmt-id']
 
-    def test_protect_sql_read_only(self):
-        """Test protecting with read-only mode."""
-        result = protect_sql(sql='SELECT * FROM test', allow_read_write=False)
-        assert result == ['BEGIN READ ONLY;', 'SELECT * FROM test', 'END;']
+        # Mock data client
+        mock_data_client = mocker.Mock()
+        mock_data_client.get_statement_result.return_value = {'Records': [], 'ColumnMetadata': []}
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
 
-    def test_protect_sql_read_only_transaction_breaker_error(self):
-        """Test protecting with transaction breaker error."""
-        for sql in (
+        await _execute_protected_statement(
+            'test-cluster', 'test-db', 'DROP TABLE test', allow_read_write=True
+        )
+
+        # Verify BEGIN READ WRITE was used
+        calls = mock_execute_statement.call_args_list
+        assert calls[0][1]['sql'] == 'BEGIN READ WRITE;'
+        assert calls[1][1]['sql'] == 'DROP TABLE test'
+        assert calls[2][1]['sql'] == 'END;'
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_transaction_breaker_error(self, mocker):
+        """Test transaction breaker protection in read-only mode."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+
+        # Test suspicious SQL patterns that should be rejected
+        suspicious_sqls = [
             'END; SELECT 1',
             '  COMMIT\t\r\n; SELECT 1',
             ';;;abort -- slc \n; SELECT 1',
@@ -244,9 +291,449 @@ class TestProtectSQL:
             'ROLLBACK TRANSACTION;/* mlc /* /* mlc */ mlc */ */SELECT 1',
             ';; \t\r\n; rollback -- slc\n  /* mlc -- mlc \n */  work;-- slc \n SELECT 1',
             'SELECT 1; COMMIT;',
-        ):
+        ]
+
+        for sql in suspicious_sqls:
             with pytest.raises(
                 Exception,
                 match='SQL contains suspicious pattern, execution rejected',
             ):
-                protect_sql(sql=sql, allow_read_write=False)
+                await _execute_protected_statement(
+                    'test-cluster', 'test-db', sql, allow_read_write=False
+                )
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_cluster_not_found(self, mocker):
+        """Test error when cluster is not found."""
+        # Mock discover_clusters to return empty list
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = []
+
+        with pytest.raises(Exception, match='Cluster nonexistent-cluster not found'):
+            await _execute_protected_statement(
+                'nonexistent-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+            )
+
+
+class TestRedshiftSessionManager:
+    """Tests for RedshiftSessionManager."""
+
+    @pytest.mark.asyncio
+    async def test_session_creation_provisioned(self, mocker):
+        """Test session creation for provisioned cluster."""
+        session_manager = RedshiftSessionManager(session_keepalive=600)
+        cluster_info = {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+
+        mock_response = {'SessionId': 'test-session-123', 'Id': 'statement-456'}
+
+        mock_data_client = mocker.Mock()
+        mock_data_client.execute_statement.return_value = mock_response
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'SessionId': 'test-session-123',
+        }
+
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
+
+        session_id = await session_manager.session('test-cluster', 'test-db', cluster_info)
+
+        assert session_id == 'test-session-123'
+        mock_data_client.execute_statement.assert_called_once()
+        call_args = mock_data_client.execute_statement.call_args
+        assert call_args[1]['ClusterIdentifier'] == 'test-cluster'
+        assert call_args[1]['Database'] == 'test-db'
+        assert 'SET application_name' in call_args[1]['Sql']
+
+    @pytest.mark.asyncio
+    async def test_session_creation_serverless(self, mocker):
+        """Test session creation for serverless workgroup."""
+        session_manager = RedshiftSessionManager(session_keepalive=600)
+        cluster_info = {
+            'identifier': 'test-workgroup',
+            'type': 'serverless',
+            'status': 'available',
+        }
+
+        mock_response = {'SessionId': 'test-session-456', 'Id': 'statement-789'}
+
+        mock_data_client = mocker.Mock()
+        mock_data_client.execute_statement.return_value = mock_response
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'SessionId': 'test-session-456',
+        }
+
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
+
+        session_id = await session_manager.session('test-workgroup', 'test-db', cluster_info)
+
+        assert session_id == 'test-session-456'
+        call_args = mock_data_client.execute_statement.call_args
+        assert call_args[1]['WorkgroupName'] == 'test-workgroup'
+        assert 'ClusterIdentifier' not in call_args[1]
+
+    @pytest.mark.asyncio
+    async def test_session_reuse(self, mocker):
+        """Test that existing sessions are reused."""
+        session_manager = RedshiftSessionManager(session_keepalive=600)
+        cluster_info = {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+
+        mock_response = {'SessionId': 'test-session-123', 'Id': 'statement-456'}
+
+        mock_data_client = mocker.Mock()
+        mock_data_client.execute_statement.return_value = mock_response
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'SessionId': 'test-session-123',
+        }
+
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
+
+        # First call creates session
+        session_id1 = await session_manager.session('test-cluster', 'test-db', cluster_info)
+
+        # Second call should reuse session
+        session_id2 = await session_manager.session('test-cluster', 'test-db', cluster_info)
+
+        assert session_id1 == session_id2 == 'test-session-123'
+        # execute_statement should only be called once (for session creation)
+        mock_data_client.execute_statement.assert_called_once()
+
+    def test_session_expiration_check(self):
+        """Test session expiration logic."""
+        session_keepalive = 600
+        session_manager = RedshiftSessionManager(session_keepalive=session_keepalive)
+
+        # Fresh session should not be expired
+        fresh_session = {'created_at': time.time()}
+        assert not session_manager._is_session_expired(fresh_session)
+
+        # Old session should be expired
+        old_session = {'created_at': time.time() - session_keepalive - 1}
+        assert session_manager._is_session_expired(old_session)
+
+
+class TestDiscoverFunctions:
+    """Tests for discover_*() functions."""
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_provisioned(self, mocker):
+        """Test discover_clusters function with provisioned clusters."""
+        # Mock redshift client
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'Clusters': [
+                    {
+                        'ClusterIdentifier': 'test-cluster',
+                        'ClusterStatus': 'available',
+                        'DBName': 'dev',
+                        'Endpoint': {'Address': 'test.redshift.amazonaws.com', 'Port': 5439},
+                        'VpcId': 'vpc-123',
+                        'NodeType': 'dc2.large',
+                        'NumberOfNodes': 2,
+                        'ClusterCreateTime': '2024-01-01T00:00:00Z',
+                        'MasterUsername': 'admin',
+                        'PubliclyAccessible': False,
+                        'Encrypted': True,
+                        'Tags': [{'Key': 'env', 'Value': 'test'}],
+                    }
+                ]
+            }
+        ]
+
+        # Mock serverless client (empty response)
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {'workgroups': []}
+        ]
+
+        # Mock client manager
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        cluster = result[0]
+        assert cluster['identifier'] == 'test-cluster'
+        assert cluster['type'] == 'provisioned'
+        assert cluster['status'] == 'available'
+        assert cluster['database_name'] == 'dev'
+        assert cluster['endpoint'] == 'test.redshift.amazonaws.com'
+        assert cluster['port'] == 5439
+        assert cluster['node_type'] == 'dc2.large'
+        assert cluster['number_of_nodes'] == 2
+        assert cluster['tags'] == {'env': 'test'}
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_serverless(self, mocker):
+        """Test discover_clusters function with serverless workgroups."""
+        # Mock redshift client (empty response)
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
+
+        # Mock serverless client
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'workgroups': [
+                    {
+                        'workgroupName': 'test-workgroup',
+                        'status': 'AVAILABLE',
+                        'creationDate': '2024-01-01T00:00:00Z',
+                    }
+                ]
+            }
+        ]
+        mock_serverless_client.get_workgroup.return_value = {
+            'workgroup': {
+                'configParameters': [{'parameterValue': 'analytics'}],
+                'endpoint': {'address': 'test.serverless.amazonaws.com', 'port': 5439},
+                'subnetIds': ['subnet-123'],
+                'publiclyAccessible': True,
+                'tags': [{'key': 'team', 'value': 'data'}],
+            }
+        }
+
+        # Mock client manager
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        workgroup = result[0]
+        assert workgroup['identifier'] == 'test-workgroup'
+        assert workgroup['type'] == 'serverless'
+        assert workgroup['status'] == 'AVAILABLE'
+        assert workgroup['database_name'] == 'analytics'
+        assert workgroup['endpoint'] == 'test.serverless.amazonaws.com'
+        assert workgroup['port'] == 5439
+        assert workgroup['node_type'] is None
+        assert workgroup['number_of_nodes'] is None
+        assert workgroup['encrypted'] is True
+        assert workgroup['tags'] == {'team': 'data'}
+
+    @pytest.mark.asyncio
+    async def test_discover_databases(self, mocker):
+        """Test discover_databases function."""
+        # Mock _execute_protected_statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [
+                        {'stringValue': 'dev'},
+                        {'longValue': 100},
+                        {'stringValue': 'local'},
+                        {'stringValue': 'user=admin'},
+                        {'stringValue': 'encoding=utf8'},
+                        {'stringValue': 'Snapshot Isolation'},
+                    ]
+                ]
+            },
+            'query-123',
+        )
+
+        result = await discover_databases('test-cluster', 'dev')
+
+        assert len(result) == 1
+        assert result[0]['database_name'] == 'dev'
+        assert result[0]['database_owner'] == 100
+        assert result[0]['database_type'] == 'local'
+
+    @pytest.mark.asyncio
+    async def test_discover_schemas(self, mocker):
+        """Test discover_schemas function."""
+        # Mock _execute_protected_statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [
+                        {'stringValue': 'dev'},
+                        {'stringValue': 'public'},
+                        {'longValue': 100},
+                        {'stringValue': 'local'},
+                        {'stringValue': 'user=admin'},
+                        {'stringValue': None},
+                        {'stringValue': None},
+                    ]
+                ]
+            },
+            'query-456',
+        )
+
+        result = await discover_schemas('test-cluster', 'dev')
+
+        assert len(result) == 1
+        assert result[0]['database_name'] == 'dev'
+        assert result[0]['schema_name'] == 'public'
+        assert result[0]['schema_owner'] == 100
+
+        # Verify parameters were passed correctly
+        mock_execute_protected.assert_called_once()
+        call_args = mock_execute_protected.call_args
+        assert call_args[1]['parameters'] == [{'name': 'database_name', 'value': 'dev'}]
+
+    @pytest.mark.asyncio
+    async def test_discover_tables(self, mocker):
+        """Test discover_tables function."""
+        # Mock _execute_protected_statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [
+                        {'stringValue': 'dev'},
+                        {'stringValue': 'public'},
+                        {'stringValue': 'users'},
+                        {'stringValue': 'user=admin'},
+                        {'stringValue': 'TABLE'},
+                        {'stringValue': 'User data table'},
+                    ]
+                ]
+            },
+            'query-789',
+        )
+
+        result = await discover_tables('test-cluster', 'dev', 'public')
+
+        assert len(result) == 1
+        assert result[0]['database_name'] == 'dev'
+        assert result[0]['schema_name'] == 'public'
+        assert result[0]['table_name'] == 'users'
+        assert result[0]['table_type'] == 'TABLE'
+
+        # Verify parameters were passed correctly
+        mock_execute_protected.assert_called_once()
+        call_args = mock_execute_protected.call_args
+        expected_params = [
+            {'name': 'database_name', 'value': 'dev'},
+            {'name': 'schema_name', 'value': 'public'},
+        ]
+        assert call_args[1]['parameters'] == expected_params
+
+    @pytest.mark.asyncio
+    async def test_discover_columns(self, mocker):
+        """Test discover_columns function."""
+        # Mock _execute_protected_statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'Records': [
+                    [
+                        {'stringValue': 'dev'},
+                        {'stringValue': 'public'},
+                        {'stringValue': 'users'},
+                        {'stringValue': 'id'},
+                        {'longValue': 1},
+                        {'stringValue': None},
+                        {'stringValue': 'NO'},
+                        {'stringValue': 'integer'},
+                        {'longValue': None},
+                        {'longValue': 32},
+                        {'longValue': 0},
+                        {'stringValue': 'Primary key'},
+                    ]
+                ]
+            },
+            'query-101',
+        )
+
+        result = await discover_columns('test-cluster', 'dev', 'public', 'users')
+
+        assert len(result) == 1
+        assert result[0]['database_name'] == 'dev'
+        assert result[0]['schema_name'] == 'public'
+        assert result[0]['table_name'] == 'users'
+        assert result[0]['column_name'] == 'id'
+        assert result[0]['ordinal_position'] == 1
+        assert result[0]['data_type'] == 'integer'
+
+        # Verify parameters were passed correctly
+        mock_execute_protected.assert_called_once()
+        call_args = mock_execute_protected.call_args
+        expected_params = [
+            {'name': 'database_name', 'value': 'dev'},
+            {'name': 'schema_name', 'value': 'public'},
+            {'name': 'table_name', 'value': 'users'},
+        ]
+        assert call_args[1]['parameters'] == expected_params
+
+
+class TestExecuteQuery:
+    """Tests for execute_query function."""
+
+    @pytest.mark.asyncio
+    async def test_execute_query_success(self, mocker):
+        """Test successful query execution."""
+        # Mock _execute_protected_statement
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.return_value = (
+            {
+                'ColumnMetadata': [
+                    {'name': 'id'},
+                    {'name': 'name'},
+                ],
+                'Records': [
+                    [
+                        {'longValue': 1},
+                        {'stringValue': 'Test User'},
+                    ]
+                ],
+            },
+            'query-123',
+        )
+
+        # Mock time for execution time calculation
+        mock_time = mocker.patch('time.time')
+        mock_time.side_effect = [1000.0, 1000.123]  # start_time, end_time
+
+        result = await execute_query('test-cluster', 'dev', 'SELECT id, name FROM users LIMIT 1')
+
+        assert result['columns'] == ['id', 'name']
+        assert result['rows'] == [[1, 'Test User']]
+        assert result['row_count'] == 1
+        assert result['execution_time_ms'] == 123
+        assert result['query_id'] == 'query-123'
+
+    @pytest.mark.asyncio
+    async def test_execute_query_error_handling(self, mocker):
+        """Test error handling in execute_query."""
+        # Mock _execute_protected_statement to raise exception
+        mock_execute_protected = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+        )
+        mock_execute_protected.side_effect = Exception('Query execution failed')
+
+        with pytest.raises(Exception, match='Query execution failed'):
+            await execute_query('test-cluster', 'dev', 'SELECT * FROM nonexistent')
