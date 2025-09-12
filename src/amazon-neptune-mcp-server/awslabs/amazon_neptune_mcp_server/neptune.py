@@ -26,7 +26,7 @@ from awslabs.amazon_neptune_mcp_server.graph_store import (
     NeptuneDatabase,
     NeptuneGraph,
 )
-from awslabs.amazon_neptune_mcp_server.models import GraphSchema
+from awslabs.amazon_neptune_mcp_server.models import GraphSchema, RDFGraphSchema
 from loguru import logger
 from typing import Optional
 
@@ -58,6 +58,8 @@ class NeptuneServer:
             ValueError: If endpoint is not provided or has invalid format
         """
         if endpoint:
+            if endpoint.endswith('/'):
+                endpoint = endpoint[:-1]
             # self._logger.debug("NeptuneServer host: %s", endpoint)
             if endpoint.startswith('neptune-db://'):
                 # This is a Neptune Database Cluster
@@ -92,7 +94,7 @@ class NeptuneServer:
             logger.exception('Could not get status for Neptune instance')
             return 'Unavailable'
 
-    def schema(self) -> GraphSchema:
+    def propertygraph_schema(self) -> GraphSchema:
         """Retrieve the schema information from the Neptune instance.
 
         Returns:
@@ -101,7 +103,18 @@ class NeptuneServer:
         Raises:
             AttributeError: If engine type is unknown
         """
-        return self.graph.get_schema()
+        return self.graph.get_lpg_schema()
+
+    def rdf_schema(self) -> RDFGraphSchema:
+        """Retrieve the schema information from the Neptune instance.
+
+        Returns:
+            GraphSchema: Complete schema information for the graph
+
+        Raises:
+            AttributeError: If engine type is unknown
+        """
+        return self.graph.get_rdf_schema()
 
     def query_opencypher(self, query: str, parameters: Optional[dict] = None) -> dict:
         """Execute an openCypher query against the Neptune instance.
@@ -130,3 +143,16 @@ class NeptuneServer:
             ValueError: If using unsupported query language for analytics
         """
         return self.graph.query_gremlin(query)
+
+    def query_sparql(self, query: str) -> dict:
+        """Execute an SPARQL query against the Neptune instance.
+
+        Args:
+            query (str): The SPARQL query string to execute
+        Returns:
+            str: Query results
+
+        Raises:
+            ValueError: If using unsupported query language for analytics
+        """
+        return self.graph.query_sparql(query)
