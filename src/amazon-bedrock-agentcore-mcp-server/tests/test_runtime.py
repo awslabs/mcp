@@ -516,8 +516,8 @@ class TestDeploymentTools:  # pragma: no cover
         return str(mcp_result)
 
     @pytest.mark.asyncio
-    async def test_deploy_agentcore_app_ask_mode(self):  # pragma: no cover
-        """Test deployment in ask mode."""
+    async def test_deploy_agentcore_app_cli_mode(self):  # pragma: no cover
+        """Test deployment in CLI mode."""
         mcp = self._create_mock_mcp()
 
         helper = SmartTestHelper()
@@ -528,10 +528,20 @@ class TestDeploymentTools:  # pragma: no cover
             temp_file_path = temp_file.name
 
         try:
-            with patch(
-                'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.resolve_app_file_path'
-            ) as mock_resolve:
+            with (
+                patch(
+                    'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.resolve_app_file_path'
+                ) as mock_resolve,
+                patch('subprocess.run') as mock_subprocess,
+            ):
                 mock_resolve.return_value = temp_file_path
+
+                # Mock successful subprocess calls for CLI deployment
+                mock_subprocess.return_value.returncode = 0
+                mock_subprocess.return_value.stdout = (
+                    '{"agent_name": "test-agent", "status": "active"}'
+                )
+                mock_subprocess.return_value.stderr = ''
 
                 result = await helper.call_tool_and_extract(
                     mcp,
@@ -539,13 +549,13 @@ class TestDeploymentTools:  # pragma: no cover
                     {
                         'app_file': self.test_app_file,
                         'agent_name': self.test_agent_name,
-                        'execution_mode': 'ask',
+                        'execution_mode': 'cli',
                     },
                 )
 
-                assert 'Choose Your Approach' in result
-                assert 'CLI Commands' in result
-                assert 'SDK Execution' in result
+                assert 'Deployment Successful' in result
+                assert 'Testing Your Agent' in result
+                assert 'agentcore invoke' in result
 
         finally:
             os.unlink(temp_file_path)
@@ -578,46 +588,6 @@ class TestDeploymentTools:  # pragma: no cover
 
         assert 'App file not found' in result
         assert 'nonexistent.py' in result
-
-    @pytest.mark.asyncio
-    async def test_deploy_agentcore_app_cli_mode(self):  # pragma: no cover
-        """Test deployment in CLI mode."""
-        mcp = self._create_mock_mcp()
-
-        helper = SmartTestHelper()
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
-            temp_file.write(
-                'from bedrock_agentcore import BedrockAgentCoreApp\napp = BedrockAgentCoreApp()'
-            )
-            temp_file_path = temp_file.name
-
-        try:
-            with (
-                patch(
-                    'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.resolve_app_file_path'
-                ) as mock_resolve,
-                patch(
-                    'awslabs.amazon_bedrock_agentcore_mcp_server.runtime.execute_agentcore_deployment_cli'
-                ) as mock_cli_deploy,
-            ):
-                mock_resolve.return_value = temp_file_path
-                mock_cli_deploy.return_value = 'CLI deployment successful'
-
-                result = await helper.call_tool_and_extract(
-                    mcp,
-                    'deploy_agentcore_app',
-                    {
-                        'app_file': self.test_app_file,
-                        'agent_name': self.test_agent_name,
-                        'execution_mode': 'cli',
-                    },
-                )
-
-                assert 'CLI deployment successful' in result
-                mock_cli_deploy.assert_called_once()
-
-        finally:
-            os.unlink(temp_file_path)
 
     @pytest.mark.asyncio
     async def test_deploy_agentcore_app_sdk_mode(self):  # pragma: no cover

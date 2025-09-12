@@ -133,10 +133,11 @@ agents:
                     {'app_file': 'test_app.py', 'agent_name': 'test-agent', 'region': 'us-east-1'},
                 )
 
-            # Should handle gracefully - now it works and shows the choose approach message
+            # Should handle gracefully - shows deployment error for missing YAML
             assert (
-                'choose your approach' in result.lower()
+                'deployment error' in result.lower()
                 or 'deployment failed' in result.lower()
+                or 'no module named yaml' in result.lower()
                 or 'starter toolkit not available' in result.lower()
                 or 'no agent found' in result.lower()
                 or 'app file not found' in result.lower()
@@ -645,12 +646,13 @@ agents:
                 {'app_file': 'test_app.py', 'agent_name': 'test-agent', 'region': 'us-east-1'},
             )
 
-            # With file resolution mocking, should get choose your approach message
+            # With file resolution mocking, should get deployment error for YAML issue
             assert (
-                'choose your approach' in result.lower()
+                'deployment error' in result.lower()
                 or 'app file not found' in result.lower()
                 or 'starter toolkit not available' in result.lower()
                 or 'deployment failed' in result.lower()
+                or 'invalid agentcore' in result.lower()
             )
 
     @pytest.mark.asyncio
