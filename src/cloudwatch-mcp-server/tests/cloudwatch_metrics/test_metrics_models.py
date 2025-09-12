@@ -17,13 +17,17 @@ import pytest
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AlarmRecommendation,
     AlarmRecommendationDimension,
-    AlarmRecommendationThreshold,
     Dimension,
     GetMetricDataResponse,
     MetricDataPoint,
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
+)
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.threshold import (
+    create_threshold,
+    STATIC_TYPE,
+    ANOMALY_DETECTION_TYPE
 )
 from datetime import datetime
 from pydantic import ValidationError
@@ -258,16 +262,28 @@ class TestDimensionValidation:
 
 
 class TestAlarmRecommendationThreshold:
-    """Tests for AlarmRecommendationThreshold model."""
 
-    def test_alarm_recommendation_threshold_creation(self):
-        """Test creating an alarm recommendation threshold."""
-        threshold = AlarmRecommendationThreshold(
-            staticValue=80.0, justification='CPU usage should not exceed 80%'
-        )
+    def test_static_threshold_creation(self):
+        threshold = create_threshold({
+            "type": STATIC_TYPE,
+            "value": 80.0,
+            "justification": "CPU usage limit"
+        })
 
-        assert threshold.staticValue == 80.0
-        assert threshold.justification == 'CPU usage should not exceed 80%'
+        assert threshold.type == STATIC_TYPE
+        assert threshold.value == 80.0
+        assert threshold.justification == "CPU usage limit"
+
+    def test_anomaly_threshold_creation(self):
+        threshold = create_threshold({
+            "type": ANOMALY_DETECTION_TYPE,
+            "sensitivity": 3,
+            "justification": "Seasonal pattern detected"
+        })
+
+        assert threshold.type == ANOMALY_DETECTION_TYPE
+        assert threshold.sensitivity == 3
+        assert threshold.justification == "Seasonal pattern detected"
 
 
 class TestAlarmRecommendationDimension:
@@ -292,14 +308,15 @@ class TestAlarmRecommendation:
     """Tests for AlarmRecommendation model."""
 
     def test_alarm_recommendation_creation(self):
-        """Test creating a complete alarm recommendation."""
-        threshold = AlarmRecommendationThreshold(
-            staticValue=80.0, justification='Test justification'
-        )
+        threshold = create_threshold({
+            "type": STATIC_TYPE,
+            "value": 80.0,
+            "justification": "Test justification"
+        })
 
         dimensions = [
-            AlarmRecommendationDimension(name='InstanceId'),
-            AlarmRecommendationDimension(name='Role', value='WRITER'),
+            Dimension(name='InstanceId', value='i-1234567890abcdef0'),
+            Dimension(name='Role', value='WRITER'),
         ]
 
         alarm = AlarmRecommendation(
@@ -316,7 +333,7 @@ class TestAlarmRecommendation:
         )
 
         assert alarm.alarmDescription == 'Test alarm description'
-        assert alarm.threshold.staticValue == 80.0
+        assert alarm.threshold.value == 80.0
         assert alarm.period == 300
         assert alarm.comparisonOperator == 'GreaterThanThreshold'
         assert alarm.statistic == 'Average'
@@ -327,8 +344,11 @@ class TestAlarmRecommendation:
         assert alarm.intent == 'Test alarm intent'
 
     def test_alarm_recommendation_with_minimal_fields(self):
-        """Test creating alarm recommendation with minimal required fields."""
-        threshold = AlarmRecommendationThreshold(staticValue=1.0, justification='Test')
+        threshold = create_threshold({
+            "type": STATIC_TYPE,
+            "value": 1.0,
+            "justification": "Test"
+        })
 
         alarm = AlarmRecommendation(
             alarmDescription='Minimal alarm',

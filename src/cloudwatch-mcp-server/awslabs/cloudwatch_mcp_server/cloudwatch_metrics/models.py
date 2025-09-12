@@ -16,8 +16,36 @@
 
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List
+from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, List, Optional, Union
+
+COMPARISON_OPERATOR_ANOMALY = "LessThanLowerOrGreaterThanUpperThreshold"
+STATISTIC_AVERAGE = "Average"
+TREAT_MISSING_DATA_BREACHING = "breaching"
+
+
+class Trend(str, Enum):
+    """Trend direction based on statistical significance."""
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+    NONE = "none"
+
+
+class Seasonality(Enum):
+    """Seasonality detection results with period in seconds."""
+    NONE = 0
+    FIFTEEN_MINUTES = 15 * 60
+    ONE_HOUR = 60 * 60
+    SIX_HOURS = 6 * 60 * 60
+    ONE_DAY = 24 * 60 * 60
+    ONE_WEEK = 7 * 24 * 60 * 60
+
+    @classmethod
+    def from_seconds(cls, seconds: Union[float, int]) -> "Seasonality":
+        """Convert seconds to closest seasonality enum."""
+        seconds = int(seconds)
+        closest = min(cls, key=lambda x: abs(x.value - seconds))
+        return closest if abs(closest.value - seconds) < closest.value * 0.1 else cls.NONE
 
 
 class SortOrder(str, Enum):
@@ -104,11 +132,13 @@ class MetricMetadata(BaseModel):
     unit: str = Field(..., description='Unit of measurement for the metric')
 
 
-class AlarmRecommendationThreshold(BaseModel):
-    """Represents an alarm threshold configuration."""
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.threshold import (
+    StaticThreshold,
+    AnomalyDetectionThreshold
+)
+from typing import Union
 
-    staticValue: float = Field(..., description='The static threshold value')
-    justification: str = Field(..., description='Justification for the threshold value')
+ThresholdUnion = Union[StaticThreshold, AnomalyDetectionThreshold]
 
 
 class AlarmRecommendationDimension(BaseModel):
@@ -123,10 +153,11 @@ class AlarmRecommendationDimension(BaseModel):
 class AlarmRecommendation(BaseModel):
     """Represents a CloudWatch alarm recommendation."""
 
+    alarmName: str = Field(default="", description='Name of the alarm')
     alarmDescription: str = Field(..., description='Description of what the alarm monitors')
-    threshold: AlarmRecommendationThreshold = Field(
-        ..., description='Threshold configuration for the alarm'
-    )
+    metricName: str = Field(default="", description='Name of the metric')
+    namespace: str = Field(default="", description='Namespace of the metric')
+    threshold: ThresholdUnion = Field(...)
     period: int = Field(
         ..., description='The period in seconds over which the statistic is applied'
     )
@@ -141,10 +172,15 @@ class AlarmRecommendation(BaseModel):
         ..., description='The number of periods over which data is compared to the threshold'
     )
     datapointsToAlarm: int = Field(
-        ..., description='The number of datapoints that must be breaching to trigger the alarm'
+        default=1, description='The number of datapoints that must be breaching to trigger the alarm'
     )
     treatMissingData: str = Field(..., description='How to treat missing data points')
-    dimensions: List[AlarmRecommendationDimension] = Field(
+    dimensions: List[Dimension] = Field(
         default_factory=list, description='List of dimensions for the alarm'
     )
-    intent: str = Field(..., description='The intent or purpose of the alarm')
+    intent: str = Field(default="", description='The intent or purpose of the alarm')
+    cloudformation_template: Optional[str] = Field(None, description="CloudFormation YAML template for this alarm")
+    cli_commands: Optional[str] = Field(None, description="AWS CLI commands for this alarm")
+
+
+

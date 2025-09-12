@@ -291,11 +291,25 @@ class TestErrorHandling:
             }
 
             with patch.object(tools, '_lookup_metadata', return_value=malformed_metadata):
-                # Mock the _parse_alarm_recommendation method to raise an exception
+                from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import AlarmRecommendation
+                from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.threshold import StaticThreshold
+                
+                valid_alarm = AlarmRecommendation(
+                    alarmDescription='Valid alarm',
+                    threshold=StaticThreshold(value=80.0),
+                    period=300,
+                    statistic='Average',
+                    namespace='AWS/EC2',
+                    metricName='CPUUtilization',
+                    comparisonOperator='GreaterThanThreshold',
+                    evaluationPeriods=2,
+                    treatMissingData='notBreaching'
+                )
+                
                 with patch.object(
                     tools,
                     '_parse_alarm_recommendation',
-                    side_effect=[Mock(), Exception('Parse error')],
+                    side_effect=[valid_alarm, Exception('Parse error')],
                 ):
                     with patch(
                         'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.logger'
@@ -309,6 +323,8 @@ class TestErrorHandling:
 
                         # Should return only valid recommendations and log warning for invalid ones
                         assert isinstance(result, list)
+                        assert len(result) == 1
+                        assert result[0].alarmDescription == 'Valid alarm'
                         mock_logger.warning.assert_called()
 
     @pytest.mark.asyncio
@@ -325,7 +341,7 @@ class TestErrorHandling:
             # Should handle missing fields gracefully with defaults
             assert isinstance(result, AlarmRecommendation)
             assert result.alarmDescription == ''
-            assert result.threshold.staticValue == 0.0
+            assert result.threshold.value == 0.0
             assert result.threshold.justification == ''
             assert result.period == 300
             assert result.comparisonOperator == ''
@@ -419,11 +435,12 @@ class TestEdgeCases:
             tools.register(mock_mcp)
 
             # Verify all tools are registered
-            assert mock_mcp.tool.call_count == 3
+            assert mock_mcp.tool.call_count == 4
             tool_calls = [call[1]['name'] for call in mock_mcp.tool.call_args_list]
             expected_tools = [
                 'get_metric_data',
                 'get_metric_metadata',
+                'analyze_metric',
                 'get_recommended_metric_alarms',
             ]
             for tool in expected_tools:

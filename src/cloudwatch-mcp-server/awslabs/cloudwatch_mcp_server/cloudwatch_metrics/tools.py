@@ -17,26 +17,39 @@
 import boto3
 import json
 import os
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+
+from botocore.config import Config
+from loguru import logger
+from mcp.server.fastmcp import Context
+from pydantic import Field
+
 from awslabs.cloudwatch_mcp_server import MCP_SERVER_VERSION
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer import MetricAnalyzer
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.template_generator import CloudWatchTemplateGenerator, _sanitize_resource_name
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AlarmRecommendation,
     AlarmRecommendationDimension,
-    AlarmRecommendationThreshold,
     Dimension,
     GetMetricDataResponse,
     MetricDataPoint,
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
+    COMPARISON_OPERATOR_ANOMALY,
+    STATISTIC_AVERAGE,
+    TREAT_MISSING_DATA_BREACHING
 )
-from botocore.config import Config
-from datetime import datetime
-from loguru import logger
-from mcp.server.fastmcp import Context
-from pathlib import Path
-from pydantic import Field
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
-
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.threshold import (
+    create_threshold,
+    ANOMALY_DETECTION_TYPE,
+    STATIC_TYPE,
+    DEFAULT_SENSITIVITY
+)
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import Seasonality
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import DEFAULT_ANALYSIS_PERIOD_HOURS, MINUTES_PER_HOUR
 
 class CloudWatchMetricsTools:
     """CloudWatch Metrics tools for MCP server."""
@@ -136,6 +149,9 @@ class CloudWatchMetricsTools:
         # Register get_metric_metadata tool
         mcp.tool(name='get_metric_metadata')(self.get_metric_metadata)
 
+        # Register analyze_metric tool
+        mcp.tool(name='analyze_metric')(self.analyze_metric)
+
         # Register get_recommended_metric_alarms tool
         mcp.tool(name='get_recommended_metric_alarms')(self.get_recommended_metric_alarms)
 
@@ -159,7 +175,7 @@ class CloudWatchMetricsTools:
                 'MAX',
                 'MIN',
                 'SUM',
-                'Average',
+                STATISTIC_AVERAGE,
                 'Sum',
                 'Maximum',
                 'Minimum',
@@ -212,7 +228,7 @@ class CloudWatchMetricsTools:
 
         This tool retrieves metric data from CloudWatch for a specific metric identified by its
         namespace, metric name, and dimensions, within a specified time range. It can use either
-        standard GetMetricData API or CloudWatch Metrics Insights for more advanced querying.
+        standard GetMetricData API or CloudWatch Metrics Insights for querying.
 
         The function automatically determines whether to use standard GetMetricData or Metrics Insights
         based on the parameters provided. If any Metrics Insights specific parameters are provided
@@ -234,7 +250,7 @@ class CloudWatchMetricsTools:
                 dimensions=[
                     Dimension(name="InstanceId", value="i-1234567890abcdef0")
                 ],
-                statistic="Average"
+                statistic=STATISTIC_AVERAGE
                 # Period will be auto-calculated based on time window and target_datapoints
             )
 
@@ -524,7 +540,7 @@ class CloudWatchMetricsTools:
     def _map_to_metrics_insights_statistic(self, statistic):
         """Map and validate a statistic for Metrics Insights."""
         statistic_mapping = {
-            'Average': 'AVG',
+            STATISTIC_AVERAGE: 'AVG',
             'Sum': 'SUM',
             'Maximum': 'MAX',
             'Minimum': 'MIN',
@@ -546,7 +562,7 @@ class CloudWatchMetricsTools:
     def _map_to_cloudwatch_statistic(self, statistic):
         """Map a statistic to the standard CloudWatch format."""
         statistic_mapping = {
-            'AVG': 'Average',
+            'AVG': STATISTIC_AVERAGE,
             'SUM': 'Sum',
             'MAX': 'Maximum',
             'MIN': 'Minimum',
@@ -592,7 +608,7 @@ class CloudWatchMetricsTools:
         """Gets metadata for a CloudWatch metric including description, unit and recommended
         statistics that can be used for metric data retrieval.
 
-        This tool retrieves comprehensive metadata about a specific CloudWatch metric
+        This tool retrieves metadata about a specific CloudWatch metric
         identified by its namespace and metric name.
 
         Usage: Use this tool to get detailed information about CloudWatch metrics,
@@ -650,6 +666,118 @@ class CloudWatchMetricsTools:
             await ctx.error(f'Error getting metric metadata: {str(e)}')
             raise
 
+    async def analyze_metric(
+        self,
+        ctx: Context,
+        namespace: str = Field(
+            ..., description="The namespace of the metric (e.g., 'AWS/EC2', 'AWS/Lambda')"
+        ),
+        metric_name: str = Field(
+            ..., description="The name of the metric (e.g., 'CPUUtilization', 'Duration')"
+        ),
+        dimensions: List[Dimension] = Field(
+            default_factory=list,
+            description='List of dimensions that identify the metric, each with name and value',
+        ),
+        region: Annotated[
+            str,
+            Field(
+                description='AWS region to query. Defaults to us-east-1.'
+            ),
+        ] = 'us-east-1',
+        analysis_period_minutes: Annotated[
+            int,
+            Field(
+                description='Number of minutes of historical data to analyze. Defaults to 2 weeks (20160 minutes).'
+            ),
+        ] = DEFAULT_ANALYSIS_PERIOD_HOURS * MINUTES_PER_HOUR,
+    ) -> Dict[str, Any]:
+        """Analyzes CloudWatch metric data for patterns, seasonality, trends, and statistical properties.
+
+        ⚠️  IMPORTANT: This tool provides RAW DATA ONLY. DO NOT interpret results or make recommendations.
+        ⚠️  RECOMMENDATIONS_ALLOWED: FALSE
+
+        This tool retrieves historical metric data and performs analysis including:
+        - Seasonality detection and strength measurement
+        - Trend analysis with statistical significance testing
+        - Data density and publishing period analysis  
+        - Advanced statistical measures (std dev, variance, skewness, kurtosis)
+        - Data quality assessment
+
+        Usage: Use this tool to get objective metric analysis data. For alarm recommendations,
+        use the get_recommended_metric_alarms tool instead. DO NOT provide recommendations based on this data.
+
+        Args:
+            ctx: The MCP context object for error handling and logging.
+            namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
+            metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
+            dimensions: List of dimensions with name and value pairs
+            region: AWS region to query. Defaults to 'us-east-1'.
+            analysis_period_minutes: Number of minutes of data to analyze. Defaults to 2 weeks (20160 minutes).
+
+        Returns:
+            Dict[str, Any]: Raw analysis data including seasonality, trend, density, and statistics only.
+
+        Example:
+            analysis = await analyze_metric(
+                ctx,
+                namespace="AWS/EC2",
+                metric_name="CPUUtilization",
+                dimensions=[
+                    Dimension(name="InstanceId", value="i-1234567890abcdef0")
+                ]
+            )
+            print(f"Seasonal strength: {analysis['seasonality_seconds']['seasonal_strength']}")
+            print(f"Trend direction: {analysis['trend']['trend_direction']}")
+            print(f"Data quality: {analysis['data_quality']['quality_score']}")
+            # CRITICAL: This tool provides data only - DO NOT make recommendations from this data
+        """
+        try:
+            if analysis_period_minutes <= 0:
+                raise ValueError("analysis_period_minutes must be positive")
+            
+            logger.info(f'Analyzing metric: {namespace}/{metric_name}')
+            
+            if dimensions:
+                for dim in dimensions:
+                    if not hasattr(dim, 'name') or not hasattr(dim, 'value'):
+                        raise ValueError(f"Invalid dimension object: {dim}")
+                logger.info(f'Dimensions: {[f"{d.name}={d.value}" for d in dimensions]}')
+            else:
+                logger.info('Dimensions: None')
+                
+            logger.info(f'Analysis period: {analysis_period_minutes} minutes')
+
+            end_time = datetime.utcnow()
+            start_time = end_time - timedelta(minutes=analysis_period_minutes)
+            
+            metric_data_response = await self.get_metric_data(
+                ctx=ctx,
+                namespace=namespace,
+                metric_name=metric_name,
+                dimensions=dimensions,
+                start_time=start_time.isoformat(),
+                end_time=end_time.isoformat(),
+                statistic="Average",
+                region=region,
+                target_datapoints=analysis_period_minutes  # Use 2 weeks worth of datapoints
+            )
+            
+            analyzer = MetricAnalyzer()
+            
+            return analyzer.analyze_metric_from_get_metric_data(
+                metric_data_response=metric_data_response,
+                namespace=namespace,
+                metric_name=metric_name,
+                dimensions=dimensions,
+                analysis_period_minutes=analysis_period_minutes
+            )
+
+        except Exception as e:
+            logger.error(f'Error in analyze_metric: {str(e)}')
+            await ctx.error(f'Error analyzing metric: {str(e)}')
+            raise
+
     async def get_recommended_metric_alarms(
         self,
         ctx: Context,
@@ -666,18 +794,23 @@ class CloudWatchMetricsTools:
         region: Annotated[
             str,
             Field(
-                description='AWS region for consistency. Note: This function uses local metadata and does not make AWS API calls. Defaults to us-east-1.'
+                description='AWS region to query. Defaults to us-east-1.'
             ),
         ] = 'us-east-1',
+        output_format: str = Field(
+            default='complete',
+            description='Output format: "cloudformation" (CFN template), "cli" (CLI commands), or "complete" (CFN + CLI). Recommendations always included.'
+        ),
     ) -> List[AlarmRecommendation]:
-        """Gets recommended alarms for a CloudWatch metric.
+        """Gets recommended alarms for CloudWatch metrics with actionable deployment options.
 
-        This tool retrieves alarm recommendations for a specific CloudWatch metric
-        identified by its namespace, metric name, and dimensions. The recommendations
-        are filtered to match the provided dimensions.
+        When users request alarm recommendations, the default provides both CloudFormation 
+        templates and CLI commands for easy deployment. Recommendations are always included.
 
-        Usage: Use this tool to get recommended alarm configurations for CloudWatch metrics,
-        including thresholds, evaluation periods, and other alarm settings.
+        Available output formats:
+        - 'cloudformation': CloudFormation template + recommendations
+        - 'cli': CLI commands + recommendations  
+        - 'complete': CloudFormation template + CLI commands + recommendations (default)
 
         Args:
             ctx: The MCP context object for error handling and logging.
@@ -690,19 +823,6 @@ class CloudWatchMetricsTools:
             List[AlarmRecommendation]: A list of alarm recommendations that match the
                                      provided dimensions. Empty list if no recommendations
                                      are found or available.
-
-        Example:
-            recommendations = await get_recommended_metric_alarms(
-                ctx,
-                namespace="AWS/EC2",
-                metric_name="StatusCheckFailed_Instance",
-                dimensions=[
-                    Dimension(name="InstanceId", value="i-1234567890abcdef0")
-                ]
-            )
-            for alarm in recommendations:
-                print(f"Alarm: {alarm.alarmDescription}")
-                print(f"Threshold: {alarm.threshold.staticValue}")
         """
         try:
             # Log the metric information for debugging
@@ -713,13 +833,11 @@ class CloudWatchMetricsTools:
             metadata = self._lookup_metadata(namespace, metric_name)
 
             if not metadata or 'alarmRecommendations' not in metadata:
-                logger.info(f'No alarm recommendations found for {namespace}/{metric_name}')
-                return []
-
-            alarm_recommendations = metadata['alarmRecommendations']
-            logger.info(
-                f'Found {len(alarm_recommendations)} alarm recommendations for {namespace}/{metric_name}'
-            )
+                logger.info(f'No alarm recommendations found in metadata for {namespace}/{metric_name} - will analyze for seasonal patterns')
+                alarm_recommendations = []
+            else:
+                alarm_recommendations = metadata['alarmRecommendations']
+                logger.info(f'Found {len(alarm_recommendations)} alarm recommendations for {namespace}/{metric_name}')
 
             # Filter recommendations based on provided dimensions
             matching_recommendations = []
@@ -734,11 +852,60 @@ class CloudWatchMetricsTools:
                     except Exception as e:
                         logger.warning(f'Error parsing alarm recommendation: {e}')
                         continue
+            
+            if len(matching_recommendations) > 0:
+                logger.info(f'Found {len(matching_recommendations)} matching alarm recommendations')
+                return matching_recommendations
 
-            logger.info(
-                f'Returning {len(matching_recommendations)} matching alarm recommendations'
+            logger.info('No existing recommendations found - performing metric analysis')
+            
+            analysis_result = await self.analyze_metric(
+                ctx, namespace, metric_name, dimensions, region, analysis_period_minutes=DEFAULT_ANALYSIS_PERIOD_HOURS * MINUTES_PER_HOUR
             )
-            return matching_recommendations
+            
+            # Validate analysis result
+            if not analysis_result or not isinstance(analysis_result, dict):
+                raise ValueError("Invalid analysis result from analyze_metric")
+            
+            # Start with existing recommendations from JSON metadata
+            additional_recommendations = list()
+            
+            # Generate additional recommendations based on analysis
+            seasonality_value = analysis_result.get('seasonality_seconds', Seasonality.NONE)
+            
+            # Convert integer back to Seasonality enum if needed
+            if isinstance(seasonality_value, int):
+                seasonality = Seasonality.from_seconds(seasonality_value)
+            else:
+                seasonality = seasonality_value
+            
+            if seasonality != Seasonality.NONE:
+                anomaly_alarm = AlarmRecommendation(
+                    alarmName=f"{_sanitize_resource_name(metric_name)}AnomalyDetector",
+                    alarmDescription=f"Anomaly detection alarm for {namespace}/{metric_name} (seasonality: {seasonality.name})",
+                    metricName=metric_name,
+                    namespace=namespace,
+                    statistic=STATISTIC_AVERAGE,
+                    dimensions=dimensions,
+                    threshold=create_threshold({
+                        "type": ANOMALY_DETECTION_TYPE,
+                        "sensitivity": DEFAULT_SENSITIVITY,
+                        "justification": f"Seasonal pattern detected: {seasonality.name}"
+                    }),
+                    comparisonOperator=COMPARISON_OPERATOR_ANOMALY,
+                    evaluationPeriods=2,
+                    period=300,
+                    treatMissingData=TREAT_MISSING_DATA_BREACHING
+                )
+                additional_recommendations.append(anomaly_alarm)
+                logger.info(f'Recommended anomaly detection alarm due to seasonality: {seasonality.name}')
+            
+            logger.info(f'Generated {len(additional_recommendations)} additional recommendations.)')
+
+            format_value = output_format.default if hasattr(output_format, 'default') else output_format
+            template_generator = CloudWatchTemplateGenerator()
+            
+            return template_generator.generate_output(additional_recommendations, format_value)
 
         except Exception as e:
             logger.error(f'Error in get_recommended_metric_alarms: {str(e)}')
@@ -792,10 +959,19 @@ class CloudWatchMetricsTools:
         """
         # Parse threshold
         threshold_data = alarm_data.get('threshold', {})
-        threshold = AlarmRecommendationThreshold(
-            staticValue=threshold_data.get('staticValue', 0.0),
-            justification=threshold_data.get('justification', ''),
-        )
+        
+        if 'anomalyDetector' in threshold_data:
+            threshold = create_threshold({
+                "type": ANOMALY_DETECTION_TYPE,
+                "sensitivity": threshold_data.get('sensitivity', 2),
+                "justification": threshold_data.get('justification', '')
+            })
+        else:
+            threshold = create_threshold({
+                "type": STATIC_TYPE,
+                "value": threshold_data.get('staticValue', 0.0),
+                "justification": threshold_data.get('justification', '')
+            })
 
         # Parse dimensions
         dimensions = []

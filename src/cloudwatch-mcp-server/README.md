@@ -28,6 +28,7 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 ### Tools for CloudWatch Metrics
 * `get_metric_data` - Retrieves detailed CloudWatch metric data for any CloudWatch metric. Use this for general CloudWatch metrics that aren't specific to Application Signals. Provides ability to query any metric namespace, dimension, and statistic
 * `get_metric_metadata` - Retrieves comprehensive metadata about a specific CloudWatch metric
+* `analyze_metric` - Analyzes CloudWatch metric data for patterns, seasonality, and statistical properties
 * `get_recommended_metric_alarms` - Gets recommended alarms for a CloudWatch metric
 
 ### Tools for CloudWatch Alarms

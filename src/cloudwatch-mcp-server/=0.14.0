@@ -1,0 +1,15 @@
+Collecting statsmodels
+  Downloading statsmodels-0.14.5-cp310-cp310-macosx_11_0_arm64.whl (9.7 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9.7/9.7 MB 22.9 MB/s eta 0:00:00
+Requirement already satisfied: pandas!=2.1.0,>=1.4 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from statsmodels) (2.3.2)
+Collecting patsy>=0.5.6
+  Using cached patsy-1.0.1-py2.py3-none-any.whl (232 kB)
+Requirement already satisfied: packaging>=21.3 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from statsmodels) (25.0)
+Requirement already satisfied: numpy<3,>=1.22.3 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from statsmodels) (2.2.6)
+Requirement already satisfied: scipy!=1.9.2,>=1.8 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from statsmodels) (1.15.3)
+Requirement already satisfied: tzdata>=2022.7 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from pandas!=2.1.0,>=1.4->statsmodels) (2025.2)
+Requirement already satisfied: python-dateutil>=2.8.2 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from pandas!=2.1.0,>=1.4->statsmodels) (2.9.0.post0)
+Requirement already satisfied: pytz>=2020.1 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from pandas!=2.1.0,>=1.4->statsmodels) (2025.2)
+Requirement already satisfied: six>=1.5 in /Users/abarkl/.pyenv/versions/3.10.16/lib/python3.10/site-packages (from python-dateutil>=2.8.2->pandas!=2.1.0,>=1.4->statsmodels) (1.17.0)
+Installing collected packages: patsy, statsmodels
+Successfully installed patsy-1.0.1 statsmodels-0.14.5
