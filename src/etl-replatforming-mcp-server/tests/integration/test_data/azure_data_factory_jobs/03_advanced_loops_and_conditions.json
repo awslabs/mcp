@@ -1,0 +1,115 @@
+{
+  "name": "advanced_loops_and_conditions_pipeline",
+  "properties": {
+    "activities": [
+      {
+        "name": "GetFileList",
+        "type": "Lookup",
+        "typeProperties": {
+          "firstRowOnly": false,
+          "source": {
+            "sqlReaderQuery": "SELECT file_name, file_type FROM control.file_list WHERE processing_date = CAST(GETDATE() AS DATE)",
+            "type": "AzureSqlSource"
+          }
+        }
+      },
+      {
+        "dependsOn": [
+          {
+            "activity": "GetFileList",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "name": "ProcessFilesForEach",
+        "type": "ForEach",
+        "typeProperties": {
+          "activities": [
+            {
+              "name": "DetermineFileType",
+              "type": "If",
+              "typeProperties": {
+                "expression": {
+                  "type": "Expression",
+                  "value": "@equals(item().file_type, 'customer')"
+                },
+                "ifFalseActivities": [
+                  {
+                    "name": "ProcessOtherFile",
+                    "type": "Copy",
+                    "typeProperties": {
+                      "sink": {
+                        "type": "AzureSqlSink"
+                      },
+                      "source": {
+                        "type": "DelimitedTextSource"
+                      }
+                    }
+                  }
+                ],
+                "ifTrueActivities": [
+                  {
+                    "name": "ProcessCustomerFile",
+                    "type": "Copy",
+                    "typeProperties": {
+                      "sink": {
+                        "type": "AzureSqlSink"
+                      },
+                      "source": {
+                        "type": "DelimitedTextSource"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "batchCount": 5,
+          "items": {
+            "type": "Expression",
+            "value": "@activity('GetFileList').output.value"
+          }
+        }
+      },
+      {
+        "dependsOn": [
+          {
+            "activity": "ProcessFilesForEach",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "name": "QualityCheckUntilLoop",
+        "type": "Until",
+        "typeProperties": {
+          "activities": [
+            {
+              "name": "CheckDataQuality",
+              "type": "Lookup",
+              "typeProperties": {
+                "firstRowOnly": true,
+                "source": {
+                  "sqlReaderQuery": "SELECT CASE WHEN COUNT(*) > 0 THEN CAST(COUNT(CASE WHEN customer_id IS NOT NULL THEN 1 END) AS FLOAT) / COUNT(*) ELSE 0 END as quality_score FROM staging.customers",
+                  "type": "AzureSqlSource"
+                }
+              }
+            }
+          ],
+          "expression": {
+            "type": "Expression",
+            "value": "@greater(variables('qualityScore'), 0.95)"
+          }
+        }
+      }
+    ],
+    "description": "Advanced ADF pipeline with ForEach, Until loops, and complex If conditions",
+    "variables": {
+      "qualityScore": {
+        "defaultValue": "0.0",
+        "type": "String"
+      }
+    }
+  }
+}
