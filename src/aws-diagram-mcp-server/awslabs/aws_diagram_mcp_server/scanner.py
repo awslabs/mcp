@@ -14,9 +14,14 @@
 
 import ast
 import os
+import warnings
 from pydantic import BaseModel, Field
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# Suppress AST deprecation warnings for Python 3.14 compatibility
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='ast')
 
 
 class SecurityIssue(BaseModel):
