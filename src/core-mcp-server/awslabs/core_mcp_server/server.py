@@ -116,6 +116,53 @@ async def call_import_server(server, prefix, server_name, imported_servers=None)
     return imported_servers
 
 
+def is_role_set(name: str) -> bool:
+    """Returns true when the role is set in the environment variables.
+
+    Args:
+        name (str): The name of the role or environment variable to check.
+    Will also check for unix style env var name and vice-versa based on input.
+    for example: "aws-foundation" -> "AWS_FOUNDATION"
+    """
+    value = os.environ.get(name)
+    if value is None or value.strip() == '':
+        alt_name = (
+            name.replace('-', '_').upper() if '-' in name else name.replace('_', '-').lower()
+        )
+        value = os.environ.get(alt_name)
+    return value is not None and value.strip() != ''
+
+
+async def import_aws_knowledge_server(imported_servers: set) -> set:
+    """Import the AWS Knowledge MCP server if not already imported.
+
+    This function imports the AWS Knowledge MCP server using a remote configuration
+    and adds it to the set of imported servers to avoid duplicates.
+
+    Args:
+        imported_servers: A set of already imported server prefixes
+    Returns:
+        The updated set of imported servers
+    """
+    config = {
+        'mcpServers': {
+            'aws-knowledge-mcp-server': {
+                'command': 'uvx',
+                'args': [
+                    'mcp-proxy',
+                    '--transport',
+                    'streamablehttp',
+                    'https://knowledge-mcp.global.api.aws',
+                ],
+                'env': os.environ,
+            }
+        }
+    }
+    return await call_import_server(
+        config, 'aws_knowledge', 'aws_knowledge_server', imported_servers
+    )
+
+
 # Import subservers based on role configuration
 async def setup():
     """Set up and import MCP servers based on role-based environment variables.
@@ -146,24 +193,24 @@ async def setup():
     - Healthcare & Life Sciences
     """
     # roles - environment variables for role-based server configuration
-    aws_foundation = os.environ.get('aws-foundation')
-    dev_tools = os.environ.get('dev-tools')
-    ci_cd_devops = os.environ.get('ci-cd-devops')
-    container_orchestration = os.environ.get('container-orchestration')
-    serverless_architecture = os.environ.get('serverless-architecture')
-    analytics_warehouse = os.environ.get('analytics-warehouse')
-    data_platform_eng = os.environ.get('data-platform-eng')
-    frontend_dev = os.environ.get('frontend-dev')
-    solutions_architect = os.environ.get('solutions-architect')
-    finops = os.environ.get('finops')
-    monitoring_observability = os.environ.get('monitoring-observability')
-    caching_performance = os.environ.get('caching-performance')
-    security_identity = os.environ.get('security-identity')
-    sql_db_specialist = os.environ.get('sql-db-specialist')
-    nosql_db_specialist = os.environ.get('nosql-db-specialist')
-    timeseries_db_specialist = os.environ.get('timeseries-db-specialist')
-    messaging_events = os.environ.get('messaging-events')
-    healthcare_lifesci = os.environ.get('healthcare-lifesci')
+    aws_foundation = is_role_set('aws-foundation')
+    dev_tools = is_role_set('dev-tools')
+    ci_cd_devops = is_role_set('ci-cd-devops')
+    container_orchestration = is_role_set('container-orchestration')
+    serverless_architecture = is_role_set('serverless-architecture')
+    analytics_warehouse = is_role_set('analytics-warehouse')
+    data_platform_eng = is_role_set('data-platform-eng')
+    frontend_dev = is_role_set('frontend-dev')
+    solutions_architect = is_role_set('solutions-architect')
+    finops = is_role_set('finops')
+    monitoring_observability = is_role_set('monitoring-observability')
+    caching_performance = is_role_set('caching-performance')
+    security_identity = is_role_set('security-identity')
+    sql_db_specialist = is_role_set('sql-db-specialist')
+    nosql_db_specialist = is_role_set('nosql-db-specialist')
+    timeseries_db_specialist = is_role_set('timeseries-db-specialist')
+    messaging_events = is_role_set('messaging-events')
+    healthcare_lifesci = is_role_set('healthcare-lifesci')
     # Track which servers have been imported to avoid duplicates
     imported_servers = set()
 
@@ -171,25 +218,8 @@ async def setup():
     if aws_foundation:
         from awslabs.aws_api_mcp_server.server import server as aws_api_server
 
-        # AWS Knowledge MCP Server remote config
-        config = {
-            'mcpServers': {
-                'aws-knowledge-mcp-server': {
-                    'command': 'uvx',
-                    'args': [
-                        'mcp-proxy',
-                        '--transport',
-                        'streamablehttp',
-                        'https://knowledge-mcp.global.api.aws',
-                    ],
-                }
-            }
-        }
-
         logger.info('Enabling AWS Knowledge Foundation servers')
-        imported_servers = await call_import_server(
-            config, 'aws_knowledge', 'aws_knowledge_server', imported_servers
-        )
+        imported_servers = await import_aws_knowledge_server(imported_servers)
         imported_servers = await call_import_server(
             aws_api_server, 'aws_api', 'aws_api_server', imported_servers
         )
@@ -198,21 +228,6 @@ async def setup():
     if dev_tools:
         from awslabs.code_doc_gen_mcp_server.server import mcp as code_doc_gen_server
         from awslabs.git_repo_research_mcp_server.server import mcp as git_repo_research_server
-
-        # AWS Knowledge MCP Server remote config
-        config = {
-            'mcpServers': {
-                'aws-knowledge-mcp-server': {
-                    'command': 'uvx',
-                    'args': [
-                        'mcp-proxy',
-                        '--transport',
-                        'streamablehttp',
-                        'https://knowledge-mcp.global.api.aws',
-                    ],
-                }
-            }
-        }
 
         logger.info('Enabling Dev Tools servers')
         imported_servers = await call_import_server(
@@ -224,9 +239,7 @@ async def setup():
         imported_servers = await call_import_server(
             code_doc_gen_server, 'code_doc_gen', 'code_doc_gen_server', imported_servers
         )
-        imported_servers = await call_import_server(
-            config, 'aws_knowledge', 'aws_knowledge_server', imported_servers
-        )
+        imported_servers = await import_aws_knowledge_server(imported_servers)
 
     # CI/CD DevOps
     if ci_cd_devops:
@@ -345,21 +358,6 @@ async def setup():
         from awslabs.cost_explorer_mcp_server.server import app as cost_explorer_server
         from awslabs.syntheticdata_mcp_server.server import mcp as syntheticdata_server
 
-        # AWS Knowledge MCP Server remote config
-        config = {
-            'mcpServers': {
-                'aws-knowledge-mcp-server': {
-                    'command': 'uvx',
-                    'args': [
-                        'mcp-proxy',
-                        '--transport',
-                        'streamablehttp',
-                        'https://knowledge-mcp.global.api.aws',
-                    ],
-                }
-            }
-        }
-
         logger.info('Enabling Solutions Architect servers')
         imported_servers = await call_import_server(
             diagram_server, 'diagram', 'diagram_server', imported_servers
@@ -373,9 +371,7 @@ async def setup():
         imported_servers = await call_import_server(
             syntheticdata_server, 'syntheticdata', 'syntheticdata_server', imported_servers
         )
-        imported_servers = await call_import_server(
-            config, 'aws_knowledge', 'aws_knowledge_server', imported_servers
-        )
+        imported_servers = await import_aws_knowledge_server(imported_servers)
 
     # FinOps
     if finops:

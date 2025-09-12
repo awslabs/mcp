@@ -193,32 +193,41 @@ class TestSetup:
         This test verifies that when a specific role environment variable is set,
         the setup function attempts to import the expected server prefixes.
 
+        The test also checks for both uppercase with underscores and lowercase with hyphens.
+
         Args:
             monkeypatch: Pytest fixture for modifying environment variables
             role_env_var: The role environment variable to set
             expected_prefixes: List of server prefixes expected to be imported for this role
         """
-        # 1. Set the environment variable
-        monkeypatch.setitem(os.environ, role_env_var, '1')
+        roles = [
+            role_env_var.replace('-', '_').upper()
+            if '-' in role_env_var
+            else role_env_var.lower().replace('_', '-'),
+            role_env_var,
+        ]
+        for role in roles:
+            # 1. Set the environment variable
+            monkeypatch.setitem(os.environ, role, '1')
 
-        # 2. Reload the server module so it picks up the env variable
-        importlib.reload(server)
+            # 2. Reload the server module so it picks up the env variable
+            importlib.reload(server)
 
-        # 3. Patch call_import_server to just record what gets imported
-        called = set()
+            # 3. Patch call_import_server to just record what gets imported
+            called = set()
 
-        async def fake_import(srv, prefix, name, imported):
-            called.add(prefix)
-            return imported | {prefix}
+            async def fake_import(srv, prefix, name, imported):
+                called.add(prefix)
+                return imported | {prefix}
 
-        monkeypatch.setattr(server, 'call_import_server', fake_import)
+            monkeypatch.setattr(server, 'call_import_server', fake_import)
 
-        # 4. Run setup
-        await server.setup()
+            # 4. Run setup
+            await server.setup()
 
-        # 5. Assert that all expected subservers for this role were attempted
-        for prefix in expected_prefixes:
-            assert prefix in called
+            # 5. Assert that all expected subservers for this role were attempted
+            for prefix in expected_prefixes:
+                assert prefix in called
 
     @pytest.mark.asyncio
     @patch.dict('os.environ', {'aws-foundation': 'true'})
