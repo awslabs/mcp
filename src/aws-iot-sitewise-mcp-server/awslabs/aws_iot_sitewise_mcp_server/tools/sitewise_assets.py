@@ -28,6 +28,7 @@ from awslabs.aws_iot_sitewise_mcp_server.validation import (
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp.tools import Tool
 from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing import Any, Dict, Optional
 
 
@@ -145,6 +146,12 @@ def describe_asset(
         Dictionary containing asset information
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {'assetId': asset_id}
@@ -275,6 +282,14 @@ def update_asset(
         Dictionary containing update response
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if not isinstance(asset_name, FieldInfo):
+            validate_asset_name(asset_name)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {'assetId': asset_id, 'assetName': asset_name}
@@ -316,6 +331,12 @@ def delete_asset(
         Dictionary containing deletion response
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {'assetId': asset_id}
@@ -359,6 +380,14 @@ def associate_assets(
         Dictionary containing association response
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if not isinstance(child_asset_id, FieldInfo):
+            validate_asset_id(child_asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {
@@ -406,6 +435,14 @@ def disassociate_assets(
         Dictionary containing disassociation response
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if not isinstance(child_asset_id, FieldInfo):
+            validate_asset_id(child_asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {
@@ -465,6 +502,14 @@ def list_associated_assets(
         Dictionary containing list of associated assets
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if not isinstance(max_results, FieldInfo):
+            validate_max_results(max_results)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {

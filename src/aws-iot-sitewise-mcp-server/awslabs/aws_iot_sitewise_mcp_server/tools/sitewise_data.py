@@ -14,13 +14,20 @@
 
 """AWS IoT SiteWise Data Ingestion and Retrieval Tools."""
 
-from ..validation import ValidationError, validate_max_results, validate_region
+from ..validation import (
+    ValidationError,
+    validate_asset_id,
+    validate_max_results,
+    validate_property_alias,
+    validate_region,
+)
 from awslabs.aws_iot_sitewise_mcp_server.client import create_sitewise_client
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
 from botocore.exceptions import ClientError
 from datetime import datetime
 from mcp.server.fastmcp.tools import Tool
 from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
 
 
@@ -76,6 +83,14 @@ def get_asset_property_value(
         Dictionary containing current property value
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if asset_id and not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if property_alias and not isinstance(property_alias, FieldInfo):
+            validate_property_alias(property_alias)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {}
@@ -148,6 +163,16 @@ def get_asset_property_value_history(
         Dictionary containing property value history
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(max_results, FieldInfo):
+            validate_max_results(max_results, min_val=1, max_val=4000)
+        if asset_id and not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if property_alias and not isinstance(property_alias, FieldInfo):
+            validate_property_alias(property_alias)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {
@@ -238,6 +263,16 @@ def get_asset_property_aggregates(
         Dictionary containing property aggregates
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(max_results, FieldInfo):
+            validate_max_results(max_results, min_val=1, max_val=4000)
+        if asset_id and not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if property_alias and not isinstance(property_alias, FieldInfo):
+            validate_property_alias(property_alias)
+
         client = create_sitewise_client(region)
 
         if not aggregate_types:
@@ -337,6 +372,16 @@ def get_interpolated_asset_property_values(
         Dictionary containing interpolated property values
     """
     try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(max_results, FieldInfo):
+            validate_max_results(max_results, min_val=1, max_val=250)
+        if asset_id and not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+        if property_alias and not isinstance(property_alias, FieldInfo):
+            validate_property_alias(property_alias)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {

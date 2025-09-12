@@ -16,9 +16,13 @@
 
 from awslabs.aws_iot_sitewise_mcp_server.client import create_sitewise_client
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
+from awslabs.aws_iot_sitewise_mcp_server.validation import (
+    validate_asset_id,
+)
 from botocore.exceptions import ClientError
 from mcp.server.fastmcp.tools import Tool
 from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing import Any, Dict, Optional
 
 
@@ -337,6 +341,10 @@ def list_time_series(
         Dictionary containing list of time series
     """
     try:
+        # Validate parameters
+        if asset_id and not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {'maxResults': max_results}
@@ -387,6 +395,10 @@ def describe_time_series(
         Dictionary containing time series information
     """
     try:
+        # Validate parameters
+        if asset_id and not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {}
@@ -445,6 +457,10 @@ def associate_time_series_to_asset_property(
         Dictionary containing association response
     """
     try:
+        # Validate parameters
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {
@@ -492,6 +508,10 @@ def disassociate_time_series_from_asset_property(
         Dictionary containing disassociation response
     """
     try:
+        # Validate parameters
+        if not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {
@@ -539,6 +559,10 @@ def delete_time_series(
         Dictionary containing deletion response
     """
     try:
+        # Validate parameters
+        if asset_id and not isinstance(asset_id, FieldInfo):
+            validate_asset_id(asset_id)
+
         client = create_sitewise_client(region)
 
         params: Dict[str, Any] = {}

@@ -518,7 +518,7 @@ class TestSiteWiseData:
             quality='GOOD',
             interval_in_seconds=1800,
             next_token='prev-token',
-            max_results=1000,
+            max_results=250,
             interpolation_type='LOCF_INTERPOLATION',
             interval_window_in_seconds=900,
             region='us-west-2',
@@ -537,7 +537,7 @@ class TestSiteWiseData:
         assert call_args['quality'] == 'GOOD'
         assert call_args['intervalInSeconds'] == 1800
         assert call_args['nextToken'] == 'prev-token'
-        assert call_args['maxResults'] == 1000
+        assert call_args['maxResults'] == 250
         assert call_args['type'] == 'LOCF_INTERPOLATION'
         assert call_args['intervalWindowInSeconds'] == 900
 

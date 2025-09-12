@@ -14,6 +14,9 @@
 
 """AWS IoT SiteWise Asset Hierarchy Visualization Prompt."""
 
+from awslabs.aws_iot_sitewise_mcp_server.validation import (
+    validate_asset_id,
+)
 from mcp.server.fastmcp.prompts import Prompt
 
 
@@ -29,7 +32,12 @@ def asset_hierarchy_visualization(asset_id: str) -> str:
 
     Returns:
         Comprehensive asset hierarchy analysis and visualization
+
+    Raises:
+        ValidationError: If the asset_id is invalid
     """
+    # Validate asset ID
+    validate_asset_id(asset_id)
     return f"""
 You are an AWS IoT SiteWise expert helping to analyze and visualize asset hierarchies.
 
