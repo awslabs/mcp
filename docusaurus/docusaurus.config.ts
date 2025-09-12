@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'AWS MCP Servers',
   tagline: 'Get started with AWS MCP Servers and learn core features',
-  favicon: 'img/aws-logo.svg',
+  favicon: 'favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
