@@ -34,7 +34,6 @@ import subprocess
 import uuid
 from .runtime_return_stmts import (
     return_for_analyze_ok,
-    return_for_deploy_ok,
     return_for_no_code,
     return_for_oauth_ok,
     return_for_transform_ok,
@@ -225,9 +224,12 @@ def register_deployment_tools(mcp: FastMCP):
     @mcp.tool()
     async def deploy_agentcore_app(  # pragma: no cover
         app_file: str = Field(description='AgentCore app file to deploy'),
-        agent_name: str = Field(description='Name for your deployed agent'),
-        execution_mode: Literal['ask', 'cli', 'sdk'] = Field(
-            default='ask', description='How to deploy'
+        agent_name: str = Field(
+            description='Name for your deployed agent (no hyphens, only underscores_)'
+        ),
+        execution_mode: Literal['cli', 'sdk'] = Field(
+            default='sdk',
+            description='Default mode is SDK where the deployment is done on the users behalf. If the user asks, the other mode is agentcore CLI commands',
         ),
         region: str = Field(default='us-east-1', description='AWS region'),
         memory_enabled: bool = Field(
@@ -271,12 +273,8 @@ Please ensure the file exists or provide the correct path.
             app_file = resolved_app_file
 
             # Handle execution mode choice
-            if execution_mode == 'ask':
-                return return_for_deploy_ok.format(
-                    agent_name=agent_name, app_file=app_file, region=region
-                )
 
-            elif execution_mode == 'cli':
+            if execution_mode == 'cli':
                 deployment_result = await execute_agentcore_deployment_cli(
                     app_file,
                     agent_name,
@@ -335,26 +333,26 @@ To invoke deployed agents:
                 try:
                     # Try direct AWS invocation for SDK-deployed agents
                     return await invoke_agent_via_aws_sdk(
-                        agent_name, '', prompt, session_id, region
+                        agent_name, agent_arn, prompt, session_id, region
                     )
                 except Exception as e:
                     raise MCPtoolError(f"""X Agent Configuration Not Found
-Error invoking via AWS SDK: {str(e)}
-Agent: {agent_name}
-Issue: No configuration found and AWS SDK invoke failed
+                        Error invoking via AWS SDK: {str(e)}
+                        Agent: {agent_name}
+                        Issue: No configuration found and AWS SDK invoke failed
 
-Troubleshooting:
-1. Check available agents: `discover_existing_agents`
-2. Verify agent name and deployment status
-3. Ensure agent was deployed successfully
-4. Try: `get_agent_status` to check AWS status
+                        Troubleshooting:
+                        1. Check available agents: `discover_existing_agents`
+                        2. Verify agent name and deployment status
+                        3. Ensure agent was deployed successfully
+                        4. Try: `get_agent_status` to check AWS status
 
-Search locations checked:
-- Current directory: {Path.cwd()}
-- User working directory: {get_user_working_directory()}
-- examples/ subdirectory
-- Direct AWS SDK invocation (failed)
-""")
+                        Search locations checked:
+                        - Current directory: {Path.cwd()}
+                        - User working directory: {get_user_working_directory()}
+                        - examples/ subdirectory
+                        - Direct AWS SDK invocation (failed)
+                        """)
 
             # Switch to config directory (like the tutorial shows)
             original_cwd = Path.cwd()

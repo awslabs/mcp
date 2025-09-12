@@ -27,6 +27,7 @@ Covering the following functionalities:
 # ============================================================================
 import boto3
 import json
+import os
 import subprocess
 import time
 import uuid
@@ -777,12 +778,12 @@ Steps Completed:
 
 
 async def execute_agentcore_deployment_sdk(  # pragma: no cover
-    app_file: str,  # pragma: no cover
-    agent_name: str,  # pragma: no cover
-    region: str,  # pragma: no cover
-    memory_enabled: bool,  # pragma: no cover
-    execution_role: str,  # pragma: no cover
-    environment: str,  # pragma: no cover
+    app_file: str,
+    agent_name: str,
+    region: str,
+    memory_enabled: bool,
+    execution_role: str,
+    environment: str,
     enable_oauth: bool = False,  # pragma: allowlist secret  # pragma: no cover
     cognito_user_pool: str = '',
 ) -> str:  # pragma: no cover
@@ -803,12 +804,12 @@ Alternative: Use `execution_mode: "cli"` for CLI commands instead.
 """
 
     try:  # pragma: no cover
-        # Validate entrypoint file exists  # pragma: no cover
-        if not Path(app_file).exists():  # pragma: no cover
+        # Validate entrypoint file exists
+        if not Path(app_file).exists():
             return f"X App file '{app_file}' not found at path: {Path(app_file).resolve()}"  # pragma: no cover
 
-        deployment_steps = []  # pragma: no cover
-        deployment_results = {}  # pragma: no cover
+        deployment_steps = []
+        deployment_results = {}
         oauth_config = None  # pragma: allowlist secret  # pragma: no cover
 
         # Read and validate the app file
@@ -890,15 +891,15 @@ Use the `transform_to_agentcore` tool to fix this.
             except Exception as oauth_error:
                 return f"""X OAuth Setup Failed
 
-Error: {str(oauth_error)} # pragma: allowlist secret
-Agent: {agent_name}
+                            Error: {str(oauth_error)} # pragma: allowlist secret
+                            Agent: {agent_name}
 
-Troubleshooting:
-1. Check AWS permissions for Cognito operations
-2. Verify region: {region}
-3. Install starter toolkit: `uv add bedrock-agentcore-starter-toolkit`
-4. Try without OAuth first: `enable_oauth: False`
-"""
+                            Troubleshooting:
+                            1. Check AWS permissions for Cognito operations
+                            2. Verify region: {region}
+                            3. Install starter toolkit: `uv add bedrock-agentcore-starter-toolkit`
+                            4. Try without OAuth first: `enable_oauth: False`
+                            """
 
         # CORRECT TUTORIAL PATTERN - Use bedrock_agentcore_starter_toolkit.Runtime
         deployment_steps.append('Launch: Using bedrock_agentcore_starter_toolkit.Runtime...')
@@ -908,7 +909,6 @@ Troubleshooting:
         app_dir = app_path.parent
 
         # Change to app directory (Runtime expects to work from app directory like tutorials)
-        import os
 
         original_cwd = os.getcwd()
         try:
@@ -960,7 +960,7 @@ Troubleshooting:
 
             while time.time() - wait_start < max_wait_time:
                 status_result = runtime.status()
-
+                print(status_result)
                 # Handle different status response formats from starter toolkit
                 if hasattr(status_result, 'endpoint'):
                     status = (
