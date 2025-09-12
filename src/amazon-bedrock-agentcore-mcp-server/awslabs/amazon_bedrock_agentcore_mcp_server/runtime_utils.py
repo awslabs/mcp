@@ -956,9 +956,10 @@ Use the `transform_to_agentcore` tool to fix this.
             deployment_steps.append('Pending: Step 3: Waiting for agent to be ready...')
 
             max_wait_time = 300  # 5 minutes
-            wait_start = time.time()
 
-            while time.time() - wait_start < max_wait_time:
+            deadline = time.monotonic() + max_wait_time
+
+            while time.monotonic() < deadline:
                 status_result = runtime.status()
                 print(status_result)
                 # Handle different status response formats from starter toolkit
