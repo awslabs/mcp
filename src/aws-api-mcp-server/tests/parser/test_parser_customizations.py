@@ -2,6 +2,7 @@ import pytest
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.errors import (
     CommandValidationError,
+    FileParameterError,
     InvalidServiceOperationError,
     MissingRequiredParametersError,
     OperationNotAllowedError,
@@ -137,13 +138,13 @@ def test_s3_cp_no_args():
 
 def test_s3_cp_with_source_and_dest():
     """Test aws s3 cp with source and destination."""
-    result = parse('aws s3 cp local-file.txt s3://my-bucket/')
+    result = parse('aws s3 cp /tmp/local-file.txt s3://my-bucket/')
 
     assert isinstance(result, IRCommand)
     assert result.command_metadata.service_sdk_name == 's3'
     assert result.command_metadata.operation_sdk_name == 'cp'
     assert result.is_awscli_customization is True
-    assert result.parameters['--paths'] == ['local-file.txt', 's3://my-bucket/']
+    assert result.parameters['--paths'] == ['/tmp/local-file.txt', 's3://my-bucket/']
 
 
 def test_s3_mv_with_source_and_dest():
@@ -168,6 +169,38 @@ def test_s3_rm_with_bucket():
     assert result.parameters['--paths'] == [
         's3://my-bucket/file.txt'
     ]  # Returns a list, not a string
+
+
+def test_s3_cp_stdin_as_source_blocked():
+    """Test that 'aws s3 cp - s3://bucket/key' (stdin) is blocked."""
+    expected_message = (
+        "Invalid file parameter '-' for service 's3' and operation 'cp': "
+        "streaming file ('-') is not allowed. Please provide a valid file path."
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse('aws s3 cp - s3://my-bucket/file.txt')
+
+    error = exc_info.value
+    assert str(error) == expected_message
+    assert error._service == 's3'
+    assert error._operation == 'cp'
+    assert error._file_path == '-'
+
+
+def test_s3_cp_stdout_as_destination_blocked():
+    """Test that 'aws s3 cp s3://bucket/key -' (stdout) is blocked."""
+    expected_message = (
+        "Invalid file parameter '-' for service 's3' and operation 'cp': "
+        "streaming file ('-') is not allowed. Please provide a valid file path."
+    )
+    with pytest.raises(FileParameterError) as exc_info:
+        parse('aws s3 cp s3://my-bucket/file.txt -')
+
+    error = exc_info.value
+    assert str(error) == expected_message
+    assert error._service == 's3'
+    assert error._operation == 'cp'
+    assert error._file_path == '-'
 
 
 # ConfigService Customization Tests

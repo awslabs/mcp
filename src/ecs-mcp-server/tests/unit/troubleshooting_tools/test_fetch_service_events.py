@@ -443,7 +443,6 @@ async def test_service_exists():
     start_time = datetime.datetime(2025, 5, 13, 0, 0, 0, tzinfo=datetime.timezone.utc)
     end_time = datetime.datetime(2025, 5, 13, 23, 59, 59, tzinfo=datetime.timezone.utc)
     result = await fetch_service_events(
-        "test-app",
         "test-cluster",
         "test-app",
         3600,
@@ -546,7 +545,6 @@ async def test_service_with_load_balancer_issues():
     start_time = datetime.datetime(2025, 5, 13, 0, 0, 0, tzinfo=datetime.timezone.utc)
     end_time = datetime.datetime(2025, 5, 13, 23, 59, 59, tzinfo=datetime.timezone.utc)
     result = await fetch_service_events(
-        "test-app",
         "test-cluster",
         "test-app",
         3600,
@@ -625,7 +623,7 @@ async def test_service_with_failed_deployment():
 
     # Call the function
     result = await fetch_service_events(
-        "test-app", "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
+        "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
     )
 
     # Verify the result includes the failed deployment issue
@@ -683,7 +681,7 @@ async def test_service_with_stalled_deployment():
 
     # Call the function
     result = await fetch_service_events(
-        "test-app", "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
+        "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
     )
 
     # Verify the result includes the stalled deployment issue
@@ -725,7 +723,7 @@ async def test_service_not_found():
 
     # Call the function with our mock
     result = await fetch_service_events(
-        "test-app", "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
+        "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
     )
 
     # Verify the result
@@ -765,7 +763,6 @@ async def test_with_explicit_start_time():
     start_time = datetime.datetime(2025, 5, 13, 0, 0, 0, tzinfo=datetime.timezone.utc)
     end_time = datetime.datetime(2025, 5, 13, 23, 59, 59, tzinfo=datetime.timezone.utc)
     result = await fetch_service_events(
-        "test-app",
         "test-cluster",
         "test-app",
         3600,
@@ -810,7 +807,6 @@ async def test_with_explicit_end_time():
     start_time = datetime.datetime(2025, 5, 13, 0, 0, 0, tzinfo=datetime.timezone.utc)
     end_time = datetime.datetime(2025, 5, 13, 23, 59, 59, tzinfo=datetime.timezone.utc)
     result = await fetch_service_events(
-        "test-app",
         "test-cluster",
         "test-app",
         3600,
@@ -855,7 +851,6 @@ async def test_with_start_and_end_time():
     start_time = datetime.datetime(2025, 5, 13, 0, 0, 0, tzinfo=datetime.timezone.utc)
     end_time = datetime.datetime(2025, 5, 13, 23, 59, 59, tzinfo=datetime.timezone.utc)
     result = await fetch_service_events(
-        "test-app",
         "test-cluster",
         "test-app",
         3600,
@@ -908,7 +903,7 @@ async def test_with_only_time_window():
     # Call the function with only time_window parameter (1 hour)
     time_window = 3600  # 1 hour in seconds
     result = await fetch_service_events(
-        "test-app", "test-cluster", "test-app", time_window=time_window, ecs_client=mock_ecs_client
+        "test-cluster", "test-app", time_window=time_window, ecs_client=mock_ecs_client
     )
 
     # Verify the result
@@ -933,7 +928,7 @@ async def test_service_client_error():
 
     # Call the function
     result = await fetch_service_events(
-        "test-app", "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
+        "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
     )
 
     # Verify error handling
@@ -951,7 +946,7 @@ async def test_general_exception():
 
     # Call the function
     result = await fetch_service_events(
-        "test-app", "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
+        "test-cluster", "test-app", 3600, ecs_client=mock_ecs_client
     )
 
     # Verify error handling
