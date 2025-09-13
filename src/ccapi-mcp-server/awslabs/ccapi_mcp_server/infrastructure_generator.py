@@ -119,7 +119,7 @@ async def generate_infrastructure_code(
             update_properties = current_properties
 
         # V1: Always add required MCP server identification tags for updates too
-        properties_with_tags = add_default_tags(update_properties, schema)
+        properties_with_tags = add_default_tags(update_properties, schema, resource_type)
 
         operation = 'update'
     else:
@@ -128,7 +128,7 @@ async def generate_infrastructure_code(
             raise ClientError('Please provide the properties for the desired resource')
 
         # V1: Always add required MCP server identification tags
-        properties_with_tags = add_default_tags(properties, schema)
+        properties_with_tags = add_default_tags(properties, schema, resource_type)
 
         operation = 'create'
 

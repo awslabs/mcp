@@ -15,9 +15,42 @@
 from awslabs.ccapi_mcp_server.errors import ClientError
 from typing import Any, Dict
 
+# Resource types that use non-standard tag properties
+RESOURCE_TAG_PROPERTY_MAP = {
+    'AWS::EFS::FileSystem': 'FileSystemTags',
+    'AWS::EFS::AccessPoint': 'Tags',  # EFS Access Points use Tags
+    'AWS::CloudFormation::Stack': 'Tags',
+    'AWS::ECR::Repository': 'Tags',
+    'AWS::RDS::DBInstance': 'Tags',
+    'AWS::S3::Bucket': 'Tags',
+    'AWS::EC2::Instance': 'Tags',
+    'AWS::ECS::Cluster': 'Tags',
+    'AWS::ECS::TaskDefinition': 'Tags',
+    'AWS::ECS::Service': 'Tags',
+    'AWS::SecretsManager::Secret': 'Tags',
+    'AWS::ElasticLoadBalancingV2::LoadBalancer': 'Tags',
+    'AWS::ElasticLoadBalancingV2::TargetGroup': 'Tags',
+    # Add more resource types as they are discovered to have different tag properties
+    # Default fallback is 'Tags' for most AWS resources
+}
 
-def add_default_tags(properties: Dict, schema: Dict) -> Dict:
-    """Add default tags to resource properties. Always tries to add tags - let AWS reject if unsupported."""
+
+def add_default_tags(properties: Dict, schema: Dict, resource_type: str = None) -> Dict:
+    """
+    Add default MCP server tags to resource properties using the correct tag property name.
+    
+    This function automatically adds management tags for tracking resources created by the MCP server.
+    It handles different AWS resource types that use different tag property names (e.g., EFS uses
+    'FileSystemTags' instead of the standard 'Tags').
+    
+    Args:
+        properties: The resource properties dictionary
+        schema: The resource schema (for future validation)
+        resource_type: AWS resource type (e.g., 'AWS::EFS::FileSystem', 'AWS::S3::Bucket')
+    
+    Returns:
+        Modified properties dictionary with default tags added using the correct property name
+    """
     # Return empty dict when properties is None or empty dict {}
     # This prevents processing invalid/missing resource properties
     if not properties:
@@ -25,16 +58,19 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
 
     properties_with_tags = properties.copy()
 
-    # Always try to add tags - don't check schema since it can be unreliable
-    # Ensure Tags array exists
-    if 'Tags' not in properties_with_tags:
-        properties_with_tags['Tags'] = []
+    # Determine the correct tag property name for this resource type
+    tag_property = RESOURCE_TAG_PROPERTY_MAP.get(resource_type, 'Tags')
 
-    tags = properties_with_tags['Tags']
+    # Always try to add tags - don't check schema since it can be unreliable
+    # Ensure tag property array exists
+    if tag_property not in properties_with_tags:
+        properties_with_tags[tag_property] = []
+
+    tags = properties_with_tags[tag_property]
     # Add default tags if they don't exist
-    managed_by_exists = any(tag.get('Key') == 'MANAGED_BY' for tag in tags)
-    source_exists = any(tag.get('Key') == 'MCP_SERVER_SOURCE_CODE' for tag in tags)
-    version_exists = any(tag.get('Key') == 'MCP_SERVER_VERSION' for tag in tags)
+    managed_by_exists = any(tag.get('Key') == 'MANAGED_BY' for tag in tags if isinstance(tag, dict))
+    source_exists = any(tag.get('Key') == 'MCP_SERVER_SOURCE_CODE' for tag in tags if isinstance(tag, dict))
+    version_exists = any(tag.get('Key') == 'MCP_SERVER_VERSION' for tag in tags if isinstance(tag, dict))
 
     if not managed_by_exists:
         tags.append({'Key': 'MANAGED_BY', 'Value': 'CCAPI-MCP-SERVER'})
@@ -50,9 +86,36 @@ def add_default_tags(properties: Dict, schema: Dict) -> Dict:
 
         tags.append({'Key': 'MCP_SERVER_VERSION', 'Value': __version__})
 
-    properties_with_tags['Tags'] = tags
+    properties_with_tags[tag_property] = tags
 
     return properties_with_tags
+
+
+def get_resource_tag_property(resource_type: str) -> str:
+    """
+    Get the correct tag property name for a given AWS resource type.
+    
+    Args:
+        resource_type: AWS resource type (e.g., 'AWS::EFS::FileSystem')
+        
+    Returns:
+        The tag property name to use ('Tags', 'FileSystemTags', etc.)
+    """
+    return RESOURCE_TAG_PROPERTY_MAP.get(resource_type, 'Tags')
+
+
+def add_resource_to_tag_map(resource_type: str, tag_property: str) -> None:
+    """
+    Add a new resource type to the tag property mapping.
+    
+    This is useful for extending support to new resource types that use
+    non-standard tag properties.
+    
+    Args:
+        resource_type: AWS resource type (e.g., 'AWS::NewService::Resource')  
+        tag_property: Tag property name (e.g., 'ResourceTags')
+    """
+    RESOURCE_TAG_PROPERTY_MAP[resource_type] = tag_property
 
 
 def validate_patch(patch_document: Any):

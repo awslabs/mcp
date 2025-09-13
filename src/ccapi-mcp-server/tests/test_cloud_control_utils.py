@@ -14,7 +14,14 @@
 """Tests for cloud control utils."""
 
 import pytest
-from awslabs.ccapi_mcp_server.cloud_control_utils import progress_event, validate_patch
+from awslabs.ccapi_mcp_server.cloud_control_utils import (
+    progress_event, 
+    validate_patch, 
+    add_default_tags,
+    get_resource_tag_property,
+    add_resource_to_tag_map,
+    RESOURCE_TAG_PROPERTY_MAP
+)
 
 
 class TestUtils:
@@ -406,3 +413,172 @@ class TestUtils:
 
         with pytest.raises(ClientError, match='Patch document must be a list'):
             validate_patch(CustomObject())
+
+
+class TestResourceTypeAwareTagging:
+    """Test cases for the resource-type-aware tagging functionality (EFS fix)."""
+    
+    def test_efs_filesystem_uses_filesystem_tags(self):
+        """Test that EFS FileSystem resources use FileSystemTags property."""
+        properties = {
+            "PerformanceMode": "generalPurpose",
+            "Encrypted": True
+        }
+        
+        result = add_default_tags(properties, {}, "AWS::EFS::FileSystem")
+        
+        # Should have FileSystemTags, not Tags
+        assert "FileSystemTags" in result
+        assert "Tags" not in result
+        
+        # Should have 3 default tags
+        filesystem_tags = result["FileSystemTags"]
+        assert len(filesystem_tags) == 3
+        
+        # Verify the default tags are present
+        tag_keys = [tag["Key"] for tag in filesystem_tags]
+        assert "MANAGED_BY" in tag_keys
+        assert "MCP_SERVER_SOURCE_CODE" in tag_keys
+        assert "MCP_SERVER_VERSION" in tag_keys
+        
+        # Verify original properties are preserved
+        assert result["PerformanceMode"] == "generalPurpose"
+        assert result["Encrypted"] is True
+    
+    def test_s3_bucket_uses_standard_tags(self):
+        """Test that S3 Bucket resources use standard Tags property."""
+        properties = {
+            "BucketName": "test-bucket"
+        }
+        
+        result = add_default_tags(properties, {}, "AWS::S3::Bucket")
+        
+        # Should have Tags, not FileSystemTags
+        assert "Tags" in result
+        assert "FileSystemTags" not in result
+        
+        # Should have 3 default tags
+        tags = result["Tags"]
+        assert len(tags) == 3
+        
+        # Verify original properties are preserved
+        assert result["BucketName"] == "test-bucket"
+    
+    def test_unknown_resource_type_defaults_to_tags(self):
+        """Test that unknown resource types default to using Tags property."""
+        properties = {
+            "SomeProperty": "some-value"
+        }
+        
+        result = add_default_tags(properties, {}, "AWS::UnknownService::Resource")
+        
+        # Should default to Tags
+        assert "Tags" in result
+        assert len(result["Tags"]) == 3
+    
+    def test_none_resource_type_defaults_to_tags(self):
+        """Test that None resource type defaults to using Tags property."""
+        properties = {
+            "SomeProperty": "some-value"
+        }
+        
+        result = add_default_tags(properties, {}, None)
+        
+        # Should default to Tags
+        assert "Tags" in result
+        assert len(result["Tags"]) == 3
+    
+    def test_preserves_existing_efs_tags(self):
+        """Test that existing FileSystemTags are preserved and no duplicates are added."""
+        properties = {
+            "FileSystemTags": [
+                {"Key": "Environment", "Value": "test"},
+                {"Key": "MANAGED_BY", "Value": "existing-value"}  # Should not be overwritten
+            ]
+        }
+        
+        result = add_default_tags(properties, {}, "AWS::EFS::FileSystem")
+        
+        filesystem_tags = result["FileSystemTags"]
+        
+        # Should have original tags plus 2 new default tags (MANAGED_BY already exists)
+        assert len(filesystem_tags) == 4
+        
+        # Check that existing tags are preserved
+        existing_tag = next(tag for tag in filesystem_tags if tag["Key"] == "Environment")
+        assert existing_tag["Value"] == "test"
+        
+        # Check that existing MANAGED_BY is not overwritten
+        managed_by_tag = next(tag for tag in filesystem_tags if tag["Key"] == "MANAGED_BY")
+        assert managed_by_tag["Value"] == "existing-value"
+        
+        # Check that other default tags are added
+        tag_keys = [tag["Key"] for tag in filesystem_tags]
+        assert "MCP_SERVER_SOURCE_CODE" in tag_keys
+        assert "MCP_SERVER_VERSION" in tag_keys
+    
+    def test_get_resource_tag_property_efs(self):
+        """Test that get_resource_tag_property returns FileSystemTags for EFS."""
+        result = get_resource_tag_property("AWS::EFS::FileSystem")
+        assert result == "FileSystemTags"
+    
+    def test_get_resource_tag_property_s3(self):
+        """Test that get_resource_tag_property returns Tags for S3."""
+        result = get_resource_tag_property("AWS::S3::Bucket")
+        assert result == "Tags"
+    
+    def test_get_resource_tag_property_unknown(self):
+        """Test that get_resource_tag_property returns Tags for unknown resources."""
+        result = get_resource_tag_property("AWS::Unknown::Resource")
+        assert result == "Tags"
+    
+    def test_add_resource_to_tag_map_new_resource(self):
+        """Test that new resource types can be added to the mapping."""
+        # Save original state
+        original_map = RESOURCE_TAG_PROPERTY_MAP.copy()
+        
+        try:
+            # Add new resource type
+            add_resource_to_tag_map("AWS::NewService::Resource", "ResourceTags")
+            
+            # Verify it was added
+            assert get_resource_tag_property("AWS::NewService::Resource") == "ResourceTags"
+            
+        finally:
+            # Restore original state
+            RESOURCE_TAG_PROPERTY_MAP.clear()
+            RESOURCE_TAG_PROPERTY_MAP.update(original_map)
+    
+    def test_add_resource_to_tag_map_overwrite(self):
+        """Test that existing resource types can be overwritten."""
+        # Save original state
+        original_map = RESOURCE_TAG_PROPERTY_MAP.copy()
+        
+        try:
+            # Overwrite existing resource type
+            add_resource_to_tag_map("AWS::EFS::FileSystem", "NewTagProperty")
+            
+            # Verify it was overwritten
+            assert get_resource_tag_property("AWS::EFS::FileSystem") == "NewTagProperty"
+            
+        finally:
+            # Restore original state
+            RESOURCE_TAG_PROPERTY_MAP.clear()
+            RESOURCE_TAG_PROPERTY_MAP.update(original_map)
+    
+    def test_backward_compatibility_with_existing_calls(self):
+        """Test that calls without resource_type still work (backward compatibility)."""
+        properties = {"BucketName": "test-bucket"}
+        
+        # Call without resource_type parameter (should still work)
+        result = add_default_tags(properties, {})
+        
+        # Should default to Tags property
+        assert "Tags" in result
+        assert len(result["Tags"]) == 3
+        
+        # Verify default tags are present
+        tag_keys = [tag["Key"] for tag in result["Tags"]]
+        assert "MANAGED_BY" in tag_keys
+        assert "MCP_SERVER_SOURCE_CODE" in tag_keys 
+        assert "MCP_SERVER_VERSION" in tag_keys
