@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import requests
 import sys
 from .core.agent_scripts.manager import AGENT_SCRIPTS_MANAGER
 from .core.aws.driver import translate_cli_to_ir
@@ -39,7 +38,7 @@ from .core.common.config import (
     WORKING_DIRECTORY,
 )
 from .core.common.errors import AwsApiMcpError
-from .core.common.helpers import validate_aws_region
+from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
@@ -141,19 +140,20 @@ async def suggest_aws_commands(
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
     try:
-        response = requests.post(
-            ENDPOINT_SUGGEST_AWS_COMMANDS,
-            json={'query': query},
-            headers={'Authorization': f'Bearer {BEARER_TOKEN}'} if BEARER_TOKEN else None,
-            timeout=30,
-        )
-        response.raise_for_status()
-        suggestions = response.json().get('suggestions')
-        logger.info(
-            'Suggested commands: {}',
-            [suggestion.get('command') for suggestion in suggestions],
-        )
-        return response.json()
+        with get_requests_session() as session:
+            response = session.post(
+                ENDPOINT_SUGGEST_AWS_COMMANDS,
+                json={'query': query},
+                headers={'Authorization': f'Bearer {BEARER_TOKEN}'} if BEARER_TOKEN else None,
+                timeout=30,
+            )
+            response.raise_for_status()
+            suggestions = response.json().get('suggestions')
+            logger.info(
+                'Suggested commands: {}',
+                [suggestion.get('command') for suggestion in suggestions],
+            )
+            return response.json()
     except Exception as e:
         error_message = f'Error while suggesting commands: {str(e)}'
         await ctx.error(error_message)
