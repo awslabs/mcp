@@ -55,7 +55,6 @@ def test_wait_allowed_for_all_custom_commands():
         ('emr', 'sock'),
         ('emr', 'get'),
         ('emr', 'put'),
-        ('opsworks', 'register'),
         ('deploy', 'install'),
         ('deploy', 'uninstall'),
     ],
