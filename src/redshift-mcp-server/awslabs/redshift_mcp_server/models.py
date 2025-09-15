@@ -38,6 +38,20 @@ class RedshiftCluster(BaseModel):
     tags: Optional[Dict[str, str]] = Field(
         default_factory=dict, description='Tags associated with the cluster'
     )
+    auth_type: Optional[str] = Field(
+        None, description='Authentication type (iam or username)'
+    )
+
+
+class RedshiftAuthConfig(BaseModel):
+    """Authentication configuration for Redshift connections."""
+
+    auth_type: str = Field(
+        'iam', description='Authentication type (iam or username)'
+    )
+    username: Optional[str] = Field(
+        None, description='Username for authentication'
+    )
 
 
 class RedshiftDatabase(BaseModel):

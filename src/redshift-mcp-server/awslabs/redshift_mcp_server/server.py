@@ -17,12 +17,16 @@
 import os
 import sys
 from awslabs.redshift_mcp_server.consts import (
+    AUTH_TYPE_IAM,
+    AUTH_TYPE_USERNAME,
     CLIENT_BEST_PRACTICES,
+    DEFAULT_AUTH_TYPE,
     DEFAULT_LOG_LEVEL,
     REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
+    RedshiftAuthConfig,
     RedshiftCluster,
     RedshiftColumn,
     RedshiftDatabase,
@@ -56,6 +60,8 @@ mcp = FastMCP(
 # Amazon Redshift MCP Server.
 
 This MCP server provides comprehensive access to Amazon Redshift clusters and serverless workgroups.
+
+It supports both IAM authentication and username authentication for connecting to Redshift clusters.
 
 ## Available Tools
 
@@ -536,8 +542,18 @@ async def execute_query_tool(
     sql: str = Field(
         ..., description='The SQL statement to execute. Should be a single SQL statement.'
     ),
+    auth_type: str = Field(
+        DEFAULT_AUTH_TYPE,
+        description='Authentication type to use (iam or username). Default is iam.',
+    ),
+    username: str = Field(
+        None,
+        description='Username for authentication. Required if auth_type is username.',
+    ),
 ) -> QueryResult:
     """Execute a SQL query against a Redshift cluster or serverless workgroup.
+
+    This tool supports both IAM authentication and username authentication.
 
     This tool uses the Redshift Data API to execute SQL queries and return results.
     It supports both provisioned clusters and serverless workgroups, and handles
@@ -549,6 +565,7 @@ async def execute_query_tool(
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
     - The user must have appropriate permissions to execute queries in the specified database.
+    - For username authentication, provide the username parameter and set auth_type to "username".
 
     ## Parameters
 
@@ -557,6 +574,8 @@ async def execute_query_tool(
     - database_name: The database name to execute the query against.
                     IMPORTANT: Use a valid database name from the list_databases tool.
     - sql: The SQL statement to execute. Should be a single SQL statement.
+    - auth_type: Authentication type to use (iam or username). Default is iam.
+    - username: Username for authentication. Required if auth_type is username.
 
     ## Response Structure
 

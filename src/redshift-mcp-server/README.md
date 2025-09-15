@@ -9,6 +9,7 @@ This MCP server provides tools to discover, explore, and query Amazon Redshift c
 - **Cluster Discovery**: Automatically discover both provisioned Redshift clusters and serverless workgroups
 - **Metadata Exploration**: Browse databases, schemas, tables, and columns
 - **Safe Query Execution**: Execute SQL queries in a READ ONLY mode (a safe READ WRITE support is planned to be implemnted in the future versions)
+- **Multiple Authentication Methods**: Support for both IAM authentication and username authentication
 - **Multi-Cluster Support**: Work with multiple clusters and workgroups simultaneously
 
 ## Prerequisites
@@ -26,6 +27,18 @@ This MCP server provides tools to discover, explore, and query Amazon Redshift c
    - `AWS_DEFAULT_REGION` environment variable
    - Region specified in your AWS profile configuration
 3. **Permissions**: Ensure your AWS credentials have the required permissions (see [Permissions](#permissions) section)
+
+### Authentication Methods
+
+1. **IAM Authentication** (Default): Uses AWS IAM credentials to authenticate with Redshift
+   - Requires appropriate IAM permissions for Redshift Data API
+   - No additional configuration needed beyond AWS credentials
+
+2. **Username Authentication**: Uses database username to authenticate
+   - Set the following environment variables:
+     - `REDSHIFT_AUTH_TYPE=username`
+     - `REDSHIFT_USERNAME=<your-username>`
+   - Or provide these parameters directly to the MCP tools
 
 ## Installation
 
@@ -48,6 +61,36 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
       },
       "disabled": false,
       "autoApprove": []
+    }
+  }
+}
+```
+
+#### Local Development Configuration
+
+For running from a local directory:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.redshift-mcp-server": {
+      "command": "aws-vault",
+      "args": [
+        "exec",
+        "your-aws-profile",
+        "--",
+        "uv",
+        "run",
+        "--directory",
+        "/path/to/redshift-mcp-server",
+        "awslabs.redshift-mcp-server"
+      ],
+      "env": {
+        "AWS_DEFAULT_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "INFO",
+        "REDSHIFT_AUTH_TYPE": "username",
+        "REDSHIFT_USERNAME": "sagemaker_readonly"
+      }
     }
   }
 }

@@ -20,6 +20,9 @@ import os
 import regex
 from awslabs.redshift_mcp_server import __version__
 from awslabs.redshift_mcp_server.consts import (
+    AUTH_TYPE_IAM,
+    AUTH_TYPE_USERNAME,
+    DEFAULT_AUTH_TYPE,
     CLIENT_CONNECT_TIMEOUT,
     CLIENT_READ_TIMEOUT,
     CLIENT_RETRIES,
@@ -40,11 +43,14 @@ class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
 
     def __init__(
-        self, config: Config, aws_region: str | None = None, aws_profile: str | None = None
+        self, config: Config, aws_region: str | None = None, aws_profile: str | None = None,
+        auth_type: str | None = None, username: str | None = None
     ):
         """Initialize the client manager."""
         self.aws_region = aws_region
         self.aws_profile = aws_profile
+        self.auth_type = auth_type
+        self.username = username
         self._redshift_client = None
         self._redshift_serverless_client = None
         self._redshift_data_client = None
@@ -187,20 +193,59 @@ async def execute_statement(
     sqls = [f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__}';"] + sqls
 
     logger.debug(f'Protected and versioned SQL: {" ".join(sqls)}')
+    
+    # For execute_statement, we need to use the actual SQL, not the transaction wrapper
+    actual_sql = sql
 
     # Execute the query using Data API
+    auth_type = os.environ.get("REDSHIFT_AUTH_TYPE", "iam")
+    username = os.environ.get("REDSHIFT_USERNAME")
+    
+    # Prepare common parameters
+    params = {
+        "Database": database_name,
+        "Sqls": sqls
+    }
+    
+    # Add authentication parameters based on auth type
+    if auth_type == "username" and username:
+        logger.debug(f"Using username authentication with username: {username}")
+        params["DbUser"] = username
+    elif auth_type == "iam" and username:
+        logger.debug(f"Using IAM authentication with database user: {username}")
+        params["DbUser"] = username
+    
+    # Add cluster identifier based on cluster type
     if cluster_info['type'] == 'provisioned':
         logger.debug(f'Using ClusterIdentifier for provisioned cluster: {cluster_identifier}')
-        response = data_client.batch_execute_statement(
-            ClusterIdentifier=cluster_identifier, Database=database_name, Sqls=sqls
-        )
+        params["ClusterIdentifier"] = cluster_identifier
     elif cluster_info['type'] == 'serverless':
         logger.debug(f'Using WorkgroupName for serverless workgroup: {cluster_identifier}')
-        response = data_client.batch_execute_statement(
-            WorkgroupName=cluster_identifier, Database=database_name, Sqls=sqls
-        )
+        params["WorkgroupName"] = cluster_identifier
     else:
         raise Exception(f'Unknown cluster type: {cluster_info["type"]}')
+    
+    # Execute the statement using execute_statement (works with sagemaker_readonly)
+    logger.debug(f"Auth type: {auth_type}, Username: {username}")
+    
+    if (auth_type == "iam" or auth_type == "username") and username:
+        # For IAM or username auth, use execute_statement with DbUser
+        logger.debug(f"Using execute_statement with {auth_type} authentication")
+        execute_params = {
+            "Database": params["Database"],
+            "Sql": actual_sql,  # Use the actual SQL, not the transaction wrapper
+            "DbUser": params.get("DbUser")
+        }
+        if params.get("ClusterIdentifier"):
+            execute_params["ClusterIdentifier"] = params.get("ClusterIdentifier")
+        if params.get("WorkgroupName"):
+            execute_params["WorkgroupName"] = params.get("WorkgroupName")
+        
+        response = data_client.execute_statement(**execute_params)
+    else:
+        # Fallback to batch_execute_statement for other cases
+        logger.warning(f"Falling back to batch_execute_statement. Auth type: {auth_type}, Username: {username}")
+        response = data_client.batch_execute_statement(**params)
 
     query_id = response['Id']
     logger.debug(f'Started query execution: {query_id}')
@@ -229,9 +274,15 @@ async def execute_statement(
         raise Exception(f'Query timed out after {QUERY_TIMEOUT} seconds')
 
     # Get user query results
-    subquery2_id = status_response['SubStatements'][2]['Id']
-    results_response = data_client.get_statement_result(Id=subquery2_id)
-    return results_response, subquery2_id
+    if 'SubStatements' in status_response:
+        # batch_execute_statement response format
+        subquery2_id = status_response['SubStatements'][2]['Id']
+        results_response = data_client.get_statement_result(Id=subquery2_id)
+        return results_response, subquery2_id
+    else:
+        # execute_statement response format - use the main query ID
+        results_response = data_client.get_statement_result(Id=query_id)
+        return results_response, query_id
 
 
 async def discover_clusters() -> list[dict]:
@@ -619,4 +670,6 @@ client_manager = RedshiftClientManager(
     ),
     aws_region=os.environ.get('AWS_REGION'),
     aws_profile=os.environ.get('AWS_PROFILE'),
+    auth_type=os.environ.get('REDSHIFT_AUTH_TYPE'),
+    username=os.environ.get('REDSHIFT_USERNAME'),
 )

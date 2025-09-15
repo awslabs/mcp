@@ -14,6 +14,11 @@
 
 """Redshift MCP Server constants."""
 
+# Authentication
+AUTH_TYPE_IAM = "iam"
+AUTH_TYPE_USERNAME = "username"
+DEFAULT_AUTH_TYPE = AUTH_TYPE_IAM
+
 # System
 CLIENT_CONNECT_TIMEOUT = 60
 CLIENT_READ_TIMEOUT = 600
@@ -59,6 +64,7 @@ REDSHIFT_BEST_PRACTICES = """
 
 - We are use the Redshift API and Redshift Data API.
 - Leverage IAM authentication when possible instead of secrets (database passwords).
+- When IAM authentication is not available, username authentication can be used as an alternative.
 """
 
 # SQL queries
