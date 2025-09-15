@@ -25,6 +25,7 @@ from ..common.config import (
     READ_OPERATIONS_ONLY_MODE,
     REQUIRE_MUTATION_CONSENT,
 )
+from ..common.file_system_controls import validate_file_path
 from ..common.helpers import operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
@@ -110,7 +111,11 @@ def _get_user_agent_extra() -> str:
 
 def _handle_streaming_output(response: dict[str, Any], output_file: OutputFile) -> dict[str, Any]:
     streaming_output = response[output_file.response_key]
-    with open(output_file.path, 'wb') as f:
+
+    # Validate file path before writing
+    validated_path = validate_file_path(output_file.path)
+
+    with open(validated_path, 'wb') as f:
         for chunk in streaming_output.iter_chunks(chunk_size=CHUNK_SIZE):
             f.write(chunk)
 
