@@ -78,8 +78,8 @@ async def test_call_aws_success(
     mock_interpret.assert_called_once()
 
 
-@patch('awslabs.aws_api_mcp_server.server.requests.post')
-async def test_suggest_aws_commands_success(mock_requests_post):
+@patch('awslabs.aws_api_mcp_server.server.get_requests_session')
+async def test_suggest_aws_commands_success(mock_get_session):
     """Test suggest_aws_commands returns suggestions for a valid query."""
     mock_suggestions = {
         'suggestions': [
@@ -98,15 +98,25 @@ async def test_suggest_aws_commands_success(mock_requests_post):
         ]
     }
 
-    # Configure the patched mock to return the expected response
     mock_response = MagicMock()
     mock_response.json.return_value = mock_suggestions
-    mock_requests_post.return_value = mock_response
+
+    mock_session = MagicMock()
+    mock_session.post.return_value = mock_response
+    mock_session.__enter__.return_value = mock_session
+    mock_session.__exit__.return_value = None
+
+    mock_get_session.return_value = mock_session
 
     result = await suggest_aws_commands('List all S3 buckets', DummyCtx())
 
     assert result == mock_suggestions
-    mock_requests_post.assert_called_once()
+    mock_session.post.assert_called_once()
+
+    # Verify the HTTP call parameters
+    call_args = mock_session.post.call_args
+    assert call_args[1]['json'] == {'query': 'List all S3 buckets'}
+    assert call_args[1]['timeout'] == 30
 
 
 async def test_suggest_aws_commands_empty_query():
@@ -116,12 +126,18 @@ async def test_suggest_aws_commands_empty_query():
     assert result == AwsApiMcpServerErrorResponse(detail='Empty query provided')
 
 
-@patch('awslabs.aws_api_mcp_server.server.requests.post')
-async def test_suggest_aws_commands_exception(mock_requests_post):
+@patch('awslabs.aws_api_mcp_server.server.get_requests_session')
+async def test_suggest_aws_commands_exception(mock_get_session):
     """Test suggest_aws_commands returns error when HTTPError is raised."""
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = requests.HTTPError('404 Not Found')
-    mock_requests_post.return_value = mock_response
+
+    mock_session = MagicMock()
+    mock_session.post.return_value = mock_response
+    mock_session.__enter__.return_value = mock_session
+    mock_session.__exit__.return_value = None
+
+    mock_get_session.return_value = mock_session
 
     result = await suggest_aws_commands('List S3 buckets', DummyCtx())
 
@@ -129,6 +145,7 @@ async def test_suggest_aws_commands_exception(mock_requests_post):
         detail='Error while suggesting commands: 404 Not Found'
     )
     mock_response.raise_for_status.assert_called_once()
+    mock_session.post.assert_called_once()
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
