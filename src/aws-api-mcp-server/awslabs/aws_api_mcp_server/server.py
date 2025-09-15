@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import requests
 import sys
 from .core.agent_scripts.manager import AGENT_SCRIPTS_MANAGER
 from .core.aws.driver import translate_cli_to_ir
@@ -24,8 +25,10 @@ from .core.aws.service import (
     validate,
 )
 from .core.common.config import (
+    BEARER_TOKEN,
     DEFAULT_REGION,
     ENABLE_AGENT_SCRIPTS,
+    ENDPOINT_SUGGEST_AWS_COMMANDS,
     FASTMCP_LOG_LEVEL,
     HOST,
     PORT,
@@ -42,7 +45,6 @@ from .core.common.models import (
     AwsCliAliasResponse,
     ProgramInterpretationResponse,
 )
-from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
 from botocore.exceptions import NoCredentialsError
@@ -139,12 +141,18 @@ async def suggest_aws_commands(
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
     try:
-        suggestions = knowledge_base.get_suggestions(query)
+        response = requests.post(
+            ENDPOINT_SUGGEST_AWS_COMMANDS,
+            json={'query': query},
+            headers={'Authorization': f'Bearer {BEARER_TOKEN}'} if BEARER_TOKEN else None,
+        )
+        response.raise_for_status()
+        suggestions = response.json().get('suggestions')
         logger.info(
             'Suggested commands: {}',
-            [suggestion.get('command') for suggestion in suggestions.get('suggestions', {})],
+            [suggestion.get('command') for suggestion in suggestions],
         )
-        return suggestions
+        return response.json()
     except Exception as e:
         error_message = f'Error while suggesting commands: {str(e)}'
         await ctx.error(error_message)
@@ -362,13 +370,6 @@ def main():
 
     validate_aws_region(DEFAULT_REGION)
     logger.info('AWS_REGION: {}', DEFAULT_REGION)
-
-    try:
-        knowledge_base.setup()
-    except Exception as e:
-        error_message = f'Error while setting up the knowledge base: {str(e)}'
-        logger.error(error_message)
-        raise RuntimeError(error_message)
 
     # Always load read operations index for security policy checking
     try:
