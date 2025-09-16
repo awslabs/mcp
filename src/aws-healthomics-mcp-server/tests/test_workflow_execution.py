@@ -18,6 +18,7 @@ import botocore.exceptions
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
     get_run,
+    get_run_task,
     list_run_tasks,
     list_runs,
     start_run,
@@ -1459,6 +1460,31 @@ async def test_start_run_invalid_cache_behavior():
 
 
 @pytest.mark.asyncio
+async def test_start_run_cache_behavior_without_cache_id():
+    """Test start_run with cache_behavior but no cache_id."""
+    mock_ctx = AsyncMock()
+
+    with pytest.raises(ValueError, match='cache_behavior requires cache_id to be provided'):
+        await start_run(
+            ctx=mock_ctx,
+            workflow_id='wfl-12345',
+            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            name='test-run',
+            output_uri='s3://bucket/output/',
+            parameters={'param1': 'value1'},
+            workflow_version_name=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,  # No cache_id provided
+            cache_behavior='CACHE_ALWAYS',  # But cache_behavior is provided
+        )
+
+    # Verify error was reported to context
+    mock_ctx.error.assert_called_once()
+    assert 'cache_behavior requires cache_id to be provided' in mock_ctx.error.call_args[0][0]
+
+
+@pytest.mark.asyncio
 async def test_start_run_invalid_s3_uri():
     """Test start_run with invalid S3 URI."""
     mock_ctx = AsyncMock()
@@ -1674,3 +1700,231 @@ async def test_list_run_tasks_unexpected_error():
     # Verify error was reported to context
     mock_ctx.error.assert_called_once()
     assert 'Unexpected error listing tasks for run' in mock_ctx.error.call_args[0][0]
+
+
+# Tests for get_run_task function
+
+
+@pytest.mark.asyncio
+async def test_get_run_task_success():
+    """Test successful retrieval of task details."""
+    # Mock response data with all possible fields
+    start_time = datetime.now(timezone.utc)
+    stop_time = datetime.now(timezone.utc)
+
+    mock_response = {
+        'taskId': 'task-12345',
+        'status': 'COMPLETED',
+        'name': 'test-task',
+        'cpus': 4,
+        'memory': 8192,
+        'startTime': start_time,
+        'stopTime': stop_time,
+        'statusMessage': 'Task completed successfully',
+        'logStream': 'log-stream-name',
+        'imageDetails': {
+            'imageUri': '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest',
+            'imageDigest': 'sha256:abcdef123456...',
+        },
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_run_task.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_run_task(mock_ctx, run_id='run-12345', task_id='task-12345')
+
+    # Verify client was called correctly
+    mock_client.get_run_task.assert_called_once_with(id='run-12345', taskId='task-12345')
+
+    # Verify result contains all expected fields
+    assert result['taskId'] == 'task-12345'
+    assert result['status'] == 'COMPLETED'
+    assert result['name'] == 'test-task'
+    assert result['cpus'] == 4
+    assert result['memory'] == 8192
+    assert result['startTime'] == start_time.isoformat()
+    assert result['stopTime'] == stop_time.isoformat()
+    assert result['statusMessage'] == 'Task completed successfully'
+    assert result['logStream'] == 'log-stream-name'
+    assert result['imageDetails'] == {
+        'imageUri': '123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:latest',
+        'imageDigest': 'sha256:abcdef123456...',
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_run_task_minimal_response():
+    """Test task retrieval with minimal response fields."""
+    # Mock response with minimal required fields
+    mock_response = {
+        'taskId': 'task-12345',
+        'status': 'RUNNING',
+        'name': 'test-task',
+        'cpus': 2,
+        'memory': 4096,
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_run_task.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_run_task(mock_ctx, run_id='run-12345', task_id='task-12345')
+
+    # Verify required fields
+    assert result['taskId'] == 'task-12345'
+    assert result['status'] == 'RUNNING'
+    assert result['name'] == 'test-task'
+    assert result['cpus'] == 2
+    assert result['memory'] == 4096
+
+    # Verify optional fields are not present
+    assert 'startTime' not in result
+    assert 'stopTime' not in result
+    assert 'statusMessage' not in result
+    assert 'logStream' not in result
+    assert 'imageDetails' not in result
+
+
+@pytest.mark.asyncio
+async def test_get_run_task_with_image_details():
+    """Test task retrieval specifically focusing on imageDetails field."""
+    # Mock response with imageDetails
+    mock_response = {
+        'taskId': 'task-12345',
+        'status': 'COMPLETED',
+        'name': 'test-task',
+        'cpus': 4,
+        'memory': 8192,
+        'imageDetails': {
+            'imageUri': 'public.ecr.aws/biocontainers/samtools:1.15.1--h1170115_0',
+            'imageDigest': 'sha256:1234567890abcdef...',
+            'registryId': '123456789012',
+            'repositoryName': 'biocontainers/samtools',
+        },
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_run_task.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_run_task(mock_ctx, run_id='run-12345', task_id='task-12345')
+
+    # Verify imageDetails is properly returned
+    assert 'imageDetails' in result
+    assert (
+        result['imageDetails']['imageUri']
+        == 'public.ecr.aws/biocontainers/samtools:1.15.1--h1170115_0'
+    )
+    assert result['imageDetails']['imageDigest'] == 'sha256:1234567890abcdef...'
+    assert result['imageDetails']['registryId'] == '123456789012'
+    assert result['imageDetails']['repositoryName'] == 'biocontainers/samtools'
+
+
+@pytest.mark.asyncio
+async def test_get_run_task_failed_status():
+    """Test task retrieval with failed status."""
+    # Mock response for failed task
+    mock_response = {
+        'taskId': 'task-12345',
+        'status': 'FAILED',
+        'name': 'test-task',
+        'cpus': 4,
+        'memory': 8192,
+        'statusMessage': 'Task failed due to resource constraints',
+    }
+
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_run_task.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await get_run_task(mock_ctx, run_id='run-12345', task_id='task-12345')
+
+    # Verify failure information
+    assert result['status'] == 'FAILED'
+    assert result['statusMessage'] == 'Task failed due to resource constraints'
+
+
+@pytest.mark.asyncio
+async def test_get_run_task_boto_error():
+    """Test handling of BotoCoreError."""
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_run_task.side_effect = botocore.exceptions.BotoCoreError()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        with pytest.raises(botocore.exceptions.BotoCoreError):
+            await get_run_task(mock_ctx, run_id='run-12345', task_id='task-12345')
+
+    # Verify error was reported to context
+    mock_ctx.error.assert_called_once()
+    assert 'AWS error getting task task-12345 for run run-12345' in mock_ctx.error.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_get_run_task_client_error():
+    """Test handling of ClientError."""
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_run_task.side_effect = botocore.exceptions.ClientError(
+        {'Error': {'Code': 'ResourceNotFoundException', 'Message': 'Task not found'}}, 'GetRunTask'
+    )
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        with pytest.raises(botocore.exceptions.ClientError):
+            await get_run_task(mock_ctx, run_id='run-12345', task_id='task-12345')
+
+    # Verify error was reported to context
+    mock_ctx.error.assert_called_once()
+    assert 'AWS error getting task task-12345 for run run-12345' in mock_ctx.error.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_get_run_task_unexpected_error():
+    """Test handling of unexpected errors."""
+    # Mock context and client
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.get_run_task.side_effect = Exception('Unexpected error')
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        with pytest.raises(Exception, match='Unexpected error'):
+            await get_run_task(mock_ctx, run_id='run-12345', task_id='task-12345')
+
+    # Verify error was reported to context
+    mock_ctx.error.assert_called_once()
+    assert (
+        'Unexpected error getting task task-12345 for run run-12345'
+        in mock_ctx.error.call_args[0][0]
+    )

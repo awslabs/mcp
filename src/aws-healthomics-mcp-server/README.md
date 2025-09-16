@@ -34,9 +34,9 @@ This MCP server provides tools for:
 ### Workflow Management Tools
 
 1. **ListAHOWorkflows** - List available HealthOmics workflows with pagination support
-2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions
+2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions and optional container registry mappings
 3. **GetAHOWorkflow** - Retrieve detailed workflow information and export definitions
-4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows
+4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows with optional container registry mappings
 5. **ListAHOWorkflowVersions** - List all versions of a specific workflow
 6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool
 7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support
