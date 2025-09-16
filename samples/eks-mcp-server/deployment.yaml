@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eks-mcp-server
+  labels:
+    app: eks-mcp-server
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eks-mcp-server
+  template:
+    metadata:
+      labels:
+        app: eks-mcp-server
+        version: v1
+    spec:
+      serviceAccountName: eks-mcp-server
+      containers:
+      - name: eks-mcp-server
+        # Use the official image from AWS ECR Public Gallery
+        image: public.ecr.aws/awslabs/mcp/eks-mcp-server:latest
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: eks-mcp-server-config
+              key: AWS_REGION
+        - name: FASTMCP_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: eks-mcp-server-config
+              key: FASTMCP_LOG_LEVEL
+        # Uncomment the following if using AWS credentials secret instead of IRSA
+        # envFrom:
+        # - secretRef:
+        #     name: aws-credentials
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        # Uncomment if using AWS credentials secret
+        # - name: aws-credentials
+        #   mountPath: "/home/app/.aws"
+        #   readOnly: true
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      # Uncomment if using AWS credentials secret
+      # - name: aws-credentials
+      #   secret:
+      #     secretName: aws-credentials
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eks-mcp-server
+  labels:
+    app: eks-mcp-server
+  # Uncomment and update the following annotation for IRSA
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT-ID:role/eks-mcp-server-role
+

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eks-mcp-server-config
+  labels:
+    app: eks-mcp-server
+data:
+  # AWS region where your EKS cluster is located
+  AWS_REGION: "us-east-1"
+  
+  # Logging level for the MCP server
+  # Options: ERROR, WARN, INFO, DEBUG
+  FASTMCP_LOG_LEVEL: "INFO"
+  
+  # Uncomment and set if using a specific AWS profile
+  # AWS_PROFILE: "default"
+  
+  # Additional configuration options can be added here
+  # Refer to the eks-mcp-server documentation for available options
+
