@@ -77,7 +77,7 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
 
 
 ### 🐍 Using Python (pip)
-> [!WARNING]
+> [!TIP]
 > It's recommended to use a virtual environment because the AWS CLI version of the MCP server might not match the locally installed one
 > and can cause it to be downgraded. In the MCP client config file you can change `"command"` to the path of the python executable in your
 > virtual environment (e.g., `"command": "/workspace/project/.venv/bin/python"`).
