@@ -29,36 +29,8 @@ Choose the installation method that best fits your workflow and get started with
 
 
 
-### 🐍 Using Python (pip)
-
-**Step 1: Install the package**
-```bash
-pip install awslabs.aws-api-mcp-server
-```
-
-**Step 2: Configure your MCP client**
-Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-api-mcp-server": {
-      "command": "python",
-      "args": [
-        "-m",
-        "awslabs.aws_api_mcp_server.server"
-      ],
-      "env": {
-        "AWS_REGION": "us-east-1"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
 ### ⚡ Using uv
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 **For Linux/MacOS users:**
 
@@ -101,6 +73,43 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
   }
 }
 ```
+
+
+
+### 🐍 Using Python (pip)
+> [!TIP]
+> It's recommended to use a virtual environment because the AWS CLI version of the MCP server might not match the locally installed one
+> and can cause it to be downgraded. In the MCP client config file you can change `"command"` to the path of the python executable in your
+> virtual environment (e.g., `"command": "/workspace/project/.venv/bin/python"`).
+
+**Step 1: Install the package**
+```bash
+pip install awslabs.aws-api-mcp-server
+```
+
+**Step 2: Configure your MCP client**
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "python",
+      "args": [
+        "-m",
+        "awslabs.aws_api_mcp_server.server"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+
 
 ### 🐳 Using Docker
 
