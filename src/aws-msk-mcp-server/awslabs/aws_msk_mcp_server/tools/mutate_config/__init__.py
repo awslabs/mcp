@@ -33,7 +33,7 @@ from .update_configuration import update_configuration
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='create_configuration')
+    @mcp.tool(name='create_configuration', description='Creates a new MSK configuration.')
     def create_configuration_tool(
         region: str = Field(..., description='AWS region'),
         name: str = Field(..., description='The name of the configuration'),
@@ -45,7 +45,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Create a new MSK configuration.
+        Creates a new MSK configuration.
 
         Args:
             name (str): The name of the configuration
@@ -81,7 +81,7 @@ def register_module(mcp: FastMCP) -> None:
         )
         return create_configuration(name, server_properties, client, description, kafka_versions)
 
-    @mcp.tool(name='update_configuration')
+    @mcp.tool(name='update_configuration', description='Updates an existing MSK configuration.')
     def update_configuration_tool(
         region: str = Field(..., description='AWS region'),
         arn: str = Field(
@@ -93,7 +93,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Update an existing MSK configuration.
+        Updates an existing MSK configuration.
 
         Args:
             arn (str): The Amazon Resource Name (ARN) of the configuration to update
@@ -131,7 +131,7 @@ def register_module(mcp: FastMCP) -> None:
 
         return update_configuration(arn, server_properties, client, description)
 
-    @mcp.tool(name='tag_resource')
+    @mcp.tool(name='tag_resource', description='Adds tags to an MSK resource.')
     def tag_resource_tool(
         region: str = Field(..., description='AWS region'),
         resource_arn: str = Field(
@@ -140,7 +140,7 @@ def register_module(mcp: FastMCP) -> None:
         tags: Dict[str, str] = Field(..., description='A map of tags to add to the resource'),
     ):
         """
-        Add tags to an MSK resource.
+        Adds tags to an MSK resource.
 
         Args:
             resource_arn (str): The Amazon Resource Name (ARN) of the resource
@@ -159,7 +159,7 @@ def register_module(mcp: FastMCP) -> None:
         )
         return tag_resource(resource_arn, tags, client)
 
-    @mcp.tool(name='untag_resource')
+    @mcp.tool(name='untag_resource', description='Removes tags from an MSK resource.')
     def untag_resource_tool(
         region: str = Field(..., description='AWS region'),
         resource_arn: str = Field(
@@ -170,7 +170,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Remove tags from an MSK resource.
+        Removes tags from an MSK resource.
 
         Args:
             resource_arn (str): The Amazon Resource Name (ARN) of the resource

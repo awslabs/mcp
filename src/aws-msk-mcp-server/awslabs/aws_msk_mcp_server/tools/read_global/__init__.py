@@ -31,7 +31,7 @@ from .list_vpc_connections import list_vpc_connections
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='get_global_info')
+    @mcp.tool(name='get_global_info', description='Gets global information about MSK resources.')
     def get_global_info(
         region: str = Field(..., description='AWS region'),
         info_type: str = Field(
@@ -41,7 +41,7 @@ def register_module(mcp: FastMCP) -> None:
         kwargs: dict = Field({}, description='Additional arguments specific to each info type'),
     ):
         """
-        Unified API to retrieve various types of global information about MSK resources.
+        Gets various types of global information about MSK resources.
 
         Prompt the user for the region if it is not already specified.
 

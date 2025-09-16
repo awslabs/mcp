@@ -28,7 +28,10 @@ from .describe_vpc_connection import describe_vpc_connection
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='describe_vpc_connection')
+    @mcp.tool(
+        name='describe_vpc_connection',
+        description='Gets detailed information about a VPC connection.',
+    )
     def describe_vpc_connection_tool(
         region: str = Field(..., description='AWS region'),
         vpc_connection_arn: str = Field(
@@ -36,7 +39,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Get detailed information about a VPC connection.
+        Gets detailed information about a VPC connection.
 
         Args:
             vpc_connection_arn (str): The Amazon Resource Name (ARN) of the VPC connection

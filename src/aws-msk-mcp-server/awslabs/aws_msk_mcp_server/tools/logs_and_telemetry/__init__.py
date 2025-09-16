@@ -28,7 +28,7 @@ from .list_customer_iam_access import list_customer_iam_access
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='get_cluster_telemetry')
+    @mcp.tool(name='get_cluster_telemetry', description='Gets telemetry data for MSK clusters.')
     def get_cluster_telemetry(
         region: str = Field(..., description='AWS region'),
         action: str = Field(
@@ -40,7 +40,7 @@ def register_module(mcp: FastMCP) -> None:
         kwargs: dict = Field({}, description='Additional arguments based on the action type'),
     ):
         """
-        Unified API to retrieve telemetry data for MSK clusters. Current implementation of metrics uses a static table of available metrics.
+        Gets telemetry data for MSK clusters. Current implementation of metrics uses a static table of available metrics.
         Would be better to have a resource to pull this data from and force read it first.
 
         Args:
@@ -195,13 +195,16 @@ def register_module(mcp: FastMCP) -> None:
         else:
             raise ValueError(f'Unsupported action or missing required arguments for {action}')
 
-    @mcp.tool(name='list_customer_iam_access')
+    @mcp.tool(
+        name='list_customer_iam_access',
+        description='Lists IAM access information for an MSK cluster.',
+    )
     def list_customer_iam_access_tool(
         region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(..., description='The ARN of the MSK cluster'),
     ):
         """
-        List IAM access information for an MSK cluster.
+        Lists IAM access information for an MSK cluster.
 
         Args:
             cluster_arn: The ARN of the MSK cluster

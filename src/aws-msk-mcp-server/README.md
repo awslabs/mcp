@@ -20,45 +20,45 @@ The AWS MSK MCP Server provides a set of tools for interacting with Amazon MSK t
 
 ### Cluster Operations
 
-- **describe_cluster_operation**: Get information about a specific cluster operation
-- **get_cluster_info**: Retrieve various types of information about MSK clusters
-- **get_global_info**: Get global information about MSK resources
-- **create_cluster**: Create a new MSK cluster (provisioned or serverless)
-- **update_broker_storage**: Update the storage size of brokers
-- **update_broker_type**: Update the broker instance type
-- **update_broker_count**: Update the number of brokers in a cluster
-- **update_cluster_configuration**: Update the configuration of a cluster
-- **update_monitoring**: Update monitoring settings
-- **update_security**: Update security settings
-- **reboot_broker**: Reboot brokers in a cluster
+- **describe_cluster_operation**: Gets information about a specific cluster operation
+- **get_cluster_info**: Retrieves various types of information about MSK clusters
+- **get_global_info**: Gets global information about MSK resources
+- **create_cluster**: Creates a new MSK cluster (provisioned or serverless)
+- **update_broker_storage**: Updates storage size of brokers
+- **update_broker_type**: Updates broker instance type
+- **update_broker_count**: Updates number of brokers in a cluster
+- **update_cluster_configuration**: Updates configuration of a cluster
+- **update_monitoring**: Updates monitoring settings
+- **update_security**: Updates security settings
+- **reboot_broker**: Reboots brokers in a cluster
 
 ### Configuration Operations
 
-- **get_configuration_info**: Get information about MSK configurations
-- **create_configuration**: Create a new MSK configuration
-- **update_configuration**: Update an existing configuration
+- **get_configuration_info**: Gets information about MSK configurations
+- **create_configuration**: Creates a new MSK configuration
+- **update_configuration**: Updates an existing configuration
 
 ### VPC Operations
 
-- **describe_vpc_connection**: Get information about a VPC connection
-- **create_vpc_connection**: Create a new VPC connection
-- **delete_vpc_connection**: Delete a VPC connection
-- **reject_client_vpc_connection**: Reject a client VPC connection request
+- **describe_vpc_connection**: Gets information about a VPC connection
+- **create_vpc_connection**: Creates a new VPC connection
+- **delete_vpc_connection**: Deletes a VPC connection
+- **reject_client_vpc_connection**: Rejects a client VPC connection request
 
 ### Security Operations
 
-- **put_cluster_policy**: Put a resource policy on a cluster
-- **associate_scram_secret**: Associate SCRAM secrets with a cluster
-- **disassociate_scram_secret**: Disassociate SCRAM secrets from a cluster
-- **list_tags_for_resource**: List all tags for an MSK resource
-- **tag_resource**: Add tags to an MSK resource
-- **untag_resource**: Remove tags from an MSK resource
-- **list_customer_iam_access**: List IAM access information for a cluster
+- **put_cluster_policy**: Puts a resource policy on a cluster
+- **associate_scram_secret**: Associates SCRAM secrets with a cluster
+- **disassociate_scram_secret**: Disassociates SCRAM secrets from a cluster
+- **list_tags_for_resource**: Lists all tags for an MSK resource
+- **tag_resource**: Adds tags to an MSK resource
+- **untag_resource**: Removes tags from an MSK resource
+- **list_customer_iam_access**: Lists IAM access information for a cluster
 
 ### Monitoring and Best Practices
 
-- **get_cluster_telemetry**: Retrieve telemetry data for MSK clusters
-- **get_cluster_best_practices**: Get best practices and recommendations for MSK clusters
+- **get_cluster_telemetry**: Retrieves telemetry data for MSK clusters
+- **get_cluster_best_practices**: Gets best practices and recommendations for MSK clusters
 
 ## Usage
 

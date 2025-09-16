@@ -31,7 +31,9 @@ from .reject_client_vpc_connection import reject_client_vpc_connection
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='create_vpc_connection')
+    @mcp.tool(
+        name='create_vpc_connection', description='Creates a VPC connection for an MSK cluster.'
+    )
     def create_vpc_connection_tool(
         region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(..., description='The Amazon Resource Name (ARN) of the cluster'),
@@ -53,7 +55,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Create a VPC connection for an MSK cluster.
+        Creates a VPC connection for an MSK cluster.
 
         Args:
             cluster_arn (str): The Amazon Resource Name (ARN) of the cluster
@@ -101,7 +103,9 @@ def register_module(mcp: FastMCP) -> None:
             tags=tags,
         )
 
-    @mcp.tool(name='delete_vpc_connection')
+    @mcp.tool(
+        name='delete_vpc_connection', description='Deletes a VPC connection for an MSK cluster.'
+    )
     def delete_vpc_connection_tool(
         region: str = Field(..., description='AWS region'),
         vpc_connection_arn: str = Field(
@@ -109,7 +113,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Delete a VPC connection for an MSK cluster.
+        Deletes a VPC connection for an MSK cluster.
 
         Args:
             vpc_connection_arn (str): The Amazon Resource Name (ARN) of the VPC connection to delete
@@ -129,7 +133,10 @@ def register_module(mcp: FastMCP) -> None:
         )
         return delete_vpc_connection(vpc_connection_arn=vpc_connection_arn, client=client)
 
-    @mcp.tool(name='reject_client_vpc_connection')
+    @mcp.tool(
+        name='reject_client_vpc_connection',
+        description='Rejects a client VPC connection request for an MSK cluster.',
+    )
     def reject_client_vpc_connection_tool(
         region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(..., description='The Amazon Resource Name (ARN) of the cluster'),
@@ -138,7 +145,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Reject a client VPC connection request for an MSK cluster.
+        Rejects a client VPC connection request for an MSK cluster.
 
         Args:
             cluster_arn (str): The Amazon Resource Name (ARN) of the cluster
