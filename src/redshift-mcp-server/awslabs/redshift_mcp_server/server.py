@@ -219,7 +219,9 @@ async def list_databases_tool(
     """
     try:
         logger.info(f'Discovering databases on cluster: {cluster_identifier}')
-        databases_data = await discover_databases(cluster_identifier, database_name)
+        databases_data = await discover_databases(
+            cluster_identifier=cluster_identifier, database_name=database_name
+        )
 
         # Convert to RedshiftDatabase models
         databases = []
@@ -302,7 +304,9 @@ async def list_schemas_tool(
         logger.info(
             f'Discovering schemas in database {schema_database_name} on cluster {cluster_identifier}'
         )
-        schemas_data = await discover_schemas(cluster_identifier, schema_database_name)
+        schemas_data = await discover_schemas(
+            cluster_identifier=cluster_identifier, schema_database_name=schema_database_name
+        )
 
         # Convert to RedshiftSchema models
         schemas = []
@@ -394,7 +398,9 @@ async def list_tables_tool(
             f'Discovering tables in schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}'
         )
         tables_data = await discover_tables(
-            cluster_identifier, table_database_name, table_schema_name
+            cluster_identifier=cluster_identifier,
+            table_database_name=table_database_name,
+            table_schema_name=table_schema_name,
         )
 
         # Convert to RedshiftTable models
@@ -500,7 +506,10 @@ async def list_columns_tool(
             f'Discovering columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}'
         )
         columns_data = await discover_columns(
-            cluster_identifier, column_database_name, column_schema_name, column_table_name
+            cluster_identifier=cluster_identifier,
+            column_database_name=column_database_name,
+            column_schema_name=column_schema_name,
+            column_table_name=column_table_name,
         )
 
         # Convert to RedshiftColumn models
@@ -594,7 +603,9 @@ async def execute_query_tool(
     """
     try:
         logger.info(f'Executing query on cluster {cluster_identifier} in database {database_name}')
-        query_result_data = await execute_query(cluster_identifier, database_name, sql)
+        query_result_data = await execute_query(
+            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
+        )
 
         # Convert to QueryResult model
         query_result = QueryResult(**query_result_data)

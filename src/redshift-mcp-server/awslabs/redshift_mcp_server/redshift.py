@@ -18,6 +18,7 @@ import asyncio
 import boto3
 import os
 import regex
+import time
 from awslabs.redshift_mcp_server import __version__
 from awslabs.redshift_mcp_server.consts import (
     CLIENT_CONNECT_TIMEOUT,
@@ -26,6 +27,7 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_USER_AGENT_NAME,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
+    SESSION_KEEPALIVE,
     SUSPICIOUS_QUERY_REGEXP,
     SVV_ALL_COLUMNS_QUERY,
     SVV_ALL_SCHEMAS_QUERY,
@@ -101,61 +103,124 @@ class RedshiftClientManager:
         return self._redshift_data_client
 
 
-def quote_literal_string(value: str | None) -> str:
-    """Quote a string value as a SQL literal.
+class RedshiftSessionManager:
+    """Manages Redshift Data API sessions for connection reuse."""
 
-    Args:
-        value: The string value to quote.
-    """
-    if value is None:
-        return 'NULL'
+    def __init__(self, session_keepalive: int, app_name: str):
+        """Initialize the session manager.
 
-    # TODO Reimplement a proper way.
-    # A lazy hack for SQL literal quoting.
-    return "'" + repr('"' + value)[2:]
+        Args:
+            session_keepalive: Session keepalive timeout in seconds.
+            app_name: Application name to set in sessions.
+        """
+        self._sessions = {}  # {cluster:database -> session_info}
+        self._session_keepalive = session_keepalive
+        self._app_name = app_name
+
+    async def session(
+        self, cluster_identifier: str, database_name: str, cluster_info: dict
+    ) -> str:
+        """Get or create a session for the given cluster and database.
+
+        Args:
+            cluster_identifier: The cluster identifier to get session for.
+            database_name: The database name to get session for.
+            cluster_info: Cluster information dictionary from discover_clusters.
+
+        Returns:
+            Session ID for use in ExecuteStatement calls.
+        """
+        # Check existing session
+        session_key = f'{cluster_identifier}:{database_name}'
+        if session_key in self._sessions:
+            session_info = self._sessions[session_key]
+            if not self._is_session_expired(session_info):
+                logger.debug(f'Reusing existing session: {session_info["session_id"]}')
+                return session_info['session_id']
+            else:
+                logger.debug(f'Session expired, removing: {session_info["session_id"]}')
+                del self._sessions[session_key]
+
+        # Create new session with application name
+        session_id = await self._create_session_with_app_name(
+            cluster_identifier, database_name, cluster_info
+        )
+
+        # Store session
+        self._sessions[session_key] = {'session_id': session_id, 'created_at': time.time()}
+
+        logger.info(f'Created new session: {session_id} for {cluster_identifier}:{database_name}')
+        return session_id
+
+    async def _create_session_with_app_name(
+        self, cluster_identifier: str, database_name: str, cluster_info: dict
+    ) -> str:
+        """Create a new session by executing SET application_name.
+
+        Args:
+            cluster_identifier: The cluster identifier.
+            database_name: The database name.
+            cluster_info: Cluster information dictionary.
+
+        Returns:
+            Session ID from the ExecuteStatement response.
+        """
+        # Set application name to create session
+        app_name_sql = f"SET application_name TO '{self._app_name}';"
+
+        # Execute statement to create session
+        statement_id = await _execute_statement(
+            cluster_info=cluster_info,
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=app_name_sql,
+            session_keepalive=self._session_keepalive,
+        )
+
+        # Get session ID from the response
+        data_client = client_manager.redshift_data_client()
+        status_response = data_client.describe_statement(Id=statement_id)
+        session_id = status_response['SessionId']
+
+        logger.debug(f'Created session with application name: {session_id}')
+        return session_id
+
+    def _is_session_expired(self, session_info: dict) -> bool:
+        """Check if a session has expired based on keepalive timeout.
+
+        Args:
+            session_info: Session information dictionary.
+
+        Returns:
+            True if session is expired, False otherwise.
+        """
+        return (time.time() - session_info['created_at']) > self._session_keepalive
 
 
-def protect_sql(sql: str, allow_read_write: bool) -> list[str]:
-    """Protect SQL depending on if the read-write mode allowed.
+async def _execute_protected_statement(
+    cluster_identifier: str,
+    database_name: str,
+    sql: str,
+    parameters: list[dict] | None = None,
+    allow_read_write: bool = False,
+) -> tuple[dict, str]:
+    """Execute a SQL statement against a Redshift cluster in a protected fashion.
 
-    The SQL is wrapped in a transaction block with READ ONLY or READ WRITE mode
+    The SQL is protected by wrapping it in a transaction block with READ ONLY or READ WRITE mode
     based on allow_read_write flag. Transaction breaker protection is implemented
     to prevent unauthorized modifications.
 
-    The SQL takes the form:
-    BEGIN [READ ONLY|READ WRITE];
-    <sql>
-    END;
-
-    Args:
-        sql: The SQL statement to protect.
-        allow_read_write: Indicates if read-write mode should be activated.
-
-    Returns:
-        List of strings to execute by batch_execute_statement.
-    """
-    if allow_read_write:
-        return ['BEGIN READ WRITE;', sql, 'END;']
-    else:
-        # Check if SQL contains suspicious patterns trying to break the transaction context
-        if regex.compile(SUSPICIOUS_QUERY_REGEXP).search(sql):
-            logger.error(f'SQL contains suspicious pattern, execution rejected: {sql}')
-            raise Exception(f'SQL contains suspicious pattern, execution rejected: {sql}')
-
-        return ['BEGIN READ ONLY;', sql, 'END;']
-
-
-async def execute_statement(
-    cluster_identifier: str, database_name: str, sql: str, allow_read_write: bool = False
-) -> tuple[dict, str]:
-    """Execute a SQL statement against a Redshift cluster using the Data API.
-
-    This is a common function used by other functions in this module.
+    The SQL execution takes the form:
+    1. Get or create session (with SET application_name)
+    2. BEGIN [READ ONLY|READ WRITE];
+    3. <user sql>
+    4. END;
 
     Args:
         cluster_identifier: The cluster identifier to query.
         database_name: The database to execute the query against.
         sql: The SQL statement to execute.
+        parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
         allow_read_write: Indicates if read-write mode should be activated.
 
     Returns:
@@ -166,9 +231,7 @@ async def execute_statement(
     Raises:
         Exception: If cluster not found, query fails, or times out.
     """
-    data_client = client_manager.redshift_data_client()
-
-    # First, check if this is a provisioned cluster or serverless workgroup
+    # Get cluster info
     clusters = await discover_clusters()
     cluster_info = None
     for cluster in clusters:
@@ -181,57 +244,131 @@ async def execute_statement(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
-    # Guard from executing read-write statements if not allowed
-    sqls = protect_sql(sql, allow_read_write)
-    # Add application name and version
-    sqls = [f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__}';"] + sqls
+    # Get session (creates if needed, sets app name automatically)
+    session_id = await session_manager.session(cluster_identifier, database_name, cluster_info)
 
-    logger.debug(f'Protected and versioned SQL: {" ".join(sqls)}')
+    # Check for suspicious patterns in read-only mode
+    if not allow_read_write:
+        if regex.compile(SUSPICIOUS_QUERY_REGEXP).search(sql):
+            logger.error(f'SQL contains suspicious pattern, execution rejected: {sql}')
+            raise Exception(f'SQL contains suspicious pattern, execution rejected: {sql}')
 
-    # Execute the query using Data API
-    if cluster_info['type'] == 'provisioned':
-        logger.debug(f'Using ClusterIdentifier for provisioned cluster: {cluster_identifier}')
-        response = data_client.batch_execute_statement(
-            ClusterIdentifier=cluster_identifier, Database=database_name, Sqls=sqls
-        )
-    elif cluster_info['type'] == 'serverless':
-        logger.debug(f'Using WorkgroupName for serverless workgroup: {cluster_identifier}')
-        response = data_client.batch_execute_statement(
-            WorkgroupName=cluster_identifier, Database=database_name, Sqls=sqls
-        )
-    else:
-        raise Exception(f'Unknown cluster type: {cluster_info["type"]}')
+    # Execute BEGIN statement
+    begin_sql = 'BEGIN READ WRITE;' if allow_read_write else 'BEGIN READ ONLY;'
+    await _execute_statement(
+        cluster_info=cluster_info,
+        cluster_identifier=cluster_identifier,
+        database_name=database_name,
+        sql=begin_sql,
+        session_id=session_id,
+    )
 
-    query_id = response['Id']
-    logger.debug(f'Started query execution: {query_id}')
+    # Execute user SQL with parameters
+    user_query_id = await _execute_statement(
+        cluster_info=cluster_info,
+        cluster_identifier=cluster_identifier,
+        database_name=database_name,
+        sql=sql,
+        parameters=parameters,
+        session_id=session_id,
+    )
 
-    # Wait for query completion
+    # Execute END statement to close transaction
+    await _execute_statement(
+        cluster_info=cluster_info,
+        cluster_identifier=cluster_identifier,
+        database_name=database_name,
+        sql='END;',
+        session_id=session_id,
+    )
+
+    # Get results from user query
+    data_client = client_manager.redshift_data_client()
+    results_response = data_client.get_statement_result(Id=user_query_id)
+    return results_response, user_query_id
+
+
+async def _execute_statement(
+    cluster_info: dict,
+    cluster_identifier: str,
+    database_name: str,
+    sql: str,
+    parameters: list[dict] | None = None,
+    session_id: str | None = None,
+    session_keepalive: int | None = None,
+    query_poll_interval: float = QUERY_POLL_INTERVAL,
+    query_timeout: float = QUERY_TIMEOUT,
+) -> str:
+    """Execute a single statement with optional session support and parameters.
+
+    Args:
+        cluster_info: Cluster information dictionary.
+        cluster_identifier: The cluster identifier.
+        database_name: The database name.
+        sql: The SQL statement to execute.
+        parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
+        session_id: Optional session ID to use.
+        session_keepalive: Optional session keepalive seconds (only used when session_id is None).
+        query_poll_interval: Polling interval in seconds for checking query status.
+        query_timeout: Maximum time in seconds to wait for query completion.
+
+    Returns:
+        Statement ID from the ExecuteStatement response.
+    """
+    data_client = client_manager.redshift_data_client()
+
+    # Build request parameters
+    request_params: dict[str, str | int | list[dict]] = {'Sql': sql}
+
+    # Add database and cluster/workgroup identifier only if not using session
+    if not session_id:
+        request_params['Database'] = database_name
+        if cluster_info['type'] == 'provisioned':
+            request_params['ClusterIdentifier'] = cluster_identifier
+        elif cluster_info['type'] == 'serverless':
+            request_params['WorkgroupName'] = cluster_identifier
+        else:
+            raise Exception(f'Unknown cluster type: {cluster_info["type"]}')
+
+    # Add parameters if provided
+    if parameters:
+        request_params['Parameters'] = parameters
+
+    # Add session ID if provided, otherwise add session keepalive
+    if session_id:
+        request_params['SessionId'] = session_id
+    elif session_keepalive is not None:
+        request_params['SessionKeepAliveSeconds'] = session_keepalive
+
+    response = data_client.execute_statement(**request_params)
+    statement_id = response['Id']
+
+    logger.debug(
+        f'Executed statement: {statement_id}' + (f' in session {session_id}' if session_id else '')
+    )
+
+    # Wait for statement completion
     wait_time = 0
-    status_response = {}
-    while wait_time < QUERY_TIMEOUT:
-        status_response = data_client.describe_statement(Id=query_id)
+    while wait_time < query_timeout:
+        status_response = data_client.describe_statement(Id=statement_id)
         status = status_response['Status']
 
         if status == 'FINISHED':
-            logger.debug(f'Query execution completed: {query_id}')
+            logger.debug(f'Statement completed: {statement_id}')
             break
         elif status in ['FAILED', 'ABORTED']:
             error_msg = status_response.get('Error', 'Unknown error')
-            logger.error(f'Query execution failed: {error_msg}')
-            raise Exception(f'Query failed: {error_msg}')
+            logger.error(f'Statement failed: {error_msg}')
+            raise Exception(f'Statement failed: {error_msg}')
 
-        # Wait before polling again
-        await asyncio.sleep(QUERY_POLL_INTERVAL)
-        wait_time += QUERY_POLL_INTERVAL
+        await asyncio.sleep(query_poll_interval)
+        wait_time += query_poll_interval
 
-    if wait_time >= QUERY_TIMEOUT:
-        logger.error(f'Query execution timed out: {query_id}')
-        raise Exception(f'Query timed out after {QUERY_TIMEOUT} seconds')
+    if wait_time >= query_timeout:
+        logger.error(f'Statement timed out: {statement_id}')
+        raise Exception(f'Statement timed out after {wait_time} seconds')
 
-    # Get user query results
-    subquery2_id = status_response['SubStatements'][2]['Id']
-    results_response = data_client.get_statement_result(Id=subquery2_id)
-    return results_response, subquery2_id
+    return statement_id
 
 
 async def discover_clusters() -> list[dict]:
@@ -334,7 +471,7 @@ async def discover_databases(cluster_identifier: str, database_name: str = 'dev'
         logger.info(f'Discovering databases in cluster {cluster_identifier}')
 
         # Execute the query using the common function
-        results_response, _ = await execute_statement(
+        results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
             sql=SVV_REDSHIFT_DATABASES_QUERY,
@@ -379,10 +516,11 @@ async def discover_schemas(cluster_identifier: str, schema_database_name: str) -
         )
 
         # Execute the query using the common function
-        results_response, _ = await execute_statement(
+        results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=schema_database_name,
-            sql=SVV_ALL_SCHEMAS_QUERY.format(quote_literal_string(schema_database_name)),
+            sql=SVV_ALL_SCHEMAS_QUERY,
+            parameters=[{'name': 'database_name', 'value': schema_database_name}],
         )
 
         schemas = []
@@ -432,12 +570,14 @@ async def discover_tables(
         )
 
         # Execute the query using the common function
-        results_response, _ = await execute_statement(
+        results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=table_database_name,
-            sql=SVV_ALL_TABLES_QUERY.format(
-                quote_literal_string(table_database_name), quote_literal_string(table_schema_name)
-            ),
+            sql=SVV_ALL_TABLES_QUERY,
+            parameters=[
+                {'name': 'database_name', 'value': table_database_name},
+                {'name': 'schema_name', 'value': table_schema_name},
+            ],
         )
 
         tables = []
@@ -490,14 +630,15 @@ async def discover_columns(
         )
 
         # Execute the query using the common function
-        results_response, _ = await execute_statement(
+        results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=column_database_name,
-            sql=SVV_ALL_COLUMNS_QUERY.format(
-                quote_literal_string(column_database_name),
-                quote_literal_string(column_schema_name),
-                quote_literal_string(column_table_name),
-            ),
+            sql=SVV_ALL_COLUMNS_QUERY,
+            parameters=[
+                {'name': 'database_name', 'value': column_database_name},
+                {'name': 'schema_name', 'value': column_schema_name},
+                {'name': 'table_name', 'value': column_table_name},
+            ],
         )
 
         columns = []
@@ -554,7 +695,7 @@ async def execute_query(cluster_identifier: str, database_name: str, sql: str) -
         start_time = time.time()
 
         # Execute the query using the common function
-        results_response, query_id = await execute_statement(
+        results_response, query_id = await _execute_protected_statement(
             cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
         )
 
@@ -619,4 +760,9 @@ client_manager = RedshiftClientManager(
     ),
     aws_region=os.environ.get('AWS_REGION'),
     aws_profile=os.environ.get('AWS_PROFILE'),
+)
+
+# Global session manager instance
+session_manager = RedshiftSessionManager(
+    session_keepalive=SESSION_KEEPALIVE, app_name=f'{CLIENT_USER_AGENT_NAME}/{__version__}'
 )

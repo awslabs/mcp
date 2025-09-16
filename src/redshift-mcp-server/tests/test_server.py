@@ -39,147 +39,94 @@ class TestListClustersTool:
 
     @pytest.mark.asyncio
     async def test_list_clusters_tool_success(self, mocker):
-        """Test successful cluster discovery with both provisioned and serverless clusters."""
-        # Mock redshift client
-        mock_redshift_client = mocker.Mock()
-        mock_redshift_client.get_paginator.return_value.paginate.return_value = [
+        """Test successful cluster discovery."""
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
             {
-                'Clusters': [
-                    {
-                        'ClusterIdentifier': 'test-cluster',
-                        'ClusterStatus': 'available',
-                        'DBName': 'dev',
-                        'Endpoint': {
-                            'Address': 'test-cluster.abc123.us-east-1.redshift.amazonaws.com',
-                            'Port': 5439,
-                        },
-                        'VpcId': 'vpc-12345',
-                        'NodeType': 'dc2.large',
-                        'NumberOfNodes': 2,
-                        'ClusterCreateTime': '2023-01-01T00:00:00Z',
-                        'MasterUsername': 'testuser',
-                        'PubliclyAccessible': False,
-                        'Encrypted': True,
-                        'Tags': [{'Key': 'Environment', 'Value': 'test'}],
-                    }
-                ]
-            }
-        ]
-
-        # Mock serverless client
-        mock_serverless_client = mocker.Mock()
-        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+                'identifier': 'test-cluster',
+                'type': 'provisioned',
+                'status': 'available',
+                'database_name': 'dev',
+                'endpoint': 'test-cluster.abc123.us-east-1.redshift.amazonaws.com',
+                'port': 5439,
+                'vpc_id': 'vpc-12345',
+                'node_type': 'dc2.large',
+                'number_of_nodes': 2,
+                'creation_time': '2023-01-01T00:00:00Z',
+                'master_username': 'testuser',
+                'publicly_accessible': False,
+                'encrypted': True,
+                'tags': {'Environment': 'test'},
+            },
             {
-                'workgroups': [
-                    {
-                        'workgroupName': 'test-workgroup',
-                        'status': 'AVAILABLE',
-                        'creationDate': '2023-01-01T00:00:00Z',
-                    }
-                ]
-            }
-        ]
-        mock_serverless_client.get_workgroup.return_value = {
-            'workgroup': {
-                'workgroupName': 'test-workgroup',
+                'identifier': 'test-workgroup',
+                'type': 'serverless',
                 'status': 'AVAILABLE',
-                'creationDate': '2023-01-01T00:00:00Z',
-                'endpoint': {
-                    'address': 'test-workgroup.123456.us-east-1.redshift-serverless.amazonaws.com',
-                    'port': 5439,
-                },
-                'subnetIds': ['subnet-12345'],
-                'securityGroupIds': ['sg-12345'],
-            }
-        }
+                'database_name': 'dev',
+                'endpoint': 'test-workgroup.123456.us-east-1.redshift-serverless.amazonaws.com',
+                'port': 5439,
+                'vpc_id': 'subnet-12345',
+                'node_type': None,
+                'number_of_nodes': None,
+                'creation_time': '2023-01-01T00:00:00Z',
+                'master_username': None,
+                'publicly_accessible': False,
+                'encrypted': True,
+                'tags': {},
+            },
+        ]
 
-        # Patch client manager methods
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
-            return_value=mock_redshift_client,
-        )
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
-            return_value=mock_serverless_client,
-        )
-
-        # Test the tool
         result = await list_clusters_tool(Context())
 
-        # Verify results
+        # Verify return type and structure
+        assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(cluster, RedshiftCluster) for cluster in result)
 
-        # Check provisioned cluster
-        provisioned = next(c for c in result if c.type == 'provisioned')
-        assert provisioned.identifier == 'test-cluster'
-        assert provisioned.status == 'available'
-        assert provisioned.database_name == 'dev'
-        assert provisioned.port == 5439
+        # Verify first cluster
+        assert result[0].identifier == 'test-cluster'
+        assert result[0].type == 'provisioned'
+        assert result[0].status == 'available'
+        assert result[0].database_name == 'dev'
 
-        # Check serverless workgroup
-        serverless = next(c for c in result if c.type == 'serverless')
-        assert serverless.identifier == 'test-workgroup'
-        assert serverless.status == 'AVAILABLE'
+        # Verify second cluster
+        assert result[1].identifier == 'test-workgroup'
+        assert result[1].type == 'serverless'
+        assert result[1].status == 'AVAILABLE'
 
     @pytest.mark.asyncio
     async def test_list_clusters_tool_empty(self, mocker):
         """Test when no clusters are found."""
-        # Mock empty responses
-        mock_redshift_client = mocker.Mock()
-        mock_redshift_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
-
-        mock_serverless_client = mocker.Mock()
-        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
-            {'workgroups': []}
-        ]
-
-        # Patch client manager methods
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
-            return_value=mock_redshift_client,
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_clusters'
         )
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
-            return_value=mock_serverless_client,
-        )
+        mock_discover_clusters.return_value = []
 
-        # Test the tool
         result = await list_clusters_tool(Context())
 
-        # Verify empty result
-        assert len(result) == 0
+        # Verify return type
         assert isinstance(result, list)
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_list_clusters_tool_error(self, mocker):
-        """Test error handling when AWS API calls fail."""
-        # Mock client that raises exception
-        mock_redshift_client = mocker.Mock()
-        mock_redshift_client.get_paginator.side_effect = Exception('AWS API Error')
+        """Test list_clusters_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
 
-        mock_serverless_client = mocker.Mock()
-        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
-            {'workgroups': []}
-        ]
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
 
-        # Mock context
-        mock_context = mocker.Mock()
-        mock_context.error = mocker.AsyncMock()
-
-        # Patch client manager methods
         mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
-            return_value=mock_redshift_client,
-        )
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
-            return_value=mock_serverless_client,
+            'awslabs.redshift_mcp_server.server.discover_clusters',
+            side_effect=Exception('Test error'),
         )
 
-        # Test the tool - should raise exception
-        with pytest.raises(Exception, match='AWS API Error'):
-            await list_clusters_tool(mock_context)
+        with pytest.raises(Exception, match='Test error'):
+            await list_clusters_tool(mock_ctx)
+
+        mock_ctx.error.assert_called_once_with('Failed to list clusters: Test error')
 
 
 class TestListDatabasesTool:
@@ -187,141 +134,76 @@ class TestListDatabasesTool:
 
     @pytest.mark.asyncio
     async def test_list_databases_tool_success(self, mocker):
-        """Test successful database discovery with explicit database_name."""
-        # Mock data client for query execution
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {
-            'Records': [
-                [
-                    {'stringValue': 'dev'},
-                    {'longValue': 100},
-                    {'stringValue': 'local'},
-                    {'stringValue': 'user=admin'},
-                    {'stringValue': 'encoding=utf8'},
-                    {'stringValue': 'Snapshot Isolation'},
-                ],
-                [
-                    {'stringValue': 'test'},
-                    {'longValue': 101},
-                    {'stringValue': 'local'},
-                    {'stringValue': 'user=testuser'},
-                    {'stringValue': 'encoding=utf8'},
-                    {'stringValue': 'Serializable'},
-                ],
-            ]
-        }
-
-        # Mock cluster discovery to return a valid cluster
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        """Test successful database discovery."""
+        mock_discover_databases = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_databases'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        mock_discover_databases.return_value = [
+            {
+                'database_name': 'dev',
+                'database_owner': 100,
+                'database_type': 'local',
+                'database_acl': 'user=admin',
+                'database_options': 'encoding=utf8',
+                'database_isolation_level': 'Snapshot Isolation',
+            },
+            {
+                'database_name': 'test',
+                'database_owner': 101,
+                'database_type': 'shared',
+                'database_acl': 'user=readonly',
+                'database_options': 'encoding=utf8',
+                'database_isolation_level': 'Serializable',
+            },
         ]
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
+        result = await list_databases_tool(Context(), 'test-cluster', 'dev')
 
-        # Test the tool with explicit database_name
-        result = await list_databases_tool(
-            Context(), cluster_identifier='test-cluster', database_name='custom_db'
-        )
-
-        # Verify results
+        # Verify return type and structure
+        assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(db, RedshiftDatabase) for db in result)
 
-        # Check first database
+        # Verify database properties
         assert result[0].database_name == 'dev'
-        assert result[0].database_owner == 100
         assert result[0].database_type == 'local'
-
-        # Check second database
+        assert result[0].database_owner == 100
         assert result[1].database_name == 'test'
-        assert result[1].database_owner == 101
-        assert result[1].database_type == 'local'
+        assert result[1].database_type == 'shared'
 
     @pytest.mark.asyncio
     async def test_list_databases_tool_empty(self, mocker):
         """Test when no databases are found."""
-        # Mock data client with empty results
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {'Records': []}
-
-        # Mock cluster discovery to return a serverless workgroup
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        mock_discover_databases = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_databases'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-workgroup', 'type': 'serverless'}
-        ]
+        mock_discover_databases.return_value = []
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
+        result = await list_databases_tool(Context(), 'test-cluster', 'dev')
 
-        # Test the tool
-        result = await list_databases_tool(
-            Context(), cluster_identifier='test-workgroup', database_name='dev'
-        )
-
-        # Verify empty result
-        assert len(result) == 0
+        # Verify return type
         assert isinstance(result, list)
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_list_databases_tool_error(self, mocker):
-        """Test error handling when AWS API calls fail."""
-        # Mock data client that raises exception
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.side_effect = Exception('AWS API Error')
+        """Test list_databases_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
 
-        # Mock cluster discovery
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
 
-        # Mock context
-        mock_context = mocker.Mock()
-        mock_context.error = mocker.AsyncMock()
-
-        # Patch client manager
         mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
+            'awslabs.redshift_mcp_server.server.discover_databases',
+            side_effect=Exception('DB error'),
         )
 
-        # Test the tool - should raise exception
-        with pytest.raises(Exception, match='AWS API Error'):
-            await list_databases_tool(
-                mock_context, cluster_identifier='test-cluster', database_name='dev'
-            )
+        with pytest.raises(Exception, match='DB error'):
+            await list_databases_tool(mock_ctx, 'test-cluster')
+
+        mock_ctx.error.assert_called_once_with(
+            'Failed to list databases on cluster test-cluster: DB error'
+        )
 
 
 class TestListSchemasTool:
@@ -329,146 +211,74 @@ class TestListSchemasTool:
 
     @pytest.mark.asyncio
     async def test_list_schemas_tool_success(self, mocker):
-        """Test successful schema discovery with explicit schema_database_name."""
-        # Mock data client for query execution
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {
-            'Records': [
-                [
-                    {'stringValue': 'dev'},  # database_name
-                    {'stringValue': 'public'},  # schema_name
-                    {'longValue': 100},  # schema_owner
-                    {'stringValue': 'local'},  # schema_type
-                    {'stringValue': 'user=admin'},  # schema_acl
-                    {'stringValue': None},  # source_database
-                    {'stringValue': None},  # schema_option
-                ],
-                [
-                    {'stringValue': 'dev'},  # database_name
-                    {'stringValue': 'analytics'},  # schema_name
-                    {'longValue': 101},  # schema_owner
-                    {'stringValue': 'external'},  # schema_type
-                    {'stringValue': 'user=analyst'},  # schema_acl
-                    {'stringValue': 'external_db'},  # source_database
-                    {'stringValue': 'external_opt'},  # schema_option
-                ],
-            ]
-        }
-
-        # Mock cluster discovery to return a valid cluster
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        """Test successful schema discovery."""
+        mock_discover_schemas = mocker.patch('awslabs.redshift_mcp_server.server.discover_schemas')
+        mock_discover_schemas.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'schema_owner': 100,
+                'schema_type': 'local',
+                'schema_acl': 'user=admin',
+                'source_database': None,
+                'schema_option': None,
+            },
+            {
+                'database_name': 'dev',
+                'schema_name': 'external_schema',
+                'schema_owner': 100,
+                'schema_type': 'external',
+                'schema_acl': 'user=admin',
+                'source_database': 's3_source',
+                'schema_option': 'IAM_ROLE arn:aws:iam::123456789012:role/RedshiftRole',
+            },
         ]
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
+        result = await list_schemas_tool(Context(), 'test-cluster', 'dev')
 
-        # Test the tool with explicit schema_database_name
-        result = await list_schemas_tool(
-            Context(), cluster_identifier='test-cluster', schema_database_name='dev'
-        )
-
-        # Verify results
+        # Verify return type and structure
+        assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(schema, RedshiftSchema) for schema in result)
 
-        # Check first schema (local)
-        assert result[0].database_name == 'dev'
+        # Verify schema properties
         assert result[0].schema_name == 'public'
-        assert result[0].schema_owner == 100
         assert result[0].schema_type == 'local'
-
-        # Check second schema (external)
-        assert result[1].database_name == 'dev'
-        assert result[1].schema_name == 'analytics'
-        assert result[1].schema_owner == 101
+        assert result[0].database_name == 'dev'
+        assert result[1].schema_name == 'external_schema'
         assert result[1].schema_type == 'external'
-        assert result[1].source_database == 'external_db'
 
     @pytest.mark.asyncio
     async def test_list_schemas_tool_empty(self, mocker):
         """Test when no schemas are found."""
-        # Mock data client with empty results
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {'Records': []}
+        mock_discover_schemas = mocker.patch('awslabs.redshift_mcp_server.server.discover_schemas')
+        mock_discover_schemas.return_value = []
 
-        # Mock cluster discovery to return a serverless workgroup
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-workgroup', 'type': 'serverless'}
-        ]
+        result = await list_schemas_tool(Context(), 'test-cluster', 'dev')
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
-
-        # Test the tool
-        result = await list_schemas_tool(
-            Context(), cluster_identifier='test-workgroup', schema_database_name='test_db'
-        )
-
-        # Verify empty result
-        assert len(result) == 0
+        # Verify return type
         assert isinstance(result, list)
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_list_schemas_tool_error(self, mocker):
-        """Test error handling when AWS API calls fail."""
-        # Mock data client that raises exception
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.side_effect = Exception('AWS API Error')
+        """Test list_schemas_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
 
-        # Mock cluster discovery
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
 
-        # Mock context
-        mock_context = mocker.Mock()
-        mock_context.error = mocker.AsyncMock()
-
-        # Patch client manager
         mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
+            'awslabs.redshift_mcp_server.server.discover_schemas',
+            side_effect=Exception('Schema error'),
         )
 
-        # Test the tool - should raise exception
-        with pytest.raises(Exception, match='AWS API Error'):
-            await list_schemas_tool(
-                mock_context, cluster_identifier='test-cluster', schema_database_name='dev'
-            )
+        with pytest.raises(Exception, match='Schema error'):
+            await list_schemas_tool(mock_ctx, 'test-cluster', 'test-db')
+
+        mock_ctx.error.assert_called_once_with(
+            'Failed to list schemas in database test-db on cluster test-cluster: Schema error'
+        )
 
 
 class TestListTablesTool:
@@ -476,154 +286,72 @@ class TestListTablesTool:
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_success(self, mocker):
-        """Test successful table discovery with explicit parameters."""
-        # Mock data client for query execution
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {
-            'Records': [
-                [
-                    {'stringValue': 'dev'},  # database_name
-                    {'stringValue': 'public'},  # schema_name
-                    {'stringValue': 'users'},  # table_name
-                    {'stringValue': 'user=admin'},  # table_acl
-                    {'stringValue': 'TABLE'},  # table_type
-                    {'stringValue': 'User data'},  # remarks
-                ],
-                [
-                    {'stringValue': 'dev'},  # database_name
-                    {'stringValue': 'public'},  # schema_name
-                    {'stringValue': 'user_view'},  # table_name
-                    {'stringValue': 'user=analyst'},  # table_acl
-                    {'stringValue': 'VIEW'},  # table_type
-                    {'stringValue': 'User view'},  # remarks
-                ],
-            ]
-        }
-
-        # Mock cluster discovery to return a valid cluster
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        """Test successful table discovery."""
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.server.discover_tables')
+        mock_discover_tables.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'users',
+                'table_acl': 'user=admin',
+                'table_type': 'TABLE',
+                'remarks': 'User data table',
+            },
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'user_view',
+                'table_acl': 'user=admin',
+                'table_type': 'VIEW',
+                'remarks': 'User view',
+            },
         ]
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
+        result = await list_tables_tool(Context(), 'test-cluster', 'dev', 'public')
 
-        # Test the tool with explicit parameters
-        result = await list_tables_tool(
-            Context(),
-            cluster_identifier='test-cluster',
-            table_database_name='dev',
-            table_schema_name='public',
-        )
-
-        # Verify results
+        # Verify return type and structure
+        assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(table, RedshiftTable) for table in result)
 
-        # Check first table (base table)
-        assert result[0].database_name == 'dev'
-        assert result[0].schema_name == 'public'
+        # Verify table properties
         assert result[0].table_name == 'users'
         assert result[0].table_type == 'TABLE'
-        assert result[0].remarks == 'User data'
-
-        # Check second table (view)
-        assert result[1].database_name == 'dev'
-        assert result[1].schema_name == 'public'
+        assert result[0].schema_name == 'public'
         assert result[1].table_name == 'user_view'
         assert result[1].table_type == 'VIEW'
-        assert result[1].remarks == 'User view'
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_empty(self, mocker):
         """Test when no tables are found."""
-        # Mock data client with empty results
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {'Records': []}
+        mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.server.discover_tables')
+        mock_discover_tables.return_value = []
 
-        # Mock cluster discovery to return a serverless workgroup
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-workgroup', 'type': 'serverless'}
-        ]
+        result = await list_tables_tool(Context(), 'test-cluster', 'dev', 'public')
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
-
-        # Test the tool
-        result = await list_tables_tool(
-            Context(),
-            cluster_identifier='test-workgroup',
-            table_database_name='test_db',
-            table_schema_name='empty_schema',
-        )
-
-        # Verify empty result
-        assert len(result) == 0
+        # Verify return type
         assert isinstance(result, list)
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_error(self, mocker):
-        """Test error handling when AWS API calls fail."""
-        # Mock data client that raises exception
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.side_effect = Exception('AWS API Error')
+        """Test list_tables_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
 
-        # Mock cluster discovery
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
 
-        # Mock context
-        mock_context = mocker.Mock()
-        mock_context.error = mocker.AsyncMock()
-
-        # Patch client manager
         mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
+            'awslabs.redshift_mcp_server.server.discover_tables',
+            side_effect=Exception('Table error'),
         )
 
-        # Test the tool - should raise exception
-        with pytest.raises(Exception, match='AWS API Error'):
-            await list_tables_tool(
-                mock_context,
-                cluster_identifier='test-cluster',
-                table_database_name='dev',
-                table_schema_name='public',
-            )
+        with pytest.raises(Exception, match='Table error'):
+            await list_tables_tool(mock_ctx, 'test-cluster', 'test-db', 'test-schema')
+
+        mock_ctx.error.assert_called_once_with(
+            'Failed to list tables in schema test-schema in database test-db on cluster test-cluster: Table error'
+        )
 
 
 class TestListColumnsTool:
@@ -631,176 +359,88 @@ class TestListColumnsTool:
 
     @pytest.mark.asyncio
     async def test_list_columns_tool_success(self, mocker):
-        """Test successful column discovery with explicit parameters."""
-        # Mock data client for query execution
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-301'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-301'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {
-            'Records': [
-                [
-                    {'stringValue': 'dev'},  # database_name
-                    {'stringValue': 'public'},  # schema_name
-                    {'stringValue': 'users'},  # table_name
-                    {'stringValue': 'id'},  # column_name
-                    {'longValue': 1},  # ordinal_position
-                    {'stringValue': None},  # column_default
-                    {'stringValue': 'NO'},  # is_nullable
-                    {'stringValue': 'integer'},  # data_type
-                    {'longValue': None},  # character_maximum_length
-                    {'longValue': None},  # numeric_precision
-                    {'longValue': None},  # numeric_scale
-                    {'stringValue': 'SK'},  # remarks
-                ],
-                [
-                    {'stringValue': 'dev'},  # database_name
-                    {'stringValue': 'public'},  # schema_name
-                    {'stringValue': 'users'},  # table_name
-                    {'stringValue': 'name'},  # column_name
-                    {'longValue': 2},  # ordinal_position
-                    {'stringValue': None},  # column_default
-                    {'stringValue': 'YES'},  # is_nullable
-                    {'stringValue': 'varchar'},  # data_type
-                    {'longValue': 255},  # character_maximum_length
-                    {'longValue': None},  # numeric_precision
-                    {'longValue': None},  # numeric_scale
-                    {'stringValue': 'User name'},  # remarks
-                ],
-            ]
-        }
-
-        # Mock cluster discovery to return a valid cluster
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        """Test successful column discovery."""
+        mock_discover_columns = mocker.patch('awslabs.redshift_mcp_server.server.discover_columns')
+        mock_discover_columns.return_value = [
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'users',
+                'column_name': 'id',
+                'ordinal_position': 1,
+                'column_default': None,
+                'is_nullable': 'NO',
+                'data_type': 'integer',
+                'character_maximum_length': None,
+                'numeric_precision': None,
+                'numeric_scale': None,
+                'remarks': 'Primary key',
+            },
+            {
+                'database_name': 'dev',
+                'schema_name': 'public',
+                'table_name': 'users',
+                'column_name': 'name',
+                'ordinal_position': 2,
+                'column_default': None,
+                'is_nullable': 'YES',
+                'data_type': 'varchar',
+                'character_maximum_length': 255,
+                'numeric_precision': None,
+                'numeric_scale': None,
+                'remarks': 'User name',
+            },
         ]
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
+        result = await list_columns_tool(Context(), 'test-cluster', 'dev', 'public', 'users')
 
-        # Test the tool with explicit parameters
-        result = await list_columns_tool(
-            Context(),
-            cluster_identifier='test-cluster',
-            column_database_name='dev',
-            column_schema_name='public',
-            column_table_name='users',
-        )
-
-        # Verify results
+        # Verify return type and structure
+        assert isinstance(result, list)
         assert len(result) == 2
         assert all(isinstance(column, RedshiftColumn) for column in result)
 
-        # Check first column (integer, not nullable)
-        assert result[0].database_name == 'dev'
-        assert result[0].schema_name == 'public'
-        assert result[0].table_name == 'users'
+        # Verify column properties
         assert result[0].column_name == 'id'
-        assert result[0].ordinal_position == 1
-        assert result[0].is_nullable == 'NO'
         assert result[0].data_type == 'integer'
-        assert result[0].remarks == 'SK'
-
-        # Check second column (varchar, nullable)
-        assert result[1].database_name == 'dev'
-        assert result[1].schema_name == 'public'
-        assert result[1].table_name == 'users'
+        assert result[0].is_nullable == 'NO'
+        assert result[0].ordinal_position == 1
         assert result[1].column_name == 'name'
-        assert result[1].ordinal_position == 2
-        assert result[1].is_nullable == 'YES'
         assert result[1].data_type == 'varchar'
         assert result[1].character_maximum_length == 255
-        assert result[1].remarks == 'User name'
 
     @pytest.mark.asyncio
     async def test_list_columns_tool_empty(self, mocker):
         """Test when no columns are found."""
-        # Mock data client with empty results
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-402'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-402'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {'Records': []}
+        mock_discover_columns = mocker.patch('awslabs.redshift_mcp_server.server.discover_columns')
+        mock_discover_columns.return_value = []
 
-        # Mock cluster discovery to return a serverless workgroup
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-workgroup', 'type': 'serverless'}
-        ]
+        result = await list_columns_tool(Context(), 'test-cluster', 'dev', 'public', 'users')
 
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
-
-        # Test the tool
-        result = await list_columns_tool(
-            Context(),
-            cluster_identifier='test-workgroup',
-            column_database_name='test_db',
-            column_schema_name='empty_schema',
-            column_table_name='empty_table',
-        )
-
-        # Verify empty result
-        assert len(result) == 0
+        # Verify return type
         assert isinstance(result, list)
+        assert len(result) == 0
 
     @pytest.mark.asyncio
     async def test_list_columns_tool_error(self, mocker):
-        """Test error handling when AWS API calls fail."""
-        # Mock data client that raises exception
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.side_effect = Exception('AWS API Error')
+        """Test list_columns_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
 
-        # Mock cluster discovery
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
 
-        # Mock context
-        mock_context = mocker.Mock()
-        mock_context.error = mocker.AsyncMock()
-
-        # Patch client manager
         mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
+            'awslabs.redshift_mcp_server.server.discover_columns',
+            side_effect=Exception('Column error'),
         )
 
-        # Test the tool - should raise exception
-        with pytest.raises(Exception, match='AWS API Error'):
+        with pytest.raises(Exception, match='Column error'):
             await list_columns_tool(
-                mock_context,
-                cluster_identifier='test-cluster',
-                column_database_name='dev',
-                column_schema_name='public',
-                column_table_name='users',
+                mock_ctx, 'test-cluster', 'test-db', 'test-schema', 'test-table'
             )
+
+        mock_ctx.error.assert_called_once_with(
+            'Failed to list columns in table test-table in schema test-schema in database test-db on cluster test-cluster: Column error'
+        )
 
 
 class TestExecuteQueryTool:
@@ -808,62 +448,19 @@ class TestExecuteQueryTool:
 
     @pytest.mark.asyncio
     async def test_execute_query_tool_success(self, mocker):
-        """Test successful query execution with mixed data types."""
-        # Mock data client for query execution
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'set-app-name'},  # SET application_name
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
+        """Test successful query execution."""
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {
+            'columns': ['id', 'name', 'age', 'active', 'score'],
+            'rows': [
+                [1, 'Sergey', 54, True, 95.5],
+                [2, 'Max', 42, False, None],
             ],
-        }
-        mock_data_client.get_statement_result.return_value = {
-            'ColumnMetadata': [
-                {'name': 'id'},
-                {'name': 'name'},
-                {'name': 'age'},
-                {'name': 'active'},
-                {'name': 'score'},
-            ],
-            'Records': [
-                [
-                    {'longValue': 1},
-                    {'stringValue': 'Sergey'},
-                    {'longValue': 54},
-                    {'booleanValue': True},
-                    {'doubleValue': 95.5},
-                ],
-                [
-                    {'longValue': 2},
-                    {'stringValue': 'Max'},
-                    {'longValue': 42},
-                    {'booleanValue': False},
-                    {'isNull': True},
-                ],
-            ],
-            'QueryStatus': 'FINISHED',
-            'TotalExecutionTimeInMillis': 123,
+            'row_count': 2,
+            'execution_time_ms': 123,
+            'query_id': 'query-123',
         }
 
-        # Mock cluster discovery to return a valid cluster
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
-
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
-
-        # Test the tool with a SELECT query
         result = await execute_query_tool(
             Context(),
             cluster_identifier='test-cluster',
@@ -871,56 +468,30 @@ class TestExecuteQueryTool:
             sql='SELECT id, name, age, active, score FROM users LIMIT 2',
         )
 
-        # Verify results
+        # Verify return type and structure
         assert isinstance(result, QueryResult)
+
+        # Verify query result properties
         assert result.columns == ['id', 'name', 'age', 'active', 'score']
-        assert result.row_count == 2
-        assert result.query_id == 'query-123'
-        assert result.execution_time_ms is not None
-        assert result.execution_time_ms >= 0
-
-        # Check first row data types
+        assert len(result.rows) == 2
         assert result.rows[0] == [1, 'Sergey', 54, True, 95.5]
-
-        # Check second row with null value
         assert result.rows[1] == [2, 'Max', 42, False, None]
+        assert result.row_count == 2
+        assert result.execution_time_ms == 123
+        assert result.query_id == 'query-123'
 
     @pytest.mark.asyncio
     async def test_execute_query_tool_empty_results(self, mocker):
         """Test query execution with no results."""
-        # Mock data client with empty results
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.return_value = {'Id': 'batch-query-123'}
-        mock_data_client.describe_statement.return_value = {
-            'Status': 'FINISHED',
-            'SubStatements': [
-                {'Id': 'sub-query-0'},  # BEGIN READ ONLY
-                {'Id': 'query-123'},  # Our actual SQL query
-                {'Id': 'sub-query-2'},  # END
-            ],
-        }
-        mock_data_client.get_statement_result.return_value = {
-            'ColumnMetadata': [{'name': 'count'}],
-            'Records': [],
-            'QueryStatus': 'FINISHED',
-            'TotalExecutionTimeInMillis': 123,
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {
+            'columns': ['count'],
+            'rows': [],
+            'row_count': 0,
+            'execution_time_ms': 45,
+            'query_id': 'query-456',
         }
 
-        # Mock cluster discovery to return a serverless workgroup
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-workgroup', 'type': 'serverless'}
-        ]
-
-        # Patch client manager
-        mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
-        )
-
-        # Test the tool
         result = await execute_query_tool(
             Context(),
             cluster_identifier='test-workgroup',
@@ -928,42 +499,32 @@ class TestExecuteQueryTool:
             sql='SELECT COUNT(*) FROM empty_table',
         )
 
-        # Verify empty result
+        # Verify return type and structure
         assert isinstance(result, QueryResult)
+
+        # Verify empty result properties
         assert result.columns == ['count']
-        assert result.row_count == 0
         assert len(result.rows) == 0
+        assert result.row_count == 0
+        assert result.execution_time_ms == 45
+        assert result.query_id == 'query-456'
 
     @pytest.mark.asyncio
     async def test_execute_query_tool_error(self, mocker):
-        """Test error handling when query execution fails."""
-        # Mock data client that raises exception
-        mock_data_client = mocker.Mock()
-        mock_data_client.batch_execute_statement.side_effect = Exception('AWS API Error')
+        """Test execute_query_tool error handling."""
+        from unittest.mock import AsyncMock, Mock
 
-        # Mock cluster discovery
-        mock_discover_clusters = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.discover_clusters'
-        )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
 
-        # Mock context
-        mock_context = mocker.Mock()
-        mock_context.error = mocker.AsyncMock()
-
-        # Patch client manager
         mocker.patch(
-            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
-            return_value=mock_data_client,
+            'awslabs.redshift_mcp_server.server.execute_query',
+            side_effect=Exception('Query error'),
         )
 
-        # Test the tool - should raise exception
-        with pytest.raises(Exception, match='AWS API Error'):
-            await execute_query_tool(
-                mock_context,
-                cluster_identifier='test-cluster',
-                database_name='dev',
-                sql='SELECT * FROM users',
-            )
+        with pytest.raises(Exception, match='Query error'):
+            await execute_query_tool(mock_ctx, 'test-cluster', 'test-db', 'SELECT 1')
+
+        mock_ctx.error.assert_called_once_with(
+            'Failed to execute query on cluster test-cluster in database test-db: Query error'
+        )
