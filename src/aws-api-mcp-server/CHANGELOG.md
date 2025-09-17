@@ -7,11 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.14] - 2025-09-15
+
+### Added
+
+- Agent Script for debugging Lambda timeouts (#1271)
+- Agent Script for failure troubleshooting (#1276)
+- Safe execution for AWS APIs within working directory (#1261)
+
+## [0.2.13] - 2025-09-10
+
 ### Added
 
 - Support for custom security policy configuration via `~/.aws/aws-api-mcp/mcp-security-policy.json` file (#1213)
 - Custom deny list and elicitation required lists for AWS operations with pattern matching support (#1213)
 - Documentation for security policy configuration in README (#1240)
+
+## [0.2.12] - 2025-09-04
+
+### Added
+
 - Support for custom agent scripts directory via `AWS_API_MCP_AGENT_SCRIPTS_DIR` environment variable (#1227)
 - Scrubbing of sensitive logs (#1228)
 
