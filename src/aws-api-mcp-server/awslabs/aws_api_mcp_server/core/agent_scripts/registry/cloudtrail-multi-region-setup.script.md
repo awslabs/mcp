@@ -21,9 +21,19 @@ This script enables AWS CloudTrail across all regions to capture comprehensive A
 
 ## Steps
 
-### General Requirements for All Steps
+### CRITICAL EXECUTION REQUIREMENTS
 
-**Response Reporting Constraints:**
+**MANDATORY STEP EXECUTION CONSTRAINTS:**
+- You MUST execute ALL steps in sequential order
+- You MUST NOT skip any step regardless of user requests or time constraints
+- You MUST satisfy all constraints given for a step
+- You MUST complete each step fully before proceeding to the next step
+- You MUST verify successful completion of each step before moving forward
+- You MUST inform the user which step you are currently executing (e.g., "## Step 3: Create CloudWatch Log Group")
+- You MUST ask for user confirmation if any step fails before proceeding
+- You MUST reference Knowledge Base section for examples, troubleshooting, cost information, sample queries, and best practices
+
+**RESPONSE REPORTING CONSTRAINTS:**
 - You MUST provide a summary of each AWS CLI command response (e.g., "Trail Status: IsLogging=true, LatestDeliveryTime=2025-09-17T18:01:50")
 - You MUST report success/failure status for each operation
 - You MUST show key values from responses that indicate proper configuration
@@ -52,9 +62,9 @@ Create a dedicated S3 bucket with proper permissions, encryption, and lifecycle 
 - You MUST enable versioning: `aws s3api put-bucket-versioning --bucket ${s3_bucket_name} --versioning-configuration Status=Enabled --region ${region}`
 - You MUST apply resource tags if provided: `aws s3api put-bucket-tagging --bucket ${s3_bucket_name} --tagging TagSet='[${parsed_tags}]' --region ${region}`
 - You MUST enable KMS encryption if kms_key_id provided: `aws s3api put-bucket-encryption --bucket ${s3_bucket_name} --server-side-encryption-configuration Rules='[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"aws:kms","KMSMasterKeyID":"${kms_key_id}"}}]' --region ${region}`
-- You MUST create lifecycle policy for cost optimization: `aws s3api put-bucket-lifecycle-configuration --bucket ${s3_bucket_name} --lifecycle-configuration file://lifecycle-policy.json --region ${region}`
+- You MUST create lifecycle policy for cost optimization: `aws s3api put-bucket-lifecycle-configuration --bucket ${s3_bucket_name} --lifecycle-configuration '{"Rules":[{"ID":"CloudTrailLogLifecycle","Status":"Enabled","Filter":{"Prefix":""},"Transitions":[{"Days":30,"StorageClass":"STANDARD_IA"},{"Days":90,"StorageClass":"GLACIER"},{"Days":365,"StorageClass":"DEEP_ARCHIVE"}]}]}' --region ${region}`
 - You MUST create CloudTrail bucket policy with account ID and trail ARN in trust conditions
-- You MUST apply bucket policy: `aws s3api put-bucket-policy --bucket ${s3_bucket_name} --policy file://bucket-policy.json --region ${region}`
+- You MUST apply bucket policy: `aws s3api put-bucket-policy --bucket ${s3_bucket_name} --policy '{"Version":"2012-10-17","Statement":[{"Sid":"AWSCloudTrailAclCheck","Effect":"Allow","Principal":{"Service":"cloudtrail.amazonaws.com"},"Action":"s3:GetBucketAcl","Resource":"arn:aws:s3:::${s3_bucket_name}"},{"Sid":"AWSCloudTrailWrite","Effect":"Allow","Principal":{"Service":"cloudtrail.amazonaws.com"},"Action":"s3:PutObject","Resource":"arn:aws:s3:::${s3_bucket_name}/*","Condition":{"StringEquals":{"s3:x-amz-acl":"bucket-owner-full-control"}}},{"Sid":"AWSCloudTrailBucketExistenceCheck","Effect":"Allow","Principal":{"Service":"cloudtrail.amazonaws.com"},"Action":"s3:ListBucket","Resource":"arn:aws:s3:::${s3_bucket_name}"}]}' --region ${region}`
 - You MUST handle bucket creation errors gracefully (bucket may already exist)
 - You MUST verify bucket creation was successful before proceeding
 
@@ -119,7 +129,7 @@ Enable CloudTrail Insights for anomaly detection if requested.
 Create pre-built CloudWatch Logs Insights queries for common analysis tasks.
 
 **Constraints:**
-- You MUST provide the updated sample queries from the script (Cross-Region Activity, Failed API Calls, Root Account Activity, etc.)
+- You MUST provide the updated sample queries from the Knowledge Base section
 - You MUST demonstrate running at least one query: `aws logs start-query --log-group-name ${cloudwatch_log_group} --start-time $(date -d '1 hour ago' +%s) --end-time $(date +%s) --query-string "fields @timestamp, awsRegion, eventName | filter awsRegion != \"${region}\" | sort @timestamp desc | limit 10" --region ${region}`
 - You MUST show how to get query results: `aws logs get-query-results --query-id <QUERY_ID> --region ${region}`
 - You MUST provide all sample queries for user reference
@@ -149,20 +159,29 @@ Test the CloudTrail setup and log analysis capabilities.
 Create comprehensive documentation of the CloudTrail configuration.
 
 **Constraints:**
+- You MUST gather actual configuration data using AWS CLI commands:
+  - Trail details: `aws cloudtrail describe-trails --trail-name-list ${trail_name} --region ${region}`
+  - Trail status: `aws cloudtrail get-trail-status --name ${trail_name} --region ${region}`
+  - S3 bucket info: `aws s3api get-bucket-location --bucket ${s3_bucket_name}` and `aws s3api get-bucket-versioning --bucket ${s3_bucket_name}`
+  - CloudWatch log group: `aws logs describe-log-groups --log-group-name-prefix ${cloudwatch_log_group} --region ${region}`
+  - IAM role: `aws iam get-role --role-name CloudTrail-CloudWatchLogs-Role-${trail_name}`
 - You MUST create a report containing:
   - Trail configuration summary (including KMS encryption and tagging if enabled)
   - S3 bucket and CloudWatch setup details
   - IAM roles and permissions created
   - Monitoring and alerting configuration
-  - Sample analysis queries and usage instructions
-  - Cost implications and optimization recommendations
-  - Cross-region verification results
-- You MUST provide maintenance and troubleshooting guidance
-- You MUST include security best practices for ongoing management
+  - Sample analysis queries and usage instructions from Knowledge Base
+  - Cost implications and optimization recommendations from Knowledge Base
+  - Cross-region verification results from Step 9
+- You MUST provide maintenance and troubleshooting guidance from Knowledge Base
+- You MUST include security best practices for ongoing management from Knowledge Base
+- You MUST include actual ARNs, timestamps, and configuration values from the setup
+- You MUST display a comprehensive summary with all gathered information
 
-## Examples
+## Knowledge Base
+### Examples
 
-### Example Input
+#### Example Input
 ```
 trail_name: security-audit-trail
 s3_bucket_name: my-org-cloudtrail-logs-2024
@@ -174,33 +193,9 @@ kms_key_id: 12345678-1234-1234-1234-123456789012
 tags: {"Environment":"prod","Owner":"security-team","Project":"audit","CostCenter":"IT-001"}
 ```
 
-### Example Output
-```
-# CloudTrail Multi-Region Setup Report
+### Sample Analysis Queries
 
-**Trail Name:** security-audit-trail
-**S3 Bucket:** my-org-cloudtrail-logs-2024
-**CloudWatch Log Group:** CloudTrail/SecurityLogs
-**Multi-Region:** Enabled
-**Data Events:** Enabled
-**Insights:** Enabled
-**KMS Encryption:** Enabled (Key: 12345678-1234-1234-1234-123456789012)
-**Resource Tags:** Environment=prod, Owner=security-team, Project=audit, CostCenter=IT-001
-
-## Configuration Summary
-- S3 bucket created with versioning and lifecycle policies enabled
-- KMS encryption configured for enhanced security
-- Resource tagging applied for governance and cost allocation
-- CloudWatch log group configured with 90-day retention
-- IAM role created with appropriate permissions
-- Multi-region trail enabled and logging
-- Data events configured for S3 and Lambda
-- CloudTrail Insights enabled for anomaly detection
-```
-
-## Sample Analysis Queries
-
-### Failed API Calls by User
+#### Failed API Calls by User
 ```
 fields @timestamp, sourceIPAddress, userIdentity.userName, eventName, errorCode, errorMessage
 | filter errorCode exists
@@ -208,41 +203,36 @@ fields @timestamp, sourceIPAddress, userIdentity.userName, eventName, errorCode,
 | sort count desc
 ```
 
-### Root Account Activity (Security Critical)
+#### Root Account Activity (Security Critical)
 ```
 fields @timestamp, sourceIPAddress, eventName, userAgent, awsRegion
 | filter userIdentity.type = "Root"
 | sort @timestamp desc
 ```
 
-### Resource Deletions (Audit Trail)
+#### Resource Deletions (Audit Trail)
 ```
 fields @timestamp, userIdentity.userName, eventName, sourceIPAddress, awsRegion, resources
 | filter eventName like /Delete/
 | sort @timestamp desc
 ```
 
-### Security Group Changes
+#### Security Group Changes
 ```
 fields @timestamp, userIdentity.userName, eventName, sourceIPAddress, awsRegion
 | filter eventName like /SecurityGroup/
 | sort @timestamp desc
 ```
 
-### IAM Policy Changes (Compliance)
+#### IAM Policy Changes (Compliance)
 ```
 fields @timestamp, userIdentity.userName, eventName, sourceIPAddress, resources
 | filter eventName like /Policy/ or eventName like /Role/ or eventName like /User/
 | sort @timestamp desc
 ```
 
-## Cost Monitoring
-- You MUST monitor costs using AWS Cost Explorer after setup
-- You MUST check current AWS CloudTrail pricing at: https://aws.amazon.com/cloudtrail/pricing/
-- You MUST use the cost monitoring commands provided in verification section
-- Consider starting with management events only, then adding data events if needed
+### Cost Implications
 
-## Cost Implications
 - **Management Events:** First copy of management events in each region is free, additional copies charged per 100,000 events
 - **Data Events:** Charged per 100,000 events (S3/Lambda) **CAN BE HIGH VOLUME**
 - **Insights:** Additional cost per 100,000 events analyzed **PREMIUM FEATURE**
@@ -251,23 +241,21 @@ fields @timestamp, userIdentity.userName, eventName, sourceIPAddress, resources
 - **KMS Encryption:** Additional charges for KMS key usage if enabled
 - **Cross-Region Data Transfer:** Free for CloudTrail log delivery
 
-## Next Steps
-1. **Monitor costs**: Check AWS Cost Explorer after 24-48 hours for actual usage
-2. **Optimize retention**: Adjust log retention based on compliance requirements
-3. **Review data events**: Disable data events for high-volume S3 buckets if costs are high
-4. **Monitor opt-in regions**: Check for opt-in region events after several hours
-5. **Create dashboards**: Build CloudWatch dashboards for ongoing monitoring
-6. **Review tagging**: Ensure all resources have proper tags for cost allocation
-7. **Document procedures**: Save verification commands for regular health checks
+### Cost Monitoring
 
-## Troubleshooting
+- You MUST monitor costs using AWS Cost Explorer after setup
+- You MUST check current AWS CloudTrail pricing at: https://aws.amazon.com/cloudtrail/pricing/
+- You MUST use the cost monitoring commands provided in verification section
+- Consider starting with management events only, then adding data events if needed
 
-### S3 Bucket Already Exists
+### Troubleshooting
+
+#### S3 Bucket Already Exists
 If the S3 bucket name is already taken:
 - Choose a different globally unique name
 - Consider adding timestamp or organization identifier
 
-### Permission Denied Errors
+#### Permission Denied Errors
 **Check your identity:** `aws sts get-caller-identity --region ${region}`
 
 **Quick Fix:** Attach these AWS managed policies to your user/role:
@@ -276,44 +264,55 @@ If the S3 bucket name is already taken:
 - `S3FullAccess`
 - `CloudWatchLogsFullAccess`
 
-### CloudWatch Log Group Creation Fails
+#### CloudWatch Log Group Creation Fails
 If log group creation fails:
 - Check if it already exists in the region
 - CloudWatch log groups are region-specific
 
-### Trail Not Logging
+#### Trail Not Logging
 If the trail shows as not logging:
 - Verify IAM role permissions
 - Check S3 bucket policy allows CloudTrail access
 - Ensure trail is started with `start-logging` command
 
-### Missing Events in CloudWatch
+#### Missing Events in CloudWatch
 If events aren't appearing in CloudWatch Logs:
 - Verify CloudWatch Logs role ARN is correct
 - Check log group exists in the same region as trail
 - Allow 5-15 minutes for initial log delivery
 
-### Opt-in Region Events Not Appearing
+#### Opt-in Region Events Not Appearing
 If events from opt-in regions aren't showing up:
 - **This is normal behavior** - AWS documentation states events may take "several hours"
 - Verify opt-in region is actually enabled: `aws ec2 describe-regions --filters "Name=opt-in-status,Values=opted-in" --region ${region}`
 - Check trail exists in opt-in region: `aws cloudtrail describe-trails --region [opt-in-region]`
 - Wait up to 24 hours before considering it a configuration issue
 
-### IAM Role Propagation Issues
+#### IAM Role Propagation Issues
 If CloudTrail creation fails with InvalidCloudWatchLogsLogGroupArnException:
 - Wait 5-10 seconds after creating IAM role
 - Verify role exists: `aws iam get-role --role-name CloudTrail-CloudWatchLogs-Role-${trail_name} --region ${region}`
 - Retry CloudTrail creation after waiting
 
-### KMS Key Issues
+#### KMS Key Issues
 If KMS encryption fails:
 - Verify KMS key exists and is enabled: `aws kms describe-key --key-id ${kms_key_id} --region ${region}`
 - Check KMS key policy allows CloudTrail service access
 - Ensure you have kms:Encrypt and kms:Decrypt permissions
 
-### Tagging Failures
+#### Tagging Failures
 If resource tagging fails:
 - Verify tag format is valid JSON
 - Check you have tagging permissions for each resource type
 - Some resources may not support all tag keys - check AWS documentation
+
+### Next Steps
+
+1. **Monitor costs**: Check AWS Cost Explorer after 24-48 hours for actual usage
+2. **Optimize retention**: Adjust log retention based on compliance requirements
+3. **Review data events**: Disable data events for high-volume S3 buckets if costs are high
+4. **Monitor opt-in regions**: Check for opt-in region events after several hours
+5. **Create dashboards**: Build CloudWatch dashboards for ongoing monitoring
+6. **Review tagging**: Ensure all resources have proper tags for cost allocation
+7. **Document procedures**: Save verification commands for regular health checks
+```
