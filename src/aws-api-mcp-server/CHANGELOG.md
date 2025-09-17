@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Agent script for CloudTrail Multi-Region Setup (#1299)
+
 ### Fixed
 
 - Loading of security policy from `~/.aws/aws-api-mcp/mcp-security-policy.json` (#1311)
@@ -34,7 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support for custom agent scripts directory via `AWS_API_MCP_AGENT_SCRIPTS_DIR` environment variable (#1227)
 - Scrubbing of sensitive logs (#1228)
-- Add Agent script for CloudTrail Multi-Region Setup (#1299)
 
 ## [0.2.11] - 2025-08-29
 

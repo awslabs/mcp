@@ -39,11 +39,7 @@ Check for required tools and permissions before starting the setup.
   - call_aws
 - You MUST inform the user about any missing tools with a clear message
 - You MUST verify AWS credentials: `aws sts get-caller-identity --region ${region}`
-- You MUST simulate all required permissions using the principal ARN from get-caller-identity:
-  `aws iam simulate-principal-policy --policy-source-arn ${principal_arn} --action-names cloudtrail:CreateTrail,cloudtrail:StartLogging,cloudtrail:PutEventSelectors,cloudtrail:AddTags,s3:CreateBucket,s3:PutBucketPolicy,s3:PutBucketVersioning,s3:PutBucketTagging,s3:PutBucketEncryption,s3:PutBucketLifecycleConfiguration,iam:CreateRole,iam:AttachRolePolicy,iam:PutRolePolicy,iam:TagRole,logs:CreateLogGroup,logs:PutRetentionPolicy,logs:TagLogGroup,kms:Encrypt,kms:Decrypt --region ${region}`
-- You MUST check that all simulated actions return "allowed" in the evaluation results
-- You MUST inform the user about any insufficient permissions with a clear message
-- You MUST ask if the user wants to proceed anyway despite missing permissions
+- You MUST ask if the user wants to proceed anyway despite missing tools
 - You MUST respect the user's decision to proceed or abort
 
 ### 2. Create S3 Bucket for CloudTrail Logs
@@ -272,9 +268,13 @@ If the S3 bucket name is already taken:
 - Consider adding timestamp or organization identifier
 
 ### Permission Denied Errors
-Ensure your AWS credentials have sufficient permissions:
-- You may need `CloudTrailFullAccess` and `IAMFullAccess` policies
-- Verify permissions for CloudTrail, S3, CloudWatch, and IAM operations
+**Check your identity:** `aws sts get-caller-identity --region ${region}`
+
+**Quick Fix:** Attach these AWS managed policies to your user/role:
+- `CloudTrailFullAccess`
+- `IAMFullAccess`
+- `S3FullAccess`
+- `CloudWatchLogsFullAccess`
 
 ### CloudWatch Log Group Creation Fails
 If log group creation fails:
