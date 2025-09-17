@@ -126,7 +126,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -144,7 +144,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -204,7 +204,7 @@ Configure in your workspace or global settings:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -222,7 +222,7 @@ Configure in your workspace or global settings:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
