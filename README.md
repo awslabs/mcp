@@ -13,33 +13,34 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
   - [Server Sent Events Support Removal](#server-sent-events-support-removal)
-  - [Why AWS MCP Servers?](#why-aws-mcp-servers)
+    - [Why AWS MCP Servers?](#why-aws-mcp-servers)
   - [Available MCP Servers: Quick Installation](#available-mcp-servers-quick-installation)
-    - [🚀Getting Started with AWS](#-getting-started-with-aws)
+    - [🚀 Getting Started with AWS](#-getting-started-with-aws)
     - [Browse by What You're Building](#browse-by-what-youre-building)
       - [📚 Real-time access to official AWS documentation](#-real-time-access-to-official-aws-documentation)
-      - [🏗️ Infrastructure \& Deployment](#️-infrastructure--deployment)
-        - [Infrastructure as Code](#infrastructure-as-code)
-        - [Container Platforms](#container-platforms)
-        - [Serverless \& Functions](#serverless--functions)
-        - [Support](#support)
-      - [🤖 AI \& Machine Learning](#-ai--machine-learning)
-      - [📊 Data \& Analytics](#-data--analytics)
-        - [SQL \& NoSQL Databases](#sql--nosql-databases)
+    - [🏗️ Infrastructure \& Deployment](#️-infrastructure--deployment)
+      - [Container Platforms](#container-platforms)
+      - [Serverless \& Functions](#serverless--functions)
+      - [Support](#support)
+    - [🤖 AI \& Machine Learning](#-ai--machine-learning)
+    - [📊 Data \& Analytics](#-data--analytics)
+      - [SQL \& NoSQL Databases](#sql--nosql-databases)
         - [Search \& Analytics](#search--analytics)
-        - [Caching \& Performance](#caching--performance)
-      - [🛠️ Developer Tools \& Support](#️-developer-tools--support)
-      - [📡 Integration \& Messaging](#-integration--messaging)
-      - [💰 Cost \& Operations](#-cost--operations)
-      - [🧬 Healthcare \& Lifesciences](#-healthcare--lifesciences)
+      - [Backend API Providers](#backend-api-providers)
+      - [Caching \& Performance](#caching--performance)
+    - [🛠️ Developer Tools \& Support](#️-developer-tools--support)
+    - [📡 Integration \& Messaging](#-integration--messaging)
+    - [💰 Cost \& Operations](#-cost--operations)
+    - [🧬 Healthcare \& Lifesciences](#-healthcare--lifesciences)
     - [Browse by How You're Working](#browse-by-how-youre-working)
       - [👨‍💻 Vibe Coding \& Development](#-vibe-coding--development)
         - [Core Development Workflow](#core-development-workflow)
-        - [Infrastructure as Code](#infrastructure-as-code-1)
+        - [Infrastructure as Code](#infrastructure-as-code)
         - [Application Development](#application-development)
         - [Container \& Serverless Development](#container--serverless-development)
         - [Testing \& Data](#testing--data)
         - [Lifesciences Workflow Development](#lifesciences-workflow-development)
+        - [Healthcare Data Management](#healthcare-data-management)
       - [💬 Conversational Assistants](#-conversational-assistants)
         - [Knowledge \& Search](#knowledge--search)
         - [Content Processing \& Generation](#content-processing--generation)
@@ -55,6 +56,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Remote MCP Servers](#remote-mcp-servers)
   - [Use Cases for the Servers](#use-cases-for-the-servers)
   - [Installation and Setup](#installation-and-setup)
+    - [For macOS/Linux](#for-macoslinux)
+    - [For Windows](#for-windows)
     - [Running MCP servers in containers](#running-mcp-servers-in-containers)
     - [Getting Started with Amazon Q Developer CLI](#getting-started-with-amazon-q-developer-cli)
       - [`~/.aws/amazonq/mcp.json`](#awsamazonqmcpjson)
@@ -68,6 +71,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
     - [Getting Started with VS Code](#getting-started-with-vs-code)
       - [`.vscode/mcp.json`](#vscodemcpjson)
+    - [Getting Started with Claude Code](#getting-started-with-claude-code)
+      - [`.mcp.json`](#mcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
   - [Additional Resources](#additional-resources)
@@ -996,6 +1001,72 @@ For Windows:
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+</details>
+
+### Getting Started with Claude Code
+
+<details>
+<summary>Install in Claude Code</summary>
+
+Configure MCP servers in Claude Code through the CLI or in `.mcp.json`
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. **Using Claude Code CLI Commands**
+
+   Claude Code CLI commands to add MCP servers:
+
+   ```bash
+   # Add core AWS services
+   claude mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
+   claude mcp add aws-cdk uvx awslabs.cdk-mcp-server@latest
+   claude mcp add aws-docs uvx awslabs.aws-documentation-mcp-server@latest
+   claude mcp add aws-support uvx awslabs.aws-support-mcp-server@latest
+   claude mcp add aws-pricing uvx awslabs.aws-pricing-mcp-server@latest
+
+   # Add AI/ML and Bedrock services
+   claude mcp add bedrock-kb uvx awslabs.bedrock-kb-retrieval-mcp-server@latest
+   claude mcp add nova-canvas uvx awslabs.nova-canvas-mcp-server@latest
+   claude mcp add synthetic-data uvx awslabs.syntheticdata-mcp-server@latest
+
+   # Add data and analytics services
+   claude mcp add aws-dataprocessing uvx awslabs.aws-dataprocessing-mcp-server@latest
+   claude mcp add aurora-dsql uvx awslabs.aurora-dsql-mcp-server@latest
+   claude mcp add valkey uvx awslabs.valkey-mcp-server@latest
+
+   # List installed servers
+   claude mcp list
+   ```
+
+3. **Manual Configuration (Alternative)**
+
+   You can also manually configure MCP servers by creating a `.mcp.json` file in your project root:
+
+#### `.mcp.json`
+
+For macOS/Linux:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.cdk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_DOCUMENTATION_PARTITION": "aws"
       }
     }
   }
