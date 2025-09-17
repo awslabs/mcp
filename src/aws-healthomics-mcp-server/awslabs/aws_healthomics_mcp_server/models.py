@@ -19,8 +19,8 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 )
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, model_validator
-from typing import List, Optional
+from pydantic import BaseModel, field_validator, model_validator
+from typing import Any, List, Optional
 
 
 class WorkflowType(str, Enum):
@@ -176,3 +176,32 @@ class AnalysisResponse(BaseModel):
     """Response model for run analysis."""
 
     results: List[AnalysisResult]
+
+
+class RegistryMapping(BaseModel):
+    """Model for registry mapping configuration."""
+
+    upstreamRegistryUrl: str
+    ecrRepositoryPrefix: str
+    upstreamRepositoryPrefix: Optional[str]
+    ecrAccountId: Optional[str]
+
+
+class ImageMapping(BaseModel):
+    """Model for image mapping configuration."""
+
+    sourceImage: str
+    destinationImage: str
+
+
+class ContainerRegistryMap(BaseModel):
+    """Model for container registry mapping configuration."""
+
+    registryMappings: List[RegistryMapping] = []
+    imageMappings: List[ImageMapping] = []
+
+    @field_validator('registryMappings', 'imageMappings', mode='before')
+    @classmethod
+    def convert_none_to_empty_list(cls, v: Any) -> List[Any]:
+        """Convert None values to empty lists for consistency."""
+        return [] if v is None else v
