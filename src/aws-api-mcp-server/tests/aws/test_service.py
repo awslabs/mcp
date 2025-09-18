@@ -548,13 +548,13 @@ def test_profile_not_added_if_present_for_customizations(mock_get_region, mock_m
     'command,expected_outfile,expected_content',
     [
         (
-            'aws s3api get-object --bucket test-bucket --key test-key /tmp/myfile.template',
-            '/tmp/myfile.template',
+            'aws s3api get-object --bucket test-bucket --key test-key {working_dir}/myfile.template',
+            '{working_dir}/myfile.template',
             S3_GET_OBJECT_PAYLOAD['Body'].content,
         ),
         (
-            'aws lambda invoke --function-name my-function /tmp/response.json',
-            '/tmp/response.json',
+            'aws lambda invoke --function-name my-function {working_dir}/response.json',
+            '{working_dir}/response.json',
             LAMBDA_INVOKE_PAYLOAD['Payload'].content,
         ),
     ],
@@ -563,16 +563,22 @@ def test_interpret_command_creates_output_file_for_streaming_operations(
     command, expected_outfile, expected_content
 ):
     """Test that interpret_command writes an output file for streaming operations with outfile parameter."""
+    from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+
+    # Replace placeholder with actual working directory
+    actual_command = command.format(working_dir=WORKING_DIRECTORY)
+    actual_outfile = expected_outfile.format(working_dir=WORKING_DIRECTORY)
+
     with patch_boto3():
-        mock_open_side_effect, mock_files = create_file_open_mock(expected_outfile)
+        mock_open_side_effect, mock_files = create_file_open_mock(actual_outfile)
 
         with patch('builtins.open', side_effect=mock_open_side_effect):
-            response = interpret_command(cli_command=command)
+            response = interpret_command(cli_command=actual_command)
 
             assert response.response is not None
             assert response.response.status_code == 200
 
-            mock_file = mock_files[expected_outfile]
+            mock_file = mock_files[actual_outfile]
             mock_file.write.assert_called_with(expected_content)
 
             assert response.response.as_json is not None

@@ -14,6 +14,7 @@
 
 import json
 import re
+from ...core.common.config import READ_OPERATIONS_ONLY_MODE, REQUIRE_MUTATION_CONSENT
 from enum import Enum
 from loguru import logger
 from pathlib import Path
@@ -68,14 +69,16 @@ class SecurityPolicy:
             with open(policy_path, 'r') as policy_file:
                 policy_data = json.load(policy_file)
 
+            policy = policy_data.get('policy', {})
+
             # Load denylist
-            if 'denyList' in policy_data:
-                self.denylist = set(policy_data['denyList'])
+            if 'denyList' in policy:
+                self.denylist = set(policy['denyList'])
                 logger.info('Loaded {} commands in denylist', len(self.denylist))
 
             # Load elicit list (consent list)
-            if 'elicitList' in policy_data:
-                self.elicit_list = set(policy_data['elicitList'])
+            if 'elicitList' in policy:
+                self.elicit_list = set(policy['elicitList'])
                 logger.info('Loaded {} commands in elicit list', len(self.elicit_list))
 
         except Exception as e:
@@ -124,6 +127,12 @@ class SecurityPolicy:
             # If client doesn't support elicitation, treat the elicit list as deny
             if not self.supports_elicitation:
                 return PolicyDecision.DENY
+            return PolicyDecision.ELICIT
+
+        if READ_OPERATIONS_ONLY_MODE and not is_read_only:
+            return PolicyDecision.DENY
+
+        if REQUIRE_MUTATION_CONSENT and not is_read_only:
             return PolicyDecision.ELICIT
 
         # Default behavior: allow all operations

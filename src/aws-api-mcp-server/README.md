@@ -29,36 +29,8 @@ Choose the installation method that best fits your workflow and get started with
 
 
 
-### 🐍 Using Python (pip)
-
-**Step 1: Install the package**
-```bash
-pip install awslabs.aws-api-mcp-server
-```
-
-**Step 2: Configure your MCP client**
-Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-api-mcp-server": {
-      "command": "python",
-      "args": [
-        "-m",
-        "awslabs.aws_api_mcp_server.server"
-      ],
-      "env": {
-        "AWS_REGION": "us-east-1"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
 ### ⚡ Using uv
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 **For Linux/MacOS users:**
 
@@ -101,6 +73,43 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
   }
 }
 ```
+
+
+
+### 🐍 Using Python (pip)
+> [!TIP]
+> It's recommended to use a virtual environment because the AWS CLI version of the MCP server might not match the locally installed one
+> and can cause it to be downgraded. In the MCP client config file you can change `"command"` to the path of the python executable in your
+> virtual environment (e.g., `"command": "/workspace/project/.venv/bin/python"`).
+
+**Step 1: Install the package**
+```bash
+pip install awslabs.aws-api-mcp-server
+```
+
+**Step 2: Configure your MCP client**
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "python",
+      "args": [
+        "-m",
+        "awslabs.aws_api_mcp_server.server"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+
 
 ### 🐳 Using Docker
 
@@ -179,7 +188,8 @@ Once the server is running, connect to it using the following configuration (ens
 | Environment Variable                                              | Required | Default                                                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 |-------------------------------------------------------------------|----------|----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `AWS_REGION`                                                      | ❌ No     | `"us-east-1"`                                            | Sets the default AWS region for all CLI commands, unless a specific region is provided in the request. If not provided, the MCP server will determine the region just like boto3's [configuration chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#overview) but with a fallback to `us-east-1`. This provides a consistent default while allowing flexibility to run commands in different regions as needed.                                                                                                                                                                        |
-| `AWS_API_MCP_WORKING_DIR`                                         | ❌ No     | \<Platform-specific temp directory\>/aws-api-mcp/workdir | Working directory path for the MCP server operations. Must be an absolute path when provided. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions. If not provided, defaults to a platform-specific directory:<br/><br/>• **Windows**: `%TEMP%\aws-api-mcp\workdir` (typically `C:\Users\<username>\AppData\Local\Temp\aws-api-mcp\workdir`)<br/>• **macOS**: `/private/var/folders/<hash>/T/aws-api-mcp/workdir`<br/>• **Linux**: `$XDG_RUNTIME_DIR/aws-api-mcp/workdir` (if set) or `$TMPDIR/aws-api-mcp/workdir` (if set) or `/tmp/aws-api-mcp/workdir` |
+| `AWS_API_MCP_WORKING_DIR`                                         | ❌ No     | \<Platform-specific temp directory\>/aws-api-mcp/workdir | Working directory path for the MCP server operations. Must be an absolute path when provided. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions. If not provided, defaults to a platform-specific directory:<br/><br/>• **Windows**: `%TEMP%\aws-api-mcp\workdir` (typically `C:\Users\<username>\AppData\Local\Temp\aws-api-mcp\workdir`)<br/>• **macOS**: `/private/var/folders/<hash>/T/aws-api-mcp/workdir`<br/>• **Linux**: `$XDG_RUNTIME_DIR/aws-api-mcp/workdir` (if set) or `$TMPDIR/aws-api-mcp/workdir` (if set) or `/tmp/aws-api-mcp/workdir`
+| `AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS`                                         | ❌ No     | `"false"`|  By default, restricts file operations to `AWS_API_MCP_WORKING_DIR`. When set to `true` system-wide file access is enabled and may cause unintended file overwrites. |
 | `AWS_API_MCP_PROFILE_NAME`                                        | ❌ No     | `"default"`                                              | AWS Profile for credentials to use for command executions. If not provided, the MCP server will follow the boto3's [default credentials chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) to look for credentials. We strongly recommend you to configure your credentials this way.                                                                                                                                                                                                                                                                            |
 | `READ_OPERATIONS_ONLY`                                            | ❌ No     | `"false"`                                                | When set to "true", restricts execution to read-only operations only. IAM permissions remain the primary security control. For a complete list of allowed operations under this flag, refer to the [Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html). Only operations where the **Access level** column is not `Write` will be allowed when this is set to "true".                                                                                                                                                 |
 | `REQUIRE_MUTATION_CONSENT`                                        | ❌ No     | `"false"`                                                | When set to "true", the MCP server will ask explicit consent before executing any operations that are **NOT** read-only. This safety mechanism uses [elicitation](https://modelcontextprotocol.io/docs/concepts/elicitation) so it requires a [client that supports elicitation](https://modelcontextprotocol.io/clients).                                                                                                                                                                                                                                                                                                   |
@@ -242,8 +252,8 @@ Our MCP server aims to support all AWS APIs. However, some of them will spawn su
 
 #### Security and Access Considerations
 
-- **No Sandboxing**: The `AWS_API_MCP_WORKING_DIR` environment variable sets a working directory but does **not** provide any security restrictions
-- **Full File System Access**: The server can read from and write to any location on the file system where the user has permissions
+- **No Sandboxing**: The `AWS_API_MCP_WORKING_DIR` environment variable sets a working directory. The `AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS` flag  by default is set to `"false"` which restricts MCP server file operations to `<AWS_API_MCP_WORKING_DIR>`. Setting to `"true"` enables system-wide file access but may cause unintended overwrites.
+- **File System Access**: The server can read from and write to any location on the file system where the user has permissions.
 - **No Confirmation Prompts**: Files can be modified, overwritten, or deleted without any additional user confirmation
 - **Host File System Sharing**: When using this server, the host file system is directly accessible
 - **Do Not Modify for Network Use**: This server is designed for local STDIO use only; network operation introduces additional security risks
@@ -257,7 +267,7 @@ The MCP server can perform various file operations through AWS CLI commands, inc
 - Any AWS CLI command using the `outfile` parameter
 - Commands that use the `file://` prefix to read from files
 
-**Note**: While the `AWS_API_MCP_WORKING_DIR` environment variable sets where the server starts, it does not restrict where files can be written or accessed.
+**Note**: While the `AWS_API_MCP_WORKING_DIR` environment variable sets where the server starts, it does not restrict where files can be accessed.
 
 ### Prompt Injection and Untrusted Data
 This MCP server executes AWS CLI commands as instructed by an AI model, which can be vulnerable to prompt injection attacks:

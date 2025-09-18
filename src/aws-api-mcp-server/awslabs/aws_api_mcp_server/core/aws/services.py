@@ -22,7 +22,7 @@ from lxml import html
 from typing import Any, NamedTuple
 
 
-def _deny_remote_prefix(prefix, uri):
+def _deny_remote_prefix(prefix, _uri):
     raise ValueError(f'{prefix} prefix is not allowed')
 
 

@@ -21,7 +21,8 @@ CLIENT_RETRIES = {'max_attempts': 5, 'mode': 'adaptive'}
 CLIENT_USER_AGENT_NAME = 'awslabs/mcp/redshift-mcp-server'
 DEFAULT_LOG_LEVEL = 'WARNING'
 QUERY_TIMEOUT = 3600
-QUERY_POLL_INTERVAL = 2
+QUERY_POLL_INTERVAL = 1
+SESSION_KEEPALIVE = 600
 
 # Best practices
 
@@ -85,7 +86,7 @@ SELECT
     source_database,
     schema_option
 FROM pg_catalog.svv_all_schemas
-WHERE database_name = {}
+WHERE database_name = :database_name
 ORDER BY schema_name;
 """
 
@@ -98,7 +99,7 @@ SELECT
     table_type,
     remarks
 FROM pg_catalog.svv_all_tables
-WHERE database_name = {} AND schema_name = {}
+WHERE database_name = :database_name AND schema_name = :schema_name
 ORDER BY table_name;
 """
 
@@ -117,7 +118,7 @@ SELECT
     numeric_scale,
     remarks
 FROM pg_catalog.svv_all_columns
-WHERE database_name = {} AND schema_name = {} AND table_name = {}
+WHERE database_name = :database_name AND schema_name = :schema_name AND table_name = :table_name
 ORDER BY ordinal_position;
 """
 
