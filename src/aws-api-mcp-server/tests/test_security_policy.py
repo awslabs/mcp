@@ -45,9 +45,7 @@ def create_mock_ctx(supports_elicitation=True):
 # Core SecurityPolicy Tests
 def test_security_policy_file_loading_success():
     """Test successful policy loading from files."""
-    mock_policy_data = (
-        '{"denyList": ["aws iam delete-user"], "elicitList": ["aws s3api put-object"]}'
-    )
+    mock_policy_data = '{"version":"1.0","policy":{"denyList":["aws iam delete-user"],"elicitList":["aws s3api put-object"]}}'
 
     with patch.object(Path, 'exists', return_value=True):
         with patch('builtins.open', mock_open(read_data=mock_policy_data)):
@@ -59,9 +57,22 @@ def test_security_policy_file_loading_success():
             assert policy.supports_elicitation is True
 
 
+def test_security_policy_file_loading_empty():
+    """Test successful policy loading empty file."""
+    mock_policy_data = '{}'
+
+    with patch.object(Path, 'exists', return_value=True):
+        with patch('builtins.open', mock_open(read_data=mock_policy_data)):
+            mock_ctx = create_mock_ctx(supports_elicitation=True)
+            policy = SecurityPolicy(mock_ctx)
+
+            assert not policy.denylist
+            assert not policy.elicit_list
+
+
 def test_security_policy_customization_file_loading():
     """Test successful customization loading from separate file."""
-    mock_policy_data = '{"denyList": [], "elicitList": []}'
+    mock_policy_data = '{"version":"1.0","policy":{"denyList":[],"elicitList":[]}}'
     mock_customization_data = (
         '{"customizations": {"s3 ls": {"api_calls": ["aws s3api list-buckets"]}}}'
     )
@@ -95,7 +106,9 @@ def test_security_policy_file_not_found():
 def test_security_policy_file_error_handling():
     """Test error handling for policy and customization files."""
     # Test JSON parse error in policy file (should be handled gracefully)
-    invalid_policy_json = '{"denyList": ["aws iam delete-user"'  # Missing closing bracket
+    invalid_policy_json = (
+        '{"version":"1.0","policy":{"denyList": ["aws iam delete-user"'  # Missing closing bracket
+    )
     valid_customization_json = '{"customizations": {}}'
 
     def mock_open_side_effect(file_path, *args, **kwargs):
@@ -126,7 +139,7 @@ def test_security_policy_file_error_handling():
             assert len(policy.elicit_list) == 0
 
     # Test customization JSON parse error (should raise since we control this file)
-    mock_policy_data = '{"denyList": [], "elicitList": []}'
+    mock_policy_data = '{"version":"1.0","policy":{"denyList":[],"elicitList":[]}}'
     invalid_customization_json = '{"customizations": {'  # Invalid JSON
 
     def mock_open_customization_error(file_path, *args, **kwargs):
@@ -157,7 +170,7 @@ def test_security_policy_file_error_handling():
 
 def test_security_policy_customization_file_not_found():
     """Test behavior when customization file doesn't exist - should raise error."""
-    mock_policy_data = '{"denyList": [], "elicitList": []}'
+    mock_policy_data = '{"version":"1.0","policy":{"denyList":[],"elicitList":[]}}'
 
     def mock_open_side_effect(file_path, *args, **kwargs):
         if 'mcp-security-policy.json' in str(file_path):
@@ -174,7 +187,7 @@ def test_security_policy_customization_file_not_found():
 
 def test_security_policy_customization_missing_api_calls():
     """Test customization loading when api_calls key is missing - should load empty list."""
-    mock_policy_data = '{"denyList": [], "elicitList": []}'
+    mock_policy_data = '{"version":"1.0","policy":{"denyList":[],"elicitList":[]}}'
     mock_customization_data = '{"customizations": {"s3 ls": {"other_key": "value"}}}'
 
     def mock_open_side_effect(file_path, *args, **kwargs):
@@ -437,7 +450,7 @@ def test_check_security_policy_customization_deny():
         mock_ir.command_metadata.service_sdk_name = 's3api'
         mock_ir.command_metadata.operation_sdk_name = 'list_buckets'
 
-        decision = check_security_policy('aws s3 ls', mock_ir, mock_read_only_ops, mock_ctx)
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.DENY
         mock_policy_instance.check_customization.assert_called_once()
@@ -463,9 +476,7 @@ def test_check_security_policy_no_customization():
         mock_ir.command_metadata.service_sdk_name = 's3api'
         mock_ir.command_metadata.operation_sdk_name = 'list_buckets'
 
-        decision = check_security_policy(
-            'aws s3api list-buckets', mock_ir, mock_read_only_ops, mock_ctx
-        )
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.ALLOW
         mock_policy_instance.determine_policy_effect.assert_called_once()
@@ -473,7 +484,7 @@ def test_check_security_policy_no_customization():
 
 def test_security_policy_customization_missing_customizations_key():
     """Test customization loading when customizations key is missing."""
-    mock_policy_data = '{"denyList": [], "elicitList": []}'
+    mock_policy_data = '{"version":"1.0","policy":{"denyList":[],"elicitList":[]}}'
     mock_customization_data = '{"other_key": "value"}'  # Missing customizations key
 
     def mock_open_side_effect(file_path, *args, **kwargs):
@@ -616,7 +627,7 @@ def test_check_security_policy_missing_metadata_with_elicitation():
         mock_ir = MagicMock(spec=IRTranslation)
         mock_ir.command_metadata = None
 
-        decision = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.ELICIT
 
@@ -637,7 +648,7 @@ def test_check_security_policy_missing_metadata_without_elicitation():
         mock_ir = MagicMock(spec=IRTranslation)
         mock_ir.command_metadata = None
 
-        decision = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.DENY
 
@@ -664,7 +675,7 @@ def test_check_security_policy_is_read_only_func_called():
         mock_ir.command_metadata.service_sdk_name = 'test-service'
         mock_ir.command_metadata.operation_sdk_name = 'test-operation'
 
-        result = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+        result = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         mock_read_only_ops.has.assert_called_with(
             service='test-service', operation='test-operation'
@@ -708,4 +719,34 @@ def test_check_customization_elicit_decision():
 
         mock_ir = create_mock_ir('s3', 'sync')
         decision = policy.check_customization(mock_ir, mock_is_read_only)
+        assert decision == PolicyDecision.ELICIT
+
+
+@patch('awslabs.aws_api_mcp_server.core.security.policy.READ_OPERATIONS_ONLY_MODE', True)
+def test_determine_policy_effect_read_operations_only_mode():
+    """Test determine_policy_effect with READ_OPERATIONS_ONLY_MODE enabled."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy(create_mock_ctx())
+
+        # Read-only operation should be allowed
+        decision = policy.determine_policy_effect('s3api', 'list_buckets', True)
+        assert decision == PolicyDecision.ALLOW
+
+        # Non-read-only operation should be denied
+        decision = policy.determine_policy_effect('s3api', 'put_object', False)
+        assert decision == PolicyDecision.DENY
+
+
+@patch('awslabs.aws_api_mcp_server.core.security.policy.REQUIRE_MUTATION_CONSENT', True)
+def test_determine_policy_effect_require_mutation_consent():
+    """Test determine_policy_effect with REQUIRE_MUTATION_CONSENT enabled."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy(create_mock_ctx(supports_elicitation=True))
+
+        # Read-only operation should be allowed
+        decision = policy.determine_policy_effect('ec2', 'describe_instances', True)
+        assert decision == PolicyDecision.ALLOW
+
+        # Non-read-only operation should require elicitation
+        decision = policy.determine_policy_effect('ec2', 'terminate_instances', False)
         assert decision == PolicyDecision.ELICIT

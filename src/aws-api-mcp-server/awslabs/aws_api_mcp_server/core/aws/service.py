@@ -89,7 +89,7 @@ def is_operation_read_only(ir: IRTranslation, read_only_operations: ReadOnlyOper
 
 
 def check_security_policy(
-    cli_command: str, ir: IRTranslation, read_only_operations: ReadOnlyOperations, ctx: Context
+    ir: IRTranslation, read_only_operations: ReadOnlyOperations, ctx: Context
 ) -> PolicyDecision:
     """Check security policy for the given command and return decision."""
 
