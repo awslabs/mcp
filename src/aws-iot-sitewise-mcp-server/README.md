@@ -76,7 +76,7 @@ cd src/aws-iot-sitewise-mcp-server
 uv tool install .
 
 # The server is now available globally via uvx
-uvx awslabs-aws-iot-sitewise-mcp-server
+uvx awslabs.aws-iot-sitewise-mcp-server
 
 # Note: The server runs silently, waiting for MCP client connections.
 # You'll need to configure an MCP client to connect to it.
