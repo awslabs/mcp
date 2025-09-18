@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Enforcement of `READ_OPERATIONS_ONLY_MODE` and `REQUIRE_MUTATION_CONSENT` in security policy (#1301)
+
 ## [0.2.14] - 2025-09-15
 
 ### Added
