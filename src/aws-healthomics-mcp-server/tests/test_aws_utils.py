@@ -27,31 +27,195 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_aws_session,
     get_logs_client,
     get_omics_client,
+    get_omics_endpoint_url,
+    get_omics_service_name,
+    get_region,
     get_ssm_client,
 )
 from unittest.mock import MagicMock, patch
 
 
+class TestGetRegion:
+    """Test cases for get_region function."""
+
+    @patch.dict(os.environ, {'AWS_REGION': 'ap-southeast-2'})
+    def test_get_region_from_environment(self):
+        """Test get_region returns region from environment variable."""
+        result = get_region()
+        assert result == 'ap-southeast-2'
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_region_default(self):
+        """Test get_region returns default region when no environment variable."""
+        result = get_region()
+        assert result == 'us-east-1'
+
+    @patch.dict(os.environ, {'AWS_REGION': ''})
+    def test_get_region_empty_env_var(self):
+        """Test get_region returns empty string when environment variable is set to empty."""
+        result = get_region()
+        assert result == ''
+
+
+class TestGetOmicsServiceName:
+    """Test cases for get_omics_service_name function."""
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'custom-omics'})
+    def test_get_omics_service_name_from_environment(self):
+        """Test get_omics_service_name returns service name from environment variable."""
+        result = get_omics_service_name()
+        assert result == 'custom-omics'
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_omics_service_name_default(self):
+        """Test get_omics_service_name returns default service name when no environment variable."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': ''})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_empty_env_var(self, mock_logger):
+        """Test get_omics_service_name returns default and logs warning when environment variable is empty."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            'Using default service name: omics'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '   '})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_whitespace_env_var(self, mock_logger):
+        """Test get_omics_service_name returns default and logs warning when environment variable is only whitespace."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            'Using default service name: omics'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '\t\n  \r'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_mixed_whitespace_env_var(self, mock_logger):
+        """Test get_omics_service_name returns default and logs warning when environment variable contains mixed whitespace."""
+        result = get_omics_service_name()
+        assert result == 'omics'
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_SERVICE_NAME environment variable is empty or contains only whitespace. '
+            'Using default service name: omics'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'omics-dev'})
+    def test_get_omics_service_name_custom_value(self):
+        """Test get_omics_service_name with custom service name."""
+        result = get_omics_service_name()
+        assert result == 'omics-dev'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '  omics-staging  '})
+    def test_get_omics_service_name_with_surrounding_whitespace(self):
+        """Test get_omics_service_name strips surrounding whitespace from valid service name."""
+        result = get_omics_service_name()
+        assert result == 'omics-staging'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'omics-prod'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_service_name_valid_no_warning(self, mock_logger):
+        """Test get_omics_service_name does not log warning for valid service name."""
+        result = get_omics_service_name()
+        assert result == 'omics-prod'
+        mock_logger.warning.assert_not_called()
+
+
+class TestGetOmicsEndpointUrl:
+    """Test cases for get_omics_endpoint_url function."""
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_omics_endpoint_url_not_set(self):
+        """Test get_omics_endpoint_url returns None when environment variable is not set."""
+        result = get_omics_endpoint_url()
+        assert result is None
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'https://omics.us-west-2.amazonaws.com'})
+    def test_get_omics_endpoint_url_valid_https(self):
+        """Test get_omics_endpoint_url returns valid HTTPS URL."""
+        result = get_omics_endpoint_url()
+        assert result == 'https://omics.us-west-2.amazonaws.com'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'http://localhost:8080'})
+    def test_get_omics_endpoint_url_valid_http(self):
+        """Test get_omics_endpoint_url returns valid HTTP URL."""
+        result = get_omics_endpoint_url()
+        assert result == 'http://localhost:8080'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': ''})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_endpoint_url_empty_string(self, mock_logger):
+        """Test get_omics_endpoint_url returns None and logs warning for empty string."""
+        result = get_omics_endpoint_url()
+        assert result is None
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_ENDPOINT_URL environment variable is empty or contains only whitespace. '
+            'Using default endpoint.'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': '   '})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_endpoint_url_whitespace_only(self, mock_logger):
+        """Test get_omics_endpoint_url returns None and logs warning for whitespace-only string."""
+        result = get_omics_endpoint_url()
+        assert result is None
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_ENDPOINT_URL environment variable is empty or contains only whitespace. '
+            'Using default endpoint.'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'invalid-url'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_endpoint_url_invalid_protocol(self, mock_logger):
+        """Test get_omics_endpoint_url returns None and logs warning for invalid protocol."""
+        result = get_omics_endpoint_url()
+        assert result is None
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_ENDPOINT_URL environment variable "invalid-url" must begin with '
+            'http:// or https://. Using default endpoint.'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'ftp://example.com'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_endpoint_url_wrong_protocol(self, mock_logger):
+        """Test get_omics_endpoint_url returns None and logs warning for wrong protocol."""
+        result = get_omics_endpoint_url()
+        assert result is None
+        mock_logger.warning.assert_called_once_with(
+            'HEALTHOMICS_ENDPOINT_URL environment variable "ftp://example.com" must begin with '
+            'http:// or https://. Using default endpoint.'
+        )
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': '  https://example.com  '})
+    def test_get_omics_endpoint_url_with_surrounding_whitespace(self):
+        """Test get_omics_endpoint_url strips surrounding whitespace from valid URL."""
+        result = get_omics_endpoint_url()
+        assert result == 'https://example.com'
+
+    @patch.dict(
+        os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'https://omics-dev.example.com:8443/path'}
+    )
+    def test_get_omics_endpoint_url_complex_url(self):
+        """Test get_omics_endpoint_url handles complex URLs with port and path."""
+        result = get_omics_endpoint_url()
+        assert result == 'https://omics-dev.example.com:8443/path'
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'https://valid.com'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_endpoint_url_valid_no_warning(self, mock_logger):
+        """Test get_omics_endpoint_url does not log warning for valid URL."""
+        result = get_omics_endpoint_url()
+        assert result == 'https://valid.com'
+        mock_logger.warning.assert_not_called()
+
+
 class TestGetAwsSession:
     """Test cases for get_aws_session function."""
-
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
-    def test_get_aws_session_with_region(self, mock_botocore_session, mock_boto3_session):
-        """Test get_aws_session with explicit region."""
-        mock_botocore_instance = MagicMock()
-        mock_botocore_session.return_value = mock_botocore_instance
-        mock_boto3_instance = MagicMock()
-        mock_boto3_session.return_value = mock_boto3_instance
-
-        result = get_aws_session('us-west-2')
-
-        mock_botocore_session.assert_called_once()
-        mock_boto3_session.assert_called_once_with(
-            region_name='us-west-2', botocore_session=mock_botocore_instance
-        )
-        assert result == mock_boto3_instance
-        assert 'awslabs/mcp/aws-healthomics-mcp-server/' in mock_botocore_instance.user_agent_extra
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
@@ -69,6 +233,7 @@ class TestGetAwsSession:
             region_name='eu-west-1', botocore_session=mock_botocore_instance
         )
         assert result == mock_boto3_instance
+        assert 'awslabs/mcp/aws-healthomics-mcp-server/' in mock_botocore_instance.user_agent_extra
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
@@ -99,25 +264,10 @@ class TestCreateAwsClient:
         mock_session.client.return_value = mock_client
         mock_get_session.return_value = mock_session
 
-        result = create_aws_client('s3', 'us-west-2')
+        result = create_aws_client('s3')
 
-        mock_get_session.assert_called_once_with('us-west-2')
+        mock_get_session.assert_called_once_with()
         mock_session.client.assert_called_once_with('s3')
-        assert result == mock_client
-
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    @patch.dict(os.environ, {'AWS_REGION': 'ap-southeast-1'})
-    def test_create_aws_client_with_env_region(self, mock_get_session):
-        """Test client creation with region from environment."""
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_get_session.return_value = mock_session
-
-        result = create_aws_client('dynamodb')
-
-        mock_get_session.assert_called_once_with('ap-southeast-1')
-        mock_session.client.assert_called_once_with('dynamodb')
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
@@ -135,23 +285,9 @@ class TestGetOmicsClient:
     """Test cases for get_omics_client function."""
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    def test_get_omics_client_success(self, mock_get_session):
-        """Test successful HealthOmics client creation."""
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_get_session.return_value = mock_session
-
-        result = get_omics_client('us-east-1')
-
-        mock_get_session.assert_called_once_with('us-east-1')
-        mock_session.client.assert_called_once_with('omics')
-        assert result == mock_client
-
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    @patch.dict(os.environ, {'AWS_REGION': 'eu-central-1'})
-    def test_get_omics_client_with_env_region(self, mock_get_session):
-        """Test HealthOmics client creation with region from environment."""
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_omics_client_success_default_service_no_endpoint(self, mock_get_session):
+        """Test successful HealthOmics client creation with default service name and no endpoint URL."""
         mock_session = MagicMock()
         mock_client = MagicMock()
         mock_session.client.return_value = mock_client
@@ -159,11 +295,80 @@ class TestGetOmicsClient:
 
         result = get_omics_client()
 
-        mock_get_session.assert_called_once_with('eu-central-1')
         mock_session.client.assert_called_once_with('omics')
         assert result == mock_client
 
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'custom-omics'})
+    def test_get_omics_client_success_custom_service_no_endpoint(self, mock_get_session):
+        """Test successful HealthOmics client creation with custom service name and no endpoint URL."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with('custom-omics')
+        assert result == mock_client
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'https://omics.us-west-2.amazonaws.com'})
+    def test_get_omics_client_success_with_endpoint_url(self, mock_get_session):
+        """Test successful HealthOmics client creation with custom endpoint URL."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with(
+            'omics', endpoint_url='https://omics.us-west-2.amazonaws.com'
+        )
+        assert result == mock_client
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch.dict(
+        os.environ,
+        {
+            'HEALTHOMICS_SERVICE_NAME': 'omics-dev',
+            'HEALTHOMICS_ENDPOINT_URL': 'http://localhost:8080',
+        },
+    )
+    def test_get_omics_client_success_custom_service_and_endpoint(self, mock_get_session):
+        """Test successful HealthOmics client creation with custom service name and endpoint URL."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with(
+            'omics-dev', endpoint_url='http://localhost:8080'
+        )
+        assert result == mock_client
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'invalid-url'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_omics_client_success_invalid_endpoint_url(self, mock_logger, mock_get_session):
+        """Test HealthOmics client creation with invalid endpoint URL falls back to default."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        # Should call without endpoint_url since invalid URL is ignored
+        mock_session.client.assert_called_once_with('omics')
+        mock_logger.warning.assert_called_once()
+        assert result == mock_client
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch.dict(os.environ, {}, clear=True)
     def test_get_omics_client_failure(self, mock_get_session):
         """Test HealthOmics client creation failure."""
         mock_session = MagicMock()
@@ -173,45 +378,36 @@ class TestGetOmicsClient:
         with pytest.raises(Exception, match='HealthOmics not available'):
             get_omics_client()
 
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'https://invalid.endpoint.com'})
+    def test_get_omics_client_failure_with_endpoint(self, mock_get_session):
+        """Test HealthOmics client creation failure with custom endpoint URL."""
+        mock_session = MagicMock()
+        mock_session.client.side_effect = Exception('Endpoint not reachable')
+        mock_get_session.return_value = mock_session
+
+        with pytest.raises(Exception, match='Endpoint not reachable'):
+            get_omics_client()
+
 
 class TestGetLogsClient:
     """Test cases for get_logs_client function."""
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    def test_get_logs_client_success(self, mock_get_session):
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_logs_client_success(self, mock_create_client):
         """Test successful CloudWatch Logs client creation."""
-        mock_session = MagicMock()
         mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_get_session.return_value = mock_session
-
-        result = get_logs_client('us-west-1')
-
-        mock_get_session.assert_called_once_with('us-west-1')
-        mock_session.client.assert_called_once_with('logs')
-        assert result == mock_client
-
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    @patch.dict(os.environ, {}, clear=True)
-    def test_get_logs_client_default_region(self, mock_get_session):
-        """Test CloudWatch Logs client creation with default region."""
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_get_session.return_value = mock_session
+        mock_create_client.return_value = mock_client
 
         result = get_logs_client()
 
-        mock_get_session.assert_called_once_with('us-east-1')
-        mock_session.client.assert_called_once_with('logs')
+        mock_create_client.assert_called_once_with('logs')
         assert result == mock_client
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    def test_get_logs_client_failure(self, mock_get_session):
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_logs_client_failure(self, mock_create_client):
         """Test CloudWatch Logs client creation failure."""
-        mock_session = MagicMock()
-        mock_session.client.side_effect = Exception('Logs service unavailable')
-        mock_get_session.return_value = mock_session
+        mock_create_client.side_effect = Exception('Logs service unavailable')
 
         with pytest.raises(Exception, match='Logs service unavailable'):
             get_logs_client()
@@ -220,41 +416,21 @@ class TestGetLogsClient:
 class TestGetSsmClient:
     """Test cases for get_ssm_client function."""
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    def test_get_ssm_client_success(self, mock_get_session):
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_ssm_client_success(self, mock_create_client):
         """Test successful SSM client creation."""
-        mock_session = MagicMock()
         mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_get_session.return_value = mock_session
-
-        result = get_ssm_client('ap-northeast-1')
-
-        mock_get_session.assert_called_once_with('ap-northeast-1')
-        mock_session.client.assert_called_once_with('ssm')
-        assert result == mock_client
-
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    @patch.dict(os.environ, {'AWS_REGION': 'ca-central-1'})
-    def test_get_ssm_client_with_env_region(self, mock_get_session):
-        """Test SSM client creation with region from environment."""
-        mock_session = MagicMock()
-        mock_client = MagicMock()
-        mock_session.client.return_value = mock_client
-        mock_get_session.return_value = mock_session
+        mock_create_client.return_value = mock_client
 
         result = get_ssm_client()
 
-        mock_get_session.assert_called_once_with('ca-central-1')
-        mock_session.client.assert_called_once_with('ssm')
+        mock_create_client.assert_called_once_with('ssm')
         assert result == mock_client
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    def test_get_ssm_client_failure(self, mock_get_session):
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.create_aws_client')
+    def test_get_ssm_client_failure(self, mock_create_client):
         """Test SSM client creation failure."""
-        mock_session = MagicMock()
-        mock_session.client.side_effect = Exception('SSM access denied')
-        mock_get_session.return_value = mock_session
+        mock_create_client.side_effect = Exception('SSM access denied')
 
         with pytest.raises(Exception, match='SSM access denied'):
             get_ssm_client()
@@ -360,13 +536,8 @@ class TestRegionResolution:
         get_ssm_client()
         create_aws_client('s3')
 
-        # Verify all calls used default region
-        expected_calls = [
-            ('us-east-1',),  # get_omics_client
-            ('us-east-1',),  # get_logs_client
-            ('us-east-1',),  # get_ssm_client
-            ('us-east-1',),  # create_aws_client
-        ]
+        # Verify all calls used no region parameter (centralized)
+        expected_calls = [(), (), (), ()]  # All calls should have no arguments
         actual_calls = [call.args for call in mock_get_session.call_args_list]
         assert actual_calls == expected_calls
 
@@ -385,36 +556,118 @@ class TestRegionResolution:
         get_ssm_client()
         create_aws_client('dynamodb')
 
-        # Verify all calls used environment region
-        expected_calls = [
-            ('eu-west-2',),  # get_omics_client
-            ('eu-west-2',),  # get_logs_client
-            ('eu-west-2',),  # get_ssm_client
-            ('eu-west-2',),  # create_aws_client
-        ]
+        # Verify all calls used no region parameter (centralized)
+        expected_calls = [(), (), (), ()]  # All calls should have no arguments
         actual_calls = [call.args for call in mock_get_session.call_args_list]
         assert actual_calls == expected_calls
 
+
+class TestServiceNameAndEndpointConfiguration:
+    """Test cases for service name and endpoint URL configuration integration."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_omics_service_name')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_omics_endpoint_url')
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
-    def test_explicit_region_overrides_env(self, mock_get_session):
-        """Test that explicit region parameter overrides environment."""
+    def test_get_omics_client_uses_configuration_functions(
+        self, mock_get_session, mock_get_endpoint, mock_get_service_name
+    ):
+        """Test that get_omics_client uses both configuration functions."""
+        mock_get_service_name.return_value = 'test-service'
+        mock_get_endpoint.return_value = 'https://test.endpoint.com'
         mock_session = MagicMock()
         mock_client = MagicMock()
         mock_session.client.return_value = mock_client
         mock_get_session.return_value = mock_session
 
-        # Test each client function with explicit region
-        get_omics_client('us-west-1')
-        get_logs_client('us-west-1')
-        get_ssm_client('us-west-1')
-        create_aws_client('ec2', 'us-west-1')
+        result = get_omics_client()
 
-        # Verify all calls used explicit region
-        expected_calls = [
-            ('us-west-1',),  # get_omics_client
-            ('us-west-1',),  # get_logs_client
-            ('us-west-1',),  # get_ssm_client
-            ('us-west-1',),  # create_aws_client
-        ]
-        actual_calls = [call.args for call in mock_get_session.call_args_list]
-        assert actual_calls == expected_calls
+        mock_get_service_name.assert_called_once_with()
+        mock_get_endpoint.assert_called_once_with()
+        mock_session.client.assert_called_once_with(
+            'test-service', endpoint_url='https://test.endpoint.com'
+        )
+        assert result == mock_client
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': 'omics-staging'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_end_to_end_service_name_configuration(self, mock_get_session):
+        """Test end-to-end service name configuration from environment to client creation."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with('omics-staging')
+        assert result == mock_client
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'https://omics.example.com'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_end_to_end_endpoint_url_configuration(self, mock_get_session):
+        """Test end-to-end endpoint URL configuration from environment to client creation."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with(
+            'omics', endpoint_url='https://omics.example.com'
+        )
+        assert result == mock_client
+
+    @patch.dict(
+        os.environ,
+        {
+            'HEALTHOMICS_SERVICE_NAME': 'omics-dev',
+            'HEALTHOMICS_ENDPOINT_URL': 'http://localhost:9000',
+        },
+    )
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_end_to_end_both_configurations(self, mock_get_session):
+        """Test end-to-end configuration of both service name and endpoint URL."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with(
+            'omics-dev', endpoint_url='http://localhost:9000'
+        )
+        assert result == mock_client
+
+    @patch.dict(os.environ, {'HEALTHOMICS_SERVICE_NAME': '   '})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_end_to_end_whitespace_service_name_fallback(self, mock_logger, mock_get_session):
+        """Test end-to-end fallback to default when service name is whitespace."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with('omics')
+        mock_logger.warning.assert_called_once()
+        assert result == mock_client
+
+    @patch.dict(os.environ, {'HEALTHOMICS_ENDPOINT_URL': 'invalid-url'})
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_end_to_end_invalid_endpoint_url_fallback(self, mock_logger, mock_get_session):
+        """Test end-to-end fallback to default endpoint when URL is invalid."""
+        mock_session = MagicMock()
+        mock_client = MagicMock()
+        mock_session.client.return_value = mock_client
+        mock_get_session.return_value = mock_session
+
+        result = get_omics_client()
+
+        mock_session.client.assert_called_once_with('omics')
+        mock_logger.warning.assert_called_once()
+        assert result == mock_client

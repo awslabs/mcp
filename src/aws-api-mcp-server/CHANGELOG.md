@@ -9,6 +9,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Loading of security policy from `~/.aws/aws-api-mcp/mcp-security-policy.json` (#1311)
+- Enforcement of `READ_OPERATIONS_ONLY_MODE` and `REQUIRE_MUTATION_CONSENT` in security policy (#1301)
+
+## [0.2.14] - 2025-09-15
+
+### Added
+
+- Agent Script for debugging Lambda timeouts (#1271)
+- Agent Script for failure troubleshooting (#1276)
+- Safe execution for AWS APIs within working directory (#1261)
+
+## [0.2.13] - 2025-09-10
+
+### Added
+
+- Support for custom security policy configuration via `~/.aws/aws-api-mcp/mcp-security-policy.json` file (#1213)
+- Custom deny list and elicitation required lists for AWS operations with pattern matching support (#1213)
+- Documentation for security policy configuration in README (#1240)
+
+## [0.2.12] - 2025-09-04
+
+### Added
+
+- Support for custom agent scripts directory via `AWS_API_MCP_AGENT_SCRIPTS_DIR` environment variable (#1227)
+- Scrubbing of sensitive logs (#1228)
+
+## [0.2.11] - 2025-08-29
+
+### Changed
+
+- Telemetry for consent mechanism (#1202)
+
+## [0.2.10] - 2025-08-28
+
+### Added
+
+- Support for streamable HTTP transport mode via `AWS_API_MCP_TRANSPORT` environment variable (#1192)
+- Configurable port for HTTP transport mode via `AWS_API_MCP_PORT` environment variable (defaults to 8000) (#1192)
+- Configurable host for HTTP transport mode via `AWS_API_MCP_HOST` environment variable (defaults to 127.0.0.1) (#1192)
+
+### Fixed
+
+- Support commands with outfile parameter (#1154)
+
+## [0.2.9] - 2025-08-25
+
+### Added
+
+- Experimental support for Agent Scripts (#1149)
+
+## [0.2.8] - 2025-08-21
+
+### Changed
+
+- Fetch embedding model from AWS instead of Hugging Face (#1127)
+
+### Fixed
+
 - Use region from profile specified in cli command (#1123)
 
 ## [0.2.5] - 2025-08-11

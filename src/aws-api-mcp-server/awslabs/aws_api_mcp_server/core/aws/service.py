@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextlib
+import json
 from ..aws.services import driver
 from ..common.config import AWS_API_MCP_PROFILE_NAME, DEFAULT_REGION
 from ..common.errors import AwsApiMcpError, Failure
@@ -29,10 +30,12 @@ from ..common.models import (
 )
 from ..common.models import Context as ContextAPIModel
 from ..common.models import ValidationFailure as FailureAPIModel
+from ..common.scrubber import sensitive_data_scrubber
 from ..metadata.read_only_operations_list import (
     ReadOnlyOperations,
 )
 from ..parser.lexer import split_cli_command
+from ..security.policy import PolicyDecision, SecurityPolicy
 from .driver import interpret_command as _interpret_command
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.helpers import operation_timer
@@ -83,6 +86,36 @@ def is_operation_read_only(ir: IRTranslation, read_only_operations: ReadOnlyOper
     service_name = ir.command_metadata.service_sdk_name
     operation_name = ir.command_metadata.operation_sdk_name
     return read_only_operations.has(service=service_name, operation=operation_name)
+
+
+def check_security_policy(
+    ir: IRTranslation, read_only_operations: ReadOnlyOperations, ctx: Context
+) -> PolicyDecision:
+    """Check security policy for the given command and return decision."""
+
+    def is_read_only_func(service: str, operation: str) -> bool:
+        return read_only_operations.has(service=service, operation=operation)
+
+    policy = SecurityPolicy(ctx)
+
+    # First check if this matches a customization
+    customization_decision = policy.check_customization(ir, is_read_only_func)
+    if customization_decision is not None:
+        return customization_decision
+
+    # If no customization matches, check individual operation
+    if (
+        not ir.command_metadata
+        or not getattr(ir.command_metadata, 'service_sdk_name', None)
+        or not getattr(ir.command_metadata, 'operation_sdk_name', None)
+    ):
+        return PolicyDecision.ELICIT if policy.supports_elicitation else PolicyDecision.DENY
+
+    service_name = ir.command_metadata.service_sdk_name
+    operation_name = ir.command_metadata.operation_sdk_name
+    is_read_only = is_operation_read_only(ir, read_only_operations)
+
+    return policy.determine_policy_effect(service_name, operation_name, is_read_only)
 
 
 def validate(ir: IRTranslation) -> ProgramValidationResponse:
@@ -166,6 +199,8 @@ def interpret_command(
     else:
         response = None
 
+    _log_successful_execution(response)
+
     return ProgramInterpretationResponse(
         response=response,
         metadata=_ir_metadata(interpreted_program),
@@ -173,6 +208,14 @@ def interpret_command(
         missing_context_failures=_to_missing_context_failures(missing_context_failures),
         failed_constraints=failed_constraints,
     )
+
+
+def _log_successful_execution(response: InterpretationResponse | None):
+    if response and response.error_code is None and response.as_json is not None:
+        logger.info(
+            'AWS CLI command executed successfully: {}',
+            sensitive_data_scrubber.scrub_creds(json.loads(response.as_json)),
+        )
 
 
 def _ir_metadata(program: InterpretedProgram | None) -> InterpretationMetadata | None:

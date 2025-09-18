@@ -10,8 +10,7 @@ This MCP server is meant for testing, development, and evaluation purposes.
 
 
 ## Prerequisites
-- You must have an AWS account with credentials properly configured. Please refer to the official documentation [here ↗](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for guidance. We recommend configuring your credentials using the `AWS_API_MCP_PROFILE_NAME` environment variable (see [Configuration Options](#-configuration-options) section for details). If
-`AWS_API_MCP_PROFILE_NAME` is not specified, the system follows boto3's default credential selection order, in this case, if you have multiple AWS profiles configured on your machine, ensure the correct profile is prioritized in your credential chain.
+- You must have an AWS account with credentials properly configured. Please refer to the official documentation [here ↗](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for guidance. We recommend configuring your credentials using the `AWS_API_MCP_PROFILE_NAME` environment variable (see [Configuration Options](#%EF%B8%8F-configuration-options) section for details). If `AWS_API_MCP_PROFILE_NAME` is not specified, the system follows boto3's default credential selection order, in this case, if you have multiple AWS profiles configured on your machine, ensure the correct profile is prioritized in your credential chain.
 - Ensure you have Python 3.10 or newer installed. You can download it from the [official Python website](https://www.python.org/downloads/) or use a version manager such as [pyenv](https://github.com/pyenv/pyenv).
 - (Optional) Install [uv](https://docs.astral.sh/uv/getting-started/installation/) for faster dependency management and improved Python environment handling.
 
@@ -30,36 +29,8 @@ Choose the installation method that best fits your workflow and get started with
 
 
 
-### 🐍 Using Python (pip)
-
-**Step 1: Install the package**
-```bash
-pip install awslabs.aws-api-mcp-server
-```
-
-**Step 2: Configure your MCP client**
-Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-api-mcp-server": {
-      "command": "python",
-      "args": [
-        "-m",
-        "awslabs.aws_api_mcp_server.server"
-      ],
-      "env": {
-        "AWS_REGION": "us-east-1"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
-```
-
 ### ⚡ Using uv
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 **For Linux/MacOS users:**
 
@@ -103,6 +74,43 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
 }
 ```
 
+
+
+### 🐍 Using Python (pip)
+> [!TIP]
+> It's recommended to use a virtual environment because the AWS CLI version of the MCP server might not match the locally installed one
+> and can cause it to be downgraded. In the MCP client config file you can change `"command"` to the path of the python executable in your
+> virtual environment (e.g., `"command": "/workspace/project/.venv/bin/python"`).
+
+**Step 1: Install the package**
+```bash
+pip install awslabs.aws-api-mcp-server
+```
+
+**Step 2: Configure your MCP client**
+Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "command": "python",
+      "args": [
+        "-m",
+        "awslabs.aws_api_mcp_server.server"
+      ],
+      "env": {
+        "AWS_REGION": "us-east-1"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+
+
 ### 🐳 Using Docker
 
 You can isolate the MCP server by running it in a Docker container. The Docker image is available on the [public AWS ECR registry](https://gallery.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server).
@@ -132,6 +140,47 @@ You can isolate the MCP server by running it in a Docker container. The Docker i
 
 For detailed instructions on setting up your local development environment and running the server from source, please see the CONTRIBUTING.md file.
 
+### 🌐 HTTP Mode Configuration
+
+The MCP server supports streamable HTTP mode. To use it, when starting the server set the `AWS_API_MCP_TRANSPORT` environment variable to `"streamable-http"` and optionally configure the host and port with `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.
+
+#### For Linux/macOS:
+```bash
+AWS_API_MCP_TRANSPORT=streamable-http uvx awslabs.aws-api-mcp-server@latest
+```
+
+#### For Windows (Command Prompt):
+```cmd
+set AWS_API_MCP_TRANSPORT=streamable-http
+uvx awslabs.aws-api-mcp-server@latest
+```
+
+#### For Windows (PowerShell):
+```powershell
+$env:AWS_API_MCP_TRANSPORT="streamable-http"
+uvx awslabs.aws-api-mcp-server@latest
+```
+
+Once the server is running, connect to it using the following configuration (ensure the host and port number match your `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT` settings):"
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-api-mcp-server": {
+      "type": "streamableHttp",
+      "url": "http://127.0.0.1:8000/mcp",
+      "autoApprove": [],
+      "disabled": false,
+      "timeout": 60
+    }
+  }
+}
+```
+
+**Note**: Replace `127.0.0.1` with your custom host if you've set `AWS_API_MCP_HOST` to a different value.
+
+**Note**: When using HTTP mode, ensure proper network security measures are in place, including firewall rules and authentication if needed.
+
 
 
 ## ⚙️ Configuration Options
@@ -139,12 +188,19 @@ For detailed instructions on setting up your local development environment and r
 | Environment Variable                                              | Required | Default                                                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 |-------------------------------------------------------------------|----------|----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `AWS_REGION`                                                      | ❌ No     | `"us-east-1"`                                            | Sets the default AWS region for all CLI commands, unless a specific region is provided in the request. If not provided, the MCP server will determine the region just like boto3's [configuration chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#overview) but with a fallback to `us-east-1`. This provides a consistent default while allowing flexibility to run commands in different regions as needed.                                                                                                                                                                        |
-| `AWS_API_MCP_WORKING_DIR`                                         | ❌ No     | \<Platform-specific temp directory\>/aws-api-mcp/workdir | Working directory path for the MCP server operations. Must be an absolute path when provided. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions. If not provided, defaults to a platform-specific directory:<br/><br/>• **Windows**: `%TEMP%\aws-api-mcp\workdir` (typically `C:\Users\<username>\AppData\Local\Temp\aws-api-mcp\workdir`)<br/>• **macOS**: `/private/var/folders/<hash>/T/aws-api-mcp/workdir`<br/>• **Linux**: `$XDG_RUNTIME_DIR/aws-api-mcp/workdir` (if set) or `$TMPDIR/aws-api-mcp/workdir` (if set) or `/tmp/aws-api-mcp/workdir` |
+| `AWS_API_MCP_WORKING_DIR`                                         | ❌ No     | \<Platform-specific temp directory\>/aws-api-mcp/workdir | Working directory path for the MCP server operations. Must be an absolute path when provided. Used to resolve relative paths in commands like `aws s3 cp`. Does not provide any sandboxing or security restrictions. If not provided, defaults to a platform-specific directory:<br/><br/>• **Windows**: `%TEMP%\aws-api-mcp\workdir` (typically `C:\Users\<username>\AppData\Local\Temp\aws-api-mcp\workdir`)<br/>• **macOS**: `/private/var/folders/<hash>/T/aws-api-mcp/workdir`<br/>• **Linux**: `$XDG_RUNTIME_DIR/aws-api-mcp/workdir` (if set) or `$TMPDIR/aws-api-mcp/workdir` (if set) or `/tmp/aws-api-mcp/workdir`
+| `AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS`                                         | ❌ No     | `"false"`|  By default, restricts file operations to `AWS_API_MCP_WORKING_DIR`. When set to `true` system-wide file access is enabled and may cause unintended file overwrites. |
 | `AWS_API_MCP_PROFILE_NAME`                                        | ❌ No     | `"default"`                                              | AWS Profile for credentials to use for command executions. If not provided, the MCP server will follow the boto3's [default credentials chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) to look for credentials. We strongly recommend you to configure your credentials this way.                                                                                                                                                                                                                                                                            |
 | `READ_OPERATIONS_ONLY`                                            | ❌ No     | `"false"`                                                | When set to "true", restricts execution to read-only operations only. IAM permissions remain the primary security control. For a complete list of allowed operations under this flag, refer to the [Service Authorization Reference](https://docs.aws.amazon.com/service-authorization/latest/reference/reference_policies_actions-resources-contextkeys.html). Only operations where the **Access level** column is not `Write` will be allowed when this is set to "true".                                                                                                                                                 |
 | `REQUIRE_MUTATION_CONSENT`                                        | ❌ No     | `"false"`                                                | When set to "true", the MCP server will ask explicit consent before executing any operations that are **NOT** read-only. This safety mechanism uses [elicitation](https://modelcontextprotocol.io/docs/concepts/elicitation) so it requires a [client that supports elicitation](https://modelcontextprotocol.io/clients).                                                                                                                                                                                                                                                                                                   |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | ❌ No     | -                                                        | Use environment variables to configure AWS credentials                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `AWS_API_MCP_TELEMETRY`                                           | ❌ No     | `"true"`                                                 | Allow sending additional telemetry data to AWS related to the server configuration. This includes Whether the `call_aws()` tool is used with `READ_OPERATIONS_ONLY` set to true or false. Note: Regardless of this setting, AWS obtains information about which operations were invoked and the server version as part of normal AWS service interactions; no additional telemetry calls are made by the server for this purpose.                                                                                                                                                                                            |
+| `EMBEDDING_MODEL_DIR`                                             | ❌ No     | `$AWS_API_MCP_WORKING_DIR/embedding_models`              | Directory path where embedding models are stored or cached. When specified, this directory will be used for model storage and retrieval operations. Must be an absolute path when provided.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `EXPERIMENTAL_AGENT_SCRIPTS`                                      | ❌ No     | `"false"`                                                | When set to "true", enables experimental agent scripts functionality. This provides access to structured, step-by-step workflows for complex AWS tasks through the `get_execution_plan` tool. Agent scripts are reusable workflows that automate complex processes and provide detailed guidance for accomplishing specific tasks. This feature is experimental and may change in future releases.                                                                                                                                                                                                                                                                                              |
+| `AWS_API_MCP_AGENT_SCRIPTS_DIR`                                    | ❌ No     | -                                                        | Directory path containing custom user scripts for the agent scripts functionality. When specified, the server will load additional `.script.md` files from this directory alongside the built-in scripts. The directory must exist and be readable. Scripts must follow the same format as built-in scripts with frontmatter metadata including a `description` field. This allows users to extend the agent scripts functionality with their own custom workflows.                                                                                                                                                                                                                                    |
+| `AWS_API_MCP_TRANSPORT`                                           | ❌ No     | `"stdio"`                                                | Transport protocol for the MCP server. Valid options are `"stdio"` (default) for local communication or `"streamable-http"` for HTTP-based communication. When using `"streamable-http"`, the server will listen on the host and port specified by `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `AWS_API_MCP_HOST`                                                | ❌ No     | `"127.0.0.1"`                                            | Host address for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `AWS_API_MCP_PORT`                                                | ❌ No     | `"8000"`                                                 | Port number for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### 🚀 Quick Start
 
@@ -170,6 +226,7 @@ The tool names are subject to change, please refer to CHANGELOG.md for any chang
 
 - `call_aws`: Executes AWS CLI commands with validation and proper error handling
 - `suggest_aws_commands`: Suggests AWS CLI commands based on a natural language query. This tool helps the model generate CLI commands by providing a description and the complete set of parameters for the 5 most likely CLI commands for the given query, including the most recent AWS CLI commands - some of which may be otherwise unknown to the model (released after the model's knowledge cut-off date). This enables RAG (Retrieval-Augmented Generation) for CLI command generation via the AWS CLI command table as the knowledge source, M3 text embedding model [Chen et al., Findings of ACL 2024] for representing query and CLI documents as dense vectors, and FAISS for nearest neighbour search.
+- `get_execution_plan` *(Experimental)*: Provides structured, step-by-step guidance for accomplishing complex AWS tasks through agent scripts. This tool is only available when the `EXPERIMENTAL_AGENT_SCRIPTS` environment variable is set to "true". Agent scripts are reusable workflows that automate complex processes and provide detailed guidance for accomplishing specific tasks.
 
 
 ## Security Considerations
@@ -195,8 +252,8 @@ Our MCP server aims to support all AWS APIs. However, some of them will spawn su
 
 #### Security and Access Considerations
 
-- **No Sandboxing**: The `AWS_API_MCP_WORKING_DIR` environment variable sets a working directory but does **not** provide any security restrictions
-- **Full File System Access**: The server can read from and write to any location on the file system where the user has permissions
+- **No Sandboxing**: The `AWS_API_MCP_WORKING_DIR` environment variable sets a working directory. The `AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS` flag  by default is set to `"false"` which restricts MCP server file operations to `<AWS_API_MCP_WORKING_DIR>`. Setting to `"true"` enables system-wide file access but may cause unintended overwrites.
+- **File System Access**: The server can read from and write to any location on the file system where the user has permissions.
 - **No Confirmation Prompts**: Files can be modified, overwritten, or deleted without any additional user confirmation
 - **Host File System Sharing**: When using this server, the host file system is directly accessible
 - **Do Not Modify for Network Use**: This server is designed for local STDIO use only; network operation introduces additional security risks
@@ -210,7 +267,7 @@ The MCP server can perform various file operations through AWS CLI commands, inc
 - Any AWS CLI command using the `outfile` parameter
 - Commands that use the `file://` prefix to read from files
 
-**Note**: While the `AWS_API_MCP_WORKING_DIR` environment variable sets where the server starts, it does not restrict where files can be written or accessed.
+**Note**: While the `AWS_API_MCP_WORKING_DIR` environment variable sets where the server starts, it does not restrict where files can be accessed.
 
 ### Prompt Injection and Untrusted Data
 This MCP server executes AWS CLI commands as instructed by an AI model, which can be vulnerable to prompt injection attacks:
@@ -221,7 +278,57 @@ This MCP server executes AWS CLI commands as instructed by an AI model, which ca
 
 ### Logging
 
-Logs of the MCP server are stored in the system's temporary directory, under **aws-api-mcp** subfolder - on Windows and macOS, this is the system temp directory, while on Linux it uses `XDG_RUNTIME_DIR`, `TMPDIR`, or `/tmp` as fallback. The logs contain MCP server operational data including command executions, errors, and debugging information to help users monitor and perform forensics of the MCP server.
+The AWS API MCP server writes logs to help you monitor command executions, troubleshoot issues, and perform debugging. These logs are automatically rotated and contain operational data including command executions, errors, and debug information.
+
+#### Log file location
+
+Logs are written to a rotating file at:
+
+- **macOS/Linux**: `<HOME>/.aws/aws-api-mcp/aws-api-mcp-server.log`
+- **Windows**: `%USERPROFILE%\.aws\aws-api-mcp\aws-api-mcp-server.log`
+
+#### Shipping logs to Amazon CloudWatch Logs
+
+To centralize your logs in AWS CloudWatch for better monitoring and analysis, you can use the CloudWatch Agent to automatically ship the MCP server logs to a CloudWatch log group.
+
+**Prerequisites:**
+
+1. **Install the CloudWatch Agent** on your machine:
+   - **Amazon Linux 2/2023**: `sudo yum install amazon-cloudwatch-agent`
+   - **Other platforms**: Download from [CloudWatch Agent download page](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/download-CloudWatch-Agent-on-EC2-Instance-commandline-first.html)
+   - **Learn more**: [CloudWatch Agent overview](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html)
+
+2. **Configure IAM permissions**: Ensure your instance/user has permissions to write to CloudWatch Logs. You can attach the `CloudWatchAgentServerPolicy` or create a custom policy with these permissions:
+   - `logs:CreateLogGroup`
+   - `logs:CreateLogStream`
+   - `logs:PutLogEvents`
+
+**Configuration steps:**
+
+1. **Run the configuration wizard** to set up log collection. The wizard will guide you through configuring the log group name, stream name, and other settings. For detailed wizard documentation, see [Create the CloudWatch agent configuration file with the wizard](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/create-cloudwatch-agent-configuration-file-wizard.html).:
+
+   **Linux/macOS:**
+   ```bash
+   sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-config-wizard
+   ```
+
+   **Windows:**
+   ```cmd
+   cd "C:\Program Files\Amazon\AmazonCloudWatchAgent"
+   .\amazon-cloudwatch-agent-config-wizard.exe
+   ```
+
+2. **When prompted for log file path**, specify the MCP server log location:
+   - **macOS**: `/Users/<user>/.aws/aws-api-mcp/aws-api-mcp-server.log`
+   - **Linux**: `/home/<user>/.aws/aws-api-mcp/aws-api-mcp-server.log`
+   - **Windows**: `C:\Users\<user>\.aws\aws-api-mcp\aws-api-mcp-server.log`
+
+3. **Start the CloudWatch Agent** following the official AWS documentation:
+   - [Starting the CloudWatch agent](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/start-CloudWatch-Agent-on-premise-SSM-onprem.html)
+
+#### Troubleshooting
+
+If you encounter issues with the CloudWatch Agent setup or log shipping, refer to the [Troubleshooting the CloudWatch agent](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/troubleshooting-CloudWatch-Agent.html).
 
 ### Security Best Practices
 
@@ -230,6 +337,91 @@ Logs of the MCP server are stored in the system's temporary directory, under **a
 - **Condition Statements**: Combine custom policies with condition statements to further restrict access by region or other factors based on your security requirements.
 - **Untrusted Data Sources**: When connecting to potentially untrusted data sources, use scoped-down credentials with minimal permissions.
 - **Regular Monitoring**: Monitor AWS CloudTrail logs to track actions performed by the MCP server.
+
+### Custom Security Policy Configuration
+
+You can create a custom security policy file to define additional security controls beyond IAM permissions. The MCP server will look for a security policy file at `~/.aws/aws-api-mcp/mcp-security-policy.json`.
+
+#### Security Policy File Format
+
+```json
+{
+  "version": "1.0",
+  "policy": {
+    "denyList": [],
+    "elicitList": []
+  }
+}
+```
+
+#### Command Format Requirements
+
+**Important**: Commands must be specified in the exact format that the AWS CLI uses internally:
+
+- **Format**: `aws <service> <operation>`
+- **Service names**: Use the AWS CLI service name (e.g., `s3api`, `ec2`, `iam`, `lambda`)
+- **Operation names**: Use kebab-case format (e.g., `delete-user`, `list-buckets`, `stop-instances`)
+
+#### Examples of Correct Command Formats
+
+| AWS CLI Command | Security Policy Format |
+|-----------------|------------------------|
+| `aws iam delete-user --user-name john` | `"aws iam delete-user"` |
+| `aws s3api list-buckets` | `"aws s3api list-buckets"` |
+| `aws ec2 describe-instances` | `"aws ec2 describe-instances"` |
+| `aws lambda delete-function --function-name my-func` | `"aws lambda delete-function"` |
+| `aws s3 cp file.txt s3://bucket/` | `"aws s3 cp"` |
+| `aws cloudformation delete-stack --stack-name my-stack` | `"aws cloudformation delete-stack"` |
+
+#### Policy Configuration Options
+
+- **`denyList`**: Array of AWS CLI commands that will be completely blocked. Commands in this list will never be executed.
+- **`elicitList`**: Array of AWS CLI commands that will require explicit user consent before execution. This requires a client that supports [elicitation](https://modelcontextprotocol.io/docs/concepts/elicitation).
+
+#### Pattern Matching and Wildcards
+
+**Current Limitation**: The security policy uses **exact string matching only**. Wildcard patterns (like `iam:delete-*` or `organizations:*`) are **not supported** in the current implementation.
+
+Each command must be specified exactly as it appears in the AWS CLI format. For comprehensive blocking, you need to list each command individually:
+
+```json
+{
+  "version": "1.0",
+  "policy": {
+    "denyList": [
+      "aws iam delete-user",
+      "aws iam delete-role",
+      "aws iam delete-group",
+      "aws iam delete-policy",
+      "aws iam delete-access-key"
+    ],
+    "elicitList": [
+      "aws s3api delete-object",
+      "aws ec2 stop-instances",
+      "aws lambda delete-function",
+      "aws rds delete-db-instance",
+      "aws cloudformation delete-stack"
+    ]
+  }
+}
+```
+
+#### Finding the Correct Command Format
+
+To determine the exact format for a command:
+
+1. **Check AWS CLI documentation**: Look up the service and operation names
+2. **Use kebab-case**: Convert camelCase operations to kebab-case (e.g., `ListBuckets` → `list-buckets`)
+3. **Test with logging**: Enable debug logging to see how commands are parsed internally
+
+#### Security Policy Precedence
+
+1. **Denylist** - Operations in the denylist are blocked completely
+2. **Elicitation Required** - Operations requiring consent will prompt the user
+3. **IAM Permissions** - Standard AWS IAM controls apply to all operations
+4. **READ_OPERATIONS_ONLY** - Environment variable restriction (if enabled)
+
+**Note**: IAM permissions remain the primary security control mechanism. The security policy provides an additional layer of protection but cannot override IAM restrictions.
 
 ## License
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.

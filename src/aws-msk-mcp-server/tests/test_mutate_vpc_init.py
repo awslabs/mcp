@@ -60,10 +60,11 @@ class TestMutateVpcInit:
         # Verify that the tool decorators were called
         assert mock_mcp.tool.call_count == 3
 
-        # Verify that the expected tools were registered
-        mock_mcp.tool.assert_any_call(name='create_vpc_connection')
-        mock_mcp.tool.assert_any_call(name='delete_vpc_connection')
-        mock_mcp.tool.assert_any_call(name='reject_client_vpc_connection')
+        # Verify that the expected tools were registered (check call names)
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'create_vpc_connection' in call_names
+        assert 'delete_vpc_connection' in call_names
+        assert 'reject_client_vpc_connection' in call_names
 
     def test_create_vpc_connection_tool(self):
         """Test the create_vpc_connection_tool function."""
