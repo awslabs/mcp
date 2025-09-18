@@ -1,6 +1,7 @@
 import pytest
 import re
 from awslabs.aws_api_mcp_server.core.common.command_metadata import CommandMetadata
+from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
 from awslabs.aws_api_mcp_server.core.common.errors import (
     ClientSideFilterError,
     ExpectedArgumentError,
@@ -19,8 +20,11 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     ShortHandParserError,
     UnknownFiltersError,
 )
-from awslabs.aws_api_mcp_server.core.parser.parser import parse
-from unittest.mock import patch
+from awslabs.aws_api_mcp_server.core.parser.parser import (
+    _validate_output_file,
+    parse,
+)
+from unittest.mock import Mock, patch
 
 
 @pytest.mark.parametrize(
@@ -393,12 +397,21 @@ def test_plural_singular_params(command):
         "aws ec2 describe-availability-zones --query='AvailabilityZones[?ZoneName==`us-east-1a`]'",
         'aws s3api get-bucket-lifecycle --bucket my-s3-bucket',
         'aws --region=us-east-1 ec2 get-subnet-cidr-reservations --subnet-id subnet-012 --color=on',
-        'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template -',
         "aws apigateway get-export --parameters extensions='postman' --rest-api-id a1b2c3d4e5 --stage-name dev --export-type swagger -",
     ],
 )
 def test_should_pass_for_valid_equal_sign_params(command):
     """Test that valid equal sign parameters are accepted."""
+    parse(command)
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS',
+    True,
+)
+def test_should_pass_for_valid_equal_sign_params_with_file_output():
+    """Test that valid equal sign parameters with file output are accepted when unrestricted access is enabled."""
+    command = f'aws s3api get-object --bucket aws-sam-cli-managed-default-samclisourcebucket --key lambda-sqs-sam-test-1/1f1a15295b5529effed491b54a5b5b83.template {WORKING_DIRECTORY}/output.template'
     parse(command)
 
 
@@ -588,9 +601,16 @@ def test_client_side_filter_error():
 
 
 def test_valid_expand_user_home_directory():
-    """Test that tilde is replaced with user home directory."""
-    result = parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
-    assert not any(param.startswith('~') for param in result.parameters['--paths'])
+    """Test that tilde or user home directory is invalid path."""
+    with pytest.raises(ValueError) as exc_info:
+        parse(cli_command='aws s3 cp s3://my_file ~/temp/test.txt')
+
+    error_message = str(exc_info.value)
+    assert 'is outside the allowed working directory' in error_message
+    assert (
+        'Set AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS=true to allow unrestricted file access'
+        in error_message
+    )
 
 
 def test_invalid_expand_user_home_directory():
@@ -637,11 +657,81 @@ def test_validate_output_file_raises_error_for_relative_paths(
     command, expected_service, expected_operation, expected_file_path
 ):
     """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
-    expected_message = (
-        f'Invalid file parameter {expected_file_path!r} for service {expected_service!r} and operation {expected_operation!r}: '
-        f'should be an absolute path. Please provide a valid file path.'
-    )
-    with pytest.raises(FileParameterError) as exc_info:
+    expected_message = f'{expected_file_path} should be an absolute path'
+    with pytest.raises(ValueError, match=expected_message):
         parse(command)
 
-    assert str(exc_info.value) == expected_message
+
+def test_validate_output_file_no_streaming_output():
+    """Test that _validate_output_file does nothing when has_streaming_output is False."""
+    command_metadata = Mock()
+    command_metadata.has_streaming_output = False
+    parsed_args = Mock()
+
+    # Should not raise any exception
+    _validate_output_file(command_metadata, parsed_args)
+
+
+def test_validate_output_file_with_dash_output():
+    """Test that _validate_output_file allows '-' as output file."""
+    command_metadata = Mock()
+    command_metadata.has_streaming_output = True
+
+    operation_args = Mock()
+    operation_args.outfile = '-'
+
+    parsed_args = Mock()
+    parsed_args.operation_args = operation_args
+
+    # Should not raise any exception
+    _validate_output_file(command_metadata, parsed_args)
+
+
+def test_validate_output_file_with_relative_path():
+    """Test that _validate_output_file raises ValueError for relative paths."""
+    command_metadata = Mock()
+    command_metadata.has_streaming_output = True
+
+    operation_args = Mock()
+    operation_args.outfile = 'relative/path.txt'
+
+    parsed_args = Mock()
+    parsed_args.operation_args = operation_args
+
+    with pytest.raises(ValueError, match='relative/path.txt should be an absolute path'):
+        _validate_output_file(command_metadata, parsed_args)
+
+
+@patch('awslabs.aws_api_mcp_server.core.parser.parser.validate_file_path')
+def test_validate_output_file_with_absolute_path(mock_validate_file_path):
+    """Test that _validate_output_file calls validate_file_path for absolute paths."""
+    command_metadata = Mock()
+    command_metadata.has_streaming_output = True
+
+    operation_args = Mock()
+    operation_args.outfile = '/absolute/path.txt'
+
+    parsed_args = Mock()
+    parsed_args.operation_args = operation_args
+
+    _validate_output_file(command_metadata, parsed_args)
+
+    mock_validate_file_path.assert_called_once_with('/absolute/path.txt')
+
+
+@patch('awslabs.aws_api_mcp_server.core.parser.parser.validate_file_path')
+def test_validate_output_file_propagates_validate_file_path_error(mock_validate_file_path):
+    """Test that _validate_output_file propagates errors from validate_file_path."""
+    command_metadata = Mock()
+    command_metadata.has_streaming_output = True
+
+    operation_args = Mock()
+    operation_args.outfile = '/absolute/path.txt'
+
+    parsed_args = Mock()
+    parsed_args.operation_args = operation_args
+
+    mock_validate_file_path.side_effect = ValueError('File validation error')
+
+    with pytest.raises(ValueError, match='File validation error'):
+        _validate_output_file(command_metadata, parsed_args)
