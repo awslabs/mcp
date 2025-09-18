@@ -275,7 +275,7 @@ class GlobalArgParser(MainArgParser):
     # Overwrite _build's parent method as it automatically injects a `version` action in the
     # parser. Version actions print the current version and then exit the program, which is
     # not what we want.
-    def _build(self, command_table, version_string, argument_table):
+    def _build(self, command_table, version_string, argument_table):  # noqa: ARG002
         for argument_name in argument_table:
             argument = argument_table[argument_name]
             argument.add_to_parser(self)

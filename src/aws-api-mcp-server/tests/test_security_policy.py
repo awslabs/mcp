@@ -437,7 +437,7 @@ def test_check_security_policy_customization_deny():
         mock_ir.command_metadata.service_sdk_name = 's3api'
         mock_ir.command_metadata.operation_sdk_name = 'list_buckets'
 
-        decision = check_security_policy('aws s3 ls', mock_ir, mock_read_only_ops, mock_ctx)
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.DENY
         mock_policy_instance.check_customization.assert_called_once()
@@ -463,9 +463,7 @@ def test_check_security_policy_no_customization():
         mock_ir.command_metadata.service_sdk_name = 's3api'
         mock_ir.command_metadata.operation_sdk_name = 'list_buckets'
 
-        decision = check_security_policy(
-            'aws s3api list-buckets', mock_ir, mock_read_only_ops, mock_ctx
-        )
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.ALLOW
         mock_policy_instance.determine_policy_effect.assert_called_once()
@@ -616,7 +614,7 @@ def test_check_security_policy_missing_metadata_with_elicitation():
         mock_ir = MagicMock(spec=IRTranslation)
         mock_ir.command_metadata = None
 
-        decision = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.ELICIT
 
@@ -637,7 +635,7 @@ def test_check_security_policy_missing_metadata_without_elicitation():
         mock_ir = MagicMock(spec=IRTranslation)
         mock_ir.command_metadata = None
 
-        decision = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+        decision = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         assert decision == PolicyDecision.DENY
 
@@ -664,7 +662,7 @@ def test_check_security_policy_is_read_only_func_called():
         mock_ir.command_metadata.service_sdk_name = 'test-service'
         mock_ir.command_metadata.operation_sdk_name = 'test-operation'
 
-        result = check_security_policy('aws test command', mock_ir, mock_read_only_ops, mock_ctx)
+        result = check_security_policy(mock_ir, mock_read_only_ops, mock_ctx)
 
         mock_read_only_ops.has.assert_called_with(
             service='test-service', operation='test-operation'
@@ -708,4 +706,34 @@ def test_check_customization_elicit_decision():
 
         mock_ir = create_mock_ir('s3', 'sync')
         decision = policy.check_customization(mock_ir, mock_is_read_only)
+        assert decision == PolicyDecision.ELICIT
+
+
+@patch('awslabs.aws_api_mcp_server.core.security.policy.READ_OPERATIONS_ONLY_MODE', True)
+def test_determine_policy_effect_read_operations_only_mode():
+    """Test determine_policy_effect with READ_OPERATIONS_ONLY_MODE enabled."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy(create_mock_ctx())
+
+        # Read-only operation should be allowed
+        decision = policy.determine_policy_effect('s3api', 'list_buckets', True)
+        assert decision == PolicyDecision.ALLOW
+
+        # Non-read-only operation should be denied
+        decision = policy.determine_policy_effect('s3api', 'put_object', False)
+        assert decision == PolicyDecision.DENY
+
+
+@patch('awslabs.aws_api_mcp_server.core.security.policy.REQUIRE_MUTATION_CONSENT', True)
+def test_determine_policy_effect_require_mutation_consent():
+    """Test determine_policy_effect with REQUIRE_MUTATION_CONSENT enabled."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy(create_mock_ctx(supports_elicitation=True))
+
+        # Read-only operation should be allowed
+        decision = policy.determine_policy_effect('ec2', 'describe_instances', True)
+        assert decision == PolicyDecision.ALLOW
+
+        # Non-read-only operation should require elicitation
+        decision = policy.determine_policy_effect('ec2', 'terminate_instances', False)
         assert decision == PolicyDecision.ELICIT
