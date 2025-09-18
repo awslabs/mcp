@@ -82,7 +82,7 @@ cd src/aws-iot-sitewise-mcp-server
 uv tool install .
 
 # The server is now available globally via uvx
-uvx awslabs-aws-iot-sitewise-mcp-server
+uvx awslabs.aws-iot-sitewise-mcp-server
 
 # Note: The server runs silently, waiting for MCP client connections.
 # You'll need to configure an MCP client to connect to it.
@@ -133,7 +133,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -152,7 +152,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -215,7 +215,7 @@ Configure in your workspace or global settings:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -234,7 +234,7 @@ Configure in your workspace or global settings:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
