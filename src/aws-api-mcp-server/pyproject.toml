@@ -2,7 +2,7 @@
 name = "awslabs.aws-api-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.2.14"
+version = "0.3.9223372036854775807"
 
 description = "Model Context Protocol (MCP) server for interacting with AWS"
 readme = "README.md"
@@ -100,7 +100,7 @@ force-exclude = true
 
 [tool.ruff.lint]
 exclude = ["__init__.py"]
-select = ["C", "D", "E", "F", "I", "W"]
+select = ["ARG", "C", "D", "E", "F", "I", "W"]
 ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
 
 [tool.ruff.lint.isort]
@@ -109,6 +109,8 @@ no-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/*.ipynb" = ["F704"]
+"tests/fixtures.py" = ["ARG"]
+"test_*.py" = ["ARG"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
