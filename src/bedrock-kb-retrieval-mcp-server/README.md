@@ -73,6 +73,10 @@ For detailed instructions on setting up knowledge bases, see:
 - [Managing permissions for Amazon Bedrock knowledge bases](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-prereq-permissions-general.html)
 - [Permissions for reranking in Amazon Bedrock](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-prereq.html)
 
+### 🌐 HTTP Mode Configuration
+
+The MCP server supports streamable HTTP mode. To use it, when starting the server set the `BEDROCK_KB_MCP_TRANSPORT` environment variable to `"streamable-http"`.
+
 ## Installation
 
 | Cursor | VS Code |
