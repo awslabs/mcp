@@ -69,14 +69,16 @@ class SecurityPolicy:
             with open(policy_path, 'r') as policy_file:
                 policy_data = json.load(policy_file)
 
+            policy = policy_data.get('policy', {})
+
             # Load denylist
-            if 'denyList' in policy_data:
-                self.denylist = set(policy_data['denyList'])
+            if 'denyList' in policy:
+                self.denylist = set(policy['denyList'])
                 logger.info('Loaded {} commands in denylist', len(self.denylist))
 
             # Load elicit list (consent list)
-            if 'elicitList' in policy_data:
-                self.elicit_list = set(policy_data['elicitList'])
+            if 'elicitList' in policy:
+                self.elicit_list = set(policy['elicitList'])
                 logger.info('Loaded {} commands in elicit list', len(self.elicit_list))
 
         except Exception as e:
