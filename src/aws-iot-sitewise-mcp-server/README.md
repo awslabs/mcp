@@ -9,12 +9,14 @@ A comprehensive MCP (Model Context Protocol) server that provides full AWS IoT S
 ### Core AWS IoT SiteWise Capabilities
 
 #### 🏭 Asset Management
+
 - **Asset Creation & Management**: Create, update, delete, and describe industrial assets
 - **Asset Hierarchies**: Associate and disassociate assets in hierarchical structures
 - **Asset Models**: Define and manage asset models with properties, hierarchies, and composite models
 - **Asset Properties**: Manage measurements, attributes, transforms, and metrics
 
 #### 📊 Data Operations
+
 - **Data Ingestion**: Batch and real-time data ingestion with quality indicators
 - **Historical Data**: Retrieve time-series data with flexible time ranges and filtering
 - **Aggregations**: Calculate averages, sums, counts, min/max, and standard deviations
@@ -22,12 +24,14 @@ A comprehensive MCP (Model Context Protocol) server that provides full AWS IoT S
 - **Batch Operations**: Efficient bulk data operations for multiple assets
 
 #### 🌐 Gateway & Connectivity
+
 - **Gateway Management**: Create and configure IoT SiteWise Edge gateways
 - **Capability Configuration**: Manage gateway capabilities for different protocols
 - **Time Series Management**: Associate and manage time series data streams
 - **Edge Computing**: Support for local data processing and intermittent connectivity
 
 #### 🔒 Security & Configuration
+
 - **Access Policies**: Fine-grained access control for users and resources
 - **Encryption**: Configure default encryption settings with KMS integration
 - **Logging**: Comprehensive logging configuration and management
@@ -36,26 +40,28 @@ A comprehensive MCP (Model Context Protocol) server that provides full AWS IoT S
 ### Intelligent Prompts
 
 #### 🔍 Asset Hierarchy Visualization
+
 Comprehensive analysis and visualization of asset hierarchies including:
+
 - Complete hierarchy tree diagrams
 - Property analysis and current values
 - Health checks and status monitoring
 - Optimization recommendations
 
 #### 📥 Data Ingestion Helper
+
 Step-by-step guidance for setting up data ingestion:
+
 - Asset model design recommendations
 - Gateway configuration templates
 - Data mapping strategies
 - Performance optimization tips
-
 
 ## Installation
 
 | Cursor | VS Code |
 |:------:|:-------:|
 | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.aws-iot-sitewise-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWlvdC1zaXRld2lzZS1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0%3D) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20IoT%20SiteWise%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-iot-sitewise-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
-
 
 ### Prerequisites
 
@@ -121,6 +127,7 @@ export AWS_PROFILE=your-profile-name
 Add to your `claude_desktop_config.json`:
 
 **Option 1: UVX (Recommended) - Read-Only Mode**
+
 ```json
 {
   "mcpServers": {
@@ -139,6 +146,7 @@ Add to your `claude_desktop_config.json`:
 ```
 
 **Option 1: UVX with Write Operations Enabled**
+
 ```json
 {
   "mcpServers": {
@@ -158,6 +166,7 @@ Add to your `claude_desktop_config.json`:
 ```
 
 **Option 2: Direct Python Execution - Read-Only Mode**
+
 ```json
 {
   "mcpServers": {
@@ -176,6 +185,7 @@ Add to your `claude_desktop_config.json`:
 ```
 
 **Option 2: Direct Python with Write Operations Enabled**
+
 ```json
 {
   "mcpServers": {
@@ -199,6 +209,7 @@ Add to your `claude_desktop_config.json`:
 Configure in your workspace or global settings:
 
 **Option 1: UVX (Recommended) - Read-Only Mode**
+
 ```json
 {
   "mcpServers": {
@@ -217,6 +228,7 @@ Configure in your workspace or global settings:
 ```
 
 **Option 1: UVX with Write Operations Enabled**
+
 ```json
 {
   "mcpServers": {
@@ -236,6 +248,7 @@ Configure in your workspace or global settings:
 ```
 
 **Option 2: Direct Python Execution - Read-Only Mode**
+
 ```json
 {
   "mcpServers": {
@@ -254,6 +267,7 @@ Configure in your workspace or global settings:
 ```
 
 **Option 2: Direct Python with Write Operations Enabled**
+
 ```json
 {
   "mcpServers": {
@@ -273,9 +287,10 @@ Configure in your workspace or global settings:
 ```
 
 **Notes:**
+
 - Replace `your-profile-name` with your actual AWS profile name, or remove the `AWS_PROFILE` line to use default credentials
 - The UVX option is recommended as it's cleaner and doesn't require path configuration
-- For development workflows, see [DEVELOPMENT.md](./DEVELOPMENT.md)
+- For development workflows, see [development guidelines](https://github.com/awslabs/mcp/blob/main/DEVELOPER_GUIDE.md)
 
 ## Tools Reference
 
@@ -354,21 +369,27 @@ Configure in your workspace or global settings:
 ## Prompts Reference
 
 ### Asset Hierarchy Visualization
-```
+
+```example
 /prompts get asset_hierarchy_visualization_prompt <asset_id>
 ```
+
 Provides comprehensive analysis of asset hierarchies including tree diagrams, property analysis, and health checks.
 
 ### Data Ingestion Helper
-```
+
+```example
 /prompts get data_ingestion_helper_prompt <data_source> <target_assets>
 ```
+
 Step-by-step guidance for setting up industrial data ingestion with best practices and examples.
 
 ### Data Exploration Helper
-```
+
+```example
 /prompts get data_exploration_helper_prompt <exploration_goal> <time_range>
 ```
+
 Comprehensive guidance for exploring IoT data using the executeQuery API with SQL-like analytics capabilities.
 
 ## Usage Examples
@@ -437,17 +458,20 @@ result = sitewise_batch_put_asset_property_value(entries=entries)
 The AWS IoT SiteWise MCP server includes multiple layers of testing to ensure reliability and API compliance:
 
 #### 1. Parameter Validation
+
 - **Input Validation**: All parameters are validated against AWS IoT SiteWise constraints
 - **Format Checking**: Asset names, IDs, and other identifiers follow AWS naming conventions
 - **Quota Enforcement**: Service quotas and limits are enforced before API calls
 - **Type Safety**: Full type checking with mypy
 
 #### 2. Integration Testing
+
 - **API Constraint Verification**: Tests validate against actual AWS API specifications
 - **Error Handling**: Comprehensive error handling for all AWS service exceptions
 - **Real-world Scenarios**: Tests include realistic industrial IoT use cases
 
 #### 3. Validation Features
+
 - **Pre-flight Checks**: Parameters validated before AWS API calls
 - **Service Quota Awareness**: Built-in knowledge of AWS IoT SiteWise limits
 - **Format Validation**: Proper validation of timestamps, ARNs, and other AWS formats
@@ -471,12 +495,14 @@ pytest test/test_sitewise_tools.py -v
 The test suite includes **comprehensive resource cleanup** to prevent AWS resource leaks:
 
 #### Automatic Cleanup Features
+
 - **Context Managers**: All tests use `sitewise_test_resources()` context manager
 - **Resource Tracking**: Every created resource is automatically registered for cleanup
 - **State Waiting**: Waits for resources to reach deletable states before cleanup
 - **Error Handling**: Cleanup continues even if individual deletions fail
 
 #### Emergency Cleanup
+
 - **Signal Handlers**: Cleanup triggered on Ctrl+C or process termination
 - **Atexit Handlers**: Cleanup runs even if tests crash unexpectedly
 - **Orphan Detection**: Scans for and cleans up resources from previous failed runs
@@ -484,6 +510,7 @@ The test suite includes **comprehensive resource cleanup** to prevent AWS resour
 - **Global Registry**: Emergency cleanup registry for process-wide resource tracking
 
 #### Cleanup Order
+
 1. Asset associations and time series associations
 2. Dashboards
 3. Projects
@@ -494,6 +521,7 @@ The test suite includes **comprehensive resource cleanup** to prevent AWS resour
 8. Asset models (last, as assets depend on them)
 
 #### Pytest Integration
+
 ```python
 def test_asset_creation(sitewise_tracker):
     """Test using the pytest fixture for automatic cleanup."""
@@ -511,6 +539,7 @@ def test_asset_creation(sitewise_tracker):
 ```
 
 #### Robust Error Handling
+
 - **AWS Credential Validation**: Tests automatically skip if credentials unavailable
 - **Service Availability**: Graceful handling of service outages
 - **Permission Errors**: Proper handling of access denied scenarios
@@ -553,6 +582,7 @@ All tools provide consistent error handling:
 ### API Compliance
 
 The implementation is validated against:
+
 - **AWS IoT SiteWise API Reference**: All parameters match official documentation
 - **Service Quotas**: Current AWS service limits are enforced
 - **Data Formats**: Proper validation of timestamps, ARNs, and identifiers
@@ -563,12 +593,11 @@ The implementation is validated against:
 - Use composite models for reusable components
 
 ### Data Ingestion
+
 - Implement proper error handling and retry logic
 - Use batch operations for efficiency
 - Include quality indicators with data points
 - Plan for data validation and cleansing
-
-
 
 ### Security
 - Use least-privilege access policies
@@ -595,8 +624,6 @@ The implementation is validated against:
    - Check timestamp formats
    - Validate data types and ranges
 
-
-
 ### Getting Help
 
 - Check AWS IoT SiteWise documentation
@@ -614,7 +641,7 @@ This MCP server is designed to be extensible. To add new functionality:
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](https://github.com/awslabs/mcp/blob/main/src/aws-iot-sitewise/LICENSE) file for details.
 
 ---
 
