@@ -57,6 +57,19 @@ def test_security_policy_file_loading_success():
             assert policy.supports_elicitation is True
 
 
+def test_security_policy_file_loading_empty():
+    """Test successful policy loading empty file."""
+    mock_policy_data = '{}'
+
+    with patch.object(Path, 'exists', return_value=True):
+        with patch('builtins.open', mock_open(read_data=mock_policy_data)):
+            mock_ctx = create_mock_ctx(supports_elicitation=True)
+            policy = SecurityPolicy(mock_ctx)
+
+            assert not policy.denylist
+            assert not policy.elicit_list
+
+
 def test_security_policy_customization_file_loading():
     """Test successful customization loading from separate file."""
     mock_policy_data = '{"version":"1.0","policy":{"denyList":[],"elicitList":[]}}'
