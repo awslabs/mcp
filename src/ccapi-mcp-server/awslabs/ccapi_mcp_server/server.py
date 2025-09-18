@@ -16,6 +16,7 @@
 
 import argparse
 from awslabs.ccapi_mcp_server.aws_client import get_aws_client
+from awslabs.ccapi_mcp_server.config import config
 from awslabs.ccapi_mcp_server.context import Context
 from awslabs.ccapi_mcp_server.errors import handle_aws_api_error
 from awslabs.ccapi_mcp_server.iac_generator import create_template as create_template_impl
@@ -58,6 +59,12 @@ _workflow_store: dict[str, dict] = {}
 
 mcp = FastMCP(
     'awslabs.ccapi-mcp-server',
+    host=config.HOST,
+    port=config.PORT,
+    streamable_http_path=config.MCP_PATH,
+    stateless_http=config.STATELESS_HTTP,
+    json_response=config.JSON_RESPONSE,
+    log_level=config.FASTMCP_LOG_LEVEL,
     instructions="""
 # AWS Resource Management Protocol - MANDATORY INSTRUCTIONS
 
@@ -721,7 +728,14 @@ def main():
         print('\n[WARNING] READ-ONLY MODE ACTIVE [WARNING]')
         print('The server will not perform any create, update, or delete operations.')
 
-    mcp.run()
+    if config.TRANSPORT == 'streamable-http':
+        print(
+            f'Starting CCAPI-MCP-SERVER on {config.HOST}:{config.PORT} with transport=streamable-http...'
+        )
+    else:
+        print('Starting CCAPI-MCP-SERVER with transport=stdio...')
+
+    mcp.run(transport=config.TRANSPORT)
 
 
 if __name__ == '__main__':
