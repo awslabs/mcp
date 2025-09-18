@@ -453,6 +453,114 @@ class TestEcrConfiguration:
         assert 'finch yaml file not found' in result['message']
         assert changed is False
 
+    @patch('sys.platform', 'linux')  # Mock as Linux
+    def test_configure_ecr_linux(self):
+        """Test configure_ecr function on Linux."""
+        result, changed = configure_ecr()
+
+        assert result['status'] == 'success'
+        assert 'config.json set in DOCKER_CONFIG is used for credentials' in result['message']
+        assert changed is False
+
+    @patch('sys.platform', 'darwin')  # Mock as macOS
+    @patch('os.path.exists')
+    @patch('os.path.expanduser')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load')
+    @patch('yaml.dump')
+    def test_configure_ecr_no_creds_helpers(
+        self,
+        mock_yaml_dump,
+        mock_yaml_load,
+        mock_open,
+        mock_expanduser,
+        mock_exists,
+    ):
+        """Test configure_ecr when no creds_helpers exist."""
+        mock_exists.return_value = True
+        mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
+        mock_yaml_load.return_value = {}
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+        mock_expanduser.assert_called()
+        mock_yaml_load.assert_called_once()
+        mock_yaml_dump.assert_called_once()
+
+        expected_yaml = {'creds_helpers': ['ecr-login']}
+        assert mock_yaml_dump.call_args[0][0] == expected_yaml
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'ECR configuration updated successfully' in result['message']
+        assert changed is True
+
+    @patch('sys.platform', 'darwin')  # Mock as macOS
+    @patch('os.path.exists')
+    @patch('os.path.expanduser')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load')
+    @patch('yaml.dump')
+    def test_configure_ecr_non_list_creds_helpers(
+        self,
+        mock_yaml_dump,
+        mock_yaml_load,
+        mock_open,
+        mock_expanduser,
+        mock_exists,
+    ):
+        """Test configure_ecr when creds_helpers is not a list."""
+        mock_exists.return_value = True
+        mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
+        mock_yaml_load.return_value = {'creds_helpers': 'single-helper'}
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+        mock_expanduser.assert_called()
+        mock_yaml_load.assert_called_once()
+        mock_yaml_dump.assert_called_once()
+
+        expected_yaml = {'creds_helpers': ['single-helper', 'ecr-login']}
+        assert mock_yaml_dump.call_args[0][0] == expected_yaml
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'ECR configuration updated successfully' in result['message']
+        assert changed is True
+
+    @patch('sys.platform', 'darwin')  # Mock as macOS
+    @patch('os.path.exists')
+    @patch('os.path.expanduser')
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('yaml.safe_load')
+    @patch('yaml.dump')
+    def test_configure_ecr_empty_creds_helpers(
+        self,
+        mock_yaml_dump,
+        mock_yaml_load,
+        mock_open,
+        mock_expanduser,
+        mock_exists,
+    ):
+        """Test configure_ecr when creds_helpers is empty."""
+        mock_exists.return_value = True
+        mock_expanduser.side_effect = lambda path: path.replace('~', '/home/user')
+        mock_yaml_load.return_value = {'creds_helpers': None}
+
+        result, changed = configure_ecr()
+
+        mock_exists.assert_called()
+        mock_expanduser.assert_called()
+        mock_yaml_load.assert_called_once()
+        mock_yaml_dump.assert_called_once()
+
+        expected_yaml = {'creds_helpers': ['ecr-login']}
+        assert mock_yaml_dump.call_args[0][0] == expected_yaml
+
+        assert result['status'] == STATUS_SUCCESS
+        assert 'ECR configuration updated successfully' in result['message']
+        assert changed is True
+
 
 class TestVmStateValidation:
     """Tests for VM state validation."""
