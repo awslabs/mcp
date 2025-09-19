@@ -1,0 +1,207 @@
+{
+  "Comment": "Complex ETL pipeline with comprehensive error handling",
+  "StartAt": "ValidateInput",
+  "States": {
+    "ExtractData": {
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "Next": "ExtractFailure",
+          "ResultPath": "$.error"
+        },
+        {
+          "ErrorEquals": [
+            "States.Timeout"
+          ],
+          "Next": "TimeoutFailure",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "TransformData",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "staging",
+        "Sql": "CREATE TABLE staging.customer_orders AS SELECT c.customer_id, c.name, c.email, o.order_id, o.total_amount, o.order_date, p.product_name FROM raw.customers c JOIN raw.orders o ON c.customer_id = o.customer_id JOIN raw.products p ON o.product_id = p.product_id WHERE o.order_date >= CURRENT_DATE - INTERVAL '7 days'"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Retry": [
+        {
+          "BackoffRate": 2.0,
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 120,
+          "MaxAttempts": 2
+        }
+      ],
+      "TimeoutSeconds": 1800,
+      "Type": "Task"
+    },
+    "ExtractFailure": {
+      "Next": "FailureCleanup",
+      "Parameters": {
+        "Message": "Data extraction failed - check source systems",
+        "Subject": "ETL Extract Failure",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:etl-alerts"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    },
+    "FailureCleanup": {
+      "End": true,
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "staging",
+        "Sql": "DROP TABLE IF EXISTS staging.customer_orders; DROP TABLE IF EXISTS processed.customer_orders_transformed;"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Type": "Task"
+    },
+    "LoadData": {
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "LoadFailure",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "NotifySuccess",
+      "Parameters": {
+        "ClusterIdentifier": "data-warehouse",
+        "Database": "analytics",
+        "Sql": "INSERT INTO analytics.customer_insights SELECT customer_id, name, email, COUNT(order_id) as total_orders, SUM(total_amount) as lifetime_value, AVG(total_amount) as avg_order_value, MAX(order_date) as last_order_date FROM processed.customer_orders_transformed GROUP BY customer_id, name, email"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+      "Type": "Task"
+    },
+    "LoadFailure": {
+      "Next": "FailureCleanup",
+      "Parameters": {
+        "Message": "Data loading failed - check target database",
+        "Subject": "ETL Load Failure",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:etl-alerts"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    },
+    "NotifySuccess": {
+      "End": true,
+      "Parameters": {
+        "Message": "ETL pipeline completed successfully",
+        "Subject": "ETL Success Notification",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:etl-notifications"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    },
+    "TimeoutFailure": {
+      "Next": "FailureCleanup",
+      "Parameters": {
+        "Message": "ETL pipeline timed out - check system performance",
+        "Subject": "ETL Timeout Failure",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:etl-alerts"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    },
+    "TransformData": {
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "TransformFailure",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "LoadData",
+      "Parameters": {
+        "JobDefinition": "data-transformation-job",
+        "JobName": "transform-customer-orders",
+        "JobQueue": "etl-processing-queue",
+        "Parameters": {
+          "inputTable": "staging.customer_orders",
+          "outputTable": "processed.customer_orders_transformed",
+          "transformations": [
+            "normalize_names",
+            "calculate_metrics",
+            "apply_business_rules"
+          ]
+        }
+      },
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Batch.AWSBatchException"
+          ],
+          "IntervalSeconds": 300,
+          "MaxAttempts": 2
+        }
+      ],
+      "Type": "Task"
+    },
+    "TransformFailure": {
+      "Next": "FailureCleanup",
+      "Parameters": {
+        "Message": "Data transformation failed - check batch job logs",
+        "Subject": "ETL Transform Failure",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:etl-alerts"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    },
+    "ValidateInput": {
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "ValidationFailure",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "ExtractData",
+      "Parameters": {
+        "FunctionName": "data-validator",
+        "Payload": {
+          "tables": [
+            "raw.customers",
+            "raw.orders",
+            "raw.products"
+          ],
+          "validationRules": [
+            "not_null",
+            "data_types",
+            "referential_integrity"
+          ]
+        }
+      },
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 3
+        }
+      ],
+      "Type": "Task"
+    },
+    "ValidationFailure": {
+      "Next": "FailureCleanup",
+      "Parameters": {
+        "Message.$": "$.error.Cause",
+        "Subject": "ETL Validation Failure",
+        "TopicArn": "arn:aws:sns:us-east-1:123456789012:etl-alerts"
+      },
+      "Resource": "arn:aws:states:::sns:publish",
+      "Type": "Task"
+    }
+  }
+}
