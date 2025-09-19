@@ -136,13 +136,13 @@ The server uses boto3's standard credential chain automatically:
 | Variable            | Default     | Description                                                                                                                                 |
 | ------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SECURITY_SCANNING` | `enabled`   | Enable/disable Checkov security scanning (`enabled` or `disabled`). When disabled, shows warning but allows resource operations to proceed. |
-| `TRANSPORT`         | `"stdio"`              | Transport protocol for the MCP server. Valid options are `"stdio"` (default) for local communication or `"streamable-http"` for HTTP-based communication. When using `"streamable-http"`, the server will listen on the host and port specified by `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.  |
+| `TRANSPORT`         | `"stdio"`              | Transport protocol for the MCP server. Valid options are `"stdio"` (default) for local communication or `"streamable-http"` for HTTP-based communication. When using `"streamable-http"`, the server will listen on the host and port specified by `HOST` and `PORT`.  |
 | `HOST`              | `"127.0.0.1"`          | Host address for the MCP server, only used when `TRANSPORT` is set to `"streamable-http"`                  |
 | `PORT`              | `8000`                 | Port number for the MCP server, only used when `TRANSPORT` is set to `"streamable-http"` |
 | `MCP_PATH`          | `"/mcp"`               | Path for MCP remote connection URL, only used when `TRANSPORT` is set to `"streamable-http"`                 |
 | `STATELESS_HTTP`    | `True`                 | Setting `True` will have no session persistence |
 | `JSON_RESPONSE`     | `True`                 | Setting `True` will not have SSE Stream Support and response will be in JSON |
-| `FASTMCP_LOG_LEVEL` | `"INFO"`               | Loging level for the MCP server. Valid options are `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`               |
+| `FASTMCP_LOG_LEVEL` | `"INFO"`               | Logging level for the MCP server. Valid options are `"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`               |
 
 
 ### Default Tagging
