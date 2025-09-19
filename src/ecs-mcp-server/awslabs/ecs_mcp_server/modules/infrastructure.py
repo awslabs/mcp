@@ -19,7 +19,7 @@ This module provides tools and prompts for creating ECS infrastructure.
 
 from typing import Any, Dict, List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from awslabs.ecs_mcp_server.api.infrastructure import create_infrastructure

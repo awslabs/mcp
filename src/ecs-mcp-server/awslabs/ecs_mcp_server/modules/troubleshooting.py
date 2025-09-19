@@ -19,7 +19,7 @@ This module provides tools and prompts for troubleshooting ECS deployments.
 
 from typing import Any, Dict, List, Optional
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from awslabs.ecs_mcp_server.api.ecs_troubleshooting import (
     TroubleshootingAction,

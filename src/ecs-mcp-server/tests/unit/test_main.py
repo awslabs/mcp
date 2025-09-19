@@ -50,7 +50,7 @@ class MockFastMCP:
 
 
 # Apply the patches
-with patch("mcp.server.fastmcp.FastMCP", MockFastMCP):
+with patch("fastmcp.FastMCP", MockFastMCP):
     from awslabs.ecs_mcp_server.main import main, mcp
 
 
