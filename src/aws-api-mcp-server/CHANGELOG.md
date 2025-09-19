@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Loading of security policy from `~/.aws/aws-api-mcp/mcp-security-policy.json` (#1311)
+- Enforcement of `READ_OPERATIONS_ONLY_MODE` and `REQUIRE_MUTATION_CONSENT` in security policy (#1301)
+
+## [0.2.14] - 2025-09-15
+
+### Added
+
+- Agent Script for debugging Lambda timeouts (#1271)
+- Agent Script for failure troubleshooting (#1276)
+- Safe execution for AWS APIs within working directory (#1261)
+
+## [0.2.13] - 2025-09-10
+
 ### Added
 
 - Agent script for CloudTrail Multi-Region Setup (#1299)
