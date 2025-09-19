@@ -20,7 +20,7 @@ import logging
 import os
 import sys
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from awslabs.ecs_mcp_server.modules import (
     containerize,
