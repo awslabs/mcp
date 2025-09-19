@@ -69,7 +69,7 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
     - [Getting Started with VS Code](#getting-started-with-vs-code)
       - [`.vscode/mcp.json`](#vscodemcpjson)
     - [Getting Started with Claude Code](#getting-started-with-claude-code)
-      - [`.mcp.json`](#claudemcpjson)
+      - [`.mcp.json`](#mcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
   - [Additional Resources](#additional-resources)
