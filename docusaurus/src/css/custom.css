@@ -4,6 +4,11 @@
  * work well for content-centric websites.
  */
 
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
 /* You can override the default Infima variables here. */
 :root {
   --ifm-font-color-base: #000000;
