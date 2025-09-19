@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Agent script for CloudTrail Multi-Region Setup (#1299)
+- Agent script for CloudTrail Multi-Region Setup (#1320)
 
 ### Fixed
 
