@@ -1390,12 +1390,12 @@ def test_tool_names_preserve_snake_case():
         Args:
             query: The search query
         """
-        return f"Searching for: {query}"
+        return f'Searching for: {query}'
 
     @handler.tool()
     def get_user_data() -> str:
         """Get user data."""
-        return "user data"
+        return 'user data'
 
     @handler.tool()
     def calculate_total_price(items: int) -> float:
