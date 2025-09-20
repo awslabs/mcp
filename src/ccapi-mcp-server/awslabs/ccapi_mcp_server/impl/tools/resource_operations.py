@@ -116,7 +116,9 @@ async def create_resource_impl(request: CreateResourceRequest, workflow_store: d
     properties = workflow_data['data']['properties']
 
     # Ensure region is a string, not a FieldInfo object
-    region_str = ensure_region_string(request.region) or 'us-east-1'
+    region_str = (
+        ensure_region_string(request.region) or aws_session_data.get('region') or 'us-east-1'
+    )
     cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
     try:
         response = cloudcontrol_client.create_resource(
@@ -177,7 +179,9 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
 
     validate_patch(request.patch_document)
     # Ensure region is a string, not a FieldInfo object
-    region_str = ensure_region_string(request.region) or 'us-east-1'
+    region_str = (
+        ensure_region_string(request.region) or aws_session_data.get('region') or 'us-east-1'
+    )
     cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
 
     # Convert patch document to JSON string for the API
@@ -239,7 +243,10 @@ async def delete_resource_impl(request: DeleteResourceRequest, workflow_store: d
             'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
         )
 
-    cloudcontrol_client = get_aws_client('cloudcontrol', request.region or 'us-east-1')
+    region_str = (
+        ensure_region_string(request.region) or aws_session_data.get('region') or 'us-east-1'
+    )
+    cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
     try:
         response = cloudcontrol_client.delete_resource(
             TypeName=request.resource_type, Identifier=request.identifier
@@ -260,7 +267,9 @@ async def get_resource_impl(
     validate_resource_type(request.resource_type)
     validate_identifier(request.identifier)
 
-    cloudcontrol = get_aws_client('cloudcontrol', request.region or 'us-east-1')
+    cloudcontrol = get_aws_client(
+        'cloudcontrol', request.region or environ.get('AWS_REGION', 'us-east-1')
+    )
     try:
         result = cloudcontrol.get_resource(
             TypeName=request.resource_type, Identifier=request.identifier
@@ -356,7 +365,9 @@ async def get_resource_request_status_impl(request_token: str, region: str | Non
     if not request_token:
         raise ClientError('Please provide a request token to track the request')
 
-    cloudcontrol_client = get_aws_client('cloudcontrol', region or 'us-east-1')
+    cloudcontrol_client = get_aws_client(
+        'cloudcontrol', region or environ.get('AWS_REGION', 'us-east-1')
+    )
     try:
         response = cloudcontrol_client.get_resource_request_status(
             RequestToken=request_token,
