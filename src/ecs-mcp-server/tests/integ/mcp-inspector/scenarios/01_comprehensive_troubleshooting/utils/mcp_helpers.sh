@@ -54,7 +54,7 @@ call_mcp_troubleshooting_tool() {
         --method tools/call \
         --tool-name ecs_troubleshooting_tool \
         --tool-arg "action=$action" \
-        --tool-arg "parameters=$parameters" 2>&1)
+        --tool-arg "parameters=${parameters}" 2>&1)
 
     local exit_code=$?
 
