@@ -1,0 +1,11 @@
+[project]
+name = "aws-unified-mcp-server"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=2.12.3",
+    "mcp>=1.14.1",
+    "pydantic>=2.11.9",
+]
