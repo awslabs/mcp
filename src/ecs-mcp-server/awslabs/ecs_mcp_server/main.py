@@ -19,10 +19,13 @@ AWS ECS MCP Server - Main entry point
 import logging
 import os
 import sys
+from contextlib import asynccontextmanager
+from typing import Any, Dict, Tuple
 
 from fastmcp import FastMCP
 
 from awslabs.ecs_mcp_server.modules import (
+    aws_knowledge_proxy,
     containerize,
     delete,
     deployment_status,
@@ -36,42 +39,58 @@ from awslabs.ecs_mcp_server.utils.security import (
     secure_tool,
 )
 
-# Configure logging
-log_level = os.environ.get("FASTMCP_LOG_LEVEL", "INFO")
-log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-log_file = os.environ.get("FASTMCP_LOG_FILE")
 
-# Set up basic configuration
-logging.basicConfig(
-    level=log_level,
-    format=log_format,
-)
+def _setup_logging() -> logging.Logger:
+    """Configure logging for the server."""
+    log_level = os.environ.get("FASTMCP_LOG_LEVEL", "INFO")
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    log_file = os.environ.get("FASTMCP_LOG_FILE")
 
-# Add file handler if log file path is specified
-if log_file:
-    try:
-        # Create directory for log file if it doesn't exist
-        log_dir = os.path.dirname(log_file)
-        if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir, exist_ok=True)
+    logging.basicConfig(level=log_level, format=log_format)
 
-        # Add file handler
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(logging.Formatter(log_format))
-        logging.getLogger().addHandler(file_handler)
-        logging.info(f"Logging to file: {log_file}")
-    except Exception as e:
-        logging.error(f"Failed to set up log file {log_file}: {e}")
+    if log_file:
+        try:
+            log_dir = os.path.dirname(log_file)
+            if log_dir and not os.path.exists(log_dir):
+                os.makedirs(log_dir, exist_ok=True)
 
-logger = logging.getLogger("ecs-mcp-server")
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(logging.Formatter(log_format))
+            logging.getLogger().addHandler(file_handler)
+            logging.info(f"Logging to file: {log_file}")
+        except Exception as e:
+            logging.error(f"Failed to set up log file {log_file}: {e}")
 
-# Load configuration
-config = get_config()
+    return logging.getLogger("ecs-mcp-server")
 
-# Create the MCP server
-mcp = FastMCP(
-    name="AWS ECS MCP Server",
-    instructions="""Use this server to containerize and deploy web applications to AWS ECS.
+
+@asynccontextmanager
+async def server_lifespan(server):
+    """
+    Server lifespan context manager for initialization and cleanup.
+
+    Provides safe access to async server methods during startup for
+    operations like tool transformations.
+    """
+    logger = logging.getLogger("ecs-mcp-server")
+    logger.info("Server initializing")
+
+    # Safe async operations can be performed here
+    await aws_knowledge_proxy.apply_tool_transformations(server)
+
+    logger.info("Server ready")
+    yield
+    logger.info("Server shutting down")
+
+
+def _create_ecs_mcp_server() -> Tuple[FastMCP, Dict[str, Any]]:
+    """Create and configure the MCP server."""
+    config = get_config()
+
+    mcp = FastMCP(
+        name="AWS ECS MCP Server",
+        lifespan=server_lifespan,
+        instructions="""Use this server to containerize and deploy web applications to AWS ECS.
 
 WORKFLOW:
 1. containerize_app:
@@ -97,30 +116,38 @@ IMPORTANT:
 - Set ALLOW_WRITE=true to enable infrastructure creation and deletion
 - Set ALLOW_SENSITIVE_DATA=true to enable access to logs and detailed resource information
 """,
-)
+    )
 
-# Apply security wrappers to API functions
-# Write operations
-infrastructure.create_infrastructure = secure_tool(
-    config, PERMISSION_WRITE, "create_ecs_infrastructure"
-)(infrastructure.create_infrastructure)
-delete.delete_infrastructure = secure_tool(config, PERMISSION_WRITE, "delete_ecs_infrastructure")(
-    delete.delete_infrastructure
-)
+    # Apply security wrappers to API functions
+    # Write operations
+    infrastructure.create_infrastructure = secure_tool(
+        config, PERMISSION_WRITE, "create_ecs_infrastructure"
+    )(infrastructure.create_infrastructure)
+    delete.delete_infrastructure = secure_tool(
+        config, PERMISSION_WRITE, "delete_ecs_infrastructure"
+    )(delete.delete_infrastructure)
 
-# Register all modules
-containerize.register_module(mcp)
-infrastructure.register_module(mcp)
-deployment_status.register_module(mcp)
-resource_management.register_module(mcp)
-troubleshooting.register_module(mcp)
-delete.register_module(mcp)
+    # Register all modules
+    containerize.register_module(mcp)
+    infrastructure.register_module(mcp)
+    deployment_status.register_module(mcp)
+    resource_management.register_module(mcp)
+    troubleshooting.register_module(mcp)
+    delete.register_module(mcp)
+
+    # Register all proxies
+    aws_knowledge_proxy.register_proxy(mcp)
+
+    return mcp, config
 
 
 def main() -> None:
     """Main entry point for the ECS MCP Server."""
     try:
         # Start the server
+        mcp, config = _create_ecs_mcp_server()
+        logger = _setup_logging()
+
         logger.info("Server started")
         logger.info(f"Write operations enabled: {config.get('allow-write', False)}")
         logger.info(f"Sensitive data access enabled: {config.get('allow-sensitive-data', False)}")
