@@ -304,7 +304,9 @@ The resource management tool enforces permission checks for write operations. Op
 
 ### AWS Documentation Tools
 
-The ECS MCP Server integrates with the AWS Knowledge MCP Server to provide access to up-to-date AWS documentation, including ECS-specific knowledge about new features recently launched that models may not be aware of.
+The ECS MCP Server integrates with the [AWS Knowledge MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-knowledge-mcp-server) to provide access to up-to-date AWS documentation, including ECS-specific knowledge about new features recently launched that models may not be aware of.
+
+Note: these tools are duplicative if you have the AWS Knowledge MCP Server already configured in your MCP client. For the below knowledge tools, the ECS MCP Server adds extra guidance to the tool descriptions to help LLMs use the tools for ECS contexts.
 
 - **aws_knowledge_aws___search_documentation**: Search across all AWS documentation including the latest AWS docs, API references, Blogs posts, Architectural references, and Well-Architected best practices.
 
