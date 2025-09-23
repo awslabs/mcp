@@ -1167,6 +1167,114 @@ def test_tool_decorator_typed_dict_inheritance():
     assert body['result']['content'][0]['text'] == 'abc123: test = 42'
 
 
+def test_tool_decorator_list_typeddict_with_descriptions():
+    """Test that TypedDict fields within List items can have descriptions using [] notation."""
+    from typing import List, TypedDict
+
+    class Address(TypedDict):
+        street: str
+        city: str
+        zip_code: str
+
+    class Person(TypedDict):
+        name: str
+        age: int
+        email: str
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_people(people: List[Person], addresses: List[Address]) -> str:
+        """Process a list of people and addresses.
+
+        Args:
+            people: List of person records
+            people[].name: Full name of the person
+            people[].age: Age in years
+            people[].email: Contact email address
+            addresses: List of addresses to process
+            addresses[].street: Street name and number
+            addresses[].city: City name
+            addresses[].zip_code: Postal code
+        """
+        return f'Processing {len(people)} people and {len(addresses)} addresses'
+
+    # Check the generated schema
+    schema = handler.tools['processPeople']
+
+    # Verify people list schema
+    people_schema = schema['inputSchema']['properties']['people']
+    assert people_schema['type'] == 'array'
+    assert people_schema['description'] == 'List of person records'
+
+    # Check that TypedDict fields within the list have descriptions
+    person_schema = people_schema['items']
+    assert person_schema['type'] == 'object'
+    assert person_schema['additionalProperties'] is False
+
+    # Verify Person TypedDict fields have descriptions
+    assert 'name' in person_schema['properties']
+    assert person_schema['properties']['name']['type'] == 'string'
+    assert person_schema['properties']['name']['description'] == 'Full name of the person'
+
+    assert 'age' in person_schema['properties']
+    assert person_schema['properties']['age']['type'] == 'integer'
+    assert person_schema['properties']['age']['description'] == 'Age in years'
+
+    assert 'email' in person_schema['properties']
+    assert person_schema['properties']['email']['type'] == 'string'
+    assert person_schema['properties']['email']['description'] == 'Contact email address'
+
+    # Verify addresses list schema
+    addresses_schema = schema['inputSchema']['properties']['addresses']
+    assert addresses_schema['type'] == 'array'
+    assert addresses_schema['description'] == 'List of addresses to process'
+
+    # Check that Address TypedDict fields have descriptions
+    address_schema = addresses_schema['items']
+    assert address_schema['type'] == 'object'
+    assert address_schema['additionalProperties'] is False
+
+    assert 'street' in address_schema['properties']
+    assert address_schema['properties']['street']['type'] == 'string'
+    assert address_schema['properties']['street']['description'] == 'Street name and number'
+
+    assert 'city' in address_schema['properties']
+    assert address_schema['properties']['city']['type'] == 'string'
+    assert address_schema['properties']['city']['description'] == 'City name'
+
+    assert 'zip_code' in address_schema['properties']
+    assert address_schema['properties']['zip_code']['type'] == 'string'
+    assert address_schema['properties']['zip_code']['description'] == 'Postal code'
+
+    # Test execution
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {
+            'name': 'processPeople',
+            'arguments': {
+                'people': [
+                    {'name': 'Alice', 'age': 30, 'email': 'alice@example.com'},
+                    {'name': 'Bob', 'age': 25, 'email': 'bob@example.com'},
+                ],
+                'addresses': [
+                    {'street': '123 Main St', 'city': 'Boston', 'zip_code': '02101'},
+                    {'street': '456 Oak Ave', 'city': 'Cambridge', 'zip_code': '02139'},
+                ],
+            },
+        },
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert body['result']['content'][0]['text'] == 'Processing 2 people and 2 addresses'
+
+
 def test_create_error_response_minimal():
     """Test minimal error response creation."""
     handler = MCPLambdaHandler('test-server')
