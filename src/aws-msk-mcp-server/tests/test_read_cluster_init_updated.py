@@ -36,9 +36,10 @@ class TestReadClusterInit:
         # Verify that the tool decorators were called
         assert mock_mcp.tool.call_count == 2
 
-        # Verify that the expected tools were registered
-        mock_mcp.tool.assert_any_call(name='describe_cluster_operation')
-        mock_mcp.tool.assert_any_call(name='get_cluster_info')
+        # Verify that the expected tools were registered (check call names)
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'describe_cluster_operation' in call_names
+        assert 'get_cluster_info' in call_names
 
     @patch('boto3.client')
     @patch('awslabs.aws_msk_mcp_server.tools.read_cluster.describe_cluster_operation')
