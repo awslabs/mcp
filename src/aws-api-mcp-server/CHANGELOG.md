@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
+
+## [0.3.1] - 2025-09-23
+
+### Added
+
 - Agent script for CloudTrail Multi-Region Setup (#1320)
 - Add telemetry for AWS CLI customizations (#1335)
 - Enforcement of `AUTH_TYPE=no-auth` for streamable-http mode (#1345)
