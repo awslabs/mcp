@@ -43,6 +43,7 @@ The library provides full support for Python's TypedDict with automatic JSON sch
 
 ```python
 from typing import TypedDict, List
+from enum import Enum
 from awslabs.mcp_lambda_handler import MCPLambdaHandler
 
 class Address(TypedDict):
@@ -54,11 +55,22 @@ class Contact(TypedDict):
     email: str
     phone: str
 
+class SkillLevel(Enum):
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate"
+    EXPERT = "expert"
+
+class Skill(TypedDict):
+    name: str
+    level: SkillLevel
+    years_experience: int
+
 class Employee(TypedDict):
     name: str
     employee_id: int
     address: Address
     contact: Contact
+    skills: List[Skill]
     tags: List[str]
 
 mcp = MCPLambdaHandler(name="example-server")
@@ -78,7 +90,11 @@ def register_employee(employee: Employee) -> str:
         employee.contact: Contact information
         employee.contact.email: Primary work email address
         employee.contact.phone: Contact phone number (with country code)
-        employee.tags: Employee tags and labels
+        employee.skills: List of professional skills and competencies
+        employee.skills[].name: Name of the skill (e.g., "Python", "Project Management")
+        employee.skills[].level: Proficiency level (beginner, intermediate, or expert)
+        employee.skills[].years_experience: Years of experience with this skill
+        employee.tags: Employee tags and labels for categorization
 
     Returns:
         Confirmation message with employee ID

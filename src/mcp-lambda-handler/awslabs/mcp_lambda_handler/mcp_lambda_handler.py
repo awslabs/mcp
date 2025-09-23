@@ -193,6 +193,7 @@ class MCPLambdaHandler:
                 Supports both:
                 - Simple format: "param_name: description"
                 - Nested format: "param_name.field.subfield: description"
+                - List item format: "param_name[].field: description"
                 """
                 descriptions = {}
                 if not docstring:
@@ -209,7 +210,12 @@ class MCPLambdaHandler:
                             break
                         if ':' in line:
                             path, desc = line.split(':', 1)
-                            path_parts = path.strip().split('.')
+                            path = path.strip()
+
+                            # Handle list item notation (e.g., param[].field)
+                            # Replace [] with a special marker __list_items__
+                            path = path.replace('[]', '.__list_items__')
+                            path_parts = path.split('.')
 
                             # Build nested dictionary structure
                             current = descriptions
@@ -331,7 +337,17 @@ class MCPLambdaHandler:
                     if not args:
                         return {'type': 'array', 'items': {}}
 
-                    item_schema = get_type_schema(args[0])
+                    # Check if we have descriptions for list items (marked with __list_items__)
+                    list_item_descriptions = None
+                    if nested_descriptions and '__list_items__' in nested_descriptions:
+                        list_item_data = nested_descriptions['__list_items__']
+                        if isinstance(list_item_data, dict):
+                            # Remove the __description__ if it exists (that would be for the list itself)
+                            list_item_descriptions = {
+                                k: v for k, v in list_item_data.items() if k != '__description__'
+                            }
+
+                    item_schema = get_type_schema(args[0], list_item_descriptions)
                     return {'type': 'array', 'items': item_schema}
 
                 # Default for unknown complex types
