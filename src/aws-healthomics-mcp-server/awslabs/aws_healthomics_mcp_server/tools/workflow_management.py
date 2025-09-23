@@ -19,14 +19,16 @@ import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_MAX_RESULTS,
 )
-from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
-    decode_from_base64,
     get_omics_client,
+)
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+    validate_container_registry_params,
+    validate_definition_sources,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
-from pydantic import Field, ValidationError
+from pydantic import Field
 from typing import Any, Dict, Optional
 
 
@@ -146,62 +148,13 @@ async def create_workflow(
     Returns:
         Dictionary containing the created workflow information
     """
-    # Handle Field objects for optional parameters (FastMCP compatibility)
-    if hasattr(definition_uri, 'default') and not isinstance(definition_uri, (str, type(None))):
-        definition_uri = getattr(definition_uri, 'default', None)
-
-    # Validate that exactly one definition source is provided
-    if definition_zip_base64 is not None and definition_uri is not None:
-        error_message = 'Cannot specify both definition_zip_base64 and definition_uri parameters'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    if definition_zip_base64 is None and definition_uri is None:
-        error_message = 'Must specify either definition_zip_base64 or definition_uri parameter'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    # Validate that both container registry parameters are not provided together
-    if container_registry_map is not None and container_registry_map_uri is not None:
-        error_message = (
-            'Cannot specify both container_registry_map and container_registry_map_uri parameters'
-        )
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    # Validate container registry map structure if provided
-    if container_registry_map is not None:
-        try:
-            ContainerRegistryMap(**container_registry_map)
-        except ValidationError as e:
-            error_message = f'Invalid container registry map structure: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
-
-    # Validate and decode base64 input if provided
-    definition_zip = None
-    if definition_zip_base64 is not None:
-        try:
-            definition_zip = decode_from_base64(definition_zip_base64)
-        except Exception as e:
-            error_message = f'Failed to decode base64 workflow definition: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise
-
-    # Validate S3 URI format if provided
-    if definition_uri is not None:
-        if not definition_uri.startswith('s3://'):
-            error_message = (
-                f'definition_uri must be a valid S3 URI starting with s3://, got: {definition_uri}'
-            )
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
+    # Validate definition sources and container registry parameters
+    definition_zip, definition_uri = await validate_definition_sources(
+        ctx, definition_zip_base64, definition_uri
+    )
+    await validate_container_registry_params(
+        ctx, container_registry_map, container_registry_map_uri
+    )
 
     client = get_omics_client()
 
@@ -382,62 +335,13 @@ async def create_workflow_version(
     Returns:
         Dictionary containing the created workflow version information
     """
-    # Handle Field objects for optional parameters (FastMCP compatibility)
-    if hasattr(definition_uri, 'default') and not isinstance(definition_uri, (str, type(None))):
-        definition_uri = getattr(definition_uri, 'default', None)
-
-    # Validate that exactly one definition source is provided
-    if definition_zip_base64 is not None and definition_uri is not None:
-        error_message = 'Cannot specify both definition_zip_base64 and definition_uri parameters'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    if definition_zip_base64 is None and definition_uri is None:
-        error_message = 'Must specify either definition_zip_base64 or definition_uri parameter'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    # Validate that both container registry parameters are not provided together
-    if container_registry_map is not None and container_registry_map_uri is not None:
-        error_message = (
-            'Cannot specify both container_registry_map and container_registry_map_uri parameters'
-        )
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    # Validate container registry map structure if provided
-    if container_registry_map is not None:
-        try:
-            ContainerRegistryMap(**container_registry_map)
-        except ValidationError as e:
-            error_message = f'Invalid container registry map structure: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
-
-    # Validate and decode base64 input if provided
-    definition_zip = None
-    if definition_zip_base64 is not None:
-        try:
-            definition_zip = decode_from_base64(definition_zip_base64)
-        except Exception as e:
-            error_message = f'Failed to decode base64 workflow definition: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise
-
-    # Validate S3 URI format if provided
-    if definition_uri is not None:
-        if not definition_uri.startswith('s3://'):
-            error_message = (
-                f'definition_uri must be a valid S3 URI starting with s3://, got: {definition_uri}'
-            )
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
+    # Validate definition sources and container registry parameters
+    definition_zip, definition_uri = await validate_definition_sources(
+        ctx, definition_zip_base64, definition_uri
+    )
+    await validate_container_registry_params(
+        ctx, container_registry_map, container_registry_map_uri
+    )
 
     # Validate storage requirements
     if storage_type == 'STATIC':
