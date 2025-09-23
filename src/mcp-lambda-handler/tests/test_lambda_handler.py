@@ -1275,6 +1275,165 @@ def test_tool_decorator_list_typeddict_with_descriptions():
     assert body['result']['content'][0]['text'] == 'Processing 2 people and 2 addresses'
 
 
+def test_tool_decorator_recursive_typed_dict():
+    """Test tool decorator with recursive TypedDict."""
+    from typing import List, Optional, TypedDict
+
+    # Create a recursive TypedDict structure
+    class TreeNode(TypedDict):
+        value: str
+        children: Optional[List['TreeNode']]
+        parent: Optional['TreeNode']
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_tree(node: TreeNode) -> str:
+        """Process a tree node structure.
+
+        Args:
+            node: A tree node with recursive children and parent references
+            node.value: The value stored in this node
+            node.children: Optional list of child nodes
+            node.parent: Optional reference to parent node
+        """
+        # Just process the value to avoid actual recursion
+        return f'Processing node: {node["value"]}'
+
+    # Verify schema generation doesn't cause infinite loop
+    schema = handler.tools['processTree']
+    node_schema = schema['inputSchema']['properties']['node']
+
+    # Check basic structure
+    assert node_schema['type'] == 'object'
+    assert node_schema['additionalProperties'] is False
+    assert (
+        node_schema['description'] == 'A tree node with recursive children and parent references'
+    )
+
+    # Check properties
+    assert 'value' in node_schema['properties']
+    assert node_schema['properties']['value']['type'] == 'string'
+    assert node_schema['properties']['value']['description'] == 'The value stored in this node'
+
+    # Check children field (should handle recursive reference)
+    assert 'children' in node_schema['properties']
+    children_schema = node_schema['properties']['children']
+    # Since it's Optional[List['TreeNode']], it should be a string type (fallback for unhandled recursive type)
+    assert children_schema['type'] == 'string'
+    assert children_schema['description'] == 'Optional list of child nodes'
+
+    # Check parent field (should handle recursive reference)
+    assert 'parent' in node_schema['properties']
+    parent_schema = node_schema['properties']['parent']
+    # Since it's Optional['TreeNode'], it should be a string type (fallback for unhandled recursive type)
+    assert parent_schema['type'] == 'string'
+    assert parent_schema['description'] == 'Optional reference to parent node'
+
+    # Test tool execution - the system should handle the input without infinite loop
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {
+            'name': 'processTree',
+            'arguments': {
+                'node': {
+                    'value': 'root',
+                    'children': [
+                        {'value': 'child1', 'children': None, 'parent': None},
+                        {'value': 'child2', 'children': None, 'parent': None},
+                    ],
+                    'parent': None,
+                }
+            },
+        },
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert body['result']['content'][0]['text'] == 'Processing node: root'
+
+
+def test_tool_decorator_mutually_recursive_typed_dict():
+    """Test tool decorator with mutually recursive TypedDicts."""
+    from typing import Optional, TypedDict
+
+    # Create mutually recursive TypedDict structures
+    class Person(TypedDict):
+        name: str
+        spouse: Optional['Person']
+        company: Optional['Company']
+
+    class Company(TypedDict):
+        company_name: str
+        ceo: Optional['Person']
+        employees: Optional[List['Person']]
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_person(person: Person) -> str:
+        """Process person info with recursive relationships.
+
+        Args:
+            person: Person with potential recursive spouse and company references
+            person.name: The person's name
+            person.spouse: Optional spouse (also a Person)
+            person.company: Optional company reference
+        """
+        return f'Person: {person["name"]}'
+
+    @handler.tool()
+    def process_company(company: Company) -> str:
+        """Process company info with recursive relationships.
+
+        Args:
+            company: Company with potential recursive person references
+            company.company_name: The company's name
+            company.ceo: Optional CEO (a Person)
+            company.employees: Optional list of employees (Persons)
+        """
+        return f'Company: {company["company_name"]}'
+
+    # Verify schema generation for Person doesn't cause infinite loop
+    person_schema = handler.tools['processPerson']['inputSchema']['properties']['person']
+    assert person_schema['type'] == 'object'
+    assert 'name' in person_schema['properties']
+    assert person_schema['properties']['name']['type'] == 'string'
+
+    # Recursive references should fallback to string type
+    assert 'spouse' in person_schema['properties']
+    assert person_schema['properties']['spouse']['type'] == 'string'
+    assert (
+        person_schema['properties']['spouse']['description'] == 'Optional spouse (also a Person)'
+    )
+
+    assert 'company' in person_schema['properties']
+    assert person_schema['properties']['company']['type'] == 'string'
+    assert person_schema['properties']['company']['description'] == 'Optional company reference'
+
+    # Verify schema generation for Company doesn't cause infinite loop
+    company_schema = handler.tools['processCompany']['inputSchema']['properties']['company']
+    assert company_schema['type'] == 'object'
+    assert 'company_name' in company_schema['properties']
+    assert company_schema['properties']['company_name']['type'] == 'string'
+
+    # Recursive references should fallback to string type
+    assert 'ceo' in company_schema['properties']
+    assert company_schema['properties']['ceo']['type'] == 'string'
+    assert company_schema['properties']['ceo']['description'] == 'Optional CEO (a Person)'
+
+    assert 'employees' in company_schema['properties']
+    assert company_schema['properties']['employees']['type'] == 'string'
+    assert (
+        company_schema['properties']['employees']['description']
+        == 'Optional list of employees (Persons)'
+    )
+
+
 def test_create_error_response_minimal():
     """Test minimal error response creation."""
     handler = MCPLambdaHandler('test-server')
@@ -1986,165 +2145,6 @@ def test_initialize_includes_resources_capability():
     assert 'resources' in capabilities
     assert capabilities['resources']['list'] is True
     assert capabilities['resources']['read'] is True
-
-
-def test_tool_decorator_recursive_typed_dict():
-    """Test tool decorator with recursive TypedDict."""
-    from typing import List, Optional, TypedDict
-
-    # Create a recursive TypedDict structure
-    class TreeNode(TypedDict):
-        value: str
-        children: Optional[List['TreeNode']]
-        parent: Optional['TreeNode']
-
-    handler = MCPLambdaHandler('test-server')
-
-    @handler.tool()
-    def process_tree(node: TreeNode) -> str:
-        """Process a tree node structure.
-
-        Args:
-            node: A tree node with recursive children and parent references
-            node.value: The value stored in this node
-            node.children: Optional list of child nodes
-            node.parent: Optional reference to parent node
-        """
-        # Just process the value to avoid actual recursion
-        return f'Processing node: {node["value"]}'
-
-    # Verify schema generation doesn't cause infinite loop
-    schema = handler.tools['processTree']
-    node_schema = schema['inputSchema']['properties']['node']
-
-    # Check basic structure
-    assert node_schema['type'] == 'object'
-    assert node_schema['additionalProperties'] is False
-    assert (
-        node_schema['description'] == 'A tree node with recursive children and parent references'
-    )
-
-    # Check properties
-    assert 'value' in node_schema['properties']
-    assert node_schema['properties']['value']['type'] == 'string'
-    assert node_schema['properties']['value']['description'] == 'The value stored in this node'
-
-    # Check children field (should handle recursive reference)
-    assert 'children' in node_schema['properties']
-    children_schema = node_schema['properties']['children']
-    # Since it's Optional[List['TreeNode']], it should be a string type (fallback for unhandled recursive type)
-    assert children_schema['type'] == 'string'
-    assert children_schema['description'] == 'Optional list of child nodes'
-
-    # Check parent field (should handle recursive reference)
-    assert 'parent' in node_schema['properties']
-    parent_schema = node_schema['properties']['parent']
-    # Since it's Optional['TreeNode'], it should be a string type (fallback for unhandled recursive type)
-    assert parent_schema['type'] == 'string'
-    assert parent_schema['description'] == 'Optional reference to parent node'
-
-    # Test tool execution - the system should handle the input without infinite loop
-    req = {
-        'jsonrpc': '2.0',
-        'id': 1,
-        'method': 'tools/call',
-        'params': {
-            'name': 'processTree',
-            'arguments': {
-                'node': {
-                    'value': 'root',
-                    'children': [
-                        {'value': 'child1', 'children': None, 'parent': None},
-                        {'value': 'child2', 'children': None, 'parent': None},
-                    ],
-                    'parent': None,
-                }
-            },
-        },
-    }
-    event = make_lambda_event(req)
-    resp = handler.handle_request(event, None)
-
-    body = json.loads(resp['body'])
-    assert 'result' in body
-    assert body['result']['content'][0]['text'] == 'Processing node: root'
-
-
-def test_tool_decorator_mutually_recursive_typed_dict():
-    """Test tool decorator with mutually recursive TypedDicts."""
-    from typing import Optional, TypedDict
-
-    # Create mutually recursive TypedDict structures
-    class Person(TypedDict):
-        name: str
-        spouse: Optional['Person']
-        company: Optional['Company']
-
-    class Company(TypedDict):
-        company_name: str
-        ceo: Optional['Person']
-        employees: Optional[List['Person']]
-
-    handler = MCPLambdaHandler('test-server')
-
-    @handler.tool()
-    def process_person(person: Person) -> str:
-        """Process person info with recursive relationships.
-
-        Args:
-            person: Person with potential recursive spouse and company references
-            person.name: The person's name
-            person.spouse: Optional spouse (also a Person)
-            person.company: Optional company reference
-        """
-        return f'Person: {person["name"]}'
-
-    @handler.tool()
-    def process_company(company: Company) -> str:
-        """Process company info with recursive relationships.
-
-        Args:
-            company: Company with potential recursive person references
-            company.company_name: The company's name
-            company.ceo: Optional CEO (a Person)
-            company.employees: Optional list of employees (Persons)
-        """
-        return f'Company: {company["company_name"]}'
-
-    # Verify schema generation for Person doesn't cause infinite loop
-    person_schema = handler.tools['processPerson']['inputSchema']['properties']['person']
-    assert person_schema['type'] == 'object'
-    assert 'name' in person_schema['properties']
-    assert person_schema['properties']['name']['type'] == 'string'
-
-    # Recursive references should fallback to string type
-    assert 'spouse' in person_schema['properties']
-    assert person_schema['properties']['spouse']['type'] == 'string'
-    assert (
-        person_schema['properties']['spouse']['description'] == 'Optional spouse (also a Person)'
-    )
-
-    assert 'company' in person_schema['properties']
-    assert person_schema['properties']['company']['type'] == 'string'
-    assert person_schema['properties']['company']['description'] == 'Optional company reference'
-
-    # Verify schema generation for Company doesn't cause infinite loop
-    company_schema = handler.tools['processCompany']['inputSchema']['properties']['company']
-    assert company_schema['type'] == 'object'
-    assert 'company_name' in company_schema['properties']
-    assert company_schema['properties']['company_name']['type'] == 'string'
-
-    # Recursive references should fallback to string type
-    assert 'ceo' in company_schema['properties']
-    assert company_schema['properties']['ceo']['type'] == 'string'
-    assert company_schema['properties']['ceo']['description'] == 'Optional CEO (a Person)'
-
-    assert 'employees' in company_schema['properties']
-    assert company_schema['properties']['employees']['type'] == 'string'
-    assert (
-        company_schema['properties']['employees']['description']
-        == 'Optional list of employees (Persons)'
-    )
 
 
 def test_multiple_resources_same_handler():
