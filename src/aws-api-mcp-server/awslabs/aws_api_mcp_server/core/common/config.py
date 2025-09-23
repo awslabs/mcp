@@ -13,11 +13,18 @@
 # limitations under the License.
 
 import boto3
+import importlib.metadata
 import os
 import tempfile
 from pathlib import Path
 from typing import Literal, cast
 
+
+# Get package version for user agent
+try:
+    PACKAGE_VERSION = importlib.metadata.version('awslabs.aws_api_mcp_server')
+except importlib.metadata.PackageNotFoundError:
+    PACKAGE_VERSION = 'unknown'
 
 TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
 READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
@@ -62,6 +69,17 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
     if transport not in ['stdio', 'streamable-http']:
         raise ValueError(f'Invalid transport: {transport}')
     return cast(Literal['stdio', 'streamable-http'], transport)
+
+
+def get_user_agent_extra() -> str:
+    """Get the user agent extra string."""
+    user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
+    if not OPT_IN_TELEMETRY:
+        return user_agent_extra
+    user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
+    user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
+    user_agent_extra += f' cfg/scripts#{"1" if ENABLE_AGENT_SCRIPTS else "0"}'
+    return user_agent_extra
 
 
 FASTMCP_LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'INFO')

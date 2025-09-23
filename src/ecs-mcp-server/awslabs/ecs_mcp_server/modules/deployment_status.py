@@ -19,7 +19,7 @@ This module provides tools to check the status of ECS deployments.
 
 from typing import Any, Dict, Optional
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from awslabs.ecs_mcp_server.api.status import get_deployment_status
