@@ -142,22 +142,28 @@ For detailed instructions on setting up your local development environment and r
 
 ### 🌐 HTTP Mode Configuration
 
-The MCP server supports streamable HTTP mode. To use it, when starting the server set the `AWS_API_MCP_TRANSPORT` environment variable to `"streamable-http"` and optionally configure the host and port with `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.
+The MCP server supports streamable HTTP mode. To use it, you must set:
+- `AWS_API_MCP_TRANSPORT` to `"streamable-http"`
+- `AUTH_TYPE` to `"no-auth"` (required; the server will fail to start otherwise)
+
+Optionally configure the host and port with `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.
 
 #### For Linux/macOS:
 ```bash
-AWS_API_MCP_TRANSPORT=streamable-http uvx awslabs.aws-api-mcp-server@latest
+AWS_API_MCP_TRANSPORT=streamable-http AUTH_TYPE=no-auth uvx awslabs.aws-api-mcp-server@latest
 ```
 
 #### For Windows (Command Prompt):
 ```cmd
 set AWS_API_MCP_TRANSPORT=streamable-http
+set AUTH_TYPE=no-auth
 uvx awslabs.aws-api-mcp-server@latest
 ```
 
 #### For Windows (PowerShell):
 ```powershell
 $env:AWS_API_MCP_TRANSPORT="streamable-http"
+$env:AUTH_TYPE="no-auth"
 uvx awslabs.aws-api-mcp-server@latest
 ```
 
@@ -179,7 +185,7 @@ Once the server is running, connect to it using the following configuration (ens
 
 **Note**: Replace `127.0.0.1` with your custom host if you've set `AWS_API_MCP_HOST` to a different value.
 
-**Note**: When using HTTP mode, ensure proper network security measures are in place, including firewall rules and authentication if needed.
+**Note**: When using HTTP mode, the server currently requires `AUTH_TYPE=no-auth` and provides no built-in authentication. Ensure proper network security controls (e.g., bind to localhost, firewall rules, reverse proxy) to prevent unauthorized access.
 
 
 
@@ -201,6 +207,7 @@ Once the server is running, connect to it using the following configuration (ens
 | `AWS_API_MCP_TRANSPORT`                                           | ❌ No     | `"stdio"`                                                | Transport protocol for the MCP server. Valid options are `"stdio"` (default) for local communication or `"streamable-http"` for HTTP-based communication. When using `"streamable-http"`, the server will listen on the host and port specified by `AWS_API_MCP_HOST` and `AWS_API_MCP_PORT`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `AWS_API_MCP_HOST`                                                | ❌ No     | `"127.0.0.1"`                                            | Host address for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `AWS_API_MCP_PORT`                                                | ❌ No     | `"8000"`                                                 | Port number for the MCP server when using `"streamable-http"` transport. Only used when `AWS_API_MCP_TRANSPORT` is set to `"streamable-http"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `AUTH_TYPE`                                                       | ❗ Yes (Only for HTTP mode) | -                                                        | Required only when `AWS_API_MCP_TRANSPORT` is `"streamable-http"`. Must be set to `"no-auth"`. If omitted or set to any other value, the server will fail to start. The server does not provide built-in authentication in HTTP mode; use network-layer controls to restrict access. |
 
 ### 🚀 Quick Start
 
