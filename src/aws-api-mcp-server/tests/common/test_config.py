@@ -179,7 +179,6 @@ def test_get_transport_from_env_streamable_http_with_no_auth(monkeypatch):
     assert get_transport_from_env() == 'streamable-http'
 
 
-
 @patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
 def test_user_agent_without_telemetry():
     """Test user agent when telemetry is disabled."""
