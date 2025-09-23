@@ -6,6 +6,8 @@ A Python library for creating serverless HTTP handlers for the Model Context Pro
 
 - 🚀 Easy serverless MCP HTTP handler creation using AWS Lambda
 - 🔌 Pluggable session management system (NoOp or DynamoDB, or custom backends)
+- 📝 Full TypedDict support with automatic JSON schema generation
+- 💬 Docstring-based parameter descriptions with nested field support
 
 ## Quick Start
 
@@ -31,6 +33,105 @@ def add_two_numbers(a: int, b: int) -> int:
 def lambda_handler(event, context):
     """AWS Lambda handler function."""
     return mcp.handle_request(event, context)
+```
+
+## Advanced Features
+
+### TypedDict Support with Docstring Descriptions
+
+The library provides full support for Python's TypedDict with automatic JSON schema generation and intelligent extraction of field descriptions from docstrings:
+
+```python
+from typing import TypedDict, List
+from awslabs.mcp_lambda_handler import MCPLambdaHandler
+
+class Address(TypedDict):
+    street: str
+    city: str
+    zip_code: str
+
+class Contact(TypedDict):
+    email: str
+    phone: str
+
+class Employee(TypedDict):
+    name: str
+    employee_id: int
+    address: Address
+    contact: Contact
+    tags: List[str]
+
+mcp = MCPLambdaHandler(name="example-server")
+
+@mcp.tool()
+def register_employee(employee: Employee) -> str:
+    """Register a new employee in the system.
+
+    Args:
+        employee: Complete employee information
+        employee.name: Full legal name of the employee
+        employee.employee_id: Unique employee identifier (auto-generated if not provided)
+        employee.address: Employee's home address for records
+        employee.address.street: Street address including number
+        employee.address.city: City name
+        employee.address.zip_code: ZIP or postal code
+        employee.contact: Contact information
+        employee.contact.email: Primary work email address
+        employee.contact.phone: Contact phone number (with country code)
+        employee.tags: Employee tags and labels
+
+    Returns:
+        Confirmation message with employee ID
+    """
+    return f"Registered {employee['name']} with ID {employee['employee_id']}"
+```
+
+#### Key Features:
+
+**Automatic Schema Generation:**
+- Generates proper JSON schemas for TypedDict structures
+- Handles nested TypedDict definitions automatically
+- Supports optional fields (using `total=False` or `NotRequired` in Python 3.11+)
+- Preserves type information for validation
+
+**Intelligent Docstring Parsing:**
+- Extracts descriptions for parameters and nested fields
+- Uses dot notation (e.g., `employee.address.city`) for nested structures
+- Automatically maps descriptions to the appropriate schema fields
+- Supports multi-level nesting for complex data structures
+
+The resulting JSON schema includes both the structure from TypedDict and the descriptions from docstrings, providing rich metadata for MCP clients.
+
+### Supported Type Hints
+
+The library handles a wide variety of Python type hints:
+
+- **Basic Types**: `int`, `float`, `bool`, `str`
+- **Collections**: `List[T]`, `Dict[K, V]`
+- **Enums**: Automatically converts to string enums with allowed values
+- **TypedDict**: Full support including inheritance and mixed required/notRequired fields
+
+### TypedDict with Optional Fields
+
+For TypedDicts with optional fields:
+
+```python
+from typing import TypedDict
+
+# All fields optional
+class Config(TypedDict, total=False):
+    timeout: int
+    retries: int
+    verbose: bool
+
+# Mixed required and optional (Python 3.11+)
+from typing import Required, NotRequired
+
+class MixedConfig(TypedDict):
+    id: Required[str]          # Explicitly required
+    name: Required[str]         # Explicitly required
+    description: NotRequired[str]  # Optional
+    priority: NotRequired[int]     # Optional
 ```
 
 ## Session Management

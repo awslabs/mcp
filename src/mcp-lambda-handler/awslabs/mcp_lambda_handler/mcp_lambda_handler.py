@@ -186,10 +186,19 @@ class MCPLambdaHandler:
             properties = {}
             required = []
 
-            # Parse docstring for argument descriptions
-            arg_descriptions = {}
-            if doc:
-                lines = doc.split('\n')
+            # Parse docstring for argument descriptions (including nested fields)
+            def parse_nested_descriptions(docstring: str) -> Dict[str, Any]:
+                """Parse both flat and nested field descriptions from docstring.
+
+                Supports both:
+                - Simple format: "param_name: description"
+                - Nested format: "param_name.field.subfield: description"
+                """
+                descriptions = {}
+                if not docstring:
+                    return descriptions
+
+                lines = docstring.split('\n')
                 in_args = False
                 for line in lines:
                     if line.strip().startswith('Args:'):
@@ -199,10 +208,42 @@ class MCPLambdaHandler:
                         if not line.strip() or line.strip().startswith('Returns:'):
                             break
                         if ':' in line:
-                            arg_name, arg_desc = line.split(':', 1)
-                            arg_descriptions[arg_name.strip()] = arg_desc.strip()
+                            path, desc = line.split(':', 1)
+                            path_parts = path.strip().split('.')
 
-            def get_type_schema(type_hint: Any) -> Dict[str, Any]:
+                            # Build nested dictionary structure
+                            current = descriptions
+                            for part in path_parts[:-1]:
+                                if part not in current:
+                                    current[part] = {}
+                                elif not isinstance(current[part], dict):
+                                    # If there's already a description string, convert to dict with __description__
+                                    current[part] = {'__description__': current[part]}
+                                current = current[part]
+
+                            # Set the final value
+                            final_key = path_parts[-1]
+                            desc_text = desc.strip()
+
+                            if final_key in current and isinstance(current[final_key], dict):
+                                # If nested fields already exist, add description
+                                current[final_key]['__description__'] = desc_text
+                            else:
+                                current[final_key] = desc_text
+
+                return descriptions
+
+            arg_descriptions = parse_nested_descriptions(doc)
+
+            def get_type_schema(
+                type_hint: Any, nested_descriptions: Optional[Dict[str, Any]] = None
+            ) -> Dict[str, Any]:
+                """Build JSON schema for a type hint, including nested field descriptions.
+
+                Args:
+                    type_hint: The type hint to convert to schema
+                    nested_descriptions: Optional nested descriptions for this type's fields
+                """
                 # Handle basic types
                 if type_hint is int:
                     return {'type': 'integer'}
@@ -216,6 +257,58 @@ class MCPLambdaHandler:
                 # Handle Enums
                 if isinstance(type_hint, type) and issubclass(type_hint, Enum):
                     return {'type': 'string', 'enum': [e.value for e in type_hint]}
+
+                # Handle TypedDict
+                if (
+                    isinstance(type_hint, type)
+                    and issubclass(type_hint, dict)
+                    and hasattr(type_hint, '__annotations__')
+                    and hasattr(type_hint, '__total__')
+                ):
+                    td_properties = {}
+                    td_required = []
+
+                    annotations = type_hint.__annotations__
+                    for field_name, field_type in annotations.items():
+                        # Get nested descriptions for this field
+                        field_nested_desc = None
+                        field_desc = None
+
+                        if nested_descriptions and field_name in nested_descriptions:
+                            field_data = nested_descriptions[field_name]
+                            if isinstance(field_data, dict):
+                                # Has nested fields
+                                field_desc = field_data.get('__description__')
+                                field_nested_desc = {
+                                    k: v for k, v in field_data.items() if k != '__description__'
+                                }
+                            else:
+                                # Just a description string
+                                field_desc = field_data
+
+                        # Recursively get schema with nested descriptions
+                        field_schema = get_type_schema(field_type, field_nested_desc)
+
+                        # Add field description if available
+                        if field_desc:
+                            field_schema['description'] = field_desc
+
+                        td_properties[field_name] = field_schema
+
+                    # Check if TypedDict has total=True (all fields required)
+                    if getattr(type_hint, '__total__', True):
+                        td_required = list(annotations.keys())
+
+                    # Handle __required_keys__ and __optional_keys__ for partial TypedDicts (Python 3.9+)
+                    if hasattr(type_hint, '__required_keys__'):
+                        td_required = list(type_hint.__required_keys__)
+
+                    return {
+                        'type': 'object',
+                        'additionalProperties': False,
+                        'properties': td_properties,
+                        'required': td_required,
+                    }
 
                 # Get origin type (e.g., Dict from Dict[str, int])
                 origin = get_origin(type_hint)
@@ -246,10 +339,28 @@ class MCPLambdaHandler:
 
             # Build properties from type hints
             for param_name, param_type in hints.items():
-                param_schema = get_type_schema(param_type)
+                # Get nested descriptions for this parameter
+                param_nested_desc = None
+                param_desc = None
 
                 if param_name in arg_descriptions:
-                    param_schema['description'] = arg_descriptions[param_name]
+                    param_data = arg_descriptions[param_name]
+                    if isinstance(param_data, dict):
+                        # Has nested fields
+                        param_desc = param_data.get('__description__')
+                        param_nested_desc = {
+                            k: v for k, v in param_data.items() if k != '__description__'
+                        }
+                    else:
+                        # Just a description string
+                        param_desc = param_data
+
+                # Get schema with nested descriptions
+                param_schema = get_type_schema(param_type, param_nested_desc)
+
+                # Add top-level description if available
+                if param_desc:
+                    param_schema['description'] = param_desc
 
                 properties[param_name] = param_schema
                 required.append(param_name)

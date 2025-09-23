@@ -425,6 +425,48 @@ def test_handle_request_notification():
     assert resp['headers']['Content-Type'] == 'application/json'
 
 
+def test_handle_request_tools_list_success():
+    """Test successful tools/list request with registered tools."""
+    handler = MCPLambdaHandler('test-server')
+
+    # Register some test tools
+    @handler.tool()
+    def test_tool_1(x: int) -> str:
+        """First test tool.
+
+        Args:
+            x: An integer parameter
+        """
+        return f'Result: {x}'
+
+    @handler.tool()
+    def test_tool_2(name: str, enabled: bool = True) -> str:
+        """Second test tool.
+
+        Args:
+            name: The name parameter
+            enabled: Whether the tool is enabled
+        """
+        return f'{name} is {"enabled" if enabled else "disabled"}'
+
+    # Make a tools/list request with an ID (so we get a response)
+    req = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    # Verify successful response
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['jsonrpc'] == '2.0'
+    assert body['id'] == 1
+    assert 'result' in body
+    assert 'tools' in body['result']
+
+    # Verify the tools are listed
+    tools = body['result']['tools']
+    assert len(tools) == 2
+
+
 def test_handle_request_ping():
     """Test handle_request with a ping (no response expected)."""
     handler = MCPLambdaHandler('test-server')
@@ -664,6 +706,465 @@ def test_tool_decorator_recursive_dictionary_type_hints():
     value_schema = schema['inputSchema']['properties']['nested_dict']['additionalProperties']
     assert value_schema['type'] == 'object'
     assert value_schema['additionalProperties']['type'] == 'integer'
+
+
+def test_tool_decorator_simple_typed_dict():
+    """Test tool decorator with simple TypedDict (all required fields)."""
+    from typing import TypedDict
+
+    class PersonInfo(TypedDict):
+        name: str
+        age: int
+        active: bool
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_person(person: PersonInfo) -> str:
+        """Process person information.
+
+        Args:
+            person.name: Full name of the person
+            person.age: Age in years
+            person.active: Whether the person is currently active
+            person: Person information with name, age, and active status
+        """
+        return f'{person["name"]} is {person["age"]} years old'
+
+    # Verify schema generation
+    schema = handler.tools['processPerson']
+    person_schema = schema['inputSchema']['properties']['person']
+
+    # Should be an object type
+    assert person_schema['type'] == 'object'
+    assert person_schema['additionalProperties'] is False
+
+    # Check top-level description
+    assert person_schema['description'] == 'Person information with name, age, and active status'
+
+    # Check properties and their descriptions
+    assert 'name' in person_schema['properties']
+    assert person_schema['properties']['name']['type'] == 'string'
+    assert person_schema['properties']['name']['description'] == 'Full name of the person'
+
+    assert 'age' in person_schema['properties']
+    assert person_schema['properties']['age']['type'] == 'integer'
+    assert person_schema['properties']['age']['description'] == 'Age in years'
+
+    assert 'active' in person_schema['properties']
+    assert person_schema['properties']['active']['type'] == 'boolean'
+    assert (
+        person_schema['properties']['active']['description']
+        == 'Whether the person is currently active'
+    )
+
+    # All fields should be required by default (total=True is default)
+    assert set(person_schema['required']) == {'name', 'age', 'active'}
+
+    # Test tool execution
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {
+            'name': 'processPerson',
+            'arguments': {'person': {'name': 'Alice', 'age': 30, 'active': True}},
+        },
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert body['result']['content'][0]['text'] == 'Alice is 30 years old'
+
+
+def test_tool_decorator_typed_dict_optional_fields():
+    """Test tool decorator with TypedDict having optional fields (total=False)."""
+    from typing import TypedDict
+
+    class OptionalConfig(TypedDict, total=False):
+        timeout: int
+        retries: int
+        verbose: bool
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def configure(config: OptionalConfig) -> str:  # noqa: D417
+        """Configure settings with optional parameters.
+
+        Args:
+            config.timeout: The timeout value in seconds
+            config.retries: Number of retry attempts
+            config.verbose: Enable verbose logging
+        Returns:
+            Configuration settings
+        """
+        parts = []
+        if 'timeout' in config:
+            parts.append(f'timeout={config["timeout"]}')
+        if 'retries' in config:
+            parts.append(f'retries={config["retries"]}')
+        if 'verbose' in config:
+            parts.append(f'verbose={config["verbose"]}')
+        return ', '.join(parts) if parts else 'default config'
+
+    # Verify schema generation
+    schema = handler.tools['configure']
+    config_schema = schema['inputSchema']['properties']['config']
+
+    assert config_schema['type'] == 'object'
+    assert config_schema['additionalProperties'] is False
+
+    # Check properties exist and have descriptions
+    assert 'timeout' in config_schema['properties']
+    assert config_schema['properties']['timeout']['type'] == 'integer'
+    assert config_schema['properties']['timeout']['description'] == 'The timeout value in seconds'
+
+    assert 'retries' in config_schema['properties']
+    assert config_schema['properties']['retries']['type'] == 'integer'
+    assert config_schema['properties']['retries']['description'] == 'Number of retry attempts'
+
+    assert 'verbose' in config_schema['properties']
+    assert config_schema['properties']['verbose']['type'] == 'boolean'
+    assert config_schema['properties']['verbose']['description'] == 'Enable verbose logging'
+
+    # Check that top-level config description is not set (should not have description)
+    assert 'description' not in config_schema
+
+    # No fields should be required (total=False)
+    assert config_schema['required'] == []
+
+    # Test with partial data
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {'name': 'configure', 'arguments': {'config': {'timeout': 30, 'verbose': True}}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    body = json.loads(resp['body'])
+    assert body['result']['content'][0]['text'] == 'timeout=30, verbose=True'
+
+
+def test_tool_decorator_typed_dict_mixed_required():
+    """Test TypedDict with mixed required and optional fields."""
+    import sys
+
+    # Skip test if Python version doesn't support Required/NotRequired
+    if sys.version_info < (3, 11):
+        pytest.skip('Required/NotRequired require Python 3.11+')
+
+    from typing import NotRequired, Required, TypedDict
+
+    class MixedConfig(TypedDict):
+        id: Required[str]  # Explicitly required
+        name: Required[str]  # Explicitly required
+        description: NotRequired[str]  # Optional
+        priority: NotRequired[int]  # Optional
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_mixed(config: MixedConfig) -> str:
+        """Process mixed config.
+
+        Args:
+            config: Configuration with mixed required/optional fields
+        """
+        result = f'id={config["id"]}, name={config["name"]}'
+        if 'description' in config:
+            result += f', desc={config["description"]}'
+        if 'priority' in config:
+            result += f', priority={config["priority"]}'
+        return result
+
+    schema = handler.tools['processMixed']
+    config_schema = schema['inputSchema']['properties']['config']
+
+    # Check that required fields are properly identified
+    assert 'id' in config_schema['required']
+    assert 'name' in config_schema['required']
+    assert 'description' not in config_schema.get('required', [])
+    assert 'priority' not in config_schema.get('required', [])
+
+
+def test_tool_decorator_nested_typed_dict():
+    """Test tool decorator with nested TypedDict structures."""
+    from typing import List, TypedDict
+
+    class Address(TypedDict):
+        street: str
+        city: str
+        zip_code: str
+
+    class Contact(TypedDict):
+        email: str
+        phone: str
+
+    class Employee(TypedDict):
+        name: str
+        employee_id: int
+        address: Address
+        contact: Contact
+        tags: List[str]
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def register_employee(employee: Employee) -> str:
+        """Register a new employee.
+
+        Args:
+            employee: Complete employee information
+            employee.name: Full name of employee
+            employee.employee_id: Unique employee identifier
+            employee.address: Employee home address
+            employee.address.street: Street address
+            employee.address.city: City name
+            employee.address.zip_code: ZIP postal code
+            employee.contact: Contact information
+            employee.contact.email: Work email address
+            employee.contact.phone: Phone number
+            employee.tags: Employee tags and labels
+        """
+        return f'Registered {employee["name"]} ({employee["employee_id"]}) from {employee["address"]["city"]}'
+
+    # Verify nested schema generation
+    schema = handler.tools['registerEmployee']
+    emp_schema = schema['inputSchema']['properties']['employee']
+
+    assert emp_schema['type'] == 'object'
+    assert emp_schema['additionalProperties'] is False
+    assert emp_schema['description'] == 'Complete employee information'
+
+    # Check top-level fields with descriptions
+    assert emp_schema['properties']['name']['description'] == 'Full name of employee'
+    assert emp_schema['properties']['employee_id']['description'] == 'Unique employee identifier'
+    assert emp_schema['properties']['tags']['description'] == 'Employee tags and labels'
+
+    # Check nested Address TypedDict with descriptions
+    addr_schema = emp_schema['properties']['address']
+    assert addr_schema['type'] == 'object'
+    assert addr_schema['additionalProperties'] is False
+    assert addr_schema['description'] == 'Employee home address'
+    assert 'street' in addr_schema['properties']
+    assert addr_schema['properties']['street']['type'] == 'string'
+    assert addr_schema['properties']['street']['description'] == 'Street address'
+    assert 'city' in addr_schema['properties']
+    assert addr_schema['properties']['city']['type'] == 'string'
+    assert addr_schema['properties']['city']['description'] == 'City name'
+    assert 'zip_code' in addr_schema['properties']
+    assert addr_schema['properties']['zip_code']['type'] == 'string'
+    assert addr_schema['properties']['zip_code']['description'] == 'ZIP postal code'
+    assert set(addr_schema['required']) == {'street', 'city', 'zip_code'}
+
+    # Check nested Contact TypedDict with descriptions
+    contact_schema = emp_schema['properties']['contact']
+    assert contact_schema['type'] == 'object'
+    assert contact_schema['additionalProperties'] is False
+    assert contact_schema['description'] == 'Contact information'
+    assert 'email' in contact_schema['properties']
+    assert contact_schema['properties']['email']['type'] == 'string'
+    assert contact_schema['properties']['email']['description'] == 'Work email address'
+    assert 'phone' in contact_schema['properties']
+    assert contact_schema['properties']['phone']['type'] == 'string'
+    assert contact_schema['properties']['phone']['description'] == 'Phone number'
+    assert set(contact_schema['required']) == {'email', 'phone'}
+
+    # Check tags (List[str])
+    tags_schema = emp_schema['properties']['tags']
+    assert tags_schema['type'] == 'array'
+    assert tags_schema['items']['type'] == 'string'
+
+    # Test execution with nested data
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {
+            'name': 'registerEmployee',
+            'arguments': {
+                'employee': {
+                    'name': 'Bob Smith',
+                    'employee_id': 12345,
+                    'address': {'street': '123 Main St', 'city': 'Seattle', 'zip_code': '98101'},
+                    'contact': {'email': 'bob@example.com', 'phone': '555-1234'},
+                    'tags': ['engineering', 'senior'],
+                }
+            },
+        },
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    body = json.loads(resp['body'])
+    assert body['result']['content'][0]['text'] == 'Registered Bob Smith (12345) from Seattle'
+
+
+def test_tool_decorator_typed_dict_with_complex_types():
+    """Test TypedDict containing various complex types."""
+    from enum import Enum
+    from typing import Dict, List, Optional, TypedDict
+
+    class Status(Enum):
+        PENDING = 'pending'
+        APPROVED = 'approved'
+        REJECTED = 'rejected'
+
+    class TaskConfig(TypedDict):
+        task_id: str
+        priority: int
+        status: Status
+        assignees: List[str]
+        metadata: Dict[str, int]
+        parent_id: Optional[str]
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def update_task(task: TaskConfig) -> str:
+        """Update task configuration.
+
+        Args:
+            task: Task configuration with complex types
+        """
+        assignee_count = len(task['assignees'])
+        return f'Task {task["task_id"]} ({task["status"]}) assigned to {assignee_count} people'
+
+    # Verify schema with complex types
+    schema = handler.tools['updateTask']
+    task_schema = schema['inputSchema']['properties']['task']
+
+    assert task_schema['type'] == 'object'
+
+    # Check enum field
+    status_schema = task_schema['properties']['status']
+    assert status_schema['type'] == 'string'
+    assert set(status_schema['enum']) == {'pending', 'approved', 'rejected'}
+
+    # Check list field
+    assignees_schema = task_schema['properties']['assignees']
+    assert assignees_schema['type'] == 'array'
+    assert assignees_schema['items']['type'] == 'string'
+
+    # Check dict field
+    metadata_schema = task_schema['properties']['metadata']
+    assert metadata_schema['type'] == 'object'
+    assert metadata_schema['additionalProperties']['type'] == 'integer'
+
+    # Check optional field
+    parent_schema = task_schema['properties']['parent_id']
+    assert parent_schema['type'] == 'string'
+    assert (
+        'parent_id' in task_schema['required']
+    )  # Optional = Union[str, None] => parent_id should be in required.
+
+
+def test_tool_decorator_empty_typed_dict():
+    """Test edge case with empty TypedDict."""
+    from typing import TypedDict
+
+    class EmptyConfig(TypedDict):
+        pass
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_empty(config: EmptyConfig) -> str:
+        """Process empty config.
+
+        Args:
+            config: Empty configuration
+        """
+        return 'processed empty'
+
+    # Verify schema for empty TypedDict
+    schema = handler.tools['processEmpty']
+    config_schema = schema['inputSchema']['properties']['config']
+
+    assert config_schema['type'] == 'object'
+    assert config_schema['additionalProperties'] is False
+    assert config_schema['properties'] == {}
+    assert config_schema['required'] == []
+
+    # Test execution with empty dict
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {'name': 'processEmpty', 'arguments': {'config': {}}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    body = json.loads(resp['body'])
+    assert body['result']['content'][0]['text'] == 'processed empty'
+
+
+def test_tool_decorator_typed_dict_inheritance():
+    """Test TypedDict with inheritance."""
+    from typing import TypedDict
+
+    class BaseConfig(TypedDict):
+        id: str
+        created_at: str
+
+    class ExtendedConfig(BaseConfig):
+        name: str
+        value: int
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_extended(config: ExtendedConfig) -> str:
+        """Process extended config.
+
+        Args:
+            config: Extended configuration with inherited fields
+        """
+        return f'{config["id"]}: {config["name"]} = {config["value"]}'
+
+    # Verify schema includes inherited fields
+    schema = handler.tools['processExtended']
+    config_schema = schema['inputSchema']['properties']['config']
+
+    assert config_schema['type'] == 'object'
+
+    # Should have both inherited and new fields
+    props = config_schema['properties']
+    assert 'id' in props
+    assert props['id']['type'] == 'string'
+    assert 'created_at' in props
+    assert props['created_at']['type'] == 'string'
+    assert 'name' in props
+    assert props['name']['type'] == 'string'
+    assert 'value' in props
+    assert props['value']['type'] == 'integer'
+
+    # All fields should be required
+    assert set(config_schema['required']) == {'id', 'created_at', 'name', 'value'}
+
+    # Test execution
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {
+            'name': 'processExtended',
+            'arguments': {
+                'config': {'id': 'abc123', 'created_at': '2024-01-01', 'name': 'test', 'value': 42}
+            },
+        },
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    body = json.loads(resp['body'])
+    assert body['result']['content'][0]['text'] == 'abc123: test = 42'
 
 
 def test_create_error_response_minimal():
@@ -1377,6 +1878,165 @@ def test_initialize_includes_resources_capability():
     assert 'resources' in capabilities
     assert capabilities['resources']['list'] is True
     assert capabilities['resources']['read'] is True
+
+
+def test_tool_decorator_recursive_typed_dict():
+    """Test tool decorator with recursive TypedDict."""
+    from typing import List, Optional, TypedDict
+
+    # Create a recursive TypedDict structure
+    class TreeNode(TypedDict):
+        value: str
+        children: Optional[List['TreeNode']]
+        parent: Optional['TreeNode']
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_tree(node: TreeNode) -> str:
+        """Process a tree node structure.
+
+        Args:
+            node: A tree node with recursive children and parent references
+            node.value: The value stored in this node
+            node.children: Optional list of child nodes
+            node.parent: Optional reference to parent node
+        """
+        # Just process the value to avoid actual recursion
+        return f'Processing node: {node["value"]}'
+
+    # Verify schema generation doesn't cause infinite loop
+    schema = handler.tools['processTree']
+    node_schema = schema['inputSchema']['properties']['node']
+
+    # Check basic structure
+    assert node_schema['type'] == 'object'
+    assert node_schema['additionalProperties'] is False
+    assert (
+        node_schema['description'] == 'A tree node with recursive children and parent references'
+    )
+
+    # Check properties
+    assert 'value' in node_schema['properties']
+    assert node_schema['properties']['value']['type'] == 'string'
+    assert node_schema['properties']['value']['description'] == 'The value stored in this node'
+
+    # Check children field (should handle recursive reference)
+    assert 'children' in node_schema['properties']
+    children_schema = node_schema['properties']['children']
+    # Since it's Optional[List['TreeNode']], it should be a string type (fallback for unhandled recursive type)
+    assert children_schema['type'] == 'string'
+    assert children_schema['description'] == 'Optional list of child nodes'
+
+    # Check parent field (should handle recursive reference)
+    assert 'parent' in node_schema['properties']
+    parent_schema = node_schema['properties']['parent']
+    # Since it's Optional['TreeNode'], it should be a string type (fallback for unhandled recursive type)
+    assert parent_schema['type'] == 'string'
+    assert parent_schema['description'] == 'Optional reference to parent node'
+
+    # Test tool execution - the system should handle the input without infinite loop
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {
+            'name': 'processTree',
+            'arguments': {
+                'node': {
+                    'value': 'root',
+                    'children': [
+                        {'value': 'child1', 'children': None, 'parent': None},
+                        {'value': 'child2', 'children': None, 'parent': None},
+                    ],
+                    'parent': None,
+                }
+            },
+        },
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert body['result']['content'][0]['text'] == 'Processing node: root'
+
+
+def test_tool_decorator_mutually_recursive_typed_dict():
+    """Test tool decorator with mutually recursive TypedDicts."""
+    from typing import Optional, TypedDict
+
+    # Create mutually recursive TypedDict structures
+    class Person(TypedDict):
+        name: str
+        spouse: Optional['Person']
+        company: Optional['Company']
+
+    class Company(TypedDict):
+        company_name: str
+        ceo: Optional['Person']
+        employees: Optional[List['Person']]
+
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def process_person(person: Person) -> str:
+        """Process person info with recursive relationships.
+
+        Args:
+            person: Person with potential recursive spouse and company references
+            person.name: The person's name
+            person.spouse: Optional spouse (also a Person)
+            person.company: Optional company reference
+        """
+        return f'Person: {person["name"]}'
+
+    @handler.tool()
+    def process_company(company: Company) -> str:
+        """Process company info with recursive relationships.
+
+        Args:
+            company: Company with potential recursive person references
+            company.company_name: The company's name
+            company.ceo: Optional CEO (a Person)
+            company.employees: Optional list of employees (Persons)
+        """
+        return f'Company: {company["company_name"]}'
+
+    # Verify schema generation for Person doesn't cause infinite loop
+    person_schema = handler.tools['processPerson']['inputSchema']['properties']['person']
+    assert person_schema['type'] == 'object'
+    assert 'name' in person_schema['properties']
+    assert person_schema['properties']['name']['type'] == 'string'
+
+    # Recursive references should fallback to string type
+    assert 'spouse' in person_schema['properties']
+    assert person_schema['properties']['spouse']['type'] == 'string'
+    assert (
+        person_schema['properties']['spouse']['description'] == 'Optional spouse (also a Person)'
+    )
+
+    assert 'company' in person_schema['properties']
+    assert person_schema['properties']['company']['type'] == 'string'
+    assert person_schema['properties']['company']['description'] == 'Optional company reference'
+
+    # Verify schema generation for Company doesn't cause infinite loop
+    company_schema = handler.tools['processCompany']['inputSchema']['properties']['company']
+    assert company_schema['type'] == 'object'
+    assert 'company_name' in company_schema['properties']
+    assert company_schema['properties']['company_name']['type'] == 'string'
+
+    # Recursive references should fallback to string type
+    assert 'ceo' in company_schema['properties']
+    assert company_schema['properties']['ceo']['type'] == 'string'
+    assert company_schema['properties']['ceo']['description'] == 'Optional CEO (a Person)'
+
+    assert 'employees' in company_schema['properties']
+    assert company_schema['properties']['employees']['type'] == 'string'
+    assert (
+        company_schema['properties']['employees']['description']
+        == 'Optional list of employees (Persons)'
+    )
 
 
 def test_multiple_resources_same_handler():
