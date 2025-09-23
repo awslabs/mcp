@@ -90,7 +90,6 @@ Create IAM role with necessary permissions for CloudTrail operations.
 - You MUST apply resource tags if provided: `aws iam tag-role --role-name CloudTrail-CloudWatchLogs-Role-${trail_name} --tags ${tags} --region ${region}`
 - You MUST use least privilege principle for permissions
 - You MUST save the role ARN for trail configuration
-- You MUST wait 5-10 seconds after role creation for IAM propagation
 
 ### 5. Enable Multi-Region CloudTrail
 
@@ -124,18 +123,7 @@ Enable CloudTrail Insights for anomaly detection if requested.
 - You MUST enable insights: `aws cloudtrail put-insight-selectors --trail-name ${trail_name} --insight-selectors InsightType=ApiCallRateInsight --region ${region}`
 - You MUST inform user about additional costs for Insights: "CloudTrail Insights is a premium feature with additional charges. Check current AWS CloudTrail pricing."
 
-### 8. Configure Log Analysis Queries
-
-Create pre-built CloudWatch Logs Insights queries for common analysis tasks.
-
-**Constraints:**
-- You MUST provide the updated sample queries from the Knowledge Base section
-- You MUST demonstrate running at least one query: `aws logs start-query --log-group-name ${cloudwatch_log_group} --start-time $(date -d '1 hour ago' +%s) --end-time $(date +%s) --query-string "fields @timestamp, awsRegion, eventName | filter awsRegion != \"${region}\" | sort @timestamp desc | limit 10" --region ${region}`
-- You MUST show how to get query results: `aws logs get-query-results --query-id <QUERY_ID> --region ${region}`
-- You MUST provide all sample queries for user reference
-- You MUST explain query syntax and customization options
-
-### 9. Verify Configuration
+### 8. Verify Configuration
 
 Test the CloudTrail setup and log analysis capabilities.
 
@@ -143,18 +131,16 @@ Test the CloudTrail setup and log analysis capabilities.
 - You MUST verify trail is logging: `aws cloudtrail get-trail-status --name ${trail_name} --region ${region}`
 - You MUST check CloudWatch log group exists: `aws logs describe-log-groups --log-group-name-prefix ${cloudwatch_log_group} --region ${region}`
 - You MUST generate test events in at least 2 different standard regions (e.g., eu-west-1, ap-southeast-1)
-- You MUST wait 2-5 minutes after generating events before checking CloudWatch Logs
-- You MUST verify events appear in CloudWatch Logs using start-query and get-query-results
 - You MUST check S3 bucket for log files from different regions
 - You MUST provide actual verification results, not just generation confirmation
-- You MUST inform user that opt-in region events may take several hours to appear (per AWS documentation)
+- You MUST inform user that events may take 5-15 minutes to appear in CloudWatch logs and opt-in region events may take several hours to appear (per AWS documentation)
 - You MUST provide commands for later verification:
   ```bash
-  # Check for opt-in region events (may take hours)
-  aws logs start-query --log-group-name ${cloudwatch_log_group} --start-time $(date -d '2 hours ago' +%s) --end-time $(date +%s) --query-string "fields @timestamp, awsRegion, eventName | filter awsRegion in [\"ap-southeast-5\", \"me-south-1\", \"me-central-1\", \"ca-west-1\"] | sort @timestamp desc" --region ${region}
+  # Check for events
+  aws logs start-query --log-group-name ${cloudwatch_log_group} --start-time "<start-time>" --end-time "<end-time>"  --query-string "fields @timestamp, awsRegion, eventName | filter awsRegion!=\${region} | sort @timestamp desc" --region ${region}
   ```
 
-### 10. Generate Setup Report
+### 9. Generate Setup Report
 
 Create comprehensive documentation of the CloudTrail configuration.
 
@@ -175,6 +161,9 @@ Create comprehensive documentation of the CloudTrail configuration.
   - Cross-region verification results from Step 9
 - You MUST provide maintenance and troubleshooting guidance from Knowledge Base
 - You MUST include security best practices for ongoing management from Knowledge Base
+- You MUST provide the updated sample queries from the Knowledge Base section
+- You MUST provide all sample queries for user reference
+- You MUST explain query syntax and customization options
 - You MUST include actual ARNs, timestamps, and configuration values from the setup
 - You MUST display a comprehensive summary with all gathered information
 
@@ -290,7 +279,6 @@ If events from opt-in regions aren't showing up:
 
 #### IAM Role Propagation Issues
 If CloudTrail creation fails with InvalidCloudWatchLogsLogGroupArnException:
-- Wait 5-10 seconds after creating IAM role
 - Verify role exists: `aws iam get-role --role-name CloudTrail-CloudWatchLogs-Role-${trail_name} --region ${region}`
 - Retry CloudTrail creation after waiting
 
