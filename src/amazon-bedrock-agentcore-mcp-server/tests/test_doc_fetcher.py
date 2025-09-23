@@ -14,7 +14,7 @@
 
 """Tests for the doc_fetcher utility module."""
 
-from awslabs.aws_bedrock_agentcore_mcp_server.utils import doc_fetcher
+from awslabs.amazon_bedrock_agentcore_mcp_server.utils import doc_fetcher
 from unittest.mock import Mock, patch
 
 

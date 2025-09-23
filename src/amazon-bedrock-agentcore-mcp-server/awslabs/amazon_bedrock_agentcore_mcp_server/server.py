@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, List
 
 
-APP_NAME = 'aws-bedrock-agentcore-mcp-server'
+APP_NAME = 'amazon-bedrock-agentcore-mcp-server'
 mcp = FastMCP(APP_NAME)
 
 

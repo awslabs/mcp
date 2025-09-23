@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for the AWS Bedrock AgentCore MCP Server."""
+"""Tests for the Amazon Bedrock AgentCore MCP Server."""
 
-from awslabs.aws_bedrock_agentcore_mcp_server.server import fetch_doc, search_docs
-from awslabs.aws_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
+from awslabs.amazon_bedrock_agentcore_mcp_server.server import fetch_doc, search_docs
+from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
 from unittest.mock import Mock, patch
 
 
 class TestSearchDocs:
     """Test cases for the search_docs tool."""
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
     def test_search_docs_with_results(
         self, mock_ensure_page, mock_get_url_cache, mock_get_index, mock_ensure_ready
     ):
@@ -50,7 +50,7 @@ class TestSearchDocs:
         mock_get_url_cache.return_value = mock_url_cache
 
         with patch(
-            'awslabs.aws_bedrock_agentcore_mcp_server.utils.text_processor.make_snippet'
+            'awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.make_snippet'
         ) as mock_make_snippet:
             mock_make_snippet.return_value = 'Test snippet...'
 
@@ -66,8 +66,8 @@ class TestSearchDocs:
             mock_ensure_ready.assert_called_once()
             mock_index.search.assert_called_once_with('bedrock agentcore', k=5)
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
     def test_search_docs_no_index(self, mock_get_index, mock_ensure_ready):
         """Test search_docs handles missing index gracefully."""
         # Arrange
@@ -80,9 +80,9 @@ class TestSearchDocs:
         assert result == []
         mock_ensure_ready.assert_called_once()
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
     def test_search_docs_empty_results(
         self, mock_get_url_cache, mock_get_index, mock_ensure_ready
     ):
@@ -99,10 +99,10 @@ class TestSearchDocs:
         # Assert
         assert result == []
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
     def test_search_docs_hydrates_top_results(
         self, mock_ensure_page, mock_get_url_cache, mock_get_index, mock_ensure_ready
     ):
@@ -127,7 +127,7 @@ class TestSearchDocs:
         mock_get_url_cache.return_value = mock_url_cache
 
         with patch(
-            'awslabs.aws_bedrock_agentcore_mcp_server.utils.text_processor.make_snippet'
+            'awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.make_snippet'
         ) as mock_make_snippet:
             mock_make_snippet.return_value = 'Test snippet'
 
@@ -143,8 +143,8 @@ class TestSearchDocs:
 class TestFetchDoc:
     """Test cases for the fetch_doc tool."""
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
     def test_fetch_doc_success(self, mock_ensure_page, mock_ensure_ready):
         """Test fetch_doc successfully retrieves document content."""
         # Arrange
@@ -165,8 +165,8 @@ class TestFetchDoc:
         mock_ensure_ready.assert_called_once()
         mock_ensure_page.assert_called_once_with(test_url)
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
     def test_fetch_doc_failure(self, mock_ensure_page, mock_ensure_ready):
         """Test fetch_doc handles fetch failures gracefully."""
         # Arrange
@@ -182,7 +182,7 @@ class TestFetchDoc:
         assert 'title' not in result
         assert 'content' not in result
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     def test_fetch_doc_unsupported_uri(self, mock_ensure_ready):
         """Test fetch_doc rejects unsupported URI schemes."""
         # Arrange
@@ -195,8 +195,8 @@ class TestFetchDoc:
         assert result['error'] == 'unsupported uri'
         assert result['url'] == test_uri
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
     def test_fetch_doc_http_url(self, mock_ensure_page, mock_ensure_ready):
         """Test fetch_doc accepts HTTP URLs."""
         # Arrange

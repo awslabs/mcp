@@ -14,15 +14,15 @@
 
 """Tests for the main function in server.py."""
 
-from awslabs.aws_bedrock_agentcore_mcp_server.server import main
+from awslabs.amazon_bedrock_agentcore_mcp_server.server import main
 from unittest.mock import patch
 
 
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.server.mcp.run')
-    @patch('sys.argv', ['awslabs.aws-bedrock-agentcore-mcp-server'])
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.server.mcp.run')
+    @patch('sys.argv', ['awslabs.amazon-bedrock-agentcore-mcp-server'])
     def test_main_default(self, mock_run):
         """Test main function with default arguments."""
         # Call the main function
@@ -39,7 +39,7 @@ class TestMain:
 
         # Get the source code of the module
         import inspect
-        from awslabs.aws_bedrock_agentcore_mcp_server import server
+        from awslabs.amazon_bedrock_agentcore_mcp_server import server
 
         # Get the source code
         source = inspect.getsource(server)

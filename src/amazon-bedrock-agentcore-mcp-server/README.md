@@ -22,16 +22,16 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 
 | Cursor | VS Code |
 |:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.aws-bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJABGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.aws-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.amazon-bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYXdzLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJABGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 Configure the MCP server in your MCP client configuration:
 
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-bedrock-agentcore-mcp-server": {
+    "awslabs.amazon-bedrock-agentcore-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-bedrock-agentcore-mcp-server@latest"],
+      "args": ["awslabs.amazon-bedrock-agentcore-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -49,9 +49,9 @@ Example, `~/.aws/amazonq/cli-agents/default.json`
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-bedrock-agentcore-mcp-server": {
+    "awslabs.amazon-bedrock-agentcore-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.aws-bedrock-agentcore-mcp-server@latest"],
+      "args": ["awslabs.amazon-bedrock-agentcore-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
@@ -61,7 +61,7 @@ Example, `~/.aws/amazonq/cli-agents/default.json`
   },
   "tools": [
     // .. other existing tools
-    "@awslabs.aws-bedrock-agentcore-mcp-server"
+    "@awslabs.amazon-bedrock-agentcore-mcp-server"
   ]
 }
 ```
@@ -73,7 +73,7 @@ For Windows users, the MCP server configuration format is slightly different:
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-bedrock-agentcore-mcp-server": {
+    "awslabs.amazon-bedrock-agentcore-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -82,8 +82,8 @@ For Windows users, the MCP server configuration format is slightly different:
         "tool",
         "run",
         "--from",
-        "awslabs.aws-bedrock-agentcore-mcp-server@latest",
-        "awslabs.aws-bedrock-agentcore-mcp-server.exe"
+        "awslabs.amazon-bedrock-agentcore-mcp-server@latest",
+        "awslabs.amazon-bedrock-agentcore-mcp-server.exe"
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -93,12 +93,12 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
-Or using Docker after a successful `docker build -t mcp/aws-bedrock-agentcore .`:
+Or using Docker after a successful `docker build -t mcp/amazon-bedrock-agentcore .`:
 
 ```json
 {
   "mcpServers": {
-    "awslabs.aws-bedrock-agentcore-mcp-server": {
+    "awslabs.amazon-bedrock-agentcore-mcp-server": {
       "command": "docker",
       "args": [
         "run",
@@ -106,7 +106,7 @@ Or using Docker after a successful `docker build -t mcp/aws-bedrock-agentcore .`
         "--interactive",
         "--env",
         "FASTMCP_LOG_LEVEL=ERROR",
-        "mcp/aws-bedrock-agentcore:latest"
+        "mcp/amazon-bedrock-agentcore:latest"
       ],
       "env": {},
       "disabled": false,

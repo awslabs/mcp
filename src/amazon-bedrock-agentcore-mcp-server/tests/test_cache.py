@@ -14,7 +14,7 @@
 
 """Tests for the cache utility module."""
 
-from awslabs.aws_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
+from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
 from unittest.mock import Mock, patch
 
 
@@ -28,9 +28,9 @@ class TestCache:
         cache._URL_TITLES = {}
         cache._LINKS_LOADED = False
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.text_processor.normalize')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.text_processor.index_title_variants')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.normalize')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.index_title_variants')
     def test_load_links_only(self, mock_index_variants, mock_normalize, mock_parse_llms):
         """Test load_links_only initializes cache with document titles."""
         # Arrange
@@ -78,8 +78,8 @@ class TestCache:
             # Assert
             mock_load.assert_not_called()
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.doc_fetcher.fetch_and_clean')
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.text_processor.format_display_title')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.fetch_and_clean')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.format_display_title')
     def test_ensure_page_fetches_new_page(self, mock_format_title, mock_fetch):
         """Test ensure_page fetches and caches new pages."""
         # Arrange
@@ -107,7 +107,7 @@ class TestCache:
         cache._URL_CACHE[test_url] = cached_page
 
         with patch(
-            'awslabs.aws_bedrock_agentcore_mcp_server.utils.doc_fetcher.fetch_and_clean'
+            'awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.fetch_and_clean'
         ) as mock_fetch:
             # Act
             result = cache.ensure_page(test_url)
@@ -116,7 +116,7 @@ class TestCache:
             assert result == cached_page
             mock_fetch.assert_not_called()
 
-    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.doc_fetcher.fetch_and_clean')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.fetch_and_clean')
     def test_ensure_page_handles_fetch_error(self, mock_fetch):
         """Test ensure_page handles fetch errors gracefully."""
         # Arrange

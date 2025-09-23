@@ -14,7 +14,7 @@
 
 """Tests for the config module."""
 
-from awslabs.aws_bedrock_agentcore_mcp_server.config import Config, doc_config
+from awslabs.amazon_bedrock_agentcore_mcp_server.config import Config, doc_config
 
 
 class TestConfig:

@@ -2,7 +2,7 @@
 title: AWS Bedrock AgentCore MCP Server
 ---
 
-import ReadmeContent from "../../../src/aws-bedrock-agentcore-mcp-server/README.md";
+import ReadmeContent from "../../../src/amazon-bedrock-agentcore-mcp-server/README.md";
 
 <div className="readme-content">
   <style>

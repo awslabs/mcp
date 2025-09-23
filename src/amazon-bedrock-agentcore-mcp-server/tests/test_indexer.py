@@ -14,7 +14,7 @@
 
 """Tests for the indexer utility module."""
 
-from awslabs.aws_bedrock_agentcore_mcp_server.utils import indexer
+from awslabs.amazon_bedrock_agentcore_mcp_server.utils import indexer
 
 
 class TestIndexer:

@@ -14,7 +14,7 @@
 
 """Tests for the text_processor utility module."""
 
-from awslabs.aws_bedrock_agentcore_mcp_server.utils import doc_fetcher, text_processor
+from awslabs.amazon_bedrock_agentcore_mcp_server.utils import doc_fetcher, text_processor
 
 
 class TestTextProcessor:
