@@ -16,6 +16,7 @@ import boto3
 import importlib.metadata
 import os
 import tempfile
+from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
 
@@ -68,6 +69,15 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
     transport = os.getenv('AWS_API_MCP_TRANSPORT', 'stdio')
     if transport not in ['stdio', 'streamable-http']:
         raise ValueError(f'Invalid transport: {transport}')
+
+    # Enforce explicit auth configuration for streamable-http transport
+    if transport == 'streamable-http':
+        auth_type = os.getenv('AUTH_TYPE')
+        if auth_type != 'no-auth':
+            error_message = "Invalid configuration: 'streamable-http' transport requires AUTH_TYPE environment variable to be explicitly set to 'no-auth'."
+            logger.error(error_message)
+            raise ValueError(error_message)
+
     return cast(Literal['stdio', 'streamable-http'], transport)
 
 
