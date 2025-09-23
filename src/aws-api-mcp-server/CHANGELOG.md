@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Loading of security policy from `~/.aws/aws-api-mcp/mcp-security-policy.json` (#1311)
 - Enforcement of `READ_OPERATIONS_ONLY_MODE` and `REQUIRE_MUTATION_CONSENT` in security policy (#1301)
-- Enforcement of `AUTH_TYPE=no-auth` for streamable-http mode
+- Enforcement of `AUTH_TYPE=no-auth` for streamable-http mode (#1345)
 
 ## [0.2.14] - 2025-09-15
 
