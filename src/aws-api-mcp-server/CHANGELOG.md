@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add telemetry for AWS CLI customizations (#1335)
+
+## [0.3.0] - 2025-09-22
+
 ### Fixed
 
 - Loading of security policy from `~/.aws/aws-api-mcp/mcp-security-policy.json` (#1311)
