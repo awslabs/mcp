@@ -147,8 +147,8 @@ async def create_workflow(
         Dictionary containing the created workflow information
     """
     # Handle Field objects for optional parameters (FastMCP compatibility)
-    if hasattr(definition_uri, 'default'):
-        definition_uri = definition_uri.default
+    if hasattr(definition_uri, 'default') and not isinstance(definition_uri, (str, type(None))):
+        definition_uri = getattr(definition_uri, 'default', None)
 
     # Validate that exactly one definition source is provided
     if definition_zip_base64 is not None and definition_uri is not None:
@@ -205,7 +205,7 @@ async def create_workflow(
 
     client = get_omics_client()
 
-    params = {
+    params: Dict[str, Any] = {
         'name': name,
     }
 
@@ -383,8 +383,8 @@ async def create_workflow_version(
         Dictionary containing the created workflow version information
     """
     # Handle Field objects for optional parameters (FastMCP compatibility)
-    if hasattr(definition_uri, 'default'):
-        definition_uri = definition_uri.default
+    if hasattr(definition_uri, 'default') and not isinstance(definition_uri, (str, type(None))):
+        definition_uri = getattr(definition_uri, 'default', None)
 
     # Validate that exactly one definition source is provided
     if definition_zip_base64 is not None and definition_uri is not None:
@@ -449,7 +449,7 @@ async def create_workflow_version(
 
     client = get_omics_client()
 
-    params = {
+    params: Dict[str, Any] = {
         'workflowId': workflow_id,
         'versionName': version_name,
         'storageType': storage_type,
@@ -529,7 +529,7 @@ async def list_workflow_versions(
     """
     client = get_omics_client()
 
-    params = {
+    params: Dict[str, Any] = {
         'workflowId': workflow_id,
         'maxResults': max_results,
     }
