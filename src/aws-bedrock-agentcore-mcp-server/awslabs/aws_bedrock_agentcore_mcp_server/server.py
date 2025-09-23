@@ -14,88 +14,147 @@
 
 """awslabs AWS Bedrock AgentCore MCP Server implementation."""
 
-from loguru import logger
+from .utils import cache, text_processor
 from mcp.server.fastmcp import FastMCP
-from typing import Literal
+from typing import Any, Dict, List
 
 
-mcp = FastMCP(
-    'awslabs.aws-bedrock-agentcore-mcp-server',
-    instructions='Instructions for using this AWS Bedrock AgentCore MCP server. This can be used by clients to improve the LLM'
-    's understanding of available tools, resources, etc. It can be thought of like a '
-    'hint'
-    ' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.',
-    dependencies=[
-        'pydantic',
-        'loguru',
-    ],
-)
+APP_NAME = 'aws-bedrock-agentcore-mcp-server'
+mcp = FastMCP(APP_NAME)
 
 
-@mcp.tool(name='ExampleTool')
-async def example_tool(
-    query: str,
-) -> str:
-    """Example tool implementation.
+@mcp.tool()
+def search_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:
+    """Search curated AgentCore documentation and return ranked results with snippets.
 
-    Replace this with your own tool implementation.
-    """
-    project_name = 'awslabs AWS Bedrock AgentCore MCP Server'
-    return (
-        f"Hello from {project_name}! Your query was {query}. Replace this with your tool's logic"
-    )
+    This tool provides access to the complete Amazon Bedrock AgentCore documentation including:
 
+    **Platform Overview:**
+    - What is Bedrock AgentCore, security overview, quotas and limits
 
-@mcp.tool(name='MathTool')
-async def math_tool(
-    operation: Literal['add', 'subtract', 'multiply', 'divide'],
-    a: int | float,
-    b: int | float,
-) -> int | float:
-    """Math tool implementation.
+    **Platform Services:**
+    - AgentCore Runtime (serverless deployment and scaling)
+    - AgentCore Memory (persistent knowledge with event and semantic memory)
+    - AgentCore Code Interpreter (secure code execution in isolated sandboxes)
+    - AgentCore Browser (fast, secure cloud-based browser for web interaction)
+    - AgentCore Gateway (transform existing APIs into agent tools)
+    - AgentCore Observability (real-time monitoring and tracing)
+    - AgentCore Identity (secure authentication and access management)
 
-    This tool supports the following operations:
-    - add
-    - subtract
-    - multiply
-    - divide
+    **Getting Started:**
+    - Prerequisites & environment setup
+    - Building your first agent or transforming existing code
+    - Local development & testing
+    - Deployment to AgentCore using CLI
+    - Troubleshooting & enhancement
 
-    Parameters:
-        operation (Literal["add", "subtract", "multiply", "divide"]): The operation to perform.
-        a (int): The first number.
-        b (int): The second number.
+    **Examples & Tutorials:**
+    - Basic agent creation, memory integration, tool usage
+    - Streaming responses, error handling, authentication
+    - Customer service agents, code review assistants, data analysis
+    - Multi-agent workflows and integrations
+
+    **API Reference:**
+    - Data plane and control API documentation
+
+    Use this to find relevant AgentCore documentation for any development question.
+
+    Args:
+        query: Search query string (e.g., "bedrock agentcore", "memory integration", "deployment guide")
+        k: Maximum number of results to return (default: 5)
 
     Returns:
-        The result of the operation.
+        List of dictionaries containing:
+        - url: Document URL
+        - title: Display title
+        - score: Relevance score (0-1, higher is better)
+        - snippet: Contextual content preview
+
     """
-    match operation:
-        case 'add':
-            return a + b
-        case 'subtract':
-            return a - b
-        case 'multiply':
-            return a * b
-        case 'divide':
-            try:
-                return a / b
-            except ZeroDivisionError:
-                raise ValueError(f'The denominator {b} cannot be zero.')
-        case _:
-            raise ValueError(
-                f'Invalid operation: {operation} (must be one of: add, subtract, multiply, divide)'
-            )
+    cache.ensure_ready()
+    index = cache.get_index()
+    results = index.search(query, k=k) if index else []
+    url_cache = cache.get_url_cache()
+
+    # Collect top-k URLs that need hydration (no content yet)
+    # Simplified: Direct hydration in one pass
+    top = results[: min(len(results), cache.SNIPPET_HYDRATE_MAX)]
+    for _, doc in top:
+        cached = url_cache.get(doc.uri)
+        if cached is None or not cached.content:
+            cache.ensure_page(doc.uri)
+
+    # Build response with real content snippets when available
+    return_docs: List[Dict[str, Any]] = []
+    for score, doc in results:
+        page = url_cache.get(doc.uri)
+        snippet = text_processor.make_snippet(page, doc.display_title)
+        return_docs.append(
+            {
+                'url': doc.uri,
+                'title': doc.display_title,
+                'score': round(score, 3),
+                'snippet': snippet,
+            }
+        )
+    return return_docs
 
 
-def main():
-    """Run the MCP server with CLI argument support."""
-    logger.trace('A trace message.')
-    logger.debug('A debug message.')
-    logger.info('An info message.')
-    logger.success('A success message.')
-    logger.warning('A warning message.')
-    logger.error('An error message.')
-    logger.critical('A critical message.')
+@mcp.tool()
+def fetch_doc(uri: str) -> Dict[str, Any]:
+    """Fetch full document content by URL.
 
+    Retrieves complete AgentCore documentation content from URLs found via search_docs
+    or provided directly. Use this to get full documentation pages including:
+
+    - Complete platform overview and service documentation
+    - Detailed getting started guides with step-by-step instructions
+    - Full API reference documentation
+    - Comprehensive tutorial and example code
+    - Complete deployment and configuration instructions
+    - Integration guides for various frameworks (Strands, LangGraph, CrewAI, etc.)
+
+    This provides the full content when search snippets aren't sufficient for
+    understanding or implementing AgentCore features.
+
+    Args:
+        uri: Document URI (supports http/https URLs)
+
+    Returns:
+        Dictionary containing:
+        - url: Canonical document URL
+        - title: Document title
+        - content: Full document text content
+        - error: Error message (if fetch failed)
+
+    """
+    cache.ensure_ready()
+
+    # Accept HTTP/HTTPS URLs
+    if uri.startswith('http://') or uri.startswith('https://'):
+        url = uri
+    else:
+        return {'error': 'unsupported uri', 'url': uri}
+
+    page = cache.ensure_page(url)
+    if page is None:
+        return {'error': 'fetch failed', 'url': url}
+
+    return {
+        'url': url,
+        'title': page.title,
+        'content': page.content,
+    }
+
+
+def main() -> None:
+    """Main entry point for the MCP server.
+
+    Initializes the document cache and starts the FastMCP server.
+    The cache is loaded with document titles only for fast startup,
+    with full content fetched on-demand.
+    """
+    cache.ensure_ready()
     mcp.run()
 
 
