@@ -106,9 +106,9 @@ async def create_workflow(
         ...,
         description='Name of the workflow',
     ),
-    definition_zip_base64: str = Field(
-        ...,
-        description='Base64-encoded workflow definition ZIP file',
+    definition_zip_base64: Optional[str] = Field(
+        None,
+        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri',
     ),
     description: Optional[str] = Field(
         None,
@@ -126,21 +126,43 @@ async def create_workflow(
         None,
         description='Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map',
     ),
+    definition_uri: Optional[str] = Field(
+        None,
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
     Args:
         ctx: MCP context for error reporting
         name: Name of the workflow
-        definition_zip_base64: Base64-encoded workflow definition ZIP file
+        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri
         description: Optional description of the workflow
         parameter_template: Optional parameter template for the workflow
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
 
     Returns:
         Dictionary containing the created workflow information
     """
+    # Handle Field objects for optional parameters (FastMCP compatibility)
+    if hasattr(definition_uri, 'default'):
+        definition_uri = definition_uri.default
+
+    # Validate that exactly one definition source is provided
+    if definition_zip_base64 is not None and definition_uri is not None:
+        error_message = 'Cannot specify both definition_zip_base64 and definition_uri parameters'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
+    if definition_zip_base64 is None and definition_uri is None:
+        error_message = 'Must specify either definition_zip_base64 or definition_uri parameter'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
     # Validate that both container registry parameters are not provided together
     if container_registry_map is not None and container_registry_map_uri is not None:
         error_message = (
@@ -160,21 +182,38 @@ async def create_workflow(
             await ctx.error(error_message)
             raise ValueError(error_message)
 
-    # Validate base64 input first, before creating client
-    try:
-        definition_zip = decode_from_base64(definition_zip_base64)
-    except Exception as e:
-        error_message = f'Failed to decode base64 workflow definition: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+    # Validate and decode base64 input if provided
+    definition_zip = None
+    if definition_zip_base64 is not None:
+        try:
+            definition_zip = decode_from_base64(definition_zip_base64)
+        except Exception as e:
+            error_message = f'Failed to decode base64 workflow definition: {str(e)}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise
+
+    # Validate S3 URI format if provided
+    if definition_uri is not None:
+        if not definition_uri.startswith('s3://'):
+            error_message = (
+                f'definition_uri must be a valid S3 URI starting with s3://, got: {definition_uri}'
+            )
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise ValueError(error_message)
 
     client = get_omics_client()
 
     params = {
         'name': name,
-        'definitionZip': definition_zip,
     }
+
+    # Add definition source (either ZIP or S3 URI)
+    if definition_zip is not None:
+        params['definitionZip'] = definition_zip
+    elif definition_uri is not None:
+        params['definitionUri'] = definition_uri
 
     if description:
         params['description'] = description
@@ -291,9 +330,9 @@ async def create_workflow_version(
         ...,
         description='Name for the new version',
     ),
-    definition_zip_base64: str = Field(
-        ...,
-        description='Base64-encoded workflow definition ZIP file',
+    definition_zip_base64: Optional[str] = Field(
+        None,
+        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri',
     ),
     description: Optional[str] = Field(
         None,
@@ -320,6 +359,10 @@ async def create_workflow_version(
         None,
         description='Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map',
     ),
+    definition_uri: Optional[str] = Field(
+        None,
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -327,17 +370,35 @@ async def create_workflow_version(
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow
         version_name: Name for the new version
-        definition_zip_base64: Base64-encoded workflow definition ZIP file
+        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri
         description: Optional description of the workflow version
         parameter_template: Optional parameter template for the workflow
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
 
     Returns:
         Dictionary containing the created workflow version information
     """
+    # Handle Field objects for optional parameters (FastMCP compatibility)
+    if hasattr(definition_uri, 'default'):
+        definition_uri = definition_uri.default
+
+    # Validate that exactly one definition source is provided
+    if definition_zip_base64 is not None and definition_uri is not None:
+        error_message = 'Cannot specify both definition_zip_base64 and definition_uri parameters'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
+    if definition_zip_base64 is None and definition_uri is None:
+        error_message = 'Must specify either definition_zip_base64 or definition_uri parameter'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
     # Validate that both container registry parameters are not provided together
     if container_registry_map is not None and container_registry_map_uri is not None:
         error_message = (
@@ -357,14 +418,26 @@ async def create_workflow_version(
             await ctx.error(error_message)
             raise ValueError(error_message)
 
-    # Validate inputs first, before creating client
-    try:
-        definition_zip = decode_from_base64(definition_zip_base64)
-    except Exception as e:
-        error_message = f'Failed to decode base64 workflow definition: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+    # Validate and decode base64 input if provided
+    definition_zip = None
+    if definition_zip_base64 is not None:
+        try:
+            definition_zip = decode_from_base64(definition_zip_base64)
+        except Exception as e:
+            error_message = f'Failed to decode base64 workflow definition: {str(e)}'
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise
+
+    # Validate S3 URI format if provided
+    if definition_uri is not None:
+        if not definition_uri.startswith('s3://'):
+            error_message = (
+                f'definition_uri must be a valid S3 URI starting with s3://, got: {definition_uri}'
+            )
+            logger.error(error_message)
+            await ctx.error(error_message)
+            raise ValueError(error_message)
 
     # Validate storage requirements
     if storage_type == 'STATIC':
@@ -379,9 +452,14 @@ async def create_workflow_version(
     params = {
         'workflowId': workflow_id,
         'versionName': version_name,
-        'definitionZip': definition_zip,
         'storageType': storage_type,
     }
+
+    # Add definition source (either ZIP or S3 URI)
+    if definition_zip is not None:
+        params['definitionZip'] = definition_zip
+    elif definition_uri is not None:
+        params['definitionUri'] = definition_uri
 
     if description:
         params['description'] = description
