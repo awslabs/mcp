@@ -1,9 +1,13 @@
+import awslabs.aws_api_mcp_server.core.common.config as config_module
+import importlib
 import pytest
 from awslabs.aws_api_mcp_server.core.common.config import (
     get_region,
     get_server_directory,
     get_transport_from_env,
+    get_user_agent_extra,
 )
+from importlib.metadata import PackageNotFoundError
 from unittest.mock import MagicMock, patch
 
 
@@ -173,3 +177,28 @@ def test_get_transport_from_env_streamable_http_with_no_auth(monkeypatch):
     monkeypatch.setenv('AUTH_TYPE', 'no-auth')
 
     assert get_transport_from_env() == 'streamable-http'
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.OPT_IN_TELEMETRY', False)
+def test_user_agent_without_telemetry():
+    """Test user agent when telemetry is disabled."""
+    user_agent = get_user_agent_extra()
+    assert 'cfg/ro#' not in user_agent
+    assert 'cfg/consent#' not in user_agent
+    assert 'cfg/scripts#' not in user_agent
+
+
+@patch('importlib.metadata.version')
+def test_package_version_fallback_to_unknown(mock_version):
+    """Test that PACKAGE_VERSION falls back to 'unknown' when package not found."""
+    original_version = config_module.PACKAGE_VERSION
+
+    mock_version.side_effect = PackageNotFoundError()
+    importlib.reload(config_module)
+
+    assert config_module.PACKAGE_VERSION == 'unknown'
+
+    user_agent = config_module.get_user_agent_extra()
+    assert 'awslabs/mcp/AWS-API-MCP-server/unknown' in user_agent
+
+    # Restore original state
+    config_module.PACKAGE_VERSION = original_version
