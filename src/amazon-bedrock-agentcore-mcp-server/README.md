@@ -26,6 +26,8 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 
 Configure the MCP server in your MCP client configuration:
 
+For [Kiro](https://kiro.dev/), add at the project level `.kiro/settings/mcp.json`
+
 ```json
 {
   "mcpServers": {
