@@ -129,16 +129,7 @@ gh pr create --title "Your PR Title" --body "Description of changes"
 
 #### Updating Existing PRs
 
-**For additional changes to an existing PR:**
-
-- **Small fixes/typos**: Amend the last commit
-```bash
-git add .
-git commit --amend --no-edit
-git push --force-with-lease origin feat/your-feature-name
-```
-
-- **Substantial changes**: Add new commits
+- **Add new commits**:
 ```bash
 git add .
 git commit -m "feat: address review feedback" # Use descriptive prefix: feat/, fix/, docs/
@@ -153,7 +144,6 @@ git push origin feat/your-feature-name
 git checkout main
 git pull upstream main
 git checkout feat/your-feature-name
-git rebase main  # or git merge main if you prefer
-git push --force-with-lease origin feat/your-feature-name  # if rebased
+git merge main
 ```
 &nbsp;
