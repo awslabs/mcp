@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enforcement of `AUTH_TYPE=no-auth` for streamable-http mode (#1345)
 - Agent Script for troubleshooting permissions using CloudTrail events (#1313)
 
+>>>>>>> 42b8566 (aws-api-mcp-server: Updated changelog)
+
 ## [0.3.0] - 2025-09-22
 
 ### Fixed
