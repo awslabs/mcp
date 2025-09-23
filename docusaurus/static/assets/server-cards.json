@@ -1307,12 +1307,14 @@
       "tags": [
         "ai-ml",
         "bedrock",
-        "knowledge-bases",
-        "retrieval",
-        "citations",
         "conversational",
         "knowledge-search",
-        "agentcore"
+        "agentcore",
+        "agents",
+        "ai-agents",
+        "agentic",
+        "runtime",
+        "mcp"
       ],
       "workflows": [
         "conversational"
