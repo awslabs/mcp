@@ -56,35 +56,33 @@ class TestDocFetcher:
         llms_content = """
         # Documentation Links
 
-        [Getting Started](https://example.com/getting-started)
-        [API Reference](https://example.com/api-reference)
-        [Advanced Topics](https://example.com/advanced)
+        [Getting Started](https://strandsagents.com/doc1)
+        [API Reference](https://strandsagents.com/doc2)
 
         Some other text without links.
         """
 
         with patch.object(doc_fetcher, '_get', return_value=llms_content):
             # Act
-            result = doc_fetcher.parse_llms_txt('https://example.com/llms.txt')
+            result = doc_fetcher.parse_llms_txt('https://strandsagents.com/llm.txt')
 
             # Assert
-            assert len(result) == 3
-            assert ('Getting Started', 'https://example.com/getting-started') in result
-            assert ('API Reference', 'https://example.com/api-reference') in result
-            assert ('Advanced Topics', 'https://example.com/advanced') in result
+            assert len(result) == 2
+            assert ('Getting Started', 'https://strandsagents.com/doc1') in result
+            assert ('API Reference', 'https://strandsagents.com/doc2') in result
 
     def test_parse_llms_txt_handles_empty_titles(self):
         """Test parse_llms_txt handles links with empty titles."""
         # Arrange
-        llms_content = '[](https://example.com/doc1) [Title](https://example.com/doc2)'
+        llms_content = '[](https://strandsagents.com/doc1) [Title](https://strandsagents.com/doc2)'
 
         with patch.object(doc_fetcher, '_get', return_value=llms_content):
             # Act
-            result = doc_fetcher.parse_llms_txt('https://example.com/llms.txt')
+            result = doc_fetcher.parse_llms_txt('https://strandsagents.com/llms.txt')
 
             # Assert
             assert len(result) == 1  # Empty title links are filtered out
-            assert ('Title', 'https://example.com/doc2') in result
+            assert ('Title', 'https://strandsagents.com/doc2') in result
 
     def test_html_to_text_removes_script_style(self):
         """Test _html_to_text removes script and style blocks."""
@@ -209,10 +207,10 @@ class TestDocFetcher:
         mock_get.return_value = html_content
 
         # Act
-        result = doc_fetcher.fetch_and_clean('https://example.com/page')
+        result = doc_fetcher.fetch_and_clean('https://strandsagents.com/page')
 
         # Assert
-        assert result.url == 'https://example.com/page'
+        assert result.url == 'https://strandsagents.com/page'
         assert result.title == 'Test Page'
         assert 'Main Heading' in result.content
         assert 'This is test content.' in result.content
@@ -226,10 +224,10 @@ class TestDocFetcher:
         mock_get.return_value = text_content
 
         # Act
-        result = doc_fetcher.fetch_and_clean('https://example.com/doc.txt')
+        result = doc_fetcher.fetch_and_clean('https://strandsagents.com/doc.txt')
 
         # Assert
-        assert result.url == 'https://example.com/doc.txt'
+        assert result.url == 'https://strandsagents.com/doc.txt'
         assert result.title == 'doc.txt'
         assert result.content == text_content
 
@@ -249,10 +247,10 @@ class TestDocFetcher:
         mock_get.return_value = markdown_content
 
         # Act
-        result = doc_fetcher.fetch_and_clean('https://example.com/doc.md')
+        result = doc_fetcher.fetch_and_clean('https://strandsagents.com/doc.md')
 
         # Assert
-        assert result.url == 'https://example.com/doc.md'
+        assert result.url == 'https://strandsagents.com/doc.md'
         assert result.title == 'doc.md'
         assert result.content == markdown_content
 
@@ -264,9 +262,9 @@ class TestDocFetcher:
         mock_get.return_value = html_content
 
         # Act
-        result = doc_fetcher.fetch_and_clean('https://example.com/page.html')
+        result = doc_fetcher.fetch_and_clean('https://strandsagents.com/page.html')
 
         # Assert
-        assert result.url == 'https://example.com/page.html'
+        assert result.url == 'https://strandsagents.com/page.html'
         assert result.title == 'page.html'  # Falls back to filename
         assert 'Content without title' in result.content

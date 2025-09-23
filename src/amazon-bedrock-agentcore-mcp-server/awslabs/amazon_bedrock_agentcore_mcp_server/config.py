@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .utils.url_validator import URLValidationError, validate_urls
 from dataclasses import dataclass, field
 
 
@@ -27,12 +28,19 @@ class Config:
 
     llm_texts_url: list[str] = field(
         default_factory=lambda: [
-            'https://gist.githubusercontent.com/ryanycoleman/d22cdd6c37ea261b055dc9504e08d1de/raw/5fa9facbd500dcc87dc940e1a43e825e2b3824b1/agentcore-llms-txt.md'
+            'https://raw.githubusercontent.com/aws/bedrock-agentcore-starter-toolkit/refs/heads/main/documentation/docs/mcp/llm.txt'
         ]  # TODO: Update this url after finalizing llm.txt location
     )  # Curated list of llms.txt files to index at startup
     timeout: float = 30.0  # HTTP request timeout in seconds
     # User agent for HTTP requests
     user_agent: str = 'agentcore-mcp-docs/1.0'
+
+    def __post_init__(self):
+        """Validate URLs after initialization."""
+        try:
+            self.llm_texts_url = validate_urls(self.llm_texts_url)
+        except URLValidationError as e:
+            raise ValueError(f'Invalid URLs in configuration: {e}') from e
 
 
 # Global configuration instance

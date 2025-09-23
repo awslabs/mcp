@@ -183,19 +183,6 @@ class TestFetchDoc:
         assert 'content' not in result
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
-    def test_fetch_doc_unsupported_uri(self, mock_ensure_ready):
-        """Test fetch_doc rejects unsupported URI schemes."""
-        # Arrange
-        test_uri = 'ftp://example.com/doc'
-
-        # Act
-        result = fetch_doc(test_uri)
-
-        # Assert
-        assert result['error'] == 'unsupported uri'
-        assert result['url'] == test_uri
-
-    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
     def test_fetch_doc_http_url(self, mock_ensure_page, mock_ensure_ready):
         """Test fetch_doc accepts HTTP URLs."""

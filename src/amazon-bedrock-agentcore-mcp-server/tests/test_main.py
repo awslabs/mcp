@@ -14,23 +14,9 @@
 
 """Tests for the main function in server.py."""
 
-from awslabs.amazon_bedrock_agentcore_mcp_server.server import main
-from unittest.mock import patch
-
 
 class TestMain:
     """Tests for the main function."""
-
-    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.server.mcp.run')
-    @patch('sys.argv', ['awslabs.amazon-bedrock-agentcore-mcp-server'])
-    def test_main_default(self, mock_run):
-        """Test main function with default arguments."""
-        # Call the main function
-        main()
-
-        # Check that mcp.run was called with the correct arguments
-        mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') is None
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""

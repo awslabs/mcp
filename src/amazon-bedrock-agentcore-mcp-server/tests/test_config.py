@@ -28,14 +28,17 @@ class TestConfig:
         # Assert
         assert isinstance(config.llm_texts_url, list)
         assert len(config.llm_texts_url) == 1
-        assert 'agentcore-llms-txt.md' in config.llm_texts_url[0]
+        assert 'llm.txt' in config.llm_texts_url[0]
         assert config.timeout == 30.0
         assert config.user_agent == 'agentcore-mcp-docs/1.0'
 
     def test_config_custom_values(self):
         """Test Config can be initialized with custom values."""
         # Arrange
-        custom_urls = ['https://example.com/docs1.txt', 'https://example.com/docs2.txt']
+        custom_urls = [
+            'https://aws.github.io/bedrock-agentcore-starter-toolkit/doc1',
+            'https://aws.github.io/bedrock-agentcore-starter-toolkit/doc1',
+        ]
         custom_timeout = 60.0
         custom_user_agent = 'custom-agent/2.0'
 
@@ -108,15 +111,15 @@ class TestConfig:
         # Assert
         for url in config.llm_texts_url:
             assert url.startswith('https://')
-            assert 'gist.githubusercontent.com' in url or 'github.com' in url
+            assert 'llm.txt' in url
 
     def test_config_supports_multiple_llm_urls(self):
         """Test config supports multiple LLM text URLs."""
         # Arrange
         multiple_urls = [
-            'https://example.com/docs1.txt',
-            'https://example.com/docs2.txt',
-            'https://example.com/docs3.txt',
+            'https://aws.github.io/bedrock-agentcore-starter-toolkit/doc1',
+            'https://aws.github.io/bedrock-agentcore-starter-toolkit/doc2',
+            'https://aws.github.io/bedrock-agentcore-starter-toolkit/doc3',
         ]
 
         # Act

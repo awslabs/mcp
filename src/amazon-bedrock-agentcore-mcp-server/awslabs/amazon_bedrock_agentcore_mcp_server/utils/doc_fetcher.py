@@ -16,6 +16,7 @@ import html
 import re
 import urllib.request
 from ..config import doc_config
+from .url_validator import URLValidationError, validate_urls
 from dataclasses import dataclass
 
 
@@ -69,12 +70,23 @@ def parse_llms_txt(url: str) -> list[tuple[str, str]]:
     Returns:
         List of (title, url) tuples extracted from markdown links
 
+    Raises:
+        URLValidationError: If any extracted URL is not allowed
+
     """
     txt = _get(url)
-    return [
-        (match.group(1).strip() or match.group(2).strip(), match.group(2).strip())
-        for match in _MD_LINK.finditer(txt)
-    ]
+    links = []
+    for match in _MD_LINK.finditer(txt):
+        title = match.group(1).strip() or match.group(2).strip()
+        doc_url = match.group(2).strip()
+
+        try:
+            validated_urls = validate_urls(doc_url)
+            links.append((title, validated_urls[0]))
+        except URLValidationError:
+            continue
+
+    return links
 
 
 def _html_to_text(raw_html: str) -> str:
@@ -127,14 +139,19 @@ def fetch_and_clean(page_url: str) -> Page:
     Returns:
         Page object with URL, title, and cleaned content
 
+    Raises:
+        URLValidationError: If the URL is not allowed
+
     """
-    raw = _get(page_url)
+    validated_url = validate_urls(page_url)[0]
+
+    raw = _get(validated_url)
     lower = raw.lower()
     if '<html' in lower or '<head' in lower or '<body' in lower:
         extracted_title = _extract_html_title(raw)
         content = _html_to_text(raw)
-        title = extracted_title or page_url.rsplit('/', 1)[-1] or page_url
-        return Page(url=page_url, title=title, content=content)
+        title = extracted_title or validated_url.rsplit('/', 1)[-1] or validated_url
+        return Page(url=validated_url, title=title, content=content)
     else:
-        title = page_url.rsplit('/', 1)[-1] or page_url
-        return Page(url=page_url, title=title, content=raw)
+        title = validated_url.rsplit('/', 1)[-1] or validated_url
+        return Page(url=validated_url, title=title, content=raw)

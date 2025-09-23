@@ -130,18 +130,12 @@ def fetch_doc(uri: str) -> Dict[str, Any]:
     """
     cache.ensure_ready()
 
-    # Accept HTTP/HTTPS URLs
-    if uri.startswith('http://') or uri.startswith('https://'):
-        url = uri
-    else:
-        return {'error': 'unsupported uri', 'url': uri}
-
-    page = cache.ensure_page(url)
+    page = cache.ensure_page(uri)
     if page is None:
-        return {'error': 'fetch failed', 'url': url}
+        return {'error': 'fetch failed', 'url': uri}
 
     return {
-        'url': url,
+        'url': page.url,
         'title': page.title,
         'content': page.content,
     }
