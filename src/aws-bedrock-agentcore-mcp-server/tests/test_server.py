@@ -14,82 +14,200 @@
 
 """Tests for the AWS Bedrock AgentCore MCP Server."""
 
-import pytest
-from awslabs.aws_bedrock_agentcore_mcp_server.server import example_tool, math_tool
+from awslabs.aws_bedrock_agentcore_mcp_server.server import fetch_doc, search_docs
+from awslabs.aws_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
+from unittest.mock import Mock, patch
 
 
-@pytest.mark.asyncio
-async def test_example_tool():
-    """Test."""
-    # Arrange
-    test_query = 'test query'
-    expected_project_name = 'awslabs AWS Bedrock AgentCore MCP Server'
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this with your tool's logic"
+class TestSearchDocs:
+    """Test cases for the search_docs tool."""
 
-    # Act
-    result = await example_tool(test_query)
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    def test_search_docs_with_results(
+        self, mock_ensure_page, mock_get_url_cache, mock_get_index, mock_ensure_ready
+    ):
+        """Test search_docs returns properly formatted results."""
+        # Arrange
+        mock_doc = indexer.Doc(
+            uri='https://example.com/doc1',
+            display_title='Test Document',
+            content='Test content',
+            index_title='Test Document',
+        )
+        mock_index = Mock()
+        mock_index.search.return_value = [(0.95, mock_doc)]
+        mock_get_index.return_value = mock_index
 
-    # Assert
-    assert result == expected_response
+        mock_page = doc_fetcher.Page(
+            url='https://example.com/doc1',
+            title='Test Document',
+            content='Test content for snippet generation',
+        )
+        mock_url_cache = {'https://example.com/doc1': mock_page}
+        mock_get_url_cache.return_value = mock_url_cache
+
+        with patch(
+            'awslabs.aws_bedrock_agentcore_mcp_server.utils.text_processor.make_snippet'
+        ) as mock_make_snippet:
+            mock_make_snippet.return_value = 'Test snippet...'
+
+            # Act
+            result = search_docs('bedrock agentcore', k=5)
+
+            # Assert
+            assert len(result) == 1
+            assert result[0]['url'] == 'https://example.com/doc1'
+            assert result[0]['title'] == 'Test Document'
+            assert result[0]['score'] == 0.95
+            assert result[0]['snippet'] == 'Test snippet...'
+            mock_ensure_ready.assert_called_once()
+            mock_index.search.assert_called_once_with('bedrock agentcore', k=5)
+
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    def test_search_docs_no_index(self, mock_get_index, mock_ensure_ready):
+        """Test search_docs handles missing index gracefully."""
+        # Arrange
+        mock_get_index.return_value = None
+
+        # Act
+        result = search_docs('test query')
+
+        # Assert
+        assert result == []
+        mock_ensure_ready.assert_called_once()
+
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
+    def test_search_docs_empty_results(
+        self, mock_get_url_cache, mock_get_index, mock_ensure_ready
+    ):
+        """Test search_docs handles empty search results."""
+        # Arrange
+        mock_index = Mock()
+        mock_index.search.return_value = []
+        mock_get_index.return_value = mock_index
+        mock_get_url_cache.return_value = {}
+
+        # Act
+        result = search_docs('nonexistent query')
+
+        # Assert
+        assert result == []
+
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_index')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    def test_search_docs_hydrates_top_results(
+        self, mock_ensure_page, mock_get_url_cache, mock_get_index, mock_ensure_ready
+    ):
+        """Test search_docs hydrates content for top results."""
+        # Arrange
+        docs = [
+            indexer.Doc(
+                uri=f'https://example.com/doc{i}',
+                display_title=f'Doc {i}',
+                content='',
+                index_title=f'Doc {i}',
+            )
+            for i in range(10)
+        ]
+        mock_results = [(0.9 - i * 0.1, doc) for i, doc in enumerate(docs)]
+
+        mock_index = Mock()
+        mock_index.search.return_value = mock_results
+        mock_get_index.return_value = mock_index
+
+        mock_url_cache = {doc.uri: None for doc in docs}  # No content cached yet
+        mock_get_url_cache.return_value = mock_url_cache
+
+        with patch(
+            'awslabs.aws_bedrock_agentcore_mcp_server.utils.text_processor.make_snippet'
+        ) as mock_make_snippet:
+            mock_make_snippet.return_value = 'Test snippet'
+
+            # Act
+            result = search_docs('test', k=10)
+
+            # Assert
+            # Should only hydrate top SNIPPET_HYDRATE_MAX results
+            assert mock_ensure_page.call_count == min(len(docs), cache.SNIPPET_HYDRATE_MAX)
+            assert len(result) == 10
 
 
-@pytest.mark.asyncio
-async def test_example_tool_failure():
-    """Test."""
-    # Arrange
-    test_query = 'test query'
-    expected_project_name = 'awslabs AWS Bedrock AgentCore MCP Server'
-    expected_response = f"Hello from {expected_project_name}! Your query was {test_query}. Replace this your tool's new logic"
+class TestFetchDoc:
+    """Test cases for the fetch_doc tool."""
 
-    # Act
-    result = await example_tool(test_query)
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    def test_fetch_doc_success(self, mock_ensure_page, mock_ensure_ready):
+        """Test fetch_doc successfully retrieves document content."""
+        # Arrange
+        test_url = 'https://example.com/doc'
+        mock_page = doc_fetcher.Page(
+            url=test_url, title='Test Document', content='Full document content here'
+        )
+        mock_ensure_page.return_value = mock_page
 
-    # Assert
-    assert result != expected_response
+        # Act
+        result = fetch_doc(test_url)
 
+        # Assert
+        assert result['url'] == test_url
+        assert result['title'] == 'Test Document'
+        assert result['content'] == 'Full document content here'
+        assert 'error' not in result
+        mock_ensure_ready.assert_called_once()
+        mock_ensure_page.assert_called_once_with(test_url)
 
-@pytest.mark.asyncio
-class TestMathTool:
-    """Test."""
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    def test_fetch_doc_failure(self, mock_ensure_page, mock_ensure_ready):
+        """Test fetch_doc handles fetch failures gracefully."""
+        # Arrange
+        test_url = 'https://example.com/nonexistent'
+        mock_ensure_page.return_value = None
 
-    async def test_addition(self):
-        """Test."""
-        # Test integer addition
-        assert await math_tool('add', 2, 3) == 5
-        # Test float addition
-        assert await math_tool('add', 2.5, 3.5) == 6.0
+        # Act
+        result = fetch_doc(test_url)
 
-    async def test_subtraction(self):
-        """Test."""
-        # Test integer subtraction
-        assert await math_tool('subtract', 5, 3) == 2
-        # Test float subtraction
-        assert await math_tool('subtract', 5.5, 2.5) == 3.0
+        # Assert
+        assert result['error'] == 'fetch failed'
+        assert result['url'] == test_url
+        assert 'title' not in result
+        assert 'content' not in result
 
-    async def test_multiplication(self):
-        """Test."""
-        # Test integer multiplication
-        assert await math_tool('multiply', 4, 3) == 12
-        # Test float multiplication
-        assert await math_tool('multiply', 2.5, 2) == 5.0
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    def test_fetch_doc_unsupported_uri(self, mock_ensure_ready):
+        """Test fetch_doc rejects unsupported URI schemes."""
+        # Arrange
+        test_uri = 'ftp://example.com/doc'
 
-    async def test_division(self):
-        """Test."""
-        # Test integer division
-        assert await math_tool('divide', 6, 2) == 3.0
-        # Test float division
-        assert await math_tool('divide', 5.0, 2.0) == 2.5
+        # Act
+        result = fetch_doc(test_uri)
 
-    async def test_division_by_zero(self):
-        """Test."""
-        # Test division by zero raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('divide', 5, 0)
-        assert str(exc_info.value) == 'The denominator 0 cannot be zero.'
+        # Assert
+        assert result['error'] == 'unsupported uri'
+        assert result['url'] == test_uri
 
-    async def test_invalid_operation(self):
-        """Test."""
-        # Test invalid operation raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await math_tool('power', 2, 3)
-        assert 'Invalid operation: power' in str(exc_info.value)
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
+    @patch('awslabs.aws_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
+    def test_fetch_doc_http_url(self, mock_ensure_page, mock_ensure_ready):
+        """Test fetch_doc accepts HTTP URLs."""
+        # Arrange
+        test_url = 'http://example.com/doc'
+        mock_page = doc_fetcher.Page(url=test_url, title='Test', content='Content')
+        mock_ensure_page.return_value = mock_page
+
+        # Act
+        result = fetch_doc(test_url)
+
+        # Assert
+        assert 'error' not in result
+        assert result['url'] == test_url
+        mock_ensure_page.assert_called_once_with(test_url)
