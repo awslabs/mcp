@@ -27,9 +27,7 @@ class Config:
     """
 
     llm_texts_url: list[str] = field(
-        default_factory=lambda: [
-            'https://raw.githubusercontent.com/aws/bedrock-agentcore-starter-toolkit/refs/heads/main/documentation/docs/mcp/llm.txt'
-        ]  # TODO: Update this url after finalizing llm.txt location
+        default_factory=lambda: ['https://aws.github.io/bedrock-agentcore-starter-toolkit/llm.txt']
     )  # Curated list of llms.txt files to index at startup
     timeout: float = 30.0  # HTTP request timeout in seconds
     # User agent for HTTP requests
