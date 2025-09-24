@@ -24,7 +24,7 @@ mcp = FastMCP(APP_NAME)
 
 
 @mcp.tool()
-def search_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:
+def search_agentcore_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:
     """Search curated AgentCore documentation and return ranked results with snippets.
 
     This tool provides access to the complete Amazon Bedrock AgentCore documentation including:
@@ -101,10 +101,10 @@ def search_docs(query: str, k: int = 5) -> List[Dict[str, Any]]:
 
 
 @mcp.tool()
-def fetch_doc(uri: str) -> Dict[str, Any]:
+def fetch_agentcore_doc(uri: str) -> Dict[str, Any]:
     """Fetch full document content by URL.
 
-    Retrieves complete AgentCore documentation content from URLs found via search_docs
+    Retrieves complete AgentCore documentation content from URLs found via search_agentcore_docs
     or provided directly. Use this to get full documentation pages including:
 
     - Complete platform overview and service documentation

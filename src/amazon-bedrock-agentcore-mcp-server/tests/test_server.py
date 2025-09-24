@@ -14,22 +14,25 @@
 
 """Tests for the Amazon Bedrock AgentCore MCP Server."""
 
-from awslabs.amazon_bedrock_agentcore_mcp_server.server import fetch_doc, search_docs
+from awslabs.amazon_bedrock_agentcore_mcp_server.server import (
+    fetch_agentcore_doc,
+    search_agentcore_docs,
+)
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
 from unittest.mock import Mock, patch
 
 
 class TestSearchDocs:
-    """Test cases for the search_docs tool."""
+    """Test cases for the search_agentcore_docs tool."""
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
-    def test_search_docs_with_results(
+    def test_search_agentcore_docs_with_results(
         self, mock_ensure_page, mock_get_url_cache, mock_get_index, mock_ensure_ready
     ):
-        """Test search_docs returns properly formatted results."""
+        """Test search_agentcore_docs returns properly formatted results."""
         # Arrange
         mock_doc = indexer.Doc(
             uri='https://example.com/doc1',
@@ -55,7 +58,7 @@ class TestSearchDocs:
             mock_make_snippet.return_value = 'Test snippet...'
 
             # Act
-            result = search_docs('bedrock agentcore', k=5)
+            result = search_agentcore_docs('bedrock agentcore', k=5)
 
             # Assert
             assert len(result) == 1
@@ -68,13 +71,13 @@ class TestSearchDocs:
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
-    def test_search_docs_no_index(self, mock_get_index, mock_ensure_ready):
-        """Test search_docs handles missing index gracefully."""
+    def test_search_agentcore_docs_no_index(self, mock_get_index, mock_ensure_ready):
+        """Test search_agentcore_docs handles missing index gracefully."""
         # Arrange
         mock_get_index.return_value = None
 
         # Act
-        result = search_docs('test query')
+        result = search_agentcore_docs('test query')
 
         # Assert
         assert result == []
@@ -83,10 +86,10 @@ class TestSearchDocs:
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
-    def test_search_docs_empty_results(
+    def test_search_agentcore_docs_empty_results(
         self, mock_get_url_cache, mock_get_index, mock_ensure_ready
     ):
-        """Test search_docs handles empty search results."""
+        """Test search_agentcore_docs handles empty search results."""
         # Arrange
         mock_index = Mock()
         mock_index.search.return_value = []
@@ -94,7 +97,7 @@ class TestSearchDocs:
         mock_get_url_cache.return_value = {}
 
         # Act
-        result = search_docs('nonexistent query')
+        result = search_agentcore_docs('nonexistent query')
 
         # Assert
         assert result == []
@@ -103,10 +106,10 @@ class TestSearchDocs:
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_index')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.get_url_cache')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
-    def test_search_docs_hydrates_top_results(
+    def test_search_agentcore_docs_hydrates_top_results(
         self, mock_ensure_page, mock_get_url_cache, mock_get_index, mock_ensure_ready
     ):
-        """Test search_docs hydrates content for top results."""
+        """Test search_agentcore_docs hydrates content for top results."""
         # Arrange
         docs = [
             indexer.Doc(
@@ -132,7 +135,7 @@ class TestSearchDocs:
             mock_make_snippet.return_value = 'Test snippet'
 
             # Act
-            result = search_docs('test', k=10)
+            result = search_agentcore_docs('test', k=10)
 
             # Assert
             # Should only hydrate top SNIPPET_HYDRATE_MAX results
@@ -141,12 +144,12 @@ class TestSearchDocs:
 
 
 class TestFetchDoc:
-    """Test cases for the fetch_doc tool."""
+    """Test cases for the fetch_agentcore_doc tool."""
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
-    def test_fetch_doc_success(self, mock_ensure_page, mock_ensure_ready):
-        """Test fetch_doc successfully retrieves document content."""
+    def test_fetch_agentcore_doc_success(self, mock_ensure_page, mock_ensure_ready):
+        """Test fetch_agentcore_doc successfully retrieves document content."""
         # Arrange
         test_url = 'https://example.com/doc'
         mock_page = doc_fetcher.Page(
@@ -155,7 +158,7 @@ class TestFetchDoc:
         mock_ensure_page.return_value = mock_page
 
         # Act
-        result = fetch_doc(test_url)
+        result = fetch_agentcore_doc(test_url)
 
         # Assert
         assert result['url'] == test_url
@@ -167,14 +170,14 @@ class TestFetchDoc:
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
-    def test_fetch_doc_failure(self, mock_ensure_page, mock_ensure_ready):
-        """Test fetch_doc handles fetch failures gracefully."""
+    def test_fetch_agentcore_doc_failure(self, mock_ensure_page, mock_ensure_ready):
+        """Test fetch_agentcore_doc handles fetch failures gracefully."""
         # Arrange
         test_url = 'https://example.com/nonexistent'
         mock_ensure_page.return_value = None
 
         # Act
-        result = fetch_doc(test_url)
+        result = fetch_agentcore_doc(test_url)
 
         # Assert
         assert result['error'] == 'fetch failed'
@@ -184,15 +187,15 @@ class TestFetchDoc:
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_ready')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.ensure_page')
-    def test_fetch_doc_http_url(self, mock_ensure_page, mock_ensure_ready):
-        """Test fetch_doc accepts HTTP URLs."""
+    def test_fetch_agentcore_doc_http_url(self, mock_ensure_page, mock_ensure_ready):
+        """Test fetch_agentcore_doc accepts HTTP URLs."""
         # Arrange
         test_url = 'http://example.com/doc'
         mock_page = doc_fetcher.Page(url=test_url, title='Test', content='Content')
         mock_ensure_page.return_value = mock_page
 
         # Act
-        result = fetch_doc(test_url)
+        result = fetch_agentcore_doc(test_url)
 
         # Assert
         assert 'error' not in result

@@ -148,12 +148,12 @@ Example queries:
 
 ## Tools
 
-### search_docs
+### search_agentcore_docs
 
 Search curated AgentCore documentation and return ranked results with snippets.
 
 ```python
-search_docs(query: str, k: int = 5) -> List[Dict[str, Any]]
+search_agentcore_docs(query: str, k: int = 5) -> List[Dict[str, Any]]
 ```
 
 **Parameters:**
@@ -167,12 +167,12 @@ List of dictionaries containing:
 - `score`: Relevance score (0-1, higher is better)
 - `snippet`: Contextual content preview
 
-### fetch_doc
+### fetch_agentcore_doc
 
 Fetch full document content by URL.
 
 ```python
-fetch_doc(uri: str) -> Dict[str, Any]
+fetch_agentcore_doc(uri: str) -> Dict[str, Any]
 ```
 
 **Parameters:**
