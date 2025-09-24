@@ -83,6 +83,7 @@ const sidebars: SidebarsConfig = {
             'servers/mysql-mcp-server',
             'servers/postgres-mcp-server',
             'servers/aws-dataprocessing-mcp-server',
+            'servers/emr-troubleshooting-mcp-server',
             'servers/redshift-mcp-server',
             'servers/s3-tables-mcp-server',
             'servers/aws-appsync-mcp-server',
