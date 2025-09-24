@@ -32,7 +32,12 @@ const config: Config = {
   plugins: [],
 
   // Add scripts to be loaded in the client
-  scripts: [],
+  scripts: [
+    {
+      src: 'scripts/analytics.js',
+      async: true
+    },
+  ],
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
