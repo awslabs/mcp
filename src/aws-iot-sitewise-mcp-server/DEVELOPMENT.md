@@ -55,7 +55,7 @@ After installing with `uv tool install .`, configure your MCP client:
   "mcpServers": {
     "aws-iot-sitewise-dev": {
       "command": "uvx",
-      "args": ["awslabs-aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-dev-profile",
@@ -116,7 +116,7 @@ For development with hot reloading after code changes:
    uv tool install .
 
    # Test the installation
-   uvx awslabs-aws-iot-sitewise-mcp-server --help
+   uvx awslabs.aws-iot-sitewise-mcp-server --help
    ```
 
 3. **For Development Work, Also Install Dev Dependencies**:

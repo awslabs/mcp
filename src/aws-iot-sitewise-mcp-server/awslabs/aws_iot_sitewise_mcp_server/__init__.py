@@ -14,4 +14,4 @@
 
 """awslabs.aws-iot-sitewise-mcp-server"""
 
-__version__ = '0.0.1'
+__version__ = '10.0.9223372036854775807'
