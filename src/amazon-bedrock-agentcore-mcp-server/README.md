@@ -10,6 +10,7 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 - **Fetch Full Documents**: Retrieve complete documentation pages for in-depth understanding
 - **Comprehensive Coverage**: Access documentation for all AgentCore services including Runtime, Memory, Code Interpreter, Browser, Gateway, Observability, and Identity
 - **Smart Caching**: Efficient document caching with on-demand content loading for optimal performance
+- **Curated Documentation List**: Uses llm.txt as a curated list of relevant AgentCore documentations, always fetching the latest version of the file
 
 ## Prerequisites
 
