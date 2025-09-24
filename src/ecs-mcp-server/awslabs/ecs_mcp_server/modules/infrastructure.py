@@ -84,6 +84,10 @@ def register_module(mcp: FastMCP) -> None:
             default=None,
             description="Path for ALB health checks",
         ),
+        bake_time_minutes: Optional[int] = Field(
+            default=None,
+            description="Time to monitor the green deployment before shifting traffic (minutes)",
+        ),
     ) -> Dict[str, Any]:
         """
         Creates ECS infrastructure using CloudFormation.
@@ -148,6 +152,7 @@ def register_module(mcp: FastMCP) -> None:
             desired_count=desired_count,
             container_port=container_port,
             health_check_path=health_check_path,
+            bake_time_minutes=bake_time_minutes,
         )
 
     # Prompt patterns for deployment

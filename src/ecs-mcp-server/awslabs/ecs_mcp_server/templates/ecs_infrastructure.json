@@ -61,6 +61,11 @@
       "Description": "Name of the application",
       "Type": "String"
     },
+    "BakeTimeMinutes": {
+      "Default": 5,
+      "Description": "Time to monitor the green deployment before shifting traffic (minutes)",
+      "Type": "Number"
+    },
     "ContainerPort": {
       "Default": 80,
       "Description": "Port the container listens on",
@@ -217,6 +222,34 @@
       },
       "Type": "AWS::S3::BucketPolicy"
     },
+    "ALBAltTargetGroup": {
+      "Properties": {
+        "HealthCheckIntervalSeconds": 30,
+        "HealthCheckPath": {
+          "Ref": "HealthCheckPath"
+        },
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckTimeoutSeconds": 5,
+        "HealthyThresholdCount": 2,
+        "Name": {
+          "Fn::Sub": "${AppName}-alt-tg"
+        },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "TargetGroupAttributes": [
+          {
+            "Key": "deregistration_delay.timeout_seconds",
+            "Value": "150"
+          }
+        ],
+        "TargetType": "ip",
+        "UnhealthyThresholdCount": 5,
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup"
+    },
     "ALBListener": {
       "Metadata": {
         "checkov": {
@@ -248,6 +281,56 @@
         "Protocol": "HTTP"
       },
       "Type": "AWS::ElasticLoadBalancingV2::Listener"
+    },
+    "ALBListenerAltRule": {
+      "Properties": {
+        "Actions": [
+          {
+            "TargetGroupArn": {
+              "Ref": "ALBAltTargetGroup"
+            },
+            "Type": "forward"
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "Values": [
+              "/test/*"
+            ]
+          }
+        ],
+        "ListenerArn": {
+          "Ref": "ALBListener"
+        },
+        "Priority": 2
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule"
+    },
+    "ALBListenerProdRule": {
+      "Properties": {
+        "Actions": [
+          {
+            "TargetGroupArn": {
+              "Ref": "ALBTargetGroup"
+            },
+            "Type": "forward"
+          }
+        ],
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "Values": [
+              "/*"
+            ]
+          }
+        ],
+        "ListenerArn": {
+          "Ref": "ALBListener"
+        },
+        "Priority": 1
+      },
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule"
     },
     "ALBSecurityGroup": {
       "Metadata": {
@@ -423,6 +506,30 @@
       },
       "Type": "AWS::ECS::Cluster"
     },
+    "ECSInfrastructureRoleForLoadBalancers": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs.amazonaws.com"
+              },
+              "Sid": "AllowAccessToECSForInfrastructureManagement"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AmazonECSInfrastructureRolePolicyForLoadBalancers"
+        ],
+        "RoleName": {
+          "Fn::Sub": "${AppName}-infrastructure-role"
+        }
+      },
+      "Type": "AWS::IAM::Role"
+    },
     "ECSSecurityGroup": {
       "Properties": {
         "GroupDescription": {
@@ -471,12 +578,19 @@
           "Ref": "ECSCluster"
         },
         "DeploymentConfiguration": {
+          "BakeTimeInMinutes": {
+            "Ref": "BakeTimeMinutes"
+          },
           "DeploymentCircuitBreaker": {
             "Enable": true,
             "Rollback": true
           },
           "MaximumPercent": 200,
-          "MinimumHealthyPercent": 100
+          "MinimumHealthyPercent": 100,
+          "Strategy": "BLUE_GREEN"
+        },
+        "DeploymentController": {
+          "Type": "ECS"
         },
         "DesiredCount": {
           "Ref": "DesiredCount"
@@ -485,6 +599,23 @@
         "EnableExecuteCommand": true,
         "LoadBalancers": [
           {
+            "AdvancedConfiguration": {
+              "AlternateTargetGroupArn": {
+                "Ref": "ALBAltTargetGroup"
+              },
+              "ProductionListenerRule": {
+                "Ref": "ALBListenerProdRule"
+              },
+              "RoleArn": {
+                "Fn::GetAtt": [
+                  "ECSInfrastructureRoleForLoadBalancers",
+                  "Arn"
+                ]
+              },
+              "TestListenerRule": {
+                "Ref": "ALBListenerAltRule"
+              }
+            },
             "ContainerName": {
               "Fn::Sub": "${AppName}-container"
             },
