@@ -14,6 +14,7 @@
 
 import awscli.clidriver
 import re
+from ..common.config import get_user_agent_extra
 from awscli.paramfile import LOCAL_PREFIX_MAP, URIArgumentHandler
 from botocore.model import OperationModel
 from collections.abc import Set
@@ -50,6 +51,9 @@ filter_query = re.compile(r'^\s+([-a-z0-9_.]+|tag:<key>)\s+')
 driver = awscli.clidriver.create_clidriver()
 session = driver.session
 session.register('load-cli-arg', RESTRICTED_URI_HANDLER)
+
+# append user agent to session for aws cli customizations
+session.user_agent_extra += ' ' + get_user_agent_extra() + ' cli-customizations'
 
 
 class OperationFilters:
