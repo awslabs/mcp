@@ -92,6 +92,7 @@ DEFAULT_ALLOWED_DOMAINS = [
     'https://strandsagents.com/',
     'https://docs.aws.amazon.com/',
     'https://boto3.amazonaws.com/v1/documentation/',
+    'https://raw.githubusercontent.com/aws/bedrock-agentcore-starter-toolkit/',
 ]
 
 default_validator = URLValidator(DEFAULT_ALLOWED_DOMAINS)
