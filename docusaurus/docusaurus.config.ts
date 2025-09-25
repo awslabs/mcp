@@ -34,8 +34,11 @@ const config: Config = {
   // Add scripts to be loaded in the client
   scripts: [
     {
-      src: 'scripts/analytics.js',
+      src: 'https://www.googletagmanager.com/gtag/js?id=G-V54QR8KV3L',
       async: true
+    },
+    {
+      src: 'scripts/analytics.js'
     },
   ],
 
