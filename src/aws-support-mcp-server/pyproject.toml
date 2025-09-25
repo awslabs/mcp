@@ -1,0 +1,124 @@
+[project]
+name = "awslabs.aws-support-mcp-server"
+version = "0.1.10"
+description = "An Model Context Protocol (MCP) server for AWS SupportAPI."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "boto3>=1.38.12",
+    "fastmcp>=2.3.4",
+    "langdetect>=1.0.9",
+    "loguru>=0.7.0",
+    "markdownify>=0.13.1",
+    "mcp[cli]>=1.11.0",
+    "pre-commit>=4.2.0",
+    "protego>=0.3.1",
+    "pydantic>=2.0.0",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.1.1",
+    "readabilipy>=0.2.0",
+    "requests>=2.32.3",
+]
+
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "John de Villiers", email="jackdevilliers.work@gmail.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.0.291",
+    "pyright>=1.1.350",
+    "pre-commit>=3.5.0",
+]
+
+[project.scripts]
+"awslabs.aws-support-mcp-server" = "awslabs.aws_support_mcp_server.server:main"
+
+[tool.setuptools]
+packages = ["awslabs", "awslabs.aws_support_mcp_server"]
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["awslabs"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/aws_support_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
