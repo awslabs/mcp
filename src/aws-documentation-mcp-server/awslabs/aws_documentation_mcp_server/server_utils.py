@@ -12,14 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import httpx
+from awslabs.aws_documentation_mcp_server.models import SearchResult
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     format_documentation_result,
     is_html_content,
 )
+from collections import deque
 from importlib.metadata import version
 from loguru import logger
 from mcp.server.fastmcp import Context
+from typing import Optional
+from urllib.parse import quote
 
 
 try:
@@ -41,6 +45,11 @@ async def read_documentation_impl(
     logger.debug(f'Fetching documentation from {url_str}')
 
     url_with_session = f'{url_str}?session={session_uuid}'
+
+    query_id = get_query_id_from_cache(url_str)
+    if query_id:
+        url_with_session += f'&query_id={query_id}'
+        logger.debug(f'Using query_id {query_id}')
 
     async with httpx.AsyncClient() as client:
         try:
@@ -82,3 +91,45 @@ async def read_documentation_impl(
         )
 
     return result
+
+
+SEARCH_RESULT_CACHE = deque(maxlen=3)
+
+
+def add_search_result_cache_item(search_results: list[SearchResult]) -> None:
+    """Adds list of SearchResult items to cache.
+
+    Add search results to the front of the cache, to ensure that
+    the most recent query ID is ahead for duplicate URLs.
+
+    Args:
+        search_results: List returned by the search_documentation tool
+
+    Returns:
+        None; updates the global SEARCH_RESULT_CACHE
+
+    """
+    SEARCH_RESULT_CACHE.appendleft(search_results)
+
+
+def get_query_id_from_cache(url: str) -> Optional[str]:
+    """Fetches query_id from url in cache, if exists.
+
+    Search the cache for a SearchResult type that contains the `url`
+    passed into the function. If `url` found, return the query_id.
+
+    Args:
+        url: String representing the URL that is made for the read request
+
+    Returns:
+        Query ID of URL, or None
+
+    """
+    for _, search_results in enumerate(SEARCH_RESULT_CACHE):
+        for search_result in search_results:
+            if search_result.url == url:
+                # Sanitization of query_id just in case
+                query_id = quote(search_result.query_id)
+                return query_id
+
+    return None
