@@ -20,6 +20,7 @@ from awslabs.aws_documentation_mcp_server.util import (
 from importlib.metadata import version
 from loguru import logger
 from mcp.server.fastmcp import Context
+from typing import Optional
 
 
 try:
@@ -36,11 +37,15 @@ async def read_documentation_impl(
     max_length: int,
     start_index: int,
     session_uuid: str,
+    query_id: Optional[str] = None,
 ) -> str:
     """The implementation of the read_documentation tool."""
     logger.debug(f'Fetching documentation from {url_str}')
 
     url_with_session = f'{url_str}?session={session_uuid}'
+    if query_id:
+        url_with_session += f'&query_id={query_id}'
+        logger.debug(f'Using query_id {query_id}')
 
     async with httpx.AsyncClient() as client:
         try:
