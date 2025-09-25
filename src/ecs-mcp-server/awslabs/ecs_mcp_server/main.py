@@ -129,13 +129,13 @@ delete.delete_infrastructure = secure_tool(config, PERMISSION_WRITE, "delete_ecs
 )
 
 # Register all modules
-containerize.register_module(mcp)
-infrastructure.register_module(mcp)
-deployment_status.register_module(mcp)
-resource_management.register_module(mcp)
-troubleshooting.register_module(mcp)
-security_analysis.register_module(mcp)
-delete.register_module(mcp)
+containerize.register_module(mcp)  # type: ignore[arg-type]
+infrastructure.register_module(mcp)  # type: ignore[arg-type]
+deployment_status.register_module(mcp)  # type: ignore[arg-type]
+resource_management.register_module(mcp)  # type: ignore[arg-type]
+troubleshooting.register_module(mcp)  # type: ignore[arg-type]
+security_analysis.register_module(mcp)  # type: ignore[arg-type]
+delete.register_module(mcp)  # type: ignore[arg-type]
 
 
 def main() -> None:
