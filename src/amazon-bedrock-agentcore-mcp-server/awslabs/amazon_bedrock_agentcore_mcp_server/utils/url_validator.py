@@ -92,7 +92,6 @@ DEFAULT_ALLOWED_DOMAINS = [
     'https://strandsagents.com/',
     'https://docs.aws.amazon.com/',
     'https://boto3.amazonaws.com/v1/documentation/',
-    'https://raw.githubusercontent.com/aws/bedrock-agentcore-starter-toolkit/',
 ]
 
 default_validator = URLValidator(DEFAULT_ALLOWED_DOMAINS)
@@ -111,8 +110,18 @@ def validate_urls(urls, allowed_domains: List[str] = None) -> List[str]:
     Raises:
         URLValidationError: If any URL is not allowed
     """
+    if isinstance(urls, str):
+        urls = [urls]
+
+    # Convert relative URLs to absolute URLs
+    processed_urls = []
+    for url in urls:
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://aws.github.io/bedrock-agentcore-starter-toolkit' + url
+        processed_urls.append(url)
+
     if allowed_domains is None:
-        return default_validator.validate_urls(urls)
+        return default_validator.validate_urls(processed_urls)
     else:
         validator = URLValidator(allowed_domains)
-        return validator.validate_urls(urls)
+        return validator.validate_urls(processed_urls)

@@ -20,8 +20,8 @@ from .url_validator import URLValidationError, validate_urls
 from pydantic import BaseModel, Field
 
 
-# Example: "[Quickstart](https://strandsagents.com/.../index.md)"
-_MD_LINK = re.compile(r'\[([^\]]+)\]\((https?://[^\)]+)\)')
+# Example: "[Quickstart](https://strandsagents.com/.../index.md)" or "[Quickstart](/path/to/doc.md)"
+_MD_LINK = re.compile(r'\[([^\]]+)\]\(([^\)]+)\)')
 _HTML_BLOCK = re.compile(r'(?is)<(script|style|noscript).*?>.*?</\1>')
 _TAG = re.compile(r'(?s)<[^>]+>')
 _TITLE_TAG = re.compile(r'(?is)<title[^>]*>(.*?)</title>')

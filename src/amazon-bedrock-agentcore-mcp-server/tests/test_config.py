@@ -86,7 +86,7 @@ class TestConfig:
         # Assert
         for url in config.llm_texts_url:
             assert url.startswith('https://')
-            assert 'llm.txt' in url
+            assert 'llms.txt' in url
 
     def test_config_supports_multiple_llm_urls(self):
         """Test config supports multiple LLM text URLs."""
