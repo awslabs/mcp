@@ -34,9 +34,9 @@ This MCP server provides tools for:
 ### Workflow Management Tools
 
 1. **ListAHOWorkflows** - List available HealthOmics workflows with pagination support
-2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions and optional container registry mappings
+2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions from base64-encoded ZIP files or S3 URIs, with optional container registry mappings
 3. **GetAHOWorkflow** - Retrieve detailed workflow information and export definitions
-4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows with optional container registry mappings
+4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows from base64-encoded ZIP files or S3 URIs, with optional container registry mappings
 5. **ListAHOWorkflowVersions** - List all versions of a specific workflow
 6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool
 7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support
@@ -79,14 +79,30 @@ AWS HealthOmics is designed for genomic data analysis workflows. Key concepts:
 ### Workflow Management Best Practices
 
 1. **Creating Workflows**:
-   - Use `PackageAHOWorkflow` to bundle workflow files before creating
+   - **From local files**: Use `PackageAHOWorkflow` to bundle workflow files, then use the base64-encoded ZIP with `CreateAHOWorkflow`
+   - **From S3**: Store your workflow definition ZIP file in S3 and reference it using the `definition_uri` parameter
    - Validate workflows with appropriate language syntax (WDL, CWL, Nextflow)
    - Include parameter templates to guide users on required inputs
+   - Choose the appropriate method based on your workflow storage preferences
 
-2. **Version Management**:
+2. **S3 URI Support**:
+   - Both `CreateAHOWorkflow` and `CreateAHOWorkflowVersion` support S3 URIs as an alternative to base64-encoded ZIP files
+   - **Benefits of S3 URIs**:
+     - Better for large workflow definitions (no base64 encoding overhead)
+     - Easier integration with CI/CD pipelines that store artifacts in S3
+     - Reduced memory usage during workflow creation
+     - Direct reference to existing S3-stored workflow definitions
+   - **Requirements**:
+     - S3 URI must start with `s3://`
+     - The S3 bucket must be in the same region as the HealthOmics service
+     - Appropriate S3 permissions must be configured for the HealthOmics service
+   - **Usage**: Specify either `definition_zip_base64` OR `definition_uri`, but not both
+
+3. **Version Management**:
    - Create new versions for workflow updates rather than modifying existing ones
    - Use descriptive version names that indicate changes or improvements
    - List versions to help users choose the appropriate one
+   - Both base64 ZIP and S3 URI methods are supported for version creation
 
 ### Workflow Execution Guidance
 
@@ -147,9 +163,10 @@ The MCP server includes built-in workflow linting capabilities for validating WD
 1. **Workflow Development**:
    ```
    User: "Help me create a new genomic variant calling workflow"
-   → Use CreateAHOWorkflow with WDL/CWL/Nextflow definition
-   → Package workflow files appropriately
+   → Option A: Use PackageAHOWorkflow to bundle files, then CreateAHOWorkflow with base64 ZIP
+   → Option B: Upload workflow ZIP to S3, then CreateAHOWorkflow with S3 URI
    → Validate syntax and parameters
+   → Choose method based on workflow size and storage preferences
    ```
 
 2. **Production Execution**:
