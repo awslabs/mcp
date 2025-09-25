@@ -35,7 +35,10 @@ from .list_scram_secrets import list_scram_secrets
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='describe_cluster_operation')
+    @mcp.tool(
+        name='describe_cluster_operation',
+        description='Gets information about a cluster operation.',
+    )
     def describe_cluster_operation_tool(
         region: str = Field(..., description='AWS region'),
         cluster_operation_arn: str = Field(
@@ -43,7 +46,7 @@ def register_module(mcp: FastMCP) -> None:
         ),
     ):
         """
-        Returns information about a cluster operation.
+        Gets information about a cluster operation.
 
         Args:
             cluster_operation_arn (str): The Amazon Resource Name (ARN) of the cluster operation
@@ -71,7 +74,9 @@ def register_module(mcp: FastMCP) -> None:
         )
         return describe_cluster_operation(cluster_operation_arn, client)
 
-    @mcp.tool(name='get_cluster_info')
+    @mcp.tool(
+        name='get_cluster_info', description='Gets comprehensive information about MSK clusters.'
+    )
     def get_cluster_info(
         region: str = Field(..., description='AWS region'),
         cluster_arn: str = Field(..., description='The ARN of the cluster to get information for'),
@@ -82,7 +87,7 @@ def register_module(mcp: FastMCP) -> None:
         kwargs: dict = Field({}, description='Additional arguments specific to each info type'),
     ):
         """
-        Unified API to retrieve various types of information about MSK clusters.
+        Gets various types of information about MSK clusters.
 
         Args:
             cluster_arn (str): The ARN of the cluster to get information for

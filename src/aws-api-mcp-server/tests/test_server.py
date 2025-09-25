@@ -14,11 +14,41 @@ from tests.fixtures import DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
+def test_main_knowledge_base_setup_error(mock_kb):
+    """Test main function when knowledge base setup fails."""
+    mock_kb.setup.side_effect = Exception('KB setup failed')
+
+    with patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp/test'):
+        with patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1'):
+            with patch('awslabs.aws_api_mcp_server.server.validate_aws_region'):
+                with pytest.raises(
+                    RuntimeError,
+                    match='Error while setting up the knowledge base: KB setup failed',
+                ):
+                    main()
+
+
+@patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
+@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
+@patch('awslabs.aws_api_mcp_server.server.server')
+def test_main_read_operations_index_load_failure(mock_server, mock_kb, mock_get_read_ops):
+    """Test main function when read operations index loading fails."""
+    mock_get_read_ops.side_effect = Exception('Failed to load operations')
+
+    with patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp/test'):
+        with patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1'):
+            with patch('awslabs.aws_api_mcp_server.server.validate_aws_region'):
+                # Should not raise exception, just log warning
+                main()
+                mock_server.run.assert_called_once()
+
+
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_success(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
@@ -115,7 +145,7 @@ async def test_suggest_aws_commands_exception(mock_knowledge_base):
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_with_consent_and_accept(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
@@ -169,7 +199,7 @@ async def test_call_aws_with_consent_and_accept(
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_with_consent_and_reject(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
@@ -212,7 +242,7 @@ async def test_call_aws_with_consent_and_reject(
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_without_consent(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
@@ -293,7 +323,7 @@ async def test_call_aws_validation_error_generic_exception(mock_translate_cli_to
 @patch('awslabs.aws_api_mcp_server.server.interpret_command', side_effect=NoCredentialsError())
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_no_credentials_error(
     mock_is_operation_read_only, mock_translate_cli_to_ir, mock_validate, mock_interpret
 ):
@@ -329,7 +359,7 @@ async def test_call_aws_no_credentials_error(
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_execution_error_awsmcp_error(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
@@ -372,7 +402,7 @@ async def test_call_aws_execution_error_awsmcp_error(
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_execution_error_generic_exception(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
@@ -423,7 +453,7 @@ async def test_call_aws_non_aws_command():
 
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 @patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE')
 async def test_when_operation_is_not_allowed(
     mock_read_operations_only_mode,
@@ -561,7 +591,7 @@ async def test_call_aws_both_validation_failures_and_constraints(
 @patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_awscli_customization_success(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,
@@ -596,7 +626,7 @@ async def test_call_aws_awscli_customization_success(
 @patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.server.is_operation_read_only')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_awscli_customization_error(
     mock_is_operation_read_only,
     mock_translate_cli_to_ir,

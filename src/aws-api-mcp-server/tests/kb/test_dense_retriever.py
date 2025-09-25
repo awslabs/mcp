@@ -2,6 +2,7 @@ import json
 import numpy as np
 import pytest
 import tempfile
+import time
 from awscli.clidriver import __version__ as awscli_version
 from awslabs.aws_api_mcp_server.core.kb import knowledge_base
 from awslabs.aws_api_mcp_server.core.kb.dense_retriever import (
@@ -18,50 +19,96 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 def test_simple_initialization():
     """Tests if DenseRetriver is instantiated properly."""
-    # Check if embeddings file exists
-    cache_file = DEFAULT_CACHE_DIR / f'{KNOWLEDGE_BASE_SUFFIX}-{awscli_version}.npz'
-    if not cache_file.exists():
-        pytest.skip(f'Embeddings file not found: {cache_file}')
-    rag = DenseRetriever(cache_dir=Path(DEFAULT_CACHE_DIR))
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create mock embeddings file
+        temp_cache_dir = Path(temp_dir)
+        cache_file = temp_cache_dir / f'{KNOWLEDGE_BASE_SUFFIX}-{awscli_version}.npz'
 
-    assert rag.top_k == DEFAULT_TOP_K
-    assert rag.cache_dir == Path(DEFAULT_CACHE_DIR)
-    assert rag.get_cache_file_with_version() is not None
-    assert rag.model_name == DEFAULT_EMBEDDING_MODEL
-    assert isinstance(rag.model, SentenceTransformer)
-    assert rag._model is not None
-    assert rag._index is None
-    assert rag._documents is None
-    assert rag._embeddings is None
+        mock_documents = [
+            {'command': 'aws ec2 describe-instances', 'description': 'Describe EC2 instances'},
+            {'command': 'aws s3 ls', 'description': 'List S3 buckets'},
+        ]
 
-    try:
+        # Create mock embeddings (2 documents, 384 dimensions like BAAI/bge-base-en-v1.5)
+        mock_embeddings = np.random.rand(2, 384).astype('float32')
+
+        np.savez_compressed(
+            cache_file,
+            embeddings=mock_embeddings,
+            documents=np.array(json.dumps(mock_documents)),
+        )
+
+        rag = DenseRetriever(cache_dir=temp_cache_dir)
+
+        assert rag.top_k == DEFAULT_TOP_K
+        assert rag.cache_dir == temp_cache_dir
+        assert rag.get_cache_file_with_version() is not None
+        assert rag.model_name == DEFAULT_EMBEDDING_MODEL
+        assert isinstance(rag.model, SentenceTransformer)
+        assert rag._model is not None
+        assert rag._index is None
+        assert rag._documents is None
+        assert rag._embeddings is None
+
         rag.load_from_cache_with_version()
-    except ValueError:
-        assert False, 'Cached file is provided but not found.'
 
-    assert rag._documents is not None
-    assert rag._embeddings is not None
+        assert rag._documents is not None
+        assert rag._embeddings is not None
 
 
-@patch.object(knowledge_base, '_load_model_in_background', MagicMock(return_value=None))
-@patch.object(DenseRetriever, 'is_model_ready', PropertyMock(return_value=True))
-def test_dense_retriever():
-    """Tests if knowledge base uses DenseRetriever by default and can retrieve documents."""
-    # Check if embeddings file exists
-    cache_file = DEFAULT_CACHE_DIR / f'{KNOWLEDGE_BASE_SUFFIX}-{awscli_version}.npz'
-    if not cache_file.exists():
-        pytest.skip(f'Embeddings file not found: {cache_file}')
+def _wait_for_model_ready(rag, timeout=30):
+    """Wait for model to be ready with timeout."""
+    start_time = time.time()
+    while not rag.is_model_ready and (time.time() - start_time) < timeout:
+        time.sleep(0.1)
+    if not rag.is_model_ready:
+        pytest.skip(f'Model not ready after {timeout} seconds')
 
+
+@pytest.fixture(scope='module')
+def setup_knowledge_base():
+    """Setup knowledge base once for all tests in this module."""
     knowledge_base.setup()
-    assert isinstance(knowledge_base.rag, DenseRetriever)
+    _wait_for_model_ready(knowledge_base.rag)
+    return knowledge_base
 
-    suggestions = knowledge_base.get_suggestions('Describe my ec2 instances')
-    suggested_commands = [s['command'] for s in suggestions['suggestions']]
 
-    assert len(suggested_commands) == DEFAULT_TOP_K, (
-        f'Expected {DEFAULT_TOP_K} commands, got {len(suggested_commands)}: {suggested_commands}'
+def test_knowledge_base_uses_dense_retriever(setup_knowledge_base):
+    """Tests if knowledge base uses DenseRetriever by default."""
+    assert isinstance(setup_knowledge_base.rag, DenseRetriever)
+
+
+def test_dense_retriever_ec2_suggestions(setup_knowledge_base):
+    """Tests retrieval of EC2-related commands."""
+    suggestions = setup_knowledge_base.get_suggestions('Describe my ec2 instances')
+    commands = [s['command'] for s in suggestions['suggestions']]
+
+    assert len(commands) == DEFAULT_TOP_K, (
+        f'Expected {DEFAULT_TOP_K} commands, got {len(commands)}: {commands}'
     )
-    assert 'aws ec2 describe-instances' in suggested_commands
+    assert 'aws ec2 describe-instances' in commands
+
+
+def test_dense_retriever_iam_suggestions(setup_knowledge_base):
+    """Tests retrieval of IAM-related commands."""
+    suggestions = setup_knowledge_base.get_suggestions('List IAM users')
+    commands = [s['command'] for s in suggestions['suggestions']]
+
+    assert len(commands) == DEFAULT_TOP_K, (
+        f'Expected {DEFAULT_TOP_K} commands, got {len(commands)}: {commands}'
+    )
+    assert 'aws iam list-users' in commands
+
+
+def test_dense_retriever_lambda_suggestions(setup_knowledge_base):
+    """Tests retrieval of Lambda-related commands."""
+    suggestions = setup_knowledge_base.get_suggestions('Show Lambda functions')
+    commands = [s['command'] for s in suggestions['suggestions']]
+
+    assert len(commands) == DEFAULT_TOP_K, (
+        f'Expected {DEFAULT_TOP_K} commands, got {len(commands)}: {commands}'
+    )
+    assert 'aws lambda list-functions' in commands
 
 
 @patch.object(DenseRetriever, 'embeddings', new_callable=PropertyMock, return_value=None)

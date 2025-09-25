@@ -17,9 +17,9 @@ import sys
 from .core.agent_scripts.manager import AGENT_SCRIPTS_MANAGER
 from .core.aws.driver import translate_cli_to_ir
 from .core.aws.service import (
+    check_security_policy,
     execute_awscli_customization,
     interpret_command,
-    is_operation_read_only,
     request_consent,
     validate,
 )
@@ -34,7 +34,6 @@ from .core.common.config import (
     REQUIRE_MUTATION_CONSENT,
     TRANSPORT,
     WORKING_DIRECTORY,
-    get_server_directory,
 )
 from .core.common.errors import AwsApiMcpError
 from .core.common.helpers import validate_aws_region
@@ -45,10 +44,12 @@ from .core.common.models import (
 )
 from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
+from .core.security.policy import PolicyDecision
 from botocore.exceptions import NoCredentialsError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
+from pathlib import Path
 from pydantic import Field
 from typing import Annotated, Any, Optional
 
@@ -56,9 +57,8 @@ from typing import Annotated, Any, Optional
 logger.remove()
 logger.add(sys.stderr, level=FASTMCP_LOG_LEVEL)
 
-# Add file sink
-log_dir = get_server_directory()
-log_dir.mkdir(exist_ok=True)
+log_dir = Path.home() / '.aws' / 'aws-api-mcp'
+log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
@@ -203,12 +203,11 @@ async def call_aws(
     ] = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
-    logger.info('Executing AWS CLI command: {}', cli_command)
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
 
-        if ir_validation.validation_failed:
+        if not ir.command or ir_validation.validation_failed:
             error_message = (
                 f'Error while validating the command: {ir_validation.model_dump_json()}'
             )
@@ -229,8 +228,24 @@ async def call_aws(
             detail=error_message,
         )
 
+    logger.info(
+        'Attempting to execute AWS CLI command: aws {} {} *parameters redacted*',
+        ir.command.service_name,
+        ir.command.operation_cli_name,
+    )
+
     try:
-        if READ_OPERATIONS_INDEX is None or not is_operation_read_only(ir, READ_OPERATIONS_INDEX):
+        # Check security policy
+        if READ_OPERATIONS_INDEX is not None:
+            policy_decision = check_security_policy(ir, READ_OPERATIONS_INDEX, ctx)
+
+            if policy_decision == PolicyDecision.DENY:
+                error_message = 'Execution of this operation is denied by security policy.'
+                await ctx.error(error_message)
+                return AwsApiMcpServerErrorResponse(detail=error_message)
+            elif policy_decision == PolicyDecision.ELICIT:
+                await request_consent(cli_command, ctx)
+        else:
             if READ_OPERATIONS_ONLY_MODE:
                 error_message = (
                     'Execution of this operation is not allowed because read only mode is enabled. '
@@ -355,8 +370,12 @@ def main():
         logger.error(error_message)
         raise RuntimeError(error_message)
 
-    if READ_OPERATIONS_ONLY_MODE or REQUIRE_MUTATION_CONSENT:
+    # Always load read operations index for security policy checking
+    try:
         READ_OPERATIONS_INDEX = get_read_only_operations()
+    except Exception as e:
+        logger.warning('Failed to load read operations index: {}', e)
+        READ_OPERATIONS_INDEX = None
 
     server.run(transport=TRANSPORT)
 

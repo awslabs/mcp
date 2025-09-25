@@ -48,7 +48,14 @@ class ValidationError(Exception):
 
 def validate_app_name(app_name: str) -> bool:
     """
-    Validates application name to ensure it contains only allowed characters.
+    Validates application name to ensure it complies with AWS ECS/ECR naming requirements.
+
+    Requirements:
+    - Length: 1-20 characters (to accommodate AWS resource name limits)
+    - Lowercase letters (a-z), digits (0-9), and hyphens (-) only
+    - Cannot start or end with hyphen
+    - Cannot contain consecutive hyphens
+    - ECR repositories require lowercase (most restrictive constraint)
 
     Args:
         app_name: The application name to validate
@@ -57,14 +64,35 @@ def validate_app_name(app_name: str) -> bool:
         bool: Whether the name is valid
 
     Raises:
-        ValidationError: If the name contains invalid characters
+        ValidationError: If the name violates AWS naming requirements
     """
-    # Allow alphanumeric characters, hyphens, and underscores
-    pattern = r"^[a-zA-Z0-9\-_]+$"
-    if not re.match(pattern, app_name):
+    if not isinstance(app_name, str):
+        raise ValidationError("Application name must be a string")
+
+    # Check length constraints (1-20 characters)
+    if not (1 <= len(app_name) <= 20):
+        if len(app_name) == 0:
+            raise ValidationError("Application name cannot be empty")
+        else:
+            raise ValidationError(
+                f"Application name '{app_name}' must be 1-20 characters long "
+                f"(current length: {len(app_name)}). "
+                f"Examples: 'my-app', 'web-service', 'api123'"
+            )
+
+    # Comprehensive regex pattern for AWS ECS/ECR compatibility:
+    # - ^[a-z0-9] : must start with lowercase letter or digit
+    # - ([a-z0-9]|-[a-z0-9])* : followed by zero or more (alphanumeric OR hyphen+alphanumeric)
+    # - $ : end of string
+    # This ensures no consecutive hyphens and no trailing hyphens
+    aws_name_pattern = r"^[a-z0-9]+(-[a-z0-9]+)*$"
+
+    if not re.match(aws_name_pattern, app_name):
+        invalid_chars = set(c for c in app_name if not re.match(r"[a-z0-9-]", c))
         raise ValidationError(
-            f"Application name '{app_name}' contains invalid characters. "
-            "Only alphanumeric characters, hyphens, and underscores are allowed."
+            f"Application name '{app_name}' contains invalid characters: {sorted(invalid_chars)}. "
+            f"Only lowercase letters (a-z), digits (0-9), and hyphens (-) allowed. "
+            f"Examples: 'my-app', 'web123', 'api-service'"
         )
     return True
 

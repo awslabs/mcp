@@ -32,6 +32,7 @@ from ..common.errors import (
     CommandValidationError,
     DeniedGlobalArgumentsError,
     ExpectedArgumentError,
+    FileParameterError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
@@ -51,6 +52,7 @@ from ..common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
+from ..common.file_system_controls import validate_file_path
 from ..common.helpers import expand_user_home_directory
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
@@ -273,7 +275,7 @@ class GlobalArgParser(MainArgParser):
     # Overwrite _build's parent method as it automatically injects a `version` action in the
     # parser. Version actions print the current version and then exit the program, which is
     # not what we want.
-    def _build(self, command_table, version_string, argument_table):
+    def _build(self, command_table, version_string, argument_table):  # noqa: ARG002
         for argument_name in argument_table:
             argument = argument_table[argument_name]
             argument.add_to_parser(self)
@@ -418,7 +420,7 @@ def _handle_service_command(
     ):
         global_args.region = GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
 
-    _validate_output_file(command_metadata, parsed_args)
+    _validate_file_paths(command_metadata, parsed_args, parameters)
 
     _validate_request_serialization(
         operation,
@@ -571,6 +573,10 @@ def _validate_customization_arguments(
             operation_command, command_metadata, operation_args, service, operation
         )
 
+        # Run custom validations for S3 customizations
+        if service == 's3':
+            _validate_s3_file_paths(service, operation, parameters)
+
         return _construct_command(
             command_metadata=command_metadata,
             global_args=global_args,
@@ -697,6 +703,28 @@ def _run_custom_validations(service: str, operation: str, parameters: dict[str, 
         validate_ec2_parameter_values(parameters)
 
 
+def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, Any]):
+    if operation != 'cp':
+        return
+
+    paths = parameters.get('--paths')
+    if not paths or not isinstance(paths, list) or len(paths) < 2:
+        return
+
+    source_path, dest_path = paths
+
+    if source_path == '-' or dest_path == '-':
+        file_path = source_path if source_path == '-' else dest_path
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason="streaming file ('-') is not allowed",
+        )
+    _validate_file_path(source_path, service, operation)
+    _validate_file_path(dest_path, service, operation)
+
+
 def _validate_request_serialization(
     operation: str,
     service_model: ServiceModel,
@@ -718,11 +746,51 @@ def _validate_request_serialization(
         ) from err
 
 
+def _validate_file_paths(
+    command_metadata: CommandMetadata,
+    parsed_args: ParsedOperationArgs | None,
+    parameters: dict[str, Any],
+):
+    """Validate all file paths in the command."""
+    from ..common.file_operations import extract_file_paths_from_parameters
+
+    # Validate --outfile parameter for streaming operations
+    if command_metadata.has_streaming_output and parsed_args:
+        output_file_path = parsed_args.operation_args.outfile
+        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
+            raise ValueError(f'{output_file_path} should be an absolute path')
+
+        if output_file_path != '-':
+            validate_file_path(output_file_path)
+
+    # Extract and validate all file paths using comprehensive detection
+    file_paths = extract_file_paths_from_parameters(command_metadata, parameters)
+    for file_path in file_paths:
+        validate_file_path(file_path)
+
+
 def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
     if command_metadata.has_streaming_output:
         output_file_path = parsed_args.operation_args.outfile
         if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
-            raise ValueError(f'{output_file_path} should be an aboslute path')
+            raise ValueError(f'{output_file_path} should be an absolute path')
+
+        # Validate file path is within working directory
+        if output_file_path != '-':
+            validate_file_path(output_file_path)
+
+
+def _validate_file_path(file_path: str, service: str, operation: str):
+    if file_path == '-' or file_path.startswith('s3://'):
+        return
+
+    if not os.path.isabs(Path(file_path)):
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason='should be an absolute path',
+        )
 
 
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
@@ -742,6 +810,8 @@ def _construct_command(
     parsed_args: ParsedOperationArgs | None = None,
     operation_model: OperationModel | None = None,
 ) -> IRCommand:
+    _validate_file_paths(command_metadata, parsed_args, parameters)
+
     profile = getattr(global_args, 'profile', None)
     region = (
         getattr(global_args, 'region', None)
