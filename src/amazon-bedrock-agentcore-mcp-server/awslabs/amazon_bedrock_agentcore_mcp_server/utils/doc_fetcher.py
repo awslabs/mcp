@@ -17,7 +17,7 @@ import re
 import urllib.request
 from ..config import doc_config
 from .url_validator import URLValidationError, validate_urls
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 
 
 # Example: "[Quickstart](https://strandsagents.com/.../index.md)"
@@ -29,8 +29,7 @@ _H1_TAG = re.compile(r'(?is)<h1[^>]*>(.*?)</h1>')
 _META_OG = re.compile(r'(?is)<meta[^>]+property=["\']og:title["\'][^>]+content=["\'](.*?)["\']')
 
 
-@dataclass
-class Page:
+class Page(BaseModel):
     """Represents a fetched and cleaned documentation page.
 
     Attributes:
@@ -39,9 +38,9 @@ class Page:
         content: Cleaned text content of the page
     """
 
-    url: str  # Source URL of the page
-    title: str  # Page title (extracted or derived)
-    content: str  # Cleaned text content
+    url: str = Field(description='The source URL of the page')
+    title: str = Field(description='Page title (extracted or derived)')
+    content: str = Field(description='Cleaned text content of the page')
 
 
 def _get(url: str) -> str:

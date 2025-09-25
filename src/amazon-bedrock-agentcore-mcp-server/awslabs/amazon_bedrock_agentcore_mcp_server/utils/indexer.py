@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from pydantic import BaseModel, Field
 from typing import Dict, List, Tuple
 
 
@@ -28,8 +28,7 @@ _MD_INLINE_CODE = re.compile(r'`([^`]+)`')
 _MD_LINK_TEXT = re.compile(r'\[([^\]]+)\]\([^)]+\)')
 
 
-@dataclass(slots=True)
-class Doc:
+class Doc(BaseModel):
     """A single indexed document with display and search metadata.
 
     Attributes:
@@ -39,10 +38,12 @@ class Doc:
         index_title: Searchable title text including variants and synonyms
     """
 
-    uri: str  # Unique identifier/URL for the document
-    display_title: str  # Human-readable title shown to users
-    content: str  # Full text content (may be empty before fetching)
-    index_title: str  # Searchable title text including variants
+    uri: str = Field(description='Unique identifier/URL for the document')
+    display_title: str = Field(description='Human-readable title shown to users')
+    content: str = Field(description='Full text content (may be empty before fetching)')
+    index_title: str = Field(description='Searchable title text including variants')
+
+    model_config = {'slots': True}
 
 
 # Title boost constants

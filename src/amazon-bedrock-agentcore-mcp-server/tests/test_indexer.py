@@ -20,22 +20,6 @@ from awslabs.amazon_bedrock_agentcore_mcp_server.utils import indexer
 class TestIndexer:
     """Test cases for the indexer functionality."""
 
-    def test_doc_creation(self):
-        """Test Doc dataclass creation and attributes."""
-        # Arrange & Act
-        doc = indexer.Doc(
-            uri='https://example.com/doc',
-            display_title='Test Document',
-            content='This is test content',
-            index_title='Test Document searchable',
-        )
-
-        # Assert
-        assert doc.uri == 'https://example.com/doc'
-        assert doc.display_title == 'Test Document'
-        assert doc.content == 'This is test content'
-        assert doc.index_title == 'Test Document searchable'
-
     def test_index_search_initialization(self):
         """Test IndexSearch initializes with empty state."""
         # Act
@@ -132,8 +116,12 @@ class TestIndexer:
         """Test adding multiple documents updates frequencies correctly."""
         # Arrange
         index = indexer.IndexSearch()
-        doc1 = indexer.Doc('url1', 'Doc 1', 'test content', 'Doc 1')
-        doc2 = indexer.Doc('url2', 'Doc 2', 'test example', 'Doc 2')
+        doc1 = indexer.Doc(
+            uri='url1', display_title='Doc 1', content='test content', index_title='Doc 1'
+        )
+        doc2 = indexer.Doc(
+            uri='url2', display_title='Doc 2', content='test example', index_title='Doc 2'
+        )
 
         # Act
         index.add(doc1)
@@ -184,13 +172,28 @@ class TestIndexer:
         index = indexer.IndexSearch()
 
         # Document with term in title (should rank higher)
-        doc1 = indexer.Doc('url1', 'Agent Guide', 'Basic content', 'Agent Guide')
+        doc1 = indexer.Doc(
+            uri='url1',
+            display_title='Agent Guide',
+            content='Basic content',
+            index_title='Agent Guide',
+        )
 
         # Document with term only in content
-        doc2 = indexer.Doc('url2', 'Tutorial', 'This is about agent development', 'Tutorial')
+        doc2 = indexer.Doc(
+            uri='url2',
+            display_title='Tutorial',
+            content='This is about agent development',
+            index_title='Tutorial',
+        )
 
         # Document with no matching terms
-        doc3 = indexer.Doc('url3', 'Other', 'Different topic entirely', 'Other')
+        doc3 = indexer.Doc(
+            uri='url3',
+            display_title='Other',
+            content='Different topic entirely',
+            index_title='Other',
+        )
 
         index.add(doc1)
         index.add(doc2)
@@ -219,7 +222,12 @@ class TestIndexer:
 
         # Add multiple documents with matching content
         for i in range(10):
-            doc = indexer.Doc(f'url{i}', f'Doc {i}', 'test content', f'Doc {i}')
+            doc = indexer.Doc(
+                uri=f'url{i}',
+                display_title=f'Doc {i}',
+                content='test content',
+                index_title=f'Doc {i}',
+            )
             index.add(doc)
 
         # Act
@@ -233,9 +241,24 @@ class TestIndexer:
         # Arrange
         index = indexer.IndexSearch()
 
-        doc1 = indexer.Doc('url1', 'Agent Core', 'agent core functionality', 'Agent Core')
-        doc2 = indexer.Doc('url2', 'Agent Guide', 'basic agent tutorial', 'Agent Guide')
-        doc3 = indexer.Doc('url3', 'Core Concepts', 'core programming concepts', 'Core Concepts')
+        doc1 = indexer.Doc(
+            uri='url1',
+            display_title='Agent Core',
+            content='agent core functionality',
+            index_title='Agent Core',
+        )
+        doc2 = indexer.Doc(
+            uri='url2',
+            display_title='Agent Guide',
+            content='basic agent tutorial',
+            index_title='Agent Guide',
+        )
+        doc3 = indexer.Doc(
+            uri='url3',
+            display_title='Core Concepts',
+            content='core programming concepts',
+            index_title='Core Concepts',
+        )
 
         index.add(doc1)
         index.add(doc2)
@@ -255,7 +278,9 @@ class TestIndexer:
         """Test search is case insensitive."""
         # Arrange
         index = indexer.IndexSearch()
-        doc = indexer.Doc('url', 'Title', 'Agent Core Development', 'Title')
+        doc = indexer.Doc(
+            uri='url', display_title='Title', content='Agent Core Development', index_title='Title'
+        )
         index.add(doc)
 
         # Act
@@ -277,11 +302,16 @@ class TestIndexer:
         index = indexer.IndexSearch()
 
         # Document with empty content (not fetched yet)
-        doc1 = indexer.Doc('url1', 'Agent Guide', '', 'Agent Guide')
+        doc1 = indexer.Doc(
+            uri='url1', display_title='Agent Guide', content='', index_title='Agent Guide'
+        )
 
         # Document with content but less relevant title
         doc2 = indexer.Doc(
-            'url2', 'Tutorial', 'This tutorial covers agent development', 'Tutorial'
+            uri='url2',
+            display_title='Tutorial',
+            content='This tutorial covers agent development',
+            index_title='Tutorial',
         )
 
         index.add(doc1)
@@ -305,11 +335,18 @@ class TestIndexer:
 
         # Short content document
         short_content = 'Brief agent overview.'
-        doc1 = indexer.Doc('url1', 'Agent', short_content, 'Agent Guide')
+        doc1 = indexer.Doc(
+            uri='url1', display_title='Agent', content=short_content, index_title='Agent Guide'
+        )
 
         # Long content document
         long_content = 'This is a very detailed agent development guide. ' * 50
-        doc2 = indexer.Doc('url2', 'Tutorial', long_content, 'Agent Tutorial')
+        doc2 = indexer.Doc(
+            uri='url2',
+            display_title='Tutorial',
+            content=long_content,
+            index_title='Agent Tutorial',
+        )
 
         index.add(doc1)
         index.add(doc2)

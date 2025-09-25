@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from .utils.url_validator import URLValidationError, validate_urls
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field, field_validator
+from typing import List
 
 
-@dataclass
-class Config:
+class Config(BaseModel):
     """Configuration settings for the MCP server.
 
     Attributes:
@@ -26,17 +26,18 @@ class Config:
         user_agent: User agent string for HTTP requests
     """
 
-    llm_texts_url: list[str] = field(
+    llm_texts_url: List[str] = Field(
         default_factory=lambda: ['https://aws.github.io/bedrock-agentcore-starter-toolkit/llm.txt']
     )  # Curated list of llms.txt files to index at startup
-    timeout: float = 30.0  # HTTP request timeout in seconds
-    # User agent for HTTP requests
-    user_agent: str = 'agentcore-mcp-docs/1.0'
+    timeout: float = Field(default=30.0)  # HTTP request timeout in seconds
+    user_agent: str = Field(default='agentcore-mcp-docs/1.0')  # User agent for HTTP requests
 
-    def __post_init__(self):
+    @field_validator('llm_texts_url')
+    @classmethod
+    def validate_urls(cls, v: List[str]) -> List[str]:
         """Validate URLs after initialization."""
         try:
-            self.llm_texts_url = validate_urls(self.llm_texts_url)
+            return validate_urls(v)
         except URLValidationError as e:
             raise ValueError(f'Invalid URLs in configuration: {e}') from e
 

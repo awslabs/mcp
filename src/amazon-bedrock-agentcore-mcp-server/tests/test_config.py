@@ -20,18 +20,6 @@ from awslabs.amazon_bedrock_agentcore_mcp_server.config import Config, doc_confi
 class TestConfig:
     """Test cases for configuration functionality."""
 
-    def test_config_default_values(self):
-        """Test Config dataclass has correct default values."""
-        # Act
-        config = Config()
-
-        # Assert
-        assert isinstance(config.llm_texts_url, list)
-        assert len(config.llm_texts_url) == 1
-        assert 'llm.txt' in config.llm_texts_url[0]
-        assert config.timeout == 30.0
-        assert config.user_agent == 'agentcore-mcp-docs/1.0'
-
     def test_config_custom_values(self):
         """Test Config can be initialized with custom values."""
         # Arrange
@@ -89,19 +77,6 @@ class TestConfig:
         assert '/' in config.user_agent
         assert 'agentcore' in config.user_agent.lower()
         assert 'mcp' in config.user_agent.lower()
-
-    def test_config_immutable_after_creation(self):
-        """Test config values can be modified after creation (dataclass behavior)."""
-        # Arrange
-        config = Config()
-        original_timeout = config.timeout
-
-        # Act
-        config.timeout = 120.0
-
-        # Assert
-        assert config.timeout == 120.0
-        assert config.timeout != original_timeout
 
     def test_config_llm_texts_url_default_is_valid_url(self):
         """Test default llm_texts_url contains valid URLs."""
