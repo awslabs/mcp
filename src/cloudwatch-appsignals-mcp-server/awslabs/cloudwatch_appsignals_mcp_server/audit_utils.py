@@ -448,7 +448,7 @@ def expand_slo_wildcard_patterns(targets: List[dict], appsignals_client=None) ->
             if ttype == 'slo':
                 # Check for wildcard patterns in SLO names
                 slo_data = target.get('Data', {}).get('Slo', {})
-                
+
                 # BUG FIX: Handle case where Slo is a string instead of dict
                 if isinstance(slo_data, str):
                     # Malformed input - Slo should be a dict with SloName key
@@ -462,9 +462,9 @@ def expand_slo_wildcard_patterns(targets: List[dict], appsignals_client=None) ->
                     # Handle other unexpected types
                     raise ValueError(
                         f"Invalid SLO target format. The 'Slo' field must be a dictionary with 'SloName' key, "
-                        f"but got {type(slo_data).__name__}: {slo_data}"
+                        f'but got {type(slo_data).__name__}: {slo_data}'
                     )
-                    
+
                 if '*' in slo_name:
                     wildcard_patterns.append((target, slo_name))
                 else:

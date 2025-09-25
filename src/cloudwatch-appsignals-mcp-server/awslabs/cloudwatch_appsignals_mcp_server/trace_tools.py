@@ -16,7 +16,8 @@
 
 import asyncio
 import json
-from .aws_clients import logs_client, xray_client
+from .aws_clients import appsignals_client, logs_client, xray_client
+from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -509,9 +510,6 @@ async def list_slis(
     1. Use audit_service_health() for comprehensive service auditing with actionable insights
     2. Only use this tool if you specifically need the legacy SLI status report format
     """
-    from .aws_clients import appsignals_client
-    from .sli_report_client import AWSConfig, SLIReportClient
-
     start_time_perf = timer()
     logger.info(f'Starting get_sli_status request for last {hours} hours')
 

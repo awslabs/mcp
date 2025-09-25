@@ -62,12 +62,25 @@ def mock_aws_clients():
             'awslabs.cloudwatch_appsignals_mcp_server.slo_tools.appsignals_client',
             mock_appsignals_client,
         ),
-        # Trace tools module (only logs_client and xray_client are imported)
+        # Trace tools module (logs_client, xray_client, and appsignals_client are imported)
         patch(
             'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.logs_client', mock_logs_client
         ),
         patch(
             'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.xray_client', mock_xray_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.appsignals_client',
+            mock_appsignals_client,
+        ),
+        # SLI report client module (appsignals_client and cloudwatch_client are imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.appsignals_client',
+            mock_appsignals_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.cloudwatch_client',
+            mock_cloudwatch_client,
         ),
     ]
 
@@ -410,29 +423,56 @@ async def test_list_slis_success(mock_aws_clients):
         ]
     }
 
-    # Mock SLIReportClient
-    with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.SLIReportClient'
-    ) as mock_sli_client:
+    # Mock boto3.client calls in SLIReportClient
+    with patch('boto3.client') as mock_boto3_client:
         with patch(
             'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
         ) as mock_check:
+            # Configure boto3.client to return our mocked clients
+            def boto3_client_side_effect(service_name, **kwargs):
+                if service_name == 'application-signals':
+                    return mock_aws_clients['appsignals_client']
+                elif service_name == 'cloudwatch':
+                    return mock_aws_clients['cloudwatch_client']
+                else:
+                    return MagicMock()
+
+            mock_boto3_client.side_effect = boto3_client_side_effect
+
             mock_aws_clients[
                 'appsignals_client'
             ].list_services.return_value = mock_services_response
             mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
 
-            # Mock SLI report
-            mock_report = MagicMock()
-            mock_report.breached_slo_count = 1
-            mock_report.breached_slo_names = ['test-slo']
-            mock_report.ok_slo_count = 2
-            mock_report.total_slo_count = 3
-            mock_report.sli_status = 'BREACHED'
-            mock_report.start_time = datetime.now(timezone.utc) - timedelta(hours=24)
-            mock_report.end_time = datetime.now(timezone.utc)
+            # Mock SLO summaries response for SLIReportClient
+            mock_slo_response = {
+                'SloSummaries': [
+                    {
+                        'Name': 'test-slo',
+                        'Arn': 'arn:aws:application-signals:us-east-1:123456789012:slo/test-slo',
+                        'KeyAttributes': {'Name': 'test-service'},
+                        'OperationName': 'GET /api',
+                        'CreatedTime': datetime.now(timezone.utc),
+                    }
+                ]
+            }
+            mock_aws_clients[
+                'appsignals_client'
+            ].list_service_level_objectives.return_value = mock_slo_response
 
-            mock_sli_client.return_value.generate_sli_report.return_value = mock_report
+            # Mock metric data response showing breach
+            mock_metric_response = {
+                'MetricDataResults': [
+                    {
+                        'Id': 'slo0',
+                        'Timestamps': [datetime.now(timezone.utc)],
+                        'Values': [1.0],  # Breach count > 0 indicates breach
+                    }
+                ]
+            }
+            mock_aws_clients[
+                'cloudwatch_client'
+            ].get_metric_data.return_value = mock_metric_response
 
             result = await list_slis(hours=24)
 
@@ -841,7 +881,7 @@ async def test_list_slis_with_error_in_sli_client(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.SLIReportClient'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.SLIReportClient'
     ) as mock_sli_client:
         with patch(
             'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
