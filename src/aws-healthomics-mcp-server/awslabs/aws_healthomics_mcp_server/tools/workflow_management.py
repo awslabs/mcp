@@ -19,14 +19,16 @@ import botocore.exceptions
 from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_MAX_RESULTS,
 )
-from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
-    decode_from_base64,
     get_omics_client,
+)
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+    validate_container_registry_params,
+    validate_definition_sources,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
-from pydantic import Field, ValidationError
+from pydantic import Field
 from typing import Any, Dict, Optional
 
 
@@ -106,9 +108,9 @@ async def create_workflow(
         ...,
         description='Name of the workflow',
     ),
-    definition_zip_base64: str = Field(
-        ...,
-        description='Base64-encoded workflow definition ZIP file',
+    definition_zip_base64: Optional[str] = Field(
+        None,
+        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri',
     ),
     description: Optional[str] = Field(
         None,
@@ -126,55 +128,45 @@ async def create_workflow(
         None,
         description='Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map',
     ),
+    definition_uri: Optional[str] = Field(
+        None,
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
+    ),
 ) -> Dict[str, Any]:
     """Create a new HealthOmics workflow.
 
     Args:
         ctx: MCP context for error reporting
         name: Name of the workflow
-        definition_zip_base64: Base64-encoded workflow definition ZIP file
+        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri
         description: Optional description of the workflow
         parameter_template: Optional parameter template for the workflow
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
 
     Returns:
         Dictionary containing the created workflow information
     """
-    # Validate that both container registry parameters are not provided together
-    if container_registry_map is not None and container_registry_map_uri is not None:
-        error_message = (
-            'Cannot specify both container_registry_map and container_registry_map_uri parameters'
-        )
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    # Validate container registry map structure if provided
-    if container_registry_map is not None:
-        try:
-            ContainerRegistryMap(**container_registry_map)
-        except ValidationError as e:
-            error_message = f'Invalid container registry map structure: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
-
-    # Validate base64 input first, before creating client
-    try:
-        definition_zip = decode_from_base64(definition_zip_base64)
-    except Exception as e:
-        error_message = f'Failed to decode base64 workflow definition: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+    # Validate definition sources and container registry parameters
+    definition_zip, definition_uri = await validate_definition_sources(
+        ctx, definition_zip_base64, definition_uri
+    )
+    await validate_container_registry_params(
+        ctx, container_registry_map, container_registry_map_uri
+    )
 
     client = get_omics_client()
 
-    params = {
+    params: Dict[str, Any] = {
         'name': name,
-        'definitionZip': definition_zip,
     }
+
+    # Add definition source (either ZIP or S3 URI)
+    if definition_zip is not None:
+        params['definitionZip'] = definition_zip
+    elif definition_uri is not None:
+        params['definitionUri'] = definition_uri
 
     if description:
         params['description'] = description
@@ -291,9 +283,9 @@ async def create_workflow_version(
         ...,
         description='Name for the new version',
     ),
-    definition_zip_base64: str = Field(
-        ...,
-        description='Base64-encoded workflow definition ZIP file',
+    definition_zip_base64: Optional[str] = Field(
+        None,
+        description='Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri',
     ),
     description: Optional[str] = Field(
         None,
@@ -320,6 +312,10 @@ async def create_workflow_version(
         None,
         description='Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map',
     ),
+    definition_uri: Optional[str] = Field(
+        None,
+        description='S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64',
+    ),
 ) -> Dict[str, Any]:
     """Create a new version of an existing workflow.
 
@@ -327,44 +323,25 @@ async def create_workflow_version(
         ctx: MCP context for error reporting
         workflow_id: ID of the workflow
         version_name: Name for the new version
-        definition_zip_base64: Base64-encoded workflow definition ZIP file
+        definition_zip_base64: Base64-encoded workflow definition ZIP file. Cannot be used together with definition_uri
         description: Optional description of the workflow version
         parameter_template: Optional parameter template for the workflow
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
         container_registry_map: Optional container registry map with registryMappings (upstreamRegistryUrl, ecrRepositoryPrefix, upstreamRepositoryPrefix, ecrAccountId) and imageMappings (sourceImage, destinationImage) arrays
         container_registry_map_uri: Optional S3 URI pointing to a JSON file containing container registry mappings. Cannot be used together with container_registry_map
+        definition_uri: S3 URI of the workflow definition ZIP file. Cannot be used together with definition_zip_base64
 
     Returns:
         Dictionary containing the created workflow version information
     """
-    # Validate that both container registry parameters are not provided together
-    if container_registry_map is not None and container_registry_map_uri is not None:
-        error_message = (
-            'Cannot specify both container_registry_map and container_registry_map_uri parameters'
-        )
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise ValueError(error_message)
-
-    # Validate container registry map structure if provided
-    if container_registry_map is not None:
-        try:
-            ContainerRegistryMap(**container_registry_map)
-        except ValidationError as e:
-            error_message = f'Invalid container registry map structure: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise ValueError(error_message)
-
-    # Validate inputs first, before creating client
-    try:
-        definition_zip = decode_from_base64(definition_zip_base64)
-    except Exception as e:
-        error_message = f'Failed to decode base64 workflow definition: {str(e)}'
-        logger.error(error_message)
-        await ctx.error(error_message)
-        raise
+    # Validate definition sources and container registry parameters
+    definition_zip, definition_uri = await validate_definition_sources(
+        ctx, definition_zip_base64, definition_uri
+    )
+    await validate_container_registry_params(
+        ctx, container_registry_map, container_registry_map_uri
+    )
 
     # Validate storage requirements
     if storage_type == 'STATIC':
@@ -376,12 +353,17 @@ async def create_workflow_version(
 
     client = get_omics_client()
 
-    params = {
+    params: Dict[str, Any] = {
         'workflowId': workflow_id,
         'versionName': version_name,
-        'definitionZip': definition_zip,
         'storageType': storage_type,
     }
+
+    # Add definition source (either ZIP or S3 URI)
+    if definition_zip is not None:
+        params['definitionZip'] = definition_zip
+    elif definition_uri is not None:
+        params['definitionUri'] = definition_uri
 
     if description:
         params['description'] = description
@@ -451,7 +433,7 @@ async def list_workflow_versions(
     """
     client = get_omics_client()
 
-    params = {
+    params: Dict[str, Any] = {
         'workflowId': workflow_id,
         'maxResults': max_results,
     }
