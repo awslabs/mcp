@@ -531,8 +531,20 @@ class TestSecurityAnalysisAPI:
         assert "remediation_guidance" in result
 
     @pytest.mark.anyio
-    async def test_ecs_security_analysis_tool_default_parameters(self):
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.get_aws_client")
+    async def test_ecs_security_analysis_tool_default_parameters(self, mock_get_aws_client):
         """Test ecs_security_analysis_tool with default parameters (None)."""
+        # Mock AWS client
+        mock_ecs = MagicMock()
+        mock_ecs.list_clusters.return_value = {"clusterArns": ["cluster-1", "cluster-2"]}
+        mock_ecs.describe_clusters.return_value = {
+            "clusters": [
+                {"clusterName": "cluster-1", "status": "ACTIVE"},
+                {"clusterName": "cluster-2", "status": "ACTIVE"}
+            ]
+        }
+        mock_get_aws_client.return_value = mock_ecs
+
         # Call with None parameters
         result = await ecs_security_analysis_tool("list_clusters", None)
 
