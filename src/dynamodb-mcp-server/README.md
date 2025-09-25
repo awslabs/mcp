@@ -2,12 +2,15 @@
 
 The official MCP Server for interacting with AWS DynamoDB
 
-This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance.
+This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance and also MySQL query capabilities for source database analysis to design DynamoDB Data Modeling.
 
 ## Available MCP Tools
 
 ### Design & Modeling
 - `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt
+
+### Source Database Analysis for DynamoDB Data Modeling
+- `analyze_source_db` - Execute predefined SQL queries against source database for comprehensive analysis
 
 ### Table Operations
 - `create_table` - Creates a new DynamoDB table with optional secondary indexes
@@ -61,6 +64,40 @@ To use these tools, ensure you have proper AWS credentials configured with appro
 
 All tools support an optional `region_name` parameter to specify which AWS region to operate in. If not provided, it will use the AWS_REGION environment variable or default to 'us-west-2'.
 
+## Source Database Integration
+
+The DynamoDB MCP server includes source database integration for database analysis and design DynamoDB Data Modeling.
+Currently supports Aurora MySQL with additional database support planned for future releases.
+
+**Prerequisites for MySQL Integration:**
+1. Aurora MySQL Cluster with MySQL username and password stored in AWS Secrets Manager
+2. Enable RDS Data API for your Aurora MySQL Cluster
+3. **Enable Performance Schema** for access pattern analysis:
+   - Open Amazon RDS console → Parameter groups
+   - Select your custom parameter group (create one if needed)
+   - Set parameter: `performance_schema = 1`
+   - Associate parameter group with your DB instance
+   - Reboot the database instance (required for Performance Schema)
+   - Wait 5-10 minutes for performance logs to populate
+4. Set up AWS credentials with access to AWS services:
+   - Configure AWS credentials with `aws configure` or environment variables
+   - AWS profile with permissions to access RDS Data API and AWS Secrets Manager
+
+Recommendation: Run this database analysis tool 'analyze_source_db' in a non-production environment with replicated traffic patterns to ensure accurate results while protecting production systems and sensitive data.
+
+### MySQL Environment Variables
+
+Add these environment variables to DynamoDB MCP Server configuration to enable MySQL integration:
+
+- `MYSQL_CLUSTER_ARN`: Aurora MySQL cluster ARN
+- `MYSQL_SECRET_ARN`: AWS Secrets Manager secret ARN with database credentials
+- `MYSQL_DATABASE`: Database name to connect to
+- `MYSQL_AWS_REGION`: AWS region for MySQL cluster (optional, defaults to AWS_REGION)
+- `MYSQL_READONLY`: optional (default: "true")
+- `MYSQL_MAX_QUERY_RESULTS`: Maximum number of rows returned per analysis query (optional, default: "500")
+
+**Note**: MySQL source database connection is established only when you set these environment variables in config and enables you to run the analysis tool `analyze_source_db`.
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
@@ -86,7 +123,12 @@ Add the MCP to your favorite agentic tools. (e.g. for Amazon Q Developer CLI MCP
         "DDB-MCP-READONLY": "true",
         "AWS_PROFILE": "default",
         "AWS_REGION": "us-west-2",
-        "FASTMCP_LOG_LEVEL": "ERROR"
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MYSQL_CLUSTER_ARN": "arn:aws:rds:region:account:cluster:cluster-name",
+        "MYSQL_SECRET_ARN": "arn:aws:secretsmanager:region:account:secret:secret-name",
+        "MYSQL_DATABASE": "your-database-name",
+        "MYSQL_READONLY": "true",
+        "MYSQL_MAX_QUERY_RESULTS": "500"
       },
       "disabled": false,
       "autoApprove": []
@@ -116,7 +158,12 @@ For Windows users, the MCP server configuration format is slightly different:
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-east-1",
+        "MYSQL_CLUSTER_ARN": "arn:aws:rds:region:account:cluster:cluster-name",
+        "MYSQL_SECRET_ARN": "arn:aws:secretsmanager:region:account:secret:secret-name",
+        "MYSQL_DATABASE": "your-database-name",
+        "MYSQL_READONLY": "true",
+        "MYSQL_MAX_QUERY_RESULTS": "500"
       }
     }
   }
