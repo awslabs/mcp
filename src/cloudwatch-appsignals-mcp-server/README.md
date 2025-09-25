@@ -18,32 +18,41 @@ This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to h
 
 ### Available Tools
 
-1. **`list_monitored_services`** - List all services monitored by AWS Application Signals
+1. **`audit_service_health`** ⭐ **PRIMARY SERVICE AUDIT TOOL** - Comprehensive AWS service health auditing and monitoring
+   - **USE THIS FIRST** for all service auditing tasks
+   - Comprehensive health assessment with actionable insights and recommendations
+   - Multi-service analysis (audit 1-10 services simultaneously)
+   - SLO compliance monitoring with automatic breach detection and analysis
+   - Root cause analysis with traces, logs, and metrics correlation
+   - Issue prioritization by severity (critical, warning, info findings)
+   - Performance optimized for fast execution across multiple targets
+
+2. **`list_monitored_services`** - List all services monitored by AWS Application Signals
    - Get an overview of all monitored services
    - See service names, types, and key attributes
    - Identify the services monitored by Application Signals
 
-2. **`get_service_detail`** - Get detailed information about a specific service
+3. **`get_service_detail`** - Get detailed information about a specific service
    - Get Service key properties such as Hosting environment, list of APIs,etc
    - Get the list of ApplicationSignals metrics available on service
    - Find associated log groups
 
-3. **`list_slis`** - List all SLOs and SLIs status for all services
+4. **`list_slis`** - List all SLOs and SLIs status for all services
    - List the configured SLOs and across all services
    - Find out all breached SLIs and status
 
-4. **`get_slo`** - Gets the details configuration for a specific SLO
+5. **`get_slo`** - Gets the details configuration for a specific SLO
    - Return the relevant metrics info, SLO threshold
 
-5. **`search_transaction_spans`** - Queries OTel Spans data via Transaction Search
+6. **`search_transaction_spans`** - Queries OTel Spans data via Transaction Search
    - Query OTel Spans to root cause the potential problems
    - Generate business performance insights summaries
 
-6. **`query_sampled_traces`** - Queries AWS X-Ray traces to gain deeper insights
+7. **`query_sampled_traces`** - Queries AWS X-Ray traces to gain deeper insights
    - Find the impact from the tracing dependency view
    - Return the exact error stack for LLM to suggest the actionable fixes
 
-7. **`query_service_metrics`** - Queries Application Signals metrics for root causing service performance issues
+8. **`query_service_metrics`** - Queries Application Signals metrics for root causing service performance issues
    - Query Application Signals RED metrics to correlate the relevant OTel Spans/Traces for troubleshooting
 
 ## Installation

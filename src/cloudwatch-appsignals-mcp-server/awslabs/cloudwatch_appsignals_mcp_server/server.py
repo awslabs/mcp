@@ -18,7 +18,9 @@ import asyncio
 import boto3
 import json
 import os
+import shutil
 import sys
+import tempfile
 from . import __version__
 from .sli_report_client import AWSConfig, SLIReportClient
 from botocore.config import Config
@@ -38,7 +40,32 @@ mcp = FastMCP('cloudwatch-appsignals')
 log_level = os.environ.get('MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL', 'INFO').upper()
 logger.remove()  # Remove default handler
 logger.add(sys.stderr, level=log_level)
+
+# Add file logging to aws_cli.log
+log_file_path = os.environ.get('AUDITOR_LOG_PATH', '/tmp')
+try:
+    if log_file_path.endswith(os.sep) or os.path.isdir(log_file_path):
+        os.makedirs(log_file_path, exist_ok=True)
+        aws_cli_log_path = os.path.join(log_file_path, "aws_cli.log")
+    else:
+        os.makedirs(os.path.dirname(log_file_path) or ".", exist_ok=True)
+        aws_cli_log_path = log_file_path
+except Exception:
+    os.makedirs("/tmp", exist_ok=True)
+    aws_cli_log_path = "/tmp/aws_cli.log"
+
+# Add file handler for all logs
+logger.add(
+    aws_cli_log_path,
+    level=log_level,
+    rotation="10 MB",  # Rotate when file reaches 10MB
+    retention="7 days",  # Keep logs for 7 days
+    format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+    enqueue=True  # Thread-safe logging
+)
+
 logger.debug(f'CloudWatch AppSignals MCP Server initialized with log level: {log_level}')
+logger.debug(f'File logging enabled: {aws_cli_log_path}')
 
 # Get AWS region from environment variable or use default
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
@@ -49,18 +76,23 @@ logger.debug(f'Using AWS region: {AWS_REGION}')
 def _initialize_aws_clients():
     """Initialize AWS clients with proper configuration."""
     config = Config(user_agent_extra=f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}')
+    
+    # Get endpoint URL from environment variable
+    endpoint_url = os.environ.get('MCP_APPSIGNALS_ENDPOINT')
+    if endpoint_url:
+        logger.debug(f'Using Application Signals endpoint override: {endpoint_url}')
 
     # Check for AWS_PROFILE environment variable
     if aws_profile := os.environ.get('AWS_PROFILE'):
         logger.debug(f'Using AWS profile: {aws_profile}')
         session = boto3.Session(profile_name=aws_profile, region_name=AWS_REGION)
         logs = session.client('logs', config=config)
-        appsignals = session.client('application-signals', config=config)
+        appsignals = session.client('application-signals', region_name=AWS_REGION, config=config, endpoint_url=endpoint_url)
         cloudwatch = session.client('cloudwatch', config=config)
         xray = session.client('xray', config=config)
     else:
         logs = boto3.client('logs', region_name=AWS_REGION, config=config)
-        appsignals = boto3.client('application-signals', region_name=AWS_REGION, config=config)
+        appsignals = boto3.client('application-signals', region_name=AWS_REGION, config=config, endpoint_url=endpoint_url)
         cloudwatch = boto3.client('cloudwatch', region_name=AWS_REGION, config=config)
         xray = boto3.client('xray', region_name=AWS_REGION, config=config)
 
@@ -88,22 +120,1191 @@ def remove_null_values(data: dict) -> dict:
     return {k: v for k, v in data.items() if v is not None}
 
 
+def parse_timestamp(timestamp_str: str, default_hours: int = 24) -> datetime:
+    """Parse timestamp string into datetime object.
+
+    Args:
+        timestamp_str: Timestamp in unix seconds or 'YYYY-MM-DD HH:MM:SS' format
+        default_hours: Default hours to subtract from now if parsing fails
+
+    Returns:
+        datetime object in UTC timezone
+    """
+    try:
+        # Try parsing as unix timestamp first
+        if timestamp_str.isdigit():
+            return datetime.fromtimestamp(int(timestamp_str), tz=timezone.utc)
+
+        # Try parsing as ISO format
+        if 'T' in timestamp_str:
+            return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+
+        # Try parsing as 'YYYY-MM-DD HH:MM:SS' format
+        return datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        # Fallback to default
+        return datetime.now(timezone.utc) - timedelta(hours=default_hours)
+
+
+def calculate_name_similarity(target_name: str, candidate_name: str, name_type: str = "service") -> int:
+    """Calculate similarity score between target name and candidate name.
+    
+    Args:
+        target_name: The name the user is looking for
+        candidate_name: A candidate name from the API
+        name_type: Type of name being matched ("service" or "slo")
+        
+    Returns:
+        Similarity score (0-100, higher is better match)
+    """
+    target_lower = target_name.lower().strip()
+    candidate_lower = candidate_name.lower().strip()
+    
+    # Handle empty strings
+    if not target_lower or not candidate_lower:
+        return 0
+    
+    # Exact match (case insensitive)
+    if target_lower == candidate_lower:
+        return 100
+    
+    # Normalize for special characters (treat -, _, . as equivalent)
+    target_normalized = target_lower.replace('_', '-').replace('.', '-')
+    candidate_normalized = candidate_lower.replace('_', '-').replace('.', '-')
+    
+    if target_normalized == candidate_normalized:
+        return 95
+    
+    score = 0
+    
+    # Word-based matching (most important for fuzzy matching)
+    target_words = set(target_normalized.split())
+    candidate_words = set(candidate_normalized.split())
+    
+    if target_words and candidate_words:
+        common_words = target_words.intersection(candidate_words)
+        if common_words:
+            # Calculate word match ratio
+            word_match_ratio = len(common_words) / len(target_words.union(candidate_words))
+            score += int(word_match_ratio * 60)  # Up to 60 points for word matches
+            
+            # Bonus for high word overlap
+            target_coverage = len(common_words) / len(target_words)
+            candidate_coverage = len(common_words) / len(candidate_words)
+            
+            if target_coverage >= 0.8:  # 80% of target words found
+                score += 20
+            elif target_coverage >= 0.6:  # 60% of target words found
+                score += 10
+    
+    # Substring matching (secondary)
+    if target_normalized in candidate_normalized:
+        # Target is contained in candidate
+        containment_ratio = len(target_normalized) / len(candidate_normalized)
+        score += int(containment_ratio * 30)  # Up to 30 points
+    elif candidate_normalized in target_normalized:
+        # Candidate is contained in target
+        containment_ratio = len(candidate_normalized) / len(target_normalized)
+        score += int(containment_ratio * 25)  # Up to 25 points
+    
+    # Check for key domain terms that should boost relevance
+    if name_type == "slo":
+        key_terms = [
+            'availability', 'latency', 'error', 'fault', 'search', 'owner', 
+            'response', 'time', 'success', 'failure', 'request', 'operation'
+        ]
+    else:  # service
+        key_terms = [
+            'service', 'api', 'web', 'app', 'backend', 'frontend', 'database', 
+            'cache', 'queue', 'worker', 'lambda', 'function', 'microservice'
+        ]
+    
+    common_key_terms = 0
+    for term in key_terms:
+        if term in target_normalized and term in candidate_normalized:
+            common_key_terms += 1
+    
+    if common_key_terms > 0:
+        score += common_key_terms * 8  # Up to 8 points per key term
+    
+    # Penalize very different lengths (likely different concepts)
+    length_diff = abs(len(target_normalized) - len(candidate_normalized))
+    if length_diff > 20:
+        score = max(0, score - 15)
+    elif length_diff > 10:
+        score = max(0, score - 5)
+    
+    return min(100, score)
+
+
+@mcp.tool()
+async def audit_service_health(
+    audit_targets: str = Field(..., description="REQUIRED. JSON array of AuditTargets (service, slo, or service_operation). Shorthand forms accepted and auto-normalized. Supports wildcard patterns like '*payment*' in service names for automatic service discovery. Large target lists are automatically processed in batches."),
+    slo_identifiers: str = Field(default=None, description="Optional. Comma-separated SLO identifiers (names or ARNs) to include in the audit; appended as additional SLO targets."),
+    metric_name: str = Field(default=None, description="Optional hint used as MetricType for service_operation targets when needed."),
+    operation_name: str = Field(default=None, description="Optional hint used as Operation for service_operation targets when needed."),
+    start_time: str = Field(default=None, description="Start time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now-24h UTC."),
+    end_time: str = Field(default=None, description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC."),
+    auditors: str = Field(default=None, description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). Defaults to 'slo,operation_metric' for fast service health auditing. Use 'all' only when user explicitly requests comprehensive root cause analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.")
+) -> str:
+    """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
+
+    **USE THIS FIRST FOR ALL SERVICE AUDITING TASKS**
+    This is the PRIMARY and PREFERRED tool when users want to:
+    - **Audit their AWS services** - Complete health assessment with actionable insights
+    - **Check service health** - Comprehensive status across all monitored services  
+    - **Investigate issues** - Root cause analysis with detailed findings
+    - **Monitor SLO compliance** - Service Level Objective breach detection and analysis
+    - **Performance analysis** - Latency, error rates, and throughput investigation
+    - **System-wide health checks** - Daily/periodic service auditing workflows
+
+    **PRIORITY: This tool should be used BEFORE any other specialized tools**
+
+    **COMPREHENSIVE AUDIT CAPABILITIES:**
+    - **Multi-service analysis**: Audit any number of services with automatic batching
+    - **SLO compliance monitoring**: Automatic breach detection and analysis
+    - **Issue prioritization**: Critical, warning, and info findings ranked by severity
+    - **Root cause analysis**: Deep dive with traces, logs, and metrics correlation
+    - **Actionable recommendations**: Specific steps to resolve identified issues
+    - **Performance optimized**: Fast execution with automatic batching for large target lists
+    - **Wildcard Pattern Support**: Use `*pattern*` in service names for automatic service discovery
+
+    **AUDIT TARGET TYPES:**
+    - **Service Audit**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"my-service","Environment":"prod"}}}]`
+    - **SLO Audit**: `[{"Type":"slo","Data":{"SloName":"my-slo"}}]`
+    - **Operation Audit**: `[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"my-service","Environment":"prod"},"Operation":"GET /api","MetricType":"Latency"}}}]`
+
+    **WILDCARD PATTERN EXAMPLES:**
+    - **All Services**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]`
+    - **Payment Services**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]`
+    - **Lambda Services**: `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*lambda*"}}}]`
+    - **All SLOs**: `[{"Type":"slo","Data":{"Slo":{"SloName":"*"}}}]`
+    - **Payment SLOs**: `[{"Type":"slo","Data":{"Slo":{"SloName":"*payment*"}}}]`
+
+    **AUDITOR SELECTION FOR DIFFERENT AUDIT DEPTHS:**
+    - **Quick Health Check** (default): Uses 'slo,operation_metric' for fast overview - perfect for basic service auditing
+    - **Root Cause Analysis**: Pass `auditors="all"` for comprehensive investigation with traces/logs when user explicitly requests root cause analysis
+    - **Custom Audit**: Specify exact auditors: 'slo,trace,log,dependency_metric,top_contributor,service_quota'
+
+    **COMPLETE EXAMPLES FOR ALL 21 USE CASES:**
+
+    1. **Audit all services**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'`
+
+    2. **Audit specific service**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"orders-service","Environment":"prod"}}}]'`
+
+    3. **Audit payment services**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'`
+
+    4. **Audit all SLOs**: 
+       `audit_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"*"}}}]'`
+
+    5. **Audit latency of GET operations in payment services**: 
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]'`
+       
+       **IMPORTANT WORKFLOW FOR GET OPERATIONS AUDITING (Latency/Fault/Error):**
+       When user asks to audit GET operations in payment services (for any metric type):
+       1. **First Call**: Use `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'` with `auditors="operation_metric"` to discover payment services and their operations
+       2. **Analysis**: From the results, identify GET operations in the findings (look for operations containing "GET" in the operation names)
+       3. **Follow-up**: If specific GET operations need deeper investigation, use service_operation targets with the exact operation names and desired MetricType (Latency/Fault/Error)
+       
+       This approach ensures you:
+       - Use wildcard matching (*payment*) to find all payment-related services with fuzzy matching
+       - Include operation_metric auditor to get detailed operation-level metrics data for all metric types
+       - Get comprehensive results showing all GET operations and their latency, fault, and error metrics
+       - Can then drill down into specific problematic GET operations with the appropriate MetricType if needed
+
+    6. **Audit availability of visit operations**: 
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*"},"Operation":"*visit*","MetricType":"Availability"}}}]'`
+
+    7. **Audit latency of visit operations**: 
+       `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*"},"Operation":"*visit*","MetricType":"Latency"}}}]'`
+
+    8. **Audit lambda latencies**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*lambda*"}}}]'` + focus on Latency metrics
+
+    9. **Audit service last night**: 
+       `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 18:00:00"` + `end_time="2024-01-02 06:00:00"`
+
+    10. **Audit service before and after time**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"orders-service","Environment":"prod"}}}]'` + `start_time="2024-01-01 09:00:00"` + `end_time="2024-01-01 11:00:00"`
+
+    11. **Trace availability issues in prod services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*","Environment":"prod"}}}]'` + `auditors="all"`
+
+    12. **Trace latency in query operations**: 
+        `audit_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*query*","MetricType":"Latency"}}}]'` + `auditors="all"`
+
+    13. **Look for errors in logs of payment services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'` + `auditors="log,trace"`
+
+    14. **Look for new errors after time**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` + `auditors="log,trace"` + `start_time="2024-01-01 10:00:00"`
+
+    15. **Look for errors after deployment**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]'` + `auditors="log,trace"` + recent time range
+
+    16. **Look for lemon hosts in prod**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*","Environment":"prod"}}}]'` + `auditors="top_contributor,operation_metric"`
+
+    17. **Look for outliers in EKS services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*","Environment":"eks:*"}}}]'` + `auditors="top_contributor,operation_metric"`
+
+    18. **Status report**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` (basic health check)
+
+    19. **Audit dependencies**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` + `auditors="dependency_metric,trace"`
+
+    20. **Audit dependency on S3**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]'` + `auditors="dependency_metric"` + look for S3 dependencies
+
+    21. **Audit quota usage of tier 1 services**: 
+        `audit_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*tier1*"}}}]'` + `auditors="service_quota,operation_metric"`
+
+    **TYPICAL AUDIT WORKFLOWS:**
+    1. **Basic Service Audit** (most common): 
+       - Call `audit_service_health()` with service targets - automatically discovers services when using wildcard patterns
+       - Uses default fast auditors (slo,operation_metric) for quick health overview
+       - Supports wildcard patterns like `*` or `*payment*` for automatic service discovery
+    2. **SLO Audit Workflow** (when user says "audit slos"):
+       - Automatically discovers all SLOs using unified wildcard expansion
+       - Uses pagination to retrieve all available SLOs from the API
+       - Processes SLOs in batches of 5 for optimal performance
+       - Creates appropriate SLO audit targets automatically
+       - Use `audit_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"*"}}}]'` to audit all SLOs
+    3. **Root Cause Investigation**: When user explicitly asks for "root cause analysis", pass `auditors="all"`
+    4. **Issue Investigation**: Results show which services/SLOs need attention with actionable insights
+    5. **Automatic Service Discovery**: Wildcard patterns in service names automatically discover and expand to concrete services
+
+    **AUDIT RESULTS INCLUDE:**
+    - **Prioritized findings** by severity (critical, warning, info)
+    - **Service health status** with detailed performance analysis
+    - **Root cause analysis** when traces/logs auditors are used
+    - **Actionable recommendations** for issue resolution
+    - **Comprehensive metrics** and trend analysis
+
+    **IMPORTANT: This tool provides comprehensive audit coverage and should be your first choice for any service auditing task. Other tools are specialized and should only be used when this primary audit tool doesn't provide sufficient detail.**
+    """
+    start_time_perf = timer()
+    logger.debug("Starting audit_service_health (PRIMARY SERVICE AUDIT TOOL)")
+
+    try:
+        # ---------- Region defaults ----------
+        region = AWS_REGION.strip()
+
+        # ---------- Time range (fill missing with defaults) ----------
+        start_dt = parse_timestamp(start_time) if start_time else (datetime.now(timezone.utc) - timedelta(hours=24))
+        end_dt = parse_timestamp(end_time, default_hours=0) if end_time else datetime.now(timezone.utc)
+        unix_start, unix_end = int(start_dt.timestamp()), int(end_dt.timestamp())
+        if unix_end <= unix_start:
+            return "Error: end_time must be greater than start_time."
+
+        # ---------- Helpers ----------
+        def _ci_get(d: dict, *names):
+            for n in names:
+                if n in d:
+                    return d[n]
+            lower = {k.lower(): v for k, v in d.items()}
+            for n in names:
+                if n.lower() in lower:
+                    return lower[n.lower()]
+            return None
+
+        def _need(d: dict, *names):
+            v = _ci_get(d, *names)
+            if v is None:
+                raise ValueError(f"Missing required field: one of {', '.join(names)}")
+            return v
+
+        # ---------- Tolerant coercion for service targets (handles shorthands) ----------
+        def _coerce_service_target(t: dict) -> dict:
+            """Convert common shorthand inputs into canonical service target with union wrapper:
+            Emits: {"Type":"service","Data":{"Service":{"Type":"Service","Name":...,"Environment":...,"AwsAccountId?":...}}}
+            Shorthands accepted:
+              {"Type":"service","Service":"<name>"}
+              {"Type":"service","Data":{"Service":"<name>"}}
+              {"Type":"service","Data":{"Service":{"Name":"<name>"}}}
+              {"target_type":"service","service":"<name>"}
+            """
+            ttype = (_ci_get(t, "Type", "type", "target_type") or "").lower()
+            if ttype != "service":
+                raise ValueError("not a service target")
+
+            data = _ci_get(t, "Data", "data") or {}
+            service = _ci_get(data, "Service", "service") or _ci_get(t, "Service", "service")
+
+            if isinstance(service, str):
+                entity = {"Name": service}
+            elif isinstance(service, dict):
+                entity = dict(service)
+            elif isinstance(data, dict) and _ci_get(data, "Name", "name"):
+                entity = {"Name": _ci_get(data, "Name", "name")}
+            else:
+                raise ValueError("service target missing 'Service' payload")
+
+            if "Type" not in entity and "type" not in entity:
+                entity["Type"] = "Service"
+
+            name = _ci_get(entity, "Name", "name")
+            env  = _ci_get(entity, "Environment", "environment")
+            acct = _ci_get(entity, "AwsAccountId", "awsAccountId", "aws_account_id")
+
+            out = {"Type": "Service"}
+            if name:
+                out["Name"] = name
+            if env:
+                out["Environment"] = env
+            if acct:
+                out["AwsAccountId"] = acct
+
+            return {"Type": "service", "Data": {"Service": out}}
+
+        # ---------- Strict normalizers (emit lowercase wrapper keys for outer type/data) ----------
+        def _normalize_service_entity(entity: dict) -> dict:
+            out = {
+                "Type": _ci_get(entity, "Type", "type") or "Service",
+                "Name": _need(entity, "Name", "name"),
+                "Environment": _ci_get(entity, "Environment", "environment"),  # validated later if present
+            }
+            acct = _ci_get(entity, "AwsAccountId", "awsAccountId", "aws_account_id")
+            if acct: out["AwsAccountId"] = acct
+            return out
+
+        def _normalize_service(item: dict) -> dict:
+            data = _need(item, "Data", "data")
+            svc = _ci_get(data, "Service", "service")
+            svc_entity = _normalize_service_entity(svc if isinstance(svc, dict) else data)
+            return {"Type": "service", "Data": {"Service": svc_entity}}
+
+        def _normalize_slo(item: dict) -> dict:
+            data = _need(item, "Data", "data")
+            # Accept string or object with SloArn/SloName
+            if isinstance(data, str):
+                slo_obj = {"SloName": data}
+            elif isinstance(data, dict):
+                # Check for nested Slo object first (enriched format)
+                if "Slo" in data:
+                    nested_slo = data["Slo"]
+                    if isinstance(nested_slo, dict):
+                        slo_arn = _ci_get(nested_slo, "SloArn", "sloArn", "sloarn")
+                        slo_name = _ci_get(nested_slo, "SloName", "sloName", "sloname")
+                        if slo_arn or slo_name:
+                            slo_obj = {"SloArn": slo_arn} if slo_arn else {"SloName": slo_name}
+                        else:
+                            raise ValueError("SLO target must include SloArn or SloName")
+                    else:
+                        raise ValueError("SLO Data.Slo must be an object")
+                else:
+                    # Direct format (not nested)
+                    slo_arn = _ci_get(data, "SloArn", "sloArn", "sloarn")
+                    slo_name = _ci_get(data, "SloName", "sloName", "sloname")
+                    if not (slo_arn or slo_name):
+                        raise ValueError("SLO target must include SloArn or SloName")
+                    slo_obj = {"SloArn": slo_arn} if slo_arn else {"SloName": slo_name}
+            else:
+                raise ValueError("SLO Data must be a string or object")
+            # Union wrapper REQUIRED by the API: data.slo = {...}
+            return {"Type": "slo", "Data": {"Slo": slo_obj}}
+
+        def _normalize_service_op(item: dict) -> dict:
+            data = _need(item, "Data", "data")
+            
+            # Handle both formats: direct Service under Data, or nested under ServiceOperation
+            service_operation = _ci_get(data, "ServiceOperation", "serviceOperation")
+            if service_operation:
+                # Nested format: Data.ServiceOperation.Service
+                svc = _need(service_operation, "Service", "service")
+                op = _ci_get(service_operation, "Operation", "operation") or operation_name
+                metric_type = _ci_get(service_operation, "MetricType", "metricType") or (metric_name or "Latency")
+            else:
+                # Direct format: Data.Service
+                svc = _need(data, "Service", "service")
+                op = _ci_get(data, "Operation", "operation") or operation_name
+                metric_type = _ci_get(data, "MetricType", "metricType") or (metric_name or "Latency")
+            
+            svc_entity = _normalize_service_entity(svc)
+            if not op:
+                raise ValueError("service_operation requires Operation (or pass operation_name)")
+            
+            # Union wrapper REQUIRED: data.ServiceOperation = {...}
+            return {
+                "Type": "service_operation",
+                "Data": {
+                    "ServiceOperation": {
+                        "Service": svc_entity,
+                        "Operation": op,
+                        "MetricType": metric_type
+                    }
+                }
+            }
+
+        def _normalize_targets(raw: list) -> list:
+            if not isinstance(raw, list):
+                raise ValueError("`audit_targets` must be a JSON array")
+            if len(raw) == 0:
+                raise ValueError("`audit_targets` must contain at least 1 item")
+            out = []
+            for i, t in enumerate(raw, 1):
+                if not isinstance(t, dict):
+                    raise ValueError(f"audit_targets[{i}] must be an object")
+
+                maybe_type = (_ci_get(t, "Type", "type", "target_type") or "").lower()
+                if maybe_type == "service":
+                    try:
+                        t = _coerce_service_target(t)  # tolerant upgrade
+                    except ValueError as e:
+                        raise ValueError(f"audit_targets[{i}] invalid service target: {e}")
+
+                ttype = (_ci_get(t, "Type", "type") or "").lower()
+                if ttype == "service":
+                    out.append(_normalize_service(t))
+                elif ttype == "slo":
+                    out.append(_normalize_slo(t))
+                elif ttype == "service_operation":
+                    out.append(_normalize_service_op(t))
+                else:
+                    raise ValueError(f"audit_targets[{i}].type must be 'service'|'slo'|'service_operation'")
+            return out
+
+        def _validate_and_enrich_targets(normalized_targets: list) -> list:
+            """If a service target exists without Environment, or SLO target without SloArn/SloName, fetch from the API."""
+            enriched_targets = []
+            
+            for idx, t in enumerate(normalized_targets, 1):
+                target_type = (t.get("Type") or "").lower()
+                
+                if target_type == "service":
+                    svc = ((t.get("Data") or {}).get("Service") or {})
+                    service_name = svc.get("Name")
+                    
+                    if not svc.get("Environment") and service_name:
+                        # Fetch service details from API to get environment
+                        logger.debug(f"Fetching environment for service: {service_name}")
+                        try:
+                            # Get all services to find the one we want
+                            services_response = appsignals_client.list_services(
+                                StartTime=datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                                EndTime=datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                                MaxResults=100
+                            )
+                            
+                            # Find the service with matching name
+                            target_service = None
+                            for service in services_response.get('ServiceSummaries', []):
+                                key_attrs = service.get('KeyAttributes', {})
+                                if key_attrs.get('Name') == service_name:
+                                    target_service = service
+                                    break
+                            
+                            if target_service:
+                                key_attrs = target_service.get('KeyAttributes', {})
+                                environment = key_attrs.get('Environment')
+                                if environment:
+                                    # Enrich the service target with the found environment
+                                    enriched_svc = dict(svc)
+                                    enriched_svc["Environment"] = environment
+                                    enriched_target = {
+                                        "Type": "service",
+                                        "Data": {"Service": enriched_svc}
+                                    }
+                                    enriched_targets.append(enriched_target)
+                                    logger.debug(f"Enriched service {service_name} with environment: {environment}")
+                                    continue
+                                else:
+                                    raise ValueError(
+                                        f"audit_targets[{idx}]: Service '{service_name}' found but has no Environment. "
+                                        f"This service may not be properly configured in Application Signals."
+                                    )
+                            else:
+                                raise ValueError(
+                                    f"audit_targets[{idx}]: Service '{service_name}' not found in Application Signals. "
+                                    f"Use list_monitored_services() to see available services."
+                                )
+                        except Exception as e:
+                            if "not found" in str(e) or "Service" in str(e):
+                                raise e  # Re-raise our custom error messages
+                            else:
+                                raise ValueError(
+                                    f"audit_targets[{idx}].Data.Service.Environment is required for service targets. "
+                                    f"Provide Environment (e.g., 'eks:top-observations/default') or ensure the service exists in Application Signals. "
+                                    f"API error: {str(e)}"
+                                )
+                    elif not svc.get("Environment"):
+                        raise ValueError(
+                            f"audit_targets[{idx}].Data.Service.Environment is required for service targets. "
+                            f"Provide Environment (e.g., 'eks:top-observations/default')."
+                        )
+                
+                elif target_type == "slo":
+                    data = t.get("Data", {})
+                    
+                    # Check if SLO target needs field name normalization (lowercase to uppercase)
+                    if isinstance(data, dict) and not data.get("Slo"):
+                        # Direct format like {"sloName": "slo-1"} - normalize to uppercase
+                        slo_arn = _ci_get(data, "SloArn", "sloArn", "sloarn")
+                        slo_name = _ci_get(data, "SloName", "sloName", "sloname")
+                        
+                        if slo_arn or slo_name:
+                            # Normalize to proper format with uppercase field names
+                            enriched_target = {
+                                "Type": "slo",
+                                "Data": {"SloArn": slo_arn} if slo_arn else {"SloName": slo_name}
+                            }
+                            enriched_targets.append(enriched_target)
+                            logger.debug(f"Normalized SLO target field names: {enriched_target}")
+                            continue
+                        else:
+                            # Look for any field that might be an SLO identifier
+                            potential_name = _ci_get(data, "Name", "name", "Id", "id")
+                            if potential_name:
+                                enriched_target = {
+                                    "Type": "slo",
+                                    "Data": {"SloName": potential_name}
+                                }
+                                enriched_targets.append(enriched_target)
+                                logger.debug(f"Enriched SLO target with SloName from identifier: {potential_name}")
+                                continue
+                            
+                            # If we still can't find an identifier, raise an error
+                            raise ValueError(
+                                f"audit_targets[{idx}]: SLO target must include SloArn or SloName. "
+                                f"Provide either SloArn (ARN) or SloName (name) for the SLO target."
+                            )
+                    elif isinstance(data, str):
+                        # String format - convert to proper format
+                        enriched_target = {
+                            "Type": "slo",
+                            "Data": {"SloName": data}
+                        }
+                        enriched_targets.append(enriched_target)
+                        logger.debug(f"Enriched SLO target from string: {data}")
+                        continue
+                
+                # Add the target as-is if it doesn't need enrichment
+                enriched_targets.append(t)
+            
+            return enriched_targets
+
+        # ---------- Parse & normalize REQUIRED audit_targets ----------
+        try:
+            provided = json.loads(audit_targets)
+        except json.JSONDecodeError:
+            return "Error: `audit_targets` must be valid JSON (array)."
+        
+        # Unified wildcard expansion for both services and SLOs
+        def expand_wildcard_targets(targets: list) -> list:
+            """Expand wildcard patterns and fuzzy match inexact names for both service and SLO targets."""
+            expanded_targets = []
+            service_patterns = []
+            service_fuzzy_matches = []
+            slo_patterns = []
+            slo_fuzzy_matches = []
+            
+            # First pass: identify patterns and collect non-wildcard targets
+            for target in targets:
+                if not isinstance(target, dict):
+                    expanded_targets.append(target)
+                    continue
+                    
+                target_type = target.get('Type', '').lower()
+                
+                if target_type == 'service':
+                    service_data = target.get('Data', {}).get('Service', {})
+                    service_name = service_data.get('Name', '')
+                    if isinstance(service_name, str):
+                        if '*' in service_name:
+                            service_patterns.append((target, service_name))
+                        else:
+                            # Check if this might be a fuzzy match candidate
+                            service_fuzzy_matches.append((target, service_name))
+                    else:
+                        expanded_targets.append(target)
+                        
+                elif target_type == 'slo':
+                    slo_data = target.get('Data', {})
+                    # Handle both direct SloName and nested Slo object
+                    if isinstance(slo_data, str):
+                        if '*' in slo_data:
+                            slo_patterns.append((target, slo_data))
+                        else:
+                            # Check if this might be a fuzzy match candidate
+                            slo_fuzzy_matches.append((target, slo_data))
+                    elif 'Slo' in slo_data:
+                        slo_obj = slo_data['Slo']
+                        if isinstance(slo_obj, dict):
+                            slo_name = slo_obj.get('SloName', '')
+                            if isinstance(slo_name, str):
+                                if '*' in slo_name:
+                                    slo_patterns.append((target, slo_name))
+                                else:
+                                    # Check if this might be a fuzzy match candidate
+                                    slo_fuzzy_matches.append((target, slo_name))
+                            else:
+                                expanded_targets.append(target)
+                        else:
+                            expanded_targets.append(target)
+                    else:
+                        # Check for direct SloName/SloArn in data
+                        slo_name = _ci_get(slo_data, "SloName", "sloName", "sloname")
+                        if slo_name and isinstance(slo_name, str):
+                            if '*' in slo_name:
+                                slo_patterns.append((target, slo_name))
+                            else:
+                                slo_fuzzy_matches.append((target, slo_name))
+                        else:
+                            expanded_targets.append(target)
+                elif target_type == 'service_operation':
+                    # Handle service_operation targets with wildcard expansion
+                    service_op_data = target.get('Data', {}).get('ServiceOperation', {})
+                    service_data = service_op_data.get('Service', {})
+                    service_name = service_data.get('Name', '')
+                    operation_name = service_op_data.get('Operation', '')
+                    
+                    if isinstance(service_name, str) and '*' in service_name:
+                        # Service name has wildcards - expand to concrete services first
+                        service_patterns.append((target, service_name))
+                    elif isinstance(operation_name, str) and '*' in operation_name:
+                        # Operation name has wildcards - need to expand operations for the service
+                        # For now, pass through as-is since operation expansion requires service-specific logic
+                        expanded_targets.append(target)
+                    else:
+                        # No wildcards in service_operation target
+                        expanded_targets.append(target)
+                else:
+                    # Other target types
+                    expanded_targets.append(target)
+            
+            # Expand service patterns and fuzzy matches
+            if service_patterns or service_fuzzy_matches:
+                logger.debug(f"Expanding {len(service_patterns)} service wildcard patterns and {len(service_fuzzy_matches)} fuzzy matches")
+                try:
+                    services_response = appsignals_client.list_services(
+                        StartTime=datetime.fromtimestamp(unix_start, tz=timezone.utc),
+                        EndTime=datetime.fromtimestamp(unix_end, tz=timezone.utc),
+                        MaxResults=100
+                    )
+                    all_services = services_response.get('ServiceSummaries', [])
+                    
+                    # Handle wildcard patterns
+                    for original_target, pattern in service_patterns:
+                        search_term = pattern.strip('*').lower() if pattern != '*' else ''
+                        matches_found = 0
+                        
+                        # Check if this is a service_operation target
+                        is_service_operation = original_target.get('Type', '').lower() == 'service_operation'
+                        
+                        for service in all_services:
+                            service_attrs = service.get('KeyAttributes', {})
+                            service_name = service_attrs.get('Name', '')
+                            
+                            if search_term == '' or search_term in service_name.lower():
+                                if is_service_operation:
+                                    # For service_operation targets, preserve the operation and metric type
+                                    service_op_data = original_target.get('Data', {}).get('ServiceOperation', {})
+                                    operation_name = service_op_data.get('Operation', '')
+                                    metric_type = service_op_data.get('MetricType', 'Latency')
+                                    
+                                    expanded_targets.append({
+                                        "Type": "service_operation",
+                                        "Data": {
+                                            "ServiceOperation": {
+                                                "Service": {
+                                                    "Type": "Service",
+                                                    "Name": service_name,
+                                                    "Environment": service_attrs.get('Environment')
+                                                },
+                                                "Operation": operation_name,
+                                                "MetricType": metric_type
+                                            }
+                                        }
+                                    })
+                                else:
+                                    # Regular service target
+                                    expanded_targets.append({
+                                        "Type": "service",
+                                        "Data": {
+                                            "Service": {
+                                                "Type": "Service",
+                                                "Name": service_name,
+                                                "Environment": service_attrs.get('Environment')
+                                            }
+                                        }
+                                    })
+                                matches_found += 1
+                        
+                        target_type_str = "service_operation" if is_service_operation else "service"
+                        logger.debug(f"{target_type_str.title()} pattern '{pattern}' expanded to {matches_found} targets")
+                    
+                    # Handle fuzzy matches for inexact service names
+                    for original_target, inexact_name in service_fuzzy_matches:
+                        best_matches = []
+                        
+                        # Calculate similarity scores for all services
+                        for service in all_services:
+                            service_attrs = service.get('KeyAttributes', {})
+                            service_name = service_attrs.get('Name', '')
+                            if not service_name:
+                                continue
+                                
+                            score = calculate_name_similarity(inexact_name, service_name, "service")
+                            
+                            if score >= 30:  # Minimum threshold for consideration
+                                best_matches.append((service_name, service_attrs.get('Environment'), score))
+                        
+                        # Sort by score and take the best matches
+                        best_matches.sort(key=lambda x: x[2], reverse=True)
+                        
+                        if best_matches:
+                            # If we have a very high score match (85+), use only that
+                            if best_matches[0][2] >= 85:
+                                matched_services = [best_matches[0]]
+                            else:
+                                # Otherwise, take top 3 matches above threshold
+                                matched_services = best_matches[:3]
+                            
+                            logger.info(f"Fuzzy matching service '{inexact_name}' found {len(matched_services)} candidates:")
+                            for service_name, environment, score in matched_services:
+                                logger.info(f"  - '{service_name}' in '{environment}' (score: {score})")
+                                expanded_targets.append({
+                                    "Type": "service",
+                                    "Data": {
+                                        "Service": {
+                                            "Type": "Service",
+                                            "Name": service_name,
+                                            "Environment": environment
+                                        }
+                                    }
+                                })
+                        else:
+                            logger.warning(f"No fuzzy matches found for service name '{inexact_name}' (no candidates above threshold)")
+                            # Keep the original target - let the API handle the error
+                            expanded_targets.append(original_target)
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to expand service patterns and fuzzy matches: {e}")
+                    # Add original patterns back if expansion fails
+                    expanded_targets.extend([target for target, _ in service_patterns])
+                    expanded_targets.extend([target for target, _ in service_fuzzy_matches])
+            
+            # Expand SLO patterns and fuzzy matches
+            if slo_patterns or slo_fuzzy_matches:
+                logger.debug(f"Expanding {len(slo_patterns)} SLO wildcard patterns and {len(slo_fuzzy_matches)} fuzzy matches")
+                try:
+                    # Use pagination to get all SLOs
+                    all_slos = []
+                    next_token = None
+                    
+                    while True:
+                        request_params = {
+                            'MaxResults': 50,  # API maximum
+                            'IncludeLinkedAccounts': True
+                        }
+                        if next_token:
+                            request_params['NextToken'] = next_token
+                        
+                        slos_response = appsignals_client.list_service_level_objectives(**request_params)
+                        batch_slos = slos_response.get('SloSummaries', [])
+                        all_slos.extend(batch_slos)
+                        
+                        next_token = slos_response.get('NextToken')
+                        if not next_token:
+                            break
+                    
+                    logger.debug(f"Retrieved {len(all_slos)} total SLOs for pattern expansion and fuzzy matching")
+                    
+                    # Handle wildcard patterns
+                    for original_target, pattern in slo_patterns:
+                        search_term = pattern.strip('*').lower() if pattern != '*' else ''
+                        matches_found = 0
+                        
+                        for slo in all_slos:
+                            slo_name = slo.get('Name', '')
+                            
+                            if search_term == '' or search_term in slo_name.lower():
+                                expanded_targets.append({
+                                    "Type": "slo",
+                                    "Data": {
+                                        "Slo": {
+                                            "SloName": slo_name
+                                        }
+                                    }
+                                })
+                                matches_found += 1
+                        
+                        logger.debug(f"SLO pattern '{pattern}' expanded to {matches_found} targets")
+                    
+                    # Handle fuzzy matches for inexact SLO names
+                    for original_target, inexact_name in slo_fuzzy_matches:
+                        best_matches = []
+                        
+                        # Calculate similarity scores for all SLOs
+                        for slo in all_slos:
+                            slo_name = slo.get('Name', '')
+                            if not slo_name:
+                                continue
+                                
+                            score = calculate_name_similarity(inexact_name, slo_name, "slo")
+                            
+                            if score >= 30:  # Minimum threshold for consideration
+                                best_matches.append((slo_name, score))
+                        
+                        # Sort by score and take the best matches
+                        best_matches.sort(key=lambda x: x[1], reverse=True)
+                        
+                        if best_matches:
+                            # If we have a very high score match (85+), use only that
+                            if best_matches[0][1] >= 85:
+                                matched_slos = [best_matches[0]]
+                            else:
+                                # Otherwise, take top 3 matches above threshold
+                                matched_slos = best_matches[:3]
+                            
+                            logger.info(f"Fuzzy matching SLO '{inexact_name}' found {len(matched_slos)} candidates:")
+                            for slo_name, score in matched_slos:
+                                logger.info(f"  - '{slo_name}' (score: {score})")
+                                expanded_targets.append({
+                                    "Type": "slo",
+                                    "Data": {
+                                        "Slo": {
+                                            "SloName": slo_name
+                                        }
+                                    }
+                                })
+                        else:
+                            logger.warning(f"No fuzzy matches found for SLO name '{inexact_name}' (no candidates above threshold)")
+                            # Keep the original target - let the API handle the error
+                            expanded_targets.append(original_target)
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to expand SLO patterns and fuzzy matches: {e}")
+                    # Add original patterns back if expansion fails
+                    expanded_targets.extend([target for target, _ in slo_patterns])
+                    expanded_targets.extend([target for target, _ in slo_fuzzy_matches])
+            
+            return expanded_targets
+        
+        # Apply unified wildcard expansion
+        if any('*' in str(target) for target in provided):
+            logger.debug("Wildcard patterns detected - applying unified expansion")
+            provided = expand_wildcard_targets(provided)
+            logger.debug(f"Wildcard expansion completed - {len(provided)} total targets")
+        
+        # Validate expanded targets before normalization
+        if not isinstance(provided, list):
+            return "Error: `audit_targets` must be a JSON array"
+        if len(provided) == 0:
+            return "Error: No services found matching the wildcard pattern. Please check your service names or use list_monitored_services() to see available services."
+        
+        # Handle large target lists by automatically batching instead of erroring
+        if len(provided) > 10:
+            logger.info(f"Large target list detected ({len(provided)} targets). Will process in batches automatically.")
+        
+        normalized_targets = _normalize_targets(provided)
+        
+        banner = (
+            "[MCP-PRIMARY] Application Signals Comprehensive Audit\n"
+            f"🎯 Scope: {len(normalized_targets)} target(s) | Region: {region}\n"
+            f"⏰ Time: {unix_start}–{unix_end}\n"
+        )
+        
+        # Add batching info to banner if we have many targets
+        if len(normalized_targets) > 5:
+            banner += f"📦 Batching: Processing {len(normalized_targets)} targets in batches of 5\n"
+        
+        banner += "\n"
+
+        # ---------- Append SLOs from slo_identifiers (optional) ----------
+        if slo_identifiers:
+            for slo in [s.strip() for s in slo_identifiers.split(",") if s.strip()]:
+                # Check if it's an ARN or a name
+                if slo.startswith("arn:"):
+                    normalized_targets.append({"Type": "slo", "Data": {"Slo": {"SloArn": slo}}})
+                else:
+                    normalized_targets.append({"Type": "slo", "Data": {"Slo": {"SloName": slo}}})
+
+        # Validate and enrich targets after any additions
+        try:
+            normalized_targets = _validate_and_enrich_targets(normalized_targets)
+        except ValueError as ve:
+            return f"Error in audit_targets: {ve}"
+
+        # ---------- Auditors (explicit or auto; integrated rule) ----------
+        auditors_list = None
+
+        # If the caller didn't pass auditors, default to fast auditors for basic service auditing
+        # Only use all auditors when explicitly requested or when root cause analysis is mentioned
+        if auditors is None:
+            user_prompt_text = os.environ.get("MCP_USER_PROMPT", "") or ""
+            wants_root_cause = "root cause" in user_prompt_text.lower()
+            # Always default to fast auditors for basic service auditing unless root cause is explicitly requested
+            raw_a = ["slo", "operation_metric"] if not wants_root_cause else []
+        elif auditors.lower() == "all":
+            # Special case: "all" means use all auditors (empty list to API)
+            raw_a = []
+        else:
+            raw_a = [a.strip() for a in auditors.split(",") if a.strip()]
+
+        if raw_a is not None:
+            if len(raw_a) == 0:
+                # Empty list means use all auditors
+                auditors_list = []
+            else:
+                allowed = {
+                    "slo", "operation_metric", "trace", "log",
+                    "dependency_metric", "top_contributor", "service_quota"
+                }
+                invalid = [a for a in raw_a if a not in allowed]
+                if invalid:
+                    return (
+                        f"Invalid auditor(s): {', '.join(invalid)}. "
+                        f"Allowed: {', '.join(sorted(allowed))}"
+                    )
+                auditors_list = raw_a
+        # else: auditors_list remains None → CLI uses all auditors by default
+
+        # ---------- Build CLI input (SCOPED: AuditTargets MUST be non-empty) ----------
+        input_obj = {"StartTime": unix_start, "EndTime": unix_end, "AuditTargets": normalized_targets}
+        if auditors_list:
+            input_obj["Auditors"] = auditors_list
+
+        # Use the banner that was already set above (either natural language or JSON)
+        # Don't overwrite it here
+
+        # ---------- Execute CLI with batching (CMH gamma by default) ----------
+        aws_bin = os.environ.get("MCP_AWS_CLI", "aws")
+        if shutil.which(aws_bin) is None:
+            pretty_input = json.dumps(input_obj, indent=2)
+            logger.error(
+                banner +
+                "Result: FAILED to execute AWS CLI (binary not found).\n"
+                "Action: Install or set MCP_AWS_CLI to the full path of your aws binary.\n"
+                "---- CLI PARAMETERS (JSON) ----\n" + pretty_input + "\n---- END ----\n"
+            )
+            return (
+                banner +
+                "Result: FAILED to execute AWS CLI (binary not found). "
+                "Install or set MCP_AWS_CLI to the full path of your aws binary."
+            )
+
+        # File log path
+        desired_log_path = os.environ.get("AUDITOR_LOG_PATH", "/tmp")
+        try:
+            if desired_log_path.endswith(os.sep) or os.path.isdir(desired_log_path):
+                os.makedirs(desired_log_path, exist_ok=True)
+                log_path = os.path.join(desired_log_path, "aws_cli.log")
+            else:
+                os.makedirs(os.path.dirname(desired_log_path) or ".", exist_ok=True)
+                log_path = desired_log_path
+        except Exception:
+            os.makedirs("/tmp", exist_ok=True); log_path = "/tmp/aws_cli.log"
+
+        # ---------- Batch processing if more than 5 targets ----------
+        batch_size = 5
+        target_batches = []
+        
+        if len(normalized_targets) > batch_size:
+            logger.info(f"Processing {len(normalized_targets)} targets in batches of {batch_size}")
+            # Split targets into batches of 5
+            for i in range(0, len(normalized_targets), batch_size):
+                batch = normalized_targets[i:i + batch_size]
+                target_batches.append(batch)
+        else:
+            # Single batch if 5 or fewer targets
+            target_batches.append(normalized_targets)
+
+        all_batch_results = []
+        
+        for batch_idx, batch_targets in enumerate(target_batches, 1):
+            logger.info(f"Processing batch {batch_idx}/{len(target_batches)} with {len(batch_targets)} targets")
+            
+            # Build CLI input for this batch
+            batch_input_obj = {"StartTime": unix_start, "EndTime": unix_end, "AuditTargets": batch_targets}
+            if auditors_list:
+                batch_input_obj["Auditors"] = auditors_list
+
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as tf:
+                json.dump(batch_input_obj, tf); tf.flush()
+                cli_input_arg = f"file://{tf.name}"
+
+            cmd = [
+                aws_bin, "application-signals-demo", "list-audit-findings",
+                "--cli-input-json", cli_input_arg, "--region", region, "--endpoint-url", os.environ.get('MCP_APPSIGNALS_ENDPOINT')
+            ]
+
+            # ---------- Pretty log: command + params (file + stderr) ----------
+            cli_pretty_cmd = " ".join(cmd)
+            cli_pretty_input = json.dumps(batch_input_obj, indent=2)
+
+            # Log CLI invocation details using logger
+            logger.info("═" * 80)
+            logger.info(f"BATCH {batch_idx}/{len(target_batches)} - {datetime.now(timezone.utc).isoformat()}")
+            logger.info(banner.strip())
+            logger.info("---- CLI INVOCATION ----")
+            logger.info(cli_pretty_cmd)
+            logger.info("---- CLI PARAMETERS (JSON) ----")
+            logger.info(cli_pretty_input)
+            logger.info("---- END PARAMETERS ----")
+            
+            # Enhanced API call payload debug output
+            logger.info("🔍 ENHANCED API CALL PAYLOAD DEBUG OUTPUT")
+            logger.info("=" * 60)
+            logger.info(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
+            logger.info(f"Command: {cli_pretty_cmd}")
+            logger.info(f"Endpoint: {os.environ.get('MCP_APPSIGNALS_ENDPOINT', 'default')}")
+            logger.info(f"Region: {region}")
+            logger.info(f"Batch: {batch_idx}/{len(target_batches)}")
+            logger.info(f"Targets in batch: {len(batch_targets)}")
+            logger.info(f"Auditors: {auditors_list}")
+            logger.info(f"Time range: {unix_start} - {unix_end}")
+            logger.info("--- FULL PAYLOAD JSON ---")
+            logger.info(cli_pretty_input)
+            logger.info("--- END PAYLOAD ---")
+            logger.info("=" * 60)
+
+            logger.info("\n" + "═" * 80)
+            logger.info(f"BATCH {batch_idx}/{len(target_batches)}")
+            logger.info(banner.strip("\n"))
+            logger.info("---- CLI INVOCATION ----")
+            logger.info(cli_pretty_cmd)
+            logger.info("---- CLI PARAMETERS (JSON) ----")
+            logger.info("\n" + cli_pretty_input)
+            logger.info("---- END PARAMETERS ----")
+
+            # Run the CLI for this batch
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout_b, stderr_b = await proc.communicate()
+            stdout, stderr = stdout_b.decode("utf-8", errors="replace"), stderr_b.decode("utf-8", errors="replace")
+
+            # ---------- Handle CLI execution result for this batch ----------
+            if proc.returncode != 0:
+                with open(log_path, "a") as f:
+                    f.write(f"---- BATCH {batch_idx} CLI RESPONSE (stderr/stdout) ----\n")
+                    f.write((stderr or stdout) + "\n")
+                    f.write("---- END RESPONSE ----\n\n")
+                logger.error(f"---- BATCH {batch_idx} CLI RESPONSE (stderr/stdout) ----\n" + (stderr or stdout) + "\n---- END RESPONSE ----")
+                
+                # Continue with other batches even if one fails
+                batch_error_result = {
+                    "batch_index": batch_idx,
+                    "error": f"CLI exit code: {proc.returncode}",
+                    "stderr_stdout": stderr or stdout,
+                    "targets_count": len(batch_targets)
+                }
+                all_batch_results.append(batch_error_result)
+                continue
+
+            # ---------- Format and log output for this batch ----------
+            try:
+                batch_json = json.loads(stdout)
+                observation_text = json.dumps(batch_json, indent=2)
+                all_batch_results.append(batch_json)
+            except json.JSONDecodeError:
+                observation_text = stdout or "<empty>"
+                all_batch_results.append({"batch_index": batch_idx, "raw_output": observation_text})
+
+            if not observation_text.strip():
+                with open(log_path, "a") as f:
+                    f.write(f"📭 Batch {batch_idx}: No findings returned.\n")
+                    f.write("---- END RESPONSE ----\n\n")
+                logger.info(f"📭 Batch {batch_idx}: No findings returned.\n---- END RESPONSE ----")
+            else:
+                with open(log_path, "a") as f:
+                    f.write(f"---- BATCH {batch_idx} CLI RESPONSE (stdout pretty) ----\n")
+                    f.write(observation_text + "\n")
+                    f.write("---- END RESPONSE ----\n\n")
+
+                logger.info(f"---- BATCH {batch_idx} CLI RESPONSE (stdout pretty) ----\n" + observation_text + "\n---- END RESPONSE ----")
+
+        # ---------- Aggregate results from all batches ----------
+        if not all_batch_results:
+            return banner + "Result: No findings from any batch."
+
+        # Aggregate the findings from all successful batches
+        aggregated_findings = []
+        total_targets_processed = 0
+        failed_batches = 0
+        
+        for batch_result in all_batch_results:
+            if isinstance(batch_result, dict):
+                if "error" in batch_result:
+                    failed_batches += 1
+                    continue
+                    
+                # Extract findings from this batch
+                batch_findings = batch_result.get("AuditFindings", [])
+                aggregated_findings.extend(batch_findings)
+                
+                # Count targets processed in this batch
+                batch_targets_count = len(batch_result.get("AuditTargets", []))
+                total_targets_processed += batch_targets_count
+
+        # Create final aggregated response
+        final_result = {
+            "AuditFindings": aggregated_findings,
+            "BatchSummary": {
+                "TotalBatches": len(target_batches),
+                "SuccessfulBatches": len(target_batches) - failed_batches,
+                "FailedBatches": failed_batches,
+                "TotalTargetsProcessed": total_targets_processed,
+                "TotalFindingsCount": len(aggregated_findings)
+            }
+        }
+
+        # Add any error information if there were failed batches
+        if failed_batches > 0:
+            error_details = []
+            for batch_result in all_batch_results:
+                if isinstance(batch_result, dict) and "error" in batch_result:
+                    error_details.append({
+                        "batch": batch_result["batch_index"],
+                        "error": batch_result["error"],
+                        "targets_count": batch_result["targets_count"]
+                    })
+            final_result["BatchErrors"] = error_details
+
+        final_observation_text = json.dumps(final_result, indent=2)
+
+        elapsed = timer() - start_time_perf
+        logger.debug(f"audit_service_health completed in {elapsed:.3f}s (region={region}) - Processed {len(target_batches)} batches")
+
+        return banner + final_observation_text
+
+    except Exception as e:
+        logger.error(f"Unexpected error in audit_service_health: {e}", exc_info=True)
+        return f"Error: {str(e)}"
+
+
 @mcp.tool()
 async def list_monitored_services() -> str:
-    """List all services monitored by AWS Application Signals.
+    """OPTIONAL TOOL for service discovery - audit_service_health() can automatically discover services using wildcard patterns.
 
-    Use this tool to:
-    - Get an overview of all monitored services
-    - See service names, types, and key attributes
-    - Identify which services are being tracked
-    - Count total number of services in your environment
+    **WHEN TO USE THIS TOOL:**
+    - Getting a detailed overview of all monitored services in your environment
+    - Discovering specific service names and environments for manual audit target construction
+    - Understanding the complete service inventory before targeted analysis
+    - When you need detailed service attributes beyond what wildcard expansion provides
+
+    **RECOMMENDED WORKFLOW:**
+    - **Primary**: Use `audit_service_health()` with wildcard patterns like `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]` for automatic service discovery
+    - **Alternative**: Use this tool first if you need detailed service information, then construct specific audit targets
+
+    **AUTOMATIC SERVICE DISCOVERY IN AUDIT:**
+    The `audit_service_health()` tool automatically discovers services when you use wildcard patterns:
+    - `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]` - Audits all services
+    - `[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]` - Audits services with "payment" in the name
 
     Returns a formatted list showing:
-    - Service name and type
-    - Key attributes (Environment, Platform, etc.)
+    - Service name and type  
+    - Key attributes (Name, Environment, Platform, etc.)
     - Total count of services
 
-    This is typically the first tool to use when starting monitoring or investigation.
+    **NOTE**: The audit_service_health() tool can automatically discover and audit services without requiring this tool first.
     """
     start_time_perf = timer()
     logger.debug('Starting list_application_signals_services request')
@@ -950,47 +2151,31 @@ async def list_slis(
         description='Number of hours to look back (default 24, typically use 24 for daily checks)',
     ),
 ) -> str:
-    """Get SLI (Service Level Indicator) status and SLO compliance for all services.
+    """SPECIALIZED TOOL - Use audit_service_health() as the PRIMARY tool for service auditing.
 
-    Use this tool to:
-    - Check overall system health at a glance
-    - Identify services with breached SLOs (Service Level Objectives)
-    - See which specific SLOs are failing
-    - Prioritize which services need immediate attention
-    - Monitor SLO compliance trends
+    **IMPORTANT: audit_service_health() is the PRIMARY and PREFERRED tool for all service auditing tasks.**
+    
+    Only use this tool when audit_service_health() cannot handle your specific requirements, such as:
+    - Need for legacy SLI status report format specifically
+    - Integration with existing systems that expect this exact output format
+    - Simple SLI overview without comprehensive audit findings
+    - Basic health monitoring dashboard that doesn't need detailed analysis
 
-    Returns a comprehensive report showing:
+    **For ALL service auditing, health checks, and issue investigation, use audit_service_health() first.**
+
+    This tool provides a basic report showing:
     - Summary counts (total, healthy, breached, insufficient data)
-    - Detailed list of breached services with:
-      - Service name and environment
-      - Number and names of breached SLOs
-      - Specific SLO violations
-    - List of healthy services
-    - Services with insufficient data
-
-    This is the primary tool for health monitoring and should be used:
-    - At the start of each day
-    - During incident response
-    - For regular health checks
-    - When investigating "what is the root cause of breaching SLO" questions
+    - Simple list of breached services with SLO names
+    - Basic healthy services list
 
     Status meanings:
     - OK: All SLOs are being met
     - BREACHED: One or more SLOs are violated
     - INSUFFICIENT_DATA: Not enough data to determine status
 
-    To investigate breached SLOs, follow these steps:
-    1. Call get_service_level_objective() with SLO name to get the detailed SLI data including Metric statistics
-    2. Find the fault metrics from SLI under the breached SLO
-    3. Build trace query filters using metric dimensions (Operation, RemoteOperation, etc.):
-        - For availability: `service("service-name"){fault = true} AND annotation[aws.local.operation]="operation-name"`
-        - For latency: `service("service-name") AND annotation[aws.local.operation]="operation-name" AND duration > threshold`
-    4. Query traces:
-        - If Transaction Search is enabled: Use search_transaction_spans() for 100% trace visibility
-        - If not enabled: Use query_sampled_traces() with X-Ray (only 5% sampled data - may miss issues)
-    5. The query time window should default to last 3 hours if not specified. Max query time window length is 6 hours
-    6. Analyze the root causes from Exception data in traces
-    7. Include findings in the report and give fix and mitigation suggestions
+    **Recommended workflow**: 
+    1. Use audit_service_health() for comprehensive service auditing with actionable insights
+    2. Only use this tool if you specifically need the legacy SLI status report format
     """
     start_time_perf = timer()
     logger.info(f'Starting get_sli_status request for last {hours} hours')
@@ -1347,6 +2532,118 @@ async def query_sampled_traces(
     except Exception as e:
         logger.error(f'Error in query_sampled_traces: {str(e)}', exc_info=True)
         return json.dumps({'error': str(e)}, indent=2)
+
+
+@mcp.tool()
+async def list_slos(
+    key_attributes: str = Field(
+        default="{}",
+        description='JSON string of key attributes to filter SLOs (e.g., \'{"Name": "my-service", "Environment": "prod"}\'. Defaults to empty object to list all SLOs.'
+    ),
+    include_linked_accounts: bool = Field(
+        default=True,
+        description='Whether to include SLOs from linked accounts (default: True)'
+    ),
+    max_results: int = Field(
+        default=50,
+        description='Maximum number of SLOs to return (default: 50, max: 50)'
+    )
+) -> str:
+    """List all Service Level Objectives (SLOs) in Application Signals.
+
+    Use this tool to:
+    - Get a complete list of all SLOs in your account
+    - Discover SLO names and ARNs for use with other tools
+    - Filter SLOs by service attributes
+    - See basic SLO information including creation time and operation names
+
+    Returns a formatted list showing:
+    - SLO name and ARN
+    - Associated service key attributes
+    - Operation name being monitored
+    - Creation timestamp
+    - Total count of SLOs found
+
+    This tool is useful for:
+    - SLO discovery and inventory
+    - Finding SLO names to use with get_slo() or audit_service_health()
+    - Understanding what operations are being monitored
+    """
+    start_time_perf = timer()
+    logger.debug('Starting list_slos request')
+
+    try:
+        # Parse key_attributes JSON string
+        try:
+            key_attrs_dict = json.loads(key_attributes) if key_attributes else {}
+        except json.JSONDecodeError as e:
+            return f'Error: Invalid JSON in key_attributes parameter: {str(e)}'
+
+        # Validate max_results
+        max_results = min(max(max_results, 1), 100)  # Ensure between 1 and 100
+
+        # Build request parameters
+        request_params = {
+            'MaxResults': max_results,
+            'IncludeLinkedAccounts': include_linked_accounts
+        }
+
+        # Add key attributes if provided
+        if key_attrs_dict:
+            request_params['KeyAttributes'] = key_attrs_dict
+
+        logger.debug(f'Listing SLOs with parameters: {request_params}')
+
+        # Call the Application Signals API
+        response = appsignals_client.list_service_level_objectives(**request_params)
+        slo_summaries = response.get('SloSummaries', [])
+
+        logger.debug(f'Retrieved {len(slo_summaries)} SLO summaries')
+
+        if not slo_summaries:
+            logger.info('No SLOs found matching the criteria')
+            return 'No Service Level Objectives found matching the specified criteria.'
+
+        # Build formatted response
+        result = f'Service Level Objectives ({len(slo_summaries)} total):\n\n'
+
+        for slo in slo_summaries:
+            slo_name = slo.get('Name', 'Unknown')
+            slo_arn = slo.get('Arn', 'Unknown')
+            operation_name = slo.get('OperationName', 'N/A')
+            created_time = slo.get('CreatedTime', 'Unknown')
+
+            result += f'• SLO: {slo_name}\n'
+            result += f'  ARN: {slo_arn}\n'
+            result += f'  Operation: {operation_name}\n'
+            result += f'  Created: {created_time}\n'
+
+            # Add key attributes if available
+            key_attrs = slo.get('KeyAttributes', {})
+            if key_attrs:
+                result += '  Service Attributes:\n'
+                for key, value in key_attrs.items():
+                    result += f'    {key}: {value}\n'
+
+            result += '\n'
+
+        # Add pagination info if there might be more results
+        next_token = response.get('NextToken')
+        if next_token:
+            result += f'Note: More SLOs may be available. This response shows the first {len(slo_summaries)} results.\n'
+
+        elapsed_time = timer() - start_time_perf
+        logger.debug(f'list_slos completed in {elapsed_time:.3f}s - found {len(slo_summaries)} SLOs')
+        return result
+
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in list_slos: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
+    except Exception as e:
+        logger.error(f'Unexpected error in list_slos: {str(e)}', exc_info=True)
+        return f'Error: {str(e)}'
 
 
 def main():
