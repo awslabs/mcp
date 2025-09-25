@@ -369,10 +369,7 @@ def register_module(mcp: FastMCP) -> None:
         """User wants to see only high priority security issues"""
         return ["ecs_security_analysis_tool"]
 
-    @mcp.prompt("high priority security issues")
-    def high_priority_security_issues_prompt():
-        """User wants to see high priority security issues"""
-        return ["ecs_security_analysis_tool"]
+
 
     @mcp.prompt("show all security details")
     def show_all_security_details_prompt():

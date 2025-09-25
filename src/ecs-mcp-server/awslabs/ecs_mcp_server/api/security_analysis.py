@@ -346,7 +346,7 @@ class DataAdapter:
                 "network_data": {}
             }
 
-    async def collect_all_data(self, regions: List[str], cluster_names: List[str] = None) -> Dict[str, Any]:
+    async def collect_all_data(self, regions: List[str], cluster_names: Optional[List[str]] = None) -> Dict[str, Any]:
         """Collect comprehensive ECS data using existing tools."""
         try:
             all_data = {}
@@ -2118,7 +2118,7 @@ class SecurityAnalyzer:
             'Deploy to production and monitor'
         ])
 
-    def _generate_aws_cli_commands(self, title: str, resource: str, recommendation_data: Dict[str, Any] = None) -> List[str]:
+    def _generate_aws_cli_commands(self, title: str, resource: str, recommendation_data: Optional[Dict[str, Any]] = None) -> List[str]:
         """
         Generate AWS CLI commands for implementation.
         
@@ -2571,8 +2571,8 @@ class SecurityReportFormatter:
     
     def format_report(self, analysis_result: Dict[str, Any], 
                      format_type: str = 'summary',
-                     severity_filter: List[str] = None,
-                     category_filter: List[str] = None,
+                     severity_filter: Optional[List[str]] = None,
+                     category_filter: Optional[List[str]] = None,
                      show_details: bool = False) -> str:
         """Format security analysis report with various options."""
         
@@ -2586,8 +2586,8 @@ class SecurityReportFormatter:
             return self._format_enhanced_summary(analysis_result, severity_filter, category_filter, show_details)
     
     def _format_enhanced_summary(self, analysis_result: Dict[str, Any], 
-                               severity_filter: List[str] = None,
-                               category_filter: List[str] = None,
+                               severity_filter: Optional[List[str]] = None,
+                               category_filter: Optional[List[str]] = None,
                                show_details: bool = False) -> str:
         """Format enhanced summary with progressive disclosure."""
         
@@ -2641,8 +2641,8 @@ class SecurityReportFormatter:
         return '\n\n'.join(report)
     
     def _apply_filters(self, recommendations: List[Dict[str, Any]], 
-                      severity_filter: List[str] = None,
-                      category_filter: List[str] = None) -> List[Dict[str, Any]]:
+                      severity_filter: Optional[List[str]] = None,
+                      category_filter: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """Apply severity and category filters to recommendations."""
         filtered = recommendations
         
@@ -2655,8 +2655,8 @@ class SecurityReportFormatter:
         return filtered
     
     def _filter_categorized_data(self, categorized: Dict[str, Any], 
-                               severity_filter: List[str] = None,
-                               category_filter: List[str] = None) -> Dict[str, Any]:
+                               severity_filter: Optional[List[str]] = None,
+                               category_filter: Optional[List[str]] = None) -> Dict[str, Any]:
         """Apply filters to categorized data structure."""
         if not severity_filter and not category_filter:
             return categorized
@@ -2701,8 +2701,8 @@ class SecurityReportFormatter:
         return filtered_categorized
     
     def _generate_filtered_summary(self, categorized: Dict[str, Any], 
-                                 severity_filter: List[str] = None,
-                                 category_filter: List[str] = None) -> Dict[str, Any]:
+                                 severity_filter: Optional[List[str]] = None,
+                                 category_filter: Optional[List[str]] = None) -> Dict[str, Any]:
         """Generate summary statistics for filtered data."""
         by_severity = categorized.get('by_severity', {})
         by_category = categorized.get('by_category', {})
@@ -3151,8 +3151,8 @@ class SecurityReportFormatter:
         return '\n'.join(section)
     
     def _format_json(self, analysis_result: Dict[str, Any], 
-                    severity_filter: List[str] = None,
-                    category_filter: List[str] = None) -> str:
+                    severity_filter: Optional[List[str]] = None,
+                    category_filter: Optional[List[str]] = None) -> str:
         """Format as JSON for machine processing."""
         filtered_result = analysis_result.copy()
         
@@ -3179,8 +3179,8 @@ class SecurityReportFormatter:
         return json.dumps(filtered_result, indent=2, default=str)
     
     def _format_detailed(self, analysis_result: Dict[str, Any],
-                        severity_filter: List[str] = None,
-                        category_filter: List[str] = None) -> str:
+                        severity_filter: Optional[List[str]] = None,
+                        category_filter: Optional[List[str]] = None) -> str:
         """Format detailed report with all issues expanded."""
         return self._format_enhanced_summary(analysis_result, severity_filter, category_filter, show_details=True)
     
@@ -3926,8 +3926,8 @@ def _generate_recommendations_assessment(
     cluster_name: str, 
     filtered_recommendations: List[Dict[str, Any]], 
     all_recommendations: List[Dict[str, Any]],
-    severity_filter: str = None,
-    category_filter: str = None,
+    severity_filter: Optional[str] = None,
+    category_filter: Optional[str] = None,
     limit: int = 5
 ) -> str:
     """Generate comprehensive assessment text for security recommendations."""
@@ -4209,7 +4209,9 @@ async def _get_security_recommendations(parameters: Dict[str, Any]) -> Dict[str,
         "region": region,
         "assessment": _generate_recommendations_assessment(
             cluster_name, recommendations, results.get("recommendations", []), 
-            severity_filter, category_filter, limit
+            str(severity_filter) if severity_filter is not None else None, 
+            str(category_filter) if category_filter is not None else None, 
+            limit
         ),
         "filter_criteria": {
             "severity_filter": severity_filter,
