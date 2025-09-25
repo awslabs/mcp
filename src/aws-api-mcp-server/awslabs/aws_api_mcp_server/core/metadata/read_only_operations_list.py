@@ -22,6 +22,7 @@ from typing import List
 SERVICE_REFERENCE_URL = 'https://servicereference.us-east-1.amazonaws.com/'
 METADATA_FILE = 'data/api_metadata.json'
 DEFAULT_REQUEST_TIMEOUT = 5
+OVERRIDES = {'sts': {'AssumeRole': False}}
 
 
 class ServiceReferenceUrlsByService(dict):
@@ -59,6 +60,8 @@ class ReadOnlyOperations(dict):
     def has(self, service, operation) -> bool:
         """Check if the operation is in the read only operations list."""
         logger.info(f'checking in read only list : {service} - {operation}')
+        if service in OVERRIDES and operation in OVERRIDES[service]:
+            return OVERRIDES[service][operation]
         if (
             service in self._known_readonly_operations
             and operation in self._known_readonly_operations[service]
