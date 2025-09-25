@@ -16,6 +16,7 @@
 
 import json
 from .aws_clients import appsignals_client
+from botocore.exceptions import ClientError
 from loguru import logger
 from pydantic import Field
 from time import perf_counter as timer
@@ -261,6 +262,11 @@ async def get_slo(
         logger.info(f"get_service_level_objective completed for '{slo_id}' in {elapsed_time:.3f}s")
         return result
 
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in get_slo: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(
             f"Unexpected error in get_service_level_objective for '{slo_id}': {str(e)}",
@@ -370,6 +376,11 @@ async def list_slos(
         )
         return result
 
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in list_slos: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(f'Unexpected error in list_slos: {str(e)}', exc_info=True)
         return f'Error: {str(e)}'

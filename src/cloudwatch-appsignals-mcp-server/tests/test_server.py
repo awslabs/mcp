@@ -2,19 +2,21 @@
 
 import json
 import pytest
-from awslabs.cloudwatch_appsignals_mcp_server.server import (
-    check_transaction_search_enabled,
+from awslabs.cloudwatch_appsignals_mcp_server.server import main
+from awslabs.cloudwatch_appsignals_mcp_server.service_tools import (
     get_service_detail,
-    get_slo,
-    get_trace_summaries_paginated,
     list_monitored_services,
-    list_slis,
-    main,
-    query_sampled_traces,
     query_service_metrics,
-    remove_null_values,
+)
+from awslabs.cloudwatch_appsignals_mcp_server.slo_tools import get_slo
+from awslabs.cloudwatch_appsignals_mcp_server.trace_tools import (
+    check_transaction_search_enabled,
+    get_trace_summaries_paginated,
+    list_slis,
+    query_sampled_traces,
     search_transaction_spans,
 )
+from awslabs.cloudwatch_appsignals_mcp_server.utils import remove_null_values
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -29,25 +31,61 @@ def mock_aws_clients():
     mock_cloudwatch_client = MagicMock()
     mock_xray_client = MagicMock()
 
-    # Patch the clients at module level
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.logs_client', mock_logs_client):
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.appsignals_client',
+    # Patch the clients in all modules where they're imported
+    patches = [
+        # Original aws_clients module
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.logs_client', mock_logs_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.appsignals_client',
             mock_appsignals_client,
-        ):
-            with patch(
-                'awslabs.cloudwatch_appsignals_mcp_server.server.cloudwatch_client',
-                mock_cloudwatch_client,
-            ):
-                with patch(
-                    'awslabs.cloudwatch_appsignals_mcp_server.server.xray_client', mock_xray_client
-                ):
-                    yield {
-                        'logs_client': mock_logs_client,
-                        'appsignals_client': mock_appsignals_client,
-                        'cloudwatch_client': mock_cloudwatch_client,
-                        'xray_client': mock_xray_client,
-                    }
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.cloudwatch_client',
+            mock_cloudwatch_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.xray_client', mock_xray_client
+        ),
+        # Service tools module (check what's actually imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.service_tools.appsignals_client',
+            mock_appsignals_client,
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.service_tools.cloudwatch_client',
+            mock_cloudwatch_client,
+        ),
+        # SLO tools module (check what's actually imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.slo_tools.appsignals_client',
+            mock_appsignals_client,
+        ),
+        # Trace tools module (only logs_client and xray_client are imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.logs_client', mock_logs_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.xray_client', mock_xray_client
+        ),
+    ]
+
+    # Start all patches
+    for p in patches:
+        p.start()
+
+    try:
+        yield {
+            'logs_client': mock_logs_client,
+            'appsignals_client': mock_appsignals_client,
+            'cloudwatch_client': mock_cloudwatch_client,
+            'xray_client': mock_xray_client,
+        }
+    finally:
+        # Stop all patches
+        for p in patches:
+            p.stop()
 
 
 @pytest.fixture
@@ -315,7 +353,7 @@ async def test_search_transaction_spans_success(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -340,7 +378,7 @@ async def test_search_transaction_spans_success(mock_aws_clients):
 async def test_search_transaction_spans_not_enabled(mock_aws_clients):
     """Test when transaction search is not enabled."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (False, 'XRay', 'INACTIVE')
 
@@ -374,10 +412,10 @@ async def test_list_slis_success(mock_aws_clients):
 
     # Mock SLIReportClient
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.SLIReportClient'
+        'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.SLIReportClient'
     ) as mock_sli_client:
         with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
         ) as mock_check:
             mock_aws_clients[
                 'appsignals_client'
@@ -430,10 +468,10 @@ async def test_query_sampled_traces_success(mock_aws_clients):
     ]
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_get_traces:
         with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
         ) as mock_check:
             mock_get_traces.return_value = mock_traces
             mock_check.return_value = (False, 'XRay', 'INACTIVE')
@@ -683,9 +721,9 @@ async def test_query_service_metrics_no_datapoints(mock_aws_clients):
 async def test_search_transaction_spans_timeout(mock_aws_clients):
     """Test search transaction spans with timeout."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
-        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.timer') as mock_timer:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.trace_tools.timer') as mock_timer:
             # Mock asyncio.sleep to prevent actual waiting
             with patch('asyncio.sleep', new_callable=AsyncMock):
                 mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
@@ -803,10 +841,10 @@ async def test_list_slis_with_error_in_sli_client(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.SLIReportClient'
+        'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.SLIReportClient'
     ) as mock_sli_client:
         with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+            'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
         ) as mock_check:
             mock_aws_clients[
                 'appsignals_client'
@@ -943,7 +981,7 @@ async def test_query_service_metrics_client_error(mock_aws_clients):
 async def test_search_transaction_spans_failed_query(mock_aws_clients):
     """Test search transaction spans when query fails."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -987,7 +1025,7 @@ async def test_get_slo_client_error(mock_aws_clients):
 async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
     """Test search transaction spans with empty log group defaults to aws/spans."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -1122,7 +1160,7 @@ async def test_query_service_metrics_general_exception(mock_aws_clients):
 async def test_search_transaction_spans_general_exception(mock_aws_clients):
     """Test search transaction spans with general exception."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.side_effect = Exception('Query failed')
@@ -1372,7 +1410,7 @@ async def test_get_slo_general_exception(mock_aws_clients):
 async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
     """Test search_transaction_spans when log_group_name is None."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -1401,7 +1439,7 @@ async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
 async def test_search_transaction_spans_complete_with_statistics(mock_aws_clients):
     """Test search_transaction_spans when query completes with detailed statistics."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.check_transaction_search_enabled'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
         mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
         mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
@@ -1483,7 +1521,7 @@ async def test_query_sampled_traces_with_defaults(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = mock_trace_response['TraceSummaries']
 
@@ -1525,7 +1563,7 @@ async def test_query_sampled_traces_with_annotations(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = [mock_trace]
 
@@ -1565,7 +1603,7 @@ async def test_query_sampled_traces_with_fault_causes(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = [mock_trace]
 
@@ -1585,7 +1623,7 @@ async def test_query_sampled_traces_with_fault_causes(mock_aws_clients):
 async def test_query_sampled_traces_general_exception(mock_aws_clients):
     """Test query_sampled_traces with general exception."""
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.side_effect = Exception('Trace query failed')
 
@@ -1612,7 +1650,7 @@ async def test_query_sampled_traces_datetime_conversion(mock_aws_clients):
     }
 
     with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.get_trace_summaries_paginated'
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
     ) as mock_paginated:
         mock_paginated.return_value = [mock_trace]
 

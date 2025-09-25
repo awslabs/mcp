@@ -121,7 +121,7 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
 
         # Call the Application Signals API for this batch
         try:
-            response = appsignals_client.list_audit_findings(**batch_input_obj)
+            response = appsignals_client.list_audit_findings(**batch_input_obj)  # type: ignore[attr-defined]
 
             # Format and log output for this batch
             observation_text = json.dumps(response, indent=2, default=str)
@@ -180,7 +180,12 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
             aggregated_findings.extend(batch_findings)
 
             # Count targets processed (this batch)
-            total_targets_processed += len(batch_targets)
+            # Get the batch size from the original targets list
+            batch_size = 5
+            current_batch_size = min(
+                batch_size, len(targets) - (len(aggregated_findings) // batch_size) * batch_size
+            )
+            total_targets_processed += current_batch_size
 
     # Create final aggregated response
     final_result = {
@@ -443,7 +448,23 @@ def expand_slo_wildcard_patterns(targets: List[dict], appsignals_client=None) ->
             if ttype == 'slo':
                 # Check for wildcard patterns in SLO names
                 slo_data = target.get('Data', {}).get('Slo', {})
-                slo_name = slo_data.get('SloName', '')
+                
+                # BUG FIX: Handle case where Slo is a string instead of dict
+                if isinstance(slo_data, str):
+                    # Malformed input - Slo should be a dict with SloName key
+                    raise ValueError(
+                        f"Invalid SLO target format. Expected {{'Type':'slo','Data':{{'Slo':{{'SloName':'name'}}}}}} "
+                        f"but got {{'Slo':'{slo_data}'}}. The 'Slo' field must be a dictionary with 'SloName' key."
+                    )
+                elif isinstance(slo_data, dict):
+                    slo_name = slo_data.get('SloName', '')
+                else:
+                    # Handle other unexpected types
+                    raise ValueError(
+                        f"Invalid SLO target format. The 'Slo' field must be a dictionary with 'SloName' key, "
+                        f"but got {type(slo_data).__name__}: {slo_data}"
+                    )
+                    
                 if '*' in slo_name:
                     wildcard_patterns.append((target, slo_name))
                 else:

@@ -41,6 +41,7 @@ from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 from time import perf_counter as timer
+from typing import Optional
 
 
 # Constants
@@ -90,15 +91,15 @@ async def audit_services(
         ...,
         description="REQUIRED. JSON array of service targets. Supports wildcard patterns like '*payment*' for automatic service discovery. Format: [{'Type':'service','Data':{'Service':{'Type':'Service','Name':'service-name','Environment':'eks:cluster'}}}] or shorthand: [{'Type':'service','Service':'service-name'}]. Large target lists are automatically processed in batches.",
     ),
-    start_time: str = Field(
+    start_time: Optional[str] = Field(
         default=None,
         description="Start time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now-24h UTC.",
     ),
-    end_time: str = Field(
+    end_time: Optional[str] = Field(
         default=None,
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
-    auditors: str = Field(
+    auditors: Optional[str] = Field(
         default=None,
         description="Optional. Comma-separated auditors (e.g., 'slo,operation_metric,dependency_metric'). Defaults to 'slo,operation_metric' for fast service health auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
     ),
@@ -350,15 +351,15 @@ async def audit_slos(
         ...,
         description="REQUIRED. JSON array of SLO targets. Supports wildcard patterns like '*payment*' for automatic SLO discovery. Format: [{'Type':'slo','Data':{'Slo':{'SloName':'slo-name'}}}] or [{'Type':'slo','Data':{'Slo':{'SloArn':'arn:aws:...'}}}]. Large target lists are automatically processed in batches.",
     ),
-    start_time: str = Field(
+    start_time: Optional[str] = Field(
         default=None,
         description="Start time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now-24h UTC.",
     ),
-    end_time: str = Field(
+    end_time: Optional[str] = Field(
         default=None,
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
-    auditors: str = Field(
+    auditors: Optional[str] = Field(
         default=None,
         description="Optional. Comma-separated auditors (e.g., 'slo,trace,log'). Defaults to 'slo' for fast SLO compliance auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
     ),
@@ -563,15 +564,15 @@ async def audit_service_operations(
         ...,
         description="REQUIRED. JSON array of service operation targets. Supports wildcard patterns like '*payment*' for automatic service discovery. Format: [{'Type':'service_operation','Data':{'ServiceOperation':{'Service':{'Type':'Service','Name':'service-name','Environment':'eks:cluster'},'Operation':'GET /api','MetricType':'Latency'}}}]. Large target lists are automatically processed in batches.",
     ),
-    start_time: str = Field(
+    start_time: Optional[str] = Field(
         default=None,
         description="Start time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now-24h UTC.",
     ),
-    end_time: str = Field(
+    end_time: Optional[str] = Field(
         default=None,
         description="End time (unix seconds or 'YYYY-MM-DD HH:MM:SS'). Defaults to now UTC.",
     ),
-    auditors: str = Field(
+    auditors: Optional[str] = Field(
         default=None,
         description="Optional. Comma-separated auditors (e.g., 'operation_metric,trace,log'). Defaults to 'operation_metric' for fast operation-level auditing. Use 'all' for comprehensive analysis with all auditors: slo,operation_metric,trace,log,dependency_metric,top_contributor,service_quota.",
     ),

@@ -15,6 +15,7 @@
 """CloudWatch Application Signals MCP Server - Service-related tools."""
 
 from .aws_clients import appsignals_client, cloudwatch_client
+from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from pydantic import Field
@@ -111,6 +112,11 @@ async def list_monitored_services() -> str:
         logger.debug(f'list_monitored_services completed in {elapsed_time:.3f}s')
         return result
 
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in list_monitored_services: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(f'Unexpected error in list_monitored_services: {str(e)}', exc_info=True)
         return f'Error: {str(e)}'
@@ -233,6 +239,11 @@ async def get_service_detail(
         logger.debug(f"get_service_detail completed for '{service_name}' in {elapsed_time:.3f}s")
         return result
 
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in get_service_detail: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(
             f"Unexpected error in get_service_healthy_detail for '{service_name}': {str(e)}",
@@ -434,6 +445,11 @@ async def query_service_metrics(
         )
         return result
 
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in query_service_metrics: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(
             f"Unexpected error in query_service_metrics for '{service_name}/{metric_name}': {str(e)}",
@@ -630,6 +646,11 @@ async def list_service_operations(
         )
         return result
 
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+        logger.error(f'AWS ClientError in list_service_operations: {error_code} - {error_message}')
+        return f'AWS Error: {error_message}'
     except Exception as e:
         logger.error(
             f"Unexpected error in list_service_operations for '{service_name}': {str(e)}",
