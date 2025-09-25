@@ -46,18 +46,24 @@ from awslabs.dynamodb_mcp_server.common import (
     handle_exceptions,
     mutation_check,
 )
+from awslabs.mysql_mcp_server.server import DBConnectionSingleton
+from awslabs.mysql_mcp_server.server import run_query as mysql_query
 from botocore.config import Config
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from pydantic import Field
-from typing import Any, Dict, List, Literal, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for interacting with AWS DynamoDB
 
 This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
-items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt
+items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt.
+
+MySQL Integration: This server also includes MySQL query capabilities through the run_query tool, enabling database
+analysis and migration planning from MySQL to DynamoDB.
 
 IMPORTANT: DynamoDB Attribute Value Format
 -----------------------------------------
@@ -940,6 +946,69 @@ async def list_imports(
         'ImportSummaryList': response.get('ImportSummaryList', []),
         'NextToken': response.get('NextToken'),
     }
+
+
+@app.tool()
+@handle_exceptions
+async def mysql_run_query(
+    sql: Annotated[str, Field(description='The SQL query to run')],
+    query_parameters: Annotated[
+        Optional[List[Dict[str, Any]]], Field(description='Parameters for the SQL query')
+    ] = None,
+) -> list[dict]:
+    """Run a SQL query against a MySQL database for analysis and migration planning."""
+    if all(
+        [
+            os.getenv('MYSQL_CLUSTER_ARN'),
+            os.getenv('MYSQL_SECRET_ARN'),
+            os.getenv('MYSQL_DATABASE'),
+        ]
+    ):
+        cluster_arn = os.getenv('MYSQL_CLUSTER_ARN')
+        secret_arn = os.getenv('MYSQL_SECRET_ARN')
+        database = os.getenv('MYSQL_DATABASE')
+        region = os.getenv('AWS_REGION', 'us-west-2')
+        readonly = os.getenv('MYSQL_READONLY', 'true').lower() == 'true'
+
+        try:
+            DBConnectionSingleton.initialize(cluster_arn, secret_arn, database, region, readonly)
+        except Exception as e:
+            logger.error(f'MySQL initialization failed - {type(e).__name__}: {str(e)}')
+            return [{'error': f'MySQL initialization failed: {str(e)}'}]
+    else:
+        missing_vars = []
+        if not os.getenv('MYSQL_CLUSTER_ARN'):
+            missing_vars.append('MYSQL_CLUSTER_ARN (RDS cluster ARN)')
+        if not os.getenv('MYSQL_SECRET_ARN'):
+            missing_vars.append('MYSQL_SECRET_ARN (Secrets Manager ARN)')
+        if not os.getenv('MYSQL_DATABASE'):
+            missing_vars.append('MYSQL_DATABASE (Database name)')
+
+        logger.error(
+            f'MySQL integration: Missing required environment variables: {[var.split()[0] for var in missing_vars]}'
+        )
+        return [
+            {
+                'error': f'MySQL integration requires these environment variables: {", ".join([var.split()[0] for var in missing_vars])}',
+                'required_variables': missing_vars,
+                'documentation': 'https://github.com/awslabs/mcp/tree/main/src/dynamodb-mcp-server#mysql-integration',
+            }
+        ]
+
+    class DummyContext:
+        async def error(self, message):
+            logger.error(f'MySQL query context error: {message}')
+
+    try:
+        # Execute query
+        result = await mysql_query(sql, DummyContext(), None, query_parameters)
+        return result
+    except Exception as e:
+        # Log query execution issue
+        logger.error(
+            f'DynamoDB-MySQL integration: Query execution failed - {type(e).__name__}: {str(e)}'
+        )
+        return [{'error': f'MySQL query failed: {str(e)}'}]
 
 
 def main():
