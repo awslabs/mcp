@@ -185,19 +185,22 @@ class TestErrorHandling:
 
             tools = CloudWatchLogsTools()
 
-            with pytest.raises(Exception) as exc_info:
-                await tools.execute_log_insights_query(
-                    mock_context,
-                    log_group_names=['test-group'],
-                    log_group_identifiers=None,
-                    start_time='2023-01-01T00:00:00+00:00',
-                    end_time='2023-01-01T01:00:00+00:00',
-                    query_string='fields @message',
-                    limit=10,
-                    max_timeout=30,
-                )
+            result = await tools.execute_log_insights_query(
+                mock_context,
+                log_group_names=['test-group'],
+                log_group_identifiers=None,
+                start_time='2023-01-01T00:00:00+00:00',
+                end_time='2023-01-01T01:00:00+00:00',
+                query_string='fields @message',
+                limit=10,
+                max_timeout=30,
+            )
 
-            assert 'Query API Error' in str(exc_info.value)
+            # Verify error response structure instead of exception
+            assert result['status'] == 'Error'
+            assert result['results'] == []
+            assert 'Query API Error' in result['message']
+            assert result['queryId'] == ''
             mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
@@ -212,10 +215,15 @@ class TestErrorHandling:
 
             tools = CloudWatchLogsTools()
 
-            with pytest.raises(Exception) as exc_info:
-                await tools.get_logs_insight_query_results(mock_context, query_id='test-query-id')
+            result = await tools.get_logs_insight_query_results(
+                mock_context, query_id='test-query-id'
+            )
 
-            assert 'Query Results API Error' in str(exc_info.value)
+            # Verify error response structure instead of exception
+            assert result['status'] == 'Error'
+            assert result['results'] == []
+            assert 'Query Results API Error' in result['message']
+            assert result['queryId'] == 'test-query-id'
             mock_context.error.assert_called_once()
 
     @pytest.mark.asyncio
@@ -296,6 +304,54 @@ class TestErrorHandling:
             assert result['queryId'] == 'test-query-id'
             assert result['status'] == 'Cancelled'
 
+    @pytest.mark.asyncio
+    async def test_poll_for_query_completion_unexpected_status(self, mock_context):
+        """Test polling with unexpected query status."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_client.get_query_results.return_value = {
+                'queryId': 'test-query-id',
+                'status': 'UnknownStatus',  # Unexpected status
+                'results': [],
+            }
+            mock_session.return_value.client.return_value = mock_client
+            tools = CloudWatchLogsTools()
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
+            assert result['queryId'] == 'test-query-id'
+            assert result['status'] == 'UnknownStatus'
+            assert result['results'] == []
+
+    @pytest.mark.asyncio
+    async def test_poll_for_query_completion_polling_exception(self, mock_context):
+        """Test polling with exception during get_query_results."""
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.tools.boto3.Session'
+        ) as mock_session:
+            mock_client = Mock()
+            mock_client.get_query_results.side_effect = Exception('Network timeout during polling')
+            mock_session.return_value.client.return_value = mock_client
+            tools = CloudWatchLogsTools()
+
+            result = await tools._poll_for_query_completion(
+                mock_client, 'test-query-id', 30, mock_context
+            )
+
+            # Verify error response structure
+            assert result['queryId'] == 'test-query-id'
+            assert result['status'] == 'Error'
+            assert 'Network timeout during polling' in result['message']
+            assert result['results'] == []
+
+            # Verify context error was called
+            mock_context.error.assert_called_once()
+            error_call_args = mock_context.error.call_args[0][0]
+            assert 'Error during query polling' in error_call_args
+            assert 'Network timeout during polling' in error_call_args
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
@@ -308,14 +364,13 @@ class TestEdgeCases:
             # Response with minimal fields
             raw_response = {
                 'status': 'Complete',
-                # Missing queryId, statistics, results
+                # Missing queryId, results
             }
 
             processed = tools._process_query_results(raw_response, 'fallback-id')
 
             assert processed['queryId'] == 'fallback-id'
             assert processed['status'] == 'Complete'
-            assert processed['statistics'] == {}
             assert processed['results'] == []
 
     def test_aws_profile_initialization(self):
