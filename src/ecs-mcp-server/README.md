@@ -17,6 +17,7 @@ An MCP server for containerizing applications, deploying applications to Amazon 
 - **Security Best Practices**: Implement AWS security best practices for container deployments
 - **Resource Management**: List and explore ECS resources such as task definitions, services, clusters, and tasks
 - **ECR Integration**: View repositories and container images in Amazon ECR
+- **AWS Knowledge Integration**: Access up-to-date AWS documentation through the integrated AWS Knowledge MCP Server proxy which includes knowledge on ECS and new features released that models may not be aware of
 
 Customers can use the `containerize_app` tool to help them containerize their applications with best practices and deploy them to Amazon ECS. The `create_ecs_infrastructure` tool automates infrastructure deployment using CloudFormation, while `get_deployment_status` returns the status of deployments and provide the URL of the set up Application Load Balancer. When resources are no longer needed, the `delete_ecs_infrastructure` tool allows for easy cleanup and removal of all deployed components.
 
@@ -86,6 +87,9 @@ The following operations are read-only and relatively safe for production enviro
 | `ecs_troubleshooting_tool` | `fetch_service_events` | ✅ Safe - Read-only |
 | `ecs_troubleshooting_tool` | `get_ecs_troubleshooting_guidance` | ✅ Safe - Read-only |
 | `get_deployment_status` | Status checking | ✅ Safe - Read-only |
+| `aws_knowledge_aws___search_documentation` | AWS documentation search | ✅ Safe - Read-only |
+| `aws_knowledge_aws___read_documentation` | AWS documentation reading | ✅ Safe - Read-only |
+| `aws_knowledge_aws___recommend` | AWS documentation recommendations | ✅ Safe - Read-only |
 
 The following operations modify resources and should be used with extreme caution in production:
 
@@ -298,6 +302,18 @@ This tool provides comprehensive access to Amazon ECS resources to help you moni
 
 The resource management tool enforces permission checks for write operations. Operations that modify resources require the ALLOW_WRITE environment variable to be set to true.
 
+### AWS Documentation Tools
+
+The ECS MCP Server integrates with the [AWS Knowledge MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-knowledge-mcp-server) to provide access to up-to-date AWS documentation, including ECS-specific knowledge about new features recently launched that models may not be aware of.
+
+Note: these tools are duplicative if you have the AWS Knowledge MCP Server already configured in your MCP client. For the below knowledge tools, the ECS MCP Server adds extra guidance to the tool descriptions to help LLMs use the tools for ECS contexts.
+
+- **aws_knowledge_aws___search_documentation**: Search across all AWS documentation including the latest AWS docs, API references, Blogs posts, Architectural references, and Well-Architected best practices.
+
+- **aws_knowledge_aws___read_documentation**: Fetch and convert AWS documentation pages to markdown format.
+
+- **aws_knowledge_aws___recommend**: Get content recommendations for AWS documentation pages.
+
 ## Example Prompts
 
 ### Containerization and Deployment
@@ -329,6 +345,12 @@ The resource management tool enforces permission checks for write operations. Op
 - "Delete an unused task definition"
 - "Run a task in my cluster"
 - "Stop a running task"
+
+### AWS Documentation and Knowledge
+
+- "What are the best practices for ECS deployments?"
+- "How do I set up blue-green deployments in ECS?"
+- "Get recommendations for ECS security best practices"
 
 ## Requirements
 

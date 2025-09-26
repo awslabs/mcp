@@ -172,7 +172,7 @@ class DenseRetriever:
             show_progress_bar=True,
         ).astype('float32')
 
-    def get_suggestions(self, query: str, **kwargs) -> dict[str, list[dict]]:
+    def get_suggestions(self, query: str, **_kwargs) -> dict[str, list[dict]]:
         """Search for similar documents using the query."""
         # Generate embedding for the query
         query_embedding = self.model.encode([query], normalize_embeddings=True).astype('float32')
