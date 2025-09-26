@@ -31,7 +31,13 @@ try:
 except Exception:
     from . import __version__
 
+
 DEFAULT_USER_AGENT = f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/{__version__} (AWS Documentation Server)'
+
+
+def get_user_agent() -> str:
+    """Get the user agent string, identifying the MCP Server, for HTTP requests to AWS Documentation endpoints."""
+    return DEFAULT_USER_AGENT
 
 
 async def read_documentation_impl(
@@ -57,7 +63,7 @@ async def read_documentation_impl(
                 url_with_session,
                 follow_redirects=True,
                 headers={
-                    'User-Agent': DEFAULT_USER_AGENT,
+                    'User-Agent': get_user_agent(),
                     'X-MCP-Session-Id': session_uuid,
                 },
                 timeout=30,

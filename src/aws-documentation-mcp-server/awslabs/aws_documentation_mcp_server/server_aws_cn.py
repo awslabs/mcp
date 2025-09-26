@@ -17,7 +17,7 @@ import httpx
 import re
 import uuid
 from awslabs.aws_documentation_mcp_server.server_utils import (
-    DEFAULT_USER_AGENT,
+    get_user_agent,
     read_documentation_impl,
 )
 
@@ -165,7 +165,7 @@ async def get_available_services(
             response = await client.get(
                 url_with_session,
                 follow_redirects=True,
-                headers={'User-Agent': DEFAULT_USER_AGENT},
+                headers={'User-Agent': get_user_agent()},
                 timeout=30,
             )
         except httpx.HTTPError as e:
