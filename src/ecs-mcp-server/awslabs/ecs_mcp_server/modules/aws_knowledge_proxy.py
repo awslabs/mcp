@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 
 def register_proxy(mcp: FastMCP) -> Optional[bool]:
     """
-    Sets up the AWS Knowledge MCP Server proxy integration.
+    Sets up the AWS Knowledge MCP Server proxy integration using transport bridging
+    -> https://gofastmcp.com/servers/proxy#transport-bridging
 
     Args:
         mcp: The FastMCP server instance to mount the proxy on
@@ -50,22 +51,9 @@ def register_proxy(mcp: FastMCP) -> Optional[bool]:
     """
     try:
         logger.info("Setting up AWS Knowledge MCP Server proxy")
-        proxy_config = {
-            "mcpServers": {
-                "aws-knowledge-mcp-server": {
-                    "command": "uvx",
-                    "args": [
-                        "mcp-proxy",
-                        "--transport",
-                        "streamablehttp",
-                        "https://knowledge-mcp.global.api.aws",
-                    ],
-                }
-            }
-        }
-
-        # Create and mount the proxy
-        aws_knowledge_proxy = FastMCP.as_proxy(ProxyClient(proxy_config))
+        aws_knowledge_proxy = FastMCP.as_proxy(
+            ProxyClient("https://knowledge-mcp.global.api.aws"), name="AWS-Knowledge-Bridge"
+        )
         mcp.mount(aws_knowledge_proxy, prefix="aws_knowledge")
 
         # Add prompt patterns for blue-green deployments
