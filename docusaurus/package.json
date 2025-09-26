@@ -12,8 +12,8 @@
     ]
   },
   "dependencies": {
-    "@docusaurus/core": "3.8.1",
-    "@docusaurus/preset-classic": "3.8.1",
+    "@docusaurus/core": "^3.9.0",
+    "@docusaurus/preset-classic": "^3.9.0",
     "@mdx-js/react": "^3.1.1",
     "clsx": "^2.0.0",
     "prism-react-renderer": "^2.3.0",
@@ -31,11 +31,6 @@
     "node": ">=18.0"
   },
   "name": "docs",
-  "overrides": {
-    "@docusaurus/core": {
-      "webpack-dev-server": "^5.2.1"
-    }
-  },
   "private": true,
   "scripts": {
     "build": "docusaurus build",
