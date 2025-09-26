@@ -8,16 +8,16 @@ from unittest.mock import patch
 def test_aws_client_initialization_error():
     """Test error handling during AWS client initialization."""
     # Remove the module from sys.modules if it exists
-    module_name = 'awslabs.cloudwatch_appsignals_mcp_server.server'
+    module_name = 'awslabs.cloudwatch_appsignals_mcp_server.aws_clients'
     if module_name in sys.modules:
         del sys.modules[module_name]
 
-    with patch('boto3.client') as mock_boto:
+    with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.boto3.client') as mock_boto:
         mock_boto.side_effect = Exception('Failed to initialize AWS client')
 
         # Import should fail due to client initialization error
         with pytest.raises(Exception, match='Failed to initialize AWS client'):
-            import awslabs.cloudwatch_appsignals_mcp_server.server  # noqa: F401
+            import awslabs.cloudwatch_appsignals_mcp_server.aws_clients  # noqa: F401
 
 
 def test_module_as_main():

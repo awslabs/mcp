@@ -14,8 +14,8 @@
 
 """Retrieve service SLI status based on configured Application Signals SLOs."""
 
-import boto3
 import logging
+from .aws_clients import appsignals_client, cloudwatch_client
 from botocore.exceptions import ClientError
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -186,23 +186,16 @@ class SLIReportClient:
 
         Args:
             config: AWSConfig instance containing region, period, and service settings
-
-        Raises:
-            Exception: If AWS clients fail to initialize
         """
         self.config = config
         logger.info(
             f'Initializing SLIReportClient for service: {config.service_name}, region: {config.region}'
         )
 
-        try:
-            # Initialize AWS service clients
-            self.signals_client = boto3.client('application-signals', region_name=config.region)
-            self.cloudwatch_client = boto3.client('cloudwatch', region_name=config.region)
-            logger.debug('AWS clients initialized successfully')
-        except Exception as e:
-            logger.error(f'Failed to initialize AWS clients: {str(e)}', exc_info=True)
-            raise
+        # Use shared AWS clients from aws_clients module
+        self.signals_client = appsignals_client
+        self.cloudwatch_client = cloudwatch_client
+        logger.debug('Using shared AWS clients')
 
     def get_slo_summaries(self) -> List[SLOSummary]:
         """Fetches SLO summaries from AWS Application Signals."""

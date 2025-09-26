@@ -1,13 +1,17 @@
 # CloudWatch Application Signals MCP Server
 
-An MCP (Model Context Protocol) server that provides tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).
+An MCP (Model Context Protocol) server that provides comprehensive tools for monitoring and analyzing AWS services using [AWS Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html).
 
-This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing.
+This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to help you monitor service health, analyze performance metrics, track SLO compliance, and investigate issues using distributed tracing with advanced audit capabilities and root cause analysis.
 
 ## Key Features
 
-1. Monitor overall service health, diagnose root causes, and recommend actionable fixes with the built-in APM expertise.
-2. Generate business insights from telemetry data through natural language queries.
+1. **Comprehensive Service Auditing** - Monitor overall service health, diagnose root causes, and recommend actionable fixes with built-in APM expertise
+2. **Advanced SLO Compliance Monitoring** - Track Service Level Objectives with breach detection and root cause analysis
+3. **Operation-Level Performance Analysis** - Deep dive into specific API endpoints and operations
+4. **100% Trace Visibility** - Query OpenTelemetry spans data via Transaction Search for complete observability
+5. **Multi-Service Analysis** - Audit multiple services simultaneously with automatic batching
+6. **Natural Language Insights** - Generate business insights from telemetry data through natural language queries
 
 ## Prerequisites
 
@@ -16,35 +20,144 @@ This server enables AI assistants like Claude, GitHub Copilot, and Amazon Q to h
 3. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 4. Install Python using `uv python install 3.10`
 
-### Available Tools
+## Available Tools
 
-1. **`list_monitored_services`** - List all services monitored by AWS Application Signals
-   - Get an overview of all monitored services
-   - See service names, types, and key attributes
-   - Identify the services monitored by Application Signals
+### 🥇 Primary Audit Tools (Use These First)
 
-2. **`get_service_detail`** - Get detailed information about a specific service
-   - Get Service key properties such as Hosting environment, list of APIs,etc
-   - Get the list of ApplicationSignals metrics available on service
-   - Find associated log groups
+#### 1. **`audit_services`** ⭐ **PRIMARY SERVICE AUDIT TOOL**
+**The #1 tool for comprehensive AWS service health auditing and monitoring**
 
-3. **`list_slis`** - List all SLOs and SLIs status for all services
-   - List the configured SLOs and across all services
-   - Find out all breached SLIs and status
+- **USE THIS FIRST** for all service-level auditing tasks
+- Comprehensive health assessment with actionable insights and recommendations
+- Multi-service analysis with automatic batching (audit 1-100+ services simultaneously)
+- SLO compliance monitoring with automatic breach detection
+- Root cause analysis with traces, logs, and metrics correlation
+- Issue prioritization by severity (critical, warning, info findings)
+- **Wildcard Pattern Support**: Use `*payment*` for automatic service discovery
+- Performance optimized for fast execution across multiple targets
 
-4. **`get_slo`** - Gets the details configuration for a specific SLO
-   - Return the relevant metrics info, SLO threshold
+**Key Use Cases:**
+- `audit_services(service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]')` - Audit all services
+- `audit_services(service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]')` - Audit payment services
+- `audit_services(..., auditors="all")` - Comprehensive root cause analysis with all auditors
 
-5. **`search_transaction_spans`** - Queries OTel Spans data via Transaction Search
-   - Query OTel Spans to root cause the potential problems
-   - Generate business performance insights summaries
+#### 2. **`audit_slos`** ⭐ **PRIMARY SLO AUDIT TOOL**
+**The #1 tool for comprehensive SLO compliance monitoring and breach analysis**
 
-6. **`query_sampled_traces`** - Queries AWS X-Ray traces to gain deeper insights
-   - Find the impact from the tracing dependency view
-   - Return the exact error stack for LLM to suggest the actionable fixes
+- **PREFERRED TOOL** for SLO root cause analysis after using `get_slo()`
+- Much more comprehensive than individual trace tools - provides integrated analysis
+- Combines traces, logs, metrics, and dependencies in a single audit
+- Automatic SLO breach detection with prioritized findings
+- **Wildcard Pattern Support**: Use `*payment*` for automatic SLO discovery
+- Actionable recommendations based on multi-dimensional analysis
 
-7. **`query_service_metrics`** - Queries Application Signals metrics for root causing service performance issues
-   - Query Application Signals RED metrics to correlate the relevant OTel Spans/Traces for troubleshooting
+**Key Use Cases:**
+- `audit_slos(slo_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"*"}}}]')` - Audit all SLOs
+- `audit_slos(..., auditors="all")` - Comprehensive root cause analysis for SLO breaches
+
+#### 3. **`audit_service_operations`** 🥇 **PRIMARY OPERATION AUDIT TOOL**
+**The #1 RECOMMENDED tool for operation-specific analysis and performance investigation**
+
+- **PREFERRED OVER audit_services()** for operation-level auditing
+- Precision targeting of exact operation behavior vs. service-wide averages
+- Actionable insights with specific error traces and dependency failures
+- Code-level detail with exact stack traces and timeout locations
+- **Wildcard Pattern Support**: Use `*GET*` for specific operation types
+- Focused analysis that eliminates noise from other operations
+
+**Key Use Cases:**
+- `audit_service_operations(operation_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]')` - Audit GET operations in payment services
+- `audit_service_operations(..., auditors="all")` - Root cause analysis for specific operations
+
+### 📊 Service Discovery & Information Tools
+
+#### 4. **`list_monitored_services`** - Service Discovery Tool
+**OPTIONAL TOOL** - `audit_services()` can automatically discover services using wildcard patterns
+
+- Get detailed overview of all monitored services in your environment
+- Discover specific service names and environments for manual audit target construction
+- **RECOMMENDED**: Use `audit_services()` with wildcard patterns instead for comprehensive discovery AND analysis
+
+#### 5. **`get_service_detail`** - Service Metadata Tool
+**For basic service metadata and configuration details**
+
+- Service metadata and configuration (platform information, key attributes)
+- Service-level metrics (Latency, Error, Fault aggregates)
+- Log groups associated with the service
+- **IMPORTANT**: This tool does NOT provide operation names - use `audit_services()` for operation discovery
+
+#### 6. **`list_service_operations`** - Operation Discovery Tool
+**CRITICAL LIMITATION**: Only discovers operations that have been ACTIVELY INVOKED in the specified time window
+
+- Basic operation inventory for RECENTLY ACTIVE operations only (max 24 hours)
+- Empty results ≠ no operations exist, just no recent invocations
+- **RECOMMENDED**: Use `audit_services()` FIRST for comprehensive operation discovery and analysis
+
+### 🎯 SLO Management Tools
+
+#### 7. **`get_slo`** - SLO Configuration Details
+**Essential for understanding SLO configuration before deep investigation**
+
+- Comprehensive SLO configuration details (metrics, thresholds, goals)
+- Operation names and key attributes for further investigation
+- Metric type (LATENCY or AVAILABILITY) and comparison operators
+- **NEXT STEP**: Use `audit_slos()` with `auditors="all"` for root cause analysis
+
+#### 8. **`list_slos`** - SLO Discovery
+**List all Service Level Objectives in Application Signals**
+
+- Complete list of all SLOs in your account with names and ARNs
+- Filter SLOs by service attributes
+- Basic SLO information including creation time and operation names
+- Useful for SLO discovery and finding SLO names for use with other tools
+
+### 📈 Metrics & Performance Tools
+
+#### 9. **`query_service_metrics`** - CloudWatch Metrics Analysis
+**Get CloudWatch metrics for specific Application Signals services**
+
+- Analyze service performance (latency, throughput, error rates)
+- View trends over time with both standard statistics and percentiles
+- Automatic granularity adjustment based on time range
+- Summary statistics with recent data points and timestamps
+
+### 🔍 Advanced Trace & Log Analysis Tools
+
+#### 10. **`search_transaction_spans`** - 100% Trace Visibility
+**Query OpenTelemetry Spans data via Transaction Search (100% sampled data)**
+
+- **100% sampled data** vs X-Ray's 5% sampling for more accurate results
+- Query "aws/spans" log group with CloudWatch Logs Insights
+- Generate business performance insights and summaries
+- **IMPORTANT**: Always include a limit in queries to prevent overwhelming context
+
+**Example Query:**
+```
+FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local.environment = "eks:production"
+| STATS avg(duration) as avg_latency by attributes.aws.local.operation
+| LIMIT 50
+```
+
+#### 11. **`query_sampled_traces`** - X-Ray Trace Analysis (Secondary Tool)
+**Query AWS X-Ray traces (5% sampled data) for trace investigation**
+
+- **⚠️ IMPORTANT**: Consider using `audit_slos()` with `auditors="all"` instead for comprehensive root cause analysis
+- Uses X-Ray's 5% sampled trace data - may miss critical errors
+- Limited context compared to comprehensive audit tools
+- **RECOMMENDATION**: Use `get_service_detail()` for operation discovery and `audit_slos()` for root cause analysis
+
+**Common Filter Expressions:**
+- `service("service-name"){fault = true}` - Find traces with faults (5xx errors)
+- `duration > 5` - Find slow requests (over 5 seconds)
+- `annotation[aws.local.operation]="GET /api/orders"` - Filter by specific operation
+
+#### 12. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
+**Use `audit_services()` as the PRIMARY tool for service auditing**
+
+- Basic report showing summary counts (total, healthy, breached, insufficient data)
+- Simple list of breached services with SLO names
+- **IMPORTANT**: `audit_services()` is the PRIMARY and PREFERRED tool for all service auditing tasks
+- Only use this tool for legacy SLI status report format specifically
 
 ## Installation
 
@@ -200,70 +313,211 @@ npx @modelcontextprotocol/inspector uv run awslabs.cloudwatch-appsignals-mcp-ser
 
 ## Usage Examples
 
-### Example 1: Getting Started with Service Monitoring
+### Example 1: Comprehensive Service Health Audit (Recommended Workflow)
 ```
-User: "What services are being monitored by Application Signals?"
-Assistant: I'll check what services are currently being monitored by AWS Application Signals.
+User: "Audit the health of all my payment services"
+Assistant: I'll perform a comprehensive health audit of all your payment services using the primary audit tool.
 
-[Uses list_monitored_services tool]
+[Uses audit_services with wildcard pattern]
 
-I found 3 services being monitored:
+audit_services(
+  service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*payment*"}}}]',
+  auditors="slo,operation_metric"
+)
 
-• Service: api-gateway-service
-  Type: AWS::ApiGateway::RestApi
-  Key Attributes:
-    Name: api-gateway-service
-    Type: AWS::ApiGateway::RestApi
-    Environment: production
+Results: Found 3 payment services with the following findings:
 
-• Service: order-service
-  Type: AWS::ECS::Service
-  Key Attributes:
-    Name: order-service
-    Type: AWS::ECS::Service
-    Environment: production
-    Platform: ECS
+🔴 CRITICAL FINDINGS:
+• payment-api-service: SLO breach detected - Latency SLO violated (p99: 2.1s > 1.5s threshold)
+• payment-processor: High error rate detected (8.2% > 5% threshold)
 
-• Service: payment-lambda
-  Type: AWS::Lambda::Function
-  Key Attributes:
-    Name: payment-lambda
-    Type: AWS::Lambda::Function
-    Environment: production
+⚠️ WARNING FINDINGS:
+• payment-gateway: Dependency timeout issues with external payment provider
+
+✅ HEALTHY:
+• payment-validator: All metrics within normal ranges
+
+Recommendations:
+1. Investigate payment-api-service latency issues - check database connection pool
+2. Review payment-processor error logs for root cause analysis
+3. Consider circuit breaker pattern for payment-gateway external dependencies
 ```
 
-### Example 2: Investigating Service Details
+### Example 2: SLO Breach Root Cause Analysis
 ```
-User: "Tell me more about the order-service"
-Assistant: I'll get detailed information about the order-service.
+User: "I have an SLO breach for my checkout service. Can you help me investigate?"
+Assistant: I'll help you investigate the SLO breach. Let me first get the SLO configuration and then perform a comprehensive root cause analysis.
 
-[Uses get_service_detail tool]
+[Uses get_slo to understand configuration]
+[Then uses audit_slos with auditors="all" for comprehensive analysis]
 
-Here are the details for order-service:
+audit_slos(
+  slo_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"checkout-service-latency-slo"}}}]',
+  auditors="all"
+)
 
-Key Attributes:
-  Name: order-service
-  Type: AWS::ECS::Service
-  Environment: production
+Root Cause Analysis Results:
 
-Additional Attributes:
-  Platform: ECS
-  Application: ecommerce-app
-  Telemetry.SDK: opentelemetry-1.9.0
+🔴 SLO BREACH CONFIRMED:
+• checkout-service-latency-slo: 87.3% attainment (< 95% goal)
+• Breach duration: 2.5 hours
+• Impact: 1,247 requests affected
 
-Metric References (15 total):
-  • AWS/ApplicationSignals/Latency
-    Type: GAUGE
-    Dimensions: Service=order-service, Operation=GetOrder
+🔍 ROOT CAUSE IDENTIFIED:
+• Database connection pool exhaustion detected
+• Trace analysis shows 95% of slow requests waiting for DB connections
+• Dependency on payment-service also showing elevated latency
 
-  • AWS/ApplicationSignals/ErrorRate
-    Type: GAUGE
-    Dimensions: Service=order-service, Operation=CreateOrder
+📊 SUPPORTING EVIDENCE:
+• P99 latency: 3.2s (threshold: 2.0s)
+• Error rate spike: 12% during breach period
+• 15 error traces with "connection timeout" messages
 
-Log Group References (2 total):
-  • /aws/ecs/order-service
-  • /aws/application-signals/order-service
+🛠️ RECOMMENDED ACTIONS:
+1. Increase database connection pool size from 10 to 25
+2. Implement connection pool monitoring alerts
+3. Review payment-service dependency performance
+4. Consider implementing request queuing for high load periods
 ```
+
+### Example 3: Operation-Level Performance Investigation
+```
+User: "The GET operations in my payment services are slow. Can you investigate?"
+Assistant: I'll investigate the performance of GET operations specifically in your payment services using operation-level analysis.
+
+[Uses audit_service_operations for precise operation targeting]
+
+audit_service_operations(
+  operation_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*payment*"},"Operation":"*GET*","MetricType":"Latency"}}}]',
+  auditors="operation_metric,trace"
+)
+
+Operation Performance Analysis Results:
+
+🎯 GET OPERATIONS ANALYZED:
+• payment-api: GET /api/payments/{id} - P99: 1.8s
+• payment-api: GET /api/payments/history - P99: 3.2s ⚠️
+• payment-processor: GET /api/process/status - P99: 0.8s ✅
+
+🔴 PERFORMANCE ISSUES IDENTIFIED:
+• GET /api/payments/history: Consistently slow (3.2s avg)
+  - Root cause: Full table scan on payments table
+  - 89% of requests show database query time > 2.5s
+  - Missing index on user_id + created_date columns
+
+📈 PERFORMANCE RECOMMENDATIONS:
+1. Add composite index: CREATE INDEX idx_payments_user_date ON payments(user_id, created_date)
+2. Implement pagination for history endpoint (limit 50 records)
+3. Consider caching for frequently accessed payment histories
+4. Add query timeout protection (max 5s)
+
+🚀 EXPECTED IMPROVEMENT:
+• Estimated latency reduction: 3.2s → 0.4s (87% improvement)
+• Database load reduction: ~75%
+```
+
+### Example 4: Transaction Search for 100% Trace Visibility
+```
+User: "I want to analyze all the errors in my checkout service from the last hour"
+Assistant: I'll use Transaction Search to analyze all errors with 100% trace visibility (no sampling).
+
+[Uses search_transaction_spans for complete trace data]
+
+search_transaction_spans(
+  log_group_name="aws/spans",
+  query_string='FILTER attributes.aws.local.service = "checkout-service" and attributes.http.status_code >= 400 | STATS count() as error_count by attributes.http.status_code, attributes.aws.local.operation | SORT error_count DESC | LIMIT 20',
+  start_time="2024-01-15T10:00:00Z",
+  end_time="2024-01-15T11:00:00Z"
+)
+
+✅ Transaction Search Results (100% sampled data):
+
+ERROR BREAKDOWN (Last Hour):
+• HTTP 500 errors: 47 occurrences
+  - POST /api/checkout/complete: 31 errors
+  - POST /api/checkout/validate: 16 errors
+
+• HTTP 404 errors: 23 occurrences
+  - GET /api/checkout/{id}: 23 errors
+
+• HTTP 503 errors: 12 occurrences
+  - POST /api/checkout/payment: 12 errors
+
+🔍 KEY INSIGHTS:
+• 82 total errors out of 1,247 requests (6.6% error rate)
+• Most errors (66%) in checkout completion flow
+• Service unavailable errors correlate with payment service dependency
+
+🛠️ IMMEDIATE ACTIONS NEEDED:
+1. Investigate checkout completion logic for 500 errors
+2. Add validation for checkout ID existence (404s)
+3. Implement circuit breaker for payment service calls (503s)
+```
+
+### Example 5: Service Discovery and Overview
+```
+User: "What services are being monitored and what's their current health status?"
+Assistant: I'll get an overview of all monitored services and their health status.
+
+[Uses list_monitored_services for discovery, then audit_services for health analysis]
+
+Found 8 services being monitored:
+
+📊 SERVICE INVENTORY:
+• api-gateway-service (AWS::ApiGateway::RestApi) - Production
+• checkout-service (AWS::ECS::Service) - Production
+• payment-api-service (AWS::ECS::Service) - Production
+• payment-processor (AWS::Lambda::Function) - Production
+• user-service (AWS::EKS::Service) - Production
+• inventory-service (AWS::EKS::Service) - Production
+• notification-lambda (AWS::Lambda::Function) - Production
+• analytics-service (AWS::ECS::Service) - Production
+
+[Then performs health audit]
+
+🏥 HEALTH STATUS SUMMARY:
+✅ HEALTHY (5 services):
+• api-gateway-service: All SLOs met, low latency
+• user-service: Excellent performance metrics
+• inventory-service: All operations within thresholds
+• notification-lambda: Fast execution, no errors
+• analytics-service: Stable performance
+
+⚠️ NEEDS ATTENTION (2 services):
+• checkout-service: Elevated latency on completion operations
+• payment-api-service: Intermittent timeout issues
+
+🔴 CRITICAL (1 service):
+• payment-processor: SLO breach - error rate 8.2% (threshold: 5%)
+
+💡 RECOMMENDATIONS:
+1. Focus immediate attention on payment-processor error investigation
+2. Monitor checkout-service latency trends
+3. Review payment-api-service timeout configurations
+```
+
+## Recommended Workflows
+
+### 🎯 Primary Audit Workflow (Most Common)
+1. **Start with `audit_services()`** - Use wildcard patterns for automatic service discovery
+2. **Review findings summary** - Let user choose which issues to investigate further
+3. **Deep dive with `auditors="all"`** - For selected services needing root cause analysis
+
+### 🔍 SLO Investigation Workflow
+1. **Use `get_slo()`** - Understand SLO configuration and thresholds
+2. **Use `audit_slos()` with `auditors="all"`** - Comprehensive root cause analysis
+3. **Follow actionable recommendations** - Implement suggested fixes
+
+### ⚡ Operation Performance Workflow
+1. **Use `audit_service_operations()`** - Target specific operations with precision
+2. **Apply wildcard patterns** - e.g., `*GET*` for all GET operations
+3. **Root cause analysis** - Use `auditors="all"` for detailed investigation
+
+### 📊 Complete Observability Workflow
+1. **Service Discovery** - `audit_services()` with wildcard patterns
+2. **SLO Compliance** - `audit_slos()` for breach detection
+3. **Operation Analysis** - `audit_service_operations()` for endpoint-specific issues
+4. **Trace Investigation** - `search_transaction_spans()` for 100% trace visibility
 
 ## Configuration
 
@@ -280,15 +534,18 @@ The server requires the following AWS IAM permissions:
       "Action": [
         "application-signals:ListServices",
         "application-signals:GetService",
+        "application-signals:ListServiceOperations",
         "application-signals:ListServiceLevelObjectives",
         "application-signals:GetServiceLevelObjective",
         "application-signals:BatchGetServiceLevelObjectiveBudgetReport",
         "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
         "logs:GetQueryResults",
         "logs:StartQuery",
         "logs:StopQuery",
         "xray:GetTraceSummaries",
-        "xray:BatchGetTraces"
+        "xray:BatchGetTraces",
+        "xray:GetTraceSegmentDestination"
       ],
       "Resource": "*"
     }
@@ -301,6 +558,7 @@ The server requires the following AWS IAM permissions:
 - `AWS_PROFILE` - AWS profile name to use for authentication (defaults to `default` profile)
 - `AWS_REGION` - AWS region (defaults to us-east-1)
 - `MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL` - Logging level (defaults to INFO)
+- `AUDITOR_LOG_PATH` - Path for audit log files (defaults to /tmp)
 
 ### AWS Credentials
 
@@ -311,9 +569,37 @@ The server will use the standard AWS credential chain via boto3, which includes:
 - Default profile from AWS credentials file
 - IAM roles when running on EC2, ECS, Lambda, etc.
 
+### Transaction Search Configuration
+
+For 100% trace visibility, enable AWS X-Ray Transaction Search:
+1. Configure X-Ray to send traces to CloudWatch Logs
+2. Set destination to 'CloudWatchLogs' with status 'ACTIVE'
+3. This enables the `search_transaction_spans()` tool for complete observability
+
+Without Transaction Search, you'll only have access to 5% sampled trace data through X-Ray.
+
 ## Development
 
 This server is part of the AWS Labs MCP collection. For development and contribution guidelines, please see the main repository documentation.
+
+### Running Tests
+
+To run the comprehensive test suite that validates all use case examples and tool functionality:
+
+```bash
+cd src/cloudwatch-appsignals-mcp-server
+python -m pytest tests/test_use_case_examples.py -v
+```
+
+This test file verifies that all use case examples in the tool documentation call the correct tools with the right parameters and target formats. It includes tests for:
+
+- All documented use cases for `audit_services()`, `audit_slos()`, and `audit_service_operations()`
+- Target format validation (service, SLO, and operation targets)
+- Wildcard pattern expansion functionality
+- Auditor selection for different scenarios
+- JSON format validation for all documentation examples
+
+The tests use mocked AWS clients to prevent real API calls while validating the tool logic and parameter handling.
 
 ## License
 
