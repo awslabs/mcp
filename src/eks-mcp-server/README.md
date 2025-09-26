@@ -108,8 +108,6 @@ This quickstart guide walks you through the steps to configure the Amazon EKS MC
 
 The example below includes both the `--allow-write` flag for mutating operations and the `--allow-sensitive-data-access` flag for accessing logs and events (see the Arguments section for more details):
 
-   **For Mac/Linux:**
-
 	```
 	{
 	  "mcpServers": {
@@ -130,29 +128,13 @@ The example below includes both the `--allow-write` flag for mutating operations
 	}
 	```
 
-   **For Windows:**
+**For Windows users:**
 
-	```
-	{
-	  "mcpServers": {
-	    "awslabs.eks-mcp-server": {
-	      "command": "uvx",
-	      "args": [
-	        "--from",
-	        "awslabs.eks-mcp-server@latest",
-	        "awslabs.eks-mcp-server.exe",
-	        "--allow-write",
-	        "--allow-sensitive-data-access"
-	      ],
-	      "env": {
-	        "FASTMCP_LOG_LEVEL": "ERROR"
-	      },
-	      "autoApprove": [],
-	      "disabled": false
-	    }
-	  }
-	}
-	```
+Make sure your `uv --version` is at least 0.8.12, otherwise you may see the below error:
+```
+error: Failed to spawn: `awslabs.<mcp server name>`
+  Caused by: program not found
+```
 
 3. Verify your setup by running the `/tools` command in the Q Developer CLI to see the available EKS MCP tools.
 
@@ -164,7 +146,6 @@ Note that this is a basic quickstart. You can enable additional capabilities, su
 
 The `args` field in the MCP server definition specifies the command-line arguments passed to the server when it starts. These arguments control how the server is executed and configured. For example:
 
-**For Mac/Linux:**
 ```
 {
   "mcpServers": {
@@ -183,40 +164,6 @@ The `args` field in the MCP server definition specifies the command-line argumen
   }
 }
 ```
-
-**For Windows:**
-```
-{
-  "mcpServers": {
-    "awslabs.eks-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "awslabs.eks-mcp-server@latest",
-        "awslabs.eks-mcp-server.exe",
-        "--allow-write",
-        "--allow-sensitive-data-access"
-      ],
-      "env": {
-        "AWS_PROFILE": "your-profile",
-        "AWS_REGION": "us-east-1"
-      }
-    }
-  }
-}
-```
-
-#### Command Format
-
-The command format differs between operating systems:
-
-**For Mac/Linux:**
-* `awslabs.eks-mcp-server@latest` - Specifies the latest package/version specifier for the MCP client config.
-
-**For Windows:**
-* `--from awslabs.eks-mcp-server@latest awslabs.eks-mcp-server.exe` - Windows requires the `--from` flag to specify the package and the `.exe` extension.
-
-Both formats enable MCP server startup and tool registration.
 
 #### `--allow-write` (optional)
 
@@ -578,7 +525,6 @@ The EKS MCP Server can be used for production environments with proper security 
 
 An array within the MCP server definition that lists tool names to be automatically approved by the EKS MCP Server client, bypassing user confirmation for those specific tools. For example:
 
-**For Mac/Linux:**
 ```
 {
   "mcpServers": {
@@ -586,39 +532,6 @@ An array within the MCP server definition that lists tool names to be automatica
       "command": "uvx",
       "args": [
         "awslabs.eks-mcp-server@latest"
-      ],
-      "env": {
-        "AWS_PROFILE": "eks-mcp-readonly-profile",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "INFO"
-      },
-      "autoApprove": [
-        "manage_eks_stacks",
-        "manage_k8s_resource",
-        "list_k8s_resources",
-        "get_pod_logs",
-        "get_k8s_events",
-        "get_cloudwatch_logs",
-        "get_cloudwatch_metrics",
-        "get_policies_for_role",
-        "search_eks_troubleshoot_guide",
-        "list_api_versions"
-      ]
-    }
-  }
-}
-```
-
-**For Windows:**
-```
-{
-  "mcpServers": {
-    "awslabs.eks-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "awslabs.eks-mcp-server@latest",
-        "awslabs.eks-mcp-server.exe"
       ],
       "env": {
         "AWS_PROFILE": "eks-mcp-readonly-profile",

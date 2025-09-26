@@ -92,40 +92,9 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 ```
 
 To enable specific role-based server configurations, add the corresponding environment variables to the `env` section of your MCP client configuration. For example, the configuration above enables the `aws-foundation` and `solutions-architect` roles, which will import the corresponding MCP servers.
-### Windows Installation
-
-For Windows users, the MCP server configuration format is slightly different:
-
-```json
-{
-  "mcpServers": {
-    "awslabs.core-mcp-server": {
-      "disabled": false,
-      "timeout": 60,
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "tool",
-        "run",
-        "--from",
-        "awslabs.core-mcp-server@latest",
-        "awslabs.core-mcp-server.exe"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1",
-        "aws-foundation": "true",
-        "solutions-architect": "true"
-        // Add other roles as needed
-      }
-    }
-  }
-}
-```
 
 
-or docker after a successful `docker build -t awslabs/core-mcp-server .`:
+Alternatively, install using docker after a successful `docker build -t awslabs/core-mcp-server .`:
 
 ```json
   {

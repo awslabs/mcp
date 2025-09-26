@@ -64,8 +64,6 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
 
-**For Linux/MacOS users:**
-
 ```json
 {
   "mcpServers": {
@@ -88,26 +86,10 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
 
 **For Windows users:**
 
-```json
-{
-  "mcpServers": {
-    "awslabs.billing-cost-management-mcp-server": {
-      "command": "uvx",
-      "args": [
-         "--from",
-         "awslabs.billing-cost-management-mcp-server@latest",
-         "awslabs.billing-cost-management-mcp-server.exe"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
+Make sure your `uv --version` is at least 0.8.12, otherwise you may see the below error:
+```
+error: Failed to spawn: `awslabs.<mcp server name>`
+  Caused by: program not found
 ```
 
 ### Using Docker
