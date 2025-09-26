@@ -7,8 +7,9 @@ An Amazon Neptune MCP server that allows for fetching status, schema, and queryi
 The Amazon Neptune MCP Server provides the following capabilities:
 
 1. **Run Queries**: Execute openCypher and/or Gremlin queries against the configured database
-2. **Schema**: Get the schema in the configured graph as a text string
-3. **Status**: Find if the graph is "Available" or "Unavailable" to your server.  This is useful in helping to ensure that the graph is connected.
+2. **Explain Queries**: Get query execution plans and optimization details for openCypher and Gremlin queries
+3. **Schema**: Get the schema in the configured graph as a text string
+4. **Status**: Find if the graph is "Available" or "Unavailable" to your server.  This is useful in helping to ensure that the graph is connected.
 
 ### AWS Requirements
 
@@ -19,7 +20,7 @@ The Amazon Neptune MCP Server provides the following capabilities:
    - Query Amazon Neptune
 4. **Access**: The location where you are running the server must have access to the Amazon Neptune instance.  Neptune Database resides in a private VPC so access into the private VPC.  Neptune Analytics can be access either using a public endpoint, if configured, or the access will be needed to the private endpoint.
 
-Note: This server will run any query sent to it, which could include both mutating and read-only actions.  Properly configuring the permissions of the role to allow/disallow specific data plane actions as specified here:
+Note: This server will run any query sent to it, which could include both mutating and read-only actions. The explain functionality provides query execution plans without executing the actual query, making it safe for query optimization and analysis. Properly configure the permissions of the role to allow/disallow specific data plane actions as specified here:
 * [Neptune Database](https://docs.aws.amazon.com/neptune/latest/userguide/security.html)
 * [Neptune Analytics](https://docs.aws.amazon.com/neptune-analytics/latest/userguide/security.html)
 
@@ -113,3 +114,22 @@ For Neptune Database:
 
 For Neptune Analytics:
 `neptune-graph://<graph identifier>`
+
+## Available Tools
+
+The server provides the following MCP tools:
+
+### Query Execution
+- `run_opencypher_query(query, parameters)` - Execute openCypher queries against the graph
+- `run_gremlin_query(query)` - Execute Gremlin queries against the graph (Neptune Database only)
+
+### Query Analysis
+- `explain_opencypher_query(query, params, explainMode)` - Get execution plan for openCypher queries
+  - `explainMode`: "details" (default) or "static" for different levels of explanation detail
+- `explain_gremlin_query(query)` - Get execution plan for Gremlin queries (Neptune Database only)
+
+### Graph Information
+- `get_graph_status()` - Check if the graph is available
+- `get_graph_schema()` - Retrieve the complete graph schema including nodes, relationships, and patterns
+
+**Note**: Gremlin queries and explanations are only supported for Neptune Database. Neptune Analytics only supports openCypher.
