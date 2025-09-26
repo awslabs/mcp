@@ -102,3 +102,105 @@ class GraphSchema(BaseModel):
     nodes: List[Node]
     relationships: List[Relationship]
     relationship_patterns: List[RelationshipPattern]
+
+
+class URIItem(BaseModel):
+    """Represents an item with a URI and local name.
+
+    Attributes:
+        uri (str): The full URI of the item
+        local (str): The local name/identifier of the item
+    """
+
+    uri: str
+    local: str
+
+
+class OntologyItem(BaseModel):
+    """Represents an ontology with its metadata.
+
+    Attributes:
+        uri (str): The full URI of the ontology
+        label (str | None): The human-readable label of the ontology
+        comment (str | None): A description or comment about the ontology
+    """
+
+    uri: str
+    label: str | None = None
+    comment: str | None = None
+
+
+class ClassItem(BaseModel):
+    """Represents a class definition in an RDF schema.
+
+    Attributes:
+        uri (str): The full URI of the class
+        local (str): The local name/identifier of the class
+        parent_uri (str | None): The URI of the parent class if it exists
+        label (str | None): The human-readable label of the class
+        comment (str | None): A description or comment about the class
+    """
+
+    uri: str
+    local: str
+    parent_uri: str | None = None
+    label: str | None = None
+    comment: str | None = None
+
+
+class PropertyItem(BaseModel):
+    """Base class for RDF properties.
+
+    Attributes:
+        uri (str): The full URI of the property
+        local (str): The local name/identifier of the property
+        parent_uri (str | None): The URI of the parent property if it exists
+        domain_uri (str | None): The URI of the domain class
+        range_uri (str | None): The URI of the range class or datatype
+        label (str | None): The human-readable label of the property
+        comment (str | None): A description or comment about the property
+    """
+
+    uri: str
+    local: str
+    parent_uri: str | None = None
+    domain_uri: str | None = None
+    range_uri: str | None = None
+    label: str | None = None
+    comment: str | None = None
+
+
+class DatatypePropertyItem(PropertyItem):
+    """Represents a datatype property in an RDF schema."""
+
+    pass
+
+
+class ObjectPropertyItem(PropertyItem):
+    """Represents an object property in an RDF schema."""
+
+    pass
+
+
+class RDFGraphSchema(BaseModel):
+    """Represents a complete RDF schema definition.
+
+    Attributes:
+        distinct_prefixes (Dict[str, str]): Mapping of URI prefixes to their aliases
+        ontologies (List[OntologyItem]): List of ontology definitions with metadata
+        classes (List[ClassItem]): List of class definitions with hierarchies and metadata
+        rels (List[URIItem]): List of relationship definitions with URIs and local names
+        dtprops (List[DatatypePropertyItem]): List of datatype properties with domains, ranges, and metadata
+        oprops (List[ObjectPropertyItem]): List of object properties with domains, ranges, and metadata
+        rdfclasses (List[str]): List of classes in the graph.
+        predicates (List[str]): List of predicates in the graph
+    """
+
+    distinct_prefixes: dict[str, str]
+    ontologies: List[OntologyItem] = []
+    classes: List[ClassItem] = []
+    rels: List[URIItem] = []
+    dtprops: List[DatatypePropertyItem] = []
+    oprops: List[ObjectPropertyItem] = []
+    rdfclasses: List[str] = []
+    predicates: List[str] = []
