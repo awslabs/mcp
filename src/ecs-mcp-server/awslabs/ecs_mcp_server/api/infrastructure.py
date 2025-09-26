@@ -116,6 +116,7 @@ async def create_infrastructure(
     desired_count: Optional[int] = None,
     container_port: Optional[int] = None,
     health_check_path: Optional[str] = None,
+    bake_time_minutes: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Creates complete ECS infrastructure using CloudFormation.
@@ -139,6 +140,7 @@ async def create_infrastructure(
         desired_count: Desired number of tasks (optional, default: 1)
         container_port: Port the container listens on (optional, default: 80)
         health_check_path: Path for ALB health checks (optional, default: "/")
+        bake_time_minutes: Green deployment bake time (optional, default: 5)
 
     Returns:
         Dict containing infrastructure creation results or template paths
@@ -380,6 +382,7 @@ async def create_infrastructure(
                 desired_count=desired_count,
                 container_port=container_port,
                 health_check_path=health_check_path if health_check_path else "/",
+                bake_time_minutes=bake_time_minutes,
                 template_content=template_files["ecs_template_content"],
             )
 
@@ -598,6 +601,7 @@ async def create_ecs_infrastructure(
     desired_count: Optional[int] = None,
     container_port: Optional[int] = None,
     health_check_path: Optional[str] = None,
+    bake_time_minutes: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Creates ECS infrastructure using CloudFormation.
@@ -627,6 +631,7 @@ async def create_ecs_infrastructure(
     desired_count = desired_count or 1
     container_port = container_port or 80
     health_check_path = health_check_path or "/"
+    bake_time_minutes = bake_time_minutes or 5
 
     # Parse image URI and tag if a full image URI with tag is provided
     if image_uri and ":" in image_uri and not image_tag:
@@ -685,6 +690,7 @@ async def create_ecs_infrastructure(
                     {"ParameterKey": "ImageTag", "ParameterValue": image_tag},
                     {"ParameterKey": "ContainerPort", "ParameterValue": str(container_port)},
                     {"ParameterKey": "HealthCheckPath", "ParameterValue": health_check_path},
+                    {"ParameterKey": "BakeTimeMinutes", "ParameterValue": str(bake_time_minutes)},
                     {
                         "ParameterKey": "Timestamp",
                         "ParameterValue": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -728,6 +734,7 @@ async def create_ecs_infrastructure(
                 {"ParameterKey": "ImageTag", "ParameterValue": image_tag},
                 {"ParameterKey": "ContainerPort", "ParameterValue": str(container_port)},
                 {"ParameterKey": "HealthCheckPath", "ParameterValue": health_check_path},
+                {"ParameterKey": "BakeTimeMinutes", "ParameterValue": str(bake_time_minutes)},
                 {
                     "ParameterKey": "Timestamp",
                     "ParameterValue": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
