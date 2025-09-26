@@ -23,6 +23,7 @@ class SearchResult(BaseModel):
     rank_order: int
     url: str
     title: str
+    query_id: str
     context: Optional[str] = None
 
 

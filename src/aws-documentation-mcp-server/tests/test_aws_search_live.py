@@ -46,6 +46,7 @@ async def test_search_documentation_live():
         assert result.rank_order > 0
         assert result.url is not None and result.url != ''
         assert result.title is not None and result.title != ''
+        assert result.query_id is not None and result.query_id != ''
         # Context is optional, so we don't assert on it
 
     # Print results for debugging (will show in pytest output with -v flag)
@@ -55,6 +56,7 @@ async def test_search_documentation_live():
         print(f'Rank: {result.rank_order}')
         print(f'Title: {result.title}')
         print(f'URL: {result.url}')
+        print(f'Query ID: {result.query_id}')
         if result.context:
             print(f'Context: {result.context}')
 
@@ -81,6 +83,7 @@ async def test_search_documentation_empty_results():
         print(f'Rank: {result.rank_order}')
         print(f'Title: {result.title}')
         print(f'URL: {result.url}')
+        print(f'Query ID: {result.query_id}')
         if result.context:
             print(f'Context: {result.context}')
 
