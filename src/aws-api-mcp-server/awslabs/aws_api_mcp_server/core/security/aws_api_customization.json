@@ -296,20 +296,6 @@
         "aws logs start-live-tail"
       ]
     },
-    "opsworks register": {
-      "api_calls": [
-        "aws opsworks describe-stacks",
-        "aws opsworks describe-stack-provisioning-parameters",
-        "aws ec2 describe-instances",
-        "aws opsworks describe-instances",
-        "aws iam create-group",
-        "aws iam create-user",
-        "aws iam add-user-to-group",
-        "aws iam attach-user-policy",
-        "aws iam put-user-policy",
-        "aws iam create-access-key"
-      ]
-    },
     "rds generate-db-auth-token": {
       "api_calls": [
         "aws rds generate-db-auth-token"

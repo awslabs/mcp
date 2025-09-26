@@ -128,36 +128,6 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: uv sync --frozen --all-extras --dev
 
-      - name: Check for existing embeddings or generate new ones for aws-api-mcp-server
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN}}
-        if: matrix.package == 'aws-api-mcp-server'
-        working-directory: src/${{ matrix.package }}
-        run: |
-          # Try to download latest embeddings first
-          if uv run --frozen download-latest-embeddings; then
-            DOWNLOAD_SUCCESS=true
-            echo "Successfully downloaded existing embeddings"
-          else
-            DOWNLOAD_SUCCESS=false
-            echo "Failed to download existing embeddings"
-          fi
-
-          CHANGED_FILES='${{ needs.detect-packages.outputs.changed-files }}'
-          if echo "$CHANGED_FILES" | grep -q 'aws-api-mcp-server/pyproject.toml' || \
-             echo "$CHANGED_FILES" | grep -q 'aws_api_mcp_server/core/kb/' || \
-             echo "$CHANGED_FILES" | grep -q 'aws_api_mcp_server/core/data/embeddings/' || \
-             echo "$CHANGED_FILES" | grep -q 'aws_api_mcp_server/scripts/'; then
-            uv run --frozen generate-embeddings
-          else
-            if [ "$DOWNLOAD_SUCCESS" = "true" ]; then
-              echo "Using previously downloaded embeddings"
-            else
-              echo "No matching embeddings found, generating new ones..."
-              uv run --frozen generate-embeddings
-            fi
-          fi
-
       - name: Run tests
         working-directory: src/${{ matrix.package }}
         run: |
