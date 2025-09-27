@@ -1,0 +1,65 @@
+# Prompts for ECS Security Analysis Scenario
+
+## Expected Observed Behavior
+When running 02_validate.sh, you should see output similar to:
+```
+✅ Test cluster 'llm-test-security-cluster' found
+✅ Test ECS infrastructure created successfully
+   • Cluster: llm-test-security-cluster
+   • Region: us-east-1
+   • Task Definition: llm-test-security-task
+   • Security Issues: Intentionally configured for testing
+```
+
+## Test Prompts
+
+# Prompt 1: General Security Assessment
+I have an ECS cluster called "llm-test-security-cluster" in us-east-1. Can you help me analyze its security posture and identify any potential vulnerabilities or misconfigurations?
+
+# Prompt 2: Compliance-Focused Query
+I need to ensure my ECS cluster "llm-test-security-cluster" meets security compliance standards. Can you check it against common frameworks like AWS security best practices and provide a compliance report?
+
+# Prompt 3: Specific Security Concerns
+I'm concerned about container security in my ECS cluster "llm-test-security-cluster". Can you analyze the task definitions and container configurations for security issues like privileged containers or hardcoded secrets?
+
+# Prompt 4: Beginner Security Question
+I'm new to ECS security and want to make sure my cluster "llm-test-security-cluster" is secure. Can you explain what security issues I should be looking for and help me identify any problems?
+
+# Prompt 5: Remediation-Focused Query
+I know there might be security issues in my ECS cluster "llm-test-security-cluster". Can you not only identify the problems but also provide specific recommendations on how to fix them?
+
+# Prompt 6: Multi-Turn Conversation Starter
+Can you list all my ECS clusters and help me choose one for a security analysis?
+
+# Prompt 7: Report Generation Request
+I need a comprehensive security report for my ECS cluster "llm-test-security-cluster" that I can share with my security team. Can you generate a detailed report with findings and recommendations?
+
+# Prompt 8: Framework-Specific Compliance
+Can you check my ECS cluster "llm-test-security-cluster" against PCI-DSS compliance requirements and tell me what needs to be fixed?
+
+IMPORTANT: The cluster name "llm-test-security-cluster" should be used consistently across all prompts as this is the test cluster created by the scenario.
+
+## Expected Security Issues to be Found:
+1. **Privileged Container**: Task definition has privileged=true
+2. **Root User**: Container running as root user
+3. **Hardcoded Secrets**: Environment variables contain hardcoded secrets
+4. **Missing Execute Command Logging**: Cluster has logging disabled
+5. **Network Security**: Potential network configuration issues
+
+## Multi-Turn Conversation Examples:
+
+### Conversation 1: Discovery to Analysis
+User: "Can you help me with ECS security?"
+Assistant: [Should ask about specific cluster or list clusters]
+User: "I want to analyze llm-test-security-cluster"
+Assistant: [Should perform security analysis]
+User: "What's the most critical issue?"
+Assistant: [Should prioritize findings]
+
+### Conversation 2: Analysis to Remediation
+User: "Analyze security for llm-test-security-cluster"
+Assistant: [Should perform analysis]
+User: "How do I fix the privileged container issue?"
+Assistant: [Should provide specific remediation steps]
+User: "What about the hardcoded secrets?"
+Assistant: [Should provide secrets management guidance]

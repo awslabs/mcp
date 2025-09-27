@@ -1,0 +1,1 @@
+Creates ECS cluster and service with various security configurations to test security analysis tools via MCP Inspector CLI. Tests all security analysis actions including cluster listing, security analysis, report generation, recommendations, and compliance checks. Expected outcome: All security analysis tools return success status with comprehensive security assessment data.

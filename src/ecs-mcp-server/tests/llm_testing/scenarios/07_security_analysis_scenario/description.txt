@@ -1,0 +1,1 @@
+Tests ECS security analysis by creating a cluster with intentional security misconfigurations including privileged containers, hardcoded secrets, and missing logging. Tests all security analysis tools for conversational interaction and comprehensive security assessment.
