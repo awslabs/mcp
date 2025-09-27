@@ -58,3 +58,27 @@ class NeptuneGraph(ABC):
             dict: The query results
         """
         raise NotImplementedError()
+
+    @abstractmethod
+    def explain_opencypher(self, query: str, params: Optional[dict] = None, explainMode="details") -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+
+        Returns:
+            dict: The query explanation
+        """
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def explain_gremlin(self, query: str) -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+
+        Returns:
+            dict: The query explanation
+        """
+        raise NotImplementedError()

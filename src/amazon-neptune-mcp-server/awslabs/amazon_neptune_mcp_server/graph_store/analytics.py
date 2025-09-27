@@ -179,3 +179,38 @@ class NeptuneAnalytics(NeptuneGraph):
         raise NotImplementedError(
             'Gremlin queries are not supported for Neptune Analytics graphs.'
         )
+
+    def explain_opencypher(self, query: str, params: Optional[dict] = None, explainMode="details") -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+        """
+        try:
+            if params is None:
+                params = {}
+            resp = self.client.execute_query(
+                graphIdentifier=self.graph_identifier,
+                queryString=query,
+                parameters=params,
+                language='OPEN_CYPHER',
+                explainMode=explainMode
+            )
+            return json.loads(resp['payload'].read().decode('UTF-8'))['results']
+        except Exception as e:
+            raise NeptuneException(
+                {
+                    'message': 'An error occurred while executing the query.',
+                    'details': str(e),
+                }
+            )
+        
+    def explain_gremlin(self, query: str) -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+        """
+        raise NotImplementedError(
+            'Gremlin queries are not supported for Neptune Analytics graphs.'
+        )
