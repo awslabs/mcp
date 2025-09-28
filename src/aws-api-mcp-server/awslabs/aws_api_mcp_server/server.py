@@ -128,7 +128,8 @@ async def suggest_aws_commands(
     query: Annotated[
         str,
         Field(
-            description="A natural language description of what you want to do in AWS. Should be detailed enough to capture the user's intent and any relevant context."
+            description="A natural language description of what you want to do in AWS. Should be detailed enough to capture the user's intent and any relevant context.",
+            max_length=2000,
         ),
     ],
     ctx: Context,
