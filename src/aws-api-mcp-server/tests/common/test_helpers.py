@@ -1,7 +1,9 @@
 import pytest
 from awslabs.aws_api_mcp_server.core.common.helpers import (
+    get_requests_session,
     validate_aws_region,
 )
+from requests.adapters import HTTPAdapter
 from unittest.mock import MagicMock, patch
 
 
@@ -87,3 +89,17 @@ def test_validate_aws_region_invalid_regions(mock_logger: MagicMock, invalid_reg
     # Check that logger.error was called with the correct message
     expected_error_message = f'{invalid_region} is not a valid AWS Region'
     mock_logger.error.assert_called_once_with(expected_error_message)
+
+
+def test_get_requests_session():
+    """Test that get_requests_session returns a properly configured session."""
+    session = get_requests_session()
+
+    https_adapter = session.get_adapter('https://example.com')
+    assert isinstance(https_adapter, HTTPAdapter)
+
+    retry_config = https_adapter.max_retries
+    assert retry_config.total == 3
+    assert retry_config.backoff_factor == 1
+    assert retry_config.status_forcelist == [429, 500, 502, 503, 504]
+    assert retry_config.allowed_methods == {'HEAD', 'GET', 'OPTIONS', 'POST'}
