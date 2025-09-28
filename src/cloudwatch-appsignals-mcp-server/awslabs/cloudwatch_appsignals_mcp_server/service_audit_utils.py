@@ -16,10 +16,10 @@
 
 from datetime import datetime, timezone
 from loguru import logger
-from typing import List
+from typing import Any, List, Optional
 
 
-def _ci_get(d: dict, *names):
+def _ci_get(d: dict, *names) -> Optional[Any]:
     """Case-insensitive dictionary getter."""
     for n in names:
         if n in d:

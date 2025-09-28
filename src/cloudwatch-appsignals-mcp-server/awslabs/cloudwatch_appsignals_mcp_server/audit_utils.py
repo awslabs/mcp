@@ -19,10 +19,16 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from loguru import logger
-from typing import List
+from typing import Any, Dict, List, Optional, Union
 
 
-async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
+# Constants
+DEFAULT_BATCH_SIZE = 5
+FUZZY_MATCH_THRESHOLD = 30  # Minimum similarity score for fuzzy matching
+HIGH_CONFIDENCE_MATCH_THRESHOLD = 85  # High confidence threshold for exact fuzzy matches
+
+
+async def execute_audit_api(input_obj: Dict[str, Any], region: str, banner: str) -> str:
     """Execute the Application Signals audit API call with the given input object."""
     from .aws_clients import appsignals_client
 
@@ -42,7 +48,7 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
 
     # Process targets in batches if needed
     targets = input_obj.get('AuditTargets', [])
-    batch_size = 5
+    batch_size = DEFAULT_BATCH_SIZE
     target_batches = []
 
     if len(targets) > batch_size:
@@ -105,19 +111,22 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
         logger.info('---- END PARAMETERS ----')
 
         # Write detailed payload to log file
-        with open(log_path, 'a') as f:
-            f.write('═' * 80 + '\n')
-            f.write(
-                f'BATCH {batch_idx}/{len(target_batches)} - {datetime.now(timezone.utc).isoformat()}\n'
-            )
-            f.write(banner.strip() + '\n')
-            f.write('---- API INVOCATION ----\n')
-            f.write('appsignals_client.list_audit_findings()\n')
-            f.write('---- API PARAMETERS (JSON) ----\n')
-            f.write(api_pretty_input + '\n')
-            f.write('---- ACTUAL AWS API PAYLOAD ----\n')
-            f.write(batch_payload_json + '\n')
-            f.write('---- END PARAMETERS ----\n\n')
+        try:
+            with open(log_path, 'a') as f:
+                f.write('═' * 80 + '\n')
+                f.write(
+                    f'BATCH {batch_idx}/{len(target_batches)} - {datetime.now(timezone.utc).isoformat()}\n'
+                )
+                f.write(banner.strip() + '\n')
+                f.write('---- API INVOCATION ----\n')
+                f.write('appsignals_client.list_audit_findings()\n')
+                f.write('---- API PARAMETERS (JSON) ----\n')
+                f.write(api_pretty_input + '\n')
+                f.write('---- ACTUAL AWS API PAYLOAD ----\n')
+                f.write(batch_payload_json + '\n')
+                f.write('---- END PARAMETERS ----\n\n')
+        except Exception as log_error:
+            logger.warning(f'Failed to write audit log to {log_path}: {log_error}')
 
         # Call the Application Signals API for this batch
         try:
@@ -128,15 +137,21 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
             all_batch_results.append(response)
 
             if not response.get('AuditFindings'):
-                with open(log_path, 'a') as f:
-                    f.write(f'📭 Batch {batch_idx}: No findings returned.\n')
-                    f.write('---- END RESPONSE ----\n\n')
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(f'📭 Batch {batch_idx}: No findings returned.\n')
+                        f.write('---- END RESPONSE ----\n\n')
+                except Exception as log_error:
+                    logger.warning(f'Failed to write audit log to {log_path}: {log_error}')
                 logger.info(f'📭 Batch {batch_idx}: No findings returned.\n---- END RESPONSE ----')
             else:
-                with open(log_path, 'a') as f:
-                    f.write(f'---- BATCH {batch_idx} API RESPONSE (JSON) ----\n')
-                    f.write(observation_text + '\n')
-                    f.write('---- END RESPONSE ----\n\n')
+                try:
+                    with open(log_path, 'a') as f:
+                        f.write(f'---- BATCH {batch_idx} API RESPONSE (JSON) ----\n')
+                        f.write(observation_text + '\n')
+                        f.write('---- END RESPONSE ----\n\n')
+                except Exception as log_error:
+                    logger.warning(f'Failed to write audit log to {log_path}: {log_error}')
                 logger.info(
                     f'---- BATCH {batch_idx} API RESPONSE (JSON) ----\n'
                     + observation_text
@@ -145,10 +160,13 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
 
         except Exception as e:
             error_msg = str(e)
-            with open(log_path, 'a') as f:
-                f.write(f'---- BATCH {batch_idx} API ERROR ----\n')
-                f.write(error_msg + '\n')
-                f.write('---- END ERROR ----\n\n')
+            try:
+                with open(log_path, 'a') as f:
+                    f.write(f'---- BATCH {batch_idx} API ERROR ----\n')
+                    f.write(error_msg + '\n')
+                    f.write('---- END ERROR ----\n\n')
+            except Exception as log_error:
+                logger.warning(f'Failed to write audit log to {log_path}: {log_error}')
             logger.error(
                 f'---- BATCH {batch_idx} API ERROR ----\n' + error_msg + '\n---- END ERROR ----'
             )
@@ -181,9 +199,10 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
 
             # Count targets processed (this batch)
             # Get the batch size from the original targets list
-            batch_size = 5
             current_batch_size = min(
-                batch_size, len(targets) - (len(aggregated_findings) // batch_size) * batch_size
+                DEFAULT_BATCH_SIZE,
+                len(targets)
+                - (len(aggregated_findings) // DEFAULT_BATCH_SIZE) * DEFAULT_BATCH_SIZE,
             )
             total_targets_processed += current_batch_size
 
@@ -217,7 +236,27 @@ async def execute_audit_api(input_obj: dict, region: str, banner: str) -> str:
     return banner + final_observation_text
 
 
-def parse_auditors(auditors_value, default_auditors: List[str]) -> List[str]:
+def _create_service_target(
+    service_name: str, environment: str, aws_account_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a standardized service target configuration."""
+    service_config = {
+        'Type': 'Service',
+        'Name': service_name,
+        'Environment': environment,
+    }
+    if aws_account_id:
+        service_config['AwsAccountId'] = aws_account_id
+
+    return {
+        'Type': 'service',
+        'Data': {'Service': service_config},
+    }
+
+
+def parse_auditors(
+    auditors_value: Union[str, None, Any], default_auditors: List[str]
+) -> List[str]:
     """Parse and validate auditors parameter."""
     # Handle Pydantic Field objects that may be passed instead of actual values
     if hasattr(auditors_value, 'default') and hasattr(auditors_value, 'description'):
@@ -345,18 +384,7 @@ def expand_service_wildcard_patterns(
 
                     # Apply search filter
                     if search_term == '' or search_term in service_name.lower():
-                        expanded_targets.append(
-                            {
-                                'Type': 'service',
-                                'Data': {
-                                    'Service': {
-                                        'Type': 'Service',
-                                        'Name': service_name,
-                                        'Environment': environment,
-                                    }
-                                },
-                            }
-                        )
+                        expanded_targets.append(_create_service_target(service_name, environment))
                         matches_found += 1
                         logger.debug(
                             f"Added service: Name='{service_name}', Environment='{environment}'"
@@ -377,7 +405,7 @@ def expand_service_wildcard_patterns(
 
                     score = calculate_name_similarity(inexact_name, service_name, 'service')
 
-                    if score >= 30:  # Minimum threshold for consideration
+                    if score >= FUZZY_MATCH_THRESHOLD:  # Minimum threshold for consideration
                         best_matches.append(
                             (service_name, service_attrs.get('Environment'), score)
                         )
@@ -386,8 +414,8 @@ def expand_service_wildcard_patterns(
                 best_matches.sort(key=lambda x: x[2], reverse=True)
 
                 if best_matches:
-                    # If we have a very high score match (85+), use only that
-                    if best_matches[0][2] >= 85:
+                    # If we have a very high score match, use only that
+                    if best_matches[0][2] >= HIGH_CONFIDENCE_MATCH_THRESHOLD:
                         matched_services = [best_matches[0]]
                     else:
                         # Otherwise, take top 3 matches above threshold
@@ -398,18 +426,7 @@ def expand_service_wildcard_patterns(
                     )
                     for service_name, environment, score in matched_services:
                         logger.info(f"  - '{service_name}' in '{environment}' (score: {score})")
-                        expanded_targets.append(
-                            {
-                                'Type': 'service',
-                                'Data': {
-                                    'Service': {
-                                        'Type': 'Service',
-                                        'Name': service_name,
-                                        'Environment': environment,
-                                    }
-                                },
-                            }
-                        )
+                        expanded_targets.append(_create_service_target(service_name, environment))
                 else:
                     logger.warning(
                         f"No fuzzy matches found for service name '{inexact_name}' (no candidates above threshold)"
@@ -641,16 +658,15 @@ def expand_service_operation_wildcard_patterns(
                                 )
 
                                 if has_metric_type:
+                                    service_target = _create_service_target(
+                                        service_name, environment
+                                    )
                                     expanded_targets.append(
                                         {
                                             'Type': 'service_operation',
                                             'Data': {
                                                 'ServiceOperation': {
-                                                    'Service': {
-                                                        'Type': 'Service',
-                                                        'Name': service_name,
-                                                        'Environment': environment,
-                                                    },
+                                                    'Service': service_target['Data']['Service'],
                                                     'Operation': operation_name,
                                                     'MetricType': metric_type,
                                                 }
