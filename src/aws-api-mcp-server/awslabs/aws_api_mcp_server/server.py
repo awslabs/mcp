@@ -24,7 +24,6 @@ from .core.aws.service import (
     validate,
 )
 from .core.common.config import (
-    BEARER_TOKEN,
     DEFAULT_REGION,
     ENABLE_AGENT_SCRIPTS,
     ENDPOINT_SUGGEST_AWS_COMMANDS,
@@ -145,7 +144,6 @@ async def suggest_aws_commands(
             response = session.post(
                 ENDPOINT_SUGGEST_AWS_COMMANDS,
                 json={'query': query},
-                headers={'Authorization': f'Bearer {BEARER_TOKEN}'} if BEARER_TOKEN else None,
                 timeout=30,
             )
             response.raise_for_status()
