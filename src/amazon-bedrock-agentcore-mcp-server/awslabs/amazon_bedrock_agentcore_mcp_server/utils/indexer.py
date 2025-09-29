@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import math
 import re
-from pydantic import BaseModel, Field
-from typing import Dict, List, Tuple
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Enhanced tokenization patterns
@@ -43,7 +42,7 @@ class Doc(BaseModel):
     content: str = Field(description='Full text content (may be empty before fetching)')
     index_title: str = Field(description='Searchable title text including variants')
 
-    model_config = {'slots': True}
+    model_config = ConfigDict(extra='allow')
 
 
 # Title boost constants
@@ -74,9 +73,9 @@ class IndexSearch:
 
     def __init__(self) -> None:
         """Initialize an empty search index."""
-        self.docs: List[Doc] = []
-        self.doc_frequency: Dict[str, int] = {}  # document frequency
-        self.doc_indices: Dict[str, List[int]] = {}  # token -> doc indices
+        self.docs: list[Doc] = []
+        self.doc_frequency: dict[str, int] = {}  # document frequency
+        self.doc_indices: dict[str, list[int]] = {}  # token -> doc indices
 
     def add(self, doc: Doc) -> None:
         """Add a document to the search index.
@@ -128,7 +127,7 @@ class IndexSearch:
                 self.doc_frequency[tok] = self.doc_frequency.get(tok, 0) + 1
                 seen.add(tok)
 
-    def search(self, query: str, k: int = 8) -> List[Tuple[float, Doc]]:
+    def search(self, query: str, k: int = 8) -> list[tuple[float, Doc]]:
         """Search the index and return ranked results.
 
         Args:
@@ -207,7 +206,7 @@ class IndexSearch:
             return float(content_tf + title_tf + header_tf + code_tf + link_tf)
 
         q_tokens = [t.lower() for t in _TOKEN.findall(query)]
-        scores: Dict[int, float] = {}
+        scores: dict[int, float] = {}
         N = max(len(self.docs), 1)
 
         for qt in q_tokens:

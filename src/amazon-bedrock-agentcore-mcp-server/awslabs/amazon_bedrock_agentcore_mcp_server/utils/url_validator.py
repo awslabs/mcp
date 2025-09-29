@@ -97,7 +97,7 @@ DEFAULT_ALLOWED_DOMAINS = [
 default_validator = URLValidator(DEFAULT_ALLOWED_DOMAINS)
 
 
-def validate_urls(urls, allowed_domains: List[str] = None) -> List[str]:
+def validate_urls(urls, allowed_domains: list[str] | None = None) -> list[str]:
     """Validate URLs based on allowed domains.
 
     Args:
