@@ -237,7 +237,7 @@ async def call_aws(
     try:
         # Check security policy
         if READ_OPERATIONS_INDEX is not None:
-            policy_decision = check_security_policy(cli_command, ir, READ_OPERATIONS_INDEX, ctx)
+            policy_decision = check_security_policy(ir, READ_OPERATIONS_INDEX, ctx)
 
             if policy_decision == PolicyDecision.DENY:
                 error_message = 'Execution of this operation is denied by security policy.'
