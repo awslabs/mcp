@@ -37,8 +37,8 @@ async def test_search_documentation_live():
     ctx = MockContext()
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws.get_user_agent',
-        return_value=TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
     ):
         # Call the search_documentation function
         results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
@@ -76,8 +76,8 @@ async def test_search_documentation_empty_results():
     ctx = MockContext()
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws.get_user_agent',
-        return_value=TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
     ):
         # Call the search_documentation function
         results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
@@ -106,8 +106,8 @@ async def test_search_documentation_limit():
     ctx = MockContext()
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws.get_user_agent',
-        return_value=TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
     ):
         # Test with limit=3
         results_small = await search_documentation(ctx, search_phrase=search_phrase, limit=3)

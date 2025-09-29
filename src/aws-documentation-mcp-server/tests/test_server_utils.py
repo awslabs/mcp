@@ -21,7 +21,6 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     SEARCH_RESULT_CACHE,
     add_search_result_cache_item,
     get_query_id_from_cache,
-    get_user_agent,
     read_documentation_impl,
 )
 from mcp.server.fastmcp.server import Context
@@ -81,7 +80,7 @@ class TestReadDocumentationImpl:
                     f'{url}?session=test-uuid',
                     follow_redirects=True,
                     headers={
-                        'User-Agent': get_user_agent(),
+                        'User-Agent': DEFAULT_USER_AGENT,
                         'X-MCP-Session-Id': 'test-uuid',
                     },
                     timeout=30,
@@ -366,7 +365,7 @@ class TestReadDocumentationImpl:
                     f'{url}?session=test-uuid&query_id=test-query-id',
                     follow_redirects=True,
                     headers={
-                        'User-Agent': get_user_agent(),
+                        'User-Agent': DEFAULT_USER_AGENT,
                         'X-MCP-Session-Id': 'test-uuid',
                     },
                     timeout=30,
@@ -485,13 +484,3 @@ class TestSearchResultCache:
 
         test_query_id = get_query_id_from_cache('testurl5')
         assert test_query_id == 'test-query-id-5'
-
-
-class TestGetUserAgent:
-    """Test get user agent function."""
-
-    def test_get_user_agent(self):
-        """Test that get_user_agent returns a correct string."""
-        user_agent = get_user_agent()
-        assert user_agent is not None
-        assert user_agent == DEFAULT_USER_AGENT

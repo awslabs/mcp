@@ -24,8 +24,8 @@ from awslabs.aws_documentation_mcp_server.models import (
     SearchResult,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
+    DEFAULT_USER_AGENT,
     add_search_result_cache_item,
-    get_user_agent,
     read_documentation_impl,
 )
 
@@ -205,7 +205,7 @@ async def search_documentation(
                 json=request_body,
                 headers={
                     'Content-Type': 'application/json',
-                    'User-Agent': get_user_agent(),
+                    'User-Agent': DEFAULT_USER_AGENT,
                     'X-MCP-Session-Id': SESSION_UUID,
                 },
                 timeout=30,
@@ -341,7 +341,7 @@ async def recommend(
         try:
             response = await client.get(
                 recommendation_url,
-                headers={'User-Agent': get_user_agent()},
+                headers={'User-Agent': DEFAULT_USER_AGENT},
                 timeout=30,
             )
         except httpx.HTTPError as e:

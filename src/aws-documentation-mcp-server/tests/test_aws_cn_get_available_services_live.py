@@ -31,8 +31,8 @@ async def test_get_available_services_live():
     ctx = MockContext()
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws_cn.get_user_agent',
-        return_value=TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_aws_cn.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
     ):
         # Call the tool
         result = await get_available_services(ctx)
@@ -90,8 +90,8 @@ async def test_get_available_services_content_structure():
     ctx = MockContext()
 
     with patch(
-        'awslabs.aws_documentation_mcp_server.server_aws_cn.get_user_agent',
-        return_value=TEST_USER_AGENT,
+        'awslabs.aws_documentation_mcp_server.server_aws_cn.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
     ):
         # Call the tool
         result = await get_available_services(ctx)
