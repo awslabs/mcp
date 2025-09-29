@@ -18,7 +18,7 @@ readonly NC='\033[0m' # No Color
 # MCP Configuration
 readonly MCP_CONFIG_FILE="/tmp/mcp-config.json"
 readonly MCP_SERVER_NAME="local-ecs-mcp-server"
-readonly INSTALL_COMMAND_MCP_INSPECTOR="pip install mcp-inspector"
+readonly INSTALL_COMMAND_MCP_INSPECTOR="npm install -g @modelcontextprotocol/inspector"
 readonly INSTALL_COMMAND_UV="pip install uv"
 
 # Validate MCP configuration exists
