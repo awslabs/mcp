@@ -25,7 +25,7 @@ from urllib.parse import quote
 class RabbitMQAdmin:
     """RabbitMQAdmin class provides API to call RabbitMQ APIs."""
 
-    def __init__(self, hostname: str, username: str, password: str, use_tls: bool):
+    def __init__(self, hostname: str, username: str, password: str, use_tls: bool = True):
         """Initialize RabbitMQ admin client."""
         host = hostname
         self.protocol = 'https' if use_tls else 'http'
