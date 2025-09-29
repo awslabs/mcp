@@ -16,6 +16,8 @@
 import asyncio
 import pytest
 from awslabs.aws_documentation_mcp_server.server_aws import search_documentation
+from tests.constants import TEST_USER_AGENT
+from unittest.mock import patch
 
 
 class MockContext:
@@ -34,31 +36,35 @@ async def test_search_documentation_live():
     search_phrase = 'S3 bucket naming rules'
     ctx = MockContext()
 
-    # Call the search_documentation function
-    results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        # Call the search_documentation function
+        results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
 
-    # Verify the results
-    assert results is not None
-    assert len(results) > 0
+        # Verify the results
+        assert results is not None
+        assert len(results) > 0
 
-    # Check that each result has the expected structure
-    for result in results:
-        assert result.rank_order > 0
-        assert result.url is not None and result.url != ''
-        assert result.title is not None and result.title != ''
-        assert result.query_id is not None and result.query_id != ''
-        # Context is optional, so we don't assert on it
+        # Check that each result has the expected structure
+        for result in results:
+            assert result.rank_order > 0
+            assert result.url is not None and result.url != ''
+            assert result.title is not None and result.title != ''
+            assert result.query_id is not None and result.query_id != ''
+            # Context is optional, so we don't assert on it
 
-    # Print results for debugging (will show in pytest output with -v flag)
-    print(f"\nReceived {len(results)} search results for '{search_phrase}':")
-    for i, result in enumerate(results, 1):
-        print(f'\n--- Result {i} ---')
-        print(f'Rank: {result.rank_order}')
-        print(f'Title: {result.title}')
-        print(f'URL: {result.url}')
-        print(f'Query ID: {result.query_id}')
-        if result.context:
-            print(f'Context: {result.context}')
+        # Print results for debugging (will show in pytest output with -v flag)
+        print(f"\nReceived {len(results)} search results for '{search_phrase}':")
+        for i, result in enumerate(results, 1):
+            print(f'\n--- Result {i} ---')
+            print(f'Rank: {result.rank_order}')
+            print(f'Title: {result.title}')
+            print(f'URL: {result.url}')
+            print(f'Query ID: {result.query_id}')
+            if result.context:
+                print(f'Context: {result.context}')
 
 
 @pytest.mark.asyncio
@@ -69,23 +75,27 @@ async def test_search_documentation_empty_results():
     search_phrase = 'xyzabcnonexistentdocumentationterm123456789'
     ctx = MockContext()
 
-    # Call the search_documentation function
-    results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        # Call the search_documentation function
+        results = await search_documentation(ctx, search_phrase=search_phrase, limit=5)
 
-    # We don't assert on the number of results, as it might change over time
-    # Just verify that the function returns a valid response
-    assert results is not None
+        # We don't assert on the number of results, as it might change over time
+        # Just verify that the function returns a valid response
+        assert results is not None
 
-    # Print results for debugging
-    print(f"\nReceived {len(results)} search results for '{search_phrase}':")
-    for i, result in enumerate(results, 1):
-        print(f'\n--- Result {i} ---')
-        print(f'Rank: {result.rank_order}')
-        print(f'Title: {result.title}')
-        print(f'URL: {result.url}')
-        print(f'Query ID: {result.query_id}')
-        if result.context:
-            print(f'Context: {result.context}')
+        # Print results for debugging
+        print(f"\nReceived {len(results)} search results for '{search_phrase}':")
+        for i, result in enumerate(results, 1):
+            print(f'\n--- Result {i} ---')
+            print(f'Rank: {result.rank_order}')
+            print(f'Title: {result.title}')
+            print(f'URL: {result.url}')
+            print(f'Query ID: {result.query_id}')
+            if result.context:
+                print(f'Context: {result.context}')
 
 
 @pytest.mark.asyncio
@@ -95,22 +105,26 @@ async def test_search_documentation_limit():
     search_phrase = 'AWS Lambda'
     ctx = MockContext()
 
-    # Test with limit=3
-    results_small = await search_documentation(ctx, search_phrase=search_phrase, limit=3)
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        # Test with limit=3
+        results_small = await search_documentation(ctx, search_phrase=search_phrase, limit=3)
 
-    # Test with limit=10
-    results_large = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
+        # Test with limit=10
+        results_large = await search_documentation(ctx, search_phrase=search_phrase, limit=10)
 
-    # Verify that the limits are respected
-    assert len(results_small) <= 3
-    assert len(results_large) <= 10
+        # Verify that the limits are respected
+        assert len(results_small) <= 3
+        assert len(results_large) <= 10
 
-    # If we got at least 3 results for both queries, the small result set should be smaller
-    if len(results_small) == 3 and len(results_large) > 3:
-        assert len(results_small) < len(results_large)
+        # If we got at least 3 results for both queries, the small result set should be smaller
+        if len(results_small) == 3 and len(results_large) > 3:
+            assert len(results_small) < len(results_large)
 
-    print(f'\nReceived {len(results_small)} results with limit=3')
-    print(f'Received {len(results_large)} results with limit=10')
+        print(f'\nReceived {len(results_small)} results with limit=3')
+        print(f'Received {len(results_large)} results with limit=10')
 
 
 if __name__ == '__main__':
