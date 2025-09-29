@@ -261,7 +261,7 @@ def parse_auditors(
     # Handle Pydantic Field objects that may be passed instead of actual values
     if hasattr(auditors_value, 'default') and hasattr(auditors_value, 'description'):
         # This is a Pydantic Field object, use its default value
-        auditors_value = auditors_value.default
+        auditors_value = getattr(auditors_value, 'default', None)
 
     if auditors_value is None:
         user_prompt_text = os.environ.get('MCP_USER_PROMPT', '') or ''
