@@ -31,8 +31,7 @@ async def query_knowledge_base(
     knowledge_base_id: str,
     kb_agent_client: AgentsforBedrockRuntimeClient,
     number_of_results: int = 20,
-    reranking: bool = False,
-    reranking_model_name: Literal['COHERE', 'AMAZON'] = 'AMAZON',
+    rerank_model_arn: str | None = None,
     data_source_ids: list[str] | None = None,
 ) -> str:
     """# Amazon Bedrock Knowledge Base query tool.
@@ -42,8 +41,7 @@ async def query_knowledge_base(
         knowledge_base_id (str): The knowledge base ID to query.
         kb_agent_client (AgentsforBedrockRuntimeClient): The Bedrock agent client.
         number_of_results (int): The number of results to return.
-        reranking (bool): Whether to rerank the results. Can be globally configured using the BEDROCK_KB_RERANKING_ENABLED environment variable.
-        reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use.
+        rerank_model_arn (str | None): The full ARN of the reranking model to use. If provided, reranking will be enabled. Can be globally configured using the RERANK_MODEL_ARN environment variable.
         data_source_ids (list[str] | None): The data source IDs to filter the knowledge base by.
 
     ## Warning: You must use the `ListKnowledgeBases` tool to get the knowledge base ID and optionally a data source ID first.
@@ -51,15 +49,6 @@ async def query_knowledge_base(
     ## Returns:
     - A string containing the results of the query.
     """
-    if reranking and kb_agent_client.meta.region_name not in [
-        'us-west-2',
-        'us-east-1',
-        'ap-northeast-1',
-        'ca-central-1',
-    ]:
-        raise ValueError(
-            f'Reranking is not supported in region {kb_agent_client.meta.region_name}'
-        )
 
     retrieve_request: KnowledgeBaseRetrievalConfigurationTypeDef = {
         'vectorSearchConfiguration': {
@@ -75,16 +64,12 @@ async def query_knowledge_base(
             }
         }
 
-    if reranking:
-        model_name_mapping = {
-            'COHERE': 'cohere.rerank-v3-5:0',
-            'AMAZON': 'amazon.rerank-v1:0',
-        }
+    if rerank_model_arn:
         retrieve_request['vectorSearchConfiguration']['rerankingConfiguration'] = {
             'type': 'BEDROCK_RERANKING_MODEL',
             'bedrockRerankingConfiguration': {
                 'modelConfiguration': {
-                    'modelArn': f'arn:aws:bedrock:{kb_agent_client.meta.region_name}::foundation-model/{model_name_mapping[reranking_model_name]}'
+                    'modelArn': rerank_model_arn
                 },
             },
         }

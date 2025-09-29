@@ -73,8 +73,7 @@ class TestQueryKnowledgeBase:
             knowledge_base_id='kb-12345',
             kb_agent_client=mock_bedrock_agent_runtime_client,
             number_of_results=10,
-            reranking=True,
-            reranking_model_name='COHERE',
+            rerank_model_arn='arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0',
             data_source_ids=['ds-12345', 'ds-67890'],
         )
 
@@ -112,12 +111,11 @@ class TestQueryKnowledgeBase:
     @pytest.mark.asyncio
     async def test_query_knowledge_base_without_reranking(self, mock_bedrock_agent_runtime_client):
         """Test querying a knowledge base without reranking."""
-        # Call the function with reranking disabled
+        # Call the function with no rerank model ARN (reranking disabled)
         result = await query_knowledge_base(
             query='test query',
             knowledge_base_id='kb-12345',
             kb_agent_client=mock_bedrock_agent_runtime_client,
-            reranking=False,
         )
 
         # Parse the result as JSON
@@ -138,27 +136,42 @@ class TestQueryKnowledgeBase:
         )
 
     @pytest.mark.asyncio
-    async def test_query_knowledge_base_with_unsupported_region(
+    async def test_query_knowledge_base_with_reranking_arn(
         self, mock_bedrock_agent_runtime_client
     ):
-        """Test querying a knowledge base with an unsupported region for reranking."""
-        # Modify the mock to use an unsupported region
-        mock_bedrock_agent_runtime_client.meta.region_name = 'eu-west-1'
+        """Test querying a knowledge base with reranking enabled via ARN."""
+        # Call the function with reranking ARN provided (any region works now)
+        result = await query_knowledge_base(
+            query='test query',
+            knowledge_base_id='kb-12345',
+            kb_agent_client=mock_bedrock_agent_runtime_client,
+            rerank_model_arn='arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0',
+        )
 
-        # Call the function with reranking enabled
-        with pytest.raises(ValueError) as excinfo:
-            await query_knowledge_base(
-                query='test query',
-                knowledge_base_id='kb-12345',
-                kb_agent_client=mock_bedrock_agent_runtime_client,
-                reranking=True,
-            )
+        # Parse the result as JSON
+        documents = [json.loads(doc) for doc in result.split('\n\n')]
 
-        # Check that the error message is correct
-        assert 'Reranking is not supported in region eu-west-1' in str(excinfo.value)
+        # Check that the result is correct
+        assert len(documents) == 2
 
-        # Check that the client methods were not called
-        mock_bedrock_agent_runtime_client.retrieve.assert_not_called()
+        # Check that the client methods were called correctly with reranking config
+        mock_bedrock_agent_runtime_client.retrieve.assert_called_once_with(
+            knowledgeBaseId='kb-12345',
+            retrievalQuery={'text': 'test query'},
+            retrievalConfiguration={
+                'vectorSearchConfiguration': {
+                    'numberOfResults': 20,
+                    'rerankingConfiguration': {
+                        'type': 'BEDROCK_RERANKING_MODEL',
+                        'bedrockRerankingConfiguration': {
+                            'modelConfiguration': {
+                                'modelArn': 'arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0'
+                            }
+                        },
+                    },
+                }
+            },
+        )
 
     @pytest.mark.asyncio
     async def test_query_knowledge_base_with_image_content(
