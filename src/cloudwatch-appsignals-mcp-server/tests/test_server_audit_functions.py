@@ -219,10 +219,12 @@ async def test_audit_slos_wildcard_no_targets_found(mock_aws_clients):
 async def test_audit_slos_successful_execution_with_batching(mock_aws_clients):
     """Test audit_slos successful execution with batching (covers lines 526-558)."""
     # Create enough SLO targets to trigger batching (> BATCH_SIZE_THRESHOLD = 5)
-    slo_targets = json.dumps([
-        {"Type": "slo", "Data": {"Slo": {"SloName": f"test-slo-{i}"}}}
-        for i in range(7)  # 7 targets > 5 threshold
-    ])
+    slo_targets = json.dumps(
+        [
+            {'Type': 'slo', 'Data': {'Slo': {'SloName': f'test-slo-{i}'}}}
+            for i in range(7)  # 7 targets > 5 threshold
+        ]
+    )
 
     # Mock the AWS API call that execute_audit_api makes
     mock_appsignals_client = mock_aws_clients['appsignals_client']
@@ -232,12 +234,14 @@ async def test_audit_slos_successful_execution_with_batching(mock_aws_clients):
                 'FindingId': 'test-finding-1',
                 'Severity': 'CRITICAL',
                 'Title': 'SLO Breach Detected',
-                'Description': 'Test SLO breach finding'
+                'Description': 'Test SLO breach finding',
             }
         ]
     }
 
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns') as mock_expand:
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns'
+    ) as mock_expand:
         # Mock no wildcard expansion needed
         mock_expand.return_value = json.loads(slo_targets)
 
@@ -261,10 +265,12 @@ async def test_audit_slos_successful_execution_with_batching(mock_aws_clients):
 async def test_audit_slos_successful_execution_no_batching(mock_aws_clients):
     """Test audit_slos successful execution without batching (covers lines 526-558)."""
     # Create fewer SLO targets (< BATCH_SIZE_THRESHOLD = 5)
-    slo_targets = json.dumps([
-        {"Type": "slo", "Data": {"Slo": {"SloName": "test-slo-1"}}},
-        {"Type": "slo", "Data": {"Slo": {"SloName": "test-slo-2"}}},
-    ])
+    slo_targets = json.dumps(
+        [
+            {'Type': 'slo', 'Data': {'Slo': {'SloName': 'test-slo-1'}}},
+            {'Type': 'slo', 'Data': {'Slo': {'SloName': 'test-slo-2'}}},
+        ]
+    )
 
     # Mock the AWS API call that execute_audit_api makes
     mock_appsignals_client = mock_aws_clients['appsignals_client']
@@ -274,12 +280,14 @@ async def test_audit_slos_successful_execution_no_batching(mock_aws_clients):
                 'FindingId': 'test-finding-2',
                 'Severity': 'WARNING',
                 'Title': 'SLO Performance Issue',
-                'Description': 'Test SLO performance finding'
+                'Description': 'Test SLO performance finding',
             }
         ]
     }
 
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns') as mock_expand:
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns'
+    ) as mock_expand:
         # Mock no wildcard expansion needed
         mock_expand.return_value = json.loads(slo_targets)
 
