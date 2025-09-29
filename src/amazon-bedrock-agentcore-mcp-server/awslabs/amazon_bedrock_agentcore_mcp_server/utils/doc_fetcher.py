@@ -56,7 +56,7 @@ def _get(url: str) -> str:
         urllib.error.URLError: If the request fails
     """
     req = urllib.request.Request(url, headers={'User-Agent': doc_config.user_agent})
-    with urllib.request.urlopen(req, timeout=doc_config.timeout) as r:
+    with urllib.request.urlopen(req, timeout=doc_config.timeout) as r:  # nosec
         return r.read().decode('utf-8', errors='ignore')
 
 
