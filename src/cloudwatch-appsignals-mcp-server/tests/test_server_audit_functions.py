@@ -26,11 +26,6 @@ def mock_aws_clients():
             'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.appsignals_client',
             mock_appsignals_client,
         ),
-        # Mock the client in audit_utils module (where expand_slo_wildcard_patterns uses it)
-        patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.audit_utils.appsignals_client',
-            mock_appsignals_client,
-        ),
     ]
 
     for p in patches:
@@ -205,14 +200,21 @@ async def test_audit_slos_wildcard_no_targets_found(mock_aws_clients):
         'SloSummaries': []  # No SLOs found
     }
 
-    result = await audit_slos(
-        slo_targets=slo_targets,
-        start_time=None,
-        end_time=None,
-        auditors=None,
-    )
+    # Mock the expand_slo_wildcard_patterns function directly to avoid AWS API calls
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns'
+    ) as mock_expand:
+        # Mock that expansion returns empty list (no targets found)
+        mock_expand.return_value = []
 
-    assert 'Error: No SLO targets found after wildcard expansion.' in result
+        result = await audit_slos(
+            slo_targets=slo_targets,
+            start_time=None,
+            end_time=None,
+            auditors=None,
+        )
+
+        assert 'Error: No SLO targets found after wildcard expansion.' in result
 
 
 @pytest.mark.asyncio
