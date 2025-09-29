@@ -206,6 +206,39 @@ If running from a local repository, configure the MCP client like this:
 }
 ```
 
+## Updating the MCP Server
+
+The ECS MCP Server is regularly updated with new features, bug fixes, and improvements. Here's how to get the latest updates:
+
+### Automatic Updates (Default Behavior)
+
+If you installed via PyPI (recommended), updates are automatic:
+
+- **PyPI Installation**: The MCP client automatically downloads the latest version when the server is restarted
+- **No action required**: Simply restart your MCP client to get the latest updates
+
+### Manual Updates
+
+If you want to manually update to ensure you have the latest version:
+
+```bash
+uv pip install --upgrade awslabs.ecs-mcp-server
+```
+
+### Local Repository Updates
+
+If you're running from a cloned repository, update by pulling the latest changes:
+
+```bash
+# Navigate to your cloned repository
+cd /path/to/mcp
+
+# Pull the latest changes
+git pull origin main
+
+# The MCP server will automatically use the updated code on next restart
+```
+
 ## Security Controls
 
 The ECS MCP Server includes security controls in your MCP client configuration to prevent accidental changes to infrastructure and limit access to sensitive data:
