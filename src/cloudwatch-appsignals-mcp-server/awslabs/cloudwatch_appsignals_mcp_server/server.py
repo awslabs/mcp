@@ -87,10 +87,10 @@ logger.debug(f'Using AWS region: {AWS_REGION}')
 
 def _filter_operation_targets(provided):
     """Helper function to filter operation targets and detect wildcards.
-    
+
     Args:
         provided: List of target dictionaries
-        
+
     Returns:
         tuple: (operation_only_targets, has_wildcards)
     """
