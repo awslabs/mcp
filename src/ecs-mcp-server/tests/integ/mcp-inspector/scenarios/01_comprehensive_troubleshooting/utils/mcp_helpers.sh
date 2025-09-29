@@ -7,6 +7,7 @@
 # Use existing MCP config file
 MCP_CONFIG_FILE="/tmp/mcp-config.json"
 MCP_SERVER_NAME="local-ecs-mcp-server"
+INSTALL_COMMAND_MCP_INSPECTOR="npm install -g @modelcontextprotocol/inspector"
 
 # Validate MCP configuration exists
 check_mcp_config() {
@@ -240,7 +241,7 @@ check_mcp_inspector() {
         return 0
     else
         echo "❌ mcp-inspector CLI is not available. Please install it first."
-        echo "   You can install it using: pip install mcp-inspector"
+        echo "   You can install it using: $INSTALL_COMMAND_MCP_INSPECTOR"
         return 1
     fi
 }
