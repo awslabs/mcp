@@ -460,7 +460,7 @@ uv build
 uv pip install -e .
 
 # Install from PyPI (if published)
-uv pip install aws-iot-sitewise-mcp
+uv pip install awslabs.aws-iot-sitewise-mcp-server
 ```
 
 
