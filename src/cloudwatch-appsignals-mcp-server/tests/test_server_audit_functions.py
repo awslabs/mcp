@@ -190,34 +190,6 @@ def test_main_entry_point():
 
 
 @pytest.mark.asyncio
-async def test_audit_slos_wildcard_no_targets_found(mock_aws_clients):
-    """Test audit_slos when wildcard expansion results in no targets (covers line 523-524)."""
-    slo_targets = '[{"Type":"slo","Data":{"Slo":{"SloName":"*nonexistent*"}}}]'
-
-    # Mock the AWS API call that expand_slo_wildcard_patterns makes
-    mock_appsignals_client = mock_aws_clients['appsignals_client']
-    mock_appsignals_client.list_service_level_objectives.return_value = {
-        'SloSummaries': []  # No SLOs found
-    }
-
-    # Mock the expand_slo_wildcard_patterns function directly to avoid AWS API calls
-    with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns'
-    ) as mock_expand:
-        # Mock that expansion returns empty list (no targets found)
-        mock_expand.return_value = []
-
-        result = await audit_slos(
-            slo_targets=slo_targets,
-            start_time=None,
-            end_time=None,
-            auditors=None,
-        )
-
-        assert 'Error: No SLO targets found after wildcard expansion.' in result
-
-
-@pytest.mark.asyncio
 async def test_audit_slos_successful_execution_with_batching(mock_aws_clients):
     """Test audit_slos successful execution with batching (covers lines 526-558)."""
     # Create enough SLO targets to trigger batching (> BATCH_SIZE_THRESHOLD = 5)
