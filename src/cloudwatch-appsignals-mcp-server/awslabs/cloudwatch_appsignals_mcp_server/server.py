@@ -85,6 +85,40 @@ logger.debug(f'File logging enabled: {aws_cli_log_path}')
 logger.debug(f'Using AWS region: {AWS_REGION}')
 
 
+def _filter_operation_targets(provided):
+    """Helper function to filter operation targets and detect wildcards.
+    
+    Args:
+        provided: List of target dictionaries
+        
+    Returns:
+        tuple: (operation_only_targets, has_wildcards)
+    """
+    operation_only_targets = []
+    has_wildcards = False
+
+    for target in provided:
+        if isinstance(target, dict):
+            ttype = target.get('Type', '').lower()
+            if ttype == 'service_operation':
+                # Check for wildcard patterns in service names OR operation names
+                service_op_data = target.get('Data', {}).get('ServiceOperation', {})
+                service_data = service_op_data.get('Service', {})
+                service_name = service_data.get('Name', '')
+                operation = service_op_data.get('Operation', '')
+
+                if '*' in service_name or '*' in operation:
+                    has_wildcards = True
+
+                operation_only_targets.append(target)
+            else:
+                logger.warning(
+                    f"Ignoring target of type '{ttype}' in audit_service_operations (expected 'service_operation')"
+                )
+
+    return operation_only_targets, has_wildcards
+
+
 @mcp.tool()
 async def audit_services(
     service_targets: str = Field(
@@ -705,28 +739,8 @@ async def audit_service_operations(
         if len(provided) == 0:
             return 'Error: `operation_targets` must contain at least 1 item'
 
-        # Filter operation targets and check for wildcards
-        operation_only_targets = []
-        has_wildcards = False
-
-        for target in provided:
-            if isinstance(target, dict):
-                ttype = target.get('Type', '').lower()
-                if ttype == 'service_operation':
-                    # Check for wildcard patterns in service names OR operation names
-                    service_op_data = target.get('Data', {}).get('ServiceOperation', {})
-                    service_data = service_op_data.get('Service', {})
-                    service_name = service_data.get('Name', '')
-                    operation = service_op_data.get('Operation', '')
-
-                    if '*' in service_name or '*' in operation:
-                        has_wildcards = True
-
-                    operation_only_targets.append(target)
-                else:
-                    logger.warning(
-                        f"Ignoring target of type '{ttype}' in audit_service_operations (expected 'service_operation')"
-                    )
+        # Filter operation targets and check for wildcards using helper function
+        operation_only_targets, has_wildcards = _filter_operation_targets(provided)
 
         # Expand wildcard patterns using shared utility
         if has_wildcards:
