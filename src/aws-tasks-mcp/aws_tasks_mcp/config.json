@@ -1,0 +1,26 @@
+{
+  "mcp_servers": [
+    {
+      "name": "AWS Knowledge",
+      "description": "AWS Knowledge MCP Server",
+      "type": "streamable-http",
+      "args": {
+        "urls": "https://knowledge-mcp.global.api.aws"
+      }
+    },
+    {
+      "name": "AWS API MCP",
+      "description": "AWS API MCP Server",
+      "type": "stdio",
+      "args": {
+        "command": "uvx",
+        "args": [
+          "awslabs.aws-api-mcp-server@latest"
+        ],
+        "env": {
+          "AWS_REGION": "us-east-1"
+        }
+      }
+    }
+  ]
+}

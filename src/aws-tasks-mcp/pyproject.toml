@@ -1,7 +1,7 @@
 [project]
-name = "aws-unified-mcp-server"
+name = "aws-tasks-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "AWS tasks MCP"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

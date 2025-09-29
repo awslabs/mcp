@@ -46,7 +46,7 @@ wheels = [
 ]
 
 [[package]]
-name = "aws-unified-mcp-server"
+name = "aws-tasks-mcp"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
