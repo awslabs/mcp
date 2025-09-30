@@ -25,6 +25,7 @@ from awslabs.postgres_mcp_server.server import (
     DBConnectionSingleton,
     client_error_code_key,
     get_table_schema,
+    get_available_tables,
     main,
     run_query,
     unexpected_error_key,
@@ -656,6 +657,26 @@ async def test_get_table_schema():
     column_records = tool_response[0]
     validate_normal_query_response(column_records)
 
+@pytest.mark.asyncio
+async def test_get_available_tables():
+    """Test test_get_available_tables call in a positive case."""
+    DBConnectionSingleton.initialize('mock', 'mock', 'mock', 'mock', readonly=False, is_test=True)
+    mock_db_connection = Mock_DBConnection(readonly=False)
+    mock_db_connection.data_client.add_mock_response(get_mock_normal_query_response())
+    DBConnectionSingleton._instance._db_connection = mock_db_connection  # type: ignore
+
+    ctx = DummyCtx()
+    tool_response = await get_available_tables(ctx)
+
+    # validate tool_response
+    assert (
+        isinstance(tool_response, (list, tuple))
+        and len(tool_response) == 1
+        and isinstance(tool_response[0], dict)
+        and 'error' not in tool_response[0]
+    )
+    column_records = tool_response[0]
+    validate_normal_query_response(column_records)
 
 def test_main_with_valid_parameters(monkeypatch, capsys):
     """Test main function with valid command line parameters.
