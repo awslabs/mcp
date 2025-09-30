@@ -23,6 +23,7 @@ from awslabs.aws_pricing_mcp_server import consts
 from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
 from awslabs.aws_pricing_mcp_server.models import (
     ATTRIBUTE_NAMES_FIELD,
+    ATTRIBUTE_VALUES_FILTERS_FIELD,
     EFFECTIVE_DATE_FIELD,
     FILTERS_FIELD,
     GET_PRICING_MAX_ALLOWED_CHARACTERS_FIELD,
@@ -1114,11 +1115,12 @@ async def _get_single_attribute_values(
 
     **WORKFLOW:** Use this after get_pricing_service_attributes() to see valid values for each filter attribute.
 
-    **REQUIRES:**
+    **PARAMETERS:**
     - Service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonRDS')
     - List of attribute names from get_pricing_service_attributes() (e.g., ['instanceType', 'location'])
+    - filters (optional): Dictionary mapping attribute names to regex patterns (e.g., {'instanceType': 't3'})
 
-    **RETURNS:** Dictionary mapping attribute names to their valid values.
+    **RETURNS:** Dictionary mapping attribute names to their valid values. Filtered attributes return only matching values, unfiltered attributes return all values.
 
     **EXAMPLE RETURN:**
     ```
@@ -1135,23 +1137,29 @@ async def _get_single_attribute_values(
     **EXAMPLES:**
     - Single attribute: ['instanceType'] returns {'instanceType': ['t2.micro', 't3.medium', ...]}
     - Multiple attributes: ['instanceType', 'location'] returns both mappings
+    - Partial filtering: filters={'instanceType': 't3'} applies only to instanceType, location returns all values
     """,
 )
 async def get_pricing_attribute_values(
     ctx: Context,
     service_code: str = SERVICE_CODE_FIELD,
     attribute_names: List[str] = ATTRIBUTE_NAMES_FIELD,
+    filters: Optional[Dict[str, str]] = ATTRIBUTE_VALUES_FILTERS_FIELD,
 ) -> Union[Dict[str, List[str]], Dict[str, Any]]:
     """Retrieve all possible values for specific attributes of an AWS service.
 
     Args:
         service_code: The service code to query (e.g., 'AmazonEC2', 'AmazonS3')
         attribute_names: List of attribute names to get values for (e.g., ['instanceType', 'location'])
+        filters: Optional dictionary mapping attribute names to regex patterns for filtering
         ctx: MCP context for logging and state management
 
     Returns:
         Dictionary mapping attribute names to sorted lists of values on success, or error dictionary on failure
     """
+    if isinstance(filters, FieldInfo):
+        filters = filters.default
+
     if not attribute_names:
         return await create_error_response(
             ctx=ctx,
@@ -1187,7 +1195,42 @@ async def get_pricing_attribute_values(
             values_result = await _get_single_attribute_values(
                 pricing_client, service_code, attribute_name
             )
-            # Success - add to result
+
+            # Apply filtering if a filter is provided for this attribute
+            if filters and attribute_name in filters:
+                filter_pattern = filters[attribute_name]
+                logger.debug(f'Applying filter "{filter_pattern}" to attribute "{attribute_name}"')
+
+                try:
+                    regex_pattern = re.compile(filter_pattern, re.IGNORECASE)
+                    filtered_values = [
+                        value for value in values_result if regex_pattern.search(value)
+                    ]
+
+                    # Use filtered values (even if empty list)
+                    values_result = sorted(filtered_values)
+
+                except re.error as e:
+                    # If regex is invalid, return error for entire operation
+                    return await create_error_response(
+                        ctx=ctx,
+                        error_type='invalid_regex',
+                        message=f'Invalid regex pattern "{filter_pattern}" for attribute "{attribute_name}": {str(e)}',
+                        service_code=service_code,
+                        attribute_name=attribute_name,
+                        filter_pattern=filter_pattern,
+                        requested_attributes=attribute_names,
+                        filters=filters,
+                        suggestion='Please provide a valid regex pattern. For simple substring matching, just use the text without special regex characters.',
+                        examples={
+                            'Simple substring': 't3',
+                            'Case-insensitive exact match': '^t3\\.medium$',
+                            'Starts with': '^t3',
+                            'Contains word': '\\bt3\\b',
+                        },
+                    )
+
+            # Success - add to result (filtered or unfiltered)
             result[attribute_name] = values_result
         except AttributeValuesError as e:
             # If any attribute fails, return error for entire operation
@@ -1221,7 +1264,7 @@ async def get_pricing_attribute_values(
 
     **WORKFLOW:** Use this for historical pricing analysis or bulk data processing when current pricing from get_pricing() isn't sufficient.
 
-    **REQUIRES:**
+    **PARAMETERS:**
     - Service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonS3')
     - AWS region (e.g., 'us-east-1', 'eu-west-1')
     - Optional: effective_date for historical pricing (default: current date)

@@ -758,16 +758,17 @@ class TestGetPricingAttributeValues:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        'service_code,attribute_names,raw_values_map,expected',
+        'service_code,attribute_names,raw_values_map,filters,expected,test_description',
         [
-            # Single attribute test
+            # Basic success cases without filters
             (
                 'AmazonEC2',
                 ['instanceType'],
                 {'instanceType': ['t2.micro', 't2.small', 't3.medium', 'm5.large']},
+                None,
                 {'instanceType': ['m5.large', 't2.micro', 't2.small', 't3.medium']},
+                'single_attribute_no_filter',
             ),
-            # Multiple attributes test
             (
                 'AmazonEC2',
                 ['instanceType', 'location'],
@@ -775,12 +776,13 @@ class TestGetPricingAttributeValues:
                     'instanceType': ['t2.micro', 't2.small', 't3.medium'],
                     'location': ['US East (N. Virginia)', 'US West (Oregon)', 'EU (Ireland)'],
                 },
+                None,
                 {
                     'instanceType': ['t2.micro', 't2.small', 't3.medium'],
                     'location': ['EU (Ireland)', 'US East (N. Virginia)', 'US West (Oregon)'],
                 },
+                'multiple_attributes_no_filter',
             ),
-            # Multiple attributes from different service
             (
                 'AmazonRDS',
                 ['engineCode', 'instanceType'],
@@ -788,17 +790,113 @@ class TestGetPricingAttributeValues:
                     'engineCode': ['mysql', 'postgres', 'aurora-mysql'],
                     'instanceType': ['db.t3.micro', 'db.t3.small'],
                 },
+                None,
                 {
                     'engineCode': ['aurora-mysql', 'mysql', 'postgres'],
                     'instanceType': ['db.t3.micro', 'db.t3.small'],
                 },
+                'different_service_no_filter',
+            ),
+            # Success cases with filters
+            (
+                'AmazonEC2',
+                ['instanceType', 'location'],
+                {
+                    'instanceType': ['t2.micro', 't2.small', 't3.medium', 'm5.large'],
+                    'location': ['US East (N. Virginia)', 'US West (Oregon)', 'EU (Ireland)'],
+                },
+                {'instanceType': 't3'},
+                {
+                    'instanceType': ['t3.medium'],  # Filtered
+                    'location': [
+                        'EU (Ireland)',
+                        'US East (N. Virginia)',
+                        'US West (Oregon)',
+                    ],  # All values
+                },
+                'partial_filtering',
+            ),
+            (
+                'AmazonEC2',
+                ['instanceType', 'location'],
+                {
+                    'instanceType': ['t2.micro', 't2.small', 't3.medium', 'm5.large'],
+                    'location': ['US East (N. Virginia)', 'US West (Oregon)', 'EU (Ireland)'],
+                },
+                {'instanceType': 't3', 'location': 'US'},
+                {
+                    'instanceType': ['t3.medium'],  # Filtered
+                    'location': ['US East (N. Virginia)', 'US West (Oregon)'],  # Filtered
+                },
+                'filter_all_attributes',
+            ),
+            (
+                'AmazonRDS',
+                ['engineCode', 'instanceType'],
+                {
+                    'engineCode': ['mysql', 'postgres', 'aurora-mysql', 'aurora-postgres'],
+                    'instanceType': ['db.t3.micro', 'db.t3.small', 'db.m5.large'],
+                },
+                {'engineCode': '^aurora', 'instanceType': r'\.t3\.'},
+                {
+                    'engineCode': ['aurora-mysql', 'aurora-postgres'],  # Starts with aurora
+                    'instanceType': ['db.t3.micro', 'db.t3.small'],  # Contains .t3.
+                },
+                'regex_patterns',
+            ),
+            (
+                'AmazonEC2',
+                ['instanceType', 'location'],
+                {
+                    'instanceType': ['t2.micro', 't2.small', 't3.medium'],
+                    'location': ['US East (N. Virginia)', 'US West (Oregon)'],
+                },
+                {'instanceType': 'nonexistent'},
+                {
+                    'instanceType': [],  # No matches
+                    'location': ['US East (N. Virginia)', 'US West (Oregon)'],  # All values
+                },
+                'filter_no_matches',
+            ),
+            # Additional filter test cases
+            (
+                'AmazonEC2',
+                ['instanceType'],
+                {'instanceType': ['t2.micro', 't3.medium']},
+                {},
+                {'instanceType': ['t2.micro', 't3.medium']},
+                'empty_filters_dict',
+            ),
+            (
+                'AmazonEC2',
+                ['location'],
+                {'location': ['US East (N. Virginia)', 'US West (Oregon)', 'EU (Ireland)']},
+                {'location': 'us'},
+                {'location': ['US East (N. Virginia)', 'US West (Oregon)']},
+                'case_insensitive_filtering',
+            ),
+            (
+                'AmazonEC2',
+                ['instanceType'],
+                {'instanceType': ['t2.micro', 't3.medium']},
+                {'instanceType': 't3', 'nonRequestedAttribute': 'someFilter'},
+                {'instanceType': ['t3.medium']},
+                'ignore_non_requested_attribute_filter',
             ),
         ],
     )
-    async def test_get_pricing_attribute_values_success(
-        self, mock_context, mock_boto3, service_code, attribute_names, raw_values_map, expected
+    async def test_get_pricing_attribute_values_happy_path(
+        self,
+        mock_context,
+        mock_boto3,
+        service_code,
+        attribute_names,
+        raw_values_map,
+        filters,
+        expected,
+        test_description,
     ):
-        """Test getting attribute values for various AWS service attributes."""
+        """Test successful cases for getting attribute values with and without filtering."""
         pricing_client = mock_boto3.Session().client('pricing')
 
         # Set up mock to return different values based on the attribute name
@@ -813,11 +911,102 @@ class TestGetPricingAttributeValues:
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
             result = await get_pricing_attribute_values(
-                mock_context, service_code, attribute_names
+                mock_context, service_code, attribute_names, filters
             )
 
-            assert result == expected
+            assert result == expected, f"Failed test case '{test_description}'"
             assert pricing_client.get_attribute_values.call_count == len(attribute_names)
+            mock_context.info.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_attribute_values_filter_invalid_regex(
+        self, mock_context, mock_boto3
+    ):
+        """Test error handling when invalid regex pattern is provided."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_attribute_values.return_value = {
+            'AttributeValues': [{'Value': 't2.micro'}, {'Value': 't3.medium'}]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_attribute_values(
+                mock_context, 'AmazonEC2', ['instanceType'], {'instanceType': '[invalid'}
+            )
+
+            # Should return error due to invalid regex
+            assert isinstance(result, dict)
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'invalid_regex'
+            assert 'Invalid regex pattern "[invalid"' in result['message']
+            assert result['service_code'] == 'AmazonEC2'
+            assert result['attribute_name'] == 'instanceType'
+            assert result['filter_pattern'] == '[invalid'
+            assert 'examples' in result
+            mock_context.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_attribute_values_filter_for_non_requested_attribute(
+        self, mock_context, mock_boto3
+    ):
+        """Test that filters for non-requested attributes are ignored."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_attribute_values.return_value = {
+            'AttributeValues': [{'Value': 't2.micro'}, {'Value': 't3.medium'}]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_attribute_values(
+                mock_context,
+                'AmazonEC2',
+                ['instanceType'],
+                {'instanceType': 't3', 'nonRequestedAttribute': 'someFilter'},
+            )
+
+            # Should succeed and ignore the filter for non-requested attribute
+            assert result == {'instanceType': ['t3.medium']}
+            assert pricing_client.get_attribute_values.call_count == 1
+            mock_context.info.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_attribute_values_empty_filters_dict(self, mock_context, mock_boto3):
+        """Test that empty filters dictionary works like no filters."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_attribute_values.return_value = {
+            'AttributeValues': [{'Value': 't2.micro'}, {'Value': 't3.medium'}]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_attribute_values(
+                mock_context, 'AmazonEC2', ['instanceType'], {}
+            )
+
+            # Should return all values (no filtering applied)
+            assert result == {'instanceType': ['t2.micro', 't3.medium']}
+            assert pricing_client.get_attribute_values.call_count == 1
+            mock_context.info.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_attribute_values_case_insensitive_filtering(
+        self, mock_context, mock_boto3
+    ):
+        """Test that filtering is case-insensitive."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_attribute_values.return_value = {
+            'AttributeValues': [
+                {'Value': 'US East (N. Virginia)'},
+                {'Value': 'US West (Oregon)'},
+                {'Value': 'EU (Ireland)'},
+            ]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_attribute_values(
+                mock_context, 'AmazonEC2', ['location'], {'location': 'us'}
+            )
+
+            # Should match both US regions (case-insensitive)
+            assert result == {'location': ['US East (N. Virginia)', 'US West (Oregon)']}
+            assert pricing_client.get_attribute_values.call_count == 1
             mock_context.info.assert_called()
 
     @pytest.mark.asyncio
@@ -1002,14 +1191,19 @@ class TestGetPricingServiceCodesFiltering:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        'filter_pattern,expected_matches,test_description',
+        'filter_pattern,expected_matches,expected_count,test_description',
         [
             # Case sensitivity tests
-            ('bedrock', ['AmazonBedrock', 'AmazonBedrockService'], 'basic_case_insensitive'),
-            ('BEDROCK', ['AmazonBedrock', 'AmazonBedrockService'], 'uppercase_case_insensitive'),
-            ('BeDrOcK', ['AmazonBedrock', 'AmazonBedrockService'], 'mixed_case_insensitive'),
+            ('bedrock', ['AmazonBedrock', 'AmazonBedrockService'], None, 'basic_case_insensitive'),
+            (
+                'BEDROCK',
+                ['AmazonBedrock', 'AmazonBedrockService'],
+                None,
+                'uppercase_case_insensitive',
+            ),
+            ('BeDrOcK', ['AmazonBedrock', 'AmazonBedrockService'], None, 'mixed_case_insensitive'),
             # Regex pattern tests
-            ('^AmazonBedrock$', ['AmazonBedrock'], 'exact_match_regex'),
+            ('^AmazonBedrock$', ['AmazonBedrock'], None, 'exact_match_regex'),
             (
                 '^Amazon',
                 [
@@ -1023,65 +1217,56 @@ class TestGetPricingServiceCodesFiltering:
                     'AmazonKendra',
                     'AmazonSageMaker',
                 ],
+                None,
                 'starts_with_regex',
             ),
-            ('Lambda|S3', ['AWSLambda', 'AmazonS3'], 'alternation_regex'),
-            ('Amazon.*DB', ['AmazonDynamoDB'], 'wildcard_regex'),
-            ('EC2', ['AmazonEC2'], 'simple_substring'),
-            ('AWS', ['AWSLambda'], 'aws_prefix'),
-            ('Kendra|SageMaker', ['AmazonKendra', 'AmazonSageMaker'], 'multiple_alternation'),
-            ('Search', ['AmazonElasticSearch'], 'partial_match'),
+            ('Lambda|S3', ['AWSLambda', 'AmazonS3'], None, 'alternation_regex'),
+            ('Amazon.*DB', ['AmazonDynamoDB'], None, 'wildcard_regex'),
+            ('EC2', ['AmazonEC2'], None, 'simple_substring'),
+            ('AWS', ['AWSLambda'], None, 'aws_prefix'),
+            (
+                'Kendra|SageMaker',
+                ['AmazonKendra', 'AmazonSageMaker'],
+                None,
+                'multiple_alternation',
+            ),
+            ('Search', ['AmazonElasticSearch'], None, 'partial_match'),
+            # No filter cases
+            ('', None, 10, 'empty_filter_all_services'),
+            (None, None, 10, 'none_filter_all_services'),
         ],
     )
-    async def test_regex_filtering_success_cases(
+    async def test_regex_filtering_happy_path(
         self,
         mock_context,
         mock_service_codes_response,
         filter_pattern,
         expected_matches,
-        test_description,
-    ):
-        """Test successful regex filter patterns that match services."""
-        with patch('boto3.Session', return_value=mock_service_codes_response.Session()):
-            result = await get_pricing_service_codes(mock_context, filter=filter_pattern)
-
-            assert isinstance(result, list), (
-                f'Failed {test_description}: expected list, got {type(result)}'
-            )
-            assert len(result) == len(expected_matches), (
-                f'Failed {test_description}: expected {len(expected_matches)} matches, got {len(result)}'
-            )
-            for service in expected_matches:
-                assert service in result, (
-                    f'Failed {test_description}: missing {service} in results'
-                )
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        'filter_pattern,expected_count,test_description',
-        [
-            ('', 10, 'empty_filter_all_services'),
-            (None, 10, 'none_filter_all_services'),
-        ],
-    )
-    async def test_regex_filtering_no_filter_cases(
-        self,
-        mock_context,
-        mock_service_codes_response,
-        filter_pattern,
         expected_count,
         test_description,
     ):
-        """Test cases where no filter is applied (empty/None) and all services are returned."""
+        """Test successful regex filter patterns and no-filter cases."""
         with patch('boto3.Session', return_value=mock_service_codes_response.Session()):
             result = await get_pricing_service_codes(mock_context, filter=filter_pattern)
 
             assert isinstance(result, list), (
                 f'Failed {test_description}: expected list, got {type(result)}'
             )
-            assert len(result) == expected_count, (
-                f'Failed {test_description}: expected {expected_count} services, got {len(result)}'
-            )
+
+            if expected_matches is not None:
+                # Test specific matches
+                assert len(result) == len(expected_matches), (
+                    f'Failed {test_description}: expected {len(expected_matches)} matches, got {len(result)}'
+                )
+                for service in expected_matches:
+                    assert service in result, (
+                        f'Failed {test_description}: missing {service} in results'
+                    )
+            elif expected_count is not None:
+                # Test count-only cases (like no filter)
+                assert len(result) == expected_count, (
+                    f'Failed {test_description}: expected {expected_count} services, got {len(result)}'
+                )
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
