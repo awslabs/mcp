@@ -191,7 +191,7 @@ async def search_transaction_spans(
 
     try:
         # Use default log group if none provided
-        if log_group_name is None:
+        if not log_group_name:
             log_group_name = 'aws/spans'
             logger.debug('Using default log group: aws/spans')
 
