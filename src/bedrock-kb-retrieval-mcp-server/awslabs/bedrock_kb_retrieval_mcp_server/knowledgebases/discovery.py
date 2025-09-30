@@ -50,6 +50,7 @@ async def discover_knowledge_bases(
             logger.debug(f'KB: {kb}')
             kb_id = kb.get('knowledgeBaseId')
             kb_name = kb.get('name')
+            kb_description = kb.get('description', '')
 
             kb_arn = (
                 agent_client.get_knowledge_base(knowledgeBaseId=kb_id)
@@ -60,11 +61,14 @@ async def discover_knowledge_bases(
             tags = agent_client.list_tags_for_resource(resourceArn=kb_arn).get('tags', {})
             if tag_key in tags and tags[tag_key] == 'true':
                 logger.debug(f'KB Name: {kb_name}')
-                kb_data.append((kb_id, kb_name))
+                kb_data.append((kb_id, kb_name, kb_description))
+
+    logger.info(f"kb_data={kb_data}")
 
     # Then, for each matching knowledge base, collect its data sources
-    for kb_id, kb_name in kb_data:
-        result[kb_id] = {'name': kb_name, 'data_sources': []}
+    for kb_id, kb_name, kb_description in kb_data:
+        result[kb_id] = {'name': kb_name, 'description': kb_description, 'data_sources': []}
+        logger.info(f"result[kb_id]: {result[kb_id]}")
 
         # Collect data sources for this knowledge base
         data_sources = []
