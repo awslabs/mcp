@@ -53,6 +53,7 @@ NOTICE                                                                    @awsla
 /src/code-doc-gen-mcp-server            @jimini55                         @awslabs/mcp-admins
 /src/core-mcp-server                    @PaulVincent707                   @awslabs/mcp-admins
 /src/cost-explorer-mcp-server           @Fedayizada                       @awslabs/mcp-admins
+/src/document-loader-mcp-server         @andywidjaja @hvital @HaoOliv     @awslabs/mcp-admins
 /src/aws-dataprocessing-mcp-server          @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun                      @awslabs/mcp-admins
 #/src/documentdb-mcp-server             @awslabs/mcp-maintainers          @awslabs/mcp-admin
 /src/dynamodb-mcp-server                @erbenmo @shetsa-amzn @LeeroyHannigan                          @awslabs/mcp-admins
