@@ -31,7 +31,9 @@ from .list_tags_for_resource import list_tags_for_resource
 
 
 def register_module(mcp: FastMCP) -> None:
-    @mcp.tool(name='get_configuration_info')
+    @mcp.tool(
+        name='get_configuration_info', description='Gets information about MSK configurations.'
+    )
     def get_configuration_info(
         region: str = Field(..., description='AWS region'),
         action: str = Field(
@@ -42,7 +44,7 @@ def register_module(mcp: FastMCP) -> None:
         kwargs: dict = Field({}, description='Additional arguments based on the action'),
     ):
         """
-        Get information about MSK configurations.
+        Gets information about MSK configurations.
 
         Args:
             action (str): The operation to perform:
@@ -115,13 +117,13 @@ def register_module(mcp: FastMCP) -> None:
                 f'Unsupported action: {action}. Supported actions are: describe, revisions, revision_details'
             )
 
-    @mcp.tool(name='list_tags_for_resource')
+    @mcp.tool(name='list_tags_for_resource', description='Lists all tags for an MSK resource.')
     def list_tags_for_resource_tool(
         region: str = Field(description='AWS region'),
         arn: str = Field(description='The Amazon Resource Name (ARN) of the resource'),
     ):
         """
-        List all tags for an MSK resource.
+        Lists all tags for an MSK resource.
 
         Args:
             arn (str): The Amazon Resource Name (ARN) of the resource

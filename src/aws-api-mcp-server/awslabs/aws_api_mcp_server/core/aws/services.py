@@ -14,7 +14,9 @@
 
 import awscli.clidriver
 import re
-from awscli.paramfile import LOCAL_PREFIX_MAP, URIArgumentHandler
+from ..common.config import get_user_agent_extra
+from ..common.file_system_controls import get_file_validated
+from awscli.paramfile import URIArgumentHandler
 from botocore.model import OperationModel
 from collections.abc import Set
 from loguru import logger
@@ -22,13 +24,14 @@ from lxml import html
 from typing import Any, NamedTuple
 
 
-def _deny_remote_prefix(prefix, uri):
+def _deny_remote_prefix(prefix, _uri):
     raise ValueError(f'{prefix} prefix is not allowed')
 
 
 RESTRICTED_URI_HANDLER = URIArgumentHandler(
     prefixes={
-        **LOCAL_PREFIX_MAP,
+        'file://': (get_file_validated, {'mode': 'r'}),
+        'fileb://': (get_file_validated, {'mode': 'rb'}),
         'http://': (_deny_remote_prefix, {}),
         'https://': (_deny_remote_prefix, {}),
     }
@@ -50,6 +53,9 @@ filter_query = re.compile(r'^\s+([-a-z0-9_.]+|tag:<key>)\s+')
 driver = awscli.clidriver.create_clidriver()
 session = driver.session
 session.register('load-cli-arg', RESTRICTED_URI_HANDLER)
+
+# append user agent to session for aws cli customizations
+session.user_agent_extra += ' ' + get_user_agent_extra() + ' cli-customizations'
 
 
 class OperationFilters:
