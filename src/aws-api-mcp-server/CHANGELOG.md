@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Mark more operations as mutating (#1387)
+
+## [0.3.3] - 2025-09-30
+
+### Fixed
+
+- Mark sts:AssumeRole as mutating (#1364)
+
+## [0.3.1] - 2025-09-23
+
 ### Added
 
 - Agent script for CloudTrail Multi-Region Setup (#1320)
