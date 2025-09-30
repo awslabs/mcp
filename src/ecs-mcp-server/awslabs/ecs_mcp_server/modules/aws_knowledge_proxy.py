@@ -33,6 +33,7 @@ ECS_TOOL_GUIDANCE = """
 
     New ECS features include:
     - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
+    - ECS Managed Instances (launched 2025)
 """
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,25 @@ def register_ecs_prompts(mcp: FastMCP) -> None:
                 "how to use ecs effectively",
                 "new ecs feature",
                 "latest ecs feature",
+            ],
+            "response": [
+                {
+                    "name": "aws_knowledge_aws___search_documentation",
+                }
+            ],
+        },
+        {
+            "patterns": [
+                "what are ecs managed instances",
+                "how to setup ecs managed instances",
+                "ecs managed instances",
+                "ecs MI",
+                "managed instances ecs",
+                "ecs specialized instance types",
+                "ecs custom instance types",
+                "ecs instance type selection",
+                "What alternatives do I have for Fargate?",
+                "How do I migrate from Fargate to Managed Instances",
             ],
             "response": [
                 {
