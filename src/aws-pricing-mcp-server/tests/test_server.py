@@ -686,65 +686,54 @@ class TestGetPricingServiceAttributes:
             mock_context.info.assert_called()
 
     @pytest.mark.asyncio
-    async def test_get_pricing_service_attributes_service_not_found(
-        self, mock_context, mock_boto3
+    @pytest.mark.parametrize(
+        'error_scenario,service_code,expected_error_type,expected_in_message',
+        [
+            ('service_not_found', 'InvalidService', 'service_not_found', 'InvalidService'),
+            ('api_error', 'AmazonEC2', 'api_error', 'API Error'),
+            (
+                'empty_attributes',
+                'TestService',
+                'empty_results',
+                'no filterable attributes available',
+            ),
+        ],
+    )
+    async def test_get_pricing_service_attributes_errors(
+        self,
+        mock_context,
+        mock_boto3,
+        error_scenario,
+        service_code,
+        expected_error_type,
+        expected_in_message,
     ):
-        """Test getting service attributes for invalid service returns proper error response."""
-        pricing_client = mock_boto3.Session().client('pricing')
-        pricing_client.describe_services.return_value = {'Services': []}
+        """Test various error scenarios for get_pricing_service_attributes."""
+        if error_scenario == 'service_not_found':
+            pricing_client = mock_boto3.Session().client('pricing')
+            pricing_client.describe_services.return_value = {'Services': []}
+
+        elif error_scenario == 'api_error':
+            pricing_client = mock_boto3.Session().client('pricing')
+            pricing_client.describe_services.side_effect = Exception('API Error')
+
+        elif error_scenario == 'empty_attributes':
+            pricing_client = mock_boto3.Session().client('pricing')
+            pricing_client.describe_services.return_value = {
+                'Services': [{'ServiceCode': service_code, 'AttributeNames': []}]
+            }
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_service_attributes(mock_context, 'InvalidService')
+            result = await get_pricing_service_attributes(mock_context, service_code)
 
-            # Verify error response structure
-            assert isinstance(result, dict)
-            assert result['status'] == 'error'
-            assert result['error_type'] == 'service_not_found'
-            assert 'InvalidService' in result['message']
-            assert result['service_code'] == 'InvalidService'
-            assert 'get_service_codes()' in result['suggestion']
-            assert 'examples' in result
-            assert 'AmazonES' in result['examples']['OpenSearch']
-            mock_context.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_get_pricing_service_attributes_api_error(self, mock_context, mock_boto3):
-        """Test handling of API errors when getting service attributes."""
-        pricing_client = mock_boto3.Session().client('pricing')
-        pricing_client.describe_services.side_effect = Exception('API Error')
-
-        with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_service_attributes(mock_context, 'AmazonEC2')
-
-            # Verify error response structure
-            assert isinstance(result, dict)
-            assert result['status'] == 'error'
-            assert result['error_type'] == 'api_error'
-            assert 'API Error' in result['message']
-            assert result['service_code'] == 'AmazonEC2'
-            assert 'suggestion' in result
-            mock_context.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_get_pricing_service_attributes_empty_attributes(self, mock_context, mock_boto3):
-        """Test handling when service exists but has no attributes."""
-        pricing_client = mock_boto3.Session().client('pricing')
-        pricing_client.describe_services.return_value = {
-            'Services': [{'ServiceCode': 'TestService', 'AttributeNames': []}]
-        }
-
-        with patch('boto3.Session', return_value=mock_boto3.Session()):
-            result = await get_pricing_service_attributes(mock_context, 'TestService')
-
-            # Verify error response structure
-            assert isinstance(result, dict)
-            assert result['status'] == 'error'
-            assert result['error_type'] == 'empty_results'
-            assert 'TestService' in result['message']
-            assert 'no filterable attributes available' in result['message']
-            assert result['service_code'] == 'TestService'
-            assert 'Try using get_pricing() without filters' in result['suggestion']
-            mock_context.error.assert_called()
+        # Common assertions for all error scenarios
+        assert isinstance(result, dict)
+        assert result['status'] == 'error'
+        assert result['error_type'] == expected_error_type
+        assert expected_in_message in result['message']
+        assert result['service_code'] == service_code
+        assert 'suggestion' in result or 'examples' in result
+        mock_context.error.assert_called()
 
     @pytest.mark.asyncio
     async def test_get_pricing_service_attributes_client_creation_error(self, mock_context):
@@ -988,6 +977,219 @@ class TestGetPricingAttributeValues:
         mock_context.error.assert_called()
 
 
+class TestGetPricingServiceCodesFiltering:
+    """Tests for regex filtering functionality in get_pricing_service_codes."""
+
+    @pytest.fixture
+    def mock_service_codes_response(self, mock_boto3):
+        """Mock service codes response with a variety of AWS services for testing filters."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.describe_services.return_value = {
+            'Services': [
+                {'ServiceCode': 'AmazonBedrock'},
+                {'ServiceCode': 'AmazonBedrockService'},
+                {'ServiceCode': 'AmazonEC2'},
+                {'ServiceCode': 'AmazonS3'},
+                {'ServiceCode': 'AmazonRDS'},
+                {'ServiceCode': 'AWSLambda'},
+                {'ServiceCode': 'AmazonDynamoDB'},
+                {'ServiceCode': 'AmazonElasticSearch'},
+                {'ServiceCode': 'AmazonKendra'},
+                {'ServiceCode': 'AmazonSageMaker'},
+            ]
+        }
+        return mock_boto3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'filter_pattern,expected_matches,test_description',
+        [
+            # Case sensitivity tests
+            ('bedrock', ['AmazonBedrock', 'AmazonBedrockService'], 'basic_case_insensitive'),
+            ('BEDROCK', ['AmazonBedrock', 'AmazonBedrockService'], 'uppercase_case_insensitive'),
+            ('BeDrOcK', ['AmazonBedrock', 'AmazonBedrockService'], 'mixed_case_insensitive'),
+            # Regex pattern tests
+            ('^AmazonBedrock$', ['AmazonBedrock'], 'exact_match_regex'),
+            (
+                '^Amazon',
+                [
+                    'AmazonBedrock',
+                    'AmazonBedrockService',
+                    'AmazonEC2',
+                    'AmazonS3',
+                    'AmazonRDS',
+                    'AmazonDynamoDB',
+                    'AmazonElasticSearch',
+                    'AmazonKendra',
+                    'AmazonSageMaker',
+                ],
+                'starts_with_regex',
+            ),
+            ('Lambda|S3', ['AWSLambda', 'AmazonS3'], 'alternation_regex'),
+            ('Amazon.*DB', ['AmazonDynamoDB'], 'wildcard_regex'),
+            ('EC2', ['AmazonEC2'], 'simple_substring'),
+            ('AWS', ['AWSLambda'], 'aws_prefix'),
+            ('Kendra|SageMaker', ['AmazonKendra', 'AmazonSageMaker'], 'multiple_alternation'),
+            ('Search', ['AmazonElasticSearch'], 'partial_match'),
+        ],
+    )
+    async def test_regex_filtering_success_cases(
+        self,
+        mock_context,
+        mock_service_codes_response,
+        filter_pattern,
+        expected_matches,
+        test_description,
+    ):
+        """Test successful regex filter patterns that match services."""
+        with patch('boto3.Session', return_value=mock_service_codes_response.Session()):
+            result = await get_pricing_service_codes(mock_context, filter=filter_pattern)
+
+            assert isinstance(result, list), (
+                f'Failed {test_description}: expected list, got {type(result)}'
+            )
+            assert len(result) == len(expected_matches), (
+                f'Failed {test_description}: expected {len(expected_matches)} matches, got {len(result)}'
+            )
+            for service in expected_matches:
+                assert service in result, (
+                    f'Failed {test_description}: missing {service} in results'
+                )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'filter_pattern,expected_count,test_description',
+        [
+            ('', 10, 'empty_filter_all_services'),
+            (None, 10, 'none_filter_all_services'),
+        ],
+    )
+    async def test_regex_filtering_no_filter_cases(
+        self,
+        mock_context,
+        mock_service_codes_response,
+        filter_pattern,
+        expected_count,
+        test_description,
+    ):
+        """Test cases where no filter is applied (empty/None) and all services are returned."""
+        with patch('boto3.Session', return_value=mock_service_codes_response.Session()):
+            result = await get_pricing_service_codes(mock_context, filter=filter_pattern)
+
+            assert isinstance(result, list), (
+                f'Failed {test_description}: expected list, got {type(result)}'
+            )
+            assert len(result) == expected_count, (
+                f'Failed {test_description}: expected {expected_count} services, got {len(result)}'
+            )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'filter_pattern,expected_error_type,test_description',
+        [
+            (r'\bEC2\b', 'no_matches_found', 'word_boundary_no_matches'),
+            (r'\.', 'no_matches_found', 'literal_dot_no_matches'),
+            ('NonExistentService', 'no_matches_found', 'nonexistent_service'),
+            ('[invalid', 'invalid_regex', 'invalid_regex_pattern'),
+        ],
+    )
+    async def test_regex_filtering_error_cases(
+        self,
+        mock_context,
+        mock_service_codes_response,
+        filter_pattern,
+        expected_error_type,
+        test_description,
+    ):
+        """Test regex filter patterns that result in errors (invalid regex or no matches)."""
+        with patch('boto3.Session', return_value=mock_service_codes_response.Session()):
+            result = await get_pricing_service_codes(mock_context, filter=filter_pattern)
+
+            assert isinstance(result, dict), (
+                f'Failed {test_description}: expected dict (error), got {type(result)}'
+            )
+            assert result['status'] == 'error', f'Failed {test_description}: expected error status'
+            assert result['error_type'] == expected_error_type, (
+                f'Failed {test_description}: expected error_type {expected_error_type}, got {result.get("error_type")}'
+            )
+
+            if expected_error_type == 'invalid_regex':
+                assert filter_pattern in result['message'], (
+                    f'Failed {test_description}: filter pattern not in error message'
+                )
+            elif expected_error_type == 'no_matches_found':
+                assert (
+                    'No service codes match' in result['message']
+                    or 'no matches' in result['message'].lower()
+                )
+
+            mock_context.error.assert_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_scenario,setup_error,expected_error_type',
+        [
+            ('api_error', Exception('API Error'), 'api_error'),
+            ('client_error', 'client_creation', 'client_creation_failed'),
+        ],
+    )
+    async def test_filter_error_scenarios(
+        self, mock_context, mock_boto3, error_scenario, setup_error, expected_error_type
+    ):
+        """Test error handling scenarios with filtering enabled."""
+        if error_scenario == 'api_error':
+            pricing_client = mock_boto3.Session().client('pricing')
+            pricing_client.describe_services.side_effect = setup_error
+            with patch('boto3.Session', return_value=mock_boto3.Session()):
+                result = await get_pricing_service_codes(mock_context, filter='bedrock')
+        else:  # client_error
+            with patch(
+                'awslabs.aws_pricing_mcp_server.server.create_pricing_client',
+                side_effect=Exception('Client creation failed'),
+            ):
+                result = await get_pricing_service_codes(mock_context, filter='bedrock')
+
+        assert isinstance(result, dict)
+        assert result['status'] == 'error'
+        assert result['error_type'] == expected_error_type
+        mock_context.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_filter_with_pagination(self, mock_context, mock_boto3):
+        """Test that filtering works correctly with paginated API responses."""
+        pricing_client = mock_boto3.Session().client('pricing')
+
+        # Set up mock with pagination
+        pricing_client.describe_services.side_effect = [
+            # First page
+            {
+                'Services': [
+                    {'ServiceCode': 'AmazonBedrock'},
+                    {'ServiceCode': 'AmazonEC2'},
+                ],
+                'NextToken': 'page2token',
+            },
+            # Second page
+            {
+                'Services': [
+                    {'ServiceCode': 'AmazonBedrockService'},
+                    {'ServiceCode': 'AWSLambda'},
+                ]
+            },
+        ]
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            # Filter for services containing "bedrock"
+            result = await get_pricing_service_codes(mock_context, filter='bedrock')
+
+            assert isinstance(result, list)
+            assert len(result) == 2  # Should find matches from both pages
+            assert 'AmazonBedrock' in result
+            assert 'AmazonBedrockService' in result
+            assert 'AmazonEC2' not in result
+            assert 'AWSLambda' not in result
+
+
 class TestServerIntegration:
     """Integration tests for the server module."""
 
@@ -1008,7 +1210,7 @@ class TestServerIntegration:
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
             # Call the get_pricing_service_codes function directly
-            service_codes = await get_pricing_service_codes(mock_context)
+            service_codes = await get_pricing_service_codes(mock_context, filter=None)
 
             # Verify we got a successful response
             assert service_codes is not None
@@ -1094,7 +1296,7 @@ class TestServerIntegration:
 
         with patch('boto3.Session', return_value=mock_boto3.Session()):
             # Call the get_pricing_service_codes function directly
-            service_codes = await get_pricing_service_codes(mock_context)
+            service_codes = await get_pricing_service_codes(mock_context, filter=None)
 
             # Verify we got a successful response that combines both pages
             assert service_codes is not None

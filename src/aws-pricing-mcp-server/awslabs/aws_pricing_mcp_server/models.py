@@ -115,3 +115,8 @@ NEXT_TOKEN_FIELD = Field(
     None,
     description='Pagination token from previous response to get next page of results',
 )
+
+SERVICE_CODES_FILTER_FIELD = Field(
+    None,
+    description='Optional case-insensitive regex pattern to filter service codes',
+)

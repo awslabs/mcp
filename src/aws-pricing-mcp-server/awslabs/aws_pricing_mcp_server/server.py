@@ -17,6 +17,7 @@
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
+import re
 import sys
 from awslabs.aws_pricing_mcp_server import consts
 from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
@@ -30,6 +31,7 @@ from awslabs.aws_pricing_mcp_server.models import (
     OUTPUT_OPTIONS_FIELD,
     REGION_FIELD,
     SERVICE_CODE_FIELD,
+    SERVICE_CODES_FILTER_FIELD,
     ErrorResponse,
     OutputOptions,
     PricingFilter,
@@ -809,6 +811,9 @@ async def generate_cost_report_wrapper(
 
     **PURPOSE:** Discover which AWS services have pricing information available in the AWS Price List API.
 
+    **PARAMETERS:**
+    - filter (optional): Case-insensitive regex pattern to filter service codes (e.g., "bedrock" matches "AmazonBedrock", "AmazonBedrockService")
+
     **WORKFLOW:** This is the starting point for any pricing query. Use this first to find the correct service code.
 
     **RETURNS:** List of service codes (e.g., 'AmazonEC2', 'AmazonS3', 'AWSLambda') that can be used with other pricing tools.
@@ -820,11 +825,14 @@ async def generate_cost_report_wrapper(
     **NOTE:** Service codes may differ from AWS console names (e.g., 'AmazonES' for OpenSearch, 'AWSLambda' for Lambda).
     """,
 )
-async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, Any]]:
+async def get_pricing_service_codes(
+    ctx: Context, filter: Optional[str] = SERVICE_CODES_FILTER_FIELD
+) -> Union[List[str], Dict[str, Any]]:
     """Retrieve all available service codes from AWS Price List API.
 
     Args:
         ctx: MCP context for logging and state management
+        filter: Optional regex pattern to filter service codes (case-insensitive)
 
     Returns:
         List of sorted service codes on success, or error dictionary on failure
@@ -848,18 +856,14 @@ async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, 
 
         # Retrieve all service codes with pagination handling
         while True:
-            if next_token:
-                response = pricing_client.describe_services(NextToken=next_token)
-            else:
-                response = pricing_client.describe_services()
+            response = pricing_client.describe_services(
+                **({'NextToken': next_token} if next_token else {})
+            )
+            service_codes.extend([service['ServiceCode'] for service in response['Services']])
 
-            for service in response['Services']:
-                service_codes.append(service['ServiceCode'])
-
-            if 'NextToken' in response:
-                next_token = response['NextToken']
-            else:
+            if 'NextToken' not in response:
                 break
+            next_token = response['NextToken']
 
     except Exception as e:
         return await create_error_response(
@@ -877,10 +881,41 @@ async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, 
             message='No service codes returned from AWS Price List API',
         )
 
-    sorted_codes = sorted(service_codes)
+    # Apply regex filtering if filter is provided
+    if filter:
+        try:
+            regex_pattern = re.compile(filter, re.IGNORECASE)
+            service_codes = [code for code in service_codes if regex_pattern.search(code)]
 
-    logger.info(f'Successfully retrieved {len(sorted_codes)} service codes')
-    await ctx.info(f'Successfully retrieved {len(sorted_codes)} service codes')
+            if not service_codes:
+                return await create_error_response(
+                    ctx=ctx,
+                    error_type='no_matches_found',
+                    message=f'No service codes match the regex pattern: "{filter}"',
+                    filter=filter,
+                    suggestion='Try a broader regex pattern or check the pattern syntax. Use get_pricing_service_codes() without filter to see all available service codes.',
+                )
+
+        except re.error as e:
+            return await create_error_response(
+                ctx=ctx,
+                error_type='invalid_regex',
+                message=f'Invalid regex pattern "{filter}": {str(e)}',
+                filter=filter,
+                suggestion='Please provide a valid regex pattern. For simple substring matching, just use the text without special regex characters.',
+                examples={
+                    'Simple substring': 'bedrock',
+                    'Case-insensitive exact match': '^AmazonBedrock$',
+                    'Starts with': '^Amazon',
+                    'Contains word': '\\bbedrock\\b',
+                },
+            )
+
+    sorted_codes = sorted(service_codes)
+    filter_msg = f' (filtered with pattern: "{filter}")' if filter else ''
+
+    logger.info(f'Successfully retrieved {len(sorted_codes)} service codes{filter_msg}')
+    await ctx.info(f'Successfully retrieved {len(sorted_codes)} service codes{filter_msg}')
 
     return sorted_codes
 
