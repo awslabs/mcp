@@ -115,3 +115,16 @@ NEXT_TOKEN_FIELD = Field(
     None,
     description='Pagination token from previous response to get next page of results',
 )
+
+SERVICE_CODES_FILTER_FIELD = Field(
+    None, description='Optional case-insensitive regex pattern to filter service codes'
+)
+
+SERVICE_ATTRIBUTES_FILTER_FIELD = Field(
+    None, description='Optional case-insensitive regex pattern to filter service attribute names'
+)
+
+ATTRIBUTE_VALUES_FILTERS_FIELD = Field(
+    None,
+    description='Optional dictionary mapping attribute names to regex patterns for filtering their values (e.g., {"instanceType": "t3", "operatingSystem": "Linux"})',
+)
