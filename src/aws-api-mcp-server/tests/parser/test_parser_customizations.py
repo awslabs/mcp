@@ -138,13 +138,18 @@ def test_s3_cp_no_args():
 
 def test_s3_cp_with_source_and_dest():
     """Test aws s3 cp with source and destination."""
-    result = parse('aws s3 cp /tmp/local-file.txt s3://my-bucket/')
+    import os
+    from awslabs.aws_api_mcp_server.core.common.config import WORKING_DIRECTORY
+
+    # Use working directory path instead of /tmp/
+    local_file_path = os.path.join(WORKING_DIRECTORY, 'local-file.txt')
+    result = parse(f'aws s3 cp {local_file_path} s3://my-bucket/')
 
     assert isinstance(result, IRCommand)
     assert result.command_metadata.service_sdk_name == 's3'
     assert result.command_metadata.operation_sdk_name == 'cp'
     assert result.is_awscli_customization is True
-    assert result.parameters['--paths'] == ['/tmp/local-file.txt', 's3://my-bucket/']
+    assert result.parameters['--paths'] == [local_file_path, 's3://my-bucket/']
 
 
 def test_s3_mv_with_source_and_dest():
@@ -452,6 +457,9 @@ def test_rds_generate_db_auth_token_with_numeric_port():
     assert result.parameters['--port'] == '5432'  # Port is a string, not an integer
 
 
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY', '/test/path'
+)
 def test_local_file_uri():
     """Test aws command with URI input file parameter."""
     import io
@@ -503,3 +511,16 @@ def test_http_uri_validation_error():
 
     error_message = str(exc_info.value)
     assert 'http:// prefix is not allowed' in error_message
+
+
+def test_local_file_uri_validation_failure():
+    """Test aws command with URI input file parameter outside the working directory."""
+    with pytest.raises(
+        CommandValidationError,
+        match=r"File path '/etc/hosts' is outside the allowed working directory .*",
+    ):
+        result = parse('aws logs create-log-group --log-group-name file:///etc/hosts')
+
+        assert result.is_awscli_customization is False
+        assert result.command_metadata.service_sdk_name == 'lambda'
+        assert result.command_metadata.operation_sdk_name == 'CreateFunction'

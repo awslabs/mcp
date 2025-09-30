@@ -22,7 +22,7 @@ tests/integ/mcp-inspector/
 ## Prerequisites
 
 1. **AWS CLI** installed and configured with appropriate permissions
-2. **MCP Inspector CLI**: `uvx pip install mcp-inspector`
+2. **MCP Inspector CLI**: `npm install -g @modelcontextprotocol/inspector`. See instructions [here](https://www.npmjs.com/package/@modelcontextprotocol/inspector/)
 3. **MCP Configuration** at `/tmp/mcp-config.json` (see example below)
 4. **jq** command-line tool for JSON processing
 5. **uv** package manager (required by MCP server)

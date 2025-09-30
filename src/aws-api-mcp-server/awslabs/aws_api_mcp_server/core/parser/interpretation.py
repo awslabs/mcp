@@ -13,18 +13,13 @@
 # limitations under the License.
 
 import boto3
-import importlib.metadata
 from ..aws.pagination import build_result
 from ..aws.services import (
     extract_pagination_config,
 )
 from ..common.command import IRCommand, OutputFile
-from ..common.config import (
-    ENABLE_AGENT_SCRIPTS,
-    OPT_IN_TELEMETRY,
-    READ_OPERATIONS_ONLY_MODE,
-    REQUIRE_MUTATION_CONSENT,
-)
+from ..common.config import get_user_agent_extra
+from ..common.file_system_controls import validate_file_path
 from ..common.helpers import operation_timer
 from botocore.config import Config
 from jmespath.parser import ParsedResult
@@ -33,12 +28,6 @@ from typing import Any
 
 TIMEOUT_AFTER_SECONDS = 10
 CHUNK_SIZE = 4 * 1024 * 1024
-
-# Get package version for user agent
-try:
-    PACKAGE_VERSION = importlib.metadata.version('awslabs.aws_api_mcp_server')
-except importlib.metadata.PackageNotFoundError:
-    PACKAGE_VERSION = 'unknown'
 
 
 def interpret(
@@ -64,7 +53,7 @@ def interpret(
         connect_timeout=TIMEOUT_AFTER_SECONDS,
         read_timeout=TIMEOUT_AFTER_SECONDS,
         retries={'max_attempts': 1},
-        user_agent_extra=_get_user_agent_extra(),
+        user_agent_extra=get_user_agent_extra(),
     )
 
     with operation_timer(ir.service_name, ir.operation_python_name, region):
@@ -98,19 +87,13 @@ def interpret(
         return response
 
 
-def _get_user_agent_extra() -> str:
-    user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
-    if not OPT_IN_TELEMETRY:
-        return user_agent_extra
-    user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
-    user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
-    user_agent_extra += f' cfg/scripts#{"1" if ENABLE_AGENT_SCRIPTS else "0"}'
-    return user_agent_extra
-
-
 def _handle_streaming_output(response: dict[str, Any], output_file: OutputFile) -> dict[str, Any]:
     streaming_output = response[output_file.response_key]
-    with open(output_file.path, 'wb') as f:
+
+    # Validate file path before writing
+    validated_path = validate_file_path(output_file.path)
+
+    with open(validated_path, 'wb') as f:
         for chunk in streaming_output.iter_chunks(chunk_size=CHUNK_SIZE):
             f.write(chunk)
 

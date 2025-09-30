@@ -36,7 +36,9 @@ class TestStaticToolsInit:
         assert mock_mcp.tool.call_count == 1
 
         # Verify that the expected tools were registered
-        mock_mcp.tool.assert_any_call(name='get_cluster_best_practices')
+        # Verify that the expected tools were registered (check call names)
+        call_names = [call.kwargs.get('name') for call in mock_mcp.tool.call_args_list]
+        assert 'get_cluster_best_practices' in call_names
 
     @patch('awslabs.aws_msk_mcp_server.tools.static_tools.get_cluster_best_practices')
     def test_get_cluster_best_practices_tool(self, mock_get_cluster_best_practices):
