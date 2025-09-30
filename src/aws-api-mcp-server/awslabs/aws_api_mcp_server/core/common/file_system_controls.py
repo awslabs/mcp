@@ -18,7 +18,16 @@ from .config import (
     ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY,
     WORKING_DIRECTORY,
 )
+from awscli.paramfile import get_file
 from pathlib import Path
+
+
+def get_file_validated(prefix, path, mode):
+    """Validate that a URI path (i.e. file://<path>) is within the allowed working directory."""
+    file_path = os.path.expandvars(os.path.expanduser(path[len(prefix) :]))
+    validate_file_path(file_path)
+
+    return get_file(prefix, path, mode)
 
 
 def validate_file_path(file_path: str) -> str:
