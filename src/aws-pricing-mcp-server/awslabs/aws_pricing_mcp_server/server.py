@@ -17,11 +17,13 @@
 This server provides tools for analyzing AWS service costs across different user tiers.
 """
 
+import re
 import sys
 from awslabs.aws_pricing_mcp_server import consts
 from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
 from awslabs.aws_pricing_mcp_server.models import (
     ATTRIBUTE_NAMES_FIELD,
+    ATTRIBUTE_VALUES_FILTERS_FIELD,
     EFFECTIVE_DATE_FIELD,
     FILTERS_FIELD,
     GET_PRICING_MAX_ALLOWED_CHARACTERS_FIELD,
@@ -29,7 +31,9 @@ from awslabs.aws_pricing_mcp_server.models import (
     NEXT_TOKEN_FIELD,
     OUTPUT_OPTIONS_FIELD,
     REGION_FIELD,
+    SERVICE_ATTRIBUTES_FILTER_FIELD,
     SERVICE_CODE_FIELD,
+    SERVICE_CODES_FILTER_FIELD,
     ErrorResponse,
     OutputOptions,
     PricingFilter,
@@ -809,6 +813,9 @@ async def generate_cost_report_wrapper(
 
     **PURPOSE:** Discover which AWS services have pricing information available in the AWS Price List API.
 
+    **PARAMETERS:**
+    - filter (optional): Case-insensitive regex pattern to filter service codes (e.g., "bedrock" matches "AmazonBedrock", "AmazonBedrockService")
+
     **WORKFLOW:** This is the starting point for any pricing query. Use this first to find the correct service code.
 
     **RETURNS:** List of service codes (e.g., 'AmazonEC2', 'AmazonS3', 'AWSLambda') that can be used with other pricing tools.
@@ -820,11 +827,14 @@ async def generate_cost_report_wrapper(
     **NOTE:** Service codes may differ from AWS console names (e.g., 'AmazonES' for OpenSearch, 'AWSLambda' for Lambda).
     """,
 )
-async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, Any]]:
+async def get_pricing_service_codes(
+    ctx: Context, filter: Optional[str] = SERVICE_CODES_FILTER_FIELD
+) -> Union[List[str], Dict[str, Any]]:
     """Retrieve all available service codes from AWS Price List API.
 
     Args:
         ctx: MCP context for logging and state management
+        filter: Optional regex pattern to filter service codes (case-insensitive)
 
     Returns:
         List of sorted service codes on success, or error dictionary on failure
@@ -848,18 +858,14 @@ async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, 
 
         # Retrieve all service codes with pagination handling
         while True:
-            if next_token:
-                response = pricing_client.describe_services(NextToken=next_token)
-            else:
-                response = pricing_client.describe_services()
+            response = pricing_client.describe_services(
+                **({'NextToken': next_token} if next_token else {})
+            )
+            service_codes.extend([service['ServiceCode'] for service in response['Services']])
 
-            for service in response['Services']:
-                service_codes.append(service['ServiceCode'])
-
-            if 'NextToken' in response:
-                next_token = response['NextToken']
-            else:
+            if 'NextToken' not in response:
                 break
+            next_token = response['NextToken']
 
     except Exception as e:
         return await create_error_response(
@@ -877,10 +883,41 @@ async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, 
             message='No service codes returned from AWS Price List API',
         )
 
-    sorted_codes = sorted(service_codes)
+    # Apply regex filtering if filter is provided
+    if filter:
+        try:
+            regex_pattern = re.compile(filter, re.IGNORECASE)
+            service_codes = [code for code in service_codes if regex_pattern.search(code)]
 
-    logger.info(f'Successfully retrieved {len(sorted_codes)} service codes')
-    await ctx.info(f'Successfully retrieved {len(sorted_codes)} service codes')
+            if not service_codes:
+                return await create_error_response(
+                    ctx=ctx,
+                    error_type='no_matches_found',
+                    message=f'No service codes match the regex pattern: "{filter}"',
+                    filter=filter,
+                    suggestion='Try a broader regex pattern or check the pattern syntax. Use get_pricing_service_codes() without filter to see all available service codes.',
+                )
+
+        except re.error as e:
+            return await create_error_response(
+                ctx=ctx,
+                error_type='invalid_regex',
+                message=f'Invalid regex pattern "{filter}": {str(e)}',
+                filter=filter,
+                suggestion='Please provide a valid regex pattern. For simple substring matching, just use the text without special regex characters.',
+                examples={
+                    'Simple substring': 'bedrock',
+                    'Case-insensitive exact match': '^AmazonBedrock$',
+                    'Starts with': '^Amazon',
+                    'Contains word': '\\bbedrock\\b',
+                },
+            )
+
+    sorted_codes = sorted(service_codes)
+    filter_msg = f' (filtered with pattern: "{filter}")' if filter else ''
+
+    logger.info(f'Successfully retrieved {len(sorted_codes)} service codes{filter_msg}')
+    await ctx.info(f'Successfully retrieved {len(sorted_codes)} service codes{filter_msg}')
 
     return sorted_codes
 
@@ -893,7 +930,9 @@ async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, 
 
     **WORKFLOW:** Use this after get_pricing_service_codes() to see what filters you can apply to narrow down pricing queries.
 
-    **REQUIRES:** Service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonRDS').
+    **PARAMETERS:**
+    - service_code: AWS service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonRDS')
+    - filter (optional): Case-insensitive regex pattern to filter attribute names (e.g., "instance" matches "instanceType", "instanceFamily")
 
     **RETURNS:** List of attribute names (e.g., 'instanceType', 'location', 'storageClass') that can be used as filters.
 
@@ -905,17 +944,24 @@ async def get_pricing_service_codes(ctx: Context) -> Union[List[str], Dict[str, 
     """,
 )
 async def get_pricing_service_attributes(
-    ctx: Context, service_code: str = SERVICE_CODE_FIELD
+    ctx: Context,
+    service_code: str = SERVICE_CODE_FIELD,
+    filter: Optional[str] = SERVICE_ATTRIBUTES_FILTER_FIELD,
 ) -> Union[List[str], Dict[str, Any]]:
     """Retrieve all available attributes for a specific AWS service.
 
     Args:
         service_code: The service code to query (e.g., 'AmazonEC2', 'AmazonS3')
+        filter: Optional regex pattern to filter attribute names (case-insensitive)
         ctx: MCP context for logging and state management
 
     Returns:
         List of sorted attribute name strings on success, or error dictionary on failure
     """
+    # Handle Pydantic Field objects when called directly (not through MCP framework)
+    if isinstance(filter, FieldInfo):
+        filter = filter.default
+
     logger.info(f'Retrieving attributes for AWS service: {service_code}')
 
     # Create pricing client with error handling
@@ -973,11 +1019,46 @@ async def get_pricing_service_attributes(
             suggestion='This service may not support attribute-based filtering, or there may be a temporary issue. Try using get_pricing() without filters.',
         )
 
-    sorted_attributes = sorted(attributes)
+    # Apply regex filtering if filter is provided
+    if filter:
+        try:
+            regex_pattern = re.compile(filter, re.IGNORECASE)
+            attributes = [attr for attr in attributes if regex_pattern.search(attr)]
 
-    logger.info(f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}')
+            if not attributes:
+                return await create_error_response(
+                    ctx=ctx,
+                    error_type='no_matches_found',
+                    message=f'No service attributes match the regex pattern: "{filter}"',
+                    service_code=service_code,
+                    filter=filter,
+                    suggestion='Try a broader regex pattern or check the pattern syntax. Use get_pricing_service_attributes() without filter to see all available service attributes.',
+                )
+
+        except re.error as e:
+            return await create_error_response(
+                ctx=ctx,
+                error_type='invalid_regex',
+                message=f'Invalid regex pattern "{filter}": {str(e)}',
+                service_code=service_code,
+                filter=filter,
+                suggestion='Please provide a valid regex pattern. For simple substring matching, just use the text without special regex characters.',
+                examples={
+                    'Simple substring': 'instance',
+                    'Case-insensitive exact match': '^instanceType$',
+                    'Starts with': '^instance',
+                    'Contains word': '\\binstance\\b',
+                },
+            )
+
+    sorted_attributes = sorted(attributes)
+    filter_msg = f' (filtered with pattern: "{filter}")' if filter else ''
+
+    logger.info(
+        f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}{filter_msg}'
+    )
     await ctx.info(
-        f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}'
+        f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}{filter_msg}'
     )
 
     return sorted_attributes
@@ -1079,11 +1160,12 @@ async def _get_single_attribute_values(
 
     **WORKFLOW:** Use this after get_pricing_service_attributes() to see valid values for each filter attribute.
 
-    **REQUIRES:**
+    **PARAMETERS:**
     - Service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonRDS')
     - List of attribute names from get_pricing_service_attributes() (e.g., ['instanceType', 'location'])
+    - filters (optional): Dictionary mapping attribute names to regex patterns (e.g., {'instanceType': 't3'})
 
-    **RETURNS:** Dictionary mapping attribute names to their valid values.
+    **RETURNS:** Dictionary mapping attribute names to their valid values. Filtered attributes return only matching values, unfiltered attributes return all values.
 
     **EXAMPLE RETURN:**
     ```
@@ -1100,23 +1182,29 @@ async def _get_single_attribute_values(
     **EXAMPLES:**
     - Single attribute: ['instanceType'] returns {'instanceType': ['t2.micro', 't3.medium', ...]}
     - Multiple attributes: ['instanceType', 'location'] returns both mappings
+    - Partial filtering: filters={'instanceType': 't3'} applies only to instanceType, location returns all values
     """,
 )
 async def get_pricing_attribute_values(
     ctx: Context,
     service_code: str = SERVICE_CODE_FIELD,
     attribute_names: List[str] = ATTRIBUTE_NAMES_FIELD,
+    filters: Optional[Dict[str, str]] = ATTRIBUTE_VALUES_FILTERS_FIELD,
 ) -> Union[Dict[str, List[str]], Dict[str, Any]]:
     """Retrieve all possible values for specific attributes of an AWS service.
 
     Args:
         service_code: The service code to query (e.g., 'AmazonEC2', 'AmazonS3')
         attribute_names: List of attribute names to get values for (e.g., ['instanceType', 'location'])
+        filters: Optional dictionary mapping attribute names to regex patterns for filtering
         ctx: MCP context for logging and state management
 
     Returns:
         Dictionary mapping attribute names to sorted lists of values on success, or error dictionary on failure
     """
+    if isinstance(filters, FieldInfo):
+        filters = filters.default
+
     if not attribute_names:
         return await create_error_response(
             ctx=ctx,
@@ -1152,7 +1240,42 @@ async def get_pricing_attribute_values(
             values_result = await _get_single_attribute_values(
                 pricing_client, service_code, attribute_name
             )
-            # Success - add to result
+
+            # Apply filtering if a filter is provided for this attribute
+            if filters and attribute_name in filters:
+                filter_pattern = filters[attribute_name]
+                logger.debug(f'Applying filter "{filter_pattern}" to attribute "{attribute_name}"')
+
+                try:
+                    regex_pattern = re.compile(filter_pattern, re.IGNORECASE)
+                    filtered_values = [
+                        value for value in values_result if regex_pattern.search(value)
+                    ]
+
+                    # Use filtered values (even if empty list)
+                    values_result = sorted(filtered_values)
+
+                except re.error as e:
+                    # If regex is invalid, return error for entire operation
+                    return await create_error_response(
+                        ctx=ctx,
+                        error_type='invalid_regex',
+                        message=f'Invalid regex pattern "{filter_pattern}" for attribute "{attribute_name}": {str(e)}',
+                        service_code=service_code,
+                        attribute_name=attribute_name,
+                        filter_pattern=filter_pattern,
+                        requested_attributes=attribute_names,
+                        filters=filters,
+                        suggestion='Please provide a valid regex pattern. For simple substring matching, just use the text without special regex characters.',
+                        examples={
+                            'Simple substring': 't3',
+                            'Case-insensitive exact match': '^t3\\.medium$',
+                            'Starts with': '^t3',
+                            'Contains word': '\\bt3\\b',
+                        },
+                    )
+
+            # Success - add to result (filtered or unfiltered)
             result[attribute_name] = values_result
         except AttributeValuesError as e:
             # If any attribute fails, return error for entire operation
@@ -1186,7 +1309,7 @@ async def get_pricing_attribute_values(
 
     **WORKFLOW:** Use this for historical pricing analysis or bulk data processing when current pricing from get_pricing() isn't sufficient.
 
-    **REQUIRES:**
+    **PARAMETERS:**
     - Service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonS3')
     - AWS region (e.g., 'us-east-1', 'eu-west-1')
     - Optional: effective_date for historical pricing (default: current date)
