@@ -31,6 +31,7 @@ from awslabs.aws_pricing_mcp_server.models import (
     NEXT_TOKEN_FIELD,
     OUTPUT_OPTIONS_FIELD,
     REGION_FIELD,
+    SERVICE_ATTRIBUTES_FILTER_FIELD,
     SERVICE_CODE_FIELD,
     SERVICE_CODES_FILTER_FIELD,
     ErrorResponse,
@@ -929,7 +930,9 @@ async def get_pricing_service_codes(
 
     **WORKFLOW:** Use this after get_pricing_service_codes() to see what filters you can apply to narrow down pricing queries.
 
-    **REQUIRES:** Service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonRDS').
+    **PARAMETERS:**
+    - service_code: AWS service code from get_pricing_service_codes() (e.g., 'AmazonEC2', 'AmazonRDS')
+    - filter (optional): Case-insensitive regex pattern to filter attribute names (e.g., "instance" matches "instanceType", "instanceFamily")
 
     **RETURNS:** List of attribute names (e.g., 'instanceType', 'location', 'storageClass') that can be used as filters.
 
@@ -941,17 +944,24 @@ async def get_pricing_service_codes(
     """,
 )
 async def get_pricing_service_attributes(
-    ctx: Context, service_code: str = SERVICE_CODE_FIELD
+    ctx: Context,
+    service_code: str = SERVICE_CODE_FIELD,
+    filter: Optional[str] = SERVICE_ATTRIBUTES_FILTER_FIELD,
 ) -> Union[List[str], Dict[str, Any]]:
     """Retrieve all available attributes for a specific AWS service.
 
     Args:
         service_code: The service code to query (e.g., 'AmazonEC2', 'AmazonS3')
+        filter: Optional regex pattern to filter attribute names (case-insensitive)
         ctx: MCP context for logging and state management
 
     Returns:
         List of sorted attribute name strings on success, or error dictionary on failure
     """
+    # Handle Pydantic Field objects when called directly (not through MCP framework)
+    if isinstance(filter, FieldInfo):
+        filter = filter.default
+
     logger.info(f'Retrieving attributes for AWS service: {service_code}')
 
     # Create pricing client with error handling
@@ -1009,11 +1019,46 @@ async def get_pricing_service_attributes(
             suggestion='This service may not support attribute-based filtering, or there may be a temporary issue. Try using get_pricing() without filters.',
         )
 
-    sorted_attributes = sorted(attributes)
+    # Apply regex filtering if filter is provided
+    if filter:
+        try:
+            regex_pattern = re.compile(filter, re.IGNORECASE)
+            attributes = [attr for attr in attributes if regex_pattern.search(attr)]
 
-    logger.info(f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}')
+            if not attributes:
+                return await create_error_response(
+                    ctx=ctx,
+                    error_type='no_matches_found',
+                    message=f'No service attributes match the regex pattern: "{filter}"',
+                    service_code=service_code,
+                    filter=filter,
+                    suggestion='Try a broader regex pattern or check the pattern syntax. Use get_pricing_service_attributes() without filter to see all available service attributes.',
+                )
+
+        except re.error as e:
+            return await create_error_response(
+                ctx=ctx,
+                error_type='invalid_regex',
+                message=f'Invalid regex pattern "{filter}": {str(e)}',
+                service_code=service_code,
+                filter=filter,
+                suggestion='Please provide a valid regex pattern. For simple substring matching, just use the text without special regex characters.',
+                examples={
+                    'Simple substring': 'instance',
+                    'Case-insensitive exact match': '^instanceType$',
+                    'Starts with': '^instance',
+                    'Contains word': '\\binstance\\b',
+                },
+            )
+
+    sorted_attributes = sorted(attributes)
+    filter_msg = f' (filtered with pattern: "{filter}")' if filter else ''
+
+    logger.info(
+        f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}{filter_msg}'
+    )
     await ctx.info(
-        f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}'
+        f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}{filter_msg}'
     )
 
     return sorted_attributes

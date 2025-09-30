@@ -687,6 +687,218 @@ class TestGetPricingServiceAttributes:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
+        'service_code,attributes,filter_pattern,expected_matches,expected_count,test_description',
+        [
+            # Basic filtering tests
+            (
+                'AmazonEC2',
+                ['instanceType', 'instanceFamily', 'location', 'memory', 'vcpu'],
+                'instance',
+                ['instanceFamily', 'instanceType'],
+                None,
+                'basic_instance_filter',
+            ),
+            (
+                'AmazonRDS',
+                ['engineCode', 'instanceType', 'location', 'databaseEngine', 'storageType'],
+                'engine',
+                ['databaseEngine', 'engineCode'],
+                None,
+                'engine_attributes_filter',
+            ),
+            (
+                'AmazonEC2',
+                ['instanceType', 'location', 'tenancy', 'operatingSystem', 'storage'],
+                'Type',
+                ['instanceType', 'storageType']
+                if 'storageType'
+                in ['instanceType', 'location', 'tenancy', 'operatingSystem', 'storage']
+                else ['instanceType'],
+                None,
+                'case_insensitive_type_filter',
+            ),
+            # Regex pattern tests
+            (
+                'AmazonEC2',
+                [
+                    'instanceType',
+                    'instanceFamily',
+                    'location',
+                    'memory',
+                    'vcpu',
+                    'networkPerformance',
+                ],
+                '^instance',
+                ['instanceFamily', 'instanceType'],
+                None,
+                'starts_with_instance_regex',
+            ),
+            (
+                'AmazonRDS',
+                ['engineCode', 'instanceType', 'location', 'databaseEngine', 'deploymentOption'],
+                'Type$',
+                ['instanceType'],
+                None,
+                'ends_with_type_regex',
+            ),
+            (
+                'AmazonS3',
+                ['storageClass', 'location', 'durability', 'availability'],
+                'location|durability',
+                ['durability', 'location'],
+                None,
+                'alternation_regex',
+            ),
+            # No filter cases
+            (
+                'AmazonEC2',
+                ['instanceType', 'location', 'tenancy'],
+                None,
+                None,
+                3,
+                'no_filter_all_attributes',
+            ),
+            (
+                'AmazonRDS',
+                ['engineCode', 'instanceType', 'location'],
+                '',
+                None,
+                3,
+                'empty_filter_all_attributes',
+            ),
+            # Edge cases - removed filter_no_matches as it's properly tested in error scenarios
+            (
+                'AmazonS3',
+                ['storageClass', 'location'],
+                'Storage',
+                ['storageClass'],
+                None,
+                'case_insensitive_partial_match',
+            ),
+        ],
+    )
+    async def test_get_pricing_service_attributes_filtering_happy_path(
+        self,
+        mock_context,
+        mock_boto3,
+        service_code,
+        attributes,
+        filter_pattern,
+        expected_matches,
+        expected_count,
+        test_description,
+    ):
+        """Test successful filtering of service attributes with various regex patterns."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.describe_services.return_value = {
+            'Services': [{'ServiceCode': service_code, 'AttributeNames': attributes}]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_service_attributes(
+                mock_context, service_code, filter=filter_pattern
+            )
+
+            assert isinstance(result, list), (
+                f'Failed {test_description}: expected list, got {type(result)}'
+            )
+
+            if expected_matches is not None:
+                # Test specific matches
+                assert len(result) == len(expected_matches), (
+                    f'Failed {test_description}: expected {len(expected_matches)} matches, got {len(result)}'
+                )
+                for attr in expected_matches:
+                    assert attr in result, f'Failed {test_description}: missing {attr} in results'
+                # Verify results are sorted
+                assert result == sorted(result), (
+                    f'Failed {test_description}: results not sorted properly'
+                )
+            elif expected_count is not None:
+                # Test count-only cases (like no filter)
+                assert len(result) == expected_count, (
+                    f'Failed {test_description}: expected {expected_count} attributes, got {len(result)}'
+                )
+
+            pricing_client.describe_services.assert_called_once_with(ServiceCode=service_code)
+            mock_context.info.assert_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'service_code,attributes,filter_pattern,expected_error_type,test_description',
+        [
+            (
+                'AmazonEC2',
+                ['instanceType', 'location', 'tenancy'],
+                'nonexistent',
+                'no_matches_found',
+                'filter_no_matches',
+            ),
+            (
+                'AmazonRDS',
+                ['engineCode', 'instanceType', 'location'],
+                '[invalid',
+                'invalid_regex',
+                'invalid_regex_pattern',
+            ),
+            (
+                'AmazonS3',
+                ['storageClass', 'location'],
+                '\\',
+                'invalid_regex',
+                'invalid_escape_sequence',
+            ),
+        ],
+    )
+    async def test_get_pricing_service_attributes_filtering_errors(
+        self,
+        mock_context,
+        mock_boto3,
+        service_code,
+        attributes,
+        filter_pattern,
+        expected_error_type,
+        test_description,
+    ):
+        """Test error scenarios in service attributes filtering."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.describe_services.return_value = {
+            'Services': [{'ServiceCode': service_code, 'AttributeNames': attributes}]
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_service_attributes(
+                mock_context, service_code, filter=filter_pattern
+            )
+
+            assert isinstance(result, dict), (
+                f'Failed {test_description}: expected dict (error), got {type(result)}'
+            )
+            assert result['status'] == 'error', f'Failed {test_description}: expected error status'
+            assert result['error_type'] == expected_error_type, (
+                f'Failed {test_description}: expected error_type {expected_error_type}, got {result.get("error_type")}'
+            )
+            assert result['service_code'] == service_code, (
+                f'Failed {test_description}: service_code not in error response'
+            )
+
+            if expected_error_type == 'invalid_regex':
+                assert (
+                    filter_pattern in result['message']
+                    or 'Invalid regex pattern' in result['message']
+                ), f'Failed {test_description}: filter pattern or regex error not in error message'
+                assert 'examples' in result, (
+                    f'Failed {test_description}: examples not provided in error response'
+                )
+            elif expected_error_type == 'no_matches_found':
+                assert 'No service attributes match' in result['message'], (
+                    f'Failed {test_description}: no matches message not in error response'
+                )
+
+            mock_context.error.assert_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
         'error_scenario,service_code,expected_error_type,expected_in_message',
         [
             ('service_not_found', 'InvalidService', 'service_not_found', 'InvalidService'),
@@ -751,6 +963,26 @@ class TestGetPricingServiceAttributes:
         assert 'Client creation failed' in result['message']
         assert result['service_code'] == 'AmazonEC2'
         mock_context.error.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_service_attributes_filter_with_api_errors(
+        self, mock_context, mock_boto3
+    ):
+        """Test that filtering errors are handled properly when combined with API errors."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.describe_services.side_effect = Exception('API Error')
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing_service_attributes(
+                mock_context, 'AmazonEC2', filter='instance'
+            )
+
+            # Should return API error, not filter error
+            assert isinstance(result, dict)
+            assert result['status'] == 'error'
+            assert result['error_type'] == 'api_error'
+            assert 'API Error' in result['message']
+            mock_context.error.assert_called()
 
 
 class TestGetPricingAttributeValues:

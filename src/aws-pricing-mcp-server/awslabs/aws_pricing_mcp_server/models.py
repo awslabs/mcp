@@ -117,8 +117,11 @@ NEXT_TOKEN_FIELD = Field(
 )
 
 SERVICE_CODES_FILTER_FIELD = Field(
-    None,
-    description='Optional case-insensitive regex pattern to filter service codes',
+    None, description='Optional case-insensitive regex pattern to filter service codes'
+)
+
+SERVICE_ATTRIBUTES_FILTER_FIELD = Field(
+    None, description='Optional case-insensitive regex pattern to filter service attribute names'
 )
 
 ATTRIBUTE_VALUES_FILTERS_FIELD = Field(
