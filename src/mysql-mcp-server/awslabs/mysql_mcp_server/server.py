@@ -165,7 +165,7 @@ def extract_cell(cell: dict):
 
 def parse_execute_response(response: dict) -> list[dict]:
     """Convert RDS Data API execute_statement response to list of rows."""
-    columns = [col['name'] for col in response.get('columnMetadata', [])]
+    columns = [col['label'] for col in response.get('columnMetadata', [])]
     records = []
 
     for row in response.get('records', []):
