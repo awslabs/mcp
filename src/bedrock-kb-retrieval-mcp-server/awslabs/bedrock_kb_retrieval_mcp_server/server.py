@@ -124,7 +124,6 @@ async def list_knowledge_bases_tool() -> str:
     2. Note the data source IDs if you want to filter queries to specific data sources
     3. Use the names to determine which knowledge base and data source(s) are most relevant to the user's query
     """
-    logger.info("GERRY")
     knowledge_bases = await discover_knowledge_bases(kb_agent_mgmt_client, kb_inclusion_tag_key)
     return json.dumps(knowledge_bases)
 

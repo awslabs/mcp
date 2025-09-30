@@ -63,12 +63,9 @@ async def discover_knowledge_bases(
                 logger.debug(f'KB Name: {kb_name}')
                 kb_data.append((kb_id, kb_name, kb_description))
 
-    logger.info(f"kb_data={kb_data}")
-
     # Then, for each matching knowledge base, collect its data sources
     for kb_id, kb_name, kb_description in kb_data:
         result[kb_id] = {'name': kb_name, 'description': kb_description, 'data_sources': []}
-        logger.info(f"result[kb_id]: {result[kb_id]}")
 
         # Collect data sources for this knowledge base
         data_sources = []
