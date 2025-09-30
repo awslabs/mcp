@@ -457,6 +457,9 @@ def test_rds_generate_db_auth_token_with_numeric_port():
     assert result.parameters['--port'] == '5432'  # Port is a string, not an integer
 
 
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY', '/test/path'
+)
 def test_local_file_uri():
     """Test aws command with URI input file parameter."""
     import io
@@ -508,3 +511,16 @@ def test_http_uri_validation_error():
 
     error_message = str(exc_info.value)
     assert 'http:// prefix is not allowed' in error_message
+
+
+def test_local_file_uri_validation_failure():
+    """Test aws command with URI input file parameter outside the working directory."""
+    with pytest.raises(
+        CommandValidationError,
+        match=r"File path '/etc/hosts' is outside the allowed working directory .*",
+    ):
+        result = parse('aws logs create-log-group --log-group-name file:///etc/hosts')
+
+        assert result.is_awscli_customization is False
+        assert result.command_metadata.service_sdk_name == 'lambda'
+        assert result.command_metadata.operation_sdk_name == 'CreateFunction'
