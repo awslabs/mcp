@@ -85,7 +85,7 @@ jobs:
     needs: [validate-repository,look-for-changes]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Draft release with validation
         id: draft-release
         env:
@@ -141,7 +141,7 @@ jobs:
     needs: [validate-repository]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           fetch-depth: 0
@@ -303,10 +303,10 @@ jobs:
       # Clear up space for specific large projects
       - name: Clear Up Space (Aggressively) for Specific Projects
         if: contains(fromJson('["aws-api-mcp-server","core-mcp-server"]'), matrix.changed-directory)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@25167c70e07d52455d651af931970d0ffdac75c5
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@9ac9729e875ab99608ba7c0419f60fdb27c27602
       #TODO: remove local action checkout when working...
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           sparse-checkout: |
@@ -350,7 +350,7 @@ jobs:
 
           echo "::debug::Directory validated: $FULL_PATH"
       - name: Install uv
-        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - name: Build package
         working-directory: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}
         run: |
@@ -381,7 +381,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "::debug::Package version: $VERSION"
       - name: Publish package to PyPI
-        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
         with:
           packages-dir: ${{ env.SRC_DIRECTORY }}/${{ matrix.changed-directory }}/dist
           print-hash: true
@@ -417,7 +417,7 @@ jobs:
     needs: [validate-repository, draft_release_when_tagged, publish-pypi, publish-npmjs]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Publish release
         id: create-release
         env:
