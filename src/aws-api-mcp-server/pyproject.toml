@@ -10,15 +10,12 @@ requires-python = ">=3.10"
 dependencies = [
     "mcp>=1.11.0",
     "pydantic>=2.10.6",
-    "awscli==1.42.6",
+    "awscli==1.42.40",
     "boto3>=1.38.18",
     "botocore>=1.38.18",
     "python-json-logger>=2.0.7",
     "setuptools>=69.0.0",
     "lxml>=5.1.0",
-    "sentence-transformers>=4.1.0",
-    "torch>=2.7.1",
-    "faiss-cpu>=1.11.0",
     "loguru>=0.7.3",
     "importlib_resources>=6.0.0",
     "requests>=2.32.4",
@@ -40,16 +37,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
-
-[tool.uv.sources]
-torch = [
-    { index = "pytorch-cpu" },
-]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
 
 [project.urls]
 homepage = "https://awslabs.github.io/mcp/"

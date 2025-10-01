@@ -1,10 +1,10 @@
 import pytest
-import requests
 from awslabs.aws_api_mcp_server.core.common.helpers import (
-    download_embedding_model,
+    get_requests_session,
     validate_aws_region,
 )
-from unittest.mock import MagicMock, mock_open, patch
+from requests.adapters import HTTPAdapter
+from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.parametrize(
@@ -91,134 +91,15 @@ def test_validate_aws_region_invalid_regions(mock_logger: MagicMock, invalid_reg
     mock_logger.error.assert_called_once_with(expected_error_message)
 
 
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.EMBEDDING_MODEL_DIR', '/mock/models')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.zipfile.ZipFile')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.requests.get')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.tempfile.TemporaryDirectory')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.Path')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.logger')
-def test_download_embedding_model_success(
-    mock_logger, mock_path, mock_temp_dir, mock_requests_get, mock_zipfile
-):
-    """Test successful download and extraction of embedding model."""
-    mock_temp_dir_context = MagicMock()
-    mock_temp_dir_context.__enter__.return_value = '/tmp/test_dir'
-    mock_temp_dir_context.__exit__.return_value = None
-    mock_temp_dir.return_value = mock_temp_dir_context
+def test_get_requests_session():
+    """Test that get_requests_session returns a properly configured session."""
+    session = get_requests_session()
 
-    mock_response = MagicMock()
-    mock_response.iter_content.return_value = [b'chunk1', b'chunk2']
-    mock_requests_get.return_value = mock_response
+    https_adapter = session.get_adapter('https://example.com')
+    assert isinstance(https_adapter, HTTPAdapter)
 
-    mock_zip_ref = MagicMock()
-    mock_zipfile.return_value.__enter__.return_value = mock_zip_ref
-
-    mock_path_instance = MagicMock()
-    mock_path.return_value = mock_path_instance
-    mock_path_instance.parent.mkdir = MagicMock()
-
-    with patch('builtins.open', mock_open()) as mock_file:
-        with patch('os.path.join', side_effect=lambda *args: '/'.join(args)):
-            download_embedding_model('test-model')
-
-    mock_requests_get.assert_called_once_with(
-        'https://models.knowledge-mcp.global.api.aws/test-model.zip', stream=True, timeout=30
-    )
-    mock_response.raise_for_status.assert_called_once()
-    mock_file.assert_called_once_with('/tmp/test_dir/test-model.zip', 'wb')
-    handle = mock_file()
-    assert handle.write.call_count == 2
-    handle.write.assert_any_call(b'chunk1')
-    handle.write.assert_any_call(b'chunk2')
-    mock_zip_ref.extractall.assert_called_once_with('/mock/models/test-model')
-    mock_logger.debug.assert_any_call(
-        'Dowloading embedding model {} to {}', 'test-model', '/tmp/test_dir'
-    )
-
-
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.requests.get')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.tempfile.TemporaryDirectory')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.Path')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.logger')
-def test_download_embedding_model_http_error(
-    mock_logger, mock_path, mock_temp_dir, mock_requests_get
-):
-    """Test download failure due to HTTP error."""
-    mock_temp_dir_context = MagicMock()
-    mock_temp_dir_context.__enter__.return_value = '/tmp/test_dir'
-    mock_temp_dir_context.__exit__.return_value = None
-    mock_temp_dir.return_value = mock_temp_dir_context
-
-    mock_path_instance = MagicMock()
-    mock_path.return_value = mock_path_instance
-    mock_path_instance.parent.mkdir = MagicMock()
-
-    mock_response = MagicMock()
-    mock_response.raise_for_status.side_effect = requests.HTTPError('404 Not Found')
-    mock_requests_get.return_value = mock_response
-
-    with patch('os.path.join', side_effect=lambda *args: '/'.join(args)):
-        with pytest.raises(requests.HTTPError):
-            download_embedding_model('nonexistent-model')
-
-    mock_requests_get.assert_called_once_with(
-        'https://models.knowledge-mcp.global.api.aws/nonexistent-model.zip',
-        stream=True,
-        timeout=30,
-    )
-    mock_response.raise_for_status.assert_called_once()
-
-
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.EMBEDDING_MODEL_DIR', '/mock/models')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.shutil.rmtree')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.os.path.exists')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.zipfile.ZipFile')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.requests.get')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.tempfile.TemporaryDirectory')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.Path')
-@patch('awslabs.aws_api_mcp_server.core.common.helpers.logger')
-def test_download_embedding_model_zip_extraction_failure(
-    mock_logger,
-    mock_path,
-    mock_temp_dir,
-    mock_requests_get,
-    mock_zipfile,
-    mock_exists,
-    mock_rmtree,
-):
-    """Test that directory is cleaned up when zip extraction fails."""
-    mock_temp_dir_context = MagicMock()
-    mock_temp_dir_context.__enter__.return_value = '/tmp/test_dir'
-    mock_temp_dir_context.__exit__.return_value = None
-    mock_temp_dir.return_value = mock_temp_dir_context
-
-    mock_response = MagicMock()
-    mock_response.iter_content.return_value = [b'chunk1', b'chunk2']
-    mock_requests_get.return_value = mock_response
-
-    mock_zip_ref = MagicMock()
-    mock_zip_ref.extractall.side_effect = Exception('Zip extraction failed')
-    mock_zipfile.return_value.__enter__.return_value = mock_zip_ref
-
-    mock_path_instance = MagicMock()
-    mock_path.return_value = mock_path_instance
-    mock_path_instance.parent.mkdir = MagicMock()
-
-    mock_exists.return_value = True
-
-    with patch('builtins.open', mock_open()) as mock_file:
-        with patch('os.path.join', side_effect=lambda *args: '/'.join(args)):
-            with pytest.raises(Exception, match='Zip extraction failed'):
-                download_embedding_model('test-model')
-
-    mock_requests_get.assert_called_once_with(
-        'https://models.knowledge-mcp.global.api.aws/test-model.zip', stream=True, timeout=30
-    )
-    mock_response.raise_for_status.assert_called_once()
-    mock_file.assert_called_once_with('/tmp/test_dir/test-model.zip', 'wb')
-    mock_zip_ref.extractall.assert_called_once_with('/mock/models/test-model')
-    mock_logger.error.assert_called_once_with(
-        'Failed to extract embedding model: {}', 'Zip extraction failed'
-    )
-    mock_exists.assert_called_once_with('/mock/models/test-model')
-    mock_rmtree.assert_called_once_with('/mock/models/test-model')
+    retry_config = https_adapter.max_retries
+    assert retry_config.total == 3
+    assert retry_config.backoff_factor == 1
+    assert retry_config.status_forcelist == [429, 500, 502, 503, 504]
+    assert retry_config.allowed_methods == {'HEAD', 'GET', 'OPTIONS', 'POST'}

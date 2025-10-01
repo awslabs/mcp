@@ -50,7 +50,6 @@ def test_non_custom_operation_not_denied():
         ('emr', 'sock'),
         ('emr', 'get'),
         ('emr', 'put'),
-        ('opsworks', 'register'),
         ('deploy', 'install'),
         ('deploy', 'uninstall'),
     ],

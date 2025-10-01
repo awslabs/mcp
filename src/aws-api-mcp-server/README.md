@@ -272,7 +272,6 @@ Our MCP server aims to support all AWS APIs. However, some of them will spawn su
 |---------|------------|
 | **deploy** | `install`, `uninstall` |
 | **emr** | `ssh`,  `sock`, `get`, `put` |
-| **opsworks** | `register` |
 
 ### File System Access and Operating Mode
 
