@@ -110,7 +110,7 @@ For read operations, the following permissions are required:
         "athena:ListDatabases",
         "athena:ListTableMetadata",
         "athena:GetWorkGroup",
-        "athena:ListWorkGroups"
+        "athena:ListWorkGroups",
         "sts:GetCallerIdentity"
       ],
       "Resource": "*"
