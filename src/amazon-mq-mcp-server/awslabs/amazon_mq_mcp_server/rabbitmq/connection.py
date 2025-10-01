@@ -30,7 +30,6 @@ class RabbitMQConnection:
         self.url = f'{self.protocol}://{username}:{password}@{host}:{port}'
         self.parameters = pika.URLParameters(self.url)
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.set_ciphers('ECDHE+AESGCM:!ECDSA')
         self.parameters.ssl_options = pika.SSLOptions(context=ssl_context)
 
     def get_channel(self) -> tuple[Any, Any]:
