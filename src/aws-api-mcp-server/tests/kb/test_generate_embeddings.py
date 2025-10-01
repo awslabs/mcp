@@ -290,10 +290,13 @@ def test_get_aws_api_documents():
 
     # configure and history should not be included
     assert set(service_counts.keys()) == {'s3', 'cloudformation', 'lambda'}
-    assert service_counts['cloudformation'] == len(
-        original_table['cloudformation']._get_command_table()
-    )
-    assert service_counts['lambda'] == len(original_table['lambda']._get_command_table())
+    assert (
+        service_counts['cloudformation']
+        == len(original_table['cloudformation']._get_command_table()) - 1
+    )  # minus 1 because wait is not allowed
+    assert (
+        service_counts['lambda'] == len(original_table['lambda']._get_command_table()) - 1
+    )  # minus 1 because wait is not allowed
     assert service_counts['s3'] == len(original_table['s3'].subcommand_table)
 
 
