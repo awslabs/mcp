@@ -185,7 +185,18 @@ Once the server is running, connect to it using the following configuration (ens
 
 **Note**: Replace `127.0.0.1` with your custom host if you've set `AWS_API_MCP_HOST` to a different value.
 
-**Note**: When using HTTP mode, the server currently requires `AUTH_TYPE=no-auth` and provides no built-in authentication. Ensure proper network security controls (e.g., bind to localhost, firewall rules, reverse proxy) to prevent unauthorized access.
+### 🔒 HTTP Mode Security Considerations
+
+**IMPORTANT**: When using HTTP mode (`streamable-http`), please be aware of the following security considerations:
+
+- **Single Customer Server**: This HTTP mode is intended for **single customer use only**. It is **NOT designed for multi-tenant environments** or serving multiple users simultaneously
+- **No Built-in Authentication**: The server currently requires `AUTH_TYPE=no-auth` set explicitly, and provides no built-in authentication mechanisms
+- **Network Security Controls**: Ensure proper network security controls are in place:
+  - Bind to localhost (`127.0.0.1`) when possible
+  - Configure firewall rules to restrict access
+- **Encryption in Transit**: We **strongly recommend** adding encryption in transit when using HTTP mode:
+  - Use HTTPS with TLS/SSL certificates
+  - Avoid transmitting sensitive data over unencrypted HTTP connections
 
 
 
@@ -239,11 +250,21 @@ The tool names are subject to change, please refer to CHANGELOG.md for any chang
 ## Security Considerations
 Before using this MCP Server, you should consider conducting your own independent assessment to ensure that your use would comply with your own specific security and quality control practices and standards, as well as the laws, rules, and regulations that govern you and your content.
 
+### ⚠️ Multi-Tenant Environment Restrictions
+
+**IMPORTANT**: This MCP server is **NOT designed for multi-tenant environments**. Do not use this server to serve multiple users or tenants simultaneously.
+
+- **Single User Only**: Each instance of the MCP server should serve only one user with their own dedicated AWS credentials
+- **Separate Directories**: When running multiple instances, create separate working directories for each instance using the `AWS_API_MCP_WORKING_DIR` environment variable
+
+### 🔑 Credential Management and Access Control
+
 We use credentials to control which commands this MCP server can execute. This MCP server relies on IAM roles to be configured properly, in particular:
 - Using credentials for an IAM role with `AdministratorAccess` policy (usually the `Admin` IAM role) permits mutating actions (i.e. creating, deleting, modifying your AWS resources) and non-mutating actions.
 - Using credentials for an IAM role with `ReadOnlyAccess` policy (usually the `ReadOnly` IAM role) only allows non-mutating actions, this is sufficient if you only want to inspect resources in your account.
 - If IAM roles are not available, [these alternatives](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html#cli-configure-files-examples) can also be used to configure credentials.
 - To add another layer of security, users can explicitly set the environment variable `READ_OPERATIONS_ONLY` to true in their MCP config file. When set to true, we'll compare each CLI command against a list of known read-only actions, and will only execute the command if it's found in the allowed list. "Read-Only" only refers to the API classification, not the file system, that is such "read-only" actions can still write to the file system if necessary or upon user request. While this environment variable provides an additional layer of protection, IAM permissions remain the primary and most reliable security control. Users should always configure appropriate IAM roles and policies for their use case, as IAM credentials take precedence over this environment variable.
+- ⚠️ **IMPORTANT**: While using a `ReadOnlyAccess` IAM role will block write operations through the MCP server, **however some AWS read only operations can still return AWS credentials or sensitive information** in command outputs that could potentially be used outside of this server.
 
 Our MCP server aims to support all AWS APIs. However, some of them will spawn subprocesses that expose security risks. Such APIs will be denylisted, see the full list below.
 
