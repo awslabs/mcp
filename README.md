@@ -68,6 +68,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [`~/.codeium/windsurf/mcp_config.json`](#codeiumwindsurfmcp_configjson)
     - [Getting Started with VS Code](#getting-started-with-vs-code)
       - [`.vscode/mcp.json`](#vscodemcpjson)
+    - [Getting Started with Claude Code](#getting-started-with-claude-code)
+      - [`.mcp.json`](#mcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
   - [Additional Resources](#additional-resources)
@@ -996,6 +998,72 @@ For Windows:
       ],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+</details>
+
+### Getting Started with Claude Code
+
+<details>
+<summary>Install in Claude Code</summary>
+
+Configure MCP servers in Claude Code through the CLI or in `.mcp.json`
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. **Using Claude Code CLI Commands**
+
+   Claude Code CLI commands to add MCP servers:
+
+   ```bash
+   # Add core AWS services
+   claude mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
+   claude mcp add aws-cdk uvx awslabs.cdk-mcp-server@latest
+   claude mcp add aws-docs uvx awslabs.aws-documentation-mcp-server@latest
+   claude mcp add aws-support uvx awslabs.aws-support-mcp-server@latest
+   claude mcp add aws-pricing uvx awslabs.aws-pricing-mcp-server@latest
+
+   # Add AI/ML and Bedrock services
+   claude mcp add bedrock-kb uvx awslabs.bedrock-kb-retrieval-mcp-server@latest
+   claude mcp add nova-canvas uvx awslabs.nova-canvas-mcp-server@latest
+   claude mcp add synthetic-data uvx awslabs.syntheticdata-mcp-server@latest
+
+   # Add data and analytics services
+   claude mcp add aws-dataprocessing uvx awslabs.aws-dataprocessing-mcp-server@latest
+   claude mcp add aurora-dsql uvx awslabs.aurora-dsql-mcp-server@latest
+   claude mcp add valkey uvx awslabs.valkey-mcp-server@latest
+
+   # List installed servers
+   claude mcp list
+   ```
+
+3. **Manual Configuration (Alternative)**
+
+   You can also manually configure MCP servers by creating a `.mcp.json` file in your project root:
+
+#### `.mcp.json`
+
+For macOS/Linux:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.cdk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_DOCUMENTATION_PARTITION": "aws"
       }
     }
   }
