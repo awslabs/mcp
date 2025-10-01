@@ -11,7 +11,8 @@ dependencies = [
     "pydantic==2.11.7",
     "typing-extensions==4.14.1",
     "strands-agents>=1.5.0",
-    "dspy-ai>=2.6.27"
+    "dspy-ai>=2.6.27",
+    "awslabs.mysql-mcp-server==1.0.5",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

@@ -24,6 +24,7 @@ from awslabs.dynamodb_mcp_server.server import (
     query,
     restore_table_from_backup,
     scan,
+    source_database_analysis,
     tag_resource,
     untag_resource,
     update_continuous_backups,
@@ -928,3 +929,66 @@ async def test_dynamodb_data_modeling_mcp_integration():
     assert modeling_tool.description is not None
     assert 'DynamoDB' in modeling_tool.description
     assert 'data modeling' in modeling_tool.description.lower()
+
+
+@pytest.mark.asyncio
+async def test_source_database_analysis_missing_database_param():
+    """Test analyze_source_db with missing database parameter."""
+    result = await source_database_analysis(
+        source_db_type='mysql',
+        target_database=None,
+        analysis_days=30,
+        max_query_results=None,
+        aws_cluster_arn='test-cluster',
+        aws_secret_arn='test-secret',
+        aws_region='us-east-1',
+    )
+
+    assert 'To analyze your MySQL database, I need: Database name' in result
+
+
+@pytest.mark.asyncio
+async def test_source_database_analysis_empty_string_params():
+    """Test analyze_source_db with empty string parameters."""
+    result = await source_database_analysis(
+        source_db_type='mysql',
+        target_database='test',
+        analysis_days=30,
+        max_query_results=None,
+        aws_cluster_arn='  ',  # Empty after strip
+        aws_secret_arn='test-secret',
+        aws_region='us-east-1',
+    )
+
+    assert 'To analyze your MySQL database, I need: AWS Aurora MySQL cluster ARN' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_source_db_env_fallback(monkeypatch):
+    """Test analyze_source_db environment variable fallback."""
+    # Set only some env vars to trigger fallback for others
+    monkeypatch.setenv('MYSQL_SECRET_ARN', 'env-secret')
+    monkeypatch.setenv('AWS_REGION', 'env-region')
+
+    result = await source_database_analysis(
+        source_db_type='mysql',
+        target_database='test',
+        analysis_days=30,
+        max_query_results=None,
+        aws_cluster_arn=None,  # Will trigger env fallback
+        aws_secret_arn=None,  # Will use env var
+        aws_region=None,  # Will use env var
+    )
+
+    # Should still fail due to missing cluster_arn, but covers env fallback lines
+    assert 'To analyze your MySQL database, I need: AWS Aurora MySQL cluster ARN' in result
+
+
+@pytest.mark.asyncio
+async def test_source_database_analysis_unsupported_database():
+    """Test analyze_source_db with unsupported database type."""
+    result = await source_database_analysis('postgresql', 'test_db', 30)
+    assert 'Unsupported source database type: postgresql' in result
+
+    result = await source_database_analysis('oracle', 'test_db', 30)
+    assert 'Unsupported source database type: oracle' in result

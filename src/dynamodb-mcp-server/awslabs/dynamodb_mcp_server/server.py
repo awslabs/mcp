@@ -46,18 +46,29 @@ from awslabs.dynamodb_mcp_server.common import (
     handle_exceptions,
     mutation_check,
 )
+from awslabs.dynamodb_mcp_server.database_analysis_queries import (
+    get_query_resource,
+    mysql_analysis_queries,
+)
+from awslabs.mysql_mcp_server.server import DBConnectionSingleton, DummyCtx
+from awslabs.mysql_mcp_server.server import run_query as mysql_query
 from botocore.config import Config
+from datetime import datetime
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from pydantic import Field
-from typing import Any, Dict, List, Literal, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for interacting with AWS DynamoDB
 
 This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
-items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt
+items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt.
+
+MySQL Integration: This server also includes MySQL query capabilities through the run_query tool, enabling database
+analysis for DynamoDB DynamoDB Data Modeling.
 
 IMPORTANT: DynamoDB Attribute Value Format
 -----------------------------------------
@@ -204,6 +215,135 @@ async def dynamodb_data_modeling() -> str:
     prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
     architect_prompt = prompt_file.read_text(encoding='utf-8')
     return architect_prompt
+
+
+async def mysql_run_query(
+    sql: Annotated[str, Field(description='The SQL query to run')],
+    cluster_arn: str,
+    secret_arn: str,
+    database: str,
+    aws_region: str,
+    query_parameters: Annotated[
+        Optional[List[Dict[str, Any]]], Field(description='Parameters for the SQL query')
+    ] = None,
+    readonly: str = 'false',
+) -> list[dict]:
+    """Internal function to run SQL queries against MySQL database for analysis."""
+    try:
+        # Only reset DBConnectionSingleton instance if connection parameters changed
+        current_params = getattr(DBConnectionSingleton, '_last_params', None)
+        new_params = (cluster_arn, secret_arn, database, aws_region)
+
+        if current_params != new_params:
+            DBConnectionSingleton._instance = None
+            setattr(DBConnectionSingleton, '_last_params', new_params)
+
+        DBConnectionSingleton.initialize(cluster_arn, secret_arn, database, aws_region, readonly)
+    except Exception as e:
+        logger.error(f'MySQL initialization failed - {type(e).__name__}: {str(e)}')
+        return [{'error': f'MySQL initialization failed: {str(e)}'}]
+
+    try:
+        result = await mysql_query(sql, DummyCtx(), None, query_parameters)
+        return result
+    except Exception as e:
+        logger.error(
+            f'DynamoDB-MySQL integration: Query execution failed - {type(e).__name__}: {str(e)}'
+        )
+        return [{'error': f'MySQL query failed: {str(e)}'}]
+
+
+async def analyze_source_db(
+    source_db_type: str = Field(description="Source Database type: 'mysql'"),
+    database_name: Optional[str] = Field(
+        default=None, description='Database name to analyze (overrides MYSQL_DATABASE env var)'
+    ),
+    analysis_days: Optional[int] = Field(
+        default=30, description='Number of days to analyze', ge=1
+    ),
+    query_name: str = Field(description='Query name from predefined analysis queries'),
+    max_query_results: Optional[int] = Field(
+        default=None,
+        description='Maximum number of rows returned per analysis query (overrides MYSQL_MAX_QUERY_RESULTS env var)',
+        ge=1,
+    ),
+    aws_cluster_arn: Optional[str] = Field(
+        default=None, description='AWS cluster ARN (overrides MYSQL_CLUSTER_ARN env var)'
+    ),
+    aws_secret_arn: Optional[str] = Field(
+        default=None, description='AWS secret ARN (overrides MYSQL_SECRET_ARN env var)'
+    ),
+    aws_region: Optional[str] = Field(
+        default=None, description='AWS region (overrides AWS_REGION env var)'
+    ),
+) -> str:
+    """Execute predefined SQL queries against the source database for analysis."""
+    source_db_type = source_db_type.lower()
+    if source_db_type not in ['mysql']:
+        return f'Unsupported source database type: {source_db_type}. Supported types: mysql'
+
+    # Get all available values (parameters + environment variables)
+    cluster_arn = aws_cluster_arn or os.getenv('MYSQL_CLUSTER_ARN')
+    secret_arn = aws_secret_arn or os.getenv('MYSQL_SECRET_ARN')
+    database = database_name or os.getenv('MYSQL_DATABASE')
+    region = aws_region or os.getenv('AWS_REGION')
+
+    # Check if all required parameters are available (not None and not empty)
+    missing_params = []
+    if not cluster_arn or cluster_arn.strip() == '':
+        missing_params.append('aws_cluster_arn')
+    if not secret_arn or secret_arn.strip() == '':
+        missing_params.append('aws_secret_arn')
+    if not database or database.strip() == '':
+        missing_params.append('database_name')
+    if not region or region.strip() == '':
+        missing_params.append('aws_region')
+
+    if missing_params:
+        logger.error(f'Missing MySQL connection parameters: {missing_params}')
+        param_descriptions = {
+            'aws_cluster_arn': 'AWS Aurora MySQL cluster ARN',
+            'aws_secret_arn': 'AWS Secrets Manager secret ARN',
+            'database_name': 'Database name',
+            'aws_region': 'AWS region',
+        }
+        missing_descriptions = [param_descriptions[param] for param in missing_params]
+        return f'To analyze your MySQL database, I need: {", ".join(missing_descriptions)}'
+
+    try:
+        # Check if query needs analysis_days parameter
+        query_info = mysql_analysis_queries.get(query_name)
+        if query_info and 'analysis_days' in query_info.get('parameters', []):
+            query = get_query_resource(
+                query_name,
+                target_database=database,
+                analysis_days=analysis_days,
+                max_query_results=max_query_results,
+            )
+        else:
+            query = get_query_resource(
+                query_name, target_database=database, max_query_results=max_query_results
+            )
+    except ValueError as e:
+        available_queries = list(mysql_analysis_queries.keys())
+        logger.error(f'Invalid query name: {query_name}. Available queries: {available_queries}')
+        return f'Error: {str(e)}. Available queries: {available_queries}'
+
+    logger.info(f'Analyzing {query["name"]} for {source_db_type} database: {database}')
+
+    result = await mysql_run_query(query['sql'], cluster_arn, secret_arn, database, region)
+
+    if result and 'error' in result[0]:
+        logger.error(f'{query["name"]} failed: {result[0]["error"]}')
+        return f'{query["name"]} failed: {result[0]["error"]}'
+
+    return f"""Query Analysis Results:
+
+{query['name']}: {query['description']}
+
+Results: {result}
+
+Analysis Period: {analysis_days} days | Database: {database}"""
 
 
 @app.tool()
