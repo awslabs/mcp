@@ -15,7 +15,8 @@
 import awscli.clidriver
 import re
 from ..common.config import get_user_agent_extra
-from awscli.paramfile import LOCAL_PREFIX_MAP, URIArgumentHandler
+from ..common.file_system_controls import get_file_validated
+from awscli.paramfile import URIArgumentHandler
 from botocore.model import OperationModel
 from collections.abc import Set
 from loguru import logger
@@ -29,7 +30,8 @@ def _deny_remote_prefix(prefix, _uri):
 
 RESTRICTED_URI_HANDLER = URIArgumentHandler(
     prefixes={
-        **LOCAL_PREFIX_MAP,
+        'file://': (get_file_validated, {'mode': 'r'}),
+        'fileb://': (get_file_validated, {'mode': 'rb'}),
         'http://': (_deny_remote_prefix, {}),
         'https://': (_deny_remote_prefix, {}),
     }
