@@ -38,7 +38,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           fetch-depth: 0
@@ -120,7 +120,7 @@ jobs:
     if: ${{ needs.look-for-changes.outputs.changed-directories != '[]' && needs.look-for-changes.outputs.changed-directories != '' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
       - name: Create release branch
@@ -173,12 +173,12 @@ jobs:
     needs: [look-for-changes, create-branch]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           ref: ${{ needs.create-branch.outputs.release-branch }}
       - name: Install uv
-        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba # v6.3.1
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - name: Bump package version
         run: |
           set -euo pipefail
@@ -272,7 +272,7 @@ jobs:
     needs: [look-for-changes, create-branch, bump-changed-directories]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           ref: ${{ needs.create-branch.outputs.release-branch }}
