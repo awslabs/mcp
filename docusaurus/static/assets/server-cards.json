@@ -784,6 +784,31 @@
     },
     {
       "category": "Developer Tools & Support",
+      "description": "Monitor AWS security findings from GuardDuty and Security Hub",
+      "icon": "\ud83d\udee1\ufe0f",
+      "id": "aws-security-mcp-server",
+      "name": "AWS Security MCP Server",
+      "source_path": "src/aws-security-mcp-server/",
+      "subcategory": "Security & Compliance",
+      "tags": [
+        "security",
+        "guardduty",
+        "security-hub",
+        "threat-detection",
+        "compliance",
+        "monitoring",
+        "vibe-coding",
+        "conversational",
+        "autonomous"
+      ],
+      "workflows": [
+        "vibe-coding",
+        "conversational",
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
       "description": "Semantic code search and repository analysis",
       "icon": "\ud83d\udee0\ufe0f",
       "id": "git-repo-research-mcp-server",
