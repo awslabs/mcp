@@ -39,6 +39,7 @@ FILE_PATH_PARAMETERS: Dict[Tuple[str, str], Set[str]] = {
     ('s3', 'cp'): {'--paths'},
     ('s3', 'sync'): {'--paths'},
     ('s3', 'mv'): {'--paths'},
+    ('cloudformation', 'package'): {'--output-template-file'},
 }
 
 # Global parameters that can specify output files
