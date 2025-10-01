@@ -59,7 +59,7 @@ You can configure the Knowledge MCP server for use with any MCP client that supp
 }
 ```
 
-If the client you are using does not support HTTP transport for MCP or if it encounters issues during setup, you can use the [fastmcp](https://github.com/jlowin/fastmcp) utility to proxy from stdio to HTTP transport. Clients that fall into this category may include Kiro and Q CLI. Below are configuration examples for the fastmcp utility
+If the client you are using does not support HTTP transport for MCP or if it encounters issues during setup, you can use the [fastmcp](https://github.com/jlowin/fastmcp) utility to proxy from stdio to HTTP transport. Clients that fall into this category may include Kiro and Q CLI. Below is a configuration example for the fastmcp utility.
 
 **fastmcp**
 
