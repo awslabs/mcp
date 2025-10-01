@@ -25,19 +25,13 @@ class TestRabbitMQAdmin:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.admin = RabbitMQAdmin('test-host', 'user', 'pass', True)
+        self.admin = RabbitMQAdmin('test-host', 'user', 'pass')
 
     def test_init_with_tls(self):
         """Test initialization with TLS enabled."""
-        admin = RabbitMQAdmin('test-host', 'user', 'pass', True)
+        admin = RabbitMQAdmin('test-host', 'user', 'pass')
         assert admin.protocol == 'https'
         assert admin.base_url == 'https://test-host/api'
-
-    def test_init_without_tls(self):
-        """Test initialization with TLS disabled."""
-        admin = RabbitMQAdmin('test-host', 'user', 'pass', False)
-        assert admin.protocol == 'http'
-        assert admin.base_url == 'http://test-host/api'
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.admin.requests.request')
     def test_make_request_success(self, mock_request):

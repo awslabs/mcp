@@ -229,13 +229,11 @@ class TestRabbitMQBrokerInitializeConnection:
             hostname='test-hostname',  # pragma: allowlist secret
             username='test-user',  # pragma: allowlist secret
             password='test-pass',  # pragma: allowlist secret
-            use_tls=True,  # pragma: allowlist secret
         )
         mock_admin_class.assert_called_once_with(
             hostname='test-hostname',  # pragma: allowlist secret
             username='test-user',  # pragma: allowlist secret
             password='test-pass',  # pragma: allowlist secret
-            use_tls=True,  # pragma: allowlist secret
         )
         assert self.module.rmq == mock_conn_instance
         assert self.module.rmq_admin == mock_admin_instance
@@ -296,13 +294,11 @@ class TestRabbitMQBrokerInitializeConnectionWithOAuth:
             hostname='test-hostname',  # pragma: allowlist secret
             username='ignored',  # pragma: allowlist secret
             password='oauth-token-123',  # pragma: allowlist secret
-            use_tls=True,  # pragma: allowlist secret
         )
         mock_admin_class.assert_called_once_with(
             hostname='test-hostname',  # pragma: allowlist secret
             username='ignored',  # pragma: allowlist secret
             password='oauth-token-123',  # pragma: allowlist secret
-            use_tls=True,  # pragma: allowlist secret
         )
         assert self.module.rmq == mock_conn_instance
         assert self.module.rmq_admin == mock_admin_instance

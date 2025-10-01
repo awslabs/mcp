@@ -22,18 +22,16 @@ from typing import Any
 class RabbitMQConnection:
     """RabbitMQ connection manager for message operations."""
 
-    def __init__(self, hostname: str, username: str, password: str, use_tls: bool):
+    def __init__(self, hostname: str, username: str, password: str):
         """Initialize RabbitMQ connection parameters."""
         port = 5671
         host = hostname
-        self.protocol = 'amqps' if use_tls else 'amqp'
+        self.protocol = 'amqps'
         self.url = f'{self.protocol}://{username}:{password}@{host}:{port}'
         self.parameters = pika.URLParameters(self.url)
-
-        if use_tls:
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-            ssl_context.set_ciphers('ECDHE+AESGCM:!ECDSA')
-            self.parameters.ssl_options = pika.SSLOptions(context=ssl_context)
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.set_ciphers('ECDHE+AESGCM:!ECDSA')
+        self.parameters.ssl_options = pika.SSLOptions(context=ssl_context)
 
     def get_channel(self) -> tuple[Any, Any]:
         """Create and return a connection and channel for RabbitMQ operations."""

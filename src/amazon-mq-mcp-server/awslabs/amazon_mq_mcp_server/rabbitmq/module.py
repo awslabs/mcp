@@ -74,13 +74,11 @@ class RabbitMQModule:
                     hostname=broker_hostname,
                     username=username,
                     password=password,
-                    use_tls=True,
                 )
                 self.rmq_admin = RabbitMQAdmin(
                     hostname=broker_hostname,
                     username=username,
                     password=password,
-                    use_tls=True,
                 )
                 self.rmq_admin.test_connection()
                 return 'successfully connected'
@@ -102,13 +100,11 @@ class RabbitMQModule:
                     hostname=broker_hostname,
                     username='ignored',
                     password=oauth_token,
-                    use_tls=True,
                 )
                 self.rmq_admin = RabbitMQAdmin(
                     hostname=broker_hostname,
                     username='ignored',
                     password=oauth_token,
-                    use_tls=True,
                 )
                 self.rmq_admin.test_connection()
                 return 'successfully connected'
