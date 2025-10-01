@@ -16,19 +16,8 @@ from awslabs.ecs_mcp_server.modules.aws_knowledge_proxy import (
 )
 
 # Test Constants
-EXPECTED_PROXY_CONFIG = {
-    "mcpServers": {
-        "aws-knowledge-mcp-server": {
-            "command": "uvx",
-            "args": [
-                "mcp-proxy",
-                "--transport",
-                "streamablehttp",
-                "https://knowledge-mcp.global.api.aws",
-            ],
-        }
-    }
-}
+EXPECTED_PROXY_URL = "https://knowledge-mcp.global.api.aws"
+EXPECTED_PROXY_NAME = "AWS-Knowledge-Bridge"
 
 EXPECTED_KNOWLEDGE_TOOLS = [
     "aws_knowledge_aws___search_documentation",
@@ -56,6 +45,16 @@ EXPECTED_ECS_PATTERNS = [
     "how to use ecs effectively",
     "new ecs feature",
     "latest ecs feature",
+    "what are ecs managed instances",
+    "how to setup ecs managed instances",
+    "ecs managed instances",
+    "ecs MI",
+    "managed instances ecs",
+    "ecs specialized instance types",
+    "ecs custom instance types",
+    "ecs instance type selection",
+    "What alternatives do I have for Fargate?",
+    "How do I migrate from Fargate to Managed Instances",
 ]
 
 
@@ -137,6 +136,7 @@ class TestECSToolGuidance:
             "up-to-date ECS documentation",
             "new ECS features",
             "ECS Native Blue-Green Deployments",
+            "ECS Managed Instances",
             "launched 2025",
         ]
 
@@ -186,10 +186,10 @@ class TestRegisterProxy:
         assert result is True
 
         # Verify proxy configuration
-        mock_proxy_client.assert_called_once_with(EXPECTED_PROXY_CONFIG)
+        mock_proxy_client.assert_called_once_with(EXPECTED_PROXY_URL)
 
         # Verify proxy creation and mounting
-        mock_fastmcp.as_proxy.assert_called_once_with(mock_proxy_instance)
+        mock_fastmcp.as_proxy.assert_called_once_with(mock_proxy_instance, name=EXPECTED_PROXY_NAME)
         mock_mcp.mount.assert_called_once_with(mock_aws_knowledge_proxy, prefix="aws_knowledge")
 
         # Verify ECS prompts registration
