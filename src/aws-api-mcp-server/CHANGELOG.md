@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Replace local knowledge base with a remote endpoint for `suggest_aws_commands` (#1282)
+
+### Removed
+
+- `wait` and other polling AWS CLI commands(#1402)
+
+## [0.3.4] - 2025-09-30
+
+### Removed
+
+- Command output logging (#1388)
+
 ### Fixed
 
 - Mark more operations as mutating (#1387)
