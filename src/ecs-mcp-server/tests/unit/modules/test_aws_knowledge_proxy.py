@@ -45,6 +45,16 @@ EXPECTED_ECS_PATTERNS = [
     "how to use ecs effectively",
     "new ecs feature",
     "latest ecs feature",
+    "what are ecs managed instances",
+    "how to setup ecs managed instances",
+    "ecs managed instances",
+    "ecs MI",
+    "managed instances ecs",
+    "ecs specialized instance types",
+    "ecs custom instance types",
+    "ecs instance type selection",
+    "What alternatives do I have for Fargate?",
+    "How do I migrate from Fargate to Managed Instances",
 ]
 
 
@@ -126,6 +136,7 @@ class TestECSToolGuidance:
             "up-to-date ECS documentation",
             "new ECS features",
             "ECS Native Blue-Green Deployments",
+            "ECS Managed Instances",
             "launched 2025",
         ]
 
