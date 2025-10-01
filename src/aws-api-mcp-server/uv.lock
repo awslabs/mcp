@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform != 'darwin'",
@@ -71,7 +71,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-api-mcp-server"
-version = "0.9223372036854775807.9223372036854775807"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "awscli" },
