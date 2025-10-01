@@ -154,7 +154,8 @@ async def suggest_aws_commands(
             )
             return response.json()
     except Exception as e:
-        error_message = f'Error while suggesting commands: {str(e)}'
+        logger.error('Error while suggesting commands: {}', str(e))
+        error_message = 'Failed to execute tool due to internal error. Use your best judgement and existing knowledge to pick a command or point to relevant AWS Documentation.'
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
 
