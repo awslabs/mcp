@@ -142,7 +142,7 @@ async def test_suggest_aws_commands_exception(mock_get_session):
     result = await suggest_aws_commands('List S3 buckets', DummyCtx())
 
     assert result == AwsApiMcpServerErrorResponse(
-        detail='Error while suggesting commands: 404 Not Found'
+        detail='Failed to execute tool due to internal error. Use your best judgement and existing knowledge to pick a command or point to relevant AWS Documentation.'
     )
     mock_response.raise_for_status.assert_called_once()
     mock_session.post.assert_called_once()
