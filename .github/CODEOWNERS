@@ -48,8 +48,8 @@ NOTICE                                                                    @awsla
 /src/cloudtrail-mcp-server              @rokafella                        @awslabs/mcp-admins
 /src/ccapi-mcp-server                   @novekm                           @awslabs/mcp-admins
 /src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque   @awslabs/mcp-admins
-/src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe               @awslabs/mcp-admins
-/src/cloudwatch_mcp_server              @gcacace @shri-tambe @agiuliano @goranmod     @awslabs/mcp-admins
+/src/cloudwatch-logs-mcp-server         @lemmoi @shri-tambe               @awslabs/mcp-admins
+/src/cloudwatch-mcp-server              @gcacace @shri-tambe @agiuliano @goranmod     @awslabs/mcp-admins
 /src/code-doc-gen-mcp-server            @jimini55                         @awslabs/mcp-admins
 /src/core-mcp-server                    @PaulVincent707                   @awslabs/mcp-admins
 /src/cost-explorer-mcp-server           @Fedayizada                       @awslabs/mcp-admins
