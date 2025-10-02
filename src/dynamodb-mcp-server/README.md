@@ -2,12 +2,15 @@
 
 The official MCP Server for interacting with AWS DynamoDB
 
-This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance.
+This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance and also MySQL query capabilities for database analysis and migration planning.
 
 ## Available MCP Tools
 
 ### Design & Modeling
 - `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt
+
+### MySQL Integration
+- `mysql_run_query` - Run SQL queries against MySQL databases for analysis and migration planning
 
 ### Table Operations
 - `create_table` - Creates a new DynamoDB table with optional secondary indexes
@@ -61,6 +64,22 @@ To use these tools, ensure you have proper AWS credentials configured with appro
 
 All tools support an optional `region_name` parameter to specify which AWS region to operate in. If not provided, it will use the AWS_REGION environment variable or default to 'us-west-2'.
 
+## MySQL Integration
+
+The DynamoDB MCP server includes MySQL integration to run mysql queries within DynamoDB MCP server. When configured, it adds a `mysql_run_query` tool for database analysis and migration planning.
+
+### MySQL Environment Variables
+
+Add these environment variables to DynamoDB MCP Server configuration to enable MySQL integration:
+
+- `MYSQL_CLUSTER_ARN`: RDS / Aurora MySQL cluster ARN
+- `MYSQL_SECRET_ARN`: AWS Secrets Manager secret ARN with database credentials
+- `MYSQL_DATABASE`: Database name to connect to
+- `MYSQL_AWS_REGION`: AWS region for MySQL cluster (default: "us-west-2")
+- `MYSQL_READONLY`: optional (default: "true")
+
+**Note**: MySQL integration tool is available only when these variables are set.
+
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
@@ -86,7 +105,12 @@ Add the MCP to your favorite agentic tools. (e.g. for Amazon Q Developer CLI MCP
         "DDB-MCP-READONLY": "true",
         "AWS_PROFILE": "default",
         "AWS_REGION": "us-west-2",
-        "FASTMCP_LOG_LEVEL": "ERROR"
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MYSQL_CLUSTER_ARN": "[your data]",
+        "MYSQL_SECRET_ARN": "[your data]",
+        "MYSQL_DATABASE": "[your data]",
+        "MYSQL_AWS_REGION": "us-west-2",
+        "MYSQL_READONLY": "true"
       },
       "disabled": false,
       "autoApprove": []
@@ -116,7 +140,12 @@ For Windows users, the MCP server configuration format is slightly different:
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-east-1",,
+        "MYSQL_CLUSTER_ARN": "[your data]",
+        "MYSQL_SECRET_ARN": "[your data]",
+        "MYSQL_DATABASE": "[your data]",
+        "MYSQL_AWS_REGION": "us-west-2",
+        "MYSQL_READONLY": "true"
       }
     }
   }
