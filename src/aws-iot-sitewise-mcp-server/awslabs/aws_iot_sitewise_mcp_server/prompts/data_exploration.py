@@ -13,10 +13,10 @@
 # limitations under the License.
 
 """AWS IoT SiteWise Data Exploration Prompt using executeQuery API."""
+
 from awslabs.aws_iot_sitewise_mcp_server.validation import (
     validate_string_for_injection,
 )
-
 from mcp.server.fastmcp.prompts import Prompt
 
 
