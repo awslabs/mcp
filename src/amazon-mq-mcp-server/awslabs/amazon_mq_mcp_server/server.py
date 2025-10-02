@@ -17,6 +17,7 @@ from awslabs.amazon_mq_mcp_server.aws_service_mcp_generator import (
     AWSToolGenerator,
 )
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
+from awslabs.amazon_mq_mcp_server.rabbitmq.module import RabbitMQModule
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Dict, Optional
 
@@ -139,7 +140,7 @@ def main():
     parser.add_argument(
         '--allow-resource-creation',
         action='store_true',
-        help='Hide tools that create resources on user AWS account',
+        help='Enable tools that create resources on user AWS account',
     )
     args = parser.parse_args()
 
@@ -179,6 +180,10 @@ def main():
         tool_configuration=tool_configuration,
     )
     generator.generate()
+
+    rmq_module = RabbitMQModule(mcp)
+    allow_mutative_tools = args.allow_resource_creation if args.allow_resource_creation else False
+    rmq_module.register_rabbitmq_management_tools(allow_mutative_tools)
 
     mcp.run()
 
