@@ -33,6 +33,7 @@ ECS_TOOL_GUIDANCE = """
 
     New ECS features include:
     - ECS Native Blue-Green Deployments (different from CodeDeploy blue-green, launched 2025)
+    - ECS Managed Instances (launched 2025)
 """
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,8 @@ logger = logging.getLogger(__name__)
 
 def register_proxy(mcp: FastMCP) -> Optional[bool]:
     """
-    Sets up the AWS Knowledge MCP Server proxy integration.
+    Sets up the AWS Knowledge MCP Server proxy integration using transport bridging
+    -> https://gofastmcp.com/servers/proxy#transport-bridging
 
     Args:
         mcp: The FastMCP server instance to mount the proxy on
@@ -50,22 +52,9 @@ def register_proxy(mcp: FastMCP) -> Optional[bool]:
     """
     try:
         logger.info("Setting up AWS Knowledge MCP Server proxy")
-        proxy_config = {
-            "mcpServers": {
-                "aws-knowledge-mcp-server": {
-                    "command": "uvx",
-                    "args": [
-                        "mcp-proxy",
-                        "--transport",
-                        "streamablehttp",
-                        "https://knowledge-mcp.global.api.aws",
-                    ],
-                }
-            }
-        }
-
-        # Create and mount the proxy
-        aws_knowledge_proxy = FastMCP.as_proxy(ProxyClient(proxy_config))
+        aws_knowledge_proxy = FastMCP.as_proxy(
+            ProxyClient("https://knowledge-mcp.global.api.aws"), name="AWS-Knowledge-Bridge"
+        )
         mcp.mount(aws_knowledge_proxy, prefix="aws_knowledge")
 
         # Add prompt patterns for blue-green deployments
@@ -159,6 +148,25 @@ def register_ecs_prompts(mcp: FastMCP) -> None:
                 "how to use ecs effectively",
                 "new ecs feature",
                 "latest ecs feature",
+            ],
+            "response": [
+                {
+                    "name": "aws_knowledge_aws___search_documentation",
+                }
+            ],
+        },
+        {
+            "patterns": [
+                "what are ecs managed instances",
+                "how to setup ecs managed instances",
+                "ecs managed instances",
+                "ecs MI",
+                "managed instances ecs",
+                "ecs specialized instance types",
+                "ecs custom instance types",
+                "ecs instance type selection",
+                "What alternatives do I have for Fargate?",
+                "How do I migrate from Fargate to Managed Instances",
             ],
             "response": [
                 {
