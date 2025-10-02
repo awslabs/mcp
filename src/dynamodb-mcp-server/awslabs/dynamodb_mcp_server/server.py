@@ -223,14 +223,19 @@ async def source_database_analysis(
     aws_secret_arn: Optional[str] = Field(default=None, description='AWS secret ARN (overrides MYSQL_SECRET_ARN env var)'),
     aws_region: Optional[str] = Field(default=None, description='AWS region (overrides AWS_REGION env var)'),
 ) -> str:
-    """Execute complete database analysis workflow automatically.
+    """This tool performs comprehensive source database analysis to support DynamoDB data modeling.
 
-    This tool runs the full analysis sequence:
+    This tool runs the full pre-defined analysis queries and returns the below:
     1. Schema analysis (tables, columns, indexes, foreign keys)
-    2. Performance schema check (MySQL)
-    3. Pattern analysis (if performance schema enabled for MySQL)
+    2. Pattern analysis (if performance schema enabled for MySQL)
 
-    Returns comprehensive analysis results in structured format.
+    Source Database Integration:
+    - Connects to Aurora MySQL via RDS Data API
+    - Requires database credentials in AWS Secrets Manager
+    - Performance Schema must be enabled for complete access pattern analysis, else schema only analysis 
+    - Supports read-only analysis to protect production systems
+
+    Returns comprehensive analysis results with file locations and next steps for DynamoDB Data Modeling.
     """
     try:
         analyzer_class = DatabaseAnalyzerRegistry.get_analyzer(source_db_type)
@@ -267,28 +272,34 @@ async def source_database_analysis(
         )
 
         # Generate report
+        logger.info("Generating analysis report")
         if analysis_result['results']:
             report = f"""Database Analysis Complete
 
 Summary:
 - Database: {connection_params.get('database')}
 - Analysis Period: {connection_params.get('analysis_days')} days
-- {analysis_result['performance_feature']}: {'Enabled' if analysis_result['performance_enabled'] else 'Disabled'}
-- Files Saved: {len(saved_files)}
-- Query Errors: {len(analysis_result['errors'])}
-- Save Errors: {len(save_errors)}"""
+- {analysis_result['performance_feature']}: {'Enabled' if analysis_result['performance_enabled'] else 'Disabled'}"""
 
             if saved_files:
                 report += f"\n\nSaved Files:\n{chr(10).join(f'- {f}' for f in saved_files)}"
             
             if analysis_result['errors']:
                 report += f"\n\nQuery Errors ({len(analysis_result['errors'])}):\n" + "\n".join(f"{i}. {error}" for i, error in enumerate(analysis_result['errors'], 1))
+
+            report += f"""
+
+Next Steps:
+1. Run dynamodb_data_modeling tool with these analysis files to perform DynamoDB Data Modeling
+2. Review the analysis files to understand your current schema and access patterns"""
+
         else:
             report = f"Database Analysis Failed\n\nAll {len(analysis_result['errors'])} queries failed:\n" + "\n".join(f"{i}. {error}" for i, error in enumerate(analysis_result['errors'], 1))
 
         return report
 
     except Exception as e:
+        logger.error(f"Analysis failed with exception: {str(e)}")
         return f"Analysis failed: {str(e)}"
 
 
