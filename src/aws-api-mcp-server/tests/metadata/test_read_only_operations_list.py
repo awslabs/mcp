@@ -208,3 +208,18 @@ def test_read_only_operations_has_method_operation_from_metadata():
     assert not operations.has('s3', 'DeleteObject')
     assert not operations.has('lambda', 'CreateAlias')
     assert not operations.has('rds', 'CreateDBSecurityGroup')
+
+
+def test_read_only_operations_overrides():
+    """Test the has method of ReadOnlyOperations with overrides."""
+    operations = ReadOnlyOperations({})
+    assert not operations.has('sts', 'AssumeRole')
+    assert not operations.has('sts', 'AssumeRoleWithWebIdentity')
+    assert not operations.has('sts', 'AssumeRoleWithSAML')
+    assert not operations.has('sts', 'GetSessionToken')
+    assert not operations.has('sts', 'GetFederationToken')
+    assert not operations.has('sts', 'AssumeRoot')
+    assert not operations.has('iam', 'CreateAccessKey')
+    assert not operations.has('cognito-identity', 'GetCredentialsForIdentity')
+    assert not operations.has('cognito-identity', 'GetOpenIdToken')
+    assert not operations.has('sso', 'GetRoleCredentials')

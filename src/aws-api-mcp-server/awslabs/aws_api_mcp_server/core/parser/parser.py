@@ -85,7 +85,7 @@ DENIED_CUSTOM_SERVICES = frozenset({'configure', 'history'})
 # to not do any subprocess calls and are therefore allowed.
 ALLOWED_CUSTOM_OPERATIONS = {
     # blanket allow these custom operation regardless of service
-    '*': ['wait'],
+    '*': [],
     's3': ['ls', 'website', 'sync', 'cp', 'mv', 'rm', 'mb', 'rb', 'presign'],
     'cloudformation': ['package', 'deploy'],
     'cloudfront': ['sign'],
@@ -114,7 +114,6 @@ ALLOWED_CUSTOM_OPERATIONS = {
     ],
     'emr-containers': ['update-role-trust-policy'],
     'gamelift': ['upload-build', 'get-game-session-log'],
-    'logs': ['start-live-tail'],
     'rds': ['generate-db-auth-token'],
     'servicecatalog': ['generate'],
     'deploy': ['push', 'register', 'deregister'],

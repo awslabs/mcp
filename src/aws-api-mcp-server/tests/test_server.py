@@ -1,4 +1,5 @@
 import pytest
+import requests
 from awslabs.aws_api_mcp_server.core.common.errors import AwsApiMcpError
 from awslabs.aws_api_mcp_server.core.common.models import (
     AwsApiMcpServerErrorResponse,
@@ -14,25 +15,9 @@ from tests.fixtures import DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
-def test_main_knowledge_base_setup_error(mock_kb):
-    """Test main function when knowledge base setup fails."""
-    mock_kb.setup.side_effect = Exception('KB setup failed')
-
-    with patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp/test'):
-        with patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1'):
-            with patch('awslabs.aws_api_mcp_server.server.validate_aws_region'):
-                with pytest.raises(
-                    RuntimeError,
-                    match='Error while setting up the knowledge base: KB setup failed',
-                ):
-                    main()
-
-
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
-@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
 @patch('awslabs.aws_api_mcp_server.server.server')
-def test_main_read_operations_index_load_failure(mock_server, mock_kb, mock_get_read_ops):
+def test_main_read_operations_index_load_failure(mock_server, mock_get_read_ops):
     """Test main function when read operations index loading fails."""
     mock_get_read_ops.side_effect = Exception('Failed to load operations')
 
@@ -93,8 +78,8 @@ async def test_call_aws_success(
     mock_interpret.assert_called_once()
 
 
-@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
-async def test_suggest_aws_commands_success(mock_knowledge_base):
+@patch('awslabs.aws_api_mcp_server.server.get_requests_session')
+async def test_suggest_aws_commands_success(mock_get_session):
     """Test suggest_aws_commands returns suggestions for a valid query."""
     mock_suggestions = {
         'suggestions': [
@@ -112,12 +97,26 @@ async def test_suggest_aws_commands_success(mock_knowledge_base):
             },
         ]
     }
-    mock_knowledge_base.get_suggestions.return_value = mock_suggestions
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = mock_suggestions
+
+    mock_session = MagicMock()
+    mock_session.post.return_value = mock_response
+    mock_session.__enter__.return_value = mock_session
+    mock_session.__exit__.return_value = None
+
+    mock_get_session.return_value = mock_session
 
     result = await suggest_aws_commands('List all S3 buckets', DummyCtx())
 
     assert result == mock_suggestions
-    mock_knowledge_base.get_suggestions.assert_called_once_with('List all S3 buckets')
+    mock_session.post.assert_called_once()
+
+    # Verify the HTTP call parameters
+    call_args = mock_session.post.call_args
+    assert call_args[1]['json'] == {'query': 'List all S3 buckets'}
+    assert call_args[1]['timeout'] == 30
 
 
 async def test_suggest_aws_commands_empty_query():
@@ -127,17 +126,26 @@ async def test_suggest_aws_commands_empty_query():
     assert result == AwsApiMcpServerErrorResponse(detail='Empty query provided')
 
 
-@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
-async def test_suggest_aws_commands_exception(mock_knowledge_base):
-    """Test suggest_aws_commands returns error when knowledge base raises exception."""
-    mock_knowledge_base.get_suggestions.side_effect = RuntimeError('Knowledge base error')
+@patch('awslabs.aws_api_mcp_server.server.get_requests_session')
+async def test_suggest_aws_commands_exception(mock_get_session):
+    """Test suggest_aws_commands returns error when HTTPError is raised."""
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = requests.HTTPError('404 Not Found')
+
+    mock_session = MagicMock()
+    mock_session.post.return_value = mock_response
+    mock_session.__enter__.return_value = mock_session
+    mock_session.__exit__.return_value = None
+
+    mock_get_session.return_value = mock_session
 
     result = await suggest_aws_commands('List S3 buckets', DummyCtx())
 
     assert result == AwsApiMcpServerErrorResponse(
-        detail='Error while suggesting commands: Knowledge base error'
+        detail='Failed to execute tool due to internal error. Use your best judgement and existing knowledge to pick a command or point to relevant AWS Documentation.'
     )
-    mock_knowledge_base.get_suggestions.assert_called_once_with('List S3 buckets')
+    mock_response.raise_for_status.assert_called_once()
+    mock_session.post.assert_called_once()
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
@@ -664,19 +672,17 @@ async def test_call_aws_awscli_customization_error(
     mock_ctx.error.assert_called_once_with(error_response.detail)
 
 
-@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', None)
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
-def test_main_missing_aws_region(mock_thread):
+def test_main_missing_aws_region():
     """Test main function raises ValueError when AWS_REGION environment variable is not set."""
     with pytest.raises(ValueError, match=r'AWS_REGION environment variable is not defined.'):
         main()
 
 
-@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', 'relative/path')
-def test_main_relative_working_directory(mock_thread):
+def test_main_relative_working_directory():
     """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR is a relative path."""
     with pytest.raises(
         ValueError,
@@ -685,23 +691,18 @@ def test_main_relative_working_directory(mock_thread):
         main()
 
 
-@patch('awslabs.aws_api_mcp_server.core.kb.threading.Thread')
 @patch('awslabs.aws_api_mcp_server.server.os.chdir')
 @patch('awslabs.aws_api_mcp_server.server.server')
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
-@patch('awslabs.aws_api_mcp_server.server.knowledge_base')
 @patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', True)
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
 def test_main_success_with_read_only_mode(
-    mock_knowledge_base,
     mock_get_read_only_operations,
     mock_server,
     mock_chdir,
-    mock_thread,
 ):
     """Test main function executes successfully with read-only mode enabled."""
-    mock_knowledge_base.setup = MagicMock()
     mock_read_operations = MagicMock()
     mock_get_read_only_operations.return_value = mock_read_operations
     mock_server.run = MagicMock()
@@ -709,7 +710,6 @@ def test_main_success_with_read_only_mode(
     main()
 
     mock_chdir.assert_called_once_with('/tmp')
-    mock_knowledge_base.setup.assert_called_once()
     mock_get_read_only_operations.assert_called_once()
     mock_server.run.assert_called_once_with(transport='stdio')
 
