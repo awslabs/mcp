@@ -14,6 +14,9 @@
 
 """AWS IoT SiteWise Data Ingestion Helper Prompt."""
 
+from awslabs.aws_iot_sitewise_mcp_server.validation import (
+    validate_string_for_injection,
+)
 from mcp.server.fastmcp.prompts import Prompt
 
 
@@ -35,6 +38,8 @@ def data_ingestion_helper(data_source: str, target_assets: str) -> str:
     Returns:
         Comprehensive data ingestion strategy guide
     """
+    validate_string_for_injection(data_source)
+    validate_string_for_injection(target_assets)
     return f"""
 You are an AWS IoT SiteWise data ingestion expert helping to set up \
     industrial data collection.
