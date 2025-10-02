@@ -3,6 +3,7 @@ import boto3
 import pytest
 import pytest_asyncio
 from awslabs.dynamodb_mcp_server.server import (
+    analyze_source_db,
     create_backup,
     create_table,
     delete_item,
@@ -928,3 +929,83 @@ async def test_dynamodb_data_modeling_mcp_integration():
     assert modeling_tool.description is not None
     assert 'DynamoDB' in modeling_tool.description
     assert 'data modeling' in modeling_tool.description.lower()
+
+
+@pytest.mark.asyncio
+async def test_analyze_source_db_success(mysql_env_setup, monkeypatch):
+    """Test successful source database analysis."""
+
+    # Mock successful query result for SELECT DATABASE() as configured_database;
+    async def mock_mysql_run_query(sql, *args, **kwargs):
+        return [{'configured_database': 'employees'}]
+
+    monkeypatch.setattr('awslabs.dynamodb_mcp_server.server.mysql_run_query', mock_mysql_run_query)
+
+    result = await analyze_source_db('mysql', 'employees', 30, 'database_identification')
+
+    assert 'Query Analysis Results:' in result
+    assert 'Database Identification:' in result
+    assert 'employees' in result
+    assert 'Analysis Period: 30 days' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_source_db_pattern_analysis(mysql_env_setup, monkeypatch):
+    """Test analyze_source_db with pattern analysis."""
+
+    # Mock pattern analysis result
+    async def mock_mysql_run_query(sql, *args, **kwargs):
+        return [
+            {
+                'query_pattern': 'SELECT * FROM employees WHERE emp_no = ?',
+                'frequency': 100,
+                'calculated_rps': 0.05,
+            },
+            {
+                'query_pattern': 'INSERT INTO salaries VALUES (...)',
+                'frequency': 50,
+                'calculated_rps': 0.025,
+            },
+        ]
+
+    monkeypatch.setattr('awslabs.dynamodb_mcp_server.server.mysql_run_query', mock_mysql_run_query)
+
+    result = await analyze_source_db('mysql', 'employees', 30, 'pattern_analysis')
+
+    assert 'Query Analysis Results:' in result
+    assert 'Query Pattern Analysis:' in result
+    assert 'Analysis Period: 30 days' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_source_db_invalid_query():
+    """Test analyze_source_db with invalid query name."""
+    result = await analyze_source_db('mysql', 'employees', 30, 'invalid_query')
+
+    assert "Error: Query 'invalid_query' not found" in result
+    assert 'Available queries:' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_source_db_mysql_error(mysql_env_setup, monkeypatch):
+    """Test analyze_source_db when MySQL query fails."""
+
+    # Mock MySQL query error
+    async def mock_mysql_run_query(sql, *args, **kwargs):
+        return [{'error': 'Connection failed'}]
+
+    monkeypatch.setattr('awslabs.dynamodb_mcp_server.server.mysql_run_query', mock_mysql_run_query)
+
+    result = await analyze_source_db('mysql', 'employees', 30, 'database_identification')
+
+    assert 'Database Identification failed: Connection failed' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_source_db_unsupported_database():
+    """Test analyze_source_db with unsupported database type."""
+    result = await analyze_source_db('postgresql', 'test_db', 30, 'database_identification')
+    assert 'Unsupported source database type: postgresql' in result
+
+    result = await analyze_source_db('oracle', 'test_db', 30, 'table_analysis')
+    assert 'Unsupported source database type: oracle' in result

@@ -46,18 +46,28 @@ from awslabs.dynamodb_mcp_server.common import (
     handle_exceptions,
     mutation_check,
 )
+from awslabs.dynamodb_mcp_server.database_analysis_queries import (
+    get_query_resource,
+    mysql_analysis_queries,
+)
+from awslabs.mysql_mcp_server.server import DBConnectionSingleton
+from awslabs.mysql_mcp_server.server import run_query as mysql_query
 from botocore.config import Config
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from pydantic import Field
-from typing import Any, Dict, List, Literal, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """The official MCP Server for interacting with AWS DynamoDB
 
 This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
-items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt
+items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt.
+
+MySQL Integration: This server also includes MySQL query capabilities through the run_query tool, enabling database
+analysis for DynamoDB DynamoDB Data Modeling.
 
 IMPORTANT: DynamoDB Attribute Value Format
 -----------------------------------------
@@ -204,6 +214,115 @@ async def dynamodb_data_modeling() -> str:
     prompt_file = Path(__file__).parent / 'prompts' / 'dynamodb_architect.md'
     architect_prompt = prompt_file.read_text(encoding='utf-8')
     return architect_prompt
+
+
+async def mysql_run_query(
+    sql: Annotated[str, Field(description='The SQL query to run')],
+    query_parameters: Annotated[
+        Optional[List[Dict[str, Any]]], Field(description='Parameters for the SQL query')
+    ] = None,
+) -> list[dict]:
+    """Internal function to run SQL queries against MySQL database for analysis."""
+    if all(
+        [
+            os.getenv('MYSQL_CLUSTER_ARN'),
+            os.getenv('MYSQL_SECRET_ARN'),
+            os.getenv('MYSQL_DATABASE'),
+            os.getenv('MYSQL_AWS_REGION') or os.getenv('AWS_REGION'),
+        ]
+    ):
+        cluster_arn = os.getenv('MYSQL_CLUSTER_ARN')
+        secret_arn = os.getenv('MYSQL_SECRET_ARN')
+        database = os.getenv('MYSQL_DATABASE')
+        region = os.getenv('MYSQL_AWS_REGION') or os.getenv('AWS_REGION')
+        readonly = os.getenv('MYSQL_READONLY', 'true').lower() == 'true'
+
+        try:
+            DBConnectionSingleton.initialize(cluster_arn, secret_arn, database, region, readonly)
+        except Exception as e:
+            logger.error(f'MySQL initialization failed - {type(e).__name__}: {str(e)}')
+            return [{'error': f'MySQL initialization failed: {str(e)}'}]
+    else:
+        missing_vars = []
+        if not os.getenv('MYSQL_CLUSTER_ARN'):
+            missing_vars.append('MYSQL_CLUSTER_ARN (RDS cluster ARN)')
+        if not os.getenv('MYSQL_SECRET_ARN'):
+            missing_vars.append('MYSQL_SECRET_ARN (Secrets Manager ARN)')
+        if not os.getenv('MYSQL_DATABASE'):
+            missing_vars.append('MYSQL_DATABASE (Database name)')
+        if not (os.getenv('MYSQL_AWS_REGION') or os.getenv('AWS_REGION')):
+            missing_vars.append('MYSQL_AWS_REGION (AWS region, defaults to AWS_REGION)')
+
+        logger.error(
+            f'MySQL integration: Missing required environment variables: {[var.split()[0] for var in missing_vars]}'
+        )
+        return [
+            {
+                'error': f'MySQL integration requires these environment variables: {", ".join([var.split()[0] for var in missing_vars])}',
+                'required_variables': missing_vars,
+                'documentation': 'https://github.com/awslabs/mcp/tree/main/src/dynamodb-mcp-server#mysql-integration',
+            }
+        ]
+
+    class DummyContext:
+        """DummyContext class required by MySQL server's run_query function for error handling."""
+
+        async def error(self, message):
+            """Raise a runtime error with the given message.
+
+            Args:
+                message: The error message to include in the runtime error
+            """
+            # Do nothing
+            pass
+
+    try:
+        result = await mysql_query(sql, DummyContext(), None, query_parameters)
+        return result
+    except Exception as e:
+        logger.error(
+            f'DynamoDB-MySQL integration: Query execution failed - {type(e).__name__}: {str(e)}'
+        )
+        return [{'error': f'MySQL query failed: {str(e)}'}]
+
+
+@app.tool()
+@handle_exceptions
+async def analyze_source_db(
+    source_db_type: str = Field(description="Source Database type: 'mysql'"),
+    target_database: str = Field(description='Database name to analyze'),
+    analysis_days: int = Field(default=30, description='Number of days to analyze', ge=1),
+    query_name: str = Field(description='Query name from predefined analysis queries'),
+) -> str:
+    """Execute predefined SQL queries against the source database for analysis."""
+    source_db_type = source_db_type.lower()
+    if source_db_type not in ['mysql']:
+        return f'Unsupported source database type: {source_db_type}. Supported types: mysql'
+
+    try:
+        query = get_query_resource(
+            query_name, target_database=target_database, analysis_days=analysis_days
+        )
+    except ValueError as e:
+        available_queries = list(mysql_analysis_queries.keys())
+        logger.error(f'Invalid query name: {query_name}. Available queries: {available_queries}')
+        return f'Error: {str(e)}. Available queries: {available_queries}'
+
+    logger.info(f'Executing {query["name"]} for {source_db_type} database: {target_database}')
+
+    result = await mysql_run_query(query['sql'])
+
+    if result and 'error' in result[0]:
+        logger.error(f'{query["name"]} failed: {result[0]["error"]}')
+        return f'{query["name"]} failed: {result[0]["error"]}'
+
+    return f"""Query Analysis Results:
+
+{query['name']}: {query['description']}
+
+Results: {result}
+
+Analysis Period: {analysis_days} days | Database: {target_database}"""
 
 
 @app.tool()
