@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+
+### Added
+
 - Agent Script for creating Aurora DB with instances (#1401)
+- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
+
+## [1.0.0] - 2025-10-01
 
 ### Changed
 
@@ -31,12 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Mark sts:AssumeRole as mutating (#1364)
-
-## [0.3.1] - 2025-09-23
-
-### Added
-
-- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
 
 ## [0.3.1] - 2025-09-23
 
