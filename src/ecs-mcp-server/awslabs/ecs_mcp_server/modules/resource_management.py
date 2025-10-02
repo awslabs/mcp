@@ -19,7 +19,7 @@ This module provides tools and prompts for managing ECS resources.
 
 from typing import Any, Dict
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from awslabs.ecs_mcp_server.api.resource_management import ecs_api_operation
