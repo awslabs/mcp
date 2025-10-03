@@ -1122,6 +1122,30 @@
       ]
     },
     {
+      "category": "Data & Analytics",
+      "description": "Advanced EMR log analysis and troubleshooting with Athena-powered pattern matching against 159 curated issues",
+      "icon": "\ud83d\udcca",
+      "id": "emr-troubleshooting-mcp-server",
+      "name": "Amazon EMR Troubleshooting MCP Server",
+      "source_path": "src/emr-troubleshooting-mcp-server/",
+      "subcategory": "Data Operations & ETL",
+      "tags": [
+        "data-analytics",
+        "emr",
+        "log-analysis",
+        "troubleshooting",
+        "athena",
+        "spark",
+        "hadoop",
+        "yarn",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Healthcare & Lifesciences",
       "description": "Generate, run, debug and optimize lifescience workflows on AWS HealthOmics",
       "icon": "\ud83e\uddc0",

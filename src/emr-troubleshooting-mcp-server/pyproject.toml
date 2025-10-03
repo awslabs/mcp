@@ -1,0 +1,145 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awslabs.emr-troubleshooting-mcp-server"
+version = "0.1.0"
+description = "Advanced MCP server for Amazon EMR log analysis and troubleshooting with Athena-powered pattern matching against 159 curated issues"
+authors = [
+    {name = "AWS Labs", email = "aws-mcp@amazon.com"}
+]
+maintainers = [
+    {name = "AWS Labs", email = "aws-mcp@amazon.com"}
+]
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+keywords = [
+    "mcp", "model-context-protocol", "aws", "emr", "troubleshooting",
+    "log-analysis", "athena", "spark", "hadoop", "yarn", "hive"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "fastmcp>=0.2.0",
+    "pydantic>=2.0.0",
+    "loguru>=0.7.0",
+    "boto3>=1.26.0",
+]
+
+[project.urls]
+homepage = "https://awslabs.github.io/mcp/"
+documentation = "https://awslabs.github.io/mcp/servers/emr-troubleshooting-mcp-server/"
+repository = "https://github.com/awslabs/mcp.git"
+changelog = "https://github.com/awslabs/mcp/blob/main/src/emr-troubleshooting-mcp-server/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+"Source Code" = "https://github.com/awslabs/mcp/tree/main/src/emr-troubleshooting-mcp-server"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "moto>=5.1.4",
+    "black>=24.0.0",
+    "mypy>=1.11.0",
+    "bandit>=1.7.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "moto>=5.1.4",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.9.7",
+    "pre-commit>=4.1.0",
+    "bandit>=1.7.10",
+]
+
+[project.scripts]
+emr-troubleshooting-mcp-server = "awslabs.emr_troubleshooting_mcp_server.server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["awslabs*"]
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+
+[tool.black]
+line-length = 99
+target-version = ['py310']
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["awslabs"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101", "B601"]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/emr_troubleshooting_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
