@@ -33,6 +33,7 @@ from .core.common.config import (
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
     REQUIRE_MUTATION_CONSENT,
+    STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
 )
@@ -62,7 +63,13 @@ log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
-server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL, host=HOST, port=PORT)
+server = FastMCP(
+    name='AWS-API-MCP',
+    log_level=FASTMCP_LOG_LEVEL,
+    host=HOST,
+    port=PORT,
+    stateless_http=STATELESS_HTTP,
+)
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 
