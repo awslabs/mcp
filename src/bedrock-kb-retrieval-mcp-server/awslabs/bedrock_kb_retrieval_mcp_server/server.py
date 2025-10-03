@@ -56,15 +56,10 @@ except Exception as e:
 
 kb_inclusion_tag_key = os.getenv('KB_INCLUSION_TAG_KEY', DEFAULT_KNOWLEDGE_BASE_TAG_INCLUSION_KEY)
 
-# Parse reranking enabled environment variable
-kb_reranking_enabled_raw = os.getenv('BEDROCK_KB_RERANKING_ENABLED')
-kb_reranking_enabled = False  # Default value is now False (off)
-if kb_reranking_enabled_raw is not None:
-    kb_reranking_enabled_raw = kb_reranking_enabled_raw.strip().lower()
-    if kb_reranking_enabled_raw in ('true', '1', 'yes', 'on'):
-        kb_reranking_enabled = True
+# Parse reranking model ARN environment variable
+rerank_model_arn = os.getenv('RERANK_MODEL_ARN')
 logger.info(
-    f'Default reranking enabled: {kb_reranking_enabled} (from BEDROCK_KB_RERANKING_ENABLED)'
+    f'Reranking model ARN: {rerank_model_arn}'
 )
 
 mcp = FastMCP(
@@ -138,14 +133,6 @@ async def query_knowledge_bases_tool(
         10,
         description='The number of results to return. Use smaller values for focused results and larger values for broader coverage.',
     ),
-    reranking: bool = Field(
-        kb_reranking_enabled,
-        description='Whether to rerank the results. Useful for improving relevance and sorting. Can be globally configured with BEDROCK_KB_RERANKING_ENABLED environment variable.',
-    ),
-    reranking_model_name: Literal['COHERE', 'AMAZON'] = Field(
-        'AMAZON',
-        description="The name of the reranking model to use. Options: 'COHERE', 'AMAZON'",
-    ),
     data_source_ids: Optional[List[str]] = Field(
         None,
         description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
@@ -182,8 +169,7 @@ async def query_knowledge_bases_tool(
         knowledge_base_id=knowledge_base_id,
         kb_agent_client=kb_runtime_client,
         number_of_results=number_of_results,
-        reranking=reranking,
-        reranking_model_name=reranking_model_name,
+        rerank_model_arn=rerank_model_arn,
         data_source_ids=data_source_ids,
     )
 

@@ -55,17 +55,16 @@ If you intend to use reranking functionality, your Bedrock Knowledge Base needs 
 
 ### Controlling Reranking
 
-Reranking can be globally enabled or disabled using the `BEDROCK_KB_RERANKING_ENABLED` environment variable:
+Reranking can be globally enabled by setting the `RERANK_MODEL_ARN` environment variable to the full ARN of the reranking model you want to use:
 
-- Set to `false` (default): Disables reranking for all queries unless explicitly enabled
-- Set to `true`: Enables reranking for all queries unless explicitly disabled
+- If `RERANK_MODEL_ARN` is set: Reranking is enabled using the specified model ARN
+- If `RERANK_MODEL_ARN` is not set (default): Reranking is disabled
 
-The environment variable accepts various formats:
+Example ARN values:
+- Amazon Rerank: `arn:aws:bedrock:us-west-2::foundation-model/amazon.rerank-v1:0`
+- Cohere Rerank: `arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0`
 
-- For enabling: 'true', '1', 'yes', or 'on' (case-insensitive)
-- For disabling: any other value or not set (default behavior)
-
-This setting provides a global default, while individual API calls can still override it by explicitly setting the `reranking` parameter.
+Note: Replace `us-west-2` with your desired region. This approach allows cross-region usage (e.g., a us-east-1 knowledge base can use a us-west-2 reranking model).
 
 For detailed instructions on setting up knowledge bases, see:
 
@@ -77,7 +76,7 @@ For detailed instructions on setting up knowledge bases, see:
 
 | Cursor | VS Code |
 |:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.bedrock-kb-retrieval-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYmVkcm9jay1rYi1yZXRyaWV2YWwtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLXByb2ZpbGUtbmFtZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiS0JfSU5DTFVTSU9OX1RBR19LRVkiOiJvcHRpb25hbC10YWcta2V5LXRvLWZpbHRlci1rYnMiLCJCRURST0NLX0tCX1JFUkFOS0lOR19FTkFCTEVEIjoiZmFsc2UifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20KB%20Retrieval%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.bedrock-kb-retrieval-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-profile-name%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22KB_INCLUSION_TAG_KEY%22%3A%22optional-tag-key-to-filter-kbs%22%2C%22BEDROCK_KB_RERANKING_ENABLED%22%3A%22false%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.bedrock-kb-retrieval-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYmVkcm9jay1rYi1yZXRyaWV2YWwtbWNwLXNlcnZlckBsYXRlc3QiLCJlbnYiOnsiQVdTX1BST0ZJTEUiOiJ5b3VyLXByb2ZpbGUtbmFtZSIsIkFXU19SRUdJT04iOiJ1cy1lYXN0LTEiLCJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiS0JfSU5DTFVTSU9OX1RBR19LRVkiOiJvcHRpb25hbC10YWcta2V5LXRvLWZpbHRlci1rYnMiLCJSRVJBTktfTU9ERUxfQVJOIjoiIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20KB%20Retrieval%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.bedrock-kb-retrieval-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-profile-name%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22KB_INCLUSION_TAG_KEY%22%3A%22optional-tag-key-to-filter-kbs%22%2C%22RERANK_MODEL_ARN%22%3A%22%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 Configure the MCP server in your MCP client configuration (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
@@ -92,7 +91,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Amazon Q De
         "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR",
         "KB_INCLUSION_TAG_KEY": "optional-tag-key-to-filter-kbs",
-        "BEDROCK_KB_RERANKING_ENABLED": "false"
+        "RERANK_MODEL_ARN": ""
       },
       "disabled": false,
       "autoApprove": []
@@ -153,7 +152,7 @@ AWS_SESSION_TOKEN=AQoEXAMPLEH4aoAH0gNCAPy...truncated...zrkuWJOgQs8IZZaIv2BXIa2R
           "--env",
           "KB_INCLUSION_TAG_KEY=optional-tag-key-to-filter-kbs",
           "--env",
-          "BEDROCK_KB_RERANKING_ENABLED=false",
+          "RERANK_MODEL_ARN=",
           "--env",
           "AWS_REGION=us-east-1",
           "--env-file",

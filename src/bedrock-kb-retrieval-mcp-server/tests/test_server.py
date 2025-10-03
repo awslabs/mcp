@@ -109,8 +109,6 @@ class TestQueryKnowledgeBasesTool:
             query='test query',
             knowledge_base_id='kb-12345',
             number_of_results=10,
-            reranking=True,
-            reranking_model_name='AMAZON',
             data_source_ids=['ds-12345', 'ds-67890'],
         )
 
@@ -125,8 +123,7 @@ class TestQueryKnowledgeBasesTool:
             knowledge_base_id='kb-12345',
             kb_agent_client=mock.ANY,  # We can't directly access the global variable in tests
             number_of_results=10,
-            reranking=True,
-            reranking_model_name='AMAZON',
+            rerank_model_arn=mock.ANY,  # ARN value may vary depending on test execution order
             data_source_ids=['ds-12345', 'ds-67890'],
         )
 
