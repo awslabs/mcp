@@ -18,10 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FastMCP framework integration for MCP protocol support
 
 ### Features
-- `read_pdf`: Extract text content from PDF files with page-by-page processing
-- `read_docx`: Convert Word documents to markdown format
-- `read_xlsx`: Convert Excel spreadsheets to markdown format
-- `read_pptx`: Convert PowerPoint presentations to markdown format
+- `read_document`: Unified document processing tool supporting PDF, Word, Excel, and PowerPoint formats
 - `read_image`: Load and display image files for LLM analysis
 
 ### Technical Details

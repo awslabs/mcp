@@ -65,10 +65,7 @@ Example, `~/.aws/amazonq/cli-agents/default.json`
 
 ## Available Tools
 
-- `read_pdf`: Extract text content from PDF files (*.pdf)
-- `read_docx`: Extract markdown content from Word documents (*.docx, *.doc)
-- `read_xlsx`: Extract markdown content from Excel spreadsheets (*.xlsx, *.xls)
-- `read_pptx`: Extract markdown content from PowerPoint presentations (*.pptx, *.ppt)
+- `read_document`: Extract content from various document formats by specifying file_path and file_type ('pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt')
 - `read_image`: Load image files for LLM viewing and analysis
 
 ## Environment Variables
@@ -102,6 +99,7 @@ uv run pytest --cov=awslabs.document_loader_mcp_server
 ```
 
 The test suite includes:
+
 - Server functionality validation
 - Document parsing tests with generated sample files
 - Error handling verification
@@ -109,6 +107,7 @@ The test suite includes:
 ### Sample Documents
 
 The test suite automatically generates sample documents for testing:
+
 - PDF with multi-page content
 - DOCX with formatted text and lists
 - XLSX with multiple sheets and data

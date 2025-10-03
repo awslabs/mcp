@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 
-# Initialize FastMCP server
+# Initialize FastMCP server with a unique name to avoid old tool registry
 mcp = FastMCP('Document Loader')
 
 
@@ -44,19 +44,8 @@ class DocumentReadResponse(BaseModel):
     error_message: Optional[str] = Field(None, description="Error message if operation failed")
 
 
-
-
-
 def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
-    """Validate file path for security constraints.
-    
-    Args:
-        ctx (Context): FastMCP context for error reporting
-        file_path (str): Path to the file to validate
-        
-    Returns:
-        Optional[str]: Error message if validation fails, None if validation passes
-    """
+    """Validate file path for security constraints."""
     try:
         path = Path(file_path)
         
@@ -77,8 +66,7 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         if path.suffix.lower() not in ALLOWED_EXTENSIONS:
             return f'Unsupported file type: {path.suffix}. Allowed: {", ".join(sorted(ALLOWED_EXTENSIONS))}'
         
-        # Additional security checks
-        # Prevent path traversal attacks
+        # Additional security checks - Prevent path traversal attacks
         try:
             path.resolve(strict=True)
         except (OSError, RuntimeError):
@@ -87,22 +75,11 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         return None  # Validation passed
         
     except Exception as e:
-        error_msg = f'Error validating file path {file_path}: {str(e)}'
-        ctx.error(error_msg)
-        return error_msg
+        return f'Error validating file path {file_path}: {str(e)}'
 
 
 async def _convert_with_markitdown(ctx: Context, file_path: str, file_type: str) -> DocumentReadResponse:
-    """Helper function to convert documents to markdown using MarkItDown.
-
-    Args:
-        ctx (Context): FastMCP context for error reporting
-        file_path (str): Path to the file to convert
-        file_type (str): Type of file for error messages (e.g., "Word document", "Excel file")
-
-    Returns:
-        DocumentReadResponse: Structured response with content or error information
-    """
+    """Helper function to convert documents to markdown using MarkItDown."""
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
     if validation_error:
@@ -116,7 +93,6 @@ async def _convert_with_markitdown(ctx: Context, file_path: str, file_type: str)
     try:
         # Initialize MarkItDown
         md = MarkItDown()
-
         # Convert the document to markdown
         result = md.convert(file_path)
 
@@ -129,7 +105,6 @@ async def _convert_with_markitdown(ctx: Context, file_path: str, file_type: str)
 
     except FileNotFoundError as e:
         error_msg = f'Could not find {file_type} at {file_path}'
-        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -138,7 +113,6 @@ async def _convert_with_markitdown(ctx: Context, file_path: str, file_type: str)
         )
     except Exception as e:
         error_msg = f'Error reading {file_type} {file_path}: {str(e)}'
-        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -147,20 +121,8 @@ async def _convert_with_markitdown(ctx: Context, file_path: str, file_type: str)
         )
 
 
-@mcp.tool()
-async def read_pdf(
-    ctx: Context,
-    file_path: str = Field(..., description="Path to the PDF file to read")
-) -> DocumentReadResponse:
-    """Extract text content from a PDF file (*.pdf).
-
-    Args:
-        ctx (Context): FastMCP context for error reporting
-        file_path (str): Path to the PDF file to read
-
-    Returns:
-        DocumentReadResponse: Structured response with extracted text content or error information
-    """
+async def _read_pdf_content(ctx: Context, file_path: str) -> DocumentReadResponse:
+    """Helper function to read PDF content using pdfplumber."""
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
     if validation_error:
@@ -191,7 +153,6 @@ async def read_pdf(
 
     except FileNotFoundError as e:
         error_msg = f'Could not find PDF file at {file_path}'
-        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -200,7 +161,6 @@ async def read_pdf(
         )
     except Exception as e:
         error_msg = f'Error reading PDF file {file_path}: {str(e)}'
-        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -210,54 +170,36 @@ async def read_pdf(
 
 
 @mcp.tool()
-async def read_docx(
+async def read_document(
     ctx: Context,
-    file_path: str = Field(..., description="Path to the Word document file (*.docx, *.doc)")
+    file_path: str = Field(..., description="Path to the document file to read"),
+    file_type: str = Field(..., description="Type of document: 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', or 'ppt'")
 ) -> DocumentReadResponse:
-    """Extract markdown content from a Microsoft Word document (*.docx, *.doc).
-
-    Args:
-        ctx (Context): FastMCP context for error reporting
-        file_path (str): Path to the Word document file (*.docx, *.doc)
-
-    Returns:
-        DocumentReadResponse: Structured response with extracted content as markdown or error information
-    """
-    return await _convert_with_markitdown(ctx, file_path, 'Word document')
-
-
-@mcp.tool()
-async def read_xlsx(
-    ctx: Context,
-    file_path: str = Field(..., description="Path to the Excel file (*.xlsx, *.xls)")
-) -> DocumentReadResponse:
-    """Extract markdown content from an Excel spreadsheet (*.xlsx, *.xls).
-
-    Args:
-        ctx (Context): FastMCP context for error reporting
-        file_path (str): Path to the Excel file (*.xlsx, *.xls)
-
-    Returns:
-        DocumentReadResponse: Structured response with extracted content as markdown or error information
-    """
-    return await _convert_with_markitdown(ctx, file_path, 'Excel file')
-
-
-@mcp.tool()
-async def read_pptx(
-    ctx: Context,
-    file_path: str = Field(..., description="Path to the PowerPoint file (*.pptx, *.ppt)")
-) -> DocumentReadResponse:
-    """Extract markdown content from a PowerPoint presentation (*.pptx, *.ppt).
-
-    Args:
-        ctx (Context): FastMCP context for error reporting
-        file_path (str): Path to the PowerPoint file (*.pptx, *.ppt)
-
-    Returns:
-        DocumentReadResponse: Structured response with extracted content as markdown or error information
-    """
-    return await _convert_with_markitdown(ctx, file_path, 'PowerPoint file')
+    """Extract content from various document formats (PDF, Word, Excel, PowerPoint)."""
+    # Normalize file_type to lowercase
+    file_type = file_type.lower()
+    
+    # Validate file_type parameter
+    supported_types = {'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'}
+    if file_type not in supported_types:
+        return DocumentReadResponse(
+            status="error",
+            content="",
+            file_path=file_path,
+            error_message=f"Unsupported file_type: {file_type}. Supported types: {', '.join(sorted(supported_types))}"
+        )
+    
+    # Handle PDF files with pdfplumber
+    if file_type == 'pdf':
+        return await _read_pdf_content(ctx, file_path)
+    
+    # Handle Office documents with markitdown
+    elif file_type in {'docx', 'doc'}:
+        return await _convert_with_markitdown(ctx, file_path, 'Word document')
+    elif file_type in {'xlsx', 'xls'}:
+        return await _convert_with_markitdown(ctx, file_path, 'Excel file')
+    elif file_type in {'pptx', 'ppt'}:
+        return await _convert_with_markitdown(ctx, file_path, 'PowerPoint file')
 
 
 @mcp.tool()
@@ -265,19 +207,10 @@ async def read_image(
     ctx: Context,
     file_path: str = Field(..., description="Absolute path to the image file (supports PNG, JPG, JPEG, GIF, BMP, TIFF, WEBP)")
 ) -> Image:
-    """Load an image file and return it to the LLM for viewing and analysis.
-
-    Args:
-        ctx (Context): FastMCP context for error reporting
-        file_path (str): Absolute path to the image file (supports PNG, JPG, JPEG, GIF, BMP, TIFF, WEBP)
-
-    Returns:
-        Image: Image object that can be displayed in the LLM interface
-    """
+    """Load an image file and return it to the LLM for viewing and analysis."""
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
     if validation_error:
-        ctx.error(validation_error)
         raise ValueError(validation_error)
     
     try:
@@ -286,7 +219,6 @@ async def read_image(
 
     except Exception as e:
         error_msg = f'Error loading image {file_path}: {str(e)}'
-        ctx.error(error_msg)
         raise RuntimeError(error_msg) from e
 
 

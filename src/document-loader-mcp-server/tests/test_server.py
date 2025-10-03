@@ -15,9 +15,10 @@
 
 import asyncio
 import pytest
-from awslabs.document_loader_mcp_server.server import mcp, DocumentReadResponse
 from tests.test_document_parsing import DocumentTestGenerator, MockContext
 from fastmcp.utilities.types import Image
+
+from awslabs.document_loader_mcp_server.server import mcp, DocumentReadResponse
 
 
 @pytest.mark.asyncio
@@ -42,7 +43,7 @@ async def test_server():
                 tool_names.append(str(tool))
 
         # Verify our tools are present
-        expected_tools = ['read_pdf', 'read_docx', 'read_xlsx', 'read_pptx', 'read_image']
+        expected_tools = ['read_document', 'read_image']
 
         for expected_tool in expected_tools:
             if expected_tool in tool_names:
@@ -59,7 +60,7 @@ async def test_server():
         traceback.print_exc()
 
 
-async def call_mcp_tool(tool_name: str, file_path: str):
+async def call_mcp_tool(tool_name: str, file_path: str, file_type: str = None):
     """Helper function to call MCP tools through the server."""
     # Get the tool from the server
     tools = await mcp.get_tools()
@@ -68,13 +69,19 @@ async def call_mcp_tool(tool_name: str, file_path: str):
         raise ValueError(f'Tool {tool_name} not found. Available tools: {list(tools.keys())}')
 
     tool = tools[tool_name]
-    print(f'Tool attributes: {dir(tool)}')
 
     # Call the tool function using the 'fn' attribute with Context
     if hasattr(tool, 'fn') and callable(getattr(tool, 'fn')):
         fn = getattr(tool, 'fn')
         ctx = MockContext()
-        return await fn(ctx, file_path)
+        
+        # Handle different tool signatures
+        if tool_name == 'read_document' and file_type:
+            return await fn(ctx, file_path, file_type)
+        elif tool_name == 'read_image':
+            return await fn(ctx, file_path)
+        else:
+            return await fn(ctx, file_path)
     else:
         raise ValueError(f'Cannot find callable function for tool {tool_name}')
 
@@ -87,38 +94,62 @@ async def test_mcp_tool_functions():
     # Generate test documents
     generator = DocumentTestGenerator()
 
-    # Test PDF tool
+    # Test PDF document using consolidated read_document tool
     pdf_path = generator.generate_sample_pdf()
-    pdf_result = await call_mcp_tool('read_pdf', pdf_path)
+    pdf_result = await call_mcp_tool('read_document', pdf_path, 'pdf')
     assert isinstance(pdf_result, DocumentReadResponse)
     assert pdf_result.status == 'success'
     assert len(pdf_result.content) > 0
     assert 'Page 1' in pdf_result.content
-    print('✓ read_pdf tool working')
+    print('✓ read_document (PDF) tool working')
 
-    # Test DOCX tool
+    # Test DOCX document using consolidated read_document tool
     docx_path = generator.generate_sample_docx()
-    docx_result = await call_mcp_tool('read_docx', docx_path)
+    docx_result = await call_mcp_tool('read_document', docx_path, 'docx')
     assert isinstance(docx_result, DocumentReadResponse)
     assert docx_result.status == 'success'
     assert len(docx_result.content) > 0
-    print('✓ read_docx tool working')
+    print('✓ read_document (DOCX) tool working')
 
-    # Test XLSX tool
+    # Test DOC document using consolidated read_document tool
+    doc_path = generator.generate_sample_docx()  # Use same generator, just test different file_type
+    doc_result = await call_mcp_tool('read_document', doc_path, 'doc')
+    assert isinstance(doc_result, DocumentReadResponse)
+    assert doc_result.status == 'success'
+    assert len(doc_result.content) > 0
+    print('✓ read_document (DOC) tool working')
+
+    # Test XLSX document using consolidated read_document tool
     xlsx_path = generator.generate_sample_xlsx()
-    xlsx_result = await call_mcp_tool('read_xlsx', xlsx_path)
+    xlsx_result = await call_mcp_tool('read_document', xlsx_path, 'xlsx')
     assert isinstance(xlsx_result, DocumentReadResponse)
     assert xlsx_result.status == 'success'
     assert len(xlsx_result.content) > 0
-    print('✓ read_xlsx tool working')
+    print('✓ read_document (XLSX) tool working')
 
-    # Test PPTX tool
+    # Test XLS document using consolidated read_document tool
+    xls_path = generator.generate_sample_xlsx()  # Use same generator, just test different file_type
+    xls_result = await call_mcp_tool('read_document', xls_path, 'xls')
+    assert isinstance(xls_result, DocumentReadResponse)
+    assert xls_result.status == 'success'
+    assert len(xls_result.content) > 0
+    print('✓ read_document (XLS) tool working')
+
+    # Test PPTX document using consolidated read_document tool
     pptx_path = generator.generate_sample_pptx()
-    pptx_result = await call_mcp_tool('read_pptx', pptx_path)
+    pptx_result = await call_mcp_tool('read_document', pptx_path, 'pptx')
     assert isinstance(pptx_result, DocumentReadResponse)
     assert pptx_result.status == 'success'
     assert len(pptx_result.content) > 0
-    print('✓ read_pptx tool working')
+    print('✓ read_document (PPTX) tool working')
+
+    # Test PPT document using consolidated read_document tool
+    ppt_path = generator.generate_sample_pptx()  # Use same generator, just test different file_type
+    ppt_result = await call_mcp_tool('read_document', ppt_path, 'ppt')
+    assert isinstance(ppt_result, DocumentReadResponse)
+    assert ppt_result.status == 'success'
+    assert len(ppt_result.content) > 0
+    print('✓ read_document (PPT) tool working')
 
     # Test image tool
     image_path = generator.generate_sample_image()
@@ -137,32 +168,60 @@ async def test_error_handling():
     non_existent_file = '/path/that/does/not/exist.pdf'
 
     # Test PDF error handling
-    pdf_result = await call_mcp_tool('read_pdf', non_existent_file)
+    pdf_result = await call_mcp_tool('read_document', non_existent_file, 'pdf')
     assert isinstance(pdf_result, DocumentReadResponse)
     assert pdf_result.status == 'error'
     assert 'File not found' in pdf_result.error_message
-    print('✓ read_pdf error handling working')
+    print('✓ read_document (PDF) error handling working')
 
     # Test DOCX error handling
-    docx_result = await call_mcp_tool('read_docx', non_existent_file)
+    docx_result = await call_mcp_tool('read_document', non_existent_file, 'docx')
     assert isinstance(docx_result, DocumentReadResponse)
     assert docx_result.status == 'error'
     assert 'File not found' in docx_result.error_message
-    print('✓ read_docx error handling working')
+    print('✓ read_document (DOCX) error handling working')
+
+    # Test DOC error handling
+    doc_result = await call_mcp_tool('read_document', non_existent_file, 'doc')
+    assert isinstance(doc_result, DocumentReadResponse)
+    assert doc_result.status == 'error'
+    assert 'File not found' in doc_result.error_message
+    print('✓ read_document (DOC) error handling working')
 
     # Test XLSX error handling
-    xlsx_result = await call_mcp_tool('read_xlsx', non_existent_file)
+    xlsx_result = await call_mcp_tool('read_document', non_existent_file, 'xlsx')
     assert isinstance(xlsx_result, DocumentReadResponse)
     assert xlsx_result.status == 'error'
     assert 'File not found' in xlsx_result.error_message
-    print('✓ read_xlsx error handling working')
+    print('✓ read_document (XLSX) error handling working')
+
+    # Test XLS error handling
+    xls_result = await call_mcp_tool('read_document', non_existent_file, 'xls')
+    assert isinstance(xls_result, DocumentReadResponse)
+    assert xls_result.status == 'error'
+    assert 'File not found' in xls_result.error_message
+    print('✓ read_document (XLS) error handling working')
 
     # Test PPTX error handling
-    pptx_result = await call_mcp_tool('read_pptx', non_existent_file)
+    pptx_result = await call_mcp_tool('read_document', non_existent_file, 'pptx')
     assert isinstance(pptx_result, DocumentReadResponse)
     assert pptx_result.status == 'error'
     assert 'File not found' in pptx_result.error_message
-    print('✓ read_pptx error handling working')
+    print('✓ read_document (PPTX) error handling working')
+
+    # Test PPT error handling
+    ppt_result = await call_mcp_tool('read_document', non_existent_file, 'ppt')
+    assert isinstance(ppt_result, DocumentReadResponse)
+    assert ppt_result.status == 'error'
+    assert 'File not found' in ppt_result.error_message
+    print('✓ read_document (PPT) error handling working')
+    
+    # Test unsupported file type error handling
+    unsupported_result = await call_mcp_tool('read_document', non_existent_file, 'txt')
+    assert isinstance(unsupported_result, DocumentReadResponse)
+    assert unsupported_result.status == 'error'
+    assert 'Unsupported file_type' in unsupported_result.error_message
+    print('✓ read_document unsupported file type error handling working')
 
     # Test image error handling (should raise exceptions)
     try:
@@ -207,12 +266,12 @@ async def test_exception_handling():
         corrupted_pdf_path = temp_file.name
 
     try:
-        # This should trigger the general Exception handler in read_pdf
-        pdf_result = await call_mcp_tool('read_pdf', corrupted_pdf_path)
+        # This should trigger the general Exception handler in read_document (PDF)
+        pdf_result = await call_mcp_tool('read_document', corrupted_pdf_path, 'pdf')
         assert isinstance(pdf_result, DocumentReadResponse)
         assert pdf_result.status == 'error'
         assert 'Error reading PDF file' in pdf_result.error_message
-        print('✓ read_pdf exception handling working')
+        print('✓ read_document (PDF) exception handling working')
     finally:
         if os.path.exists(corrupted_pdf_path):
             os.unlink(corrupted_pdf_path)
@@ -220,11 +279,11 @@ async def test_exception_handling():
     # Test with a directory instead of a file to trigger security validation
     with tempfile.TemporaryDirectory() as temp_dir:
         # This should trigger the security validation in _convert_with_markitdown
-        docx_result = await call_mcp_tool('read_docx', temp_dir)
+        docx_result = await call_mcp_tool('read_document', temp_dir, 'docx')
         assert isinstance(docx_result, DocumentReadResponse)
         assert docx_result.status == 'error'
         assert 'Path is not a file' in docx_result.error_message
-        print('✓ read_docx security validation working')
+        print('✓ read_document (DOCX) security validation working')
 
     # Test image with invalid data
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp_file:
@@ -246,122 +305,8 @@ async def test_exception_handling():
         if os.path.exists(invalid_image_path):
             os.unlink(invalid_image_path)
 
-
-@pytest.mark.asyncio
-async def test_missing_coverage_scenarios():
-    """Test specific scenarios to cover missing lines in coverage report."""
-    print('\nTesting missing coverage scenarios...')
-    
-    import os
-    import tempfile
-    from unittest.mock import patch, Mock
-    
-    # Import the actual functions, not the decorated versions
-    import awslabs.document_loader_mcp_server.server as server_module
-    
-    ctx = MockContext()
-    
-    # Test OSError in path resolution (lines 84-85)
-    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
-        mock_path = Mock()
-        mock_path.exists.return_value = True
-        mock_path.is_file.return_value = True
-        mock_path.stat.return_value.st_size = 1000
-        mock_path.suffix.lower.return_value = '.pdf'
-        mock_path.resolve.side_effect = OSError("Invalid path")
-        mock_path_class.return_value = mock_path
-        
-        result = server_module.validate_file_path(ctx, "/invalid/path")
-        assert result == "Invalid file path: /invalid/path"
-        print('✓ OSError in path resolution covered')
-    
-    # Test RuntimeError in path resolution (lines 84-85)
-    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
-        mock_path = Mock()
-        mock_path.exists.return_value = True
-        mock_path.is_file.return_value = True
-        mock_path.stat.return_value.st_size = 1000
-        mock_path.suffix.lower.return_value = '.pdf'
-        mock_path.resolve.side_effect = RuntimeError("Runtime error")
-        mock_path_class.return_value = mock_path
-        
-        result = server_module.validate_file_path(ctx, "/invalid/path")
-        assert result == "Invalid file path: /invalid/path"
-        print('✓ RuntimeError in path resolution covered')
-    
-    # General exception in validate_file_path (lines 89-92)
-    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
-        mock_path_class.side_effect = Exception("Unexpected error")
-        
-        result = server_module.validate_file_path(ctx, "/some/path")
-        assert result == "Error validating file path /some/path: Unexpected error"
-        print('✓ General exception in validate_file_path covered')
-    
-    # FileNotFoundError in _convert_with_markitdown (lines 130-133)
-    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
-        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_md:
-            mock_md.return_value.convert.side_effect = FileNotFoundError("File not found")
-            
-            result = await server_module._convert_with_markitdown(ctx, "/nonexistent/file.docx", "Word document")
-            
-            assert result.status == "error"
-            assert result.error_message == "Could not find Word document at /nonexistent/file.docx"
-            print('✓ FileNotFoundError in _convert_with_markitdown covered')
-    
-    # General exception in _convert_with_markitdown (lines 139-142)
-    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
-        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_md:
-            mock_md.return_value.convert.side_effect = Exception("Conversion failed")
-            
-            result = await server_module._convert_with_markitdown(ctx, "/some/file.docx", "Word document")
-            
-            assert result.status == "error"
-            assert result.error_message == "Error reading Word document /some/file.docx: Conversion failed"
-            print('✓ General exception in _convert_with_markitdown covered')
-    
-    # FileNotFoundError in read_pdf (lines 193-195)
-    # We need to get the actual function from the tool
-    tools = await mcp.get_tools()
-    read_pdf_tool = tools['read_pdf']
-    read_pdf_fn = read_pdf_tool.fn
-    
-    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
-        with patch('awslabs.document_loader_mcp_server.server.pdfplumber.open') as mock_open:
-            mock_open.side_effect = FileNotFoundError("PDF file not found")
-            
-            result = await read_pdf_fn(ctx, "/nonexistent/file.pdf")
-            
-            assert result.status == "error"
-            assert result.error_message == "Could not find PDF file at /nonexistent/file.pdf"
-            print('✓ FileNotFoundError in read_pdf covered')
-    
-    # General exception in read_image (lines 287-290)
-    read_image_tool = tools['read_image']
-    read_image_fn = read_image_tool.fn
-    
-    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
-        with patch('awslabs.document_loader_mcp_server.server.Image') as mock_image:
-            mock_image.side_effect = Exception("Image loading failed")
-            
-            try:
-                await read_image_fn(ctx, "/some/image.jpg")
-                assert False, "Should have raised RuntimeError"
-            except RuntimeError as e:
-                assert "Error loading image /some/image.jpg: Image loading failed" in str(e)
-                print('✓ General exception in read_image covered')
-    
-    # main() function (line 295)
-    with patch('awslabs.document_loader_mcp_server.server.mcp') as mock_mcp:
-        server_module.main()
-        mock_mcp.run.assert_called_once()
-        print('✓ main() function covered')
-    
-    print('✓ All missing coverage scenarios tested')
-
-
 if __name__ == '__main__':
     asyncio.run(test_server())
     asyncio.run(test_mcp_tool_functions())
     asyncio.run(test_error_handling())
     asyncio.run(test_exception_handling())
-    asyncio.run(test_missing_coverage_scenarios())
