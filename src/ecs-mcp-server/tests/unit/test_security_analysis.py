@@ -344,3 +344,88 @@ class TestAnalyzeEcsSecurityErrorPaths:
             result = await analyze_ecs_security(cluster_names=["test-cluster"])
             assert result["status"] == "failed"
             assert "error" in result
+
+
+class TestIAMDataCollection:
+    """Test cases for IAM role data collection."""
+
+    @pytest.mark.anyio
+    async def test_collect_iam_roles_success(self) -> None:
+        """Test successful IAM roles collection."""
+        adapter = DataAdapter()
+        mock_list = {"serviceArns": ["arn:aws:ecs:us-east-1:123456789012:service/test-cluster/svc"]}
+        mock_describe = {
+            "services": [
+                {
+                    "serviceName": "svc",
+                    "taskDefinition": "arn:aws:ecs:us-east-1:123456789012:task-definition/task:1",
+                }
+            ]
+        }
+        mock_task = {
+            "taskDefinition": {
+                "family": "task",
+                "taskRoleArn": "arn:aws:iam::123456789012:role/task-role",
+                "executionRoleArn": "arn:aws:iam::123456789012:role/execution-role",
+            }
+        }
+
+        with patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation") as mock_api:
+            mock_api.side_effect = [mock_list, mock_describe, mock_task]
+            result = await adapter.collect_iam_roles("test-cluster")
+            assert result["status"] == "success"
+            assert len(result["iam_roles"]) == 1
+            assert (
+                result["iam_roles"][0]["task_role_arn"]
+                == "arn:aws:iam::123456789012:role/task-role"
+            )
+
+    @pytest.mark.anyio
+    async def test_collect_iam_roles_api_error(self) -> None:
+        """Test IAM roles collection with API error."""
+        adapter = DataAdapter()
+        with patch(
+            "awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation",
+            return_value={"error": "API Error"},
+        ):
+            result = await adapter.collect_iam_roles("test-cluster")
+            assert result["status"] == "failed"
+            assert "error" in result
+
+
+class TestIAMSecurityAnalysis:
+    """Test cases for IAM security analysis."""
+
+    def test_analyze_iam_security_missing_roles(self) -> None:
+        """Test IAM analysis for missing task and execution roles."""
+        analyzer = SecurityAnalyzer()
+        cluster_data = {"cluster_name": "test-cluster"}
+        iam_data = {
+            "status": "success",
+            "iam_roles": [
+                {"task_family": "task", "task_role_arn": None, "execution_role_arn": None}
+            ],
+        }
+        result = analyzer.analyze(cluster_data, None, iam_data)
+        assert result["status"] == "success"
+        missing_recs = [r for r in result["recommendations"] if "IAM Role" in r["title"]]
+        assert len(missing_recs) == 2  # Missing task role and execution role
+
+    def test_analyze_iam_security_wildcard_permissions(self) -> None:
+        """Test IAM analysis for wildcard permissions."""
+        analyzer = SecurityAnalyzer()
+        cluster_data = {"cluster_name": "test-cluster"}
+        iam_data = {
+            "status": "success",
+            "iam_roles": [
+                {
+                    "task_family": "task",
+                    "task_role_arn": "arn:aws:iam::123456789012:role/*",
+                    "execution_role_arn": "arn:aws:iam::123456789012:role/execution-role",
+                }
+            ],
+        }
+        result = analyzer.analyze(cluster_data, None, iam_data)
+        wildcard_recs = [r for r in result["recommendations"] if "Wildcard" in r["title"]]
+        assert len(wildcard_recs) == 1
+        assert wildcard_recs[0]["severity"] == "High"

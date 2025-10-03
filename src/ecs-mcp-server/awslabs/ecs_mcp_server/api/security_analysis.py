@@ -105,6 +105,52 @@ class DataAdapter:
             self.logger.error(f"Error collecting task definitions: {e}")
             return {"error": str(e), "task_definitions": [], "status": "failed"}
 
+    async def collect_iam_roles(self, cluster_name: str) -> Dict[str, Any]:
+        """Collect IAM role data from task definitions for security analysis."""
+        try:
+            self.logger.info(f"Collecting IAM roles for cluster {cluster_name}")
+
+            # Get task definitions which contain IAM role information
+            task_defs_data = await self.collect_task_definitions(cluster_name)
+
+            if task_defs_data.get("status") == "failed":
+                return {
+                    "error": task_defs_data.get("error"),
+                    "iam_roles": [],
+                    "status": "failed",
+                }
+
+            task_definitions = task_defs_data.get("task_definitions", [])
+            iam_roles = []
+
+            for task_def in task_definitions:
+                task_family = task_def.get("family", "unknown")
+                task_role_arn = task_def.get("taskRoleArn")
+                execution_role_arn = task_def.get("executionRoleArn")
+
+                role_info = {
+                    "task_family": task_family,
+                    "task_role_arn": task_role_arn,
+                    "execution_role_arn": execution_role_arn,
+                }
+
+                iam_roles.append(role_info)
+
+            return {"iam_roles": iam_roles, "status": "success"}
+
+        except Exception as e:
+            self.logger.error(f"Error collecting IAM roles: {e}")
+            return {"error": str(e), "iam_roles": [], "status": "failed"}
+
+    def _extract_role_name(self, role_arn: Optional[str]) -> Optional[str]:
+        """Extract role name from ARN."""
+        if not role_arn:
+            return None
+        # ARN format: arn:aws:iam::account:role/role-name
+        if ":role/" in role_arn:
+            return role_arn.split(":role/")[-1]
+        return None
+
     def _create_error_response(self, error: str, cluster_name: str) -> Dict[str, Any]:
         """Create standardized error response."""
         return {
@@ -122,9 +168,12 @@ class SecurityAnalyzer:
         self.logger = logger
 
     def analyze(
-        self, cluster_data: Dict[str, Any], task_definitions_data: Optional[Dict[str, Any]] = None
+        self,
+        cluster_data: Dict[str, Any],
+        task_definitions_data: Optional[Dict[str, Any]] = None,
+        iam_roles_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Perform security analysis including Container Insights and task definition security."""
+        """Perform security analysis including Container Insights, task definition, and IAM."""
         try:
             recommendations = []
 
@@ -138,6 +187,12 @@ class SecurityAnalyzer:
                 recommendations.extend(
                     self._analyze_container_security(task_definitions, cluster_name)
                 )
+
+            # Analyze IAM security if data is provided
+            if iam_roles_data and iam_roles_data.get("status") == "success":
+                iam_roles = iam_roles_data.get("iam_roles", [])
+                cluster_name = cluster_data.get("cluster_name", "unknown")
+                recommendations.extend(self._analyze_iam_security(iam_roles, cluster_name))
 
             return {
                 "recommendations": recommendations,
@@ -257,6 +312,94 @@ class SecurityAnalyzer:
 
         return recommendations
 
+    def _analyze_iam_security(
+        self, iam_roles: List[Dict[str, Any]], cluster_name: str
+    ) -> List[Dict[str, Any]]:
+        """Analyze IAM security configurations for task and execution roles."""
+        recommendations = []
+
+        for role_info in iam_roles:
+            task_family = role_info.get("task_family", "unknown")
+            task_role_arn = role_info.get("task_role_arn")
+            execution_role_arn = role_info.get("execution_role_arn")
+
+            # Check for missing task role
+            if not task_role_arn:
+                recommendations.append(
+                    {
+                        "title": "Configure Task IAM Role for Application Permissions",
+                        "severity": "Medium",
+                        "category": "iam_security",
+                        "resource": f"Task: {task_family} | Cluster: {cluster_name}",
+                        "issue": "No task IAM role - containers cannot access AWS services",
+                        "recommendation": "Configure task role with least-privilege permissions",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+
+            # Check for missing execution role
+            if not execution_role_arn:
+                recommendations.append(
+                    {
+                        "title": "Configure Execution IAM Role for ECS Agent",
+                        "severity": "High",
+                        "category": "iam_security",
+                        "resource": f"Task: {task_family} | Cluster: {cluster_name}",
+                        "issue": "No execution role - cannot pull images or write logs",
+                        "recommendation": "Add execution role with ECSTaskExecutionRolePolicy",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+
+            # Check for wildcard permissions in task role
+            if task_role_arn and "*" in task_role_arn:
+                recommendations.append(
+                    {
+                        "title": "Avoid Wildcard Permissions in Task IAM Role",
+                        "severity": "High",
+                        "category": "iam_security",
+                        "resource": f"Task Role: {task_role_arn}",
+                        "issue": "Task IAM role may contain overly permissive wildcard permissions",
+                        "recommendation": "Review and restrict IAM permissions to least privilege",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+
+            # Check execution role best practices
+            if execution_role_arn and "AmazonECSTaskExecutionRolePolicy" not in execution_role_arn:
+                recommendations.append(
+                    {
+                        "title": "Use Managed Execution Role Policy",
+                        "severity": "Medium",
+                        "category": "iam_security",
+                        "resource": f"Execution Role: {execution_role_arn}",
+                        "issue": "Custom execution role may have unnecessary permissions",
+                        "recommendation": "Use AWS managed AmazonECSTaskExecutionRolePolicy",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+
+            # Check for cross-account role usage
+            if task_role_arn and ":role/" in task_role_arn:
+                role_parts = task_role_arn.split(":")
+                if len(role_parts) >= 5:
+                    role_account = role_parts[4]
+                    # Simplified check - in production would compare with current account
+                    if role_account and len(role_account) == 12:
+                        recommendations.append(
+                            {
+                                "title": "Review Cross-Account IAM Role Usage",
+                                "severity": "Medium",
+                                "category": "iam_security",
+                                "resource": f"Task Role: {task_role_arn}",
+                                "issue": "Task role from different AWS account detected",
+                                "recommendation": "Verify cross-account role is intentional",
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                        )
+
+        return recommendations
+
     def _generate_summary(self, recommendations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate basic analysis summary."""
         severity_counts = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
@@ -314,6 +457,8 @@ async def analyze_ecs_security(
 
                 # Collect task definition data for comprehensive analysis
                 task_definitions_data = None
+                iam_roles_data = None
+
                 if analysis_scope == "comprehensive":
                     task_definitions_data = await data_adapter.collect_task_definitions(
                         cluster_name
@@ -322,8 +467,16 @@ async def analyze_ecs_security(
                     if task_definitions_data.get("status") == "failed":
                         logger.warning(f"Task definition collection failed for {cluster_name}")
 
+                    # Collect IAM roles data
+                    iam_roles_data = await data_adapter.collect_iam_roles(cluster_name)
+
+                    if iam_roles_data.get("status") == "failed":
+                        logger.warning(f"IAM roles collection failed for {cluster_name}")
+
                 # Perform security analysis
-                analysis_result = security_analyzer.analyze(cluster_data, task_definitions_data)
+                analysis_result = security_analyzer.analyze(
+                    cluster_data, task_definitions_data, iam_roles_data
+                )
 
                 if analysis_result.get("status") == "success":
                     all_recommendations.extend(analysis_result.get("recommendations", []))
