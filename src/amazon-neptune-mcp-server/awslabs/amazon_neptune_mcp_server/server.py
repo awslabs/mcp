@@ -109,6 +109,15 @@ def run_gremlin_query(query: str) -> dict:
     """Executes the provided Tinkerpop Gremlin against the graph."""
     return get_graph().query_gremlin(query)
 
+@mcp.tool(name='explain_opencypher_query')
+def explain_opencypher_query(query: str, params: Optional[dict] = None, explainMode: str = "details") -> str:
+    """Explains the provided openCypher against the graph."""
+    return get_graph().explain_opencypher(query, params, explainMode)
+
+@mcp.tool(name='explain_gremlin_query')
+def explain_gremlin_query(query: str) -> str:
+    """Explains the provided Tinkerpop Gremlin against the graph."""
+    return get_graph().explain_gremlin(query)
 
 def main():
     """Run the MCP server with CLI argument support."""

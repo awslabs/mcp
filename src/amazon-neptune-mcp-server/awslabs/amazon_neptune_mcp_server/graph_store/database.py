@@ -313,3 +313,27 @@ class NeptuneDatabase(NeptuneGraph):
         """
         resp = self.client.execute_gremlin_query(gremlinQuery=query)
         return resp['result'] if 'result' in resp else resp['results']
+
+    def explain_opencypher(self, query: str, params: Optional[dict] = None, explainMode="details") -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+        """
+        resp = self.client.execute_open_cypher_explain_query(
+            openCypherQuery=query, 
+            parameters=json.dumps(params),
+            explainMode=explainMode
+        )
+        return resp['result'] if 'result' in resp else resp['results']
+    
+    def explain_gremlin(self, query: str) -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+        """
+        resp = self.client.execute_gremlin_explain_query(
+            gremlinQuery=query
+        )
+        return resp['result'] if 'result' in resp else resp['results']
