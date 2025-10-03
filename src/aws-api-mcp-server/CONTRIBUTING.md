@@ -79,24 +79,71 @@ Add the following code to your MCP client configuration (e.g., for Amazon Q Deve
 
 ### Publishing your Change
 
-To publish local changes for review:
+#### Initial Setup
 
-1. Create a new local branch and make your changes
+1. **Fork the repository** (if you haven't already):
+   - Go to https://github.com/awslabs/mcp and click "Fork"
+   - Clone your fork: `git clone https://github.com/<your-username>/mcp.git`
+
+2. **Add upstream remote** (to sync with main repo):
 ```bash
-git checkout -b <your_branch_name> # use proper prefix
+git remote add upstream https://github.com/awslabs/mcp.git
 ```
 
-2. Make sure your current directory is at `<your_working_directory>/mcp/src/aws-mcp-server`:
+#### Making Changes
+
+1. **Sync with upstream and create a new branch**:
 ```bash
+git checkout main
+git pull upstream main
+git push origin main  # Update your fork
+git checkout -b feat/your-feature-name  # Use descriptive prefix: feat/, fix/, docs/
+```
+
+2. **Make your changes and validate**:
+```bash
+# Ensure you're in the correct directory
+cd mcp/src/aws-api-mcp-server
+
+# Run type checking
 uv run --frozen pyright
-```
 
-3. Run pre-commit checks:
-```bash
+# Run pre-commit checks
 cd ../..
 pre-commit run --all-files
 ```
 
-4. Commit and push to remote, open a PR on Github
+3. **Commit your changes**:
+```bash
+git add .
+git commit -m "feat: add descriptive commit message" # Use descriptive prefix: feat/, fix/, docs/
+```
 
+#### Publishing and Updates
+
+4. **Push and create PR**:
+```bash
+git push origin feat/your-feature-name
+gh pr create --title "Your PR Title" --body "Description of changes"
+```
+
+#### Updating Existing PRs
+
+- **Add new commits**:
+```bash
+git add .
+git commit -m "feat: address review feedback" # Use descriptive prefix: feat/, fix/, docs/
+git push origin feat/your-feature-name
+```
+
+#### Syncing with Upstream
+
+**When your branch is out of sync:**
+
+```bash
+git checkout main
+git pull upstream main
+git checkout feat/your-feature-name
+git merge main
+```
 &nbsp;

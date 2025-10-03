@@ -2,83 +2,86 @@
 
 ## Default owners for everything in the repo
 
-*                                     @awslabs/mcp-maintainers            @awslabs/mcp-admins
+*                                                @awslabs/mcp-admins @awslabs/mcp-maintainers
 
-CODE_OF_CONDUCT.md                                                        @awslabs/mcp-admins
-CONTRIBUTING.md                                                           @awslabs/mcp-admins
-LICENSE                                                                   @awslabs/mcp-admins
-NOTICE                                                                    @awslabs/mcp-admins
-/.github/                                                                 @awslabs/mcp-admins
-/.devcontainer/                                                           @awslabs/mcp-admins
-/scripts/                                                                 @awslabs/mcp-admins
-.gitignore                                                                @awslabs/mcp-admins
-.pre-commit-config.yaml                                                   @awslabs/mcp-admins
-.ruff.toml                                                                @awslabs/mcp-admins
-.secrets.baseline                                                         @awslabs/mcp-admins
+CODE_OF_CONDUCT.md                               @awslabs/mcp-admins
+CONTRIBUTING.md                                  @awslabs/mcp-admins
+LICENSE                                          @awslabs/mcp-admins
+NOTICE                                           @awslabs/mcp-admins
+/.github/                                        @awslabs/mcp-admins
+/.devcontainer/                                  @awslabs/mcp-admins
+/scripts/                                        @awslabs/mcp-admins
+.gitignore                                       @awslabs/mcp-admins
+.pre-commit-config.yaml                          @awslabs/mcp-admins
+.ruff.toml                                       @awslabs/mcp-admins
+.secrets.baseline                                @awslabs/mcp-admins
 
 ## Alphabetical listing of MCP servers
 
-#/src/amazon-kendra-index-mcp-server    @awslabs/mcp-maintainers          @awslabs/mcp-admins
-/src/amazon-keyspaces-mcp-server        @jcshepherd                       @awslabs/mcp-admins
-/src/amazon-mq-mcp-server               @kenliao94 @hashimsharkh          @awslabs/mcp-admins
-/src/amazon-neptune-mcp-server          @bechbd @cornerwings @krlawrence  @awslabs/mcp-admins
-/src/amazon-qindex-mcp-server           @tkoba-aws @akhileshamara         @awslabs/mcp-admins
-/src/amazon-qbusiness-anonymous-mcp-server @abhjaw                        @awslabs/mcp-admins
-/src/amazon-rekognition-mcp-server      @ayush987goyal                    @awslabs/mcp-admins
-/src/amazon-sns-sqs-mcp-server          @kenliao94 @hashimsharkh          @awslabs/mcp-admins
-/src/aws-api-mcp-server                 @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh @awslabs/aws-api-mcp @awslabs/mcp-admins
-/src/aws-appsync-mcp-server             @phani-srikar @maxi114 @Harshith15 @awslabs/mcp-admins
-#/src/aurora-dsql-mcp-server            @awslabs/mcp-maintainers          @awslabs/mcp-admins
-#/src/aws-bedrock-custom-model-import-mcp-server @saidrhs                 @awslabs/mcp-admins
-#/src/aws-bedrock-data-automation-mcp-server @awslabs/mcp-maintainers     @awslabs/mcp-admins
-/src/aws-diagram-mcp-server             @MichaelWalker-git                @awslabs/mcp-admins
-/src/aws-documentation-mcp-server       @Lavoiedavidw @JonLim @tuanknguyen  @awslabs/mcp-admins
-/src/aws-healthomics-mcp-server         @markjschreiber @WIIASD           @awslabs/mcp-admins
-/src/aws-iot-sitewise-mcp-server        @ychamare                         @awslabs/mcp-admins
-#/src/aws-location-mcp-server           @awslabs/mcp-maintainers          @awslabs/mcp-admins
-/src/aws-msk-mcp-server                 @elmoctarebnou @dingyiheng        @awslabs/mcp-admins
-/src/aws-pricing-mcp-server             @nspring00 @aytech-in @s12v       @awslabs/mcp-admins
-/src/aws-serverless-mcp-server          @bx9900                           @awslabs/mcp-admins
-/src/aws-support-mcp-server             @Wook133                          @awslabs/mcp-admins
-/src/billing-cost-management-mcp-server @chittev @Rahul-1404              @awslabs/mcp-admins
-/src/well-architected-security-mcp-server @juntinyeh                      @awslabs/mcp-admins
-#/src/bedrock-kb-retrieval-mcp-server   @awslabs/mcp-maintainers          @awslabs/mcp-admins
-/src/cdk-mcp-server                     @jimini55                         @awslabs/mcp-admins
-/src/cfn-mcp-server                     @karamvsingh                      @awslabs/mcp-admins
-/src/cloudtrail-mcp-server              @rokafella                        @awslabs/mcp-admins
-/src/ccapi-mcp-server                   @novekm                           @awslabs/mcp-admins
-/src/cloudwatch-appsignals-mcp-server   @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque   @awslabs/mcp-admins
-/src/cloudwatch_logs_mcp_server         @lemmoi @shri-tambe               @awslabs/mcp-admins
-/src/cloudwatch_mcp_server              @gcacace @shri-tambe @agiuliano @goranmod     @awslabs/mcp-admins
-/src/code-doc-gen-mcp-server            @jimini55                         @awslabs/mcp-admins
-/src/core-mcp-server                    @PaulVincent707                   @awslabs/mcp-admins
-/src/cost-explorer-mcp-server           @Fedayizada                       @awslabs/mcp-admins
-/src/aws-dataprocessing-mcp-server          @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun                      @awslabs/mcp-admins
-#/src/documentdb-mcp-server             @awslabs/mcp-maintainers          @awslabs/mcp-admin
-/src/dynamodb-mcp-server                @erbenmo @shetsa-amzn @LeeroyHannigan                          @awslabs/mcp-admins
-/src/ecs-mcp-server                     @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar      @awslabs/mcp-admins
-/src/eks-mcp-server                     @patrick-yu-amzn @srhsrhsrhsrh    @awslabs/mcp-admins
-/src/elasticache-mcp-server             @seaofawareness                   @awslabs/mcp-admins
-/src/finch-mcp-server                   @Shubhranshu153 @pendo324         @awslabs/mcp-admins
-/src/frontend-mcp-server                @awslabs/mcp-maintainers          @awslabs/mcp-admins
-/src/git-repo-research-mcp-server       @jonslo                           @awslabs/mcp-admins
-/src/healthlake-mcp-server              @aws-steve @awsri                   @awslabs/mcp-admins
-/src/iam-mcp-server                     @oshardik                         @awslabs/mcp-admins
-/src/lambda-tool-mcp-server             @danilop @jsamuel1                @awslabs/mcp-admins
-/src/mcp-lambda-handler                 @mikegc-aws @Lukas-Xue            @awslabs/mcp-admins
-/src/memcached-mcp-server               @seaofawareness                   @awslabs/mcp-admins
-/src/mysql-mcp-server                   @kennthhz                         @awslabs/mcp-admins
-/src/nova-canvas-mcp-server             @awslabs/mcp-maintainers          @awslabs/mcp-admins
-#/src/openapi-mcp-server                @awslabs/mcp-maintainers          @awslabs/mcp-admins
-/src/postgres-mcp-server                @kennthhz                         @awslabs/mcp-admins
-/src/prometheus-mcp-server              @MohamedSherifAbdelsamiea         @awslabs/mcp-admins
-/src/redshift-mcp-server                @grayhemp                         @awslabs/mcp-admins
-/src/s3-tables-mcp-server               @gsoundar @gregorywright @Kurtiscwright @hsingh574 @ananthaksr               @awslabs/mcp-admins
-/src/stepfunctions-tool-mcp-server      @mmouniro                         @awslabs/mcp-admins
-/src/syntheticdata-mcp-server           @pranjbh                          @awslabs/mcp-admins
-/src/terraform-mcp-server               @alexa-perlov                     @awslabs/mcp-admins
-/src/timestream-for-influxdb-mcp-server @lokendrp-aws                     @awslabs/mcp-admins
-/src/valkey-mcp-server                  @seaofawareness                   @awslabs/mcp-admins
+/src/amazon-bedrock-agentcore-mcp-server         @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @scottschreckengaust # @theumbrella1 @Vivekbhadauria1
+/src/amazon-kendra-index-mcp-server              @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @scottschreckengaust # @tomron-aws
+/src/amazon-keyspaces-mcp-server                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @jcshepherd
+/src/amazon-mq-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
+/src/amazon-neptune-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @bechbd @cornerwings @krlawrence
+/src/amazon-qbusiness-anonymous-mcp-server       @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
+/src/amazon-qindex-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
+/src/amazon-rekognition-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @ayush987goyal
+/src/amazon-sns-sqs-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
+/src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko # @silver83 @marcbowes @kennthhz
+/src/aws-api-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
+/src/aws-appsync-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @Harshith15
+/src/aws-bedrock-custom-model-import-mcp-server  @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @alexa-perlov # @saidrhs
+/src/aws-bedrock-data-automation-mcp-server      @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @theagenticguy @alexa-perlov # @ayush987goyal
+/src/aws-dataprocessing-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
+/src/aws-diagram-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @MichaelWalker-git
+/src/aws-documentation-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @Lavoiedavidw @JonLim @tuanknguyen
+/src/aws-healthomics-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @markjschreiber @WIIASD
+/src/aws-iot-sitewise-mcp-server                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @ychamare
+/src/aws-knowledge-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov @krokoko @scottschreckengaust # @tkaria @animebar
+/src/aws-location-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @theagenticguy # @scouturier
+/src/aws-msk-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @elmoctarebnou @dingyiheng
+/src/aws-pricing-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v
+/src/aws-serverless-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900
+/src/aws-support-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @Wook133
+/src/bedrock-kb-retrieval-mcp-server             @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @pranjbh
+/src/billing-cost-management-mcp-server          @awslabs/mcp-admins @awslabs/mcp-maintainers  @chittev @Rahul-1404
+/src/ccapi-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @novekm
+/src/cdk-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
+/src/cfn-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @karamvsingh
+/src/cloudtrail-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @rokafella
+/src/cloudwatch-appsignals-mcp-server            @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque
+/src/cloudwatch-logs-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @lemmoi @shri-tambe
+/src/cloudwatch-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @gcacace @shri-tambe @agiuliano @goranmod
+/src/code-doc-gen-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
+/src/core-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @PaulVincent707
+/src/cost-explorer-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @Fedayizada
+/src/documentdb-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy # @nitinahuja89
+/src/dynamodb-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @erbenmo @shetsa-amzn @LeeroyHannigan
+/src/ecs-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar
+/src/eks-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @patrick-yu-amzn @srhsrhsrhsrh
+/src/elasticache-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
+/src/finch-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @Shubhranshu153 @pendo324
+/src/frontend-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
+/src/git-repo-research-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @jonslo
+/src/healthlake-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @aws-steve @awsri
+/src/iam-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @oshardik
+/src/lambda-tool-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @danilop @jsamuel1
+/src/mcp-lambda-handler                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @mikegc-aws @Lukas-Xue
+/src/memcached-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
+/src/mysql-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz
+/src/nova-canvas-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy
+/src/openapi-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @krokoko # @prajwalendra
+/src/postgres-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz
+/src/prometheus-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @MohamedSherifAbdelsamiea
+/src/redshift-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @grayhemp
+/src/s3-tables-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @gsoundar @gregorywright @Kurtiscwright @hsingh574 @ananthaksr
+/src/stepfunctions-tool-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
+/src/syntheticdata-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @pranjbh
+/src/terraform-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov
+/src/timestream-for-influxdb-mcp-server          @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws
+/src/valkey-mcp-server                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
+/src/well-architected-security-mcp-server        @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh
 
 ## Secure the CODEOWNERS file
-/.github/CODEOWNERS                                                       @awslabs/mcp-admins
+
+/.github/CODEOWNERS                              @awslabs/mcp-admins
