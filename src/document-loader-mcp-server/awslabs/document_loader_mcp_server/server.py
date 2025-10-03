@@ -88,7 +88,7 @@ def validate_file_path(ctx: Context, file_path: str) -> Optional[str]:
         
     except Exception as e:
         error_msg = f'Error validating file path {file_path}: {str(e)}'
-        ctx.report_error(error_msg, e)
+        ctx.error(error_msg)
         return error_msg
 
 
@@ -129,7 +129,7 @@ async def _convert_with_markitdown(ctx: Context, file_path: str, file_type: str)
 
     except FileNotFoundError as e:
         error_msg = f'Could not find {file_type} at {file_path}'
-        ctx.report_error(error_msg, e)
+        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -138,7 +138,7 @@ async def _convert_with_markitdown(ctx: Context, file_path: str, file_type: str)
         )
     except Exception as e:
         error_msg = f'Error reading {file_type} {file_path}: {str(e)}'
-        ctx.report_error(error_msg, e)
+        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -191,7 +191,7 @@ async def read_pdf(
 
     except FileNotFoundError as e:
         error_msg = f'Could not find PDF file at {file_path}'
-        ctx.report_error(error_msg, e)
+        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -200,7 +200,7 @@ async def read_pdf(
         )
     except Exception as e:
         error_msg = f'Error reading PDF file {file_path}: {str(e)}'
-        ctx.report_error(error_msg, e)
+        ctx.error(error_msg)
         return DocumentReadResponse(
             status="error",
             content="",
@@ -277,7 +277,7 @@ async def read_image(
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
     if validation_error:
-        ctx.report_error(validation_error, ValueError(validation_error))
+        ctx.error(validation_error)
         raise ValueError(validation_error)
     
     try:
@@ -286,7 +286,7 @@ async def read_image(
 
     except Exception as e:
         error_msg = f'Error loading image {file_path}: {str(e)}'
-        ctx.report_error(error_msg, e)
+        ctx.error(error_msg)
         raise RuntimeError(error_msg) from e
 
 
