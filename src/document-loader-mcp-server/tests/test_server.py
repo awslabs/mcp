@@ -247,8 +247,121 @@ async def test_exception_handling():
             os.unlink(invalid_image_path)
 
 
+@pytest.mark.asyncio
+async def test_missing_coverage_scenarios():
+    """Test specific scenarios to cover missing lines in coverage report."""
+    print('\nTesting missing coverage scenarios...')
+    
+    import os
+    import tempfile
+    from unittest.mock import patch, Mock
+    
+    # Import the actual functions, not the decorated versions
+    import awslabs.document_loader_mcp_server.server as server_module
+    
+    ctx = MockContext()
+    
+    # Test OSError in path resolution (lines 84-85)
+    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
+        mock_path = Mock()
+        mock_path.exists.return_value = True
+        mock_path.is_file.return_value = True
+        mock_path.stat.return_value.st_size = 1000
+        mock_path.suffix.lower.return_value = '.pdf'
+        mock_path.resolve.side_effect = OSError("Invalid path")
+        mock_path_class.return_value = mock_path
+        
+        result = server_module.validate_file_path(ctx, "/invalid/path")
+        assert result == "Invalid file path: /invalid/path"
+        print('✓ OSError in path resolution covered')
+    
+    # Test RuntimeError in path resolution (lines 84-85)
+    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
+        mock_path = Mock()
+        mock_path.exists.return_value = True
+        mock_path.is_file.return_value = True
+        mock_path.stat.return_value.st_size = 1000
+        mock_path.suffix.lower.return_value = '.pdf'
+        mock_path.resolve.side_effect = RuntimeError("Runtime error")
+        mock_path_class.return_value = mock_path
+        
+        result = server_module.validate_file_path(ctx, "/invalid/path")
+        assert result == "Invalid file path: /invalid/path"
+        print('✓ RuntimeError in path resolution covered')
+    
+    # General exception in validate_file_path (lines 89-92)
+    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
+        mock_path_class.side_effect = Exception("Unexpected error")
+        
+        result = server_module.validate_file_path(ctx, "/some/path")
+        assert result == "Error validating file path /some/path: Unexpected error"
+        print('✓ General exception in validate_file_path covered')
+    
+    # FileNotFoundError in _convert_with_markitdown (lines 130-133)
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
+        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_md:
+            mock_md.return_value.convert.side_effect = FileNotFoundError("File not found")
+            
+            result = await server_module._convert_with_markitdown(ctx, "/nonexistent/file.docx", "Word document")
+            
+            assert result.status == "error"
+            assert result.error_message == "Could not find Word document at /nonexistent/file.docx"
+            print('✓ FileNotFoundError in _convert_with_markitdown covered')
+    
+    # General exception in _convert_with_markitdown (lines 139-142)
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
+        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_md:
+            mock_md.return_value.convert.side_effect = Exception("Conversion failed")
+            
+            result = await server_module._convert_with_markitdown(ctx, "/some/file.docx", "Word document")
+            
+            assert result.status == "error"
+            assert result.error_message == "Error reading Word document /some/file.docx: Conversion failed"
+            print('✓ General exception in _convert_with_markitdown covered')
+    
+    # FileNotFoundError in read_pdf (lines 193-195)
+    # We need to get the actual function from the tool
+    tools = await mcp.get_tools()
+    read_pdf_tool = tools['read_pdf']
+    read_pdf_fn = read_pdf_tool.fn
+    
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
+        with patch('awslabs.document_loader_mcp_server.server.pdfplumber.open') as mock_open:
+            mock_open.side_effect = FileNotFoundError("PDF file not found")
+            
+            result = await read_pdf_fn(ctx, "/nonexistent/file.pdf")
+            
+            assert result.status == "error"
+            assert result.error_message == "Could not find PDF file at /nonexistent/file.pdf"
+            print('✓ FileNotFoundError in read_pdf covered')
+    
+    # General exception in read_image (lines 287-290)
+    read_image_tool = tools['read_image']
+    read_image_fn = read_image_tool.fn
+    
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path', return_value=None):
+        with patch('awslabs.document_loader_mcp_server.server.Image') as mock_image:
+            mock_image.side_effect = Exception("Image loading failed")
+            
+            try:
+                await read_image_fn(ctx, "/some/image.jpg")
+                assert False, "Should have raised RuntimeError"
+            except RuntimeError as e:
+                assert "Error loading image /some/image.jpg: Image loading failed" in str(e)
+                print('✓ General exception in read_image covered')
+    
+    # main() function (line 295)
+    with patch('awslabs.document_loader_mcp_server.server.mcp') as mock_mcp:
+        server_module.main()
+        mock_mcp.run.assert_called_once()
+        print('✓ main() function covered')
+    
+    print('✓ All missing coverage scenarios tested')
+
+
 if __name__ == '__main__':
     asyncio.run(test_server())
     asyncio.run(test_mcp_tool_functions())
     asyncio.run(test_error_handling())
     asyncio.run(test_exception_handling())
+    asyncio.run(test_missing_coverage_scenarios())
