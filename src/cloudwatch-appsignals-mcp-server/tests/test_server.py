@@ -1076,7 +1076,7 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
         }
 
         await search_transaction_spans(
-            log_group_name='',  # Empty string will be used as-is
+            log_group_name='',  # Empty string should default to 'aws/spans'
             start_time='2024-01-01T00:00:00+00:00',
             end_time='2024-01-01T01:00:00+00:00',
             query_string='fields @timestamp',
@@ -1084,10 +1084,10 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
             max_timeout=30,
         )
 
-        # Verify start_query was called with empty string (current behavior)
+        # Verify start_query was called with default 'aws/spans'
         mock_aws_clients['logs_client'].start_query.assert_called()
         call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
-        assert '' in call_args['logGroupNames']
+        assert 'aws/spans' in call_args['logGroupNames']
 
 
 @pytest.mark.asyncio
