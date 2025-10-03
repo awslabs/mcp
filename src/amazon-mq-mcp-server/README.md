@@ -4,7 +4,7 @@ A Model Context Protocol (MCP) server for Amazon MQ that enables generative AI m
 
 ## Features
 
-This MCP server acts as a **bridge** between MCP clients and Amazon MQ, allowing generative AI models to create, configure, and manage message brokers. The server provides a secure way to interact with Amazon MQ resources while maintaining proper access controls and resource tagging.
+This MCP server acts as a **bridge** between MCP clients and Amazon MQ, allowing generative AI models to create, configure, and manage message brokers. Furthermore, it provides tools to manage Amazon MQ for RabbitMQ brokers at the broker level. The server provides a secure way to interact with Amazon MQ resources while maintaining proper access controls and resource tagging.
 
 ```mermaid
 graph LR
