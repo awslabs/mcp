@@ -1,0 +1,38 @@
+{
+  "description": "Complex ETL workflow for testing",
+  "name": "complex_etl_workflow",
+  "schedule": {
+    "expression": "0 1 * * *",
+    "type": "cron"
+  },
+  "tasks": [
+    {
+      "command": "SELECT * FROM customers",
+      "id": "extract_customers",
+      "name": "Extract Customers",
+      "type": "sql"
+    },
+    {
+      "command": "SELECT * FROM orders",
+      "id": "extract_orders",
+      "name": "Extract Orders",
+      "type": "sql"
+    },
+    {
+      "command": "join_customer_orders()",
+      "depends_on": [
+        {
+          "condition": "success",
+          "task_id": "extract_customers"
+        },
+        {
+          "condition": "success",
+          "task_id": "extract_orders"
+        }
+      ],
+      "id": "join_data",
+      "name": "Join Data",
+      "type": "python"
+    }
+  ]
+}
