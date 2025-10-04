@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Agent Script for creating Aurora DB with instances (#1401)
+- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
+
+## [1.0.0] - 2025-10-01
+
+### Changed
+
+- Replace local knowledge base with a remote endpoint for `suggest_aws_commands` (#1282)
+
+### Removed
+
+- `wait` and other polling AWS CLI commands(#1402)
+
+## [0.3.4] - 2025-09-30
+
+### Removed
+
+- Command output logging (#1388)
+
+### Fixed
+
+- Mark more operations as mutating (#1387)
+
+## [0.3.3] - 2025-09-30
+
 ### Fixed
 
 - Mark sts:AssumeRole as mutating (#1364)
