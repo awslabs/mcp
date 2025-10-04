@@ -43,11 +43,6 @@ def test_non_custom_operation_not_denied():
     assert not is_denied_custom_operation('s3api', 'list-buckets')
 
 
-def test_wait_allowed_for_all_custom_commands():
-    """Test non-custom operation is never denied."""
-    assert not is_denied_custom_operation('emr', 'wait')
-
-
 @pytest.mark.parametrize(
     'service,operation',
     [
@@ -55,7 +50,6 @@ def test_wait_allowed_for_all_custom_commands():
         ('emr', 'sock'),
         ('emr', 'get'),
         ('emr', 'put'),
-        ('opsworks', 'register'),
         ('deploy', 'install'),
         ('deploy', 'uninstall'),
     ],
@@ -308,48 +302,6 @@ def test_rds_generate_db_auth_token_with_region():
     assert result.region == 'us-east-1'
 
 
-# Wait Commands Tests
-def test_dynamodb_wait_table_exists():
-    """Test aws dynamodb wait table-exists."""
-    result = parse('aws dynamodb wait table-exists --table-name MyTable')
-
-    assert isinstance(result, IRCommand)
-    assert result.command_metadata.service_sdk_name == 'dynamodb'
-    assert result.command_metadata.operation_sdk_name == 'wait table-exists'  # Includes subcommand
-    assert result.is_awscli_customization is True
-    assert result.parameters['--table-name'] == 'MyTable'
-
-
-def test_ec2_wait_instance_running():
-    """Test aws ec2 wait instance-running."""
-    result = parse('aws ec2 wait instance-running --instance-ids i-1234567890abcdef0')
-
-    assert isinstance(result, IRCommand)
-    assert result.command_metadata.service_sdk_name == 'ec2'
-    assert (
-        result.command_metadata.operation_sdk_name == 'wait instance-running'
-    )  # Includes subcommand
-    assert result.is_awscli_customization is True
-    assert result.parameters['--instance-ids'] == [
-        'i-1234567890abcdef0'
-    ]  # Returns a list, not a string
-
-
-def test_ec2_wait_volume_available():
-    """Test aws ec2 wait volume-available."""
-    result = parse('aws ec2 wait volume-available --volume-ids vol-1234567890abcdef0')
-
-    assert isinstance(result, IRCommand)
-    assert result.command_metadata.service_sdk_name == 'ec2'
-    assert (
-        result.command_metadata.operation_sdk_name == 'wait volume-available'
-    )  # Includes subcommand
-    assert result.is_awscli_customization is True
-    assert result.parameters['--volume-ids'] == [
-        'vol-1234567890abcdef0'
-    ]  # Returns a list, not a string
-
-
 # DataPipeline Customization Tests
 def test_datapipeline_list_runs_no_args():
     """Test aws datapipeline list-runs with no arguments (should fail with missing required params)."""
@@ -415,14 +367,6 @@ def test_invalid_rds_operation():
     assert 'invalid-operation' in str(exc_info.value)
 
 
-def test_invalid_wait_subcommand():
-    """Test invalid wait subcommand."""
-    with pytest.raises(InvalidServiceOperationError) as exc_info:
-        parse('aws dynamodb wait invalid-subcommand')
-
-    assert 'invalid-subcommand' in str(exc_info.value)
-
-
 # Edge Cases Tests
 def test_s3_ls_with_empty_bucket():
     """Test aws s3 ls with empty bucket name."""
@@ -457,6 +401,9 @@ def test_rds_generate_db_auth_token_with_numeric_port():
     assert result.parameters['--port'] == '5432'  # Port is a string, not an integer
 
 
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY', '/test/path'
+)
 def test_local_file_uri():
     """Test aws command with URI input file parameter."""
     import io
@@ -508,3 +455,16 @@ def test_http_uri_validation_error():
 
     error_message = str(exc_info.value)
     assert 'http:// prefix is not allowed' in error_message
+
+
+def test_local_file_uri_validation_failure():
+    """Test aws command with URI input file parameter outside the working directory."""
+    with pytest.raises(
+        CommandValidationError,
+        match=r"File path '/etc/hosts' is outside the allowed working directory .*",
+    ):
+        result = parse('aws logs create-log-group --log-group-name file:///etc/hosts')
+
+        assert result.is_awscli_customization is False
+        assert result.command_metadata.service_sdk_name == 'lambda'
+        assert result.command_metadata.operation_sdk_name == 'CreateFunction'

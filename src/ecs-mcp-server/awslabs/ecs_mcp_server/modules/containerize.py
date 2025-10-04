@@ -19,7 +19,7 @@ This module provides tools and prompts for containerizing web applications.
 
 from typing import Any, Dict
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from pydantic import Field
 
 from awslabs.ecs_mcp_server.api.containerize import containerize_app

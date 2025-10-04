@@ -109,7 +109,7 @@ def test_server_initialization_with_aws_profile_coverage():
 
 def test_initialize_aws_clients_with_profile():
     """Test _initialize_aws_clients function with AWS_PROFILE set."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import _initialize_aws_clients
+    from awslabs.cloudwatch_appsignals_mcp_server.aws_clients import _initialize_aws_clients
 
     # Mock the necessary components
     mock_session = MagicMock()
@@ -119,8 +119,10 @@ def test_initialize_aws_clients_with_profile():
     mock_session_instance.client.return_value = mock_client
 
     with patch.dict(os.environ, {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-east-1'}):
-        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.boto3.Session', mock_session):
-            with patch('awslabs.cloudwatch_appsignals_mcp_server.server.Config'):
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.boto3.Session', mock_session
+        ):
+            with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.Config'):
                 # Call the initialization function
                 logs, appsignals, cloudwatch, xray = _initialize_aws_clients()
 
