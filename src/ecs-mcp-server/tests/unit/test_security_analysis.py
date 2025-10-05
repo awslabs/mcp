@@ -14,6 +14,8 @@
 
 """
 Unit tests for security analysis module.
+
+This module tests the security analysis functionality for ECS clusters.
 """
 
 from unittest.mock import patch
@@ -129,6 +131,22 @@ class TestDataAdapter:
         assert "error" in result
         assert result["error"] == "Cluster not found"
         assert result["cluster_name"] == "nonexistent-cluster"
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation")
+    async def test_collect_cluster_data_exception(self, mock_ecs_api):
+        """Test cluster data collection with unexpected exception."""
+        # Mock ecs_api_operation to raise exception
+        mock_ecs_api.side_effect = Exception("Unexpected error")
+
+        # Create adapter and collect data
+        adapter = DataAdapter()
+        result = await adapter.collect_cluster_data("test-cluster", "us-east-1")
+
+        # Verify error handling
+        assert "error" in result
+        assert "Unexpected error" in result["error"]
+        assert result["cluster_name"] == "test-cluster"
 
 
 # SecurityAnalyzer Tests
@@ -512,6 +530,26 @@ class TestTaskDefinitionCollection:
         assert result["error"] == "Test error"
         assert result["cluster_name"] == "test-cluster"
 
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_task_definitions")
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_services")
+    async def test_collect_task_definitions_find_error(
+        self, mock_find_services, mock_find_task_defs
+    ):
+        """Test task definition collection with find_task_definitions error."""
+        # Mock find_services to return services
+        mock_find_services.return_value = ["service1"]
+        # Mock find_task_definitions to raise exception
+        mock_find_task_defs.side_effect = Exception("Find task defs error")
+
+        # Create adapter and collect data
+        adapter = DataAdapter()
+        result = await adapter.collect_task_definitions("test-cluster", "us-east-1")
+
+        # Verify error handling
+        assert "error" in result
+        assert "Find task defs error" in result["error"]
+
 
 class TestAnalyzeECSSecurity:
     """Tests for main analyze_ecs_security function."""
@@ -596,3 +634,320 @@ class TestAnalyzeECSSecurity:
         # Verify error handling
         assert result["status"] == "error"
         assert "Failed to list clusters" in result["error"]
+
+
+# Container Instance Collection Tests
+class TestContainerInstanceCollection:
+    """Tests for container instance data collection."""
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation")
+    async def test_collect_container_instances(self, mock_ecs_api):
+        """Test container instance collection - success and error cases."""
+        adapter = DataAdapter()
+
+        # Success case
+        def mock_success(operation, params):
+            if operation == "ListContainerInstances":
+                return {
+                    "containerInstanceArns": [
+                        "arn:aws:ecs:us-east-1:123456789012:container-instance/test-cluster/abc123"
+                    ]
+                }
+            return {
+                "containerInstances": [
+                    {
+                        "ec2InstanceId": "i-1234567890abcdef0",
+                        "versionInfo": {"agentVersion": "1.70.0"},
+                        "agentConnected": True,
+                    }
+                ]
+            }
+
+        mock_ecs_api.side_effect = mock_success
+        result = await adapter.collect_container_instances("test-cluster", "us-east-1")
+        assert result["status"] == "success"
+        assert len(result["container_instances"]) == 1
+
+        # No instances
+        mock_ecs_api.side_effect = None
+        mock_ecs_api.return_value = {"containerInstanceArns": []}
+        result = await adapter.collect_container_instances("test-cluster", "us-east-1")
+        assert result["status"] == "success"
+        assert len(result["container_instances"]) == 0
+
+        # Error case
+        mock_ecs_api.return_value = {"error": "Access denied"}
+        result = await adapter.collect_container_instances("test-cluster", "us-east-1")
+        assert "error" in result
+
+        # Exception case
+        mock_ecs_api.side_effect = Exception("Unexpected error")
+        result = await adapter.collect_container_instances("test-cluster", "us-east-1")
+        assert "error" in result
+        assert "Unexpected error" in result["error"]
+
+
+# Capacity Provider Collection Tests
+class TestCapacityProviderCollection:
+    """Tests for capacity provider data collection."""
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation")
+    async def test_collect_capacity_providers(self, mock_ecs_api):
+        """Test capacity provider collection - success and error cases."""
+        adapter = DataAdapter()
+
+        # Success case
+        def mock_success(operation, params):
+            if operation == "DescribeClusters":
+                return {
+                    "clusters": [
+                        {"clusterName": "test-cluster", "capacityProviders": ["test-cp-1"]}
+                    ]
+                }
+            return {"capacityProviders": [{"name": "test-cp-1"}]}
+
+        mock_ecs_api.side_effect = mock_success
+        result = await adapter.collect_capacity_providers("test-cluster", "us-east-1")
+        assert result["status"] == "success"
+        assert len(result["capacity_providers"]) == 1
+
+        # No providers
+        mock_ecs_api.side_effect = None
+        mock_ecs_api.return_value = {
+            "clusters": [{"clusterName": "test-cluster", "capacityProviders": []}]
+        }
+        result = await adapter.collect_capacity_providers("test-cluster", "us-east-1")
+        assert len(result["capacity_providers"]) == 0
+
+        # Error case
+        mock_ecs_api.return_value = {"error": "Access denied"}
+        result = await adapter.collect_capacity_providers("test-cluster", "us-east-1")
+        assert "error" in result
+
+        # Exception case
+        mock_ecs_api.side_effect = Exception("Unexpected error")
+        result = await adapter.collect_capacity_providers("test-cluster", "us-east-1")
+        assert "error" in result
+        assert "Unexpected error" in result["error"]
+
+
+# Enhanced Cluster Security Tests
+class TestEnhancedClusterSecurity:
+    """Tests for enhanced cluster security analysis."""
+
+    @pytest.fixture
+    def mock_container_instance_outdated_agent(self):
+        """Mock container instance with outdated ECS agent."""
+        return {
+            "ec2InstanceId": "i-1234567890abcdef0",
+            "versionInfo": {"agentVersion": "1.60.0"},
+            "agentConnected": True,
+            "attributes": [{"name": "ecs.instance-type", "value": "t3.medium"}],
+        }
+
+    @pytest.fixture
+    def mock_container_instance_disconnected(self):
+        """Mock container instance with disconnected agent."""
+        return {
+            "ec2InstanceId": "i-1234567890abcdef1",
+            "versionInfo": {"agentVersion": "1.70.0"},
+            "agentConnected": False,
+            "attributes": [{"name": "ecs.instance-type", "value": "t3.medium"}],
+        }
+
+    @pytest.fixture
+    def mock_container_instance_legacy_type(self):
+        """Mock container instance with legacy instance type."""
+        return {
+            "ec2InstanceId": "i-1234567890abcdef2",
+            "versionInfo": {"agentVersion": "1.70.0"},
+            "agentConnected": True,
+            "attributes": [{"name": "ecs.instance-type", "value": "m1.large"}],
+        }
+
+    @pytest.fixture
+    def mock_container_instance_invalid_version(self):
+        """Mock container instance with invalid version format."""
+        return {
+            "ec2InstanceId": "i-1234567890abcdef3",
+            "versionInfo": {"agentVersion": "invalid-version"},
+            "agentConnected": True,
+            "attributes": [{"name": "ecs.instance-type", "value": "t3.medium"}],
+        }
+
+    def test_analyze_container_instance_security(
+        self,
+        mock_cluster_data_active,
+        mock_container_instance_outdated_agent,
+        mock_container_instance_disconnected,
+        mock_container_instance_legacy_type,
+        mock_container_instance_invalid_version,
+    ):
+        """Test container instance security analysis - all cases."""
+        analyzer = SecurityAnalyzer()
+
+        # Test outdated agent
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "container_instances": [mock_container_instance_outdated_agent],
+            }
+        )
+        assert any(
+            r["title"] == "Critical ECS Agent Security Update Required"
+            for r in result["recommendations"]
+        )
+
+        # Test disconnected agent
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "container_instances": [mock_container_instance_disconnected],
+            }
+        )
+        assert any(
+            r["title"] == "ECS Agent Disconnected - Security Risk"
+            for r in result["recommendations"]
+        )
+
+        # Test legacy instance type
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "container_instances": [mock_container_instance_legacy_type],
+            }
+        )
+        assert any(
+            r["title"] == "Legacy Instance Type Security Risk" for r in result["recommendations"]
+        )
+
+        # Test invalid version
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "container_instances": [mock_container_instance_invalid_version],
+            }
+        )
+        assert any(r["title"] == "Verify ECS Agent Version" for r in result["recommendations"])
+
+        # Test multiple instances
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "container_instances": [
+                    mock_container_instance_outdated_agent,
+                    mock_container_instance_disconnected,
+                ],
+            }
+        )
+        security_recs = [r for r in result["recommendations"] if r["category"] == "Security"]
+        assert len(security_recs) >= 2
+
+
+# Capacity Provider Security Tests
+class TestCapacityProviderSecurity:
+    """Tests for capacity provider security analysis."""
+
+    @pytest.fixture
+    def mock_capacity_provider_no_protection(self):
+        """Mock capacity provider without termination protection."""
+        return {
+            "name": "test-cp-no-protection",
+            "autoScalingGroupProvider": {
+                "managedScaling": {"status": "ENABLED"},
+                "managedTerminationProtection": "DISABLED",
+            },
+        }
+
+    @pytest.fixture
+    def mock_capacity_provider_with_protection(self):
+        """Mock capacity provider with termination protection."""
+        return {
+            "name": "test-cp-with-protection",
+            "autoScalingGroupProvider": {
+                "managedScaling": {"status": "ENABLED"},
+                "managedTerminationProtection": "ENABLED",
+            },
+        }
+
+    @pytest.fixture
+    def mock_capacity_provider_no_managed_scaling(self):
+        """Mock capacity provider without managed scaling."""
+        return {
+            "name": "test-cp-no-scaling",
+            "autoScalingGroupProvider": {
+                "managedScaling": {"status": "DISABLED"},
+                "managedTerminationProtection": "DISABLED",
+            },
+        }
+
+    def test_analyze_capacity_provider_security(
+        self,
+        mock_cluster_data_active,
+        mock_capacity_provider_no_protection,
+        mock_capacity_provider_with_protection,
+        mock_capacity_provider_no_managed_scaling,
+    ):
+        """Test capacity provider security analysis - all cases."""
+        analyzer = SecurityAnalyzer()
+
+        # Test missing termination protection
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "capacity_providers": [mock_capacity_provider_no_protection],
+            }
+        )
+        protection_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Enable Managed Termination Protection"
+        ]
+        assert len(protection_recs) == 1
+
+        # Test with termination protection (no recommendation)
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "capacity_providers": [mock_capacity_provider_with_protection],
+            }
+        )
+        protection_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Enable Managed Termination Protection"
+        ]
+        assert len(protection_recs) == 0
+
+        # Test no managed scaling (no recommendation)
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "capacity_providers": [mock_capacity_provider_no_managed_scaling],
+            }
+        )
+        protection_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Enable Managed Termination Protection"
+        ]
+        assert len(protection_recs) == 0
+
+        # Test multiple providers
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "capacity_providers": [
+                    mock_capacity_provider_no_protection,
+                    mock_capacity_provider_with_protection,
+                ],
+            }
+        )
+        protection_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Enable Managed Termination Protection"
+        ]
+        assert len(protection_recs) == 1

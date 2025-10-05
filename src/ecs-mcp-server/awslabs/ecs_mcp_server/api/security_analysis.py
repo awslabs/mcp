@@ -131,6 +131,141 @@ class DataAdapter:
             self.logger.error(f"Unexpected error collecting task definitions: {e}")
             return {"error": str(e), "cluster_name": cluster_name}
 
+    async def collect_container_instances(
+        self, cluster_name: str, region: str = "us-east-1"
+    ) -> Dict[str, Any]:
+        """
+        Collect container instance data for security analysis.
+
+        Args:
+            cluster_name: Name of the ECS cluster
+            region: AWS region (default: us-east-1)
+
+        Returns:
+            Dictionary containing container instance data or error information
+        """
+        try:
+            self.logger.info(
+                f"Collecting container instances for cluster {cluster_name} in {region}"
+            )
+
+            # List container instances
+            list_response = await ecs_api_operation(
+                "ListContainerInstances", {"cluster": cluster_name}
+            )
+
+            if "error" in list_response:
+                self.logger.error(f"Error listing container instances: {list_response['error']}")
+                return {"error": list_response["error"], "cluster_name": cluster_name}
+
+            instance_arns = list_response.get("containerInstanceArns", [])
+
+            if not instance_arns:
+                self.logger.info(f"No container instances found in cluster {cluster_name}")
+                return {
+                    "status": "success",
+                    "container_instances": [],
+                    "cluster_name": cluster_name,
+                }
+
+            # Describe container instances
+            describe_response = await ecs_api_operation(
+                "DescribeContainerInstances",
+                {"cluster": cluster_name, "containerInstances": instance_arns},
+            )
+
+            if "error" in describe_response:
+                self.logger.error(
+                    f"Error describing container instances: {describe_response['error']}"
+                )
+                return {"error": describe_response["error"], "cluster_name": cluster_name}
+
+            instances = describe_response.get("containerInstances", [])
+            self.logger.info(
+                f"Successfully collected {len(instances)} container instances "
+                f"for cluster {cluster_name}"
+            )
+
+            return {
+                "status": "success",
+                "container_instances": instances,
+                "cluster_name": cluster_name,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error collecting container instances: {e}")
+            return {"error": str(e), "cluster_name": cluster_name}
+
+    async def collect_capacity_providers(
+        self, cluster_name: str, region: str = "us-east-1"
+    ) -> Dict[str, Any]:
+        """
+        Collect capacity provider data for security analysis.
+
+        Args:
+            cluster_name: Name of the ECS cluster
+            region: AWS region (default: us-east-1)
+
+        Returns:
+            Dictionary containing capacity provider data or error information
+        """
+        try:
+            self.logger.info(
+                f"Collecting capacity providers for cluster {cluster_name} in {region}"
+            )
+
+            # Get cluster data to find capacity provider names
+            cluster_response = await ecs_api_operation(
+                "DescribeClusters", {"clusters": [cluster_name], "include": ["SETTINGS"]}
+            )
+
+            if "error" in cluster_response:
+                self.logger.error(
+                    f"Error getting cluster for capacity providers: {cluster_response['error']}"
+                )
+                return {"error": cluster_response["error"], "cluster_name": cluster_name}
+
+            if not cluster_response.get("clusters"):
+                return {"error": "Cluster not found", "cluster_name": cluster_name}
+
+            cluster = cluster_response["clusters"][0]
+            cp_names = cluster.get("capacityProviders", [])
+
+            if not cp_names:
+                self.logger.info(f"No capacity providers found in cluster {cluster_name}")
+                return {
+                    "status": "success",
+                    "capacity_providers": [],
+                    "cluster_name": cluster_name,
+                }
+
+            # Describe capacity providers
+            describe_response = await ecs_api_operation(
+                "DescribeCapacityProviders", {"capacityProviders": cp_names}
+            )
+
+            if "error" in describe_response:
+                self.logger.error(
+                    f"Error describing capacity providers: {describe_response['error']}"
+                )
+                return {"error": describe_response["error"], "cluster_name": cluster_name}
+
+            providers = describe_response.get("capacityProviders", [])
+            self.logger.info(
+                f"Successfully collected {len(providers)} capacity providers "
+                f"for cluster {cluster_name}"
+            )
+
+            return {
+                "status": "success",
+                "capacity_providers": providers,
+                "cluster_name": cluster_name,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error collecting capacity providers: {e}")
+            return {"error": str(e), "cluster_name": cluster_name}
+
 
 class SecurityAnalyzer:
     """Security analysis engine for ECS resources."""
@@ -163,11 +298,23 @@ class SecurityAnalyzer:
 
         cluster_data = ecs_data.get("cluster", {})
         task_definitions = ecs_data.get("task_definitions", [])
+        container_instances = ecs_data.get("container_instances", [])
+        capacity_providers = ecs_data.get("capacity_providers", [])
 
         # Run security checks
         self._analyze_cluster_security(cluster_data)
         self._analyze_cluster_iam_security(cluster_data)
         self._analyze_logging_security(cluster_data)
+
+        # Run enhanced cluster security checks
+        self._analyze_enhanced_cluster_security(
+            container_instances, cluster_data.get("clusterName", "unknown")
+        )
+
+        # Run capacity provider security checks
+        self._analyze_capacity_providers(
+            capacity_providers, cluster_data.get("clusterName", "unknown")
+        )
 
         # Run IAM security checks for each task definition
         for task_def in task_definitions:
@@ -363,6 +510,177 @@ class SecurityAnalyzer:
                 }
             )
 
+    def _analyze_enhanced_cluster_security(
+        self, container_instances: List[Dict[str, Any]], cluster_name: str
+    ) -> None:
+        """
+        Analyze enhanced cluster security (ECS agent versions, connectivity, instance types).
+
+        Args:
+            container_instances: List of container instance data
+            cluster_name: Name of the cluster
+        """
+        for instance in container_instances:
+            instance_id = instance.get("ec2InstanceId", "unknown")
+
+            # Check ECS agent version for known vulnerabilities
+            version_info = instance.get("versionInfo", {})
+            agent_version = version_info.get("agentVersion", "")
+
+            if agent_version:
+                try:
+                    # Parse version (e.g., "1.68.2" -> [1, 68, 2])
+                    version_parts = [int(x) for x in agent_version.split(".")]
+
+                    # Flag versions older than 1.65.0 (versions with known security issues)
+                    if len(version_parts) >= 2 and (
+                        version_parts[0] < 1 or (version_parts[0] == 1 and version_parts[1] < 65)
+                    ):
+                        self.recommendations.append(
+                            {
+                                "title": "Critical ECS Agent Security Update Required",
+                                "severity": "High",
+                                "category": "Security",
+                                "resource": f"Container Instance: {instance_id}",
+                                "issue": (
+                                    f"ECS agent version {agent_version} has known "
+                                    "security vulnerabilities"
+                                ),
+                                "recommendation": (
+                                    "Immediately update ECS agent to latest version to patch "
+                                    "security vulnerabilities"
+                                ),
+                                "remediation_steps": [
+                                    "Update the ECS agent on the container instance",
+                                    "Consider using ECS-optimized AMIs with latest agent versions",
+                                ],
+                            }
+                        )
+                except (ValueError, IndexError):
+                    # If version parsing fails, flag for investigation
+                    self.recommendations.append(
+                        {
+                            "title": "Verify ECS Agent Version",
+                            "severity": "Medium",
+                            "category": "Security",
+                            "resource": f"Container Instance: {instance_id}",
+                            "issue": f"Cannot parse ECS agent version: {agent_version}",
+                            "recommendation": (
+                                "Verify ECS agent version and ensure it is up to date for security"
+                            ),
+                            "remediation_steps": [
+                                "Check the ECS agent version manually",
+                                "Update to a known stable version",
+                            ],
+                        }
+                    )
+
+            # Check for agent connectivity
+            agent_connected = instance.get("agentConnected", False)
+            if not agent_connected:
+                self.recommendations.append(
+                    {
+                        "title": "ECS Agent Disconnected - Security Risk",
+                        "severity": "High",
+                        "category": "Security",
+                        "resource": f"Container Instance: {instance_id}",
+                        "issue": (
+                            "ECS agent is disconnected, preventing security monitoring and updates"
+                        ),
+                        "recommendation": (
+                            "Investigate and reconnect ECS agent to maintain security oversight"
+                        ),
+                        "remediation_steps": [
+                            "Check network connectivity to ECS endpoints",
+                            "Verify IAM permissions for the instance",
+                            "Review CloudWatch logs for agent errors",
+                        ],
+                    }
+                )
+
+            # Check for legacy instance types with potential hardware vulnerabilities
+            attributes = instance.get("attributes", [])
+            instance_type_attr = next(
+                (attr for attr in attributes if attr.get("name") == "ecs.instance-type"), None
+            )
+            if instance_type_attr:
+                instance_type = instance_type_attr.get("value", "")
+                # Flag instances from older generations with potential vulnerabilities
+                if any(
+                    old_gen in instance_type for old_gen in ["t1.", "m1.", "c1.", "m2.", "cr1."]
+                ):
+                    self.recommendations.append(
+                        {
+                            "title": "Legacy Instance Type Security Risk",
+                            "severity": "Medium",
+                            "category": "Security",
+                            "resource": f"Container Instance: {instance_id}",
+                            "issue": (
+                                f"Instance type {instance_type} is from older generation with "
+                                "potential hardware vulnerabilities"
+                            ),
+                            "recommendation": (
+                                "Migrate to newer generation instance types with enhanced "
+                                "security features"
+                            ),
+                            "remediation_steps": [
+                                (
+                                    "Plan migration to current generation instance types "
+                                    "(t3, m5, c5, etc.)"
+                                ),
+                                "Test workloads on newer instance types",
+                                "Update capacity providers or launch configurations",
+                            ],
+                        }
+                    )
+
+    def _analyze_capacity_providers(
+        self, capacity_providers: List[Dict[str, Any]], cluster_name: str
+    ) -> None:
+        """
+        Analyze capacity provider security configurations.
+
+        Args:
+            capacity_providers: List of capacity provider data
+            cluster_name: Name of the cluster
+        """
+        for cp in capacity_providers:
+            cp_name = cp.get("name", "unknown")
+
+            # Check for capacity providers with security-relevant misconfigurations
+            auto_scaling_group_provider = cp.get("autoScalingGroupProvider", {})
+            if auto_scaling_group_provider:
+                # Check if managed termination protection is disabled (security risk)
+                managed_scaling = auto_scaling_group_provider.get("managedScaling", {})
+                if managed_scaling.get("status") == "ENABLED":
+                    termination_protection = auto_scaling_group_provider.get(
+                        "managedTerminationProtection", "DISABLED"
+                    )
+                    if termination_protection == "DISABLED":
+                        self.recommendations.append(
+                            {
+                                "title": "Enable Managed Termination Protection",
+                                "severity": "Medium",
+                                "category": "Security",
+                                "resource": f"Capacity Provider: {cp_name}",
+                                "issue": (
+                                    "Managed termination protection is disabled, allowing "
+                                    "uncontrolled instance termination"
+                                ),
+                                "recommendation": (
+                                    "Enable managed termination protection to prevent "
+                                    "unauthorized instance termination"
+                                ),
+                                "remediation_steps": [
+                                    (
+                                        "Update capacity provider with "
+                                        "managedTerminationProtection=ENABLED"
+                                    ),
+                                    "Review auto-scaling policies for security implications",
+                                ],
+                            }
+                        )
+
     def _generate_summary(self) -> Dict[str, Any]:
         """Generate summary statistics for security analysis."""
         summary = {
@@ -440,10 +758,20 @@ async def analyze_ecs_security(
             # Collect task definition data for IAM analysis
             task_def_data = await adapter.collect_task_definitions(cluster_name, region)
 
+            # Collect container instance data for enhanced security analysis
+            container_instance_data = await adapter.collect_container_instances(
+                cluster_name, region
+            )
+
+            # Collect capacity provider data for security analysis
+            capacity_provider_data = await adapter.collect_capacity_providers(cluster_name, region)
+
             # Combine data for analysis
             combined_data = {
                 **cluster_data,
                 "task_definitions": task_def_data.get("task_definitions", []),
+                "container_instances": container_instance_data.get("container_instances", []),
+                "capacity_providers": capacity_provider_data.get("capacity_providers", []),
             }
 
             # Analyze data
