@@ -87,6 +87,31 @@ class TestDataAdapter:
             assert "error" in result
             assert result["error"] == "Access denied"
 
+    @pytest.mark.asyncio
+    async def test_collect_cluster_data_not_found(self):
+        """Test cluster data collection when cluster is not found."""
+        adapter = DataAdapter()
+        with patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation") as mock_api:
+            mock_api.return_value = {"clusters": []}
+
+            result = await adapter.collect_cluster_data("nonexistent-cluster", "us-east-1")
+
+            assert result["status"] == "error"
+            assert "not found" in result["error"]
+            assert result["cluster_name"] == "nonexistent-cluster"
+
+    @pytest.mark.asyncio
+    async def test_collect_cluster_data_exception(self):
+        """Test cluster data collection with unexpected exception."""
+        adapter = DataAdapter()
+        with patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation") as mock_api:
+            mock_api.side_effect = Exception("Network error")
+
+            result = await adapter.collect_cluster_data("test-cluster", "us-east-1")
+
+            assert result["status"] == "error"
+            assert "Network error" in result["error"]
+
 
 class TestSecurityAnalyzer:
     """Tests for SecurityAnalyzer class."""
@@ -123,6 +148,27 @@ class TestSecurityAnalyzer:
         insights_recs = [r for r in result["recommendations"] if "Container Insights" in r["title"]]
         assert len(insights_recs) == 1
         assert insights_recs[0]["severity"] == "Medium"
+
+    def test_analyze_inactive_cluster(self):
+        """Test analysis when cluster is not ACTIVE."""
+        analyzer = SecurityAnalyzer()
+        ecs_data = {
+            "cluster_name": "test-cluster",
+            "region": "us-east-1",
+            "cluster": {
+                "clusterName": "test-cluster",
+                "clusterArn": "arn:aws:ecs:us-east-1:123456789012:cluster/test-cluster",
+                "status": "INACTIVE",
+                "settings": [],
+            },
+        }
+
+        result = analyzer.analyze(ecs_data)
+
+        assert "recommendations" in result
+        status_recs = [r for r in result["recommendations"] if "Cluster Status" in r["title"]]
+        assert len(status_recs) == 1
+        assert status_recs[0]["severity"] == "High"
 
 
 class TestAnalyzeECSSecurity:
@@ -172,3 +218,19 @@ class TestAnalyzeECSSecurity:
 
             assert result["status"] == "error"
             assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_analyze_with_analysis_exception(self, mock_cluster_data):
+        """Test analysis when SecurityAnalyzer raises exception."""
+        with patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation") as mock_api:
+            with patch(
+                "awslabs.ecs_mcp_server.api.security_analysis.SecurityAnalyzer.analyze"
+            ) as mock_analyze:
+                mock_api.return_value = mock_cluster_data
+                mock_analyze.side_effect = Exception("Analysis failed")
+
+                result = await analyze_ecs_security(cluster_names=["test-cluster"])
+
+                assert result["status"] == "success"
+                assert "errors" in result
+                assert len(result["errors"]) > 0
