@@ -402,6 +402,22 @@ async def query_sampled_traces(
                 return obj.isoformat()
             return obj
 
+        # Helper function to extract first error message from root causes for deduplication
+        def get_error_message(trace_data):
+            """Extract first error message from a trace for deduplication."""
+            # Check all root cause types
+            for cause_key in ['ErrorRootCauses', 'FaultRootCauses', 'ResponseTimeRootCauses']:
+                root_causes = trace_data.get(cause_key, [])
+                if root_causes:
+                    for cause in root_causes:
+                        services = cause.get('Services', [])
+                        for service in services:
+                            exceptions = service.get('Exceptions', [])
+                            if exceptions and exceptions[0].get('Message'):
+                                return exceptions[0].get('Message')
+            return None
+
+        # Build trace summaries (original format)
         trace_summaries = []
         for trace in traces:
             # Create a simplified trace data structure to reduce size
@@ -417,17 +433,11 @@ async def query_sampled_traces(
 
             # Only include root causes if they exist (to save space)
             if trace.get('ErrorRootCauses'):
-                trace_data['ErrorRootCauses'] = trace.get('ErrorRootCauses', [])[
-                    :3
-                ]  # Limit to first 3
+                trace_data['ErrorRootCauses'] = trace.get('ErrorRootCauses', [])[:3]
             if trace.get('FaultRootCauses'):
-                trace_data['FaultRootCauses'] = trace.get('FaultRootCauses', [])[
-                    :3
-                ]  # Limit to first 3
+                trace_data['FaultRootCauses'] = trace.get('FaultRootCauses', [])[:3]
             if trace.get('ResponseTimeRootCauses'):
-                trace_data['ResponseTimeRootCauses'] = trace.get('ResponseTimeRootCauses', [])[
-                    :3
-                ]  # Limit to first 3
+                trace_data['ResponseTimeRootCauses'] = trace.get('ResponseTimeRootCauses', [])[:3]
 
             # Include limited annotations for key operations
             annotations = trace.get('Annotations', {})
@@ -447,15 +457,47 @@ async def query_sampled_traces(
             # Convert any datetime objects to ISO format strings
             for key, value in trace_data.items():
                 trace_data[key] = convert_datetime(value)
+
             trace_summaries.append(trace_data)
+
+        # Deduplicate trace summaries by error message
+        seen_errors = {}
+        deduped_trace_summaries = []
+
+        for trace_summary in trace_summaries:
+            # Check if this trace has an error
+            has_issues = (
+                trace_summary.get('HasError')
+                or trace_summary.get('HasFault')
+                or trace_summary.get('HasThrottle')
+            )
+
+            if not has_issues:
+                # Always include healthy traces
+                deduped_trace_summaries.append(trace_summary)
+                continue
+
+            # Extract error message for deduplication
+            error_msg = get_error_message(trace_summary)
+
+            if error_msg and error_msg in seen_errors:
+                # Skip this trace - we already have one with the same error message
+                seen_errors[error_msg]['count'] += 1
+                continue
+            else:
+                # First time seeing this error (or no error message) - include it
+                deduped_trace_summaries.append(trace_summary)
+                if error_msg:
+                    seen_errors[error_msg] = {'count': 1}
 
         # Check transaction search status
         is_tx_search_enabled, tx_destination, tx_status = check_transaction_search_enabled(region)
 
+        # Build response with original format but deduplicated traces
         result_data = {
-            'TraceSummaries': trace_summaries,
-            'TraceCount': len(trace_summaries),
-            'Message': f'Retrieved {len(trace_summaries)} traces (limited to prevent size issues)',
+            'TraceSummaries': deduped_trace_summaries,
+            'TraceCount': len(deduped_trace_summaries),
+            'Message': f'Retrieved {len(deduped_trace_summaries)} unique traces from {len(trace_summaries)} total (deduplicated by error message)',
             'SamplingNote': "⚠️ This data is from X-Ray's 5% sampling. Results may not show all errors or issues.",
             'TransactionSearchStatus': {
                 'enabled': is_tx_search_enabled,
@@ -467,9 +509,18 @@ async def query_sampled_traces(
             },
         }
 
+        # Add dedup stats if we actually deduped anything
+        if len(deduped_trace_summaries) < len(trace_summaries):
+            duplicates_removed = len(trace_summaries) - len(deduped_trace_summaries)
+            result_data['DeduplicationStats'] = {
+                'OriginalTraceCount': len(trace_summaries),
+                'DuplicatesRemoved': duplicates_removed,
+                'UniqueErrorMessages': len(seen_errors),
+            }
+
         elapsed_time = timer() - start_time_perf
         logger.info(
-            f'query_sampled_traces completed in {elapsed_time:.3f}s - retrieved {len(trace_summaries)} traces'
+            f'query_sampled_traces completed in {elapsed_time:.3f}s - retrieved {len(deduped_trace_summaries)} unique traces from {len(trace_summaries)} total'
         )
         return json.dumps(result_data, indent=2)
 

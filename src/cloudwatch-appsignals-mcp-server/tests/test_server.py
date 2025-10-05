@@ -1634,7 +1634,7 @@ async def test_query_sampled_traces_with_fault_causes(mock_aws_clients):
         'Duration': 100,
         'HasFault': True,
         'FaultRootCauses': [
-            {'Services': [{'Name': 'service1'}]},
+            {'Services': [{'Name': 'service1', 'Exceptions': [{'Message': 'Test fault error'}]}]},
             {'Services': [{'Name': 'service2'}]},
             {'Services': [{'Name': 'service3'}]},
             {'Services': [{'Name': 'service4'}]},  # Should be limited to 3
@@ -1707,6 +1707,152 @@ async def test_query_sampled_traces_datetime_conversion(mock_aws_clients):
             'StartTime' not in trace_summary
         )  # These fields are not included in the simplified output
         assert 'EndTime' not in trace_summary
+
+
+@pytest.mark.asyncio
+async def test_query_sampled_traces_deduplication(mock_aws_clients):
+    """Test query_sampled_traces deduplicates traces with same error message."""
+    # Create 5 traces with the same error message
+    mock_traces = [
+        {
+            'Id': f'trace{i}',
+            'Duration': 100 + i * 10,
+            'ResponseTime': 95 + i * 10,
+            'HasFault': True,
+            'FaultRootCauses': [
+                {
+                    'Services': [
+                        {
+                            'Name': 'test-service',
+                            'Exceptions': [{'Message': 'Database connection timeout'}],
+                        }
+                    ]
+                }
+            ],
+        }
+        for i in range(1, 6)
+    ]
+
+    # Add 2 traces with a different error
+    mock_traces.extend(
+        [
+            {
+                'Id': 'trace6',
+                'Duration': 200,
+                'HasError': True,
+                'ErrorRootCauses': [
+                    {
+                        'Services': [
+                            {
+                                'Name': 'api-service',
+                                'Exceptions': [{'Message': 'Invalid API key'}],
+                            }
+                        ]
+                    }
+                ],
+            },
+            {
+                'Id': 'trace7',
+                'Duration': 210,
+                'HasError': True,
+                'ErrorRootCauses': [
+                    {
+                        'Services': [
+                            {
+                                'Name': 'api-service',
+                                'Exceptions': [{'Message': 'Invalid API key'}],
+                            }
+                        ]
+                    }
+                ],
+            },
+        ]
+    )
+
+    # Add 2 healthy traces
+    mock_traces.extend(
+        [
+            {
+                'Id': 'trace8',
+                'Duration': 50,
+                'ResponseTime': 45,
+                'HasError': False,
+                'HasFault': False,
+            },
+            {
+                'Id': 'trace9',
+                'Duration': 55,
+                'ResponseTime': 50,
+                'HasError': False,
+                'HasFault': False,
+            },
+        ]
+    )
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
+    ) as mock_paginated:
+        mock_paginated.return_value = mock_traces
+
+        result_json = await query_sampled_traces(
+            start_time='2024-01-01T00:00:00Z', end_time='2024-01-01T01:00:00Z'
+        )
+
+        result = json.loads(result_json)
+
+        # Verify deduplication worked - should only have 4 traces
+        # 1 for database timeout (deduplicated from 5)
+        # 1 for API key error (deduplicated from 2)
+        # 2 healthy traces (not deduplicated)
+        assert result['TraceCount'] == 4
+        assert len(result['TraceSummaries']) == 4
+
+        # Verify deduplication stats
+        assert 'DeduplicationStats' in result
+        assert result['DeduplicationStats']['OriginalTraceCount'] == 9
+        assert result['DeduplicationStats']['DuplicatesRemoved'] == 5  # 9 - 4 = 5
+        assert result['DeduplicationStats']['UniqueErrorMessages'] == 2
+
+        # Find the traces by checking their error messages
+        db_trace = next(
+            (
+                t
+                for t in result['TraceSummaries']
+                if t.get('FaultRootCauses')
+                and any(
+                    'Database connection timeout' in str(s.get('Exceptions', []))
+                    for cause in t['FaultRootCauses']
+                    for s in cause.get('Services', [])
+                )
+            ),
+            None,
+        )
+        assert db_trace is not None
+        assert db_trace['HasFault'] is True
+
+        api_trace = next(
+            (
+                t
+                for t in result['TraceSummaries']
+                if t.get('ErrorRootCauses')
+                and any(
+                    'Invalid API key' in str(s.get('Exceptions', []))
+                    for cause in t['ErrorRootCauses']
+                    for s in cause.get('Services', [])
+                )
+            ),
+            None,
+        )
+        assert api_trace is not None
+        assert api_trace['HasError'] is True
+
+        # Verify healthy traces are included
+        healthy_count = sum(
+            1
+            for t in result['TraceSummaries']
+            if not t.get('HasError') and not t.get('HasFault') and not t.get('HasThrottle')
+        )
+        assert healthy_count == 2
 
 
 def test_main_success(mock_aws_clients):
