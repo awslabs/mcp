@@ -15,10 +15,14 @@
 
 import asyncio
 import pytest
+from unittest.mock import patch, MagicMock
 from tests.test_document_parsing import DocumentTestGenerator, MockContext
 from fastmcp.utilities.types import Image
 
-from awslabs.document_loader_mcp_server.server import mcp, DocumentReadResponse
+from awslabs.document_loader_mcp_server.server import (
+    mcp, DocumentReadResponse, validate_file_path, _convert_with_markitdown, 
+    _read_pdf_content, read_image
+)
 
 
 @pytest.mark.asyncio
@@ -305,8 +309,186 @@ async def test_exception_handling():
         if os.path.exists(invalid_image_path):
             os.unlink(invalid_image_path)
 
+
+@pytest.mark.asyncio
+async def test_validate_file_path_resolve_exception():
+    """Test path.resolve exception in validate_file_path (lines 72-73)."""
+    # Create a mock context
+    ctx = MockContext()
+    
+    # Create a mock path that raises an exception when resolve is called
+    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.is_file.return_value = True
+        mock_path.stat.return_value.st_size = 1000  # Small file
+        mock_path.suffix.lower.return_value = '.pdf'
+        # Make resolve raise an OSError
+        mock_path.resolve.side_effect = OSError("Path resolution error")
+        mock_path_class.return_value = mock_path
+        
+        # Call the function
+        error = validate_file_path(ctx, "/test/path.pdf")
+        
+        # Verify the error message
+        assert error is not None
+        assert "Invalid file path" in error
+        print('✓ OSError in path resolution covered')
+
+    # Test with RuntimeError
+    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_path.is_file.return_value = True
+        mock_path.stat.return_value.st_size = 1000  # Small file
+        mock_path.suffix.lower.return_value = '.pdf'
+        # Make resolve raise a RuntimeError
+        mock_path.resolve.side_effect = RuntimeError("Runtime error in path resolution")
+        mock_path_class.return_value = mock_path
+        
+        # Call the function
+        error = validate_file_path(ctx, "/test/path.pdf")
+        
+        # Verify the error message
+        assert error is not None
+        assert "Invalid file path" in error
+        print('✓ RuntimeError in path resolution covered')
+
+
+@pytest.mark.asyncio
+async def test_validate_file_path_general_exception():
+    """Test general exception in validate_file_path (lines 77-78)."""
+    # Create a mock context
+    ctx = MockContext()
+    
+    # Test with a general exception in Path constructor
+    with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
+        # Make Path constructor raise an exception
+        mock_path_class.side_effect = Exception("General exception in Path")
+        
+        # Call the function
+        error = validate_file_path(ctx, "/test/path.pdf")
+        
+        # Verify the error message
+        assert error is not None
+        assert "Error validating file path" in error
+        assert "General exception in Path" in error
+        print('✓ General exception in validate_file_path covered')
+
+
+@pytest.mark.asyncio
+async def test_convert_with_markitdown_file_not_found():
+    """Test FileNotFoundError in _convert_with_markitdown (lines 106-108)."""
+    # Create a mock context
+    ctx = MockContext()
+    
+    # Create a valid file path that passes validation but fails in MarkItDown
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        # Make validation pass
+        mock_validate.return_value = None
+        
+        # Mock MarkItDown to raise FileNotFoundError
+        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_markitdown_class:
+            mock_markitdown = MagicMock()
+            mock_markitdown.convert.side_effect = FileNotFoundError("File not found in MarkItDown")
+            mock_markitdown_class.return_value = mock_markitdown
+            
+            # Call the function
+            response = await _convert_with_markitdown(ctx, "/test/document.docx", "Word document")
+            
+            # Verify the response
+            assert isinstance(response, DocumentReadResponse)
+            assert response.status == "error"
+            assert response.content == ""
+            assert "Could not find Word document" in response.error_message
+            print('✓ FileNotFoundError in _convert_with_markitdown covered')
+
+
+@pytest.mark.asyncio
+async def test_convert_with_markitdown_general_exception():
+    """Test general exception in _convert_with_markitdown (lines 114-116)."""
+    # Create a mock context
+    ctx = MockContext()
+    
+    # Create a valid file path that passes validation but fails in MarkItDown
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        # Make validation pass
+        mock_validate.return_value = None
+        
+        # Mock MarkItDown to raise a general exception
+        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_markitdown_class:
+            mock_markitdown = MagicMock()
+            mock_markitdown.convert.side_effect = Exception("General error in MarkItDown")
+            mock_markitdown_class.return_value = mock_markitdown
+            
+            # Call the function
+            response = await _convert_with_markitdown(ctx, "/test/document.docx", "Word document")
+            
+            # Verify the response
+            assert isinstance(response, DocumentReadResponse)
+            assert response.status == "error"
+            assert response.content == ""
+            assert "Error reading Word document" in response.error_message
+            assert "General error in MarkItDown" in response.error_message
+            print('✓ General exception in _convert_with_markitdown covered')
+
+
+@pytest.mark.asyncio
+async def test_read_pdf_content_file_not_found():
+    """Test FileNotFoundError in _read_pdf_content (lines 155-156)."""
+    # Create a mock context
+    ctx = MockContext()
+    
+    # Create a valid file path that passes validation but fails in pdfplumber
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        # Make validation pass
+        mock_validate.return_value = None
+        
+        # Mock pdfplumber to raise FileNotFoundError
+        with patch('awslabs.document_loader_mcp_server.server.pdfplumber.open') as mock_pdf_open:
+            mock_pdf_open.side_effect = FileNotFoundError("PDF file not found")
+            
+            # Call the function
+            response = await _read_pdf_content(ctx, "/test/document.pdf")
+            
+            # Verify the response
+            assert isinstance(response, DocumentReadResponse)
+            assert response.status == "error"
+            assert response.content == ""
+            assert "Could not find PDF file" in response.error_message
+            print('✓ FileNotFoundError in _read_pdf_content covered')
+
+
+@pytest.mark.asyncio
+async def test_read_image_exception():
+    """Test exception in read_image (lines 220-222)."""
+    # Create a valid file path that passes validation but fails in Image creation
+    with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
+        # Make validation pass
+        mock_validate.return_value = None
+        
+        # Mock Image to raise an exception
+        with patch('awslabs.document_loader_mcp_server.server.Image') as mock_image_class:
+            mock_image_class.side_effect = Exception("Error creating Image object")
+            
+            # Call the function through the MCP tool and expect a RuntimeError
+            with pytest.raises(RuntimeError) as excinfo:
+                await call_mcp_tool('read_image', "/test/image.png")
+            
+            # Verify the error message
+            assert "Error loading image" in str(excinfo.value)
+            assert "Error creating Image object" in str(excinfo.value)
+            print('✓ General exception in read_image covered')
+
+
 if __name__ == '__main__':
     asyncio.run(test_server())
     asyncio.run(test_mcp_tool_functions())
     asyncio.run(test_error_handling())
     asyncio.run(test_exception_handling())
+    asyncio.run(test_validate_file_path_resolve_exception())
+    asyncio.run(test_validate_file_path_general_exception())
+    asyncio.run(test_convert_with_markitdown_file_not_found())
+    asyncio.run(test_convert_with_markitdown_general_exception())
+    asyncio.run(test_read_pdf_content_file_not_found())
+    asyncio.run(test_read_image_exception())
