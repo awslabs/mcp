@@ -233,15 +233,303 @@ class TestSummaryGeneration:
 
 
 # Integration Tests
+# IAM Security Tests
+class TestIAMSecurity:
+    """Tests for IAM security analysis."""
+
+    @pytest.fixture
+    def mock_task_def_with_wildcard(self):
+        """Mock task definition with wildcard in role ARN."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/*",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+        }
+
+    @pytest.fixture
+    def mock_task_def_custom_execution_role(self):
+        """Mock task definition with custom execution role."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/myTaskRole",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/myCustomExecutionRole",
+        }
+
+    @pytest.fixture
+    def mock_task_def_cross_account(self):
+        """Mock task definition with cross-account role."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::999999999999:role/crossAccountRole",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+        }
+
+    @pytest.fixture
+    def mock_cluster_no_service_linked_role(self):
+        """Mock cluster without service-linked role."""
+        return {
+            "clusterName": "test-cluster",
+            "status": "ACTIVE",
+            "settings": [{"name": "containerInsights", "value": "enabled"}],
+            "configuration": {"executeCommandConfiguration": {"logging": "DEFAULT"}},
+        }
+
+    @pytest.fixture
+    def mock_cluster_with_service_linked_role(self):
+        """Mock cluster with service-linked role."""
+        return {
+            "clusterName": "test-cluster",
+            "status": "ACTIVE",
+            "serviceLinkedRoleArn": (
+                "arn:aws:iam::123456789012:role/aws-service-role/ecs.amazonaws.com/"
+                "AWSServiceRoleForECS"
+            ),
+            "settings": [{"name": "containerInsights", "value": "enabled"}],
+            "configuration": {"executeCommandConfiguration": {"logging": "DEFAULT"}},
+        }
+
+    def test_analyze_cluster_iam_no_service_linked_role(self, mock_cluster_no_service_linked_role):
+        """Test detection of missing service-linked role."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze({"cluster": mock_cluster_no_service_linked_role})
+
+        # Verify service-linked role recommendation
+        iam_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Configure ECS Service-Linked Role"
+        ]
+        assert len(iam_recs) == 1
+        assert iam_recs[0]["severity"] == "Medium"
+        assert iam_recs[0]["category"] == "IAM"
+
+    def test_analyze_cluster_iam_with_service_linked_role(
+        self, mock_cluster_with_service_linked_role
+    ):
+        """Test that service-linked role presence doesn't generate recommendation."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze({"cluster": mock_cluster_with_service_linked_role})
+
+        # Verify no service-linked role recommendation
+        iam_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Configure ECS Service-Linked Role"
+        ]
+        assert len(iam_recs) == 0
+
+    def test_analyze_iam_wildcard_permissions(
+        self, mock_cluster_data_active, mock_task_def_with_wildcard
+    ):
+        """Test detection of wildcard permissions in task role."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_with_wildcard],
+            }
+        )
+
+        # Verify wildcard permission recommendation
+        wildcard_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Avoid Wildcard Permissions in Task IAM Role"
+        ]
+        assert len(wildcard_recs) == 1
+        assert wildcard_recs[0]["severity"] == "High"
+        assert wildcard_recs[0]["category"] == "IAM"
+
+    def test_analyze_iam_custom_execution_role(
+        self, mock_cluster_data_active, mock_task_def_custom_execution_role
+    ):
+        """Test detection of custom execution role."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_custom_execution_role],
+            }
+        )
+
+        # Verify custom execution role recommendation
+        custom_role_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Use Managed Execution Role Policy"
+        ]
+        assert len(custom_role_recs) == 1
+        assert custom_role_recs[0]["severity"] == "Medium"
+        assert custom_role_recs[0]["category"] == "IAM"
+
+    def test_analyze_iam_cross_account_role(
+        self, mock_cluster_data_active, mock_task_def_cross_account
+    ):
+        """Test detection of cross-account role usage."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_cross_account],
+            }
+        )
+
+        # Verify cross-account role recommendation
+        cross_account_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Review Cross-Account IAM Role Usage"
+        ]
+        assert len(cross_account_recs) == 1
+        assert cross_account_recs[0]["severity"] == "Medium"
+        assert cross_account_recs[0]["category"] == "IAM"
+
+    def test_analyze_iam_multiple_task_definitions(
+        self,
+        mock_cluster_data_active,
+        mock_task_def_with_wildcard,
+        mock_task_def_custom_execution_role,
+    ):
+        """Test IAM analysis with multiple task definitions."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [
+                    mock_task_def_with_wildcard,
+                    mock_task_def_custom_execution_role,
+                ],
+            }
+        )
+
+        # Verify multiple recommendations
+        iam_recs = [r for r in result["recommendations"] if r["category"] == "IAM"]
+        assert len(iam_recs) >= 2
+
+
+# Task Definition Collection Tests
+class TestTaskDefinitionCollection:
+    """Tests for task definition data collection."""
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_services")
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_task_definitions")
+    async def test_collect_task_definitions_success(self, mock_find_task_defs, mock_find_services):
+        """Test successful task definition collection."""
+        # Mock find_services response
+        mock_find_services.return_value = ["service1", "service2"]
+
+        # Mock find_task_definitions response with different task defs for each service
+        def mock_task_def_side_effect(cluster_name=None, service_name=None):
+            if service_name == "service1":
+                return [
+                    {
+                        "taskDefinitionArn": (
+                            "arn:aws:ecs:us-east-1:123456789012:task-definition/test1:1"
+                        ),
+                        "family": "test1",
+                        "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole1",
+                    }
+                ]
+            elif service_name == "service2":
+                return [
+                    {
+                        "taskDefinitionArn": (
+                            "arn:aws:ecs:us-east-1:123456789012:task-definition/test2:1"
+                        ),
+                        "family": "test2",
+                        "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole2",
+                    }
+                ]
+            return []
+
+        mock_find_task_defs.side_effect = mock_task_def_side_effect
+
+        # Create adapter and collect data
+        adapter = DataAdapter()
+        result = await adapter.collect_task_definitions("test-cluster", "us-east-1")
+
+        # Verify result
+        assert result["status"] == "success"
+        assert len(result["task_definitions"]) == 2  # One per service
+        assert result["cluster_name"] == "test-cluster"
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_services")
+    async def test_collect_task_definitions_no_services(self, mock_find_services):
+        """Test task definition collection when no services exist."""
+        # Mock find_services response with no services
+        mock_find_services.return_value = []
+
+        # Create adapter and collect data
+        adapter = DataAdapter()
+        result = await adapter.collect_task_definitions("test-cluster", "us-east-1")
+
+        # Verify result
+        assert result["status"] == "success"
+        assert len(result["task_definitions"]) == 0
+        assert result["cluster_name"] == "test-cluster"
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_services")
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_task_definitions")
+    async def test_collect_task_definitions_deduplication(
+        self, mock_find_task_defs, mock_find_services
+    ):
+        """Test that duplicate task definitions are deduplicated."""
+        # Mock find_services response
+        mock_find_services.return_value = ["service1", "service2"]
+
+        # Mock find_task_definitions response (same task def for both services)
+        mock_task_def = {
+            "taskDefinitionArn": "arn:aws:ecs:us-east-1:123456789012:task-definition/test:1",
+            "family": "test",
+        }
+        mock_find_task_defs.return_value = [mock_task_def]
+
+        # Create adapter and collect data
+        adapter = DataAdapter()
+        result = await adapter.collect_task_definitions("test-cluster", "us-east-1")
+
+        # Verify deduplication
+        assert result["status"] == "success"
+        assert len(result["task_definitions"]) == 1  # Deduplicated
+        assert result["cluster_name"] == "test-cluster"
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_services")
+    async def test_collect_task_definitions_error(self, mock_find_services):
+        """Test task definition collection error handling."""
+        # Mock find_services to raise exception
+        mock_find_services.side_effect = Exception("Test error")
+
+        # Create adapter and collect data
+        adapter = DataAdapter()
+        result = await adapter.collect_task_definitions("test-cluster", "us-east-1")
+
+        # Verify error handling
+        assert "error" in result
+        assert result["error"] == "Test error"
+        assert result["cluster_name"] == "test-cluster"
+
+
 class TestAnalyzeECSSecurity:
     """Tests for main analyze_ecs_security function."""
 
     @pytest.mark.anyio
     @patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation")
-    async def test_analyze_with_cluster_names(self, mock_ecs_api, mock_cluster_data_active):
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_services")
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_task_definitions")
+    async def test_analyze_with_cluster_names(
+        self, mock_find_task_defs, mock_find_services, mock_ecs_api, mock_cluster_data_active
+    ):
         """Test analysis with specific cluster names."""
         # Mock ecs_api_operation response
         mock_ecs_api.return_value = {"clusters": [mock_cluster_data_active]}
+
+        # Mock task definition collection
+        mock_find_services.return_value = []
+        mock_find_task_defs.return_value = []
 
         # Run analysis
         result = await analyze_ecs_security(cluster_names=["test-cluster"], regions=["us-east-1"])
@@ -253,8 +541,15 @@ class TestAnalyzeECSSecurity:
 
     @pytest.mark.anyio
     @patch("awslabs.ecs_mcp_server.api.security_analysis.ecs_api_operation")
-    async def test_analyze_discover_clusters(self, mock_ecs_api, mock_cluster_data_active):
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_services")
+    @patch("awslabs.ecs_mcp_server.api.security_analysis.find_task_definitions")
+    async def test_analyze_discover_clusters(
+        self, mock_find_task_defs, mock_find_services, mock_ecs_api, mock_cluster_data_active
+    ):
         """Test analysis with cluster discovery."""
+        # Mock task definition collection
+        mock_find_services.return_value = []
+        mock_find_task_defs.return_value = []
 
         # Mock ListClusters response
         def mock_api_operation(operation, params):

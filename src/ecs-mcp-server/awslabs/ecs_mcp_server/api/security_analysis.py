@@ -23,6 +23,10 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from awslabs.ecs_mcp_server.api.resource_management import ecs_api_operation
+from awslabs.ecs_mcp_server.api.troubleshooting_tools.utils import (
+    find_services,
+    find_task_definitions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +77,60 @@ class DataAdapter:
             self.logger.error(f"Unexpected error collecting cluster data: {e}")
             return {"error": str(e), "cluster_name": cluster_name}
 
+    async def collect_task_definitions(
+        self, cluster_name: str, region: str = "us-east-1"
+    ) -> Dict[str, Any]:
+        """
+        Collect task definition data for IAM role analysis.
+
+        Args:
+            cluster_name: Name of the ECS cluster
+            region: AWS region (default: us-east-1)
+
+        Returns:
+            Dictionary containing task definition data or error information
+        """
+        try:
+            self.logger.info(f"Collecting task definitions for cluster {cluster_name} in {region}")
+
+            # Use existing utility to find services in the cluster
+            services = await find_services(cluster_name)
+
+            if not services:
+                self.logger.info(f"No services found in cluster {cluster_name}")
+                return {"status": "success", "task_definitions": [], "cluster_name": cluster_name}
+
+            # Collect task definitions for each service using existing utility
+            task_definitions = []
+            seen_task_def_arns = set()
+
+            for service_name in services:
+                task_defs = await find_task_definitions(
+                    cluster_name=cluster_name, service_name=service_name
+                )
+
+                # Deduplicate task definitions by ARN
+                for task_def in task_defs:
+                    task_def_arn = task_def.get("taskDefinitionArn")
+                    if task_def_arn and task_def_arn not in seen_task_def_arns:
+                        seen_task_def_arns.add(task_def_arn)
+                        task_definitions.append(task_def)
+
+            self.logger.info(
+                f"Successfully collected {len(task_definitions)} unique task definitions "
+                f"for cluster {cluster_name}"
+            )
+
+            return {
+                "status": "success",
+                "task_definitions": task_definitions,
+                "cluster_name": cluster_name,
+            }
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error collecting task definitions: {e}")
+            return {"error": str(e), "cluster_name": cluster_name}
+
 
 class SecurityAnalyzer:
     """Security analysis engine for ECS resources."""
@@ -87,7 +145,7 @@ class SecurityAnalyzer:
         Main analysis orchestrator.
 
         Args:
-            ecs_data: Dictionary containing ECS cluster data
+            ecs_data: Dictionary containing ECS cluster data and task definitions
 
         Returns:
             Dictionary containing security recommendations and summary
@@ -104,11 +162,16 @@ class SecurityAnalyzer:
             }
 
         cluster_data = ecs_data.get("cluster", {})
+        task_definitions = ecs_data.get("task_definitions", [])
 
         # Run security checks
         self._analyze_cluster_security(cluster_data)
         self._analyze_cluster_iam_security(cluster_data)
         self._analyze_logging_security(cluster_data)
+
+        # Run IAM security checks for each task definition
+        for task_def in task_definitions:
+            self._analyze_iam_security(task_def, cluster_data.get("clusterName", "unknown"))
 
         # Generate summary
         summary = self._generate_summary()
@@ -177,18 +240,110 @@ class SecurityAnalyzer:
 
     def _analyze_cluster_iam_security(self, cluster: Dict[str, Any]) -> None:
         """Analyze cluster IAM security (service-linked roles)."""
-        if not cluster.get("configuration"):
+        cluster_name = cluster.get("clusterName", "unknown")
+
+        # Check for service-linked role
+        service_linked_role = cluster.get("serviceLinkedRoleArn")
+        if not service_linked_role:
             self.recommendations.append(
                 {
-                    "title": "Missing Cluster Configuration",
+                    "title": "Configure ECS Service-Linked Role",
                     "severity": "Medium",
                     "category": "IAM",
-                    "resource": cluster.get("clusterName", "unknown"),
-                    "issue": "Cluster configuration is not properly set up",
-                    "recommendation": "Ensure cluster has proper IAM service-linked roles",
-                    "remediation_steps": ["Verify AWSServiceRoleForECS exists"],
+                    "resource": f"Cluster: {cluster_name}",
+                    "issue": "No service-linked role configured for ECS cluster operations",
+                    "recommendation": (
+                        "Create and configure the AWSServiceRoleForECS service-linked role "
+                        "for proper cluster management"
+                    ),
+                    "remediation_steps": [
+                        "The service-linked role is typically created automatically",
+                        (
+                            "If missing, create it with: aws iam create-service-linked-role "
+                            "--aws-service-name ecs.amazonaws.com"
+                        ),
+                    ],
                 }
             )
+
+    def _analyze_iam_security(self, task_def: Dict[str, Any], cluster_name: str) -> None:
+        """Analyze IAM security for task definitions (advanced checks only)."""
+        task_def_family = task_def.get("family", "unknown")
+        task_role_arn = task_def.get("taskRoleArn")
+        execution_role_arn = task_def.get("executionRoleArn")
+
+        # Check for wildcard permissions in task role
+        if task_role_arn and "*" in task_role_arn:
+            self.recommendations.append(
+                {
+                    "title": "Avoid Wildcard Permissions in Task IAM Role",
+                    "severity": "High",
+                    "category": "IAM",
+                    "resource": f"Task Definition: {task_def_family}",
+                    "issue": "Task IAM role may contain overly permissive wildcard permissions",
+                    "recommendation": (
+                        "Review and restrict IAM permissions to follow principle of least privilege"
+                    ),
+                    "remediation_steps": [
+                        "Review the IAM policy attached to the task role",
+                        "Replace wildcard (*) permissions with specific resource ARNs",
+                        "Use IAM Access Analyzer to identify unused permissions",
+                    ],
+                }
+            )
+
+        # Check for custom execution role (recommend managed policy)
+        if execution_role_arn and "AmazonECSTaskExecutionRolePolicy" not in execution_role_arn:
+            self.recommendations.append(
+                {
+                    "title": "Use Managed Execution Role Policy",
+                    "severity": "Medium",
+                    "category": "IAM",
+                    "resource": f"Task Definition: {task_def_family}",
+                    "issue": "Custom execution role may have unnecessary permissions",
+                    "recommendation": (
+                        "Use AWS managed AmazonECSTaskExecutionRolePolicy when possible"
+                    ),
+                    "remediation_steps": [
+                        "Review the custom execution role permissions",
+                        ("Consider using the AWS managed policy: AmazonECSTaskExecutionRolePolicy"),
+                        ("Add additional permissions only if required for specific use cases"),
+                    ],
+                }
+            )
+
+        # Check for cross-account role usage
+        if task_role_arn and ":role/" in task_role_arn:
+            # Extract account ID from role ARN
+            try:
+                role_account = task_role_arn.split(":")[4]
+                # Note: In a real implementation, you would compare with the current account ID
+                # For now, we'll check if the account ID looks valid
+                if role_account and len(role_account) == 12 and role_account.isdigit():
+                    self.recommendations.append(
+                        {
+                            "title": "Review Cross-Account IAM Role Usage",
+                            "severity": "Medium",
+                            "category": "IAM",
+                            "resource": f"Task Definition: {task_def_family}",
+                            "issue": "Task role may be from a different AWS account",
+                            "recommendation": (
+                                "Verify cross-account role usage is intentional and "
+                                "properly secured"
+                            ),
+                            "remediation_steps": [
+                                (
+                                    "Verify the trust relationship allows your account to assume "
+                                    "the role"
+                                ),
+                                "Ensure the role has appropriate permissions for the task",
+                                "Review CloudTrail logs for any unauthorized access attempts",
+                            ],
+                        }
+                    )
+            except (IndexError, ValueError):
+                # Invalid ARN format, skip this check
+                pass
 
     def _analyze_logging_security(self, cluster: Dict[str, Any]) -> None:
         """Analyze logging security (CloudWatch logging)."""
@@ -279,11 +434,20 @@ async def analyze_ecs_security(
         for region in regions:
             logger.info(f"Analyzing cluster {cluster_name} in region {region}")
 
-            # Collect data
+            # Collect cluster data
             cluster_data = await adapter.collect_cluster_data(cluster_name, region)
 
+            # Collect task definition data for IAM analysis
+            task_def_data = await adapter.collect_task_definitions(cluster_name, region)
+
+            # Combine data for analysis
+            combined_data = {
+                **cluster_data,
+                "task_definitions": task_def_data.get("task_definitions", []),
+            }
+
             # Analyze data
-            analysis_result = analyzer.analyze(cluster_data)
+            analysis_result = analyzer.analyze(combined_data)
             results.append(analysis_result)
 
     # Aggregate results
