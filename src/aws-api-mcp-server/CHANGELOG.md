@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Agent Script for creating Aurora DB with instances (#1401)
+- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
+
+## [1.0.0] - 2025-10-01
+
+### Changed
+
+- Replace local knowledge base with a remote endpoint for `suggest_aws_commands` (#1282)
+
+### Removed
+
+- `wait` and other polling AWS CLI commands(#1402)
+
+## [0.3.4] - 2025-09-30
+
+### Removed
+
+- Command output logging (#1388)
+
+### Fixed
+
+- Mark more operations as mutating (#1387)
+
+## [0.3.3] - 2025-09-30
+
+### Fixed
+
+- Mark sts:AssumeRole as mutating (#1364)
+
+## [0.3.1] - 2025-09-23
+
+### Added
+
+- Agent script for CloudTrail Multi-Region Setup (#1320)
+- Add telemetry for AWS CLI customizations (#1335)
+- Enforcement of `AUTH_TYPE=no-auth` for streamable-http mode (#1345)
+- Agent Script for troubleshooting permissions using CloudTrail events (#1313)
+
+## [0.3.0] - 2025-09-22
+
 ### Fixed
 
 - Loading of security policy from `~/.aws/aws-api-mcp/mcp-security-policy.json` (#1311)
