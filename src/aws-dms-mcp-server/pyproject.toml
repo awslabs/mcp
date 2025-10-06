@@ -1,0 +1,105 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "awslabs.aws-dms-mcp-server"
+version = "0.0.1"
+description = "AWS Database Migration Service MCP Server - Natural language access to AWS DMS operations"
+authors = [
+    {name = "AWS Labs", email = "aws-labs@amazon.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+keywords = ["aws", "dms", "database-migration", "mcp", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "fastmcp>=0.2.0",           # MCP framework with decorator-based tools
+    "mcp[cli]>=1.0.0",          # MCP SDK with CLI support
+    "boto3>=1.35.0",            # AWS SDK for Python
+    "pydantic>=2.9.0",          # Data validation and settings management
+    "pydantic-settings>=2.0.0", # Settings management with environment variables
+    "loguru>=0.7.0",            # Structured logging
+    "python-dotenv>=1.0.0",     # Environment configuration
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.14.0",
+    "moto[dms]>=5.0.0",         # AWS service mocking
+    "ruff>=0.6.0",              # Fast Python linter
+    "pyright>=1.1.0",           # Static type checker
+    "boto3-stubs[dms]>=1.35.0", # Type stubs for boto3 DMS
+]
+
+[project.scripts]
+aws-dms-mcp-server = "awslabs.aws_dms_mcp_server.server:main"
+
+[project.urls]
+Homepage = "https://github.com/awslabs/aws-dms-mcp-server"
+Documentation = "https://github.com/awslabs/aws-dms-mcp-server/blob/main/README.md"
+Repository = "https://github.com/awslabs/aws-dms-mcp-server"
+"Bug Tracker" = "https://github.com/awslabs/aws-dms-mcp-server/issues"
+
+[tool.hatchling.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=awslabs.aws_dms_mcp_server",
+    "--cov-report=html",
+    "--cov-report=term-missing",
+    "--cov-fail-under=90",
+    "-v"
+]
+asyncio_mode = "auto"
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "DTZ", "T10", "RUF"]
+ignore = ["E501"]  # Line length handled by formatter
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.coverage.run]
+source = ["awslabs"]
+omit = ["*/tests/*", "*/conftest.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
