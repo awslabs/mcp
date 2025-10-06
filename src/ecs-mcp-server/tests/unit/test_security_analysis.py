@@ -1490,3 +1490,387 @@ class TestImageSecurity:
             r for r in result["recommendations"] if r["title"] == "Enable ECR Image Scanning"
         ]
         assert len(scan_recs) == 1  # Only ECR image triggers recommendation
+
+
+# Secrets Security Tests
+class TestSecretsSecurityAnalysis:
+    """Tests for secrets management security analysis."""
+
+    @pytest.fixture
+    def mock_cluster_data_active(self):
+        """Mock cluster data with active status."""
+        return {
+            "clusterName": "test-cluster",
+            "status": "ACTIVE",
+            "settings": [{"name": "containerInsights", "value": "enabled"}],
+            "configuration": {"executeCommandConfiguration": {"logging": "DEFAULT"}},
+        }
+
+    @pytest.fixture
+    def mock_task_def_hardcoded_secret(self):
+        """Mock task definition with hardcoded secret in environment variable."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                    "environment": [
+                        {"name": "DB_PASSWORD", "value": "supersecret123"},
+                        {"name": "API_KEY", "value": "abc123xyz"},
+                        {"name": "APP_NAME", "value": "myapp"},
+                    ],
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_secrets_manager(self):
+        """Mock task definition using AWS Secrets Manager."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                    "secrets": [
+                        {
+                            "name": "DB_PASSWORD",
+                            "valueFrom": (
+                                "arn:aws:secretsmanager:us-east-1:123456789012:secret:"
+                                "db-password-abc123"
+                            ),
+                        }
+                    ],
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_parameter_store(self):
+        """Mock task definition using Systems Manager Parameter Store."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                    "secrets": [
+                        {
+                            "name": "API_KEY",
+                            "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/api-key",
+                        }
+                    ],
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_invalid_secret_source(self):
+        """Mock task definition with invalid secret source."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                    "secrets": [
+                        {
+                            "name": "SECRET_VALUE",
+                            "valueFrom": "some-invalid-source",
+                        }
+                    ],
+                }
+            ],
+        }
+
+    def test_hardcoded_secret_detection(
+        self, mock_cluster_data_active, mock_task_def_hardcoded_secret
+    ):
+        """Test detection of hardcoded secrets in environment variables."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_hardcoded_secret],
+            }
+        )
+
+        # Verify hardcoded secret recommendations
+        secret_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Potential Hardcoded Secret in Environment Variable"
+        ]
+        assert len(secret_recs) == 2  # DB_PASSWORD and API_KEY
+        assert all(rec["severity"] == "High" for rec in secret_recs)
+        assert all(rec["category"] == "Secrets" for rec in secret_recs)
+
+    def test_secrets_manager_usage(self, mock_cluster_data_active, mock_task_def_secrets_manager):
+        """Test that Secrets Manager usage doesn't generate recommendations."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_secrets_manager],
+            }
+        )
+
+        # Verify no secret-related recommendations for proper Secrets Manager usage
+        secret_recs = [r for r in result["recommendations"] if r["category"] == "Secrets"]
+        assert len(secret_recs) == 0
+
+    def test_parameter_store_usage(self, mock_cluster_data_active, mock_task_def_parameter_store):
+        """Test that Parameter Store usage doesn't generate recommendations."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_parameter_store],
+            }
+        )
+
+        # Verify no secret-related recommendations for proper Parameter Store usage
+        secret_recs = [r for r in result["recommendations"] if r["category"] == "Secrets"]
+        assert len(secret_recs) == 0
+
+    def test_invalid_secret_source(
+        self, mock_cluster_data_active, mock_task_def_invalid_secret_source
+    ):
+        """Test detection of invalid secret sources."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_invalid_secret_source],
+            }
+        )
+
+        # Verify recommendation for invalid secret source
+        invalid_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Use AWS Secrets Manager or Parameter Store"
+        ]
+        assert len(invalid_recs) == 1
+        assert invalid_recs[0]["severity"] == "Medium"
+        assert invalid_recs[0]["category"] == "Secrets"
+
+    def test_multiple_containers_secrets(self, mock_cluster_data_active):
+        """Test secrets analysis across multiple containers."""
+        task_def = {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "container1",
+                    "image": "nginx:1.19.6",
+                    "environment": [{"name": "PASSWORD", "value": "secret123"}],
+                },
+                {
+                    "name": "container2",
+                    "image": "redis:6.2",
+                    "secrets": [
+                        {
+                            "name": "REDIS_PASSWORD",
+                            "valueFrom": (
+                                "arn:aws:secretsmanager:us-east-1:123456789012:secret:redis-pwd"
+                            ),
+                        }
+                    ],
+                },
+            ],
+        }
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": [task_def]}
+        )
+
+        # Verify only container1 generates recommendation
+        secret_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Potential Hardcoded Secret in Environment Variable"
+        ]
+        assert len(secret_recs) == 1
+        assert "container1" in secret_recs[0]["resource"]
+
+
+# Network Security Tests
+class TestNetworkSecurityAnalysis:
+    """Tests for network security analysis."""
+
+    @pytest.fixture
+    def mock_cluster_data_active(self):
+        """Mock cluster data with active status."""
+        return {
+            "clusterName": "test-cluster",
+            "status": "ACTIVE",
+            "settings": [{"name": "containerInsights", "value": "enabled"}],
+            "configuration": {"executeCommandConfiguration": {"logging": "DEFAULT"}},
+        }
+
+    @pytest.fixture
+    def mock_task_def_awsvpc_mode(self):
+        """Mock task definition with awsvpc network mode."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "networkMode": "awsvpc",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_bridge_mode(self):
+        """Mock task definition with bridge network mode."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "networkMode": "bridge",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_host_mode(self):
+        """Mock task definition with host network mode."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "networkMode": "host",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_default_mode(self):
+        """Mock task definition with default (bridge) network mode."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.19.6",
+                }
+            ],
+        }
+
+    def test_awsvpc_network_mode(self, mock_cluster_data_active, mock_task_def_awsvpc_mode):
+        """Test that awsvpc mode doesn't generate network security recommendations."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_awsvpc_mode],
+            }
+        )
+
+        # Verify no network mode recommendations for awsvpc
+        network_recs = [
+            r for r in result["recommendations"] if r["title"] == "Review Network Mode Security"
+        ]
+        assert len(network_recs) == 0
+
+    def test_bridge_network_mode(self, mock_cluster_data_active, mock_task_def_bridge_mode):
+        """Test detection of bridge network mode security implications."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_bridge_mode],
+            }
+        )
+
+        # Verify network mode recommendation for bridge
+        network_recs = [
+            r for r in result["recommendations"] if r["title"] == "Review Network Mode Security"
+        ]
+        assert len(network_recs) == 1
+        assert network_recs[0]["severity"] == "Medium"
+        assert network_recs[0]["category"] == "Network"
+        assert "bridge" in network_recs[0]["issue"]
+
+    def test_host_network_mode(self, mock_cluster_data_active, mock_task_def_host_mode):
+        """Test detection of host network mode security implications."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_host_mode],
+            }
+        )
+
+        # Verify network mode recommendation for host
+        network_recs = [
+            r for r in result["recommendations"] if r["title"] == "Review Network Mode Security"
+        ]
+        assert len(network_recs) == 1
+        assert network_recs[0]["severity"] == "Medium"
+        assert network_recs[0]["category"] == "Network"
+        assert "host" in network_recs[0]["issue"]
+
+    def test_default_network_mode(self, mock_cluster_data_active, mock_task_def_default_mode):
+        """Test detection of default (bridge) network mode."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_default_mode],
+            }
+        )
+
+        # Verify network mode recommendation for default (bridge)
+        network_recs = [
+            r for r in result["recommendations"] if r["title"] == "Review Network Mode Security"
+        ]
+        assert len(network_recs) == 1
+        assert network_recs[0]["severity"] == "Medium"
+        assert network_recs[0]["category"] == "Network"
+
+    def test_multiple_task_definitions_network(self, mock_cluster_data_active):
+        """Test network security analysis across multiple task definitions."""
+        task_defs = [
+            {
+                "family": "task1",
+                "networkMode": "awsvpc",
+                "containerDefinitions": [{"name": "c1", "image": "nginx:1.19.6"}],
+            },
+            {
+                "family": "task2",
+                "networkMode": "bridge",
+                "containerDefinitions": [{"name": "c2", "image": "redis:6.2"}],
+            },
+            {
+                "family": "task3",
+                "networkMode": "host",
+                "containerDefinitions": [{"name": "c3", "image": "postgres:13"}],
+            },
+        ]
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": task_defs}
+        )
+
+        # Verify recommendations for bridge and host modes only
+        network_recs = [
+            r for r in result["recommendations"] if r["title"] == "Review Network Mode Security"
+        ]
+        assert len(network_recs) == 2  # bridge and host, not awsvpc

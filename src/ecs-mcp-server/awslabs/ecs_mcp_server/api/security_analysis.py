@@ -332,6 +332,12 @@ class SecurityAnalyzer:
             self._analyze_container_security(task_def, cluster_name)
             # Analyze container runtime security
             self._analyze_container_runtime_security(task_def, cluster_name)
+            # Analyze secrets security
+            self._analyze_secrets_security(task_def, cluster_name)
+
+        # Analyze network security for task definitions
+        for task_def in task_definitions:
+            self._analyze_network_security(task_def, cluster_name)
 
         # Generate summary
         summary = self._generate_summary()
@@ -1078,6 +1084,134 @@ class SecurityAnalyzer:
                         ],
                     }
                 )
+
+    def _analyze_secrets_security(self, task_def: Dict[str, Any], cluster_name: str) -> None:
+        """
+        Analyze secrets management security.
+
+        Args:
+            task_def: Task definition data
+            cluster_name: Name of the cluster
+        """
+        task_def_family = task_def.get("family", "unknown")
+
+        for container in task_def.get("containerDefinitions", []):
+            container_name = container.get("name", "unknown")
+            environment = container.get("environment", [])
+            secrets = container.get("secrets", [])
+
+            # Check for hardcoded secrets in environment variables
+            sensitive_patterns = [
+                r"(?i)(password|passwd|pwd)",
+                r"(?i)(secret|token|key)",
+                r"(?i)(api[_-]?key)",
+                r"(?i)(access[_-]?key)",
+            ]
+
+            for env_var in environment:
+                var_name = env_var.get("name", "")
+                var_value = env_var.get("value", "")
+
+                # Check if variable name suggests it contains sensitive data
+                for pattern in sensitive_patterns:
+                    if re.search(pattern, var_name) and var_value:
+                        self.recommendations.append(
+                            {
+                                "title": "Potential Hardcoded Secret in Environment Variable",
+                                "severity": "High",
+                                "category": "Secrets",
+                                "resource": f"Task: {task_def_family}, Container: {container_name}",
+                                "issue": (
+                                    f"Environment variable '{var_name}' may contain "
+                                    "hardcoded secret"
+                                ),
+                                "recommendation": (
+                                    "Use AWS Secrets Manager or Parameter Store for sensitive data"
+                                ),
+                                "remediation_steps": [
+                                    (
+                                        "Store secret in AWS Secrets Manager or Systems Manager "
+                                        "Parameter Store"
+                                    ),
+                                    (
+                                        "Reference secret using 'secrets' field instead of "
+                                        "'environment'"
+                                    ),
+                                    "Remove hardcoded value from task definition",
+                                ],
+                            }
+                        )
+                        break
+
+            # Validate secrets are using proper AWS services
+            for secret in secrets:
+                value_from = secret.get("valueFrom", "")
+
+                # Check if using Secrets Manager (recommended)
+                if "secretsmanager" not in value_from.lower() and "ssm" not in value_from.lower():
+                    self.recommendations.append(
+                        {
+                            "title": "Use AWS Secrets Manager or Parameter Store",
+                            "severity": "Medium",
+                            "category": "Secrets",
+                            "resource": f"Task: {task_def_family}, Container: {container_name}",
+                            "issue": (
+                                f"Secret reference '{value_from}' may not be using "
+                                "AWS managed services"
+                            ),
+                            "recommendation": (
+                                "Use AWS Secrets Manager or Systems Manager Parameter Store"
+                            ),
+                            "remediation_steps": [
+                                (
+                                    "Migrate secrets to AWS Secrets Manager (recommended) or "
+                                    "Parameter Store"
+                                ),
+                                "Update valueFrom to reference the AWS service ARN",
+                            ],
+                        }
+                    )
+
+    def _analyze_network_security(self, task_def: Dict[str, Any], cluster_name: str) -> None:
+        """
+        Analyze network security configuration.
+
+        Args:
+            task_def: Task definition data
+            cluster_name: Name of the cluster
+        """
+        task_def_family = task_def.get("family", "unknown")
+        network_mode = task_def.get("networkMode", "bridge")
+
+        # Check for public IP assignment (requires awsvpc mode)
+        if network_mode == "awsvpc":
+            # Note: Public IP assignment is configured at service level, not task definition
+            # This is a reminder to check service configuration
+            pass
+        else:
+            # Non-awsvpc modes have different security implications
+            if network_mode in ["host", "bridge"]:
+                self.recommendations.append(
+                    {
+                        "title": "Review Network Mode Security",
+                        "severity": "Medium",
+                        "category": "Network",
+                        "resource": f"Task: {task_def_family}",
+                        "issue": f"Network mode '{network_mode}' may have security implications",
+                        "recommendation": (
+                            "Consider using 'awsvpc' mode for better network isolation"
+                        ),
+                        "remediation_steps": [
+                            "Evaluate if awsvpc mode is appropriate for your use case",
+                            "awsvpc provides each task with its own ENI and security group",
+                            "Review AWS documentation on network modes",
+                        ],
+                    }
+                )
+
+        # Check for security group configuration (awsvpc mode only)
+        # Note: Security groups are configured at service level, not in task definition
+        # This check serves as a reminder to verify service-level security group configuration
 
     def _generate_summary(self) -> Dict[str, Any]:
         """Generate summary statistics for security analysis."""
