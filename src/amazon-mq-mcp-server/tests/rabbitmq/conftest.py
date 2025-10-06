@@ -11,8 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
 
-__version__ = '2.0.9'
+import pytest
+from unittest.mock import MagicMock
+
+
+@pytest.fixture
+def mock_rabbitmq_connection():
+    """Fixture for mocked RabbitMQ connection."""
+    mock_conn = MagicMock()
+    mock_channel = MagicMock()
+    mock_conn.get_channel.return_value = (mock_conn, mock_channel)
+    return mock_conn
+
+
+@pytest.fixture
+def mock_rabbitmq_admin():
+    """Fixture for mocked RabbitMQ admin."""
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_mcp_server():
+    """Fixture for mocked MCP server."""
+    return MagicMock()
