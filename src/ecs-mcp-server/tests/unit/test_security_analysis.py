@@ -733,6 +733,404 @@ class TestCapacityProviderCollection:
         assert "Unexpected error" in result["error"]
 
 
+# Container Security Tests
+class TestContainerSecurity:
+    """Tests for container security analysis."""
+
+    @pytest.fixture
+    def mock_cluster_data_active(self):
+        """Mock cluster data with active status."""
+        return {
+            "clusterName": "test-cluster",
+            "status": "ACTIVE",
+            "settings": [{"name": "containerInsights", "value": "enabled"}],
+            "configuration": {"executeCommandConfiguration": {"logging": "DEFAULT"}},
+        }
+
+    @pytest.fixture
+    def mock_task_def_privileged_container(self):
+        """Mock task definition with privileged container."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": True,
+                    "user": "1000",
+                    "readonlyRootFilesystem": True,
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_root_user(self):
+        """Mock task definition with root user."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": False,
+                    "user": "root",
+                    "readonlyRootFilesystem": True,
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_no_user(self):
+        """Mock task definition without user specified (defaults to root)."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": False,
+                    "readonlyRootFilesystem": True,
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_writable_filesystem(self):
+        """Mock task definition with writable root filesystem."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": False,
+                    "user": "1000",
+                    "readonlyRootFilesystem": False,
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_dangerous_capabilities(self):
+        """Mock task definition with dangerous Linux capabilities."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": False,
+                    "user": "1000",
+                    "readonlyRootFilesystem": True,
+                    "linuxParameters": {
+                        "capabilities": {"add": ["SYS_ADMIN", "NET_ADMIN", "NET_BIND_SERVICE"]}
+                    },
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_secure_container(self):
+        """Mock task definition with secure container configuration."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:1.21",
+                    "privileged": False,
+                    "user": "1000",
+                    "readonlyRootFilesystem": True,
+                    "linuxParameters": {"capabilities": {"add": ["NET_BIND_SERVICE"]}},
+                }
+            ],
+        }
+
+    def test_analyze_privileged_container(
+        self, mock_cluster_data_active, mock_task_def_privileged_container
+    ):
+        """Test detection of privileged container."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_privileged_container],
+            }
+        )
+
+        # Verify privileged container recommendation
+        privileged_recs = [
+            r for r in result["recommendations"] if r["title"] == "Privileged Container Detected"
+        ]
+        assert len(privileged_recs) == 1
+        assert privileged_recs[0]["severity"] == "Critical"
+        assert privileged_recs[0]["category"] == "Security"
+        assert "test-task" in privileged_recs[0]["resource"]
+
+    def test_analyze_root_user(self, mock_cluster_data_active, mock_task_def_root_user):
+        """Test detection of container running as root user."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_root_user],
+            }
+        )
+
+        # Verify root user recommendation
+        root_recs = [
+            r for r in result["recommendations"] if r["title"] == "Container Running as Root User"
+        ]
+        assert len(root_recs) == 1
+        assert root_recs[0]["severity"] == "High"
+        assert root_recs[0]["category"] == "Security"
+
+    def test_analyze_no_user_specified(self, mock_cluster_data_active, mock_task_def_no_user):
+        """Test detection of container without user specified (defaults to root)."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_no_user],
+            }
+        )
+
+        # Verify root user recommendation (no user = root)
+        root_recs = [
+            r for r in result["recommendations"] if r["title"] == "Container Running as Root User"
+        ]
+        assert len(root_recs) == 1
+        assert root_recs[0]["severity"] == "High"
+
+    def test_analyze_writable_filesystem(
+        self, mock_cluster_data_active, mock_task_def_writable_filesystem
+    ):
+        """Test detection of writable root filesystem."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_writable_filesystem],
+            }
+        )
+
+        # Verify writable filesystem recommendation
+        fs_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Read-Only Root Filesystem Not Enabled"
+        ]
+        assert len(fs_recs) == 1
+        assert fs_recs[0]["severity"] == "Medium"
+        assert fs_recs[0]["category"] == "Security"
+
+    def test_analyze_dangerous_capabilities(
+        self, mock_cluster_data_active, mock_task_def_dangerous_capabilities
+    ):
+        """Test detection of dangerous Linux capabilities."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_dangerous_capabilities],
+            }
+        )
+
+        # Verify dangerous capabilities recommendation
+        cap_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Dangerous Linux Capabilities Granted"
+        ]
+        assert len(cap_recs) == 1
+        assert cap_recs[0]["severity"] == "High"
+        assert cap_recs[0]["category"] == "Security"
+        assert "SYS_ADMIN" in cap_recs[0]["issue"]
+        assert "NET_ADMIN" in cap_recs[0]["issue"]
+
+    def test_analyze_secure_container(
+        self, mock_cluster_data_active, mock_task_def_secure_container
+    ):
+        """
+        Test that secure container configuration doesn't generate container security
+        recommendations.
+        """
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_secure_container],
+            }
+        )
+
+        # Verify no privileged container recommendation
+        privileged_recs = [
+            r for r in result["recommendations"] if r["title"] == "Privileged Container Detected"
+        ]
+        assert len(privileged_recs) == 0
+
+        # Verify no root user recommendation
+        root_recs = [
+            r for r in result["recommendations"] if r["title"] == "Container Running as Root User"
+        ]
+        assert len(root_recs) == 0
+
+        # Verify no writable filesystem recommendation
+        fs_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Read-Only Root Filesystem Not Enabled"
+        ]
+        assert len(fs_recs) == 0
+
+        # Verify no dangerous capabilities recommendation
+        cap_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Dangerous Linux Capabilities Granted"
+        ]
+        assert len(cap_recs) == 0
+
+
+# Container Runtime Security Tests
+class TestContainerRuntimeSecurity:
+    """Tests for container runtime security analysis."""
+
+    @pytest.fixture
+    def mock_cluster_data_active(self):
+        """Mock cluster data with active status."""
+        return {
+            "clusterName": "test-cluster",
+            "status": "ACTIVE",
+            "settings": [{"name": "containerInsights", "value": "enabled"}],
+            "configuration": {"executeCommandConfiguration": {"logging": "DEFAULT"}},
+        }
+
+    @pytest.fixture
+    def mock_task_def_no_init_process(self):
+        """Mock task definition without init process enabled."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": False,
+                    "user": "1000",
+                    "readonlyRootFilesystem": True,
+                    "linuxParameters": {"initProcessEnabled": False},
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_with_shared_memory(self):
+        """Mock task definition with shared memory configured."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": False,
+                    "user": "1000",
+                    "readonlyRootFilesystem": True,
+                    "linuxParameters": {"initProcessEnabled": True, "sharedMemorySize": 512},
+                }
+            ],
+        }
+
+    @pytest.fixture
+    def mock_task_def_secure_runtime(self):
+        """Mock task definition with secure runtime configuration."""
+        return {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/taskRole",
+            "containerDefinitions": [
+                {
+                    "name": "test-container",
+                    "image": "nginx:latest",
+                    "privileged": False,
+                    "user": "1000",
+                    "readonlyRootFilesystem": True,
+                    "linuxParameters": {"initProcessEnabled": True},
+                }
+            ],
+        }
+
+    def test_analyze_no_init_process(self, mock_cluster_data_active, mock_task_def_no_init_process):
+        """Test detection of missing init process."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_no_init_process],
+            }
+        )
+
+        # Verify init process recommendation
+        init_recs = [
+            r for r in result["recommendations"] if r["title"] == "Init Process Not Enabled"
+        ]
+        assert len(init_recs) == 1
+        assert init_recs[0]["severity"] == "Low"
+        assert init_recs[0]["category"] == "Security"
+
+    def test_analyze_shared_memory(
+        self, mock_cluster_data_active, mock_task_def_with_shared_memory
+    ):
+        """Test detection of shared memory configuration."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_with_shared_memory],
+            }
+        )
+
+        # Verify shared memory recommendation
+        mem_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Review Shared Memory Configuration"
+        ]
+        assert len(mem_recs) == 1
+        assert mem_recs[0]["severity"] == "Medium"
+        assert mem_recs[0]["category"] == "Security"
+
+    def test_analyze_secure_runtime(self, mock_cluster_data_active, mock_task_def_secure_runtime):
+        """Test that secure runtime configuration doesn't generate unnecessary recommendations."""
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {
+                "cluster": mock_cluster_data_active,
+                "task_definitions": [mock_task_def_secure_runtime],
+            }
+        )
+
+        # Verify no init process recommendation (it's enabled)
+        init_recs = [
+            r for r in result["recommendations"] if r["title"] == "Init Process Not Enabled"
+        ]
+        assert len(init_recs) == 0
+
+        # Verify no shared memory recommendation (not configured)
+        mem_recs = [
+            r
+            for r in result["recommendations"]
+            if r["title"] == "Review Shared Memory Configuration"
+        ]
+        assert len(mem_recs) == 0
+
+
 # Enhanced Cluster Security Tests
 class TestEnhancedClusterSecurity:
     """Tests for enhanced cluster security analysis."""

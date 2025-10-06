@@ -328,6 +328,10 @@ class SecurityAnalyzer:
             # Analyze image security for each container in the task definition
             for container in task_def.get("containerDefinitions", []):
                 self._analyze_image_security(container, task_def.get("family", "unknown"))
+            # Analyze container security configurations
+            self._analyze_container_security(task_def, cluster_name)
+            # Analyze container runtime security
+            self._analyze_container_runtime_security(task_def, cluster_name)
 
         # Generate summary
         summary = self._generate_summary()
@@ -913,6 +917,167 @@ class SecurityAnalyzer:
                     ],
                 }
             )
+
+    def _analyze_container_security(self, task_def: Dict[str, Any], cluster_name: str) -> None:
+        """
+        Analyze container security configurations.
+
+        Args:
+            task_def: Task definition data
+            cluster_name: Name of the cluster
+        """
+        task_def_family = task_def.get("family", "unknown")
+        containers = task_def.get("containerDefinitions", [])
+
+        for container in containers:
+            container_name = container.get("name", "unknown")
+
+            # Check for privileged mode
+            if container.get("privileged", False):
+                self.recommendations.append(
+                    {
+                        "title": "Privileged Container Detected",
+                        "severity": "Critical",
+                        "category": "Security",
+                        "resource": f"Task: {task_def_family}, Container: {container_name}",
+                        "issue": "Container is running in privileged mode",
+                        "recommendation": (
+                            "Disable privileged mode unless absolutely necessary for the workload"
+                        ),
+                        "remediation_steps": [
+                            "Remove 'privileged: true' from container definition",
+                            "Use specific capabilities instead of privileged mode",
+                            "Review security requirements and minimize permissions",
+                        ],
+                    }
+                )
+
+            # Check for root user
+            user = container.get("user")
+            if not user or user == "0" or user == "root":
+                self.recommendations.append(
+                    {
+                        "title": "Container Running as Root User",
+                        "severity": "High",
+                        "category": "Security",
+                        "resource": f"Task: {task_def_family}, Container: {container_name}",
+                        "issue": "Container is running as root user",
+                        "recommendation": (
+                            "Configure container to run as non-root user for better security"
+                        ),
+                        "remediation_steps": [
+                            "Add 'user' field with non-root UID (e.g., 'user: 1000')",
+                            "Update Dockerfile to create and use non-root user",
+                            "Test application with non-root permissions",
+                        ],
+                    }
+                )
+
+            # Check for read-only root filesystem
+            if not container.get("readonlyRootFilesystem", False):
+                self.recommendations.append(
+                    {
+                        "title": "Read-Only Root Filesystem Not Enabled",
+                        "severity": "Medium",
+                        "category": "Security",
+                        "resource": f"Task: {task_def_family}, Container: {container_name}",
+                        "issue": "Container root filesystem is writable",
+                        "recommendation": (
+                            "Enable read-only root filesystem to prevent runtime modifications"
+                        ),
+                        "remediation_steps": [
+                            "Set 'readonlyRootFilesystem: true' in container definition",
+                            "Use volume mounts for directories that need write access",
+                            "Test application with read-only filesystem",
+                        ],
+                    }
+                )
+
+            # Check for Linux capabilities
+            linux_params = container.get("linuxParameters", {})
+            capabilities_add = linux_params.get("capabilities", {}).get("add", [])
+            if capabilities_add:
+                # Flag dangerous capabilities
+                dangerous_caps = ["SYS_ADMIN", "NET_ADMIN", "SYS_PTRACE", "SYS_MODULE"]
+                found_dangerous = [cap for cap in capabilities_add if cap in dangerous_caps]
+                if found_dangerous:
+                    self.recommendations.append(
+                        {
+                            "title": "Dangerous Linux Capabilities Granted",
+                            "severity": "High",
+                            "category": "Security",
+                            "resource": f"Task: {task_def_family}, Container: {container_name}",
+                            "issue": (
+                                f"Container has dangerous capabilities: "
+                                f"{', '.join(found_dangerous)}"
+                            ),
+                            "recommendation": (
+                                "Remove dangerous capabilities unless absolutely required"
+                            ),
+                            "remediation_steps": [
+                                "Review if capabilities are truly needed",
+                                "Use least privilege principle",
+                                "Consider alternative approaches without elevated capabilities",
+                            ],
+                        }
+                    )
+
+    def _analyze_container_runtime_security(
+        self, task_def: Dict[str, Any], cluster_name: str
+    ) -> None:
+        """
+        Analyze container runtime security configurations.
+
+        Args:
+            task_def: Task definition data
+            cluster_name: Name of the cluster
+        """
+        task_def_family = task_def.get("family", "unknown")
+        containers = task_def.get("containerDefinitions", [])
+
+        for container in containers:
+            container_name = container.get("name", "unknown")
+            linux_params = container.get("linuxParameters", {})
+
+            # Check for init process
+            if not linux_params.get("initProcessEnabled", False):
+                self.recommendations.append(
+                    {
+                        "title": "Init Process Not Enabled",
+                        "severity": "Low",
+                        "category": "Security",
+                        "resource": f"Task: {task_def_family}, Container: {container_name}",
+                        "issue": "Init process is not enabled for proper signal handling",
+                        "recommendation": (
+                            "Enable init process to handle zombie processes and signals properly"
+                        ),
+                        "remediation_steps": [
+                            "Set 'initProcessEnabled: true' in linuxParameters",
+                            "Ensures proper cleanup of child processes",
+                        ],
+                    }
+                )
+
+            # Check for shared process namespace
+            if linux_params.get("sharedMemorySize"):
+                self.recommendations.append(
+                    {
+                        "title": "Review Shared Memory Configuration",
+                        "severity": "Medium",
+                        "category": "Security",
+                        "resource": f"Task: {task_def_family}, Container: {container_name}",
+                        "issue": "Shared memory is configured",
+                        "recommendation": (
+                            "Ensure shared memory size is appropriate and doesn't pose "
+                            "security risks"
+                        ),
+                        "remediation_steps": [
+                            "Review shared memory requirements",
+                            "Set minimum necessary size",
+                            "Monitor memory usage",
+                        ],
+                    }
+                )
 
     def _generate_summary(self) -> Dict[str, Any]:
         """Generate summary statistics for security analysis."""
