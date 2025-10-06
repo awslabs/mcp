@@ -1,0 +1,41 @@
+{
+  "{{ resourceKey }}AnomalyDetector": {
+    "Type": "AWS::CloudWatch::AnomalyDetector",
+    "Properties": {
+      "MetricName": "{{ metricName }}",
+      "Namespace": "{{ namespace }}",
+      "Stat": "{{ statistic }}",
+      "Dimensions": {{ dimensions | tojson }}
+    }
+  },
+  "{{ resourceKey }}": {
+    "Type": "AWS::CloudWatch::Alarm",
+    "Properties": {
+      "AlarmName": "{{ alarmName }}",
+      "AlarmDescription": "{{ alarmDescription }}",
+      "Metrics": [
+        {
+          "Expression": "ANOMALY_DETECTION_BAND(m1, {{ sensitivity }})",
+          "Id": "ad1"
+        },
+        {
+          "Id": "m1",
+          "MetricStat": {
+            "Metric": {
+              "MetricName": "{{ metricName }}",
+              "Namespace": "{{ namespace }}",
+              "Dimensions": {{ dimensions | tojson }}
+            },
+            "Stat": "{{ statistic }}",
+            "Period": {{ period }}
+          }
+        }
+      ],
+      "EvaluationPeriods": {{ evaluationPeriods }},
+      "DatapointsToAlarm": {{ datapointsToAlarm }},
+      "ThresholdMetricId": "ad1",
+      "ComparisonOperator": "{{ comparisonOperator }}",
+      "TreatMissingData": "{{ treatMissingData }}"
+    }
+  }
+}

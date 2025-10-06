@@ -1,10 +1,12 @@
 """Tests for analyze_metric tool."""
 
 import pytest
-from datetime import datetime
-from unittest.mock import Mock, patch, AsyncMock
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+    Dimension,
+)
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Dimension, GetMetricDataResponse, MetricDataResult
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class TestAnalyzeMetric:
@@ -32,14 +34,14 @@ class TestAnalyzeMetric:
             mock_cloudwatch.get_metric_data.return_value = {
                 'MetricDataResults': [{'Values': [], 'Timestamps': []}]
             }
-            
+
             result = await cloudwatch_metrics_tools.analyze_metric(
                 ctx,
                 namespace='AWS/EC2',
                 metric_name='CPUUtilization',
-                dimensions=[Dimension(name='InstanceId', value='i-test123')]
+                dimensions=[Dimension(name='InstanceId', value='i-test123')],
             )
-            
+
             assert result['recommendations_allowed'] is False
             assert result['data_points_found'] == 0
 
@@ -47,29 +49,26 @@ class TestAnalyzeMetric:
     async def test_analyze_metric_with_data(self, ctx, cloudwatch_metrics_tools):
         """Test analyze_metric with valid data."""
         from datetime import datetime
-        
+
         with patch.object(cloudwatch_metrics_tools, '_get_cloudwatch_client') as mock_client:
             mock_cloudwatch = Mock()
             mock_client.return_value = mock_cloudwatch
-            
+
             # Mock response with data
             mock_timestamps = [datetime(2023, 1, 1, i) for i in range(5)]
             mock_values = [10.0 + i for i in range(5)]
-            
+
             mock_cloudwatch.get_metric_data.return_value = {
-                'MetricDataResults': [{
-                    'Values': mock_values,
-                    'Timestamps': mock_timestamps
-                }]
+                'MetricDataResults': [{'Values': mock_values, 'Timestamps': mock_timestamps}]
             }
-            
+
             result = await cloudwatch_metrics_tools.analyze_metric(
                 ctx,
                 namespace='AWS/EC2',
                 metric_name='CPUUtilization',
-                dimensions=[Dimension(name='InstanceId', value='i-test123')]
+                dimensions=[Dimension(name='InstanceId', value='i-test123')],
             )
-            
+
             assert result['recommendations_allowed'] is False
             assert result['data_points_found'] == 5
             assert 'seasonality_seconds' in result
@@ -85,16 +84,13 @@ class TestAnalyzeMetric:
         with patch.object(cloudwatch_metrics_tools, '_get_cloudwatch_client') as mock_client:
             mock_cloudwatch = Mock()
             mock_client.return_value = mock_cloudwatch
-            mock_cloudwatch.get_metric_data.side_effect = Exception("AWS API Error")
-            
-            with pytest.raises(Exception, match="AWS API Error"):
+            mock_cloudwatch.get_metric_data.side_effect = Exception('AWS API Error')
+
+            with pytest.raises(Exception, match='AWS API Error'):
                 await cloudwatch_metrics_tools.analyze_metric(
-                    ctx,
-                    namespace='AWS/EC2',
-                    metric_name='CPUUtilization',
-                    dimensions=[]
+                    ctx, namespace='AWS/EC2', metric_name='CPUUtilization', dimensions=[]
                 )
-            
+
             assert ctx.error.call_count >= 1
 
     @pytest.mark.asyncio
@@ -106,15 +102,15 @@ class TestAnalyzeMetric:
             mock_cloudwatch.get_metric_data.return_value = {
                 'MetricDataResults': [{'Values': [], 'Timestamps': []}]
             }
-            
+
             result = await cloudwatch_metrics_tools.analyze_metric(
                 ctx,
                 namespace='AWS/EC2',
                 metric_name='CPUUtilization',
                 dimensions=[],
-                analysis_period_minutes=4 * 7 * 24 * 60  # 4 weeks in minutes
+                analysis_period_minutes=4 * 7 * 24 * 60,  # 4 weeks in minutes
             )
-            
+
             assert result['metric_info']['analysis_period_minutes'] == 4 * 7 * 24 * 60
 
     @pytest.mark.asyncio
@@ -123,46 +119,43 @@ class TestAnalyzeMetric:
         with patch.object(cloudwatch_metrics_tools, '_get_cloudwatch_client') as mock_client:
             mock_cloudwatch = Mock()
             mock_client.return_value = mock_cloudwatch
-            mock_cloudwatch.get_metric_data.return_value = {
-                'MetricDataResults': []
-            }
-            
+            mock_cloudwatch.get_metric_data.return_value = {'MetricDataResults': []}
+
             result = await cloudwatch_metrics_tools.analyze_metric(
-                ctx,
-                namespace='AWS/EC2',
-                metric_name='CPUUtilization',
-                dimensions=[]
+                ctx, namespace='AWS/EC2', metric_name='CPUUtilization', dimensions=[]
             )
-            
+
             assert result['data_points_found'] == 0
 
     @pytest.mark.asyncio
-    async def test_analyze_metric_mismatched_timestamps_values(self, cloudwatch_metrics_tools, ctx):
+    async def test_analyze_metric_mismatched_timestamps_values(
+        self, cloudwatch_metrics_tools, ctx
+    ):
         """Test analyze_metric with mismatched timestamps and values lengths."""
         with patch.object(cloudwatch_metrics_tools, '_get_cloudwatch_client') as mock_client:
             mock_cloudwatch = Mock()
             mock_client.return_value = mock_cloudwatch
-            
+
             # Mock mismatched lengths - CloudWatch should handle this gracefully
             mock_cloudwatch.get_metric_data.return_value = {
                 'MetricDataResults': [
                     {
                         'Id': 'm1',
                         'Label': 'CPUUtilization',
-                        'Timestamps': [datetime(2023, 1, 1, 12, 0), datetime(2023, 1, 1, 12, 5)],  # 2 timestamps
+                        'Timestamps': [
+                            datetime(2023, 1, 1, 12, 0),
+                            datetime(2023, 1, 1, 12, 5),
+                        ],  # 2 timestamps
                         'Values': [50.0, 60.0, 70.0],  # 3 values - mismatch!
-                        'StatusCode': 'Complete'
+                        'StatusCode': 'Complete',
                     }
                 ]
             }
-            
+
             result = await cloudwatch_metrics_tools.analyze_metric(
-                ctx,
-                namespace='AWS/EC2',
-                metric_name='CPUUtilization',
-                dimensions=[]
+                ctx, namespace='AWS/EC2', metric_name='CPUUtilization', dimensions=[]
             )
-            
+
             # Should handle gracefully - takes min(timestamps, values) = 2
             assert result['data_points_found'] == 2
             assert result['recommendations_allowed'] is False  # Too few points
@@ -173,7 +166,7 @@ class TestAnalyzeMetric:
         with patch.object(cloudwatch_metrics_tools, '_get_cloudwatch_client') as mock_client:
             mock_cloudwatch = Mock()
             mock_client.return_value = mock_cloudwatch
-            
+
             mock_cloudwatch.get_metric_data.return_value = {
                 'MetricDataResults': [
                     {
@@ -181,39 +174,33 @@ class TestAnalyzeMetric:
                         'Label': 'CPUUtilization',
                         'Timestamps': [datetime(2023, 1, 1, 12, 0), datetime(2023, 1, 1, 12, 5)],
                         'Values': [50.0, float('nan')],
-                        'StatusCode': 'Complete'
+                        'StatusCode': 'Complete',
                     }
                 ]
             }
-            
+
             result = await cloudwatch_metrics_tools.analyze_metric(
-                ctx,
-                namespace='AWS/EC2',
-                metric_name='CPUUtilization',
-                dimensions=[]
+                ctx, namespace='AWS/EC2', metric_name='CPUUtilization', dimensions=[]
             )
-            
+
             # Should handle NaN values gracefully - processes valid values
             assert result['data_points_found'] == 2
             assert result['recommendations_allowed'] is False  # Too few points
 
     @pytest.mark.asyncio
-    async def test_analyze_metric_get_metric_data_returns_empty(self, cloudwatch_metrics_tools, ctx):
+    async def test_analyze_metric_get_metric_data_returns_empty(
+        self, cloudwatch_metrics_tools, ctx
+    ):
         """Test analyze_metric when get_metric_data returns empty results."""
         with patch.object(cloudwatch_metrics_tools, '_get_cloudwatch_client') as mock_client:
             mock_cloudwatch = Mock()
             mock_client.return_value = mock_cloudwatch
-            
-            mock_cloudwatch.get_metric_data.return_value = {
-                'MetricDataResults': []
-            }
-            
+
+            mock_cloudwatch.get_metric_data.return_value = {'MetricDataResults': []}
+
             result = await cloudwatch_metrics_tools.analyze_metric(
-                ctx,
-                namespace='AWS/EC2',
-                metric_name='CPUUtilization',
-                dimensions=[]
+                ctx, namespace='AWS/EC2', metric_name='CPUUtilization', dimensions=[]
             )
-            
+
             # Should handle empty results gracefully
             assert result['data_points_found'] == 0

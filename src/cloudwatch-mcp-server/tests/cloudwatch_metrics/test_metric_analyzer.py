@@ -1,189 +1,443 @@
-"""Tests for MetricAnalyzer class."""
+"""Comprehensive tests for MetricAnalyzer class."""
 
+import math
 import numpy as np
 import pytest
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer import MetricAnalyzer
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import Seasonality
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Trend
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData, Seasonality, Trend
+from datetime import datetime
+from tests.cloudwatch_metrics.test_utils import (
+    create_timestamps_and_values,
+    linear_trend_pattern,
+    sine_wave_pattern,
+)
+from typing import List, Tuple
+from unittest.mock import MagicMock
 
 
 class TestMetricAnalyzer:
-    """Tests for MetricAnalyzer class."""
-    
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.analyzer = MetricAnalyzer()
+    """Comprehensive test suite for MetricAnalyzer functionality."""
 
-    def test_analyze_empty_data(self):
+    # Test constants
+    BASE_VALUE = 1000.0
+    AMPLITUDE = 500.0
+    DEFAULT_INTERVAL_MS = 1000  # 1 second
+    RANDOM_SEED = 42
+
+    @pytest.fixture
+    def analyzer(self):
+        """Create a MetricAnalyzer instance."""
+        return MetricAnalyzer()
+
+    # Test utilities
+    def create_timestamps_and_values(
+        self,
+        count: int,
+        interval_ms: int = DEFAULT_INTERVAL_MS,
+        pattern_func=None,
+        base_value: float = BASE_VALUE,
+        amplitude: float = AMPLITUDE,
+    ) -> Tuple[List[int], List[float]]:
+        """Create test data with specified pattern."""
+        base_time = int(datetime.utcnow().timestamp() * 1000)
+        timestamps = [base_time + i * interval_ms for i in range(count)]
+
+        if pattern_func:
+            values = [pattern_func(i, base_value, amplitude) for i in range(count)]
+        else:
+            values = [base_value] * count
+
+        return timestamps, values
+
+    def _analyze_with_metric_data(self, analyzer, timestamps, values, period_seconds=60):
+        """Helper method to analyze data using MetricData object."""
+        metric_data = MetricData(
+            period_seconds=period_seconds,
+            timestamps=timestamps,
+            values=values
+        )
+        return analyzer.analyze_metric_data(metric_data)
+
+    def sine_wave_pattern(
+        self, index: int, base_value: float, amplitude: float, period: int = 24
+    ) -> float:
+        """Generate sine wave pattern."""
+        return base_value + amplitude * math.sin(2 * math.pi * index / period)
+
+    def linear_trend_pattern(self, index: int, base_value: float, slope: float) -> float:
+        """Generate linear trend pattern."""
+        return base_value + slope * index
+
+    def create_mock_metric_response(self, timestamps: List[int], values: List[float]) -> MagicMock:
+        """Create mock CloudWatch metric response."""
+        datapoints = []
+        for timestamp_ms, value in zip(timestamps, values):
+            timestamp = datetime.fromtimestamp(timestamp_ms / 1000)
+            datapoint = MagicMock()
+            datapoint.timestamp = timestamp
+            datapoint.value = value
+            datapoints.append(datapoint)
+
+        metric_result = MagicMock()
+        metric_result.datapoints = datapoints
+
+        response = MagicMock()
+        response.metricDataResults = [metric_result]
+
+        return response
+
+    # Edge cases and error handling
+    def test_analyze_empty_data(self, analyzer):
         """Test comprehensive analysis with empty data."""
-        result = self.analyzer.analyze([], [])
-        
+        result = self._analyze_with_metric_data(analyzer, [], [])
+
         assert result['trend'] == Trend.NONE
-        assert result['seasonality_seconds'] == Seasonality.NONE
+        assert result['seasonality_seconds'] == 0  # NONE in seconds
         assert result['data_quality']['total_points'] is None
 
-    def test_analyze_mismatched_data(self):
+    def test_analyze_mismatched_data(self, analyzer):
         """Test comprehensive analysis with mismatched timestamp and value lengths."""
-        result = self.analyzer.analyze([1000, 2000], [10.0])
-        
+        # MetricData validation will catch this, so we expect an exception
+        with pytest.raises(ValueError):
+            self._analyze_with_metric_data(analyzer, [1000, 2000], [10.0])
+
+    def test_analyze_single_point(self, analyzer):
+        """Test comprehensive analysis with single data point."""
+        timestamps, values = create_timestamps_and_values(1)
+
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
         assert result['trend'] == Trend.NONE
-        assert result['seasonality_seconds'] == Seasonality.NONE
+        assert result['seasonality_seconds'] == 0  # NONE in seconds
         assert result['data_quality']['total_points'] is None
 
-    def test_analyze_insufficient_clean_data(self):
-        """Test comprehensive analysis with insufficient clean data after filtering."""
-        timestamps = [1000]
-        values = [10.0]
-        
-        result = self.analyzer.analyze(timestamps, values)
-        
-        assert result['trend'] == Trend.NONE
-        assert result['seasonality_seconds'] == Seasonality.NONE
-        assert result['data_quality']['total_points'] is None
-
-    def test_analyze_with_nan_values(self):
+    def test_analyze_with_nan_values(self, analyzer):
         """Test comprehensive analysis filters out NaN values."""
-        timestamps = [1000, 2000, 3000, 4000]
+        timestamps, _ = create_timestamps_and_values(4)
         values = [10.0, float('nan'), 12.0, float('inf')]
-        
-        result = self.analyzer.analyze(timestamps, values)
-        
-        # Should have filtered out NaN and inf values, leaving 2 clean points
-        assert result['data_quality']['total_points'] == 4
-        assert result['seasonality_seconds'] == Seasonality.NONE  # Not enough clean data
 
-    def test_compute_trend_insufficient_data(self):
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
+        assert result['data_quality']['total_points'] == 4
+        assert result['seasonality_seconds'] == 0  # NONE in seconds
+
+    # Trend computation tests
+    def test_compute_trend_insufficient_data(self, analyzer):
         """Test trend computation with insufficient data."""
-        result = self.analyzer._compute_trend([10.0])
-        
+        result = analyzer._compute_trend([self.BASE_VALUE])
+
         assert result == Trend.NONE
 
-    def test_compute_trend_valid_data(self):
-        """Test trend computation with valid data."""
-        values = [10.0, 12.0, 14.0, 16.0, 18.0]  # Clear upward trend
-        
-        result = self.analyzer._compute_trend(values)
-        
+    def test_compute_trend_positive(self, analyzer):
+        """Test trend computation with positive trend."""
+        values = [linear_trend_pattern(i, self.BASE_VALUE, 2.0) for i in range(5)]
+
+        result = analyzer._compute_trend(values)
+
         assert result == Trend.POSITIVE
 
-    def test_compute_trend_negative_data(self):
-        """Test trend computation with negative trend data."""
-        values = [18.0, 16.0, 14.0, 12.0, 10.0]  # Clear downward trend
-        
-        result = self.analyzer._compute_trend(values)
-        
+    def test_compute_trend_negative(self, analyzer):
+        """Test trend computation with negative trend."""
+        values = [linear_trend_pattern(i, self.BASE_VALUE, -2.0) for i in range(5)]
+
+        result = analyzer._compute_trend(values)
+
         assert result == Trend.NEGATIVE
 
-    def test_compute_publishing_period_insufficient_data(self):
+    def test_compute_trend_flat(self, analyzer):
+        """Test trend computation with flat data."""
+        values = [self.BASE_VALUE] * 5
+
+        result = analyzer._compute_trend(values)
+
+        assert result == Trend.NONE
+
+    def test_compute_trend_insignificant_slope(self, analyzer):
+        """Test trend computation with statistically insignificant slope."""
+        # Create data with noise that overwhelms any trend
+        np.random.seed(42)  # For reproducible results
+        base_values = [1000.0 + i * 0.01 for i in range(50)]  # Very small trend
+        noise = np.random.normal(0, 100, 50)  # Large noise
+        values = [base + n for base, n in zip(base_values, noise)]
+
+        result = analyzer._compute_trend(values)
+
+        # Should return NONE due to statistical insignificance (noise overwhelms trend)
+        assert result == Trend.NONE
+
+    def test_compute_trend_negative_significant(self, analyzer):
+        """Test trend computation with significant negative trend."""
+        values = [linear_trend_pattern(i, self.BASE_VALUE, -50.0) for i in range(20)]
+
+        result = analyzer._compute_trend(values)
+
+        assert result == Trend.NEGATIVE
+
+    # Publishing period and density tests
+    def test_compute_publishing_period_insufficient_data(self, analyzer):
         """Test publishing period computation with insufficient data."""
-        period = self.analyzer._compute_publishing_period([1000])
-        density_ratio = self.analyzer._compute_density_ratio([1000], period)
-        
+        timestamps, _ = create_timestamps_and_values(1)
+
+        period = analyzer._compute_publishing_period(timestamps)
+        density_ratio = analyzer._compute_density_ratio(timestamps, period)
+
         assert period is None
         assert density_ratio is None
 
-    def test_compute_publishing_period_regular_intervals(self):
+    def test_compute_publishing_period_regular_intervals(self, analyzer):
         """Test publishing period computation with regular intervals."""
-        timestamps = [1000, 2000, 3000, 4000, 5000]  # 1-second intervals
-        
-        period = self.analyzer._compute_publishing_period(timestamps)
-        density_ratio = self.analyzer._compute_density_ratio(timestamps, period)
-        
-        assert period == 1.0
-        assert density_ratio == 1.0  # Perfect density
+        timestamps, _ = create_timestamps_and_values(5, self.DEFAULT_INTERVAL_MS)
 
-    def test_compute_publishing_period_irregular_intervals(self):
+        period = analyzer._compute_publishing_period(timestamps)
+        density_ratio = analyzer._compute_density_ratio(timestamps, period)
+
+        assert period == 1.0
+        assert density_ratio == 1.0
+
+    def test_compute_publishing_period_irregular_intervals(self, analyzer):
         """Test publishing period computation with irregular intervals."""
-        timestamps = [1000, 2000, 4000, 5000, 6000]  # Mixed intervals
-        
-        period = self.analyzer._compute_publishing_period(timestamps)
-        density_ratio = self.analyzer._compute_density_ratio(timestamps, period)
-        
-        # Most common gap is 1000ms (appears 3 times out of 4) - 75% >= 50%
-        assert period == 1.0
+        base_time = int(datetime.utcnow().timestamp() * 1000)
+        timestamps = [
+            base_time,
+            base_time + 1000,
+            base_time + 3000,
+            base_time + 4000,
+            base_time + 5000,
+        ]
+
+        period = analyzer._compute_publishing_period(timestamps)
+        density_ratio = analyzer._compute_density_ratio(timestamps, period)
+
+        assert period == 1.0  # Most common gap
         assert density_ratio is not None
 
-    def test_compute_publishing_period_truly_irregular_intervals(self):
+    def test_compute_publishing_period_truly_irregular(self, analyzer):
         """Test publishing period computation with truly irregular intervals."""
-        timestamps = [1000, 3000, 7000, 12000]  # All different gaps
-        
-        period = self.analyzer._compute_publishing_period(timestamps)
-        density_ratio = self.analyzer._compute_density_ratio(timestamps, period)
-        
-        # Returns the most common gap even if irregular - gaps are 2000, 4000, 5000
-        # Most common is 2000ms (appears first), so period should be 2.0 seconds
-        assert period == 2.0
+        base_time = int(datetime.utcnow().timestamp() * 1000)
+        timestamps = [base_time, base_time + 2000, base_time + 6000, base_time + 11000]
+
+        period = analyzer._compute_publishing_period(timestamps)
+        density_ratio = analyzer._compute_density_ratio(timestamps, period)
+
+        assert period == 2.0  # First gap becomes most common
         assert density_ratio is not None
 
-    def test_compute_statistics_empty_data(self):
+    # Statistics computation tests
+    def test_compute_statistics_empty_data(self, analyzer):
         """Test statistics computation with empty data."""
-        result = self.analyzer._compute_statistics([])
-        
-        # Test all essential statistics are None for empty data
+        result = analyzer._compute_statistics([])
+
         assert result['min'] is None
         assert result['max'] is None
         assert result['std_deviation'] is None
         assert result['coefficient_of_variation'] is None
         assert result['median'] is None
 
-    def test_compute_statistics_valid_data(self):
+    def test_compute_statistics_valid_data(self, analyzer):
         """Test statistics computation with valid data."""
         values = [10.0, 12.0, 14.0, 16.0, 18.0]
-        
-        result = self.analyzer._compute_statistics(values)
-        
-        # Test the 5 essential statistics
+
+        result = analyzer._compute_statistics(values)
+
         assert result['min'] == 10.0
         assert result['max'] == 18.0
         assert result['std_deviation'] > 0
         assert result['coefficient_of_variation'] > 0
         assert result['median'] == 14.0
 
-    def test_compute_statistics_zero_mean(self):
-        """Test statistics computation with zero mean (edge case for CV)."""
-        values = [-5.0, 0.0, 5.0]  # Mean is 0
-        
-        result = self.analyzer._compute_statistics(values)
-        
-        assert result['coefficient_of_variation'] is None  # CV undefined for zero mean
+    def test_compute_statistics_zero_mean(self, analyzer):
+        """Test statistics computation with zero mean (CV edge case)."""
+        values = [-5.0, 0.0, 5.0]
+
+        result = analyzer._compute_statistics(values)
+
+        assert result['coefficient_of_variation'] is None
         assert result['std_deviation'] > 0
         assert result['min'] == -5.0
         assert result['max'] == 5.0
 
-    def test_analyze_with_seasonality(self):
-        """Test comprehensive analysis includes seasonality with realistic data."""
-        # Set random seed for deterministic tests
-        np.random.seed(42)
-        
-        # Data with potential seasonal pattern (more points for better detection)
-        timestamps = list(range(1000, 25000, 1000))  # 24 points
-        # Create data with some variation but not perfect seasonality
-        values = [10 + 2 * np.sin(i * 0.5) + np.random.normal(0, 0.1) for i in range(24)]
-        
-        result = self.analyzer.analyze(timestamps, values)
-        
-        # Verify all sections are present
+    def test_compute_statistics_constant_values(self, analyzer):
+        """Test statistics computation with constant values."""
+        values = [self.BASE_VALUE] * 5
+
+        result = analyzer._compute_statistics(values)
+
+        assert result['min'] == self.BASE_VALUE
+        assert result['max'] == self.BASE_VALUE
+        assert result['std_deviation'] == 0.0
+        assert result['coefficient_of_variation'] == 0.0
+        assert result['median'] == self.BASE_VALUE
+
+    # Integration tests
+    def test_analyze_with_seasonal_pattern(self, analyzer):
+        """Test comprehensive analysis with seasonal pattern."""
+        np.random.seed(self.RANDOM_SEED)
+
+        timestamps, _ = create_timestamps_and_values(24, self.DEFAULT_INTERVAL_MS)
+        values = [
+            sine_wave_pattern(i, self.BASE_VALUE, 100.0) + np.random.normal(0, 10.0)
+            for i in range(24)
+        ]
+
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
         assert 'seasonality_seconds' in result
         assert 'trend' in result
         assert 'data_quality' in result
         assert 'statistics' in result
-        
-        # Verify data quality includes density info
         assert 'density_ratio' in result['data_quality']
         assert 'publishing_period_seconds' in result['data_quality']
-        assert 'data_quality' in result
-        
-        # Verify seasonality is enum value - with fixed seed, should be deterministic
-        seasonality = result['seasonality_seconds']
-        assert seasonality == Seasonality.NONE  # Expected result with this data pattern
-        
-    def test_analyze_insufficient_seasonal_data(self):
+        assert isinstance(result['seasonality_seconds'], (int, float))
+
+    def test_analyze_with_trend_pattern(self, analyzer):
+        """Test comprehensive analysis with trend pattern."""
+        timestamps, _ = create_timestamps_and_values(10, self.DEFAULT_INTERVAL_MS)
+        values = [linear_trend_pattern(i, self.BASE_VALUE, 50.0) for i in range(10)]
+
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
+        assert result['trend'] == Trend.POSITIVE
+        assert result['statistics']['min'] < result['statistics']['max']
+        assert result['data_quality']['density_ratio'] == 1.0
+
+    def test_analyze_flat_data(self, analyzer):
+        """Test comprehensive analysis with flat data."""
+        timestamps, values = create_timestamps_and_values(10, self.DEFAULT_INTERVAL_MS)
+
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
+        assert result['trend'] == Trend.NONE
+        assert result['seasonality_seconds'] == 0  # NONE in seconds
+        assert result['statistics']['std_deviation'] == 0.0
+        assert result['statistics']['coefficient_of_variation'] == 0.0
+
+    def test_analyze_insufficient_seasonal_data(self, analyzer):
         """Test seasonality detection with insufficient data."""
-        timestamps = [1000, 2000, 3000, 4000, 5000]
-        values = [10.0, 12.0, 14.0, 16.0, 18.0]
-        
-        result = self.analyzer.analyze(timestamps, values)
-        
-        # Should still have seasonality section but with insufficient data indication
+        timestamps, values = create_timestamps_and_values(5, self.DEFAULT_INTERVAL_MS)
+
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
+        assert result['seasonality_seconds'] == 0  # NONE in seconds
+        assert result['data_quality']['total_points'] == 5
+
+    # Integration with CloudWatch response
+    def test_analyze_direct(self, analyzer):
+        """Test analyze method directly with raw data."""
+        timestamps = [1000, 2000, 3000, 4000]
+        values = [10.0, 20.0, 30.0, 40.0]
+
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
+        assert result['data_points_found'] == 4
         assert 'seasonality_seconds' in result
-        assert result['seasonality_seconds'] == Seasonality.NONE
+        assert 'trend' in result
+
+    def test_compute_trend_exception_handling(self, analyzer):
+        """Test trend computation handles exceptions gracefully."""
+        # Create data that will cause statsmodels to fail
+        values = [float('inf'), float('nan'), 1.0]
+
+        result = analyzer._compute_trend(values)
+
+        assert result == Trend.NONE
+
+    def test_compute_seasonality_exception_handling(self, analyzer):
+        """Test seasonality computation handles exceptions gracefully."""
+        timestamps, values = create_timestamps_and_values(5)
+
+        # Force an exception by passing invalid parameters
+        result = analyzer._compute_seasonality(timestamps, values, None, None)
+
+        assert result == Seasonality.NONE
+
+    def test_compute_publishing_period_exception_handling(self, analyzer):
+        """Test publishing period computation handles exceptions gracefully."""
+        # Empty list will cause exception in gap calculation
+        result = analyzer._compute_publishing_period([])
+
+        assert result is None
+
+    def test_compute_density_ratio_exception_handling(self, analyzer):
+        """Test density ratio computation handles exceptions gracefully."""
+        timestamps, _ = create_timestamps_and_values(5)
+
+        # Pass None period to trigger exception
+        result = analyzer._compute_density_ratio(timestamps, None)
+
+        assert result is None
+
+    def test_compute_statistics_exception_handling(self, analyzer):
+        """Test statistics computation handles exceptions gracefully."""
+        # Pass invalid data that will cause numpy to fail
+        values = []
+
+        result = analyzer._compute_statistics(values)
+
+        # Should return dict with None values for all stats
+        assert all(v is None for v in result.values())
+
+    def test_compute_density_ratio_exception_handling_sum_error(self, analyzer):
+        """Test density ratio computation with sum exception."""
+        from unittest.mock import patch
+        import pytest
+
+        timestamps_ms = [1000, 2000, 3000]
+
+        # Patch the sum function to raise an exception
+        with patch('builtins.sum', side_effect=Exception('Sum error')):
+            with pytest.raises(Exception, match='Sum error'):
+                analyzer._compute_density_ratio(timestamps_ms, 1.0)
+
+    def test_compute_publishing_period_exception_handling_counter_error(self, analyzer):
+        """Test publishing period computation with Counter exception."""
+        from unittest.mock import patch
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer.Counter'
+        ) as mock_counter:
+            mock_counter.side_effect = Exception('Counter error')
+
+            result = analyzer._compute_publishing_period([1000, 2000, 3000])
+            assert result is None
+
+    def test_compute_seasonality_exception_handling_detector_error(self, analyzer):
+        """Test seasonality computation with detector exception."""
+        from unittest.mock import patch
+        import pytest
+
+        # Mock the seasonal detector to raise an exception
+        with patch.object(
+            analyzer.seasonal_detector,
+            'detect_seasonality',
+            side_effect=Exception('Seasonality error'),
+        ):
+            with pytest.raises(Exception, match='Seasonality error'):
+                analyzer._compute_seasonality([1000, 2000, 3000], [1.0, 2.0, 3.0], 0.8, 60.0)
+
+    def test_compute_trend_exception_handling_ols_error(self, analyzer):
+        """Test trend computation with OLS exception."""
+        from unittest.mock import patch
+        import pytest
+
+        # Mock statsmodels OLS to raise an exception
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer.OLS'
+        ) as mock_ols:
+            mock_ols.side_effect = Exception('OLS error')
+
+            with pytest.raises(Exception, match='OLS error'):
+                analyzer._compute_trend([1.0, 2.0, 3.0])
+
+    def test_compute_statistics_exception_handling_numpy_error(self, analyzer):
+        """Test statistics computation with numpy exception."""
+        from unittest.mock import patch
+        import pytest
+
+        # Mock numpy to raise an exception
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer.np.array'
+        ) as mock_array:
+            mock_array.side_effect = Exception('Numpy error')
+
+            with pytest.raises(Exception, match='Numpy error'):
+                analyzer._compute_statistics([1.0, 2.0, 3.0])

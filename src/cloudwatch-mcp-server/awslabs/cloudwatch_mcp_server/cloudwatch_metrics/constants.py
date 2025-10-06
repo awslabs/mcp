@@ -14,17 +14,28 @@
 
 # CloudWatch MCP Server Constants
 
-# Analysis period constants
-DEFAULT_ANALYSIS_PERIOD_HOURS = 2 * 7 * 24  # 2 weeks in hours
+# Time constants
+SECONDS_PER_MINUTE = 60
 MINUTES_PER_HOUR = 60
+HOURS_PER_DAY = 24
+DAYS_PER_WEEK = 7
+
+# Analysis period constants
+DEFAULT_ANALYSIS_WEEKS = 2
+DEFAULT_ANALYSIS_PERIOD = (
+    MINUTES_PER_HOUR * HOURS_PER_DAY * DEFAULT_ANALYSIS_WEEKS * DAYS_PER_WEEK
+)  # 2 weeks in minutes
 
 # Threshold constants
 DEFAULT_SENSITIVITY = 2.0
-ANOMALY_DETECTION_TYPE = "anomaly_detection"
-STATIC_TYPE = "static"
+ANOMALY_DETECTION_TYPE = 'anomaly_detection'
+STATIC_TYPE = 'static'
+COMPARISON_OPERATOR_ANOMALY = 'LessThanLowerOrGreaterThanUpperThreshold'
+TREAT_MISSING_DATA_BREACHING = 'breaching'
 
 # Seasonality constants
-SEASONALITY_STRENGTH_THRESHOLD = 0.6 # See https://robjhyndman.com/hyndsight/tsoutliers/
+SEASONALITY_STRENGTH_THRESHOLD = 0.6  # See https://robjhyndman.com/hyndsight/tsoutliers/
+ROUNDING_THRESHOLD = 0.1
 
 # Numerical stability
 NUMERICAL_STABILITY_THRESHOLD = 1e-10

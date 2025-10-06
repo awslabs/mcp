@@ -17,11 +17,12 @@ import os
 import pytest
 import pytest_asyncio
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+    AnomalyDetectionThreshold,
     Dimension,
     GetMetricDataResponse,
+    StaticThreshold,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import Seasonality
 from datetime import datetime
 from moto import mock_aws
 from typing import Any
@@ -538,14 +539,15 @@ class TestGetMetricData:
             dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
         )
 
-        # Should return a list
-        assert isinstance(result, list)
+        # Should return an AlarmRecommendationResult
+        assert hasattr(result, 'recommendations')
+        assert hasattr(result, 'message')
 
         # If recommendations are found, verify structure
-        if result:
+        if result.recommendations:
             from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import AlarmRecommendation
 
-            for alarm in result:
+            for alarm in result.recommendations:
                 assert isinstance(alarm, AlarmRecommendation)
                 assert hasattr(alarm, 'alarmDescription')
                 assert hasattr(alarm, 'threshold')
@@ -557,8 +559,10 @@ class TestGetMetricData:
             ctx, namespace='NonExistent/Namespace', metric_name='NonExistentMetric', dimensions=[]
         )
 
-        # Should return empty list for non-existent metrics
-        assert result == []
+        # Should return empty recommendations with message for non-existent metrics
+        assert len(result.recommendations) == 0
+        assert result.message is not None
+        assert 'No alarm recommendations available' in result.message
 
     async def test_get_recommended_metric_alarms_dimension_matching(
         self, ctx, cloudwatch_metrics_tools
@@ -577,98 +581,131 @@ class TestGetMetricData:
             ],
         )
 
-        # Verify it returns a list
-        assert isinstance(result, list)
-        assert len(result) == 0  # Should have no recommendations for unknown metric
+        # Verify it returns an AlarmRecommendationResult
+        assert hasattr(result, 'recommendations')
+        assert hasattr(result, 'message')
 
-    async def test_get_recommended_metric_alarms_multiple_recommendations(self, ctx, cloudwatch_metrics_tools):
-        """Test that the function can handle and return multiple alarm recommendations."""
-        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Dimension, AlarmRecommendation
-        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.threshold import create_threshold
-        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import STATIC_TYPE, ANOMALY_DETECTION_TYPE
-        
-        # Create a list with multiple recommendations to test the return structure
-        test_recommendations = [
-            AlarmRecommendation(
-                alarmName="CPUUtilizationHigh",
-                alarmDescription="Static threshold alarm for CPU",
-                metricName="CPUUtilization",
-                namespace="AWS/EC2",
-                statistic="Average",
-                dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
-                threshold=create_threshold({"type": STATIC_TYPE, "value": 80.0}),
-                comparisonOperator="GreaterThanThreshold",
-                evaluationPeriods=2,
-                period=300,
-                treatMissingData="breaching"
-            ),
-            AlarmRecommendation(
-                alarmName="CPUUtilizationAnomaly",
-                alarmDescription="Anomaly detection alarm for CPU",
-                metricName="CPUUtilization",
-                namespace="AWS/EC2",
-                statistic="Average",
-                dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
-                threshold=create_threshold({"type": ANOMALY_DETECTION_TYPE, "sensitivity": 2}),
-                comparisonOperator="LessThanLowerOrGreaterThanUpperThreshold",
-                evaluationPeriods=2,
-                period=300,
-                treatMissingData="breaching"
-            )
-        ]
-        
-        # Test that our function can handle multiple recommendations by mocking the internal logic
-        with patch.object(cloudwatch_metrics_tools, 'get_recommended_metric_alarms', return_value=test_recommendations):
-            result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
-                ctx,
-                namespace='AWS/EC2',
-                metric_name='CPUUtilization',
-                dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')]
-            )
-            
-            # Verify we can return multiple recommendations
-            assert isinstance(result, list)
-            assert len(result) == 2
-            assert result[0].alarmName == "CPUUtilizationHigh"
-            assert result[1].alarmName == "CPUUtilizationAnomaly"
-            
-            # Verify both have different threshold types
-            assert result[0].threshold.type == STATIC_TYPE
-            assert result[1].threshold.type == ANOMALY_DETECTION_TYPE
+        # Verify the expected ElastiCache CPUUtilization alarm recommendation is present
+        if result.recommendations:
+            # Find the matching alarm recommendation
+            cpu_alarm = None
+            for alarm in result.recommendations:
+                if (
+                    alarm.alarmDescription.startswith(
+                        'This alarm helps to monitor the CPU utilization'
+                    )
+                    and alarm.statistic == 'Average'
+                    and alarm.period == 60
+                    and alarm.comparisonOperator == 'GreaterThanThreshold'
+                    and alarm.evaluationPeriods == 5
+                    and alarm.datapointsToAlarm == 5
+                    and alarm.treatMissingData == 'missing'
+                ):
+                    cpu_alarm = alarm
+                    break
 
-    async def test_get_recommended_metric_alarms_cli_format(self, ctx, cloudwatch_metrics_tools):
-        """Test getting alarm recommendations in CLI format only."""
-        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Dimension
-        
-        with patch.object(cloudwatch_metrics_tools, 'analyze_metric') as mock_analyze:
-            mock_analyze.return_value = {
-                'seasonality_seconds': Seasonality.ONE_DAY,  # Changed to enum
-                'trend': {'trend_direction': 'positive'},
-                'statistics': {'mean': 30.0, 'std_deviation': 5.0},
-                'data_quality': {'quality_score': 0.8}
-            }
-            
-            result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
-                ctx,
-                namespace='AWS/Lambda',
-                metric_name='Duration',
-                dimensions=[Dimension(name='FunctionName', value='my-function')],
-                output_format='cli'
-            )
-            
-            assert len(result) == 1  # Should generate exactly one anomaly detection alarm
-            assert result[0].cli_commands is not None
-            # CloudFormation should be None for CLI-only format
-            assert result[0].cloudformation_template is None
-            
-            # Verify the generated anomaly detection alarm
-            alarm = result[0]
-            assert 'DurationAnomalyDetector' in alarm.alarmName
-            assert 'Anomaly detection alarm' in alarm.alarmDescription
-            assert alarm.metricName == 'Duration'
-            assert alarm.namespace == 'AWS/Lambda'
+            # Assert we found the alarm
+            assert cpu_alarm is not None, 'Expected ElastiCache CPU alarm recommendation not found'
 
             # Verify alarm dimensions
-            dim_names = [dim.name for dim in alarm.dimensions]
-            assert 'FunctionName' in dim_names
-            assert len(alarm.dimensions) == 1
+            dim_names = [dim.name for dim in cpu_alarm.dimensions]
+            assert 'CacheClusterId' in dim_names
+            assert 'CacheNodeId' in dim_names
+            assert len(cpu_alarm.dimensions) == 2
+
+            # Verify alarm intent
+            assert 'detect high CPU utilization of ElastiCache hosts' in cpu_alarm.intent
+
+    async def test_get_recommended_metric_alarms_anomaly_detection_based_on_seasonality(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test that anomaly detection is selected when seasonality is detected."""
+        with patch.object(cloudwatch_metrics_tools, '_lookup_metadata') as mock_lookup:
+            mock_lookup.return_value = None  # No metadata found, force anomaly detection path
+
+            with patch.object(cloudwatch_metrics_tools, 'analyze_metric') as mock_analyze:
+                mock_analyze.return_value = {
+                    'seasonality_seconds': 86400,  # ONE_DAY in seconds
+                    'trend': {'trend_direction': 'stable'},
+                    'statistics': {'mean': 50.0, 'std_deviation': 10.0},
+                    'data_quality': {'quality_score': 0.9},
+                }
+
+                result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+                    ctx,
+                    namespace='AWS/EC2',
+                    metric_name='CPUUtilization',
+                    dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                )
+
+                assert len(result.recommendations) == 1
+                assert 'Anomaly detection' in result.recommendations[0].alarmDescription
+                assert isinstance(result.recommendations[0].threshold, AnomalyDetectionThreshold)
+
+    async def test_get_recommended_metric_alarms_metadata_takes_precedence(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test that metadata recommendations take precedence over generated ones."""
+        with patch.object(cloudwatch_metrics_tools, '_lookup_metadata') as mock_lookup:
+            mock_lookup.return_value = {
+                'alarmRecommendations': [
+                    {
+                        'alarmName': 'CPUUtilizationHigh',
+                        'alarmDescription': 'CPU utilization is high',
+                        'metricName': 'CPUUtilization',
+                        'namespace': 'AWS/EC2',
+                        'statistic': 'Average',
+                        'threshold': {'type': 'static', 'value': 80.0},
+                        'comparisonOperator': 'GreaterThanThreshold',
+                        'evaluationPeriods': 2,
+                        'period': 300,
+                        'treatMissingData': 'breaching',
+                        'dimensions': [{'name': 'InstanceId', 'value': 'i-1234567890abcdef0'}],
+                    }
+                ]
+            }
+
+            with patch.object(cloudwatch_metrics_tools, 'analyze_metric') as mock_analyze:
+                mock_analyze.return_value = {
+                    'seasonality_seconds': 86400,  # ONE_DAY in seconds - would normally trigger anomaly detection
+                    'trend': {'trend_direction': 'stable'},
+                    'statistics': {'mean': 50.0, 'std_deviation': 10.0},
+                    'data_quality': {'quality_score': 0.9},
+                }
+
+                result = await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+                    ctx,
+                    namespace='AWS/EC2',
+                    metric_name='CPUUtilization',
+                    dimensions=[Dimension(name='InstanceId', value='i-1234567890abcdef0')],
+                )
+
+                assert len(result.recommendations) == 1
+                assert result.recommendations[0].alarmDescription == 'CPU utilization is high'
+                assert isinstance(
+                    result.recommendations[0].threshold, StaticThreshold
+                )  # Metadata overrides seasonality-based generation
+
+            # Verify alarm dimensions
+            dim_names = [dim.name for dim in result.recommendations[0].dimensions]
+            assert 'InstanceId' in dim_names
+            assert len(result.recommendations[0].dimensions) == 1
+
+    async def test_get_recommended_metric_alarms_runtime_error(
+        self, ctx, cloudwatch_metrics_tools
+    ):
+        """Test RuntimeError handling in get_recommended_metric_alarms."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Dimension
+
+        with patch.object(
+            cloudwatch_metrics_tools,
+            'analyze_metric',
+            side_effect=RuntimeError('Test runtime error'),
+        ):
+            with pytest.raises(RuntimeError, match='Test runtime error'):
+                await cloudwatch_metrics_tools.get_recommended_metric_alarms(
+                    ctx,
+                    namespace='NonExistent/Namespace',
+                    metric_name='NonExistentMetric',
+                    dimensions=[Dimension(name='TestDim', value='test-value')],
+                )

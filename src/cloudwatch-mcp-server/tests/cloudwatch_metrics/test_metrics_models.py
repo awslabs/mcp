@@ -23,11 +23,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
-)
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.threshold import (
-    create_threshold,
-    STATIC_TYPE,
-    ANOMALY_DETECTION_TYPE
+    StaticThreshold,
 )
 from datetime import datetime
 from pydantic import ValidationError
@@ -261,31 +257,6 @@ class TestDimensionValidation:
             Dimension()  # type: ignore[call-arg] # Missing name and value
 
 
-class TestAlarmRecommendationThreshold:
-
-    def test_static_threshold_creation(self):
-        threshold = create_threshold({
-            "type": STATIC_TYPE,
-            "value": 80.0,
-            "justification": "CPU usage limit"
-        })
-
-        assert threshold.type == STATIC_TYPE
-        assert threshold.value == 80.0
-        assert threshold.justification == "CPU usage limit"
-
-    def test_anomaly_threshold_creation(self):
-        threshold = create_threshold({
-            "type": ANOMALY_DETECTION_TYPE,
-            "sensitivity": 3,
-            "justification": "Seasonal pattern detected"
-        })
-
-        assert threshold.type == ANOMALY_DETECTION_TYPE
-        assert threshold.sensitivity == 3
-        assert threshold.justification == "Seasonal pattern detected"
-
-
 class TestAlarmRecommendationDimension:
     """Tests for TestAlarmRecommendationDimension model."""
 
@@ -308,15 +279,12 @@ class TestAlarmRecommendation:
     """Tests for AlarmRecommendation model."""
 
     def test_alarm_recommendation_creation(self):
-        threshold = create_threshold({
-            "type": STATIC_TYPE,
-            "value": 80.0,
-            "justification": "Test justification"
-        })
+        """Test creating an alarm recommendation."""
+        threshold = StaticThreshold(staticValue=80.0, justification='Test justification')
 
         dimensions = [
-            Dimension(name='InstanceId', value='i-1234567890abcdef0'),
-            Dimension(name='Role', value='WRITER'),
+            AlarmRecommendationDimension(name='InstanceId', value='i-1234567890abcdef0'),
+            AlarmRecommendationDimension(name='Role', value='WRITER'),
         ]
 
         alarm = AlarmRecommendation(
@@ -330,10 +298,11 @@ class TestAlarmRecommendation:
             treatMissingData='missing',
             dimensions=dimensions,
             intent='Test alarm intent',
+            cloudformation_template={'test': 'template'},
         )
 
         assert alarm.alarmDescription == 'Test alarm description'
-        assert alarm.threshold.value == 80.0
+        assert alarm.threshold.staticValue == 80.0
         assert alarm.period == 300
         assert alarm.comparisonOperator == 'GreaterThanThreshold'
         assert alarm.statistic == 'Average'
@@ -344,11 +313,8 @@ class TestAlarmRecommendation:
         assert alarm.intent == 'Test alarm intent'
 
     def test_alarm_recommendation_with_minimal_fields(self):
-        threshold = create_threshold({
-            "type": STATIC_TYPE,
-            "value": 1.0,
-            "justification": "Test"
-        })
+        """Test creating an alarm recommendation with minimal fields."""
+        threshold = StaticThreshold(staticValue=1.0, justification='Test')
 
         alarm = AlarmRecommendation(
             alarmDescription='Minimal alarm',
@@ -360,7 +326,38 @@ class TestAlarmRecommendation:
             datapointsToAlarm=1,
             treatMissingData='missing',
             intent='Minimal test',
+            cloudformation_template={},
         )
 
         assert alarm.alarmDescription == 'Minimal alarm'
         assert len(alarm.dimensions) == 0  # Default empty list
+
+
+class TestMetricData:
+    """Tests for the MetricData model."""
+
+    def test_metric_data_valid(self):
+        """Test MetricData with valid data."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
+        data = MetricData(
+            period_seconds=60, timestamps=[1000, 2000, 3000], values=[10.0, 20.0, 30.0]
+        )
+
+        assert data.period_seconds == 60
+        assert len(data.timestamps) == 3
+        assert len(data.values) == 3
+
+    def test_metric_data_mismatched_lengths(self):
+        """Test MetricData with mismatched timestamp/value lengths."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
+        with pytest.raises(ValueError, match='Timestamps and values must have the same length'):
+            MetricData(period_seconds=60, timestamps=[1000, 2000], values=[10.0, 20.0, 30.0])
+
+    def test_metric_data_invalid_period(self):
+        """Test MetricData with invalid period."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
+        with pytest.raises(ValueError, match='Timeseries must have a period >= 0'):
+            MetricData(period_seconds=0, timestamps=[1000], values=[10.0])

@@ -55,13 +55,13 @@ version = "0.0.10"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
+    { name = "jinja2" },
     { name = "loguru" },
     { name = "mcp", extra = ["cli"] },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas" },
     { name = "pydantic" },
-    { name = "pyyaml" },
     { name = "statsmodels" },
 ]
 
@@ -81,12 +81,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.38.22" },
+    { name = "jinja2", specifier = ">=3.0.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.11.0" },
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pydantic", specifier = ">=2.10.6" },
-    { name = "pyyaml", specifier = ">=6.0" },
     { name = "statsmodels", specifier = ">=0.14.0" },
 ]
 
