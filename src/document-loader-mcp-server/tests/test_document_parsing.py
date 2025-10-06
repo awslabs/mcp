@@ -21,8 +21,15 @@ import openpyxl
 # Import required libraries for testing
 import pdfplumber
 import pytest
+
+# Import server components for testing
+from awslabs.document_loader_mcp_server.server import (
+    DocumentReadResponse,
+    _convert_with_markitdown,
+    validate_file_path,
+)
 from docx import Document
-from markitdown import MarkItDown
+from fastmcp.utilities.types import Image
 from openpyxl.styles import Font, PatternFill
 from pathlib import Path
 from pptx import Presentation
@@ -32,38 +39,28 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
-# Import server components for testing
-from awslabs.document_loader_mcp_server.server import (
-    _convert_with_markitdown, validate_file_path, DocumentReadResponse
-)
-from fastmcp.server.context import Context
-from fastmcp.utilities.types import Image
-import pdfplumber
-
 
 class MockContext:
     """Mock Context for testing purposes."""
+
     def report_error(self, message: str, exception: Exception = None):
         """Mock error reporting."""
-        print(f"Mock Context Error: {message}")
+        print(f'Mock Context Error: {message}')
         if exception:
-            print(f"Exception: {exception}")
+            print(f'Exception: {exception}')
 
 
 async def _read_pdf_helper(file_path: str) -> DocumentReadResponse:
     """Helper function to test PDF reading functionality using the actual server logic."""
     ctx = MockContext()
-    
+
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
     if validation_error:
         return DocumentReadResponse(
-            status="error",
-            content="",
-            file_path=file_path,
-            error_message=validation_error
+            status='error', content='', file_path=file_path, error_message=validation_error
         )
-    
+
     try:
         text_content = ''
 
@@ -76,29 +73,20 @@ async def _read_pdf_helper(file_path: str) -> DocumentReadResponse:
                     text_content += page_text
 
         return DocumentReadResponse(
-            status="success",
-            content=text_content.strip(),
-            file_path=file_path,
-            error_message=None
+            status='success', content=text_content.strip(), file_path=file_path, error_message=None
         )
 
     except FileNotFoundError as e:
         error_msg = f'Could not find PDF file at {file_path}'
         ctx.report_error(error_msg, e)
         return DocumentReadResponse(
-            status="error",
-            content="",
-            file_path=file_path,
-            error_message=error_msg
+            status='error', content='', file_path=file_path, error_message=error_msg
         )
     except Exception as e:
         error_msg = f'Error reading PDF file {file_path}: {str(e)}'
         ctx.report_error(error_msg, e)
         return DocumentReadResponse(
-            status="error",
-            content="",
-            file_path=file_path,
-            error_message=error_msg
+            status='error', content='', file_path=file_path, error_message=error_msg
         )
 
 
@@ -123,13 +111,13 @@ async def _read_pptx_helper(file_path: str) -> DocumentReadResponse:
 async def _read_image_helper(file_path: str) -> Image:
     """Helper function to test image reading functionality using the actual server logic."""
     ctx = MockContext()
-    
+
     # Validate file path for security
     validation_error = validate_file_path(ctx, file_path)
     if validation_error:
         ctx.report_error(validation_error, ValueError(validation_error))
         raise ValueError(validation_error)
-    
+
     try:
         # Create and return Image object using FastMCP's Image helper
         return Image(path=file_path)
@@ -608,9 +596,9 @@ async def test_security_validation():
     print('✓ File not found validation passed')
 
     # Test unsupported file extension
-    import tempfile
     import os
-    
+    import tempfile
+
     with tempfile.NamedTemporaryFile(suffix='.unsupported', delete=False) as temp_file:
         temp_file.write(b'test content')
         temp_file_path = temp_file.name
@@ -646,13 +634,13 @@ async def test_security_validation():
 async def test_file_size_validation():
     """Test file size validation functionality."""
     print('Testing file size validation...')
-    
+
     # Create a file that exceeds the size limit (50MB)
     # For testing, we'll create a smaller file and mock the size check
-    import tempfile
     import os
-    from unittest.mock import patch, MagicMock
-    
+    import tempfile
+    from unittest.mock import MagicMock, patch
+
     with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
         temp_file.write(b'test content')
         temp_file_path = temp_file.name
@@ -669,7 +657,7 @@ async def test_file_size_validation():
             mock_path.suffix.lower.return_value = '.pdf'
             mock_path.resolve.return_value = mock_path
             mock_path_class.return_value = mock_path
-            
+
             response = await _read_pdf_helper(temp_file_path)
             assert response.status == 'error'
             assert 'File too large' in response.error_message
