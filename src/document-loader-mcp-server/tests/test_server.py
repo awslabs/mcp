@@ -15,14 +15,16 @@
 
 import asyncio
 import pytest
-from unittest.mock import patch, MagicMock
-from tests.test_document_parsing import DocumentTestGenerator, MockContext
-from fastmcp.utilities.types import Image
-
 from awslabs.document_loader_mcp_server.server import (
-    mcp, DocumentReadResponse, validate_file_path, _convert_with_markitdown, 
-    _read_pdf_content, read_image
+    DocumentReadResponse,
+    _convert_with_markitdown,
+    _read_pdf_content,
+    mcp,
+    validate_file_path,
 )
+from fastmcp.utilities.types import Image
+from tests.test_document_parsing import DocumentTestGenerator, MockContext
+from unittest.mock import MagicMock, patch
 
 
 @pytest.mark.asyncio
@@ -78,7 +80,7 @@ async def call_mcp_tool(tool_name: str, file_path: str, file_type: str = None):
     if hasattr(tool, 'fn') and callable(getattr(tool, 'fn')):
         fn = getattr(tool, 'fn')
         ctx = MockContext()
-        
+
         # Handle different tool signatures
         if tool_name == 'read_document' and file_type:
             return await fn(ctx, file_path, file_type)
@@ -116,7 +118,9 @@ async def test_mcp_tool_functions():
     print('✓ read_document (DOCX) tool working')
 
     # Test DOC document using consolidated read_document tool
-    doc_path = generator.generate_sample_docx()  # Use same generator, just test different file_type
+    doc_path = (
+        generator.generate_sample_docx()
+    )  # Use same generator, just test different file_type
     doc_result = await call_mcp_tool('read_document', doc_path, 'doc')
     assert isinstance(doc_result, DocumentReadResponse)
     assert doc_result.status == 'success'
@@ -132,7 +136,9 @@ async def test_mcp_tool_functions():
     print('✓ read_document (XLSX) tool working')
 
     # Test XLS document using consolidated read_document tool
-    xls_path = generator.generate_sample_xlsx()  # Use same generator, just test different file_type
+    xls_path = (
+        generator.generate_sample_xlsx()
+    )  # Use same generator, just test different file_type
     xls_result = await call_mcp_tool('read_document', xls_path, 'xls')
     assert isinstance(xls_result, DocumentReadResponse)
     assert xls_result.status == 'success'
@@ -148,7 +154,9 @@ async def test_mcp_tool_functions():
     print('✓ read_document (PPTX) tool working')
 
     # Test PPT document using consolidated read_document tool
-    ppt_path = generator.generate_sample_pptx()  # Use same generator, just test different file_type
+    ppt_path = (
+        generator.generate_sample_pptx()
+    )  # Use same generator, just test different file_type
     ppt_result = await call_mcp_tool('read_document', ppt_path, 'ppt')
     assert isinstance(ppt_result, DocumentReadResponse)
     assert ppt_result.status == 'success'
@@ -219,7 +227,7 @@ async def test_error_handling():
     assert ppt_result.status == 'error'
     assert 'File not found' in ppt_result.error_message
     print('✓ read_document (PPT) error handling working')
-    
+
     # Test unsupported file type error handling
     unsupported_result = await call_mcp_tool('read_document', non_existent_file, 'txt')
     assert isinstance(unsupported_result, DocumentReadResponse)
@@ -315,7 +323,7 @@ async def test_validate_file_path_resolve_exception():
     """Test path.resolve exception in validate_file_path (lines 72-73)."""
     # Create a mock context
     ctx = MockContext()
-    
+
     # Create a mock path that raises an exception when resolve is called
     with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
         mock_path = MagicMock()
@@ -324,15 +332,15 @@ async def test_validate_file_path_resolve_exception():
         mock_path.stat.return_value.st_size = 1000  # Small file
         mock_path.suffix.lower.return_value = '.pdf'
         # Make resolve raise an OSError
-        mock_path.resolve.side_effect = OSError("Path resolution error")
+        mock_path.resolve.side_effect = OSError('Path resolution error')
         mock_path_class.return_value = mock_path
-        
+
         # Call the function
-        error = validate_file_path(ctx, "/test/path.pdf")
-        
+        error = validate_file_path(ctx, '/test/path.pdf')
+
         # Verify the error message
         assert error is not None
-        assert "Invalid file path" in error
+        assert 'Invalid file path' in error
         print('✓ OSError in path resolution covered')
 
     # Test with RuntimeError
@@ -343,15 +351,15 @@ async def test_validate_file_path_resolve_exception():
         mock_path.stat.return_value.st_size = 1000  # Small file
         mock_path.suffix.lower.return_value = '.pdf'
         # Make resolve raise a RuntimeError
-        mock_path.resolve.side_effect = RuntimeError("Runtime error in path resolution")
+        mock_path.resolve.side_effect = RuntimeError('Runtime error in path resolution')
         mock_path_class.return_value = mock_path
-        
+
         # Call the function
-        error = validate_file_path(ctx, "/test/path.pdf")
-        
+        error = validate_file_path(ctx, '/test/path.pdf')
+
         # Verify the error message
         assert error is not None
-        assert "Invalid file path" in error
+        assert 'Invalid file path' in error
         print('✓ RuntimeError in path resolution covered')
 
 
@@ -360,19 +368,19 @@ async def test_validate_file_path_general_exception():
     """Test general exception in validate_file_path (lines 77-78)."""
     # Create a mock context
     ctx = MockContext()
-    
+
     # Test with a general exception in Path constructor
     with patch('awslabs.document_loader_mcp_server.server.Path') as mock_path_class:
         # Make Path constructor raise an exception
-        mock_path_class.side_effect = Exception("General exception in Path")
-        
+        mock_path_class.side_effect = Exception('General exception in Path')
+
         # Call the function
-        error = validate_file_path(ctx, "/test/path.pdf")
-        
+        error = validate_file_path(ctx, '/test/path.pdf')
+
         # Verify the error message
         assert error is not None
-        assert "Error validating file path" in error
-        assert "General exception in Path" in error
+        assert 'Error validating file path' in error
+        assert 'General exception in Path' in error
         print('✓ General exception in validate_file_path covered')
 
 
@@ -381,26 +389,28 @@ async def test_convert_with_markitdown_file_not_found():
     """Test FileNotFoundError in _convert_with_markitdown (lines 106-108)."""
     # Create a mock context
     ctx = MockContext()
-    
+
     # Create a valid file path that passes validation but fails in MarkItDown
     with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
         # Make validation pass
         mock_validate.return_value = None
-        
+
         # Mock MarkItDown to raise FileNotFoundError
-        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_markitdown_class:
+        with patch(
+            'awslabs.document_loader_mcp_server.server.MarkItDown'
+        ) as mock_markitdown_class:
             mock_markitdown = MagicMock()
-            mock_markitdown.convert.side_effect = FileNotFoundError("File not found in MarkItDown")
+            mock_markitdown.convert.side_effect = FileNotFoundError('File not found in MarkItDown')
             mock_markitdown_class.return_value = mock_markitdown
-            
+
             # Call the function
-            response = await _convert_with_markitdown(ctx, "/test/document.docx", "Word document")
-            
+            response = await _convert_with_markitdown(ctx, '/test/document.docx', 'Word document')
+
             # Verify the response
             assert isinstance(response, DocumentReadResponse)
-            assert response.status == "error"
-            assert response.content == ""
-            assert "Could not find Word document" in response.error_message
+            assert response.status == 'error'
+            assert response.content == ''
+            assert 'Could not find Word document' in response.error_message
             print('✓ FileNotFoundError in _convert_with_markitdown covered')
 
 
@@ -409,27 +419,29 @@ async def test_convert_with_markitdown_general_exception():
     """Test general exception in _convert_with_markitdown (lines 114-116)."""
     # Create a mock context
     ctx = MockContext()
-    
+
     # Create a valid file path that passes validation but fails in MarkItDown
     with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
         # Make validation pass
         mock_validate.return_value = None
-        
+
         # Mock MarkItDown to raise a general exception
-        with patch('awslabs.document_loader_mcp_server.server.MarkItDown') as mock_markitdown_class:
+        with patch(
+            'awslabs.document_loader_mcp_server.server.MarkItDown'
+        ) as mock_markitdown_class:
             mock_markitdown = MagicMock()
-            mock_markitdown.convert.side_effect = Exception("General error in MarkItDown")
+            mock_markitdown.convert.side_effect = Exception('General error in MarkItDown')
             mock_markitdown_class.return_value = mock_markitdown
-            
+
             # Call the function
-            response = await _convert_with_markitdown(ctx, "/test/document.docx", "Word document")
-            
+            response = await _convert_with_markitdown(ctx, '/test/document.docx', 'Word document')
+
             # Verify the response
             assert isinstance(response, DocumentReadResponse)
-            assert response.status == "error"
-            assert response.content == ""
-            assert "Error reading Word document" in response.error_message
-            assert "General error in MarkItDown" in response.error_message
+            assert response.status == 'error'
+            assert response.content == ''
+            assert 'Error reading Word document' in response.error_message
+            assert 'General error in MarkItDown' in response.error_message
             print('✓ General exception in _convert_with_markitdown covered')
 
 
@@ -438,24 +450,24 @@ async def test_read_pdf_content_file_not_found():
     """Test FileNotFoundError in _read_pdf_content (lines 155-156)."""
     # Create a mock context
     ctx = MockContext()
-    
+
     # Create a valid file path that passes validation but fails in pdfplumber
     with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
         # Make validation pass
         mock_validate.return_value = None
-        
+
         # Mock pdfplumber to raise FileNotFoundError
         with patch('awslabs.document_loader_mcp_server.server.pdfplumber.open') as mock_pdf_open:
-            mock_pdf_open.side_effect = FileNotFoundError("PDF file not found")
-            
+            mock_pdf_open.side_effect = FileNotFoundError('PDF file not found')
+
             # Call the function
-            response = await _read_pdf_content(ctx, "/test/document.pdf")
-            
+            response = await _read_pdf_content(ctx, '/test/document.pdf')
+
             # Verify the response
             assert isinstance(response, DocumentReadResponse)
-            assert response.status == "error"
-            assert response.content == ""
-            assert "Could not find PDF file" in response.error_message
+            assert response.status == 'error'
+            assert response.content == ''
+            assert 'Could not find PDF file' in response.error_message
             print('✓ FileNotFoundError in _read_pdf_content covered')
 
 
@@ -466,18 +478,18 @@ async def test_read_image_exception():
     with patch('awslabs.document_loader_mcp_server.server.validate_file_path') as mock_validate:
         # Make validation pass
         mock_validate.return_value = None
-        
+
         # Mock Image to raise an exception
         with patch('awslabs.document_loader_mcp_server.server.Image') as mock_image_class:
-            mock_image_class.side_effect = Exception("Error creating Image object")
-            
+            mock_image_class.side_effect = Exception('Error creating Image object')
+
             # Call the function through the MCP tool and expect a RuntimeError
             with pytest.raises(RuntimeError) as excinfo:
-                await call_mcp_tool('read_image', "/test/image.png")
-            
+                await call_mcp_tool('read_image', '/test/image.png')
+
             # Verify the error message
-            assert "Error loading image" in str(excinfo.value)
-            assert "Error creating Image object" in str(excinfo.value)
+            assert 'Error loading image' in str(excinfo.value)
+            assert 'Error creating Image object' in str(excinfo.value)
             print('✓ General exception in read_image covered')
 
 
