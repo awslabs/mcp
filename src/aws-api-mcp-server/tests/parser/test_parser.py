@@ -21,6 +21,7 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import (
+    _validate_endpoint,
     _validate_output_file,
     parse,
 )
@@ -735,3 +736,32 @@ def test_validate_output_file_propagates_validate_file_path_error(mock_validate_
 
     with pytest.raises(ValueError, match='File validation error'):
         _validate_output_file(command_metadata, parsed_args)
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        (None,),
+        ('localhost:8080',),
+        ('http://localhost:8080'),
+        ('https://localhost:8080'),
+    ],
+)
+def test_validate_endpoint_for_localhost(endpoint):
+    """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
+    _validate_endpoint(endpoint)
+
+
+@pytest.mark.parametrize(
+    'command',
+    [
+        ('test',),
+        ('alocalhost'),
+        ('https://google.com'),
+        ('https://localhost:a'),
+    ],
+)
+def test_validate_endpoint_for_non_localhost(endpoint):
+    """Test that _validate_output_file raises FileParameterError for streaming operations with relative paths."""
+    with pytest.raises(ValueError):
+        _validate_endpoint(endpoint)

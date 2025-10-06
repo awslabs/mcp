@@ -621,8 +621,6 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
     denied_args = []
     if global_args.debug:
         denied_args.append('--debug')
-    if global_args.endpoint_url:
-        denied_args.append('--endpoint-url')
     if not global_args.verify_ssl:
         denied_args.append('--no-verify-ssl')
     if not global_args.sign_request:
@@ -792,6 +790,15 @@ def _validate_file_path(file_path: str, service: str, operation: str):
         )
 
 
+def _validate_endpoint(endpoint: str):
+    if not endpoint:
+        return
+
+    localhost_regex = re.compile(r'^(http://|https://)?localhost(:\d+)?$')
+    if not re.findall(localhost_regex, endpoint):
+        raise ValueError(f'Only localhost endpoints are allowed: {endpoint}')
+
+
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
     for param_value in parameters.values():
         if isinstance(param_value, str):
@@ -810,6 +817,7 @@ def _construct_command(
     operation_model: OperationModel | None = None,
 ) -> IRCommand:
     _validate_file_paths(command_metadata, parsed_args, parameters)
+    _validate_endpoint(global_args.endpoint_url)
 
     profile = getattr(global_args, 'profile', None)
     region = (
