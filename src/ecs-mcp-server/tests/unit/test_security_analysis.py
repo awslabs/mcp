@@ -951,3 +951,144 @@ class TestCapacityProviderSecurity:
             if r["title"] == "Enable Managed Termination Protection"
         ]
         assert len(protection_recs) == 1
+
+
+# Task Definition Security Tests
+class TestTaskDefinitionSecurity:
+    """Tests for task definition security analysis."""
+
+    def test_missing_iam_roles(self, mock_cluster_data_active):
+        """Test detection of missing task and execution IAM roles."""
+        task_def = {"family": "test-task", "containerDefinitions": []}
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": [task_def]}
+        )
+
+        task_role_recs = [
+            r for r in result["recommendations"] if r["title"] == "Configure Task IAM Role"
+        ]
+        exec_role_recs = [
+            r for r in result["recommendations"] if r["title"] == "Configure Execution IAM Role"
+        ]
+        assert len(task_role_recs) == 1
+        assert len(exec_role_recs) == 1
+        assert task_role_recs[0]["severity"] == "High"
+
+    def test_host_modes_detection(self, mock_cluster_data_active):
+        """Test detection of host network, PID, and IPC modes."""
+        task_def = {
+            "family": "test-task",
+            "networkMode": "host",
+            "pidMode": "host",
+            "ipcMode": "host",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/myTaskRole",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+            "containerDefinitions": [],
+        }
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": [task_def]}
+        )
+
+        network_recs = [
+            r for r in result["recommendations"] if r["title"] == "Avoid Host Network Mode"
+        ]
+        pid_recs = [r for r in result["recommendations"] if r["title"] == "Avoid Host PID Mode"]
+        ipc_recs = [r for r in result["recommendations"] if r["title"] == "Avoid Host IPC Mode"]
+
+        assert len(network_recs) == 1
+        assert len(pid_recs) == 1
+        assert len(ipc_recs) == 1
+        assert network_recs[0]["severity"] == "High"
+
+    def test_privileged_container_detection(self, mock_cluster_data_active):
+        """Test detection of privileged containers."""
+        task_def = {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/myTaskRole",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+            "containerDefinitions": [
+                {"name": "privileged-container", "image": "nginx:1.19", "privileged": True}
+            ],
+        }
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": [task_def]}
+        )
+
+        priv_recs = [
+            r for r in result["recommendations"] if r["title"] == "Avoid Privileged Containers"
+        ]
+        assert len(priv_recs) == 1
+        assert priv_recs[0]["severity"] == "Critical"
+
+
+# Image Security Tests
+class TestImageSecurity:
+    """Tests for container image security analysis."""
+
+    def test_missing_image(self, mock_cluster_data_active):
+        """Test detection of missing container image."""
+        task_def = {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/myTaskRole",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+            "containerDefinitions": [{"name": "no-image-container"}],
+        }
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": [task_def]}
+        )
+
+        image_recs = [
+            r for r in result["recommendations"] if r["title"] == "Specify Container Image"
+        ]
+        assert len(image_recs) == 1
+        assert image_recs[0]["severity"] == "High"
+
+    def test_latest_tag_detection(self, mock_cluster_data_active):
+        """Test detection of 'latest' tag usage (explicit and implicit)."""
+        task_def = {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/myTaskRole",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+            "containerDefinitions": [
+                {"name": "explicit-latest", "image": "nginx:latest"},
+                {"name": "implicit-latest", "image": "redis"},
+            ],
+        }
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": [task_def]}
+        )
+
+        latest_recs = [
+            r for r in result["recommendations"] if r["title"] == "Avoid Using 'latest' Image Tag"
+        ]
+        assert len(latest_recs) == 2
+        assert latest_recs[0]["severity"] == "Medium"
+
+    def test_ecr_image_scanning(self, mock_cluster_data_active):
+        """Test ECR image scanning recommendation."""
+        task_def = {
+            "family": "test-task",
+            "taskRoleArn": "arn:aws:iam::123456789012:role/myTaskRole",
+            "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+            "containerDefinitions": [
+                {
+                    "name": "ecr-container",
+                    "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:v1.0",
+                },
+                {"name": "dockerhub-container", "image": "nginx:1.19.6"},
+            ],
+        }
+        analyzer = SecurityAnalyzer()
+        result = analyzer.analyze(
+            {"cluster": mock_cluster_data_active, "task_definitions": [task_def]}
+        )
+
+        scan_recs = [
+            r for r in result["recommendations"] if r["title"] == "Enable ECR Image Scanning"
+        ]
+        assert len(scan_recs) == 1  # Only ECR image triggers recommendation

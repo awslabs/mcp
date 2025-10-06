@@ -20,6 +20,7 @@ including cluster security, IAM security, and logging security checks.
 """
 
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from awslabs.ecs_mcp_server.api.resource_management import ecs_api_operation
@@ -319,6 +320,14 @@ class SecurityAnalyzer:
         # Run IAM security checks for each task definition
         for task_def in task_definitions:
             self._analyze_iam_security(task_def, cluster_data.get("clusterName", "unknown"))
+
+        # Run task definition security checks
+        cluster_name = cluster_data.get("clusterName", "unknown")
+        for task_def in task_definitions:
+            self._analyze_task_definition_security(task_def, cluster_name)
+            # Analyze image security for each container in the task definition
+            for container in task_def.get("containerDefinitions", []):
+                self._analyze_image_security(container, task_def.get("family", "unknown"))
 
         # Generate summary
         summary = self._generate_summary()
@@ -680,6 +689,230 @@ class SecurityAnalyzer:
                                 ],
                             }
                         )
+
+    def _analyze_task_definition_security(
+        self, task_def: Dict[str, Any], cluster_name: str
+    ) -> None:
+        """
+        Analyze task definition security configurations.
+
+        Args:
+            task_def: Task definition data
+            cluster_name: Name of the cluster
+        """
+        task_family = task_def.get("family", "unknown")
+
+        # Check task IAM role
+        task_role_arn = task_def.get("taskRoleArn")
+        if not task_role_arn:
+            self.recommendations.append(
+                {
+                    "title": "Configure Task IAM Role",
+                    "severity": "High",
+                    "category": "IAM",
+                    "resource": f"Task Definition: {task_family}",
+                    "issue": "Missing task IAM role - containers will have no AWS API permissions",
+                    "recommendation": (
+                        "Configure task IAM role with minimal required permissions following "
+                        "principle of least privilege"
+                    ),
+                    "remediation_steps": [
+                        "Create an IAM role with necessary permissions for your application",
+                        "Attach the role to the task definition using taskRoleArn parameter",
+                        "Follow principle of least privilege when defining permissions",
+                    ],
+                }
+            )
+
+        # Check execution role
+        execution_role_arn = task_def.get("executionRoleArn")
+        if not execution_role_arn:
+            self.recommendations.append(
+                {
+                    "title": "Configure Execution IAM Role",
+                    "severity": "High",
+                    "category": "IAM",
+                    "resource": f"Task Definition: {task_family}",
+                    "issue": (
+                        "Missing execution IAM role - ECS agent cannot pull images or write logs"
+                    ),
+                    "recommendation": (
+                        "Configure execution IAM role for ECS agent operations "
+                        "(image pulling, logging, secrets)"
+                    ),
+                    "remediation_steps": [
+                        "Create an IAM role with AmazonECSTaskExecutionRolePolicy",
+                        "Attach the role to the task definition using executionRoleArn parameter",
+                        "Add additional permissions if using Secrets Manager or Parameter Store",
+                    ],
+                }
+            )
+
+        # Check network mode
+        network_mode = task_def.get("networkMode", "bridge")
+        if network_mode == "host":
+            self.recommendations.append(
+                {
+                    "title": "Avoid Host Network Mode",
+                    "severity": "High",
+                    "category": "Network",
+                    "resource": f"Task Definition: {task_family}",
+                    "issue": "Task uses host network mode, bypassing container network isolation",
+                    "recommendation": (
+                        "Use awsvpc network mode for better network isolation and security"
+                    ),
+                    "remediation_steps": [
+                        "Change networkMode to 'awsvpc' in task definition",
+                        "Update security groups and network configuration accordingly",
+                        "Test application with new network mode",
+                    ],
+                }
+            )
+
+        # Check PID mode
+        pid_mode = task_def.get("pidMode")
+        if pid_mode == "host":
+            self.recommendations.append(
+                {
+                    "title": "Avoid Host PID Mode",
+                    "severity": "High",
+                    "category": "Security",
+                    "resource": f"Task Definition: {task_family}",
+                    "issue": (
+                        "Task uses host PID mode, allowing containers to see all host processes"
+                    ),
+                    "recommendation": "Remove pidMode or set to task for proper process isolation",
+                    "remediation_steps": [
+                        "Remove pidMode parameter from task definition",
+                        "Or set pidMode to 'task' for proper isolation",
+                        "Verify application doesn't require host PID access",
+                    ],
+                }
+            )
+
+        # Check IPC mode
+        ipc_mode = task_def.get("ipcMode")
+        if ipc_mode == "host":
+            self.recommendations.append(
+                {
+                    "title": "Avoid Host IPC Mode",
+                    "severity": "High",
+                    "category": "Security",
+                    "resource": f"Task Definition: {task_family}",
+                    "issue": (
+                        "Task uses host IPC mode, allowing containers to access host IPC resources"
+                    ),
+                    "recommendation": "Remove ipcMode or set to task for proper IPC isolation",
+                    "remediation_steps": [
+                        "Remove ipcMode parameter from task definition",
+                        "Or set ipcMode to 'task' for proper isolation",
+                        "Verify application doesn't require host IPC access",
+                    ],
+                }
+            )
+
+        # Check for privileged containers
+        for container in task_def.get("containerDefinitions", []):
+            container_name = container.get("name", "unknown")
+
+            if container.get("privileged", False):
+                self.recommendations.append(
+                    {
+                        "title": "Avoid Privileged Containers",
+                        "severity": "Critical",
+                        "category": "Security",
+                        "resource": f"Container: {container_name}",
+                        "issue": (
+                            "Container runs in privileged mode with full access to host resources"
+                        ),
+                        "recommendation": (
+                            "Remove privileged flag and use specific capabilities instead"
+                        ),
+                        "remediation_steps": [
+                            "Set privileged to false in container definition",
+                            "Use linuxParameters.capabilities to add only required capabilities",
+                            "Review application requirements for privileged access",
+                        ],
+                    }
+                )
+
+    def _analyze_image_security(self, container: Dict[str, Any], task_family: str) -> None:
+        """
+        Analyze container image security.
+
+        Args:
+            container: Container definition data
+            task_family: Task definition family name
+        """
+        container_name = container.get("name", "unknown")
+        image = container.get("image", "")
+
+        # Check if image is specified
+        if not image:
+            self.recommendations.append(
+                {
+                    "title": "Specify Container Image",
+                    "severity": "High",
+                    "category": "Security",
+                    "resource": f"Container: {container_name}",
+                    "issue": "No container image specified",
+                    "recommendation": "Specify a valid container image from a trusted registry",
+                    "remediation_steps": [
+                        "Add image parameter to container definition",
+                        "Use images from trusted registries (ECR, Docker Hub verified publishers)",
+                        "Specify image with digest for immutability",
+                    ],
+                }
+            )
+            return
+
+        # Check for 'latest' tag usage
+        if image.endswith(":latest") or ":" not in image:
+            self.recommendations.append(
+                {
+                    "title": "Avoid Using 'latest' Image Tag",
+                    "severity": "Medium",
+                    "category": "Security",
+                    "resource": f"Container: {container_name}",
+                    "issue": (
+                        "Using 'latest' tag or no tag makes deployments unpredictable and "
+                        "harder to audit"
+                    ),
+                    "recommendation": (
+                        "Use specific version tags or image digests for reproducibility"
+                    ),
+                    "remediation_steps": [
+                        "Tag images with specific versions (e.g., v1.2.3)",
+                        "Or use image digest for immutability (e.g., @sha256:...)",
+                        "Implement image tagging strategy in CI/CD pipeline",
+                    ],
+                }
+            )
+
+        # Check for ECR image scanning using regex for secure validation
+        # ECR image format: {account-id}.dkr.ecr.{region}.amazonaws.com/{repo}:{tag}
+        ecr_pattern = r"^\d+\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/"
+        is_ecr_image = bool(re.match(ecr_pattern, image))
+
+        if is_ecr_image:
+            self.recommendations.append(
+                {
+                    "title": "Enable ECR Image Scanning",
+                    "severity": "Medium",
+                    "category": "Security",
+                    "resource": f"Container: {container_name}",
+                    "issue": "Ensure ECR image scanning is enabled for vulnerability detection",
+                    "recommendation": (
+                        "Enable ECR image scanning to detect vulnerabilities in container images"
+                    ),
+                    "remediation_steps": [
+                        "Enable scan on push in ECR repository settings",
+                        "Review scan findings regularly",
+                        "Implement automated scanning in CI/CD pipeline",
+                        "Set up alerts for critical vulnerabilities",
+                    ],
+                }
+            )
 
     def _generate_summary(self) -> Dict[str, Any]:
         """Generate summary statistics for security analysis."""
