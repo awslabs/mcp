@@ -739,7 +739,7 @@ def test_validate_output_file_propagates_validate_file_path_error(mock_validate_
 
 
 @pytest.mark.parametrize(
-    'command',
+    'endpoint',
     [
         (None,),
         ('localhost:8080',),
@@ -753,7 +753,7 @@ def test_validate_endpoint_for_localhost(endpoint):
 
 
 @pytest.mark.parametrize(
-    'command',
+    'endpoint',
     [
         ('test',),
         ('alocalhost'),
