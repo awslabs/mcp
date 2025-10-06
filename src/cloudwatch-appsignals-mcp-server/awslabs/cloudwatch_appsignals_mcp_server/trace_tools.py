@@ -413,7 +413,7 @@ async def query_sampled_traces(
                         services = cause.get('Services', [])
                         for service in services:
                             exceptions = service.get('Exceptions', [])
-                            if exceptions and exceptions[0].get('Message'):
+                            if exceptions and len(exceptions) > 0 and exceptions[0].get('Message'):
                                 return exceptions[0].get('Message')
             return None
 
