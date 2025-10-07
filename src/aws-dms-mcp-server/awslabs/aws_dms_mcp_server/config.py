@@ -17,15 +17,15 @@
 Uses Pydantic for type-safe configuration with environment variable support.
 """
 
-from pydantic import ConfigDict, Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Literal, Optional
 
 
 class DMSServerConfig(BaseSettings):
     """Configuration for AWS DMS MCP Server."""
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_prefix='DMS_', case_sensitive=False, validate_assignment=True, extra='ignore'
     )
 

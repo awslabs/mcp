@@ -57,7 +57,7 @@ class TableOperations:
         logger.info('Getting table statistics', task_arn=task_arn)
 
         # Build API parameters
-        params = {'ReplicationTaskArn': task_arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {'ReplicationTaskArn': task_arn, 'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -73,7 +73,7 @@ class TableOperations:
         formatted_stats = self.format_statistics(stats)
 
         # Calculate summary statistics
-        summary = {
+        summary: Dict[str, Any] = {
             'total_tables': len(formatted_stats),
             'total_inserts': sum(s.get('inserts', 0) for s in formatted_stats),
             'total_deletes': sum(s.get('deletes', 0) for s in formatted_stats),
@@ -108,7 +108,7 @@ class TableOperations:
         return result
 
     def reload_tables(
-        self, task_arn: str, tables: List[Dict[str, str]], reload_option: str = 'data-reload'
+        self, task_arn: str, tables: List[Dict[str, Any]], reload_option: str = 'data-reload'
     ) -> Dict[str, Any]:
         """Reload specific tables during replication.
 
@@ -208,6 +208,130 @@ class TableOperations:
             formatted_list.append(formatted_stat)
 
         return formatted_list
+
+    def get_replication_table_statistics(
+        self,
+        task_arn: Optional[str] = None,
+        config_arn: Optional[str] = None,
+        filters: Optional[List[Dict[str, Any]]] = None,
+        max_results: int = 100,
+        marker: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get table statistics for a replication task or configuration.
+
+        Args:
+            task_arn: Task ARN (for traditional DMS)
+            config_arn: Config ARN (for DMS Serverless)
+            filters: Optional filters
+            max_results: Maximum results per page
+            marker: Pagination token
+
+        Returns:
+            Dictionary with table statistics
+        """
+        if not task_arn and not config_arn:
+            raise DMSInvalidParameterException(
+                message='Must provide either task_arn or config_arn',
+                details={'task_arn': task_arn, 'config_arn': config_arn},
+            )
+
+        logger.info(
+            'Getting replication table statistics', task_arn=task_arn, config_arn=config_arn
+        )
+
+        # Build API parameters
+        params: Dict[str, Any] = {'MaxRecords': max_results}
+
+        if task_arn:
+            params['ReplicationTaskArn'] = task_arn
+        if config_arn:
+            params['ReplicationConfigArn'] = config_arn
+        if filters:
+            params['Filters'] = filters
+        if marker:
+            params['Marker'] = marker
+
+        # Call API
+        response = self.client.call_api('describe_replication_table_statistics', **params)
+
+        # Format table statistics
+        stats = response.get('ReplicationTableStatistics', [])
+        formatted_stats = self.format_statistics(stats)
+
+        result = {
+            'success': True,
+            'data': {'tables': formatted_stats, 'count': len(formatted_stats)},
+            'error': None,
+        }
+
+        # Add pagination info
+        if response.get('Marker'):
+            result['data']['next_marker'] = response['Marker']
+
+        logger.info(f'Retrieved statistics for {len(formatted_stats)} tables')
+        return result
+
+    def reload_serverless_tables(
+        self, config_arn: str, tables: List[Dict[str, Any]], reload_option: str = 'data-reload'
+    ) -> Dict[str, Any]:
+        """Reload specific tables in a serverless replication.
+
+        Args:
+            config_arn: Replication config ARN
+            tables: List of tables [{SchemaName, TableName}, ...]
+            reload_option: Reload option (data-reload or validate-only)
+
+        Returns:
+            Reload operation status
+        """
+        logger.info('Reloading serverless tables', config_arn=config_arn, table_count=len(tables))
+
+        # Validate tables list not empty
+        if not tables or len(tables) == 0:
+            raise DMSInvalidParameterException(
+                message='Tables list cannot be empty', details={'table_count': 0}
+            )
+
+        # Validate each table has required fields
+        for idx, table in enumerate(tables):
+            if 'SchemaName' not in table:
+                raise DMSInvalidParameterException(
+                    message=f"Table {idx} missing 'SchemaName'", details={'table_index': idx}
+                )
+            if 'TableName' not in table:
+                raise DMSInvalidParameterException(
+                    message=f"Table {idx} missing 'TableName'", details={'table_index': idx}
+                )
+
+        # Validate reload option
+        valid_options = ['data-reload', 'validate-only']
+        if reload_option not in valid_options:
+            raise DMSInvalidParameterException(
+                message=f'Invalid reload option: {reload_option}',
+                details={'valid_options': valid_options},
+            )
+
+        # Call API
+        self.client.call_api(
+            'reload_tables',
+            ReplicationConfigArn=config_arn,
+            TablesToReload=tables,
+            ReloadOption=reload_option,
+        )
+
+        result = {
+            'success': True,
+            'data': {
+                'config_arn': config_arn,
+                'tables_reloaded': len(tables),
+                'reload_option': reload_option,
+                'message': f'Table reload initiated for {len(tables)} tables',
+            },
+            'error': None,
+        }
+
+        logger.info(f'Initiated reload for {len(tables)} serverless tables')
+        return result
 
 
 # TODO: Add table validation status monitoring

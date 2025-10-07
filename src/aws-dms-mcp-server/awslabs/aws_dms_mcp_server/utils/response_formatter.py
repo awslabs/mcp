@@ -18,7 +18,7 @@ Provides consistent response formatting across all MCP tools.
 """
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 class ResponseFormatter:
@@ -237,14 +237,14 @@ class ResponseFormatter:
         return error_dict
 
     @staticmethod
-    def format_timestamp(dt: datetime) -> str:
+    def format_timestamp(dt: Optional[datetime]) -> Optional[str]:
         """Format datetime to ISO 8601 string.
 
         Args:
-            dt: Datetime object
+            dt: Datetime object or None
 
         Returns:
-            ISO 8601 formatted string
+            ISO 8601 formatted string or None
         """
         return dt.isoformat() + 'Z' if dt else None
 

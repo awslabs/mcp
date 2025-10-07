@@ -66,7 +66,7 @@ class FleetAdvisorManager:
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
         """List Fleet Advisor collectors."""
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -101,7 +101,7 @@ class FleetAdvisorManager:
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
         """List Fleet Advisor databases."""
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -121,7 +121,7 @@ class FleetAdvisorManager:
         self, max_results: int = 100, marker: Optional[str] = None
     ) -> Dict[str, Any]:
         """Describe Fleet Advisor LSA analysis."""
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if marker:
             params['NextToken'] = marker
         response = self.client.call_api('describe_fleet_advisor_lsa_analysis', **params)
@@ -154,7 +154,7 @@ class FleetAdvisorManager:
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Describe Fleet Advisor schema object summary."""
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -177,7 +177,7 @@ class FleetAdvisorManager:
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
         """List Fleet Advisor schemas."""
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:

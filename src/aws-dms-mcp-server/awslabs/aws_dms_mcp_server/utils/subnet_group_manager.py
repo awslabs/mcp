@@ -60,7 +60,7 @@ class SubnetGroupManager:
                 message='At least one subnet ID is required', details={'parameter': 'subnet_ids'}
             )
 
-        params = {
+        params: Dict[str, Any] = {
             'ReplicationSubnetGroupIdentifier': identifier,
             'ReplicationSubnetGroupDescription': description,
             'SubnetIds': subnet_ids,
@@ -100,7 +100,7 @@ class SubnetGroupManager:
         """
         logger.info('Modifying replication subnet group', identifier=identifier)
 
-        params = {'ReplicationSubnetGroupIdentifier': identifier}
+        params: Dict[str, Any] = {'ReplicationSubnetGroupIdentifier': identifier}
 
         if description:
             params['ReplicationSubnetGroupDescription'] = description
@@ -143,7 +143,7 @@ class SubnetGroupManager:
         """
         logger.info('Listing replication subnet groups', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters

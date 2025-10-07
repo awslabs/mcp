@@ -143,7 +143,7 @@ class ConnectionTester:
         logger.info('Listing connection tests', filters=filters)
 
         # Build API parameters
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters

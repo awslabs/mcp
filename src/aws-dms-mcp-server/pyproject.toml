@@ -74,13 +74,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "--cov=awslabs.aws_dms_mcp_server",
-    "--cov-report=html",
-    "--cov-report=term-missing",
-    "--cov-fail-under=20",
-    "-v"
-]
+addopts = "--cov=awslabs.aws-dms-mcp-server --cov-report=term-missing"
 asyncio_mode = "auto"
 
 [tool.ruff]

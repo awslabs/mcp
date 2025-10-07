@@ -66,7 +66,7 @@ class ServerlessReplicationManager:
         """
         logger.info('Creating replication config', identifier=identifier)
 
-        params = {
+        params: Dict[str, Any] = {
             'ReplicationConfigIdentifier': identifier,
             'SourceEndpointArn': source_endpoint_arn,
             'TargetEndpointArn': target_endpoint_arn,
@@ -127,7 +127,7 @@ class ServerlessReplicationManager:
         """
         logger.info('Modifying replication config', arn=arn)
 
-        params = {'ReplicationConfigArn': arn}
+        params: Dict[str, Any] = {'ReplicationConfigArn': arn}
 
         if identifier:
             params['ReplicationConfigIdentifier'] = identifier
@@ -201,7 +201,7 @@ class ServerlessReplicationManager:
         """
         logger.info('Listing replication configs', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -242,7 +242,7 @@ class ServerlessReplicationManager:
         """
         logger.info('Listing replications', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -287,7 +287,10 @@ class ServerlessReplicationManager:
         """
         logger.info('Starting replication', arn=arn, start_type=start_replication_type)
 
-        params = {'ReplicationConfigArn': arn, 'StartReplicationType': start_replication_type}
+        params: Dict[str, Any] = {
+            'ReplicationConfigArn': arn,
+            'StartReplicationType': start_replication_type,
+        }
 
         if cdc_start_time:
             params['CdcStartTime'] = cdc_start_time

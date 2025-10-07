@@ -39,7 +39,7 @@ class RecommendationManager:
         """List migration recommendations."""
         logger.info('Listing recommendations', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -70,7 +70,7 @@ class RecommendationManager:
         """List recommendation limitations."""
         logger.info('Listing recommendation limitations', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -109,7 +109,7 @@ class RecommendationManager:
         """Batch start recommendations for multiple databases."""
         logger.info('Batch starting recommendations', count=len(data) if data else 0)
 
-        params = {}
+        params: Dict[str, Any] = {}
         if data:
             params['Data'] = data
 

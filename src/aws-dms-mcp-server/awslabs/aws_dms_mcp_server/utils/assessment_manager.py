@@ -89,7 +89,7 @@ class AssessmentManager:
         """
         logger.info('Starting replication task assessment run', task_arn=task_arn)
 
-        params = {
+        params: Dict[str, Any] = {
             'ReplicationTaskArn': task_arn,
             'ServiceAccessRoleArn': service_access_role_arn,
             'ResultLocationBucket': result_location_bucket,
@@ -187,7 +187,7 @@ class AssessmentManager:
         """
         logger.info('Listing assessment results', task_arn=task_arn)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if task_arn:
             params['ReplicationTaskArn'] = task_arn
@@ -227,7 +227,7 @@ class AssessmentManager:
         """
         logger.info('Listing assessment runs', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -267,7 +267,7 @@ class AssessmentManager:
         """
         logger.info('Listing individual assessments', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -317,7 +317,7 @@ class AssessmentManager:
         """
         logger.info('Listing applicable individual assessments')
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if task_arn:
             params['ReplicationTaskArn'] = task_arn

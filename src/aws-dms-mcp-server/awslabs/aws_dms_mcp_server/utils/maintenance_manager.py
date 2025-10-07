@@ -89,7 +89,7 @@ class MaintenanceManager:
         """
         logger.info('Listing pending maintenance actions')
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if resource_arn:
             params['ReplicationInstanceArn'] = resource_arn

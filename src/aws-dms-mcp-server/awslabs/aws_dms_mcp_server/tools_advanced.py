@@ -17,8 +17,8 @@
 This module contains the MCP tool definitions for advanced DMS features.
 """
 
-from ...exceptions import DMSMCPException
-from ..response_formatter import ResponseFormatter
+from .exceptions.dms_exceptions import DMSMCPException
+from .utils.response_formatter import ResponseFormatter
 from typing import Any, Dict, List, Optional
 
 

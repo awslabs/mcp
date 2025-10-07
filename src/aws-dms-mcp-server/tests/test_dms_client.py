@@ -25,6 +25,7 @@ from awslabs.aws_dms_mcp_server.exceptions.dms_exceptions import (
 )
 from awslabs.aws_dms_mcp_server.utils.dms_client import DMSClient
 from botocore.exceptions import ClientError
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 
@@ -217,7 +218,7 @@ class TestCallAPI:
         mock_boto3.client.return_value = mock_boto_client
 
         # Mock ClientError
-        error_response = {
+        error_response: Any = {
             'Error': {'Code': 'ResourceNotFoundFault', 'Message': 'Resource not found'},
             'ResponseMetadata': {'RequestId': '123'},
         }
@@ -238,7 +239,7 @@ class TestTranslateError:
 
     def test_translate_resource_not_found(self, mock_config):
         """Test translation of ResourceNotFoundFault."""
-        error_response = {
+        error_response: Any = {
             'Error': {'Code': 'ResourceNotFoundFault', 'Message': 'Instance not found'},
             'ResponseMetadata': {'RequestId': 'req-123'},
         }
@@ -254,7 +255,7 @@ class TestTranslateError:
 
     def test_translate_invalid_parameter(self, mock_config):
         """Test translation of InvalidParameterValueException."""
-        error_response = {
+        error_response: Any = {
             'Error': {'Code': 'InvalidParameterValueException', 'Message': 'Invalid value'},
             'ResponseMetadata': {'RequestId': 'req-456'},
         }
@@ -268,7 +269,7 @@ class TestTranslateError:
 
     def test_translate_access_denied(self, mock_config):
         """Test translation of AccessDeniedFault."""
-        error_response = {
+        error_response: Any = {
             'Error': {'Code': 'AccessDeniedFault', 'Message': 'Access denied'},
             'ResponseMetadata': {'RequestId': 'req-789'},
         }
@@ -282,7 +283,7 @@ class TestTranslateError:
 
     def test_translate_unknown_error(self, mock_config):
         """Test translation of unknown error code."""
-        error_response = {
+        error_response: Any = {
             'Error': {'Code': 'UnknownError', 'Message': 'Something went wrong'},
             'ResponseMetadata': {'RequestId': 'req-000'},
         }
@@ -297,7 +298,7 @@ class TestTranslateError:
 
     def test_translate_error_with_missing_fields(self, mock_config):
         """Test translation when error response has missing fields."""
-        error_response = {'Error': {}, 'ResponseMetadata': {}}
+        error_response: Any = {'Error': {}, 'ResponseMetadata': {}}
         client_error = ClientError(error_response, 'operation')
 
         client = DMSClient(mock_config)

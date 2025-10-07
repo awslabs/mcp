@@ -429,7 +429,7 @@ def create_replication_instance(
 
     try:
         # Build parameters
-        params = {
+        params: Dict[str, Any] = {
             'ReplicationInstanceIdentifier': replication_instance_identifier,
             'ReplicationInstanceClass': replication_instance_class,
             'AllocatedStorage': allocated_storage,
@@ -501,7 +501,7 @@ def modify_replication_instance(
         )
 
     try:
-        params = {
+        params: Dict[str, Any] = {
             'ReplicationInstanceArn': replication_instance_arn,
             'ApplyImmediately': apply_immediately,
             'AllowMajorVersionUpgrade': allow_major_version_upgrade,
@@ -790,7 +790,7 @@ def create_endpoint(
 
     try:
         # Build parameters
-        params = {
+        params: Dict[str, Any] = {
             'EndpointIdentifier': endpoint_identifier,
             'EndpointType': endpoint_type,
             'EngineName': engine_name,
@@ -870,7 +870,7 @@ def modify_endpoint(
         )
 
     try:
-        params = {'EndpointArn': endpoint_arn}
+        params: Dict[str, Any] = {'EndpointArn': endpoint_arn}
         if endpoint_identifier:
             params['EndpointIdentifier'] = endpoint_identifier
         if endpoint_type:
@@ -1130,7 +1130,7 @@ def modify_replication_task(
         )
 
     try:
-        params = {'ReplicationTaskArn': replication_task_arn}
+        params: Dict[str, Any] = {'ReplicationTaskArn': replication_task_arn}
         if replication_task_identifier:
             params['ReplicationTaskIdentifier'] = replication_task_identifier
         if migration_type:
@@ -1514,7 +1514,7 @@ def create_replication_task(
 
     try:
         # Build parameters
-        params = {
+        params: Dict[str, Any] = {
             'ReplicationTaskIdentifier': replication_task_identifier,
             'SourceEndpointArn': source_endpoint_arn,
             'TargetEndpointArn': target_endpoint_arn,

@@ -60,7 +60,7 @@ class EventManager:
         """
         logger.info('Creating event subscription', name=subscription_name)
 
-        params = {
+        params: Dict[str, Any] = {
             'SubscriptionName': subscription_name,
             'SnsTopicArn': sns_topic_arn,
             'Enabled': enabled,
@@ -110,7 +110,7 @@ class EventManager:
         """
         logger.info('Modifying event subscription', name=subscription_name)
 
-        params = {'SubscriptionName': subscription_name}
+        params: Dict[str, Any] = {'SubscriptionName': subscription_name}
 
         if sns_topic_arn:
             params['SnsTopicArn'] = sns_topic_arn
@@ -180,7 +180,7 @@ class EventManager:
         """
         logger.info('Listing event subscriptions')
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if subscription_name:
             params['SubscriptionName'] = subscription_name
@@ -235,7 +235,7 @@ class EventManager:
         """
         logger.info('Listing events')
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if source_identifier:
             params['SourceIdentifier'] = source_identifier
@@ -280,7 +280,7 @@ class EventManager:
         """
         logger.info('Listing event categories', source_type=source_type)
 
-        params = {}
+        params: Dict[str, Any] = {}
 
         if source_type:
             params['SourceType'] = source_type
@@ -314,7 +314,7 @@ class EventManager:
         """
         logger.info('Updating subscriptions to EventBridge', force_move=force_move)
 
-        params = {}
+        params: Dict[str, Any] = {}
         if force_move:
             params['ForceMove'] = force_move
 

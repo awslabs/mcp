@@ -58,7 +58,7 @@ class TaskManager:
         logger.info('Listing replication tasks', filters=filters)
 
         # Build API parameters
-        params = {'MaxRecords': max_results, 'WithoutSettings': without_settings}
+        params: Dict[str, Any] = {'MaxRecords': max_results, 'WithoutSettings': without_settings}
 
         if filters:
             params['Filters'] = filters
@@ -115,7 +115,7 @@ class TaskManager:
                 )
 
         # Validate table mappings JSON
-        table_mappings = params.get('TableMappings')
+        table_mappings = params.get('TableMappings', '')
         is_valid, error_msg = self.validate_table_mappings(table_mappings)
         if not is_valid:
             raise DMSValidationException(
@@ -172,7 +172,10 @@ class TaskManager:
             )
 
         # Build API parameters
-        params = {'ReplicationTaskArn': task_arn, 'StartReplicationTaskType': start_type}
+        params: Dict[str, Any] = {
+            'ReplicationTaskArn': task_arn,
+            'StartReplicationTaskType': start_type,
+        }
 
         if cdc_start_position:
             params['CdcStartPosition'] = cdc_start_position
@@ -223,7 +226,7 @@ class TaskManager:
         logger.info(f'Stopped replication task: {task_arn}')
         return result
 
-    def validate_table_mappings(self, mappings: str) -> Tuple[bool, str]:
+    def validate_table_mappings(self, mappings: Any) -> Tuple[bool, str]:
         """Validate table mappings JSON structure.
 
         Args:
@@ -281,7 +284,101 @@ class TaskManager:
 
         return True, ''
 
+    def move_task(self, task_arn: str, target_instance_arn: str) -> Dict[str, Any]:
+        """Move a replication task to a different instance.
 
-# TODO: Add task modification support
-# TODO: Add task deletion support
+        Args:
+            task_arn: Task ARN to move
+            target_instance_arn: Target replication instance ARN
+
+        Returns:
+            Moved task details
+        """
+        logger.info('Moving replication task', task_arn=task_arn, target=target_instance_arn)
+
+        # Call API
+        response = self.client.call_api(
+            'move_replication_task',
+            ReplicationTaskArn=task_arn,
+            TargetReplicationInstanceArn=target_instance_arn,
+        )
+
+        # Format response
+        task = response.get('ReplicationTask', {})
+        formatted_task = ResponseFormatter.format_task(task)
+
+        result = {
+            'success': True,
+            'data': {'task': formatted_task, 'message': 'Replication task moved successfully'},
+            'error': None,
+        }
+
+        logger.info(f'Moved replication task: {task_arn}')
+        return result
+
+    def modify_task(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Modify a replication task.
+
+        Args:
+            params: Task modification parameters
+
+        Returns:
+            Modified task details
+        """
+        task_arn = params.get('ReplicationTaskArn', 'unknown')
+        logger.info('Modifying replication task', task_arn=task_arn)
+
+        # Validate table mappings if provided
+        if 'TableMappings' in params:
+            is_valid, error_msg = self.validate_table_mappings(params['TableMappings'])
+            if not is_valid:
+                raise DMSValidationException(
+                    message=f'Invalid table mappings: {error_msg}',
+                    details={'validation_error': error_msg},
+                )
+
+        # Call API
+        response = self.client.call_api('modify_replication_task', **params)
+
+        # Format response
+        task = response.get('ReplicationTask', {})
+        formatted_task = ResponseFormatter.format_task(task)
+
+        result = {
+            'success': True,
+            'data': {'task': formatted_task, 'message': 'Replication task modified successfully'},
+            'error': None,
+        }
+
+        logger.info(f'Modified replication task: {task_arn}')
+        return result
+
+    def delete_task(self, task_arn: str) -> Dict[str, Any]:
+        """Delete a replication task.
+
+        Args:
+            task_arn: Task ARN to delete
+
+        Returns:
+            Deleted task details
+        """
+        logger.info('Deleting replication task', task_arn=task_arn)
+
+        # Call API
+        response = self.client.call_api('delete_replication_task', ReplicationTaskArn=task_arn)
+
+        # Format response
+        task = response.get('ReplicationTask', {})
+        formatted_task = ResponseFormatter.format_task(task)
+
+        result = {
+            'success': True,
+            'data': {'task': formatted_task, 'message': 'Replication task deleted successfully'},
+            'error': None,
+        }
+
+        logger.info(f'Deleted replication task: {task_arn}')
+        return result
+
+
 # TODO: Add task status monitoring with polling

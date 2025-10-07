@@ -55,7 +55,7 @@ class ReplicationInstanceManager:
         logger.info('Listing replication instances', filters=filters)
 
         # Build API parameters
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -109,7 +109,7 @@ class ReplicationInstanceManager:
                 )
 
         # Validate instance class
-        instance_class = params.get('ReplicationInstanceClass')
+        instance_class = params.get('ReplicationInstanceClass', '')
         if not self.validate_instance_class(instance_class):
             raise DMSInvalidParameterException(
                 message=f'Invalid instance class: {instance_class}',
@@ -274,7 +274,7 @@ class ReplicationInstanceManager:
         Returns:
             List of orderable instance configurations
         """
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
         if marker:
             params['Marker'] = marker
 
@@ -303,7 +303,10 @@ class ReplicationInstanceManager:
         Returns:
             List of task log metadata
         """
-        params = {'ReplicationInstanceArn': instance_arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {
+            'ReplicationInstanceArn': instance_arn,
+            'MaxRecords': max_results,
+        }
         if marker:
             params['Marker'] = marker
 

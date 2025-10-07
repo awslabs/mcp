@@ -54,7 +54,7 @@ class CertificateManager:
         """
         logger.info('Importing certificate', identifier=certificate_identifier)
 
-        params = {'CertificateIdentifier': certificate_identifier}
+        params: Dict[str, Any] = {'CertificateIdentifier': certificate_identifier}
 
         if certificate_pem:
             params['CertificatePem'] = certificate_pem
@@ -91,7 +91,7 @@ class CertificateManager:
         """
         logger.info('Listing certificates', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters

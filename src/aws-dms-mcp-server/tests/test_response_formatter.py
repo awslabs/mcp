@@ -344,6 +344,7 @@ class TestResponseFormatter:
         dt = datetime(2024, 1, 1, 12, 30, 45)
         formatted = ResponseFormatter.format_timestamp(dt)
 
+        assert formatted is not None
         assert formatted.endswith('Z')
         assert '2024-01-01' in formatted
 

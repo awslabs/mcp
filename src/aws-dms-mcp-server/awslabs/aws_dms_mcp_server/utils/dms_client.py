@@ -52,7 +52,7 @@ class DMSClient:
             'Initializing DMS client', region=config.aws_region, read_only=config.read_only_mode
         )
 
-    def get_client(self) -> boto3.client:
+    def get_client(self) -> Any:
         """Get or create boto3 DMS client.
 
         Returns:

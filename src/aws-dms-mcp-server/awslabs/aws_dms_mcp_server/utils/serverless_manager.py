@@ -67,7 +67,7 @@ class ServerlessManager:
         """
         logger.info('Creating migration project', identifier=identifier)
 
-        params = {
+        params: Dict[str, Any] = {
             'MigrationProjectIdentifier': identifier,
             'InstanceProfileArn': instance_profile_arn,
             'SourceDataProviderDescriptors': source_data_provider_descriptors,
@@ -112,7 +112,7 @@ class ServerlessManager:
         """Modify a migration project."""
         logger.info('Modifying migration project', arn=arn)
 
-        params = {'MigrationProjectArn': arn}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn}
 
         if identifier:
             params['MigrationProjectIdentifier'] = identifier
@@ -170,7 +170,7 @@ class ServerlessManager:
         """List migration projects."""
         logger.info('Listing migration projects', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -207,7 +207,11 @@ class ServerlessManager:
         """Create a data provider."""
         logger.info('Creating data provider', identifier=identifier)
 
-        params = {'DataProviderIdentifier': identifier, 'Engine': engine, 'Settings': settings}
+        params: Dict[str, Any] = {
+            'DataProviderIdentifier': identifier,
+            'Engine': engine,
+            'Settings': settings,
+        }
 
         if description:
             params['Description'] = description
@@ -235,7 +239,7 @@ class ServerlessManager:
         """Modify a data provider."""
         logger.info('Modifying data provider', arn=arn)
 
-        params = {'DataProviderArn': arn}
+        params: Dict[str, Any] = {'DataProviderArn': arn}
 
         if identifier:
             params['DataProviderIdentifier'] = identifier
@@ -279,7 +283,7 @@ class ServerlessManager:
         """List data providers."""
         logger.info('Listing data providers', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -319,7 +323,7 @@ class ServerlessManager:
         """Create an instance profile."""
         logger.info('Creating instance profile', identifier=identifier)
 
-        params = {'InstanceProfileIdentifier': identifier}
+        params: Dict[str, Any] = {'InstanceProfileIdentifier': identifier}
 
         if description:
             params['Description'] = description
@@ -363,7 +367,7 @@ class ServerlessManager:
         """Modify an instance profile."""
         logger.info('Modifying instance profile', arn=arn)
 
-        params = {'InstanceProfileArn': arn}
+        params: Dict[str, Any] = {'InstanceProfileArn': arn}
 
         if identifier:
             params['InstanceProfileIdentifier'] = identifier
@@ -419,7 +423,7 @@ class ServerlessManager:
         """List instance profiles."""
         logger.info('Listing instance profiles', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -458,7 +462,7 @@ class ServerlessManager:
         """Create a data migration."""
         logger.info('Creating data migration', identifier=identifier)
 
-        params = {
+        params: Dict[str, Any] = {
             'DataMigrationIdentifier': identifier,
             'MigrationType': migration_type,
             'ServiceAccessRoleArn': service_access_role_arn,
@@ -498,7 +502,7 @@ class ServerlessManager:
         """Modify a data migration."""
         logger.info('Modifying data migration', arn=arn)
 
-        params = {'DataMigrationArn': arn}
+        params: Dict[str, Any] = {'DataMigrationArn': arn}
 
         if identifier:
             params['DataMigrationIdentifier'] = identifier
@@ -552,7 +556,7 @@ class ServerlessManager:
         """List data migrations."""
         logger.info('Listing data migrations', filters=filters)
 
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters

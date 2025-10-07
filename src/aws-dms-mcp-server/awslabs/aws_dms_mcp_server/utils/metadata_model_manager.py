@@ -69,7 +69,7 @@ class MetadataModelManager:
         max_results: int = 100,
     ) -> Dict[str, Any]:
         """List extension pack associations."""
-        params = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -108,7 +108,7 @@ class MetadataModelManager:
         max_results: int = 100,
     ) -> Dict[str, Any]:
         """List metadata model assessments."""
-        params = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -149,7 +149,7 @@ class MetadataModelManager:
         max_results: int = 100,
     ) -> Dict[str, Any]:
         """List metadata model conversions."""
-        params = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -190,7 +190,7 @@ class MetadataModelManager:
         max_results: int = 100,
     ) -> Dict[str, Any]:
         """List metadata model script exports."""
-        params = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -210,7 +210,11 @@ class MetadataModelManager:
         self, arn: str, selection_rules: str, origin: str, file_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """Start metadata model export as script."""
-        params = {'MigrationProjectArn': arn, 'SelectionRules': selection_rules, 'Origin': origin}
+        params: Dict[str, Any] = {
+            'MigrationProjectArn': arn,
+            'SelectionRules': selection_rules,
+            'Origin': origin,
+        }
         if file_name:
             params['FileName'] = file_name
         response = self.client.call_api('start_metadata_model_export_as_script', **params)
@@ -232,7 +236,7 @@ class MetadataModelManager:
         max_results: int = 100,
     ) -> Dict[str, Any]:
         """List metadata model target exports."""
-        params = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -252,7 +256,7 @@ class MetadataModelManager:
         self, arn: str, selection_rules: str, overwrite_extension_pack: Optional[bool] = None
     ) -> Dict[str, Any]:
         """Start metadata model export to target."""
-        params = {'MigrationProjectArn': arn, 'SelectionRules': selection_rules}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'SelectionRules': selection_rules}
         if overwrite_extension_pack is not None:
             params['OverwriteExtensionPack'] = overwrite_extension_pack
         response = self.client.call_api('start_metadata_model_export_to_target', **params)
@@ -274,7 +278,7 @@ class MetadataModelManager:
         max_results: int = 100,
     ) -> Dict[str, Any]:
         """List metadata model imports."""
-        params = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'MaxRecords': max_results}
         if filters:
             params['Filters'] = filters
         if marker:
@@ -318,7 +322,7 @@ class MetadataModelManager:
         assessment_report_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Export metadata model assessment."""
-        params = {'MigrationProjectArn': arn, 'SelectionRules': selection_rules}
+        params: Dict[str, Any] = {'MigrationProjectArn': arn, 'SelectionRules': selection_rules}
         if file_name:
             params['FileName'] = file_name
         if assessment_report_types:

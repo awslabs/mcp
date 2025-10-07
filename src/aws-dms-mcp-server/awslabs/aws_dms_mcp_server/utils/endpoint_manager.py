@@ -55,7 +55,7 @@ class EndpointManager:
         logger.info('Listing endpoints', filters=filters)
 
         # Build API parameters
-        params = {'MaxRecords': max_results}
+        params: Dict[str, Any] = {'MaxRecords': max_results}
 
         if filters:
             params['Filters'] = filters
@@ -287,6 +287,274 @@ class EndpointManager:
         logger.info(f'Deleted endpoint: {formatted_endpoint.get("identifier")}')
         return result
 
+    def modify_endpoint(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Modify an endpoint configuration.
 
-# TODO: Add endpoint modification support
+        Args:
+            params: Endpoint modification parameters
+
+        Returns:
+            Modified endpoint details
+        """
+        endpoint_arn = params.get('EndpointArn', 'unknown')
+        logger.info('Modifying endpoint', endpoint_arn=endpoint_arn)
+
+        # Mask password in logs if present
+        safe_params = {k: v if k != 'Password' else '***MASKED***' for k, v in params.items()}
+        logger.debug('Modifying endpoint with params', params=safe_params)
+
+        # Call API
+        response = self.client.call_api('modify_endpoint', **params)
+
+        # Format response
+        endpoint = response.get('Endpoint', {})
+        formatted_endpoint = ResponseFormatter.format_endpoint(endpoint)
+
+        result = {
+            'success': True,
+            'data': {'endpoint': formatted_endpoint, 'message': 'Endpoint modified successfully'},
+            'error': None,
+        }
+
+        logger.info(f'Modified endpoint: {formatted_endpoint.get("identifier")}')
+        return result
+
+    def get_endpoint_settings(
+        self, engine_name: str, max_results: int = 100, marker: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get valid endpoint settings for a database engine.
+
+        Args:
+            engine_name: Database engine name
+            max_results: Maximum results per page
+            marker: Pagination token
+
+        Returns:
+            Dictionary with endpoint settings
+        """
+        logger.info('Getting endpoint settings', engine=engine_name)
+
+        # Build API parameters
+        params: Dict[str, Any] = {'EngineName': engine_name, 'MaxRecords': max_results}
+
+        if marker:
+            params['Marker'] = marker
+
+        # Call API
+        response = self.client.call_api('describe_endpoint_settings', **params)
+
+        # Format settings
+        settings = response.get('EndpointSettings', [])
+
+        result = {
+            'success': True,
+            'data': {'endpoint_settings': settings, 'count': len(settings), 'engine': engine_name},
+            'error': None,
+        }
+
+        # Add pagination info
+        if response.get('Marker'):
+            result['data']['next_marker'] = response['Marker']
+
+        logger.info(f'Retrieved {len(settings)} endpoint settings for {engine_name}')
+        return result
+
+    def list_endpoint_types(
+        self,
+        filters: Optional[List[Dict[str, Any]]] = None,
+        max_results: int = 100,
+        marker: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List supported endpoint types.
+
+        Args:
+            filters: Optional filters
+            max_results: Maximum results per page
+            marker: Pagination token
+
+        Returns:
+            Dictionary with endpoint types
+        """
+        logger.info('Listing endpoint types')
+
+        # Build API parameters
+        params: Dict[str, Any] = {'MaxRecords': max_results}
+
+        if filters:
+            params['Filters'] = filters
+
+        if marker:
+            params['Marker'] = marker
+
+        # Call API
+        response = self.client.call_api('describe_endpoint_types', **params)
+
+        # Get endpoint types
+        endpoint_types = response.get('SupportedEndpointTypes', [])
+
+        result = {
+            'success': True,
+            'data': {'endpoint_types': endpoint_types, 'count': len(endpoint_types)},
+            'error': None,
+        }
+
+        # Add pagination info
+        if response.get('Marker'):
+            result['data']['next_marker'] = response['Marker']
+
+        logger.info(f'Retrieved {len(endpoint_types)} endpoint types')
+        return result
+
+    def list_engine_versions(
+        self,
+        engine_name: Optional[str] = None,
+        max_results: int = 100,
+        marker: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List available DMS engine versions.
+
+        Args:
+            engine_name: Optional engine name filter
+            max_results: Maximum results per page
+            marker: Pagination token
+
+        Returns:
+            Dictionary with engine versions
+        """
+        logger.info('Listing engine versions', engine=engine_name)
+
+        # Build API parameters
+        params: Dict[str, Any] = {'MaxRecords': max_results}
+
+        if engine_name:
+            params['Filters'] = [{'Name': 'engine-name', 'Values': [engine_name]}]
+
+        if marker:
+            params['Marker'] = marker
+
+        # Call API
+        response = self.client.call_api('describe_engine_versions', **params)
+
+        # Get engine versions
+        engine_versions = response.get('EngineVersions', [])
+
+        result = {
+            'success': True,
+            'data': {'engine_versions': engine_versions, 'count': len(engine_versions)},
+            'error': None,
+        }
+
+        # Add pagination info
+        if response.get('Marker'):
+            result['data']['next_marker'] = response['Marker']
+
+        logger.info(f'Retrieved {len(engine_versions)} engine versions')
+        return result
+
+    def refresh_schemas(self, endpoint_arn: str, instance_arn: str) -> Dict[str, Any]:
+        """Refresh schema definitions for an endpoint.
+
+        Args:
+            endpoint_arn: Endpoint ARN
+            instance_arn: Replication instance ARN
+
+        Returns:
+            Refresh status
+        """
+        logger.info('Refreshing schemas', endpoint_arn=endpoint_arn)
+
+        # Call API
+        response = self.client.call_api(
+            'refresh_schemas', EndpointArn=endpoint_arn, ReplicationInstanceArn=instance_arn
+        )
+
+        # Format response
+        refresh_status = response.get('RefreshSchemasStatus', {})
+
+        result = {
+            'success': True,
+            'data': {
+                'refresh_status': refresh_status,
+                'endpoint_arn': endpoint_arn,
+                'message': 'Schema refresh initiated',
+            },
+            'error': None,
+        }
+
+        logger.info(f'Initiated schema refresh for endpoint: {endpoint_arn}')
+        return result
+
+    def list_schemas(
+        self, endpoint_arn: str, max_results: int = 100, marker: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """List database schemas for an endpoint.
+
+        Args:
+            endpoint_arn: Endpoint ARN
+            max_results: Maximum results per page
+            marker: Pagination token
+
+        Returns:
+            Dictionary with schema list
+        """
+        logger.info('Listing schemas', endpoint_arn=endpoint_arn)
+
+        # Build API parameters
+        params: Dict[str, Any] = {'EndpointArn': endpoint_arn, 'MaxRecords': max_results}
+
+        if marker:
+            params['Marker'] = marker
+
+        # Call API
+        response = self.client.call_api('describe_schemas', **params)
+
+        # Get schemas
+        schemas = response.get('Schemas', [])
+
+        result = {
+            'success': True,
+            'data': {'schemas': schemas, 'count': len(schemas), 'endpoint_arn': endpoint_arn},
+            'error': None,
+        }
+
+        # Add pagination info
+        if response.get('Marker'):
+            result['data']['next_marker'] = response['Marker']
+
+        logger.info(f'Retrieved {len(schemas)} schemas for endpoint')
+        return result
+
+    def get_refresh_status(self, endpoint_arn: str) -> Dict[str, Any]:
+        """Get schema refresh status for an endpoint.
+
+        Args:
+            endpoint_arn: Endpoint ARN
+
+        Returns:
+            Refresh status details
+        """
+        logger.info('Getting refresh schemas status', endpoint_arn=endpoint_arn)
+
+        # Call API
+        response = self.client.call_api(
+            'describe_refresh_schemas_status', EndpointArn=endpoint_arn
+        )
+
+        # Format response
+        refresh_status = response.get('RefreshSchemasStatus', {})
+
+        result = {
+            'success': True,
+            'data': {
+                'refresh_status': refresh_status,
+                'endpoint_arn': endpoint_arn,
+                'status': refresh_status.get('Status', 'unknown'),
+            },
+            'error': None,
+        }
+
+        logger.info(f'Retrieved refresh status for endpoint: {endpoint_arn}')
+        return result
+
+
 # TODO: Add Secrets Manager integration
