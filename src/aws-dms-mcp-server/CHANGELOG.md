@@ -5,6 +5,35 @@ All notable changes to the AWS DMS MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+#### Docker Infrastructure Improvements
+
+- **Dockerfile modernization**: Updated to match security and performance standards across AWS MCP servers
+  - Changed base image from `python:3.13-slim` to SHA256-pinned Alpine image (`python:3.13.5-alpine3.21@sha256:...`)
+  - Implemented multi-stage build pattern for smaller production images
+  - Added UV optimization environment variables (UV_COMPILE_BYTECODE, UV_LINK_MODE, UV_PYTHON_PREFERENCE, UV_FROZEN)
+  - Added build cache mounts (`--mount=type=cache,target=/root/.cache/uv`) for faster rebuilds
+  - Updated to modern `uv sync --frozen` workflow
+  - Added Alpine build dependencies (build-base, gcc, musl-dev, libffi-dev, openssl-dev, cargo)
+
+- **Security enhancements**:
+  - Implemented hash-verified dependency installation with `--require-hashes` flag
+  - Added `uv-requirements.txt` with SHA256 hashes for secure package installation
+  - SHA256-pinned base images for Dependabot compatibility
+
+- **Healthcheck improvements**:
+  - Added external `docker-healthcheck.sh` script (replacing inline Python healthcheck)
+  - Updated healthcheck intervals to 60s/10s/10s (matching other servers)
+  - Made healthcheck script executable with proper permissions
+
+### Infrastructure
+
+- Added `uv-requirements.txt` for hash-verified UV installation (uv==0.8.10)
+- Added `docker-healthcheck.sh` for container health monitoring
+
 ## [0.2.0] - 2025-10-06
 
 ### Added

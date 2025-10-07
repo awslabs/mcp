@@ -116,7 +116,7 @@ class TestResponseFormatter:
             'Port': 3306,
             'DatabaseName': 'testdb',
             'Username': 'testuser',
-            'Password': 'secretpassword123',
+            'Password': 'secretpassword123',  # pragma: allowlist secret
             'Status': 'active',
         }
 
