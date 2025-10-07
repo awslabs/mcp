@@ -16,5 +16,7 @@
 
 from .pattern_matcher import PatternMatcher
 from .scoring_engine import ScoringEngine
+from .file_association_engine import FileAssociationEngine
+from .file_type_detector import FileTypeDetector
 
-__all__ = ['PatternMatcher', 'ScoringEngine']
+__all__ = ['PatternMatcher', 'ScoringEngine', 'FileAssociationEngine', 'FileTypeDetector']
