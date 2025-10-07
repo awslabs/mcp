@@ -1,24 +1,19 @@
-"""
-Serverless Manager.
+"""Serverless Manager.
 
 Handles business logic for AWS DMS Serverless operations including
 migration projects, data providers, instance profiles, and data migrations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
-from .response_formatter import ResponseFormatter
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class ServerlessManager:
     """Manager for DMS Serverless operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize serverless manager.
+        """Initialize serverless manager.
 
         Args:
             client: DMS client wrapper
@@ -41,8 +36,7 @@ class ServerlessManager:
         schema_conversion_application_attributes: Optional[Dict[str, Any]] = None,
         tags: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """
-        Create a migration project.
+        """Create a migration project.
 
         Args:
             identifier: Project identifier

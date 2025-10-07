@@ -1,24 +1,19 @@
-"""
-Subnet Group Manager.
+"""Subnet Group Manager.
 
 Handles business logic for AWS DMS replication subnet group operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
-from .dms_client import DMSClient
-from .response_formatter import ResponseFormatter
 from ..exceptions import DMSInvalidParameterException
+from .dms_client import DMSClient
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class SubnetGroupManager:
     """Manager for replication subnet group operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize subnet group manager.
+        """Initialize subnet group manager.
 
         Args:
             client: DMS client wrapper
@@ -33,8 +28,7 @@ class SubnetGroupManager:
         subnet_ids: List[str],
         tags: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """
-        Create a replication subnet group.
+        """Create a replication subnet group.
 
         Args:
             identifier: Unique identifier for the subnet group
@@ -80,8 +74,7 @@ class SubnetGroupManager:
         description: Optional[str] = None,
         subnet_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Modify a replication subnet group.
+        """Modify a replication subnet group.
 
         Args:
             identifier: Subnet group identifier
@@ -124,8 +117,7 @@ class SubnetGroupManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List replication subnet groups.
+        """List replication subnet groups.
 
         Args:
             filters: Optional filters for subnet group selection
@@ -161,8 +153,7 @@ class SubnetGroupManager:
         return result
 
     def delete_subnet_group(self, identifier: str) -> Dict[str, Any]:
-        """
-        Delete a replication subnet group.
+        """Delete a replication subnet group.
 
         Args:
             identifier: Subnet group identifier to delete

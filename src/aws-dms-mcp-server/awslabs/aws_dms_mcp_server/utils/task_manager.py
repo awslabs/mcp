@@ -1,25 +1,21 @@
-"""
-Task Manager.
+"""Task Manager.
 
 Handles business logic for AWS DMS replication task operations.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 import json
-
-from loguru import logger
-
+from ..exceptions import DMSInvalidParameterException, DMSValidationException
 from .dms_client import DMSClient
 from .response_formatter import ResponseFormatter
-from ..exceptions import DMSInvalidParameterException, DMSValidationException
+from loguru import logger
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class TaskManager:
     """Manager for replication task operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize task manager.
+        """Initialize task manager.
 
         Args:
             client: DMS client wrapper
@@ -34,8 +30,7 @@ class TaskManager:
         marker: Optional[str] = None,
         without_settings: bool = False,
     ) -> Dict[str, Any]:
-        """
-        List replication tasks with optional filtering.
+        """List replication tasks with optional filtering.
 
         Args:
             filters: Optional filters for task selection
@@ -78,8 +73,7 @@ class TaskManager:
         return result
 
     def create_task(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Create a new replication task.
+        """Create a new replication task.
 
         Args:
             params: Task creation parameters
@@ -143,8 +137,7 @@ class TaskManager:
     def start_task(
         self, task_arn: str, start_type: str, cdc_start_position: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        Start a replication task.
+        """Start a replication task.
 
         Args:
             task_arn: Task ARN
@@ -190,8 +183,7 @@ class TaskManager:
         return result
 
     def stop_task(self, task_arn: str) -> Dict[str, Any]:
-        """
-        Stop a running replication task.
+        """Stop a running replication task.
 
         Args:
             task_arn: Task ARN
@@ -218,8 +210,7 @@ class TaskManager:
         return result
 
     def validate_table_mappings(self, mappings: str) -> Tuple[bool, str]:
-        """
-        Validate table mappings JSON structure.
+        """Validate table mappings JSON structure.
 
         Args:
             mappings: Table mappings JSON string

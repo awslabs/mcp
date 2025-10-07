@@ -1,25 +1,20 @@
-"""
-Connection Tester.
+"""Connection Tester.
 
 Handles connection testing between replication instances and endpoints.
 """
 
-from typing import Any, Dict, List, Optional
 import time
-from datetime import datetime, timedelta
-
-from loguru import logger
-
 from .dms_client import DMSClient
-from ..exceptions import DMSConnectionTestException
+from datetime import datetime, timedelta
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class ConnectionTester:
     """Manager for connection testing operations."""
 
     def __init__(self, client: DMSClient, enable_caching: bool = True):
-        """
-        Initialize connection tester.
+        """Initialize connection tester.
 
         Args:
             client: DMS client wrapper
@@ -31,8 +26,7 @@ class ConnectionTester:
         logger.debug('Initialized ConnectionTester', caching=enable_caching)
 
     def test_connection(self, instance_arn: str, endpoint_arn: str) -> Dict[str, Any]:
-        """
-        Test connectivity between replication instance and endpoint.
+        """Test connectivity between replication instance and endpoint.
 
         Args:
             instance_arn: Replication instance ARN
@@ -122,8 +116,7 @@ class ConnectionTester:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List existing connection test results.
+        """List existing connection test results.
 
         Args:
             filters: Optional filters (by status, endpoint, etc.)
@@ -177,8 +170,7 @@ class ConnectionTester:
     def delete_connection(
         self, endpoint_arn: str, replication_instance_arn: str
     ) -> Dict[str, Any]:
-        """
-        Delete a connection between a replication instance and endpoint.
+        """Delete a connection between a replication instance and endpoint.
 
         Args:
             endpoint_arn: Endpoint ARN

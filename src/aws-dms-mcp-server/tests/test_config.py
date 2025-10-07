@@ -1,11 +1,8 @@
-"""
-Tests for config.py module.
-"""
+"""Tests for config.py module."""
 
 import pytest
-from pydantic import ValidationError
-
 from awslabs.aws_dms_mcp_server.config import DMSServerConfig
+from pydantic import ValidationError
 
 
 class TestDMSServerConfig:

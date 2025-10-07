@@ -1,13 +1,12 @@
-"""
-Advanced DMS Tools - Metadata Model, Fleet Advisor, and Recommendations.
+"""Advanced DMS Tools - Metadata Model, Fleet Advisor, and Recommendations.
 
 This module contains the MCP tool definitions for advanced DMS features.
 """
 
-from typing import Any, Dict, List, Optional
-from loguru import logger
-from ..response_formatter import ResponseFormatter
 from ...exceptions import DMSMCPException
+from ..response_formatter import ResponseFormatter
+from typing import Any, Dict, List, Optional
+
 
 # Note: This module is imported and tools are registered in server.py
 

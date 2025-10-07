@@ -1,24 +1,19 @@
-"""
-Assessment Manager.
+"""Assessment Manager.
 
 Handles business logic for AWS DMS replication task assessment operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
 from .response_formatter import ResponseFormatter
-from ..exceptions import DMSInvalidParameterException
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class AssessmentManager:
     """Manager for replication task assessment operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize assessment manager.
+        """Initialize assessment manager.
 
         Args:
             client: DMS client wrapper
@@ -27,8 +22,7 @@ class AssessmentManager:
         logger.debug('Initialized AssessmentManager')
 
     def start_assessment(self, task_arn: str) -> Dict[str, Any]:
-        """
-        Start a task assessment (legacy API).
+        """Start a task assessment (legacy API).
 
         Args:
             task_arn: Task ARN
@@ -63,8 +57,7 @@ class AssessmentManager:
         include_only: Optional[List[str]] = None,
         exclude: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Start a new assessment run.
+        """Start a new assessment run.
 
         Args:
             task_arn: Task ARN
@@ -115,8 +108,7 @@ class AssessmentManager:
         }
 
     def cancel_assessment_run(self, assessment_run_arn: str) -> Dict[str, Any]:
-        """
-        Cancel a running assessment.
+        """Cancel a running assessment.
 
         Args:
             assessment_run_arn: Assessment run ARN
@@ -140,8 +132,7 @@ class AssessmentManager:
         }
 
     def delete_assessment_run(self, assessment_run_arn: str) -> Dict[str, Any]:
-        """
-        Delete an assessment run.
+        """Delete an assessment run.
 
         Args:
             assessment_run_arn: Assessment run ARN
@@ -170,8 +161,7 @@ class AssessmentManager:
     def list_assessment_results(
         self, task_arn: Optional[str] = None, max_results: int = 100, marker: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        List assessment results (legacy API).
+        """List assessment results (legacy API).
 
         Args:
             task_arn: Optional task ARN to filter
@@ -211,8 +201,7 @@ class AssessmentManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List assessment runs with filtering.
+        """List assessment runs with filtering.
 
         Args:
             filters: Optional filters for assessment runs
@@ -252,8 +241,7 @@ class AssessmentManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List individual assessments with filtering.
+        """List individual assessments with filtering.
 
         Args:
             filters: Optional filters for individual assessments
@@ -299,8 +287,7 @@ class AssessmentManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List applicable individual assessments.
+        """List applicable individual assessments.
 
         Args:
             task_arn: Optional task ARN

@@ -1,24 +1,20 @@
-"""
-Endpoint Manager.
+"""Endpoint Manager.
 
 Handles business logic for AWS DMS endpoint operations.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
-
-from loguru import logger
-
+from ..exceptions import DMSInvalidParameterException
 from .dms_client import DMSClient
 from .response_formatter import ResponseFormatter
-from ..exceptions import DMSInvalidParameterException
+from loguru import logger
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class EndpointManager:
     """Manager for endpoint operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize endpoint manager.
+        """Initialize endpoint manager.
 
         Args:
             client: DMS client wrapper
@@ -32,8 +28,7 @@ class EndpointManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List endpoints with optional filtering.
+        """List endpoints with optional filtering.
 
         Args:
             filters: Optional filters for endpoint selection
@@ -77,8 +72,7 @@ class EndpointManager:
         return result
 
     def create_endpoint(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Create a new database endpoint.
+        """Create a new database endpoint.
 
         Args:
             params: Endpoint creation parameters
@@ -139,8 +133,7 @@ class EndpointManager:
         return result
 
     def validate_endpoint_config(self, config: Dict[str, Any]) -> Tuple[bool, str]:
-        """
-        Validate endpoint configuration.
+        """Validate endpoint configuration.
 
         Args:
             config: Endpoint configuration
@@ -196,8 +189,7 @@ class EndpointManager:
         return True, ''
 
     def get_engine_settings(self, engine: str) -> Dict[str, Any]:
-        """
-        Get default settings for a database engine.
+        """Get default settings for a database engine.
 
         Args:
             engine: Database engine name
@@ -255,8 +247,7 @@ class EndpointManager:
         )
 
     def delete_endpoint(self, endpoint_arn: str) -> Dict[str, Any]:
-        """
-        Delete a database endpoint.
+        """Delete a database endpoint.
 
         Args:
             endpoint_arn: Endpoint ARN to delete

@@ -1,36 +1,34 @@
-"""
-AWS DMS MCP Server - Main server implementation.
+"""AWS DMS MCP Server - Main server implementation.
 
 This module defines all MCP tools using FastMCP decorators and coordinates
 interactions with AWS DMS through utility modules.
 """
 
-from typing import Any, Dict, List, Optional
-from datetime import datetime
 import sys
-
-from fastmcp import FastMCP
-from loguru import logger
-
 from .config import DMSServerConfig
-from .utils.dms_client import DMSClient
-from .utils.replication_instance_manager import ReplicationInstanceManager
-from .utils.endpoint_manager import EndpointManager
-from .utils.task_manager import TaskManager
-from .utils.table_operations import TableOperations
-from .utils.connection_tester import ConnectionTester
+from .exceptions import DMSMCPException
 from .utils.assessment_manager import AssessmentManager
 from .utils.certificate_manager import CertificateManager
-from .utils.subnet_group_manager import SubnetGroupManager
+from .utils.connection_tester import ConnectionTester
+from .utils.dms_client import DMSClient
+from .utils.endpoint_manager import EndpointManager
 from .utils.event_manager import EventManager
-from .utils.maintenance_manager import MaintenanceManager
-from .utils.serverless_replication_manager import ServerlessReplicationManager
-from .utils.serverless_manager import ServerlessManager
-from .utils.metadata_model_manager import MetadataModelManager
 from .utils.fleet_advisor_manager import FleetAdvisorManager
+from .utils.maintenance_manager import MaintenanceManager
+from .utils.metadata_model_manager import MetadataModelManager
 from .utils.recommendation_manager import RecommendationManager
+from .utils.replication_instance_manager import ReplicationInstanceManager
 from .utils.response_formatter import ResponseFormatter
-from .exceptions import DMSMCPException
+from .utils.serverless_manager import ServerlessManager
+from .utils.serverless_replication_manager import ServerlessReplicationManager
+from .utils.subnet_group_manager import SubnetGroupManager
+from .utils.table_operations import TableOperations
+from .utils.task_manager import TaskManager
+from datetime import datetime
+from fastmcp import FastMCP
+from loguru import logger
+from typing import Any, Dict, List, Optional
+
 
 # Initialize server with comprehensive instructions
 mcp = FastMCP(
@@ -267,8 +265,7 @@ recommendation_manager: RecommendationManager
 
 
 def create_server(server_config: Optional[DMSServerConfig] = None) -> FastMCP:
-    """
-    Create and configure the AWS DMS MCP server.
+    """Create and configure the AWS DMS MCP server.
 
     Args:
         server_config: Optional configuration object. If None, loads from environment.
@@ -347,8 +344,7 @@ def describe_replication_instances(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List and describe AWS DMS replication instances with optional filtering.
+    """List and describe AWS DMS replication instances with optional filtering.
 
     Args:
         filters: Optional filters for instance selection (e.g., by status, class)
@@ -392,8 +388,7 @@ def create_replication_instance(
     publicly_accessible: bool = False,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a new AWS DMS replication instance with Multi-AZ support.
+    """Create a new AWS DMS replication instance with Multi-AZ support.
 
     Args:
         replication_instance_identifier: Unique identifier for the instance
@@ -461,8 +456,7 @@ def modify_replication_instance(
     auto_minor_version_upgrade: Optional[bool] = None,
     replication_instance_identifier: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify AWS DMS replication instance configuration.
+    """Modify AWS DMS replication instance configuration.
 
     Args:
         replication_instance_arn: Instance ARN to modify
@@ -527,8 +521,7 @@ def modify_replication_instance(
 
 @mcp.tool()
 def delete_replication_instance(replication_instance_arn: str) -> Dict[str, Any]:
-    """
-    Delete an AWS DMS replication instance.
+    """Delete an AWS DMS replication instance.
 
     Args:
         replication_instance_arn: Instance ARN to delete
@@ -563,8 +556,7 @@ def delete_replication_instance(replication_instance_arn: str) -> Dict[str, Any]
 def reboot_replication_instance(
     replication_instance_arn: str, force_failover: bool = False
 ) -> Dict[str, Any]:
-    """
-    Reboot an AWS DMS replication instance.
+    """Reboot an AWS DMS replication instance.
 
     Args:
         replication_instance_arn: Instance ARN to reboot
@@ -602,8 +594,7 @@ def reboot_replication_instance(
 def describe_orderable_replication_instances(
     max_results: int = 100, marker: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    List available replication instance classes and configurations.
+    """List available replication instance classes and configurations.
 
     Args:
         max_results: Maximum results per page (20-100)
@@ -629,8 +620,7 @@ def describe_orderable_replication_instances(
 def describe_replication_instance_task_logs(
     replication_instance_arn: str, max_results: int = 100, marker: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Get task log metadata for a replication instance.
+    """Get task log metadata for a replication instance.
 
     Args:
         replication_instance_arn: Instance ARN
@@ -664,8 +654,7 @@ def describe_replication_instance_task_logs(
 def move_replication_task(
     replication_task_arn: str, target_replication_instance_arn: str
 ) -> Dict[str, Any]:
-    """
-    Move a replication task to a different replication instance.
+    """Move a replication task to a different replication instance.
 
     Args:
         replication_task_arn: Task ARN to move
@@ -710,8 +699,7 @@ def describe_endpoints(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List and describe source/target database endpoints.
+    """List and describe source/target database endpoints.
 
     Args:
         filters: Optional filters (by type, engine, status)
@@ -754,8 +742,7 @@ def create_endpoint(
     secrets_manager_secret_id: Optional[str] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a database endpoint for source or target.
+    """Create a database endpoint for source or target.
 
     Supported engines: mysql, postgres, oracle, mariadb, aurora, aurora-postgresql
 
@@ -836,8 +823,7 @@ def modify_endpoint(
     ssl_mode: Optional[str] = None,
     secrets_manager_secret_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify AWS DMS endpoint configuration.
+    """Modify AWS DMS endpoint configuration.
 
     Args:
         endpoint_arn: Endpoint ARN to modify
@@ -910,8 +896,7 @@ def modify_endpoint(
 def describe_endpoint_settings(
     engine_name: str, max_results: int = 100, marker: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Get valid endpoint settings for a database engine.
+    """Get valid endpoint settings for a database engine.
 
     Args:
         engine_name: Database engine (mysql, postgres, oracle, etc.)
@@ -942,8 +927,7 @@ def describe_endpoint_types(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List supported endpoint types and database engines.
+    """List supported endpoint types and database engines.
 
     Args:
         filters: Optional filters for endpoint types
@@ -972,8 +956,7 @@ def describe_endpoint_types(
 def describe_engine_versions(
     engine_name: Optional[str] = None, max_results: int = 100, marker: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    List available DMS engine versions.
+    """List available DMS engine versions.
 
     Args:
         engine_name: Optional engine name to filter
@@ -1000,8 +983,7 @@ def describe_engine_versions(
 
 @mcp.tool()
 def refresh_schemas(endpoint_arn: str, replication_instance_arn: str) -> Dict[str, Any]:
-    """
-    Refresh schema definitions for an endpoint.
+    """Refresh schema definitions for an endpoint.
 
     Args:
         endpoint_arn: Endpoint ARN
@@ -1039,8 +1021,7 @@ def refresh_schemas(endpoint_arn: str, replication_instance_arn: str) -> Dict[st
 def describe_schemas(
     endpoint_arn: str, max_results: int = 100, marker: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    List database schemas for an endpoint.
+    """List database schemas for an endpoint.
 
     Args:
         endpoint_arn: Endpoint ARN
@@ -1070,8 +1051,7 @@ def describe_schemas(
 
 @mcp.tool()
 def describe_refresh_schemas_status(endpoint_arn: str) -> Dict[str, Any]:
-    """
-    Get schema refresh operation status for an endpoint.
+    """Get schema refresh operation status for an endpoint.
 
     Args:
         endpoint_arn: Endpoint ARN
@@ -1107,8 +1087,7 @@ def modify_replication_task(
     cdc_stop_position: Optional[str] = None,
     task_data: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify AWS DMS replication task configuration.
+    """Modify AWS DMS replication task configuration.
 
     Args:
         replication_task_arn: Task ARN to modify
@@ -1167,8 +1146,7 @@ def modify_replication_task(
 
 @mcp.tool()
 def delete_replication_task(replication_task_arn: str) -> Dict[str, Any]:
-    """
-    Delete an AWS DMS replication task.
+    """Delete an AWS DMS replication task.
 
     Args:
         replication_task_arn: Task ARN to delete
@@ -1207,8 +1185,7 @@ def describe_replication_table_statistics(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Get table statistics for a replication task or configuration.
+    """Get table statistics for a replication task or configuration.
 
     Args:
         replication_task_arn: Task ARN (for traditional DMS)
@@ -1249,8 +1226,7 @@ def reload_tables(
     tables_to_reload: List[Dict[str, str]],
     reload_option: str = 'data-reload',
 ) -> Dict[str, Any]:
-    """
-    Reload specific tables in a DMS Serverless replication.
+    """Reload specific tables in a DMS Serverless replication.
 
     Args:
         replication_config_arn: Replication config ARN
@@ -1294,8 +1270,7 @@ def reload_tables(
 
 @mcp.tool()
 def delete_endpoint(endpoint_arn: str) -> Dict[str, Any]:
-    """
-    Delete a database endpoint.
+    """Delete a database endpoint.
 
     This operation permanently removes the endpoint configuration from AWS DMS.
     The endpoint must not be in use by any replication tasks.
@@ -1338,8 +1313,7 @@ def delete_endpoint(endpoint_arn: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def test_connection(replication_instance_arn: str, endpoint_arn: str) -> Dict[str, Any]:
-    """
-    Test connectivity between a replication instance and an endpoint.
+    """Test connectivity between a replication instance and an endpoint.
 
     Args:
         replication_instance_arn: Replication instance ARN
@@ -1374,8 +1348,7 @@ def describe_connections(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List existing connection test results.
+    """List existing connection test results.
 
     Args:
         filters: Optional filters (by status, endpoint, etc.)
@@ -1404,8 +1377,7 @@ def describe_connections(
 
 @mcp.tool()
 def delete_connection(endpoint_arn: str, replication_instance_arn: str) -> Dict[str, Any]:
-    """
-    Delete a connection between a replication instance and endpoint.
+    """Delete a connection between a replication instance and endpoint.
 
     This removes the connection test results and configuration.
 
@@ -1456,8 +1428,7 @@ def describe_replication_tasks(
     marker: Optional[str] = None,
     without_settings: bool = False,
 ) -> Dict[str, Any]:
-    """
-    List and describe replication tasks with detailed status.
+    """List and describe replication tasks with detailed status.
 
     Args:
         filters: Optional filters (by status, type, instance)
@@ -1501,8 +1472,7 @@ def create_replication_task(
     cdc_start_time: Optional[datetime] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a replication task with table mappings and CDC configuration.
+    """Create a replication task with table mappings and CDC configuration.
 
     Args:
         replication_task_identifier: Unique identifier
@@ -1565,8 +1535,7 @@ def start_replication_task(
     cdc_start_position: Optional[str] = None,
     cdc_start_time: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """
-    Start a replication task with support for new starts, resume, and reload.
+    """Start a replication task with support for new starts, resume, and reload.
 
     Args:
         replication_task_arn: Task ARN
@@ -1603,8 +1572,7 @@ def start_replication_task(
 
 @mcp.tool()
 def stop_replication_task(replication_task_arn: str) -> Dict[str, Any]:
-    """
-    Stop a running replication task safely.
+    """Stop a running replication task safely.
 
     Args:
         replication_task_arn: Task ARN
@@ -1644,8 +1612,7 @@ def describe_table_statistics(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Get detailed table-level replication statistics.
+    """Get detailed table-level replication statistics.
 
     Provides metrics including:
     - Row counts (inserts, updates, deletes, DDLs)
@@ -1689,8 +1656,7 @@ def reload_replication_tables(
     tables_to_reload: List[Dict[str, str]],
     reload_option: str = 'data-reload',  # "data-reload" or "validate-only"
 ) -> Dict[str, Any]:
-    """
-    Reload specific tables during replication.
+    """Reload specific tables during replication.
 
     Args:
         replication_task_arn: Task ARN
@@ -1741,8 +1707,7 @@ def reload_replication_tables(
 
 @mcp.tool()
 def start_replication_task_assessment(replication_task_arn: str) -> Dict[str, Any]:
-    """
-    Start a replication task assessment (legacy API).
+    """Start a replication task assessment (legacy API).
 
     Args:
         replication_task_arn: Task ARN to assess
@@ -1785,8 +1750,7 @@ def start_replication_task_assessment_run(
     include_only: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """
-    Start a new replication task assessment run.
+    """Start a new replication task assessment run.
 
     Args:
         replication_task_arn: Task ARN to assess
@@ -1841,8 +1805,7 @@ def start_replication_task_assessment_run(
 def cancel_replication_task_assessment_run(
     replication_task_assessment_run_arn: str,
 ) -> Dict[str, Any]:
-    """
-    Cancel a running replication task assessment.
+    """Cancel a running replication task assessment.
 
     Args:
         replication_task_assessment_run_arn: Assessment run ARN to cancel
@@ -1884,8 +1847,7 @@ def cancel_replication_task_assessment_run(
 def delete_replication_task_assessment_run(
     replication_task_assessment_run_arn: str,
 ) -> Dict[str, Any]:
-    """
-    Delete a replication task assessment run.
+    """Delete a replication task assessment run.
 
     Args:
         replication_task_assessment_run_arn: Assessment run ARN to delete
@@ -1929,8 +1891,7 @@ def describe_replication_task_assessment_results(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List replication task assessment results (legacy API).
+    """List replication task assessment results (legacy API).
 
     Args:
         replication_task_arn: Optional task ARN to filter results
@@ -1971,8 +1932,7 @@ def describe_replication_task_assessment_runs(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List replication task assessment runs with optional filtering.
+    """List replication task assessment runs with optional filtering.
 
     Args:
         filters: Optional filters (by task ARN, status, etc.)
@@ -2006,8 +1966,7 @@ def describe_replication_task_individual_assessments(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List individual premigration assessments with optional filtering.
+    """List individual premigration assessments with optional filtering.
 
     Args:
         filters: Optional filters (by assessment name, status, etc.)
@@ -2047,8 +2006,7 @@ def describe_applicable_individual_assessments(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List individual assessments applicable to a migration configuration.
+    """List individual assessments applicable to a migration configuration.
 
     Args:
         replication_task_arn: Optional task ARN
@@ -2102,8 +2060,7 @@ def import_certificate(
     certificate_wallet: Optional[bytes] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Import an SSL certificate for DMS endpoint connections.
+    """Import an SSL certificate for DMS endpoint connections.
 
     Certificates are used to establish secure connections between DMS
     and database endpoints. Supports PEM-encoded certificates and
@@ -2154,8 +2111,7 @@ def describe_certificates(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List SSL certificates used for DMS endpoint connections.
+    """List SSL certificates used for DMS endpoint connections.
 
     Args:
         filters: Optional filters for certificate selection
@@ -2195,8 +2151,7 @@ def create_replication_subnet_group(
     subnet_ids: List[str],
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a replication subnet group for VPC networking.
+    """Create a replication subnet group for VPC networking.
 
     Subnet groups define the VPC subnets where replication instances will be placed.
     At least two subnets in different Availability Zones are required for Multi-AZ deployments.
@@ -2248,8 +2203,7 @@ def modify_replication_subnet_group(
     replication_subnet_group_description: Optional[str] = None,
     subnet_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify a replication subnet group configuration.
+    """Modify a replication subnet group configuration.
 
     Args:
         replication_subnet_group_identifier: Subnet group identifier
@@ -2294,8 +2248,7 @@ def describe_replication_subnet_groups(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List replication subnet groups with optional filtering.
+    """List replication subnet groups with optional filtering.
 
     Args:
         filters: Optional filters for subnet group selection
@@ -2325,8 +2278,7 @@ def describe_replication_subnet_groups(
 
 @mcp.tool()
 def delete_replication_subnet_group(replication_subnet_group_identifier: str) -> Dict[str, Any]:
-    """
-    Delete a replication subnet group.
+    """Delete a replication subnet group.
 
     The subnet group must not be in use by any replication instances.
 
@@ -2380,8 +2332,7 @@ def create_event_subscription(
     enabled: bool = True,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create an event subscription for DMS notifications via SNS.
+    """Create an event subscription for DMS notifications via SNS.
 
     Event subscriptions allow you to receive notifications about DMS events
     such as replication instance status changes, task failures, etc.
@@ -2439,8 +2390,7 @@ def modify_event_subscription(
     event_categories: Optional[List[str]] = None,
     enabled: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify an event subscription configuration.
+    """Modify an event subscription configuration.
 
     Args:
         subscription_name: Subscription name to modify
@@ -2483,8 +2433,7 @@ def modify_event_subscription(
 
 @mcp.tool()
 def delete_event_subscription(subscription_name: str) -> Dict[str, Any]:
-    """
-    Delete an event subscription.
+    """Delete an event subscription.
 
     Args:
         subscription_name: Subscription name to delete
@@ -2523,8 +2472,7 @@ def describe_event_subscriptions(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List event subscriptions with optional filtering.
+    """List event subscriptions with optional filtering.
 
     Args:
         subscription_name: Optional subscription name to filter
@@ -2568,8 +2516,7 @@ def describe_events(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List DMS events with optional filtering.
+    """List DMS events with optional filtering.
 
     Args:
         source_identifier: Source identifier (instance/task/subnet group identifier)
@@ -2615,8 +2562,7 @@ def describe_events(
 def describe_event_categories(
     source_type: Optional[str] = None, filters: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
-    """
-    List available event categories for a source type.
+    """List available event categories for a source type.
 
     Args:
         source_type: Source type to get categories for (replication-instance, replication-task, etc.)
@@ -2649,8 +2595,7 @@ def describe_event_categories(
 def apply_pending_maintenance_action(
     replication_instance_arn: str, apply_action: str, opt_in_type: str
 ) -> Dict[str, Any]:
-    """
-    Apply a pending maintenance action to a replication instance.
+    """Apply a pending maintenance action to a replication instance.
 
     Maintenance actions include software updates, patches, and other
     system maintenance operations.
@@ -2699,8 +2644,7 @@ def describe_pending_maintenance_actions(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List pending maintenance actions for DMS resources.
+    """List pending maintenance actions for DMS resources.
 
     Args:
         replication_instance_arn: Optional instance ARN to filter
@@ -2750,8 +2694,7 @@ def create_replication_config(
     resource_identifier: Optional[str] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a replication configuration for DMS Serverless.
+    """Create a replication configuration for DMS Serverless.
 
     DMS Serverless automatically provisions and scales compute resources for migrations.
 
@@ -2816,8 +2759,7 @@ def modify_replication_config(
     source_endpoint_arn: Optional[str] = None,
     target_endpoint_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify a DMS Serverless replication configuration.
+    """Modify a DMS Serverless replication configuration.
 
     Args:
         replication_config_arn: Replication config ARN
@@ -2868,8 +2810,7 @@ def modify_replication_config(
 
 @mcp.tool()
 def delete_replication_config(replication_config_arn: str) -> Dict[str, Any]:
-    """
-    Delete a DMS Serverless replication configuration.
+    """Delete a DMS Serverless replication configuration.
 
     The replication must be stopped before deletion.
 
@@ -2910,8 +2851,7 @@ def describe_replication_configs(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List DMS Serverless replication configurations.
+    """List DMS Serverless replication configurations.
 
     Args:
         filters: Optional filters for configuration selection
@@ -2945,8 +2885,7 @@ def describe_replications(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List DMS Serverless replications (running instances of configs).
+    """List DMS Serverless replications (running instances of configs).
 
     Args:
         filters: Optional filters for replication selection
@@ -2982,8 +2921,7 @@ def start_replication(
     cdc_start_position: Optional[str] = None,
     cdc_stop_position: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Start a DMS Serverless replication.
+    """Start a DMS Serverless replication.
 
     Args:
         replication_config_arn: Replication config ARN
@@ -3026,8 +2964,7 @@ def start_replication(
 
 @mcp.tool()
 def stop_replication(replication_config_arn: str) -> Dict[str, Any]:
-    """
-    Stop a running DMS Serverless replication.
+    """Stop a running DMS Serverless replication.
 
     Args:
         replication_config_arn: Replication config ARN
@@ -3074,8 +3011,7 @@ def create_migration_project(
     schema_conversion_application_attributes: Optional[Dict[str, Any]] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a migration project for DMS Serverless.
+    """Create a migration project for DMS Serverless.
 
     Migration projects organize serverless resources for database migrations.
 
@@ -3135,8 +3071,7 @@ def modify_migration_project(
     description: Optional[str] = None,
     schema_conversion_application_attributes: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify a migration project configuration.
+    """Modify a migration project configuration.
 
     Args:
         migration_project_arn: Migration project ARN
@@ -3185,8 +3120,7 @@ def modify_migration_project(
 
 @mcp.tool()
 def delete_migration_project(migration_project_arn: str) -> Dict[str, Any]:
-    """
-    Delete a migration project.
+    """Delete a migration project.
 
     Args:
         migration_project_arn: Migration project ARN
@@ -3223,8 +3157,7 @@ def describe_migration_projects(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List migration projects with optional filtering.
+    """List migration projects with optional filtering.
 
     Args:
         filters: Optional filters for project selection
@@ -3265,8 +3198,7 @@ def create_data_provider(
     description: Optional[str] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a data provider for DMS Serverless.
+    """Create a data provider for DMS Serverless.
 
     Data providers define source/target database connections for serverless migrations.
 
@@ -3317,8 +3249,7 @@ def modify_data_provider(
     settings: Optional[Dict[str, Any]] = None,
     description: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify a data provider configuration.
+    """Modify a data provider configuration.
 
     Args:
         data_provider_arn: Data provider ARN
@@ -3361,8 +3292,7 @@ def modify_data_provider(
 
 @mcp.tool()
 def delete_data_provider(data_provider_arn: str) -> Dict[str, Any]:
-    """
-    Delete a data provider.
+    """Delete a data provider.
 
     Args:
         data_provider_arn: Data provider ARN
@@ -3399,8 +3329,7 @@ def describe_data_providers(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List data providers with optional filtering.
+    """List data providers with optional filtering.
 
     Args:
         filters: Optional filters for provider selection
@@ -3444,8 +3373,7 @@ def create_instance_profile(
     vpc_security_groups: Optional[List[str]] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create an instance profile for DMS Serverless.
+    """Create an instance profile for DMS Serverless.
 
     Instance profiles configure compute and networking for serverless migrations.
 
@@ -3505,8 +3433,7 @@ def modify_instance_profile(
     subnet_group_identifier: Optional[str] = None,
     vpc_security_groups: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify an instance profile configuration.
+    """Modify an instance profile configuration.
 
     Args:
         instance_profile_arn: Instance profile ARN
@@ -4040,8 +3967,7 @@ def batch_start_recommendations(data: Optional[List[Dict[str, Any]]] = None) -> 
 
 @mcp.tool()
 def delete_instance_profile(instance_profile_arn: str) -> Dict[str, Any]:
-    """
-    Delete an instance profile.
+    """Delete an instance profile.
 
     Args:
         instance_profile_arn: Instance profile ARN
@@ -4078,8 +4004,7 @@ def describe_instance_profiles(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List instance profiles with optional filtering.
+    """List instance profiles with optional filtering.
 
     Args:
         filters: Optional filters for profile selection
@@ -4122,8 +4047,7 @@ def create_data_migration(
     data_migration_name: Optional[str] = None,
     tags: Optional[List[Dict[str, str]]] = None,
 ) -> Dict[str, Any]:
-    """
-    Create a data migration for DMS Serverless.
+    """Create a data migration for DMS Serverless.
 
     Data migrations are the serverless equivalent of replication tasks.
 
@@ -4180,8 +4104,7 @@ def modify_data_migration(
     source_data_settings: Optional[List[Dict[str, Any]]] = None,
     number_of_jobs: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    Modify a data migration configuration.
+    """Modify a data migration configuration.
 
     Args:
         data_migration_arn: Data migration ARN
@@ -4228,8 +4151,7 @@ def modify_data_migration(
 
 @mcp.tool()
 def delete_data_migration(data_migration_arn: str) -> Dict[str, Any]:
-    """
-    Delete a data migration.
+    """Delete a data migration.
 
     Args:
         data_migration_arn: Data migration ARN
@@ -4266,8 +4188,7 @@ def describe_data_migrations(
     max_results: int = 100,
     marker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    List data migrations with optional filtering.
+    """List data migrations with optional filtering.
 
     Args:
         filters: Optional filters for migration selection
@@ -4297,8 +4218,7 @@ def describe_data_migrations(
 
 @mcp.tool()
 def start_data_migration(data_migration_arn: str, start_type: str) -> Dict[str, Any]:
-    """
-    Start a data migration.
+    """Start a data migration.
 
     Args:
         data_migration_arn: Data migration ARN
@@ -4334,8 +4254,7 @@ def start_data_migration(data_migration_arn: str, start_type: str) -> Dict[str, 
 
 @mcp.tool()
 def stop_data_migration(data_migration_arn: str) -> Dict[str, Any]:
-    """
-    Stop a running data migration.
+    """Stop a running data migration.
 
     Args:
         data_migration_arn: Data migration ARN
@@ -4368,8 +4287,7 @@ def stop_data_migration(data_migration_arn: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def describe_account_attributes() -> Dict[str, Any]:
-    """
-    Get DMS account attributes and resource quotas.
+    """Get DMS account attributes and resource quotas.
 
     Returns information about account limits such as:
     - Maximum replication instances
@@ -4398,8 +4316,7 @@ def describe_account_attributes() -> Dict[str, Any]:
 
 @mcp.tool()
 def add_tags_to_resource(resource_arn: str, tags: List[Dict[str, str]]) -> Dict[str, Any]:
-    """
-    Add tags to a DMS resource.
+    """Add tags to a DMS resource.
 
     Tags are key-value pairs used for resource organization, cost tracking,
     and access control.
@@ -4439,8 +4356,7 @@ def add_tags_to_resource(resource_arn: str, tags: List[Dict[str, str]]) -> Dict[
 
 @mcp.tool()
 def remove_tags_from_resource(resource_arn: str, tag_keys: List[str]) -> Dict[str, Any]:
-    """
-    Remove tags from a DMS resource.
+    """Remove tags from a DMS resource.
 
     Args:
         resource_arn: Resource ARN
@@ -4476,8 +4392,7 @@ def remove_tags_from_resource(resource_arn: str, tag_keys: List[str]) -> Dict[st
 
 @mcp.tool()
 def list_tags_for_resource(resource_arn: str) -> Dict[str, Any]:
-    """
-    List all tags for a DMS resource.
+    """List all tags for a DMS resource.
 
     Args:
         resource_arn: Resource ARN
@@ -4506,8 +4421,7 @@ def list_tags_for_resource(resource_arn: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def update_subscriptions_to_event_bridge(force_move: bool = False) -> Dict[str, Any]:
-    """
-    Update existing DMS event subscriptions to use Amazon EventBridge.
+    """Update existing DMS event subscriptions to use Amazon EventBridge.
 
     This migrates SNS-based event subscriptions to EventBridge for better
     integration with AWS event-driven architectures.
@@ -4544,8 +4458,7 @@ def update_subscriptions_to_event_bridge(force_move: bool = False) -> Dict[str, 
 
 @mcp.tool()
 def delete_certificate(certificate_arn: str) -> Dict[str, Any]:
-    """
-    Delete an SSL certificate.
+    """Delete an SSL certificate.
 
     The certificate must not be in use by any endpoints.
 

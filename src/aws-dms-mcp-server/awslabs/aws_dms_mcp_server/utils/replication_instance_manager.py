@@ -1,24 +1,20 @@
-"""
-Replication Instance Manager.
+"""Replication Instance Manager.
 
 Handles business logic for AWS DMS replication instance operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
+from ..exceptions import DMSInvalidParameterException, DMSResourceNotFoundException
 from .dms_client import DMSClient
 from .response_formatter import ResponseFormatter
-from ..exceptions import DMSInvalidParameterException, DMSResourceNotFoundException
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class ReplicationInstanceManager:
     """Manager for replication instance operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize replication instance manager.
+        """Initialize replication instance manager.
 
         Args:
             client: DMS client wrapper
@@ -32,8 +28,7 @@ class ReplicationInstanceManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List replication instances with optional filtering.
+        """List replication instances with optional filtering.
 
         Args:
             filters: Optional filters for instance selection
@@ -77,8 +72,7 @@ class ReplicationInstanceManager:
         return result
 
     def create_instance(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Create a new replication instance.
+        """Create a new replication instance.
 
         Args:
             params: Instance creation parameters
@@ -128,8 +122,7 @@ class ReplicationInstanceManager:
         return result
 
     def get_instance_details(self, instance_arn: str) -> Dict[str, Any]:
-        """
-        Get detailed information about a specific instance.
+        """Get detailed information about a specific instance.
 
         Args:
             instance_arn: Instance ARN
@@ -159,8 +152,7 @@ class ReplicationInstanceManager:
         return {'success': True, 'data': formatted_instance, 'error': None}
 
     def validate_instance_class(self, instance_class: str) -> bool:
-        """
-        Validate instance class is supported.
+        """Validate instance class is supported.
 
         Args:
             instance_class: Instance class to validate
@@ -206,10 +198,8 @@ class ReplicationInstanceManager:
 Replication Instance Manager - Additional methods for complete API coverage.
 """
 
-from typing import Any, Dict, List, Optional
-from loguru import logger
 from .dms_client import DMSClient
-from .response_formatter import ResponseFormatter
+from typing import Any, Dict, List, Optional
 
 
 class ReplicationInstanceManager:

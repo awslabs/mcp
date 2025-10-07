@@ -1,23 +1,18 @@
-"""
-Event Manager.
+"""Event Manager.
 
 Handles business logic for AWS DMS event subscription and monitoring operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
-from .response_formatter import ResponseFormatter
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class EventManager:
     """Manager for DMS event subscription and monitoring operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize event manager.
+        """Initialize event manager.
 
         Args:
             client: DMS client wrapper
@@ -35,8 +30,7 @@ class EventManager:
         enabled: bool = True,
         tags: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """
-        Create an event subscription for DMS notifications.
+        """Create an event subscription for DMS notifications.
 
         Args:
             subscription_name: Unique subscription name
@@ -88,8 +82,7 @@ class EventManager:
         event_categories: Optional[List[str]] = None,
         enabled: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """
-        Modify an event subscription.
+        """Modify an event subscription.
 
         Args:
             subscription_name: Subscription name
@@ -128,8 +121,7 @@ class EventManager:
         }
 
     def delete_event_subscription(self, subscription_name: str) -> Dict[str, Any]:
-        """
-        Delete an event subscription.
+        """Delete an event subscription.
 
         Args:
             subscription_name: Subscription name to delete
@@ -161,8 +153,7 @@ class EventManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List event subscriptions with optional filtering.
+        """List event subscriptions with optional filtering.
 
         Args:
             subscription_name: Optional subscription name to filter
@@ -212,8 +203,7 @@ class EventManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List DMS events with optional filtering.
+        """List DMS events with optional filtering.
 
         Args:
             source_identifier: Source identifier to filter events
@@ -265,8 +255,7 @@ class EventManager:
     def list_event_categories(
         self, source_type: Optional[str] = None, filters: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
-        """
-        List event categories for a source type.
+        """List event categories for a source type.
 
         Args:
             source_type: Source type to get categories for
@@ -301,8 +290,7 @@ class EventManager:
         return result
 
     def update_subscriptions_to_event_bridge(self, force_move: bool = False) -> Dict[str, Any]:
-        """
-        Update DMS event subscriptions to use EventBridge.
+        """Update DMS event subscriptions to use EventBridge.
 
         Args:
             force_move: Force move even if some subscriptions fail

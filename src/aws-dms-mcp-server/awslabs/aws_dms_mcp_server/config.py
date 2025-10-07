@@ -1,14 +1,11 @@
-"""
-Configuration management for AWS DMS MCP Server.
+"""Configuration management for AWS DMS MCP Server.
 
 Uses Pydantic for type-safe configuration with environment variable support.
 """
 
-import os
-from typing import Literal, Optional
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings
+from typing import Literal, Optional
 
 
 class DMSServerConfig(BaseSettings):

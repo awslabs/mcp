@@ -1,14 +1,11 @@
-"""
-Recommendation Manager.
+"""Recommendation Manager.
 
 Handles business logic for AWS DMS recommendation operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class RecommendationManager:

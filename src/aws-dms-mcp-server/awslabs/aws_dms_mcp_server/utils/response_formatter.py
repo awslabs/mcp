@@ -1,13 +1,10 @@
-"""
-Response Formatter.
+"""Response Formatter.
 
 Provides consistent response formatting across all MCP tools.
 """
 
-from typing import Any, Dict
 from datetime import datetime
-
-from loguru import logger
+from typing import Any, Dict
 
 
 class ResponseFormatter:
@@ -15,8 +12,7 @@ class ResponseFormatter:
 
     @staticmethod
     def format_instance(instance: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Format replication instance for response.
+        """Format replication instance for response.
 
         Args:
             instance: Raw instance data from AWS API
@@ -53,8 +49,7 @@ class ResponseFormatter:
 
     @staticmethod
     def format_endpoint(endpoint: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Format endpoint for response.
+        """Format endpoint for response.
 
         Args:
             endpoint: Raw endpoint data from AWS API
@@ -93,8 +88,7 @@ class ResponseFormatter:
 
     @staticmethod
     def format_task(task: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Format replication task for response.
+        """Format replication task for response.
 
         Args:
             task: Raw task data from AWS API
@@ -141,8 +135,7 @@ class ResponseFormatter:
 
     @staticmethod
     def format_table_stats(stats: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Format table statistics for response.
+        """Format table statistics for response.
 
         Args:
             stats: Raw table statistics from AWS API
@@ -200,8 +193,7 @@ class ResponseFormatter:
 
     @staticmethod
     def format_error(error: Exception) -> Dict[str, Any]:
-        """
-        Format exception for error response.
+        """Format exception for error response.
 
         Args:
             error: Exception to format
@@ -232,8 +224,7 @@ class ResponseFormatter:
 
     @staticmethod
     def format_timestamp(dt: datetime) -> str:
-        """
-        Format datetime to ISO 8601 string.
+        """Format datetime to ISO 8601 string.
 
         Args:
             dt: Datetime object

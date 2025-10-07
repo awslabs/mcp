@@ -1,23 +1,18 @@
-"""
-Maintenance Manager.
+"""Maintenance Manager.
 
 Handles business logic for AWS DMS maintenance and tagging operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
-from .response_formatter import ResponseFormatter
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class MaintenanceManager:
     """Manager for maintenance and resource tagging operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize maintenance manager.
+        """Initialize maintenance manager.
 
         Args:
             client: DMS client wrapper
@@ -28,8 +23,7 @@ class MaintenanceManager:
     def apply_pending_maintenance_action(
         self, resource_arn: str, apply_action: str, opt_in_type: str
     ) -> Dict[str, Any]:
-        """
-        Apply a pending maintenance action to a resource.
+        """Apply a pending maintenance action to a resource.
 
         Args:
             resource_arn: Resource ARN
@@ -68,8 +62,7 @@ class MaintenanceManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List pending maintenance actions for DMS resources.
+        """List pending maintenance actions for DMS resources.
 
         Args:
             resource_arn: Optional resource ARN to filter
@@ -111,8 +104,7 @@ class MaintenanceManager:
         return result
 
     def get_account_attributes(self) -> Dict[str, Any]:
-        """
-        Get DMS account attributes and quotas.
+        """Get DMS account attributes and quotas.
 
         Returns:
             Account attributes including resource quotas
@@ -135,8 +127,7 @@ class MaintenanceManager:
         }
 
     def add_tags(self, resource_arn: str, tags: List[Dict[str, str]]) -> Dict[str, Any]:
-        """
-        Add tags to a DMS resource.
+        """Add tags to a DMS resource.
 
         Args:
             resource_arn: Resource ARN to tag
@@ -162,8 +153,7 @@ class MaintenanceManager:
         }
 
     def remove_tags(self, resource_arn: str, tag_keys: List[str]) -> Dict[str, Any]:
-        """
-        Remove tags from a DMS resource.
+        """Remove tags from a DMS resource.
 
         Args:
             resource_arn: Resource ARN
@@ -191,8 +181,7 @@ class MaintenanceManager:
         }
 
     def list_tags(self, resource_arn: str) -> Dict[str, Any]:
-        """
-        List tags for a DMS resource.
+        """List tags for a DMS resource.
 
         Args:
             resource_arn: Resource ARN

@@ -1,8 +1,4 @@
-"""
-Tests for server.py module.
-"""
-
-import pytest
+"""Tests for server.py module."""
 
 
 class TestMCPServerInitialization:

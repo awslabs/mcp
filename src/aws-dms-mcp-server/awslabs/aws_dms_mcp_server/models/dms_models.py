@@ -1,13 +1,11 @@
-"""
-Response and common data models for AWS DMS operations.
+"""Response and common data models for AWS DMS operations.
 
 Pydantic models for validating and serializing AWS DMS API responses.
 """
 
-from typing import Any, Dict, List, Optional
 from datetime import datetime
-
 from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional
 
 
 class ReplicationInstanceResponse(BaseModel):

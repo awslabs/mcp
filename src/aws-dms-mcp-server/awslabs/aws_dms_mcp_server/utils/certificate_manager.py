@@ -1,23 +1,18 @@
-"""
-Certificate Manager.
+"""Certificate Manager.
 
 Handles business logic for AWS DMS certificate operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
-from .response_formatter import ResponseFormatter
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class CertificateManager:
     """Manager for SSL certificate operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize certificate manager.
+        """Initialize certificate manager.
 
         Args:
             client: DMS client wrapper
@@ -32,8 +27,7 @@ class CertificateManager:
         certificate_wallet: Optional[bytes] = None,
         tags: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """
-        Import an SSL certificate for DMS endpoints.
+        """Import an SSL certificate for DMS endpoints.
 
         Args:
             certificate_identifier: Unique identifier for certificate
@@ -71,8 +65,7 @@ class CertificateManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List SSL certificates with optional filtering.
+        """List SSL certificates with optional filtering.
 
         Args:
             filters: Optional filters for certificate selection
@@ -108,8 +101,7 @@ class CertificateManager:
         return result
 
     def delete_certificate(self, certificate_arn: str) -> Dict[str, Any]:
-        """
-        Delete an SSL certificate.
+        """Delete an SSL certificate.
 
         Args:
             certificate_arn: Certificate ARN to delete

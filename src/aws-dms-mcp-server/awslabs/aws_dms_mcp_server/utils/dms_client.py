@@ -1,18 +1,15 @@
-"""
-DMS Client wrapper for boto3.
+"""DMS Client wrapper for boto3.
 
 Provides centralized AWS DMS client management with retry logic,
 error handling, and read-only mode enforcement.
 """
 
-from typing import Any, Dict
-
 import boto3
+from ..config import DMSServerConfig
+from ..exceptions import AWS_ERROR_MAP, DMSMCPException, DMSReadOnlyModeException
 from botocore.exceptions import ClientError
 from loguru import logger
-
-from ..config import DMSServerConfig
-from ..exceptions import DMSMCPException, AWS_ERROR_MAP, DMSReadOnlyModeException
+from typing import Any, Dict
 
 
 class DMSClient:
@@ -29,8 +26,7 @@ class DMSClient:
     }
 
     def __init__(self, config: DMSServerConfig):
-        """
-        Initialize DMS client.
+        """Initialize DMS client.
 
         Args:
             config: Server configuration
@@ -43,8 +39,7 @@ class DMSClient:
         )
 
     def get_client(self) -> boto3.client:
-        """
-        Get or create boto3 DMS client.
+        """Get or create boto3 DMS client.
 
         Returns:
             Configured boto3 DMS client
@@ -79,8 +74,7 @@ class DMSClient:
         return self._client
 
     def call_api(self, operation: str, **kwargs) -> Dict[str, Any]:
-        """
-        Call DMS API operation with error handling and logging.
+        """Call DMS API operation with error handling and logging.
 
         Args:
             operation: DMS API operation name
@@ -124,8 +118,7 @@ class DMSClient:
             raise exception
 
     def is_read_only_operation(self, operation: str) -> bool:
-        """
-        Check if operation is read-only.
+        """Check if operation is read-only.
 
         Args:
             operation: Operation name
@@ -136,8 +129,7 @@ class DMSClient:
         return operation in self.READ_ONLY_OPERATIONS
 
     def translate_error(self, error: ClientError) -> DMSMCPException:
-        """
-        Translate AWS SDK error to custom exception.
+        """Translate AWS SDK error to custom exception.
 
         Args:
             error: boto3 ClientError

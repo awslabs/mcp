@@ -1,18 +1,14 @@
-"""
-Pytest configuration and fixtures for AWS DMS MCP Server tests.
-"""
+"""Pytest configuration and fixtures for AWS DMS MCP Server tests."""
 
 import pytest
-from unittest.mock import Mock, MagicMock
-
 from awslabs.aws_dms_mcp_server.config import DMSServerConfig
 from awslabs.aws_dms_mcp_server.utils.dms_client import DMSClient
+from unittest.mock import MagicMock, Mock
 
 
 @pytest.fixture
 def mock_config():
-    """
-    Provide a test configuration.
+    """Provide a test configuration.
 
     Returns:
         DMSServerConfig with test settings
@@ -27,8 +23,7 @@ def mock_config():
 
 @pytest.fixture
 def mock_dms_client(mock_config):
-    """
-    Provide a mocked DMS client.
+    """Provide a mocked DMS client.
 
     Returns:
         Mocked DMSClient instance
@@ -40,8 +35,7 @@ def mock_dms_client(mock_config):
 
 @pytest.fixture
 def mock_boto3_client():
-    """
-    Provide a mocked boto3 DMS client.
+    """Provide a mocked boto3 DMS client.
 
     Returns:
         Mocked boto3 client
@@ -53,8 +47,7 @@ def mock_boto3_client():
 
 @pytest.fixture
 def sample_instance_response():
-    """
-    Provide sample replication instance response.
+    """Provide sample replication instance response.
 
     Returns:
         Dictionary with sample instance data
@@ -73,8 +66,7 @@ def sample_instance_response():
 
 @pytest.fixture
 def sample_endpoint_response():
-    """
-    Provide sample endpoint response.
+    """Provide sample endpoint response.
 
     Returns:
         Dictionary with sample endpoint data
@@ -95,8 +87,7 @@ def sample_endpoint_response():
 
 @pytest.fixture
 def sample_task_response():
-    """
-    Provide sample replication task response.
+    """Provide sample replication task response.
 
     Returns:
         Dictionary with sample task data

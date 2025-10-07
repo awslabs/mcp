@@ -1,12 +1,11 @@
-"""
-Exception hierarchy for AWS DMS MCP Server.
+"""Exception hierarchy for AWS DMS MCP Server.
 
 Provides custom exceptions that map to AWS DMS API errors with
 structured error information for proper error handling.
 """
 
-from typing import Any, Dict, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 
 class DMSMCPException(Exception):
@@ -18,8 +17,7 @@ class DMSMCPException(Exception):
         details: Optional[Dict[str, Any]] = None,
         suggested_action: Optional[str] = None,
     ):
-        """
-        Initialize base exception.
+        """Initialize base exception.
 
         Args:
             message: Error message
@@ -33,8 +31,7 @@ class DMSMCPException(Exception):
         super().__init__(self.message)
 
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert exception to structured dictionary.
+        """Convert exception to structured dictionary.
 
         Returns:
             Dictionary representation of the error
@@ -90,8 +87,7 @@ class DMSReadOnlyModeException(DMSMCPException):
     """Operation not allowed in read-only mode."""
 
     def __init__(self, operation: str):
-        """
-        Initialize read-only mode exception.
+        """Initialize read-only mode exception.
 
         Args:
             operation: The operation that was attempted

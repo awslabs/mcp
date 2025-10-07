@@ -1,13 +1,11 @@
-"""
-Configuration models for AWS DMS resources.
+"""Configuration models for AWS DMS resources.
 
 Pydantic models for validating input parameters when creating DMS resources.
 """
 
 import json
-from typing import List, Literal, Optional
-
 from pydantic import BaseModel, Field, SecretStr, field_validator
+from typing import List, Literal, Optional
 
 
 # Database engine types supported by DMS

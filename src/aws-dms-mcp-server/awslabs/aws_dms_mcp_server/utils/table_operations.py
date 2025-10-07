@@ -1,24 +1,20 @@
-"""
-Table Operations.
+"""Table Operations.
 
 Handles table-level statistics and reload operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
+from ..exceptions import DMSInvalidParameterException
 from .dms_client import DMSClient
 from .response_formatter import ResponseFormatter
-from ..exceptions import DMSInvalidParameterException
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class TableOperations:
     """Manager for table-level operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize table operations manager.
+        """Initialize table operations manager.
 
         Args:
             client: DMS client wrapper
@@ -33,8 +29,7 @@ class TableOperations:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Get table-level replication statistics.
+        """Get table-level replication statistics.
 
         Args:
             task_arn: Task ARN
@@ -101,8 +96,7 @@ class TableOperations:
     def reload_tables(
         self, task_arn: str, tables: List[Dict[str, str]], reload_option: str = 'data-reload'
     ) -> Dict[str, Any]:
-        """
-        Reload specific tables during replication.
+        """Reload specific tables during replication.
 
         Args:
             task_arn: Task ARN
@@ -169,8 +163,7 @@ class TableOperations:
         return result
 
     def format_statistics(self, stats: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Format table statistics for response.
+        """Format table statistics for response.
 
         Args:
             stats: Raw statistics from API

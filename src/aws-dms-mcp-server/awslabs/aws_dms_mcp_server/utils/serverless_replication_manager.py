@@ -1,23 +1,18 @@
-"""
-Serverless Replication Manager.
+"""Serverless Replication Manager.
 
 Handles business logic for AWS DMS Serverless replication configuration operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
-from .response_formatter import ResponseFormatter
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class ServerlessReplicationManager:
     """Manager for DMS Serverless replication operations."""
 
     def __init__(self, client: DMSClient):
-        """
-        Initialize serverless replication manager.
+        """Initialize serverless replication manager.
 
         Args:
             client: DMS client wrapper
@@ -38,8 +33,7 @@ class ServerlessReplicationManager:
         resource_identifier: Optional[str] = None,
         tags: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """
-        Create a replication configuration for DMS Serverless.
+        """Create a replication configuration for DMS Serverless.
 
         Args:
             identifier: Unique identifier
@@ -101,8 +95,7 @@ class ServerlessReplicationManager:
         source_endpoint_arn: Optional[str] = None,
         target_endpoint_arn: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Modify a replication configuration.
+        """Modify a replication configuration.
 
         Args:
             arn: Replication config ARN
@@ -153,8 +146,7 @@ class ServerlessReplicationManager:
         }
 
     def delete_replication_config(self, arn: str) -> Dict[str, Any]:
-        """
-        Delete a replication configuration.
+        """Delete a replication configuration.
 
         Args:
             arn: Replication config ARN
@@ -183,8 +175,7 @@ class ServerlessReplicationManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List replication configurations.
+        """List replication configurations.
 
         Args:
             filters: Optional filters
@@ -225,8 +216,7 @@ class ServerlessReplicationManager:
         max_results: int = 100,
         marker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        List serverless replications (running instances of configs).
+        """List serverless replications (running instances of configs).
 
         Args:
             filters: Optional filters
@@ -269,8 +259,7 @@ class ServerlessReplicationManager:
         cdc_start_position: Optional[str] = None,
         cdc_stop_position: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Start a serverless replication.
+        """Start a serverless replication.
 
         Args:
             arn: Replication config ARN
@@ -307,8 +296,7 @@ class ServerlessReplicationManager:
         }
 
     def stop_replication(self, arn: str) -> Dict[str, Any]:
-        """
-        Stop a running serverless replication.
+        """Stop a running serverless replication.
 
         Args:
             arn: Replication config ARN

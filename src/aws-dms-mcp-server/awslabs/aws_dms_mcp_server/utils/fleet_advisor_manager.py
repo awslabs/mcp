@@ -1,14 +1,11 @@
-"""
-Fleet Advisor Manager.
+"""Fleet Advisor Manager.
 
 Handles business logic for AWS DMS Fleet Advisor operations.
 """
 
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
-
 from .dms_client import DMSClient
+from loguru import logger
+from typing import Any, Dict, List, Optional
 
 
 class FleetAdvisorManager:
