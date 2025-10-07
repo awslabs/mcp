@@ -12,7 +12,6 @@ dependencies = [
     "numpy>=2.0.0",
     "pandas>=2.2.3",
     "statsmodels>=0.14.0",
-    "Jinja2>=3.0.0",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]

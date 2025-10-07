@@ -17,10 +17,10 @@ import os
 import pytest
 import pytest_asyncio
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
-    AnomalyDetectionThreshold,
+    AnomalyDetectionAlarmThreshold,
     Dimension,
     GetMetricDataResponse,
-    StaticThreshold,
+    StaticAlarmThreshold,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from datetime import datetime
@@ -640,7 +640,9 @@ class TestGetMetricData:
 
                 assert len(result.recommendations) == 1
                 assert 'Anomaly detection' in result.recommendations[0].alarmDescription
-                assert isinstance(result.recommendations[0].threshold, AnomalyDetectionThreshold)
+                assert isinstance(
+                    result.recommendations[0].threshold, AnomalyDetectionAlarmThreshold
+                )
 
     async def test_get_recommended_metric_alarms_metadata_takes_precedence(
         self, ctx, cloudwatch_metrics_tools
@@ -683,7 +685,7 @@ class TestGetMetricData:
                 assert len(result.recommendations) == 1
                 assert result.recommendations[0].alarmDescription == 'CPU utilization is high'
                 assert isinstance(
-                    result.recommendations[0].threshold, StaticThreshold
+                    result.recommendations[0].threshold, StaticAlarmThreshold
                 )  # Metadata overrides seasonality-based generation
 
             # Verify alarm dimensions

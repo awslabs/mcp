@@ -16,10 +16,9 @@ import numpy as np
 import statsmodels.api as sm
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
     NUMERICAL_STABILITY_THRESHOLD,
-    STATISTICAL_SIGNIFICANCE_THRESHOLD,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData, Seasonality, Trend
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import SeasonalDetector
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import SeasonalityDetector
 from collections import Counter
 from loguru import logger
 from statsmodels.regression.linear_model import OLS
@@ -29,9 +28,11 @@ from typing import Any, Dict, Optional
 class MetricAnalyzer:
     """Metric analysis including trend, density, seasonality, and statistical measures."""
 
+    STATISTICAL_SIGNIFICANCE_THRESHOLD = 0.05
+
     def __init__(self):
         """Initialize the metric analyzer."""
-        self.seasonal_detector = SeasonalDetector()
+        self.seasonality_detector = SeasonalityDetector()
 
     def analyze_metric_data(self, metric_data: MetricData) -> Dict[str, Any]:
         """Analyze metric data and return comprehensive analysis results.
@@ -128,7 +129,7 @@ class MetricAnalyzer:
             slope = model.params[1]
             p_value = model.pvalues[1]
 
-            if p_value >= STATISTICAL_SIGNIFICANCE_THRESHOLD:
+            if p_value >= self.STATISTICAL_SIGNIFICANCE_THRESHOLD:
                 return Trend.NONE
 
             return Trend.POSITIVE if slope > 0 else Trend.NEGATIVE
@@ -148,7 +149,7 @@ class MetricAnalyzer:
             return Seasonality.NONE
 
         try:
-            return self.seasonal_detector.detect_seasonality(
+            return self.seasonality_detector.detect_seasonality(
                 timestamps_ms, values, density_ratio, int(publishing_period_seconds)
             )
         except Exception as e:

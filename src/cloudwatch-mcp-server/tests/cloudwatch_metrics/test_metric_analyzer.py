@@ -52,9 +52,7 @@ class TestMetricAnalyzer:
     def _analyze_with_metric_data(self, analyzer, timestamps, values, period_seconds=60):
         """Helper method to analyze data using MetricData object."""
         metric_data = MetricData(
-            period_seconds=period_seconds,
-            timestamps=timestamps,
-            values=values
+            period_seconds=period_seconds, timestamps=timestamps, values=values
         )
         return analyzer.analyze_metric_data(metric_data)
 
@@ -378,8 +376,8 @@ class TestMetricAnalyzer:
 
     def test_compute_density_ratio_exception_handling_sum_error(self, analyzer):
         """Test density ratio computation with sum exception."""
-        from unittest.mock import patch
         import pytest
+        from unittest.mock import patch
 
         timestamps_ms = [1000, 2000, 3000]
 
@@ -402,12 +400,12 @@ class TestMetricAnalyzer:
 
     def test_compute_seasonality_exception_handling_detector_error(self, analyzer):
         """Test seasonality computation with detector exception."""
-        from unittest.mock import patch
         import pytest
+        from unittest.mock import patch
 
         # Mock the seasonal detector to raise an exception
         with patch.object(
-            analyzer.seasonal_detector,
+            analyzer.seasonality_detector,
             'detect_seasonality',
             side_effect=Exception('Seasonality error'),
         ):
@@ -416,8 +414,8 @@ class TestMetricAnalyzer:
 
     def test_compute_trend_exception_handling_ols_error(self, analyzer):
         """Test trend computation with OLS exception."""
-        from unittest.mock import patch
         import pytest
+        from unittest.mock import patch
 
         # Mock statsmodels OLS to raise an exception
         with patch(
@@ -430,8 +428,8 @@ class TestMetricAnalyzer:
 
     def test_compute_statistics_exception_handling_numpy_error(self, analyzer):
         """Test statistics computation with numpy exception."""
-        from unittest.mock import patch
         import pytest
+        from unittest.mock import patch
 
         # Mock numpy to raise an exception
         with patch(

@@ -1,6 +1,9 @@
 """Tests for analyze_metric tool."""
 
 import pytest
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
+    DEFAULT_ANALYSIS_PERIOD_MINUTES,
+)
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     Dimension,
 )
@@ -42,7 +45,7 @@ class TestAnalyzeMetric:
                 dimensions=[Dimension(name='InstanceId', value='i-test123')],
             )
 
-            assert result['recommendations_allowed'] is False
+            assert result['alarm_recommendations_allowed'] is False
             assert result['data_points_found'] == 0
 
     @pytest.mark.asyncio
@@ -69,7 +72,7 @@ class TestAnalyzeMetric:
                 dimensions=[Dimension(name='InstanceId', value='i-test123')],
             )
 
-            assert result['recommendations_allowed'] is False
+            assert result['alarm_recommendations_allowed'] is False
             assert result['data_points_found'] == 5
             assert 'seasonality_seconds' in result
             assert 'trend' in result
@@ -95,7 +98,7 @@ class TestAnalyzeMetric:
 
     @pytest.mark.asyncio
     async def test_analyze_metric_custom_period(self, ctx, cloudwatch_metrics_tools):
-        """Test analyze_metric with custom analysis period."""
+        """Test analyze_metric with default analysis period."""
         with patch.object(cloudwatch_metrics_tools, '_get_cloudwatch_client') as mock_client:
             mock_cloudwatch = Mock()
             mock_client.return_value = mock_cloudwatch
@@ -108,10 +111,11 @@ class TestAnalyzeMetric:
                 namespace='AWS/EC2',
                 metric_name='CPUUtilization',
                 dimensions=[],
-                analysis_period_minutes=4 * 7 * 24 * 60,  # 4 weeks in minutes
             )
 
-            assert result['metric_info']['analysis_period_minutes'] == 4 * 7 * 24 * 60
+            assert (
+                result['metric_info']['analysis_period_minutes'] == DEFAULT_ANALYSIS_PERIOD_MINUTES
+            )
 
     @pytest.mark.asyncio
     async def test_analyze_metric_empty_response(self, ctx, cloudwatch_metrics_tools):
@@ -158,7 +162,7 @@ class TestAnalyzeMetric:
 
             # Should handle gracefully - takes min(timestamps, values) = 2
             assert result['data_points_found'] == 2
-            assert result['recommendations_allowed'] is False  # Too few points
+            assert result['alarm_recommendations_allowed'] is False  # Too few points
 
     @pytest.mark.asyncio
     async def test_analyze_metric_with_nan_values(self, cloudwatch_metrics_tools, ctx):
@@ -185,7 +189,7 @@ class TestAnalyzeMetric:
 
             # Should handle NaN values gracefully - processes valid values
             assert result['data_points_found'] == 2
-            assert result['recommendations_allowed'] is False  # Too few points
+            assert result['alarm_recommendations_allowed'] is False  # Too few points
 
     @pytest.mark.asyncio
     async def test_analyze_metric_get_metric_data_returns_empty(

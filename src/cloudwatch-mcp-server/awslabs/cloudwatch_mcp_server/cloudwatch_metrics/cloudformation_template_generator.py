@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-import os
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import COMPARISON_OPERATOR_ANOMALY
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import AnomalyDetectionAlarmThreshold
 from typing import Any, Dict
 
 
@@ -24,27 +22,71 @@ logger = logging.getLogger(__name__)
 
 
 class CloudFormationTemplateGenerator:
-    """Generate CloudFormation JSON for CloudWatch Anomaly Detection Alarms using templates."""
+    """Generate CloudFormation JSON for CloudWatch Anomaly Detection Alarms."""
 
-    ANOMALY_DETECTION_ALARM_TEMPLATE = 'anomaly_detection_alarm.json'
-
-    def __init__(self):
-        """Initialize the CloudFormation template generator."""
-        template_dir = os.path.join(os.path.dirname(__file__), 'templates')
-        self.env = Environment(
-            loader=FileSystemLoader(template_dir),
-            autoescape=select_autoescape(['html', 'xml', 'json']),
-        )
-
-    def generate_template(self, alarm_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _generate_metric_alarm_template(self, alarm_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate CFN template for a single CloudWatch Alarm."""
         if not self._is_anomaly_detection_alarm(alarm_data):
             return {}
 
+        # Validate required fields
+        if not alarm_data.get('metricName'):
+            raise ValueError(
+                'Metric Name is required to generate CloudFormation templates for Cloudwatch Alarms'
+            )
+        if not alarm_data.get('namespace'):
+            raise ValueError(
+                'Metric Namespace is required to generate CloudFormation templates for Cloudwatch Alarms'
+            )
+
         # Process alarm data and add computed fields
         formatted_data = self._format_anomaly_detection_alarm_data(alarm_data)
-        alarm_json = self._generate_anomaly_detection_alarm_resource(formatted_data)
-        resources = json.loads(alarm_json)
+
+        # Build resources dict
+        anomaly_detector_key = f'{formatted_data["resourceKey"]}AnomalyDetector'
+        alarm_key = f'{formatted_data["resourceKey"]}Alarm'
+
+        resources = {
+            anomaly_detector_key: {
+                'Type': 'AWS::CloudWatch::AnomalyDetector',
+                'Properties': {
+                    'MetricName': formatted_data['metricName'],
+                    'Namespace': formatted_data['namespace'],
+                    'Stat': formatted_data['statistic'],
+                    'Dimensions': formatted_data['dimensions'],
+                },
+            },
+            alarm_key: {
+                'Type': 'AWS::CloudWatch::Alarm',
+                'DependsOn': anomaly_detector_key,
+                'Properties': {
+                    'AlarmDescription': formatted_data['alarmDescription'],
+                    'Metrics': [
+                        {
+                            'Expression': f'ANOMALY_DETECTION_BAND(m1, {formatted_data["sensitivity"]})',
+                            'Id': 'ad1',
+                        },
+                        {
+                            'Id': 'm1',
+                            'MetricStat': {
+                                'Metric': {
+                                    'MetricName': formatted_data['metricName'],
+                                    'Namespace': formatted_data['namespace'],
+                                    'Dimensions': formatted_data['dimensions'],
+                                },
+                                'Stat': formatted_data['statistic'],
+                                'Period': formatted_data['period'],
+                            },
+                        },
+                    ],
+                    'EvaluationPeriods': formatted_data['evaluationPeriods'],
+                    'DatapointsToAlarm': formatted_data['datapointsToAlarm'],
+                    'ThresholdMetricId': 'ad1',
+                    'ComparisonOperator': formatted_data['comparisonOperator'],
+                    'TreatMissingData': formatted_data['treatMissingData'],
+                },
+            },
+        }
 
         final_template = {
             'AWSTemplateFormatVersion': '2010-09-09',
@@ -54,26 +96,29 @@ class CloudFormationTemplateGenerator:
 
         return final_template
 
+    def _is_anomaly_detection_alarm(self, alarm_data: Dict[str, Any]) -> bool:
+        return alarm_data.get('comparisonOperator') == COMPARISON_OPERATOR_ANOMALY
+
     def _format_anomaly_detection_alarm_data(self, alarm_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Sanitise alarm data and add computed fields."""
+        """Sanitize alarm data and add computed fields."""
         formatted_data = alarm_data.copy()
 
-        # Generate alarm name if not provided
-        if 'alarmName' not in formatted_data:
-            metric_name = alarm_data.get('metricName', 'Alarm')
-            namespace = alarm_data.get('namespace', '')
-            formatted_data['alarmName'] = self._generate_alarm_name(metric_name, namespace)
-
-        # Generate resource key (sanitized alarm name for CloudFormation resource)
-        formatted_data['resourceKey'] = self._sanitize_resource_name(formatted_data['alarmName'])
+        # Generate resource key from metric name and namespace
+        formatted_data['resourceKey'] = self._generate_resource_key(
+            metric_name=alarm_data.get('metricName', ''),
+            namespace=alarm_data.get('namespace', ''),
+            dimensions=alarm_data.get('dimensions', []),
+        )
 
         # Process threshold value
         threshold = alarm_data.get('threshold', {})
-        formatted_data['sensitivity'] = threshold.get('sensitivity', 2)
+        formatted_data['sensitivity'] = threshold.get(
+            'sensitivity', AnomalyDetectionAlarmThreshold.DEFAULT_SENSITIVITY
+        )
 
         # Set defaults
         formatted_data.setdefault(
-            'alarmDescription', 'CloudWatch alarm generated by CloudWatch MCP server.'
+            'alarmDescription', 'CloudWatch Alarm generated by CloudWatch MCP server.'
         )
         formatted_data.setdefault('statistic', 'Average')
         formatted_data.setdefault('period', 300)
@@ -85,35 +130,33 @@ class CloudFormationTemplateGenerator:
 
         return formatted_data
 
-    def _generate_anomaly_detection_alarm_resource(self, alarm_data: Dict[str, Any]) -> str:
-        """Generate CloudWatch anomaly detection alarm template using Jinja2.
+    def _generate_resource_key(self, metric_name: str, namespace: str, dimensions: list) -> str:
+        """Generate CloudFormation resource key from metric components to act as logical id."""
+        # Strip AWS/ prefix from namespace (AWS CDK style)
+        clean_namespace = namespace.replace('AWS/', '')
 
-        Args:
-            alarm_data: Alarm configuration data
+        # Add first dimension key and value for uniqueness if present
+        dimension_suffix = ''
+        if dimensions:
+            first_dim = dimensions[0]
+            dim_name = first_dim.get('Name', '')
+            dim_value = first_dim.get('Value', '')
+            dimension_suffix = f'{dim_name}{dim_value}'
 
-        Returns:
-            str: Generated CloudFormation template
-        """
-        template = self.env.get_template(self.ANOMALY_DETECTION_ALARM_TEMPLATE)
-        alarm_resource = template.render(**alarm_data)
-
-        return alarm_resource
-
-    def _is_anomaly_detection_alarm(self, alarm_data: Dict[str, Any]) -> bool:
-        return alarm_data.get('comparisonOperator') == COMPARISON_OPERATOR_ANOMALY
-
-    def _generate_alarm_name(self, metric_name: str, namespace: str) -> str:
-        """Generate alarm name from metric name and namespace."""
-        return f'{metric_name.capitalize()}{namespace.replace("/", "").replace("AWS", "")}Alarm'
+        resource_base = f'{clean_namespace}{metric_name}{dimension_suffix}'
+        return self._sanitize_resource_name(resource_base)
 
     def _sanitize_resource_name(self, name: str) -> str:
         """Sanitize name for CloudFormation resource key."""
-        sanitized = name.replace('-', '').replace('_', '').replace('/', '').replace(' ', '')
-        # Validate CloudFormation naming requirements
+        # Remove non-alphanumeric characters
+        sanitized = ''.join(c for c in name if c.isalnum())
+
+        # Ensure it starts with letter
         if not sanitized or not sanitized[0].isalpha():
-            logger.warning(f'Invalid resource name: {sanitized} (must start with letter)')
             sanitized = 'Resource' + sanitized
+
+        # Truncate if too long
         if len(sanitized) > 255:
-            logger.warning(f'Resource name too long ({len(sanitized)} chars), truncating')
             sanitized = sanitized[:255]
+
         return sanitized

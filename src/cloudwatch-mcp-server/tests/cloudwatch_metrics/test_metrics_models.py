@@ -23,7 +23,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
-    StaticThreshold,
+    StaticAlarmThreshold,
 )
 from datetime import datetime
 from pydantic import ValidationError
@@ -280,7 +280,7 @@ class TestAlarmRecommendation:
 
     def test_alarm_recommendation_creation(self):
         """Test creating an alarm recommendation."""
-        threshold = StaticThreshold(staticValue=80.0, justification='Test justification')
+        threshold = StaticAlarmThreshold(staticValue=80.0, justification='Test justification')
 
         dimensions = [
             AlarmRecommendationDimension(name='InstanceId', value='i-1234567890abcdef0'),
@@ -311,10 +311,11 @@ class TestAlarmRecommendation:
         assert alarm.treatMissingData == 'missing'
         assert len(alarm.dimensions) == 2
         assert alarm.intent == 'Test alarm intent'
+        assert alarm.cloudformation_template == {'test': 'template'}
 
     def test_alarm_recommendation_with_minimal_fields(self):
         """Test creating an alarm recommendation with minimal fields."""
-        threshold = StaticThreshold(staticValue=1.0, justification='Test')
+        threshold = StaticAlarmThreshold(staticValue=1.0, justification='Test')
 
         alarm = AlarmRecommendation(
             alarmDescription='Minimal alarm',
@@ -326,11 +327,11 @@ class TestAlarmRecommendation:
             datapointsToAlarm=1,
             treatMissingData='missing',
             intent='Minimal test',
-            cloudformation_template={},
         )
 
         assert alarm.alarmDescription == 'Minimal alarm'
         assert len(alarm.dimensions) == 0  # Default empty list
+        assert alarm.cloudformation_template is None  # Default None for non-anomaly alarms
 
 
 class TestMetricData:

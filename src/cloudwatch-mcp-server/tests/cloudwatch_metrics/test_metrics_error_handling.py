@@ -379,22 +379,6 @@ class TestErrorHandling:
             assert result is False
 
     @pytest.mark.asyncio
-    async def test_analyze_metric_invalid_period(self, mock_context):
-        """Test analyze_metric with invalid analysis period."""
-        with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
-            tools = CloudWatchMetricsTools()
-
-            with pytest.raises(ValueError) as exc_info:
-                await tools.analyze_metric(
-                    mock_context,
-                    namespace='AWS/EC2',
-                    metric_name='CPUUtilization',
-                    analysis_period_minutes=-1,
-                )
-
-            assert 'analysis_period_minutes must be positive' in str(exc_info.value)
-
-    @pytest.mark.asyncio
     async def test_analyze_metric_analyzer_error(self, mock_context):
         """Test analyze_metric when metric analyzer fails."""
         with patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools.boto3.Session'):
@@ -404,7 +388,9 @@ class TestErrorHandling:
             mock_response.metricDataResults = []
             with patch.object(tools, 'get_metric_data', return_value=mock_response):
                 with patch.object(
-                    tools.metric_analyzer, 'analyze_metric_data', side_effect=Exception('Analysis error')
+                    tools.metric_analyzer,
+                    'analyze_metric_data',
+                    side_effect=Exception('Analysis error'),
                 ):
                     with pytest.raises(Exception) as exc_info:
                         await tools.analyze_metric(

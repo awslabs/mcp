@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.0.5] - 2025-10-06
 
 ### Added
+
 - Added tool to analyze CloudWatch Metric data
 
 ### Changed

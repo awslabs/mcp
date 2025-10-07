@@ -16,14 +16,15 @@ import numpy as np
 import pandas as pd
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
     NUMERICAL_STABILITY_THRESHOLD,
-    SEASONALITY_STRENGTH_THRESHOLD,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Seasonality
 from typing import List, Optional, Tuple
 
 
-class SeasonalDetector:
+class SeasonalityDetector:
     """Detects seasonal patterns in CloudWatch metric data."""
+
+    SEASONALITY_STRENGTH_THRESHOLD = 0.6  # See https://robjhyndman.com/hyndsight/tsoutliers/
 
     def detect_seasonality(
         self,
@@ -111,7 +112,7 @@ class SeasonalDetector:
         # Return seasonality if strength is above threshold
         return (
             best_seasonality
-            if best_strength > SEASONALITY_STRENGTH_THRESHOLD
+            if best_strength > self.SEASONALITY_STRENGTH_THRESHOLD
             else Seasonality.NONE
         )
 

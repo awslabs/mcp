@@ -23,8 +23,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.cloudformation_template_ge
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
     COMPARISON_OPERATOR_ANOMALY,
-    DEFAULT_ANALYSIS_PERIOD,
-    DEFAULT_SENSITIVITY,
+    DEFAULT_ANALYSIS_PERIOD_MINUTES,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer import MetricAnalyzer
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
@@ -32,7 +31,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AlarmRecommendationDimension,
     AlarmRecommendationResult,
     AlarmRecommendationThreshold,
-    AnomalyDetectionThreshold,
+    AnomalyDetectionAlarmThreshold,
     Dimension,
     GetMetricDataResponse,
     MetricData,
@@ -40,7 +39,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
-    StaticThreshold,
+    StaticAlarmThreshold,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import Seasonality
 from botocore.config import Config
@@ -764,14 +763,13 @@ class CloudWatchMetricsTools:
 
             # Generate additional recommendations based on metric analysis
             additional_recommendations = []
-            logger.info('No existing recommendations found - performing metric analysis')
+            logger.info('No predefined recommendations found - performing metric analysis')
             analysis_result = await self.analyze_metric(
                 ctx,
                 namespace,
                 metric_name,
                 dimensions,
                 region,
-                analysis_period_minutes=DEFAULT_ANALYSIS_PERIOD,
             )
 
             # Generate additional recommendations based on seasonality
@@ -860,12 +858,14 @@ class CloudWatchMetricsTools:
             AlarmRecommendationThreshold: Appropriate threshold object based on threshold type.
         """
         if 'sensitivity' in threshold_data:
-            return AnomalyDetectionThreshold(
-                sensitivity=threshold_data.get('sensitivity', 2.0),
+            return AnomalyDetectionAlarmThreshold(
+                sensitivity=threshold_data.get(
+                    'sensitivity', AnomalyDetectionAlarmThreshold.DEFAULT_SENSITIVITY
+                ),
                 justification=threshold_data.get('justification', ''),
             )
 
-        return StaticThreshold(
+        return StaticAlarmThreshold(
             staticValue=threshold_data.get('staticValue', 0.0),
             justification=threshold_data.get('justification', ''),
         )
@@ -883,22 +883,30 @@ class CloudWatchMetricsTools:
         threshold_data = alarm_data.get('threshold', {})
         threshold = self._create_alarm_threshold(threshold_data)
 
-        # Create alarm recommendation
-        return AlarmRecommendation(
-            alarmDescription=alarm_data.get('alarmDescription', ''),
-            metricName=alarm_data.get('metricName', ''),
-            namespace=alarm_data.get('namespace', ''),
-            threshold=threshold,
-            period=alarm_data.get('period', 300),
-            comparisonOperator=alarm_data.get('comparisonOperator', ''),
-            statistic=alarm_data.get('statistic', ''),
-            evaluationPeriods=alarm_data.get('evaluationPeriods', 1),
-            datapointsToAlarm=alarm_data.get('datapointsToAlarm', 1),
-            treatMissingData=alarm_data.get('treatMissingData', 'missing'),
-            dimensions=self._parse_metric_dimensions(alarm_data),
-            intent=alarm_data.get('intent', ''),
-            cloudformation_template=self.cloudformation_generator.generate_template(alarm_data),
-        )
+        # Generate CloudFormation template only for anomaly detection alarms
+        cfn_template = self.cloudformation_generator._generate_metric_alarm_template(alarm_data)
+
+        # Build alarm recommendation kwargs
+        alarm_kwargs = {
+            'alarmDescription': alarm_data.get('alarmDescription', ''),
+            'metricName': alarm_data.get('metricName', ''),
+            'namespace': alarm_data.get('namespace', ''),
+            'threshold': threshold,
+            'period': alarm_data.get('period', 300),
+            'comparisonOperator': alarm_data.get('comparisonOperator', ''),
+            'statistic': alarm_data.get('statistic', ''),
+            'evaluationPeriods': alarm_data.get('evaluationPeriods', 1),
+            'datapointsToAlarm': alarm_data.get('datapointsToAlarm', 1),
+            'treatMissingData': alarm_data.get('treatMissingData', 'missing'),
+            'dimensions': self._parse_metric_dimensions(alarm_data),
+            'intent': alarm_data.get('intent', ''),
+        }
+
+        # Only include cloudformation_template if it was successfully generated
+        if cfn_template:
+            alarm_kwargs['cloudformation_template'] = cfn_template
+
+        return AlarmRecommendation(**alarm_kwargs)
 
     def _create_anomaly_detector_data(
         self,
@@ -924,7 +932,7 @@ class CloudWatchMetricsTools:
             'statistic': 'Average',
             'dimensions': [{'Name': dim.name, 'Value': dim.value} for dim in dimensions],
             'threshold': {
-                'sensitivity': DEFAULT_SENSITIVITY,
+                'sensitivity': AnomalyDetectionAlarmThreshold.DEFAULT_SENSITIVITY,
                 'justification': f'Metric has a seasonality of {seasonality.name} making it suitable for Anomaly Detection.',
             },
             'comparisonOperator': COMPARISON_OPERATOR_ANOMALY,
@@ -982,11 +990,6 @@ class CloudWatchMetricsTools:
 
         return dimensions
 
-    def _calculate_period_seconds(self, analysis_period_minutes: int) -> int:
-        """Calculate period in seconds based on analysis period."""
-        # Use the same logic as _prepare_time_parameters
-        time_window_seconds = analysis_period_minutes * 60
-        return max(60, time_window_seconds // analysis_period_minutes)
 
     def _parse_metric_data_response(
         self, response: GetMetricDataResponse, period_seconds: int
@@ -1025,18 +1028,10 @@ class CloudWatchMetricsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
-        analysis_period_minutes: Annotated[
-            int,
-            Field(
-                description='Number of minutes of historical data to analyze. Defaults to 2 weeks (20160 minutes).'
-            ),
-        ] = DEFAULT_ANALYSIS_PERIOD,
     ) -> Dict[str, Any]:
         """Analyzes CloudWatch metric data to determine seasonality, trend, data density and statistical properties.
 
-        ⚠️  IMPORTANT: This tool provides RAW DATA ONLY. DO NOT interpret results or make recommendations.
-
-        This tool retrieves historical metric data and performs analysis including:
+        This tool provides RAW DATA ONLY about historical metric data and performs analysis including:
         - Seasonality detection
         - Trend analysis
         - Data density and publishing period
@@ -1051,7 +1046,6 @@ class CloudWatchMetricsTools:
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
             region: AWS region to query. Defaults to 'us-east-1'.
-            analysis_period_minutes: Number of minutes of data to analyze. Defaults to 2 weeks (20160 minutes).
 
         Returns:
             Dict[str, Any]: Raw analysis data including seasonality, trend, density, and statistics only.
@@ -1070,12 +1064,9 @@ class CloudWatchMetricsTools:
             print(f"Data quality: {analysis['data_quality']['quality_score']}")
         """
         try:
-            if analysis_period_minutes <= 0:
-                raise ValueError('analysis_period_minutes must be positive')
+            analysis_period_minutes = DEFAULT_ANALYSIS_PERIOD_MINUTES
 
-            logger.info(
-                f'Analyzing metric: {namespace}/{metric_name} using period of {analysis_period_minutes} minutes'
-            )
+            logger.info(f'Analyzing metric: {namespace}/{metric_name} in region {region}')
 
             end_time = datetime.now(timezone.utc)
             start_time = end_time - timedelta(minutes=analysis_period_minutes)
@@ -1101,7 +1092,7 @@ class CloudWatchMetricsTools:
 
             analysis_result.update(
                 {
-                    'recommendations_allowed': False,
+                    'alarm_recommendations_allowed': False,
                     'metric_info': {
                         'namespace': namespace,
                         'metric_name': metric_name,

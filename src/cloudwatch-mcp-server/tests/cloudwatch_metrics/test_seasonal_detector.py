@@ -3,15 +3,12 @@
 import math
 import numpy as np
 import pytest
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
-    SEASONALITY_STRENGTH_THRESHOLD,
-)
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer import MetricAnalyzer
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
-    AnomalyDetectionThreshold,
+    AnomalyDetectionAlarmThreshold,
     Seasonality,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import SeasonalDetector
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import SeasonalityDetector
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from datetime import datetime
 from tests.cloudwatch_metrics.test_utils import (
@@ -28,8 +25,8 @@ class TestSeasonalDetector:
 
     @pytest.fixture
     def detector(self):
-        """Create a SeasonalDetector instance."""
-        return SeasonalDetector()
+        """Create a SeasonalityDetector instance."""
+        return SeasonalityDetector()
 
     @pytest.fixture
     def metric_analyzer(self):
@@ -246,7 +243,7 @@ class TestSeasonalDetector:
         strength = detector._calculate_seasonal_strength(values, 24)
 
         # Perfect sine wave should have high seasonal strength
-        assert strength > SEASONALITY_STRENGTH_THRESHOLD
+        assert strength > SeasonalityDetector.SEASONALITY_STRENGTH_THRESHOLD
 
     def test_seasonal_strength_flat_line(self, detector):
         """Test seasonal strength calculation with flat line."""
@@ -289,6 +286,7 @@ class TestSeasonalDetector:
         )
 
         from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
         metric_data = MetricData(period_seconds=60, timestamps=timestamps_ms, values=values)
 
         result = metric_analyzer.analyze_metric_data(metric_data)
@@ -301,6 +299,7 @@ class TestSeasonalDetector:
         timestamps_ms, values = create_timestamps_and_values_by_duration(72, 1)
 
         from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
         metric_data = MetricData(period_seconds=60, timestamps=timestamps_ms, values=values)
 
         result = metric_analyzer.analyze_metric_data(metric_data)
@@ -341,7 +340,7 @@ class TestSeasonalDetector:
             )
 
             assert 'Anomaly detection' in anomaly_alarm.alarmDescription
-            assert isinstance(anomaly_alarm.threshold, AnomalyDetectionThreshold)
+            assert isinstance(anomaly_alarm.threshold, AnomalyDetectionAlarmThreshold)
             assert 'seasonality' in anomaly_alarm.alarmDescription.lower()
             assert anomaly_alarm.comparisonOperator == 'LessThanLowerOrGreaterThanUpperThreshold'
 
@@ -351,6 +350,7 @@ class TestSeasonalDetector:
 
         analyzer = MetricAnalyzer()
         from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
         metric_data = MetricData(period_seconds=60, timestamps=timestamps_ms, values=values)
         result = analyzer.analyze_metric_data(metric_data)
 
