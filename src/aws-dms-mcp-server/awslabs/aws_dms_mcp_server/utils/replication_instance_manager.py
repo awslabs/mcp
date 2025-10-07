@@ -197,3 +197,86 @@ class ReplicationInstanceManager:
 # TODO: Add instance status monitoring
 # TODO: Add instance modification support
 # TODO: Add instance deletion support
+"""
+Replication Instance Manager - Additional methods for complete API coverage.
+"""
+
+from typing import Any, Dict, List, Optional
+from loguru import logger
+from .dms_client import DMSClient
+from .response_formatter import ResponseFormatter
+
+
+class ReplicationInstanceManager:
+    """Manager for replication instance operations."""
+    
+    def __init__(self, client: DMSClient):
+        """Initialize manager with DMS client."""
+        self.client = client
+        logger.debug("Initialized ReplicationInstanceManager")
+    
+    def list_instances(
+        self,
+        filters: Optional[List[Dict[str, Any]]] = None,
+        max_results: int = 100,
+        marker: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """List replication instances."""
+        params = {"MaxRecords": max_results}
+        if filters: params["Filters"] = filters
+        if marker: params["Marker"] = marker
+        
+        response = self.client.call_api("describe_replication_instances", **params)
+        instances = [ResponseFormatter.format_instance(i) for i in response.get("ReplicationInstances", [])]
+        
+        result = {"success": True, "data": {"instances": instances, "count": len(instances)}, "error": None}
+        if response.get("Marker"): result["data"]["next_marker"] = response["Marker"]
+        return result
+    
+    def create_instance(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Create replication instance."""
+        response = self.client.call_api("create_replication_instance", **params)
+        instance = ResponseFormatter.format_instance(response.get("ReplicationInstance", {}))
+        return {"success": True, "data": {"instance": instance, "message": "Instance created successfully"}, "error": None}
+    
+    def modify_instance(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Modify replication instance."""
+        response = self.client.call_api("modify_replication_instance", **params)
+        instance = ResponseFormatter.format_instance(response.get("ReplicationInstance", {}))
+        return {"success": True, "data": {"instance": instance, "message": "Instance modified successfully"}, "error": None}
+    
+    def delete_instance(self, instance_arn: str) -> Dict[str, Any]:
+        """Delete replication instance."""
+        response = self.client.call_api("delete_replication_instance", ReplicationInstanceArn=instance_arn)
+        instance = ResponseFormatter.format_instance(response.get("ReplicationInstance", {}))
+        return {"success": True, "data": {"instance": instance, "message": "Instance deleted successfully"}, "error": None}
+    
+    def reboot_instance(self, instance_arn: str, force_failover: bool = False) -> Dict[str, Any]:
+        """Reboot replication instance."""
+        response = self.client.call_api("reboot_replication_instance", ReplicationInstanceArn=instance_arn, ForceFailover=force_failover)
+        instance = ResponseFormatter.format_instance(response.get("ReplicationInstance", {}))
+        return {"success": True, "data": {"instance": instance, "message": "Instance reboot initiated"}, "error": None}
+    
+    def list_orderable_instances(self, max_results: int = 100, marker: Optional[str] = None) -> Dict[str, Any]:
+        """List orderable instance configurations."""
+        params = {"MaxRecords": max_results}
+        if marker: params["Marker"] = marker
+        
+        response = self.client.call_api("describe_orderable_replication_instances", **params)
+        instances = response.get("OrderableReplicationInstances", [])
+        
+        result = {"success": True, "data": {"orderable_instances": instances, "count": len(instances)}, "error": None}
+        if response.get("Marker"): result["data"]["next_marker"] = response["Marker"]
+        return result
+    
+    def get_task_logs(self, instance_arn: str, max_results: int = 100, marker: Optional[str] = None) -> Dict[str, Any]:
+        """Get task log metadata."""
+        params = {"ReplicationInstanceArn": instance_arn, "MaxRecords": max_results}
+        if marker: params["Marker"] = marker
+        
+        response = self.client.call_api("describe_replication_instance_task_logs", **params)
+        logs = response.get("ReplicationInstanceTaskLogs", [])
+        
+        result = {"success": True, "data": {"task_logs": logs, "count": len(logs)}, "error": None}
+        if response.get("Marker"): result["data"]["next_marker"] = response["Marker"]
+        return result

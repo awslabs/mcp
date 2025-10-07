@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "awslabs.aws-dms-mcp-server"
+name = "aws-dms-mcp-server"
 version = "0.0.2"
 description = "AWS Database Migration Service MCP Server - Natural language access to AWS DMS operations"
 readme = "README.md"
@@ -39,7 +39,7 @@ dependencies = [
 ]
 
 [project.scripts]
-"awslabs.aws-dms-mcp-server" = "awslabs.aws_dms_mcp_server.server:main"
+"aws-dms-mcp-server" = "awslabs.aws_dms_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"

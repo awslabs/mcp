@@ -191,6 +191,50 @@ class ConnectionTester:
         logger.info(f"Retrieved {len(formatted_connections)} connection tests")
         return result
     
+    def delete_connection(
+        self,
+        endpoint_arn: str,
+        replication_instance_arn: str
+    ) -> Dict[str, Any]:
+        """
+        Delete a connection between a replication instance and endpoint.
+        
+        Args:
+            endpoint_arn: Endpoint ARN
+            replication_instance_arn: Replication instance ARN
+        
+        Returns:
+            Connection deletion result
+        """
+        logger.info("Deleting connection", endpoint=endpoint_arn, instance=replication_instance_arn)
+        
+        # Call API
+        response = self.client.call_api(
+            "delete_connection",
+            EndpointArn=endpoint_arn,
+            ReplicationInstanceArn=replication_instance_arn
+        )
+        
+        connection = response.get("Connection", {})
+        
+        # Clear from cache if present
+        cache_key = f"{replication_instance_arn}:{endpoint_arn}"
+        if cache_key in self._cache:
+            del self._cache[cache_key]
+            logger.debug("Removed connection from cache")
+        
+        result = {
+            "success": True,
+            "data": {
+                "connection": connection,
+                "message": "Connection deleted successfully"
+            },
+            "error": None
+        }
+        
+        logger.info("Connection deleted successfully")
+        return result
+    
     def clear_cache(self) -> None:
         """Clear the connection test result cache."""
         logger.info("Clearing connection test cache", cached_items=len(self._cache))
