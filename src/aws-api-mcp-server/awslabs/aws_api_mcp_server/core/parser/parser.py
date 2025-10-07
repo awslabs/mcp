@@ -854,6 +854,7 @@ def _construct_command(
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
         output_file=output_file,
+        endpoint_url=global_args.endpoint_url,
     )
 
 
