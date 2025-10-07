@@ -18,5 +18,12 @@ from .pattern_matcher import PatternMatcher
 from .scoring_engine import ScoringEngine
 from .file_association_engine import FileAssociationEngine
 from .file_type_detector import FileTypeDetector
+from .s3_search_engine import S3SearchEngine
 
-__all__ = ['PatternMatcher', 'ScoringEngine', 'FileAssociationEngine', 'FileTypeDetector']
+__all__ = [
+    'PatternMatcher',
+    'ScoringEngine',
+    'FileAssociationEngine',
+    'FileTypeDetector',
+    'S3SearchEngine',
+]

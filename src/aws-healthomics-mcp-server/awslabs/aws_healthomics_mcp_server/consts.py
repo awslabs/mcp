@@ -23,13 +23,13 @@ DEFAULT_REGION = 'us-east-1'
 DEFAULT_OMICS_SERVICE_NAME = 'omics'
 DEFAULT_STORAGE_TYPE = 'DYNAMIC'
 try:
-    DEFAULT_MAX_RESULTS = int(os.environ.get('HEALTHOMICS_DEFAULT_MAX_RESULTS', '10'))
+    DEFAULT_MAX_RESULTS = int(os.environ.get('HEALTHOMICS_DEFAULT_MAX_RESULTS', '100'))
 except ValueError:
     logger.warning(
         'Invalid value for HEALTHOMICS_DEFAULT_MAX_RESULTS environment variable. '
-        'Using default value of 10.'
+        'Using default value of 100.'
     )
-    DEFAULT_MAX_RESULTS = 10
+    DEFAULT_MAX_RESULTS = 100
 
 # Supported regions (as of June 2025)
 # These are hardcoded as a fallback in case the SSM parameter store query fails
@@ -73,6 +73,17 @@ RUN_STATUSES = [
 # Export types
 EXPORT_TYPE_DEFINITION = 'DEFINITION'
 
+# Genomics file search configuration
+GENOMICS_SEARCH_S3_BUCKETS_ENV = 'GENOMICS_SEARCH_S3_BUCKETS'
+GENOMICS_SEARCH_MAX_CONCURRENT_ENV = 'GENOMICS_SEARCH_MAX_CONCURRENT'
+GENOMICS_SEARCH_TIMEOUT_ENV = 'GENOMICS_SEARCH_TIMEOUT_SECONDS'
+GENOMICS_SEARCH_ENABLE_HEALTHOMICS_ENV = 'GENOMICS_SEARCH_ENABLE_HEALTHOMICS'
+
+# Default values for genomics search
+DEFAULT_GENOMICS_SEARCH_MAX_CONCURRENT = 10
+DEFAULT_GENOMICS_SEARCH_TIMEOUT = 300
+DEFAULT_GENOMICS_SEARCH_ENABLE_HEALTHOMICS = True
+
 # Error messages
 
 ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'
@@ -80,4 +91,11 @@ ERROR_INVALID_CACHE_BEHAVIOR = 'Invalid cache behavior. Must be one of: {}'
 ERROR_INVALID_RUN_STATUS = 'Invalid run status. Must be one of: {}'
 ERROR_STATIC_STORAGE_REQUIRES_CAPACITY = (
     'Storage capacity is required when using STATIC storage type'
+)
+ERROR_NO_S3_BUCKETS_CONFIGURED = (
+    'No S3 bucket paths configured. Set the GENOMICS_SEARCH_S3_BUCKETS environment variable '
+    'with comma-separated S3 paths (e.g., "s3://bucket1/prefix1/,s3://bucket2/prefix2/")'
+)
+ERROR_INVALID_S3_BUCKET_PATH = (
+    'Invalid S3 bucket path: {}. Must start with "s3://" and contain a valid bucket name'
 )
