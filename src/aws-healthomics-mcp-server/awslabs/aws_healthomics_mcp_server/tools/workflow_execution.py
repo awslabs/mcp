@@ -205,6 +205,13 @@ async def start_run(
         await ctx.error(error_message)
         raise ValueError(error_message)
 
+    # Validate that cache_behavior requires cache_id
+    if cache_behavior and not cache_id:
+        error_message = 'cache_behavior requires cache_id to be provided'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -621,7 +628,7 @@ async def get_run_task(
         task_id: ID of the task
 
     Returns:
-        Dictionary containing task details
+        Dictionary containing task details including imageDetails when available
     """
     client = get_omics_client()
 
@@ -648,7 +655,15 @@ async def get_run_task(
         if 'logStream' in response:
             result['logStream'] = response['logStream']
 
+        if 'imageDetails' in response:
+            result['imageDetails'] = response['imageDetails']
+
         return result
+    except botocore.exceptions.ClientError as e:
+        error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise
     except botocore.exceptions.BotoCoreError as e:
         error_message = f'AWS error getting task {task_id} for run {run_id}: {str(e)}'
         logger.error(error_message)

@@ -110,6 +110,7 @@ class TestSearchDocumentation:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
+            'queryId': 'test-query-id',
             'suggestions': [
                 {
                     'textExcerptSuggestion': {
@@ -125,7 +126,7 @@ class TestSearchDocumentation:
                         'suggestionBody': 'This is test 2.',
                     }
                 },
-            ]
+            ],
         }
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:

@@ -64,7 +64,8 @@ const sidebars: SidebarsConfig = {
             'servers/amazon-qindex-mcp-server',
             'servers/amazon-qbusiness-anonymous-mcp-server',
             'servers/nova-canvas-mcp-server',
-            'servers/aws-bedrock-custom-model-import-mcp-server'
+            'servers/aws-bedrock-custom-model-import-mcp-server',
+            'servers/amazon-bedrock-agentcore-mcp-server'
           ],
         },
         {
@@ -86,6 +87,7 @@ const sidebars: SidebarsConfig = {
             'servers/redshift-mcp-server',
             'servers/s3-tables-mcp-server',
             'servers/aws-appsync-mcp-server',
+            'servers/aws-iot-sitewise-mcp-server'
           ],
         },
         {

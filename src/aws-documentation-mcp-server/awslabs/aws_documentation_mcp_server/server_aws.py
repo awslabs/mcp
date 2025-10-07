@@ -25,6 +25,7 @@ from awslabs.aws_documentation_mcp_server.models import (
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
+    add_search_result_cache_item,
     read_documentation_impl,
 )
 
@@ -182,7 +183,7 @@ async def search_documentation(
         limit: Maximum number of results to return
 
     Returns:
-        List of search results with URLs, titles, and context snippets
+        List of search results with URLs, titles, query ID, and context snippets
     """
     logger.debug(f'Searching AWS documentation for: {search_phrase}')
 
@@ -213,7 +214,7 @@ async def search_documentation(
             error_msg = f'Error searching AWS docs: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return [SearchResult(rank_order=1, url='', title=error_msg, context=None)]
+            return [SearchResult(rank_order=1, url='', title=error_msg, query_id='', context=None)]
 
         if response.status_code >= 400:
             error_msg = f'Error searching AWS docs - status code {response.status_code}'
@@ -224,12 +225,14 @@ async def search_documentation(
                     rank_order=1,
                     url='',
                     title=error_msg,
+                    query_id='',
                     context=None,
                 )
             ]
 
         try:
             data = response.json()
+            query_id = data.get('queryId')
         except json.JSONDecodeError as e:
             error_msg = f'Error parsing search results: {str(e)}'
             logger.error(error_msg)
@@ -239,6 +242,7 @@ async def search_documentation(
                     rank_order=1,
                     url='',
                     title=error_msg,
+                    query_id='',
                     context=None,
                 )
             ]
@@ -250,8 +254,14 @@ async def search_documentation(
                 text_suggestion = suggestion['textExcerptSuggestion']
                 context = None
 
-                # Add context if available
-                if 'summary' in text_suggestion:
+                # Use SEO abstract if available, as it is designed for this task explicitly. If that is not available,
+                # Try using Intelligent Summary Abstract, then fallback to authored summary and finally content body
+                metadata = text_suggestion.get('metadata', {})
+                if 'seo_abstract' in metadata:
+                    context = metadata['seo_abstract']
+                elif 'abstract' in metadata:
+                    context = metadata['abstract']
+                elif 'summary' in text_suggestion:
                     context = text_suggestion['summary']
                 elif 'suggestionBody' in text_suggestion:
                     context = text_suggestion['suggestionBody']
@@ -261,11 +271,14 @@ async def search_documentation(
                         rank_order=i + 1,
                         url=text_suggestion.get('link', ''),
                         title=text_suggestion.get('title', ''),
+                        query_id=query_id,
                         context=context,
                     )
                 )
 
     logger.debug(f'Found {len(results)} search results for: {search_phrase}')
+    logger.debug(f'Search query ID: {query_id}')
+    add_search_result_cache_item(results)
     return results
 
 
