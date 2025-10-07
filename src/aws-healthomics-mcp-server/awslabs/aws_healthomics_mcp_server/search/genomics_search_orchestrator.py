@@ -27,11 +27,13 @@ from awslabs.aws_healthomics_mcp_server.search.file_association_engine import Fi
 from awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine import (
     HealthOmicsSearchEngine,
 )
+from awslabs.aws_healthomics_mcp_server.search.json_response_builder import JsonResponseBuilder
+from awslabs.aws_healthomics_mcp_server.search.result_ranker import ResultRanker
 from awslabs.aws_healthomics_mcp_server.search.s3_search_engine import S3SearchEngine
 from awslabs.aws_healthomics_mcp_server.search.scoring_engine import ScoringEngine
 from awslabs.aws_healthomics_mcp_server.utils.config_utils import get_genomics_search_config
 from loguru import logger
-from typing import Dict, List, Set
+from typing import List, Set
 
 
 class GenomicsSearchOrchestrator:
@@ -48,6 +50,8 @@ class GenomicsSearchOrchestrator:
         self.healthomics_engine = HealthOmicsSearchEngine(config)
         self.association_engine = FileAssociationEngine()
         self.scoring_engine = ScoringEngine()
+        self.result_ranker = ResultRanker()
+        self.json_builder = JsonResponseBuilder()
 
     @classmethod
     def from_environment(cls) -> 'GenomicsSearchOrchestrator':
@@ -94,27 +98,55 @@ class GenomicsSearchOrchestrator:
             file_groups = self.association_engine.find_associations(deduplicated_files)
             logger.info(f'Created {len(file_groups)} file groups with associations')
 
-            # Score and rank results
-            scored_results = await self._score_and_rank_results(
+            # Score results
+            scored_results = await self._score_results(
                 file_groups,
                 request.file_type,
                 request.search_terms,
                 request.include_associated_files,
             )
 
-            # Apply result limits
-            limited_results = self._apply_result_limits(scored_results, request.max_results)
+            # Rank results by relevance score
+            ranked_results = self.result_ranker.rank_results(scored_results)
 
-            # Build response
+            # Apply result limits and pagination
+            limited_results = self.result_ranker.apply_pagination(
+                ranked_results, request.max_results
+            )
+
+            # Get ranking statistics
+            ranking_stats = self.result_ranker.get_ranking_statistics(ranked_results)
+
+            # Build comprehensive JSON response
             search_duration_ms = int((time.time() - start_time) * 1000)
             storage_systems_searched = self._get_searched_storage_systems()
 
-            response = GenomicsFileSearchResponse(
-                results=self._serialize_results(limited_results),
+            pagination_info = {
+                'offset': 0,
+                'limit': request.max_results,
+                'total_available': len(ranked_results),
+                'has_more': len(ranked_results) > request.max_results,
+            }
+
+            response_dict = self.json_builder.build_search_response(
+                results=limited_results,
                 total_found=len(scored_results),
                 search_duration_ms=search_duration_ms,
                 storage_systems_searched=storage_systems_searched,
+                search_statistics=ranking_stats,
+                pagination_info=pagination_info,
             )
+
+            # Create GenomicsFileSearchResponse object for compatibility
+            response = GenomicsFileSearchResponse(
+                results=response_dict['results'],
+                total_found=response_dict['total_found'],
+                search_duration_ms=response_dict['search_duration_ms'],
+                storage_systems_searched=response_dict['storage_systems_searched'],
+            )
+
+            # Store the enhanced response for access by tools
+            response.enhanced_response = response_dict
 
             logger.info(
                 f'Search completed in {search_duration_ms}ms, returning {len(limited_results)} results'
@@ -303,14 +335,14 @@ class GenomicsSearchOrchestrator:
 
         return unique_files
 
-    async def _score_and_rank_results(
+    async def _score_results(
         self,
         file_groups: List,
         file_type_filter: str,
         search_terms: List[str],
         include_associated_files: bool = True,
     ) -> List[GenomicsFileResult]:
-        """Score file groups and create ranked GenomicsFileResult objects.
+        """Score file groups and create GenomicsFileResult objects.
 
         Args:
             file_groups: List of FileGroup objects with associated files
@@ -319,7 +351,7 @@ class GenomicsSearchOrchestrator:
             include_associated_files: Whether to include associated files in results
 
         Returns:
-            List of GenomicsFileResult objects sorted by relevance score
+            List of GenomicsFileResult objects with calculated relevance scores
         """
         scored_results = []
 
@@ -342,30 +374,8 @@ class GenomicsSearchOrchestrator:
 
             scored_results.append(result)
 
-        # Sort by relevance score in descending order
-        scored_results.sort(key=lambda x: x.relevance_score, reverse=True)
-
-        logger.info(f'Scored and ranked {len(scored_results)} results')
+        logger.info(f'Scored {len(scored_results)} results')
         return scored_results
-
-    def _apply_result_limits(
-        self, results: List[GenomicsFileResult], max_results: int
-    ) -> List[GenomicsFileResult]:
-        """Apply result limits to the scored results.
-
-        Args:
-            results: List of scored GenomicsFileResult objects
-            max_results: Maximum number of results to return
-
-        Returns:
-            Limited list of GenomicsFileResult objects
-        """
-        if len(results) <= max_results:
-            return results
-
-        limited_results = results[:max_results]
-        logger.info(f'Limited results from {len(results)} to {len(limited_results)}')
-        return limited_results
 
     def _get_searched_storage_systems(self) -> List[str]:
         """Get the list of storage systems that were searched.
@@ -382,54 +392,3 @@ class GenomicsSearchOrchestrator:
             systems.extend(['healthomics_sequence_stores', 'healthomics_reference_stores'])
 
         return systems
-
-    def _serialize_results(self, results: List[GenomicsFileResult]) -> List[Dict]:
-        """Serialize GenomicsFileResult objects to dictionaries for JSON response.
-
-        Args:
-            results: List of GenomicsFileResult objects to serialize
-
-        Returns:
-            List of dictionaries representing the results
-        """
-        serialized_results = []
-
-        for result in results:
-            # Serialize primary file
-            primary_file_dict = {
-                'path': result.primary_file.path,
-                'file_type': result.primary_file.file_type.value,
-                'size_bytes': result.primary_file.size_bytes,
-                'storage_class': result.primary_file.storage_class,
-                'last_modified': result.primary_file.last_modified.isoformat(),
-                'tags': result.primary_file.tags,
-                'source_system': result.primary_file.source_system,
-                'metadata': result.primary_file.metadata,
-            }
-
-            # Serialize associated files
-            associated_files_list = []
-            for assoc_file in result.associated_files:
-                assoc_file_dict = {
-                    'path': assoc_file.path,
-                    'file_type': assoc_file.file_type.value,
-                    'size_bytes': assoc_file.size_bytes,
-                    'storage_class': assoc_file.storage_class,
-                    'last_modified': assoc_file.last_modified.isoformat(),
-                    'tags': assoc_file.tags,
-                    'source_system': assoc_file.source_system,
-                    'metadata': assoc_file.metadata,
-                }
-                associated_files_list.append(assoc_file_dict)
-
-            # Create result dictionary
-            result_dict = {
-                'primary_file': primary_file_dict,
-                'associated_files': associated_files_list,
-                'relevance_score': result.relevance_score,
-                'match_reasons': result.match_reasons,
-            }
-
-            serialized_results.append(result_dict)
-
-        return serialized_results

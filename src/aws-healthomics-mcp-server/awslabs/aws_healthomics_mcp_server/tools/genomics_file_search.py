@@ -118,13 +118,20 @@ async def search_genomics_files(
             await ctx.error(error_message)
             raise
 
-        # Convert response to dictionary for JSON serialization
-        result_dict = {
-            'results': response.results,
-            'total_found': response.total_found,
-            'search_duration_ms': response.search_duration_ms,
-            'storage_systems_searched': response.storage_systems_searched,
-        }
+        # Get the enhanced response with comprehensive JSON structure
+        response = await orchestrator.search(search_request)
+
+        # Use the enhanced response if available, otherwise fall back to basic structure
+        if hasattr(response, 'enhanced_response') and response.enhanced_response:
+            result_dict = response.enhanced_response
+        else:
+            # Fallback to basic structure for compatibility
+            result_dict = {
+                'results': response.results,
+                'total_found': response.total_found,
+                'search_duration_ms': response.search_duration_ms,
+                'storage_systems_searched': response.storage_systems_searched,
+            }
 
         logger.info(
             f'Search completed successfully: found {response.total_found} files, '
