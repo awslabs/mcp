@@ -17,13 +17,13 @@ from .dms_exceptions import (
 )
 
 __all__ = [
-    "DMSMCPException",
-    "DMSResourceNotFoundException",
-    "DMSInvalidParameterException",
-    "DMSAccessDeniedException",
-    "DMSResourceInUseException",
-    "DMSConnectionTestException",
-    "DMSReadOnlyModeException",
-    "DMSValidationException",
-    "AWS_ERROR_MAP",
+    'DMSMCPException',
+    'DMSResourceNotFoundException',
+    'DMSInvalidParameterException',
+    'DMSAccessDeniedException',
+    'DMSResourceInUseException',
+    'DMSConnectionTestException',
+    'DMSReadOnlyModeException',
+    'DMSValidationException',
+    'AWS_ERROR_MAP',
 ]

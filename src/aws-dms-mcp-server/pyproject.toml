@@ -13,6 +13,7 @@ license-files = ["LICENSE", "NOTICE"]
 authors = [
     {name = "Amazon Web Services"},
     {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Wei Chen", email="wchemz@amazon.com"},
 ]
 keywords = ["aws", "dms", "database-migration", "mcp", "model-context-protocol"]
 classifiers = [

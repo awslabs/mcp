@@ -2,7 +2,7 @@
 # Multi-stage build for minimal production image
 
 # Build stage
-FROM python:3.11-slim AS builder
+FROM python:3.13-slim AS builder
 
 WORKDIR /build
 
@@ -10,14 +10,14 @@ WORKDIR /build
 RUN pip install --no-cache-dir uv
 
 # Copy package files
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY awslabs/ ./awslabs/
 
 # Install dependencies
 RUN uv pip install --system --no-cache .
 
 # Production stage
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Set working directory
 WORKDIR /app
@@ -29,7 +29,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
@@ -54,7 +54,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # EXPOSE 8080
 
 # Entry point
-ENTRYPOINT ["awslabs.aws-dms-mcp-server"]
+ENTRYPOINT ["aws-dms-mcp-server"]
 
 # Default command (can be overridden)
 CMD []

@@ -13,11 +13,11 @@ from .connection_tester import ConnectionTester
 from .response_formatter import ResponseFormatter
 
 __all__ = [
-    "DMSClient",
-    "ReplicationInstanceManager",
-    "EndpointManager",
-    "TaskManager",
-    "TableOperations",
-    "ConnectionTester",
-    "ResponseFormatter",
+    'DMSClient',
+    'ReplicationInstanceManager',
+    'EndpointManager',
+    'TaskManager',
+    'TableOperations',
+    'ConnectionTester',
+    'ResponseFormatter',
 ]

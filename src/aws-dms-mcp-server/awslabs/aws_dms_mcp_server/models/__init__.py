@@ -22,17 +22,17 @@ from .dms_models import (
 
 __all__ = [
     # Configuration Models
-    "ReplicationInstanceConfig",
-    "EndpointConfig",
-    "TaskConfig",
+    'ReplicationInstanceConfig',
+    'EndpointConfig',
+    'TaskConfig',
     # Response Models
-    "ReplicationInstanceResponse",
-    "EndpointResponse",
-    "TaskResponse",
-    "TableStatistics",
+    'ReplicationInstanceResponse',
+    'EndpointResponse',
+    'TaskResponse',
+    'TableStatistics',
     # Common Models
-    "PaginationConfig",
-    "FilterConfig",
-    "OperationResponse",
-    "ErrorResponse",
+    'PaginationConfig',
+    'FilterConfig',
+    'OperationResponse',
+    'ErrorResponse',
 ]

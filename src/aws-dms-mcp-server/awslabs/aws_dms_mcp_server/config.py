@@ -13,74 +13,60 @@ from pydantic_settings import BaseSettings
 
 class DMSServerConfig(BaseSettings):
     """Configuration for AWS DMS MCP Server."""
-    
+
     model_config = ConfigDict(
-        env_prefix="DMS_",
-        case_sensitive=False,
-        validate_assignment=True,
-        extra="ignore"
+        env_prefix='DMS_', case_sensitive=False, validate_assignment=True, extra='ignore'
     )
-    
+
     # AWS Configuration
-    aws_region: str = Field(
-        default="us-east-1",
-        description="AWS region for DMS operations"
-    )
-    aws_profile: Optional[str] = Field(
-        default=None,
-        description="AWS credentials profile name"
-    )
-    
+    aws_region: str = Field(default='us-east-1', description='AWS region for DMS operations')
+    aws_profile: Optional[str] = Field(default=None, description='AWS credentials profile name')
+
     # Server Configuration
     read_only_mode: bool = Field(
-        default=False,
-        description="Enable read-only mode (prevents mutations)"
+        default=False, description='Enable read-only mode (prevents mutations)'
     )
     default_timeout: int = Field(
-        default=300,
-        ge=30,
-        le=3600,
-        description="Default timeout for DMS operations (seconds)"
+        default=300, ge=30, le=3600, description='Default timeout for DMS operations (seconds)'
     )
-    max_results: int = Field(
-        default=100,
-        ge=1,
-        le=100,
-        description="Maximum results per API call"
-    )
-    
+    max_results: int = Field(default=100, ge=1, le=100, description='Maximum results per API call')
+
     # Logging Configuration
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(
-        default="INFO",
-        description="Logging level"
+    log_level: Literal['DEBUG', 'INFO', 'WARNING', 'ERROR'] = Field(
+        default='INFO', description='Logging level'
     )
     enable_structured_logging: bool = Field(
-        default=True,
-        description="Enable structured JSON logging"
+        default=True, description='Enable structured JSON logging'
     )
-    
+
     # Feature Flags
     enable_connection_caching: bool = Field(
-        default=True,
-        description="Cache connection test results"
+        default=True, description='Cache connection test results'
     )
     validate_table_mappings: bool = Field(
-        default=True,
-        description="Validate table mapping JSON before submission"
+        default=True, description='Validate table mapping JSON before submission'
     )
-    
-    @field_validator("aws_region")
+
+    @field_validator('aws_region')
     @classmethod
     def validate_region(cls, v: str) -> str:
         """Validate AWS region format."""
         valid_regions = [
-            "us-east-1", "us-east-2", "us-west-1", "us-west-2",
-            "eu-west-1", "eu-west-2", "eu-central-1",
-            "ap-southeast-1", "ap-southeast-2", "ap-northeast-1",
-            "sa-east-1", "ca-central-1"
+            'us-east-1',
+            'us-east-2',
+            'us-west-1',
+            'us-west-2',
+            'eu-west-1',
+            'eu-west-2',
+            'eu-central-1',
+            'ap-southeast-1',
+            'ap-southeast-2',
+            'ap-northeast-1',
+            'sa-east-1',
+            'ca-central-1',
         ]
         if v not in valid_regions:
-            raise ValueError(f"Invalid AWS region: {v}. Must be one of {valid_regions}")
+            raise ValueError(f'Invalid AWS region: {v}. Must be one of {valid_regions}')
         return v
 
 

@@ -13,15 +13,15 @@ from awslabs.aws_dms_mcp_server.utils.dms_client import DMSClient
 def mock_config():
     """
     Provide a test configuration.
-    
+
     Returns:
         DMSServerConfig with test settings
     """
     return DMSServerConfig(
-        aws_region="us-east-1",
+        aws_region='us-east-1',
         read_only_mode=False,
-        log_level="DEBUG",
-        enable_connection_caching=False
+        log_level='DEBUG',
+        enable_connection_caching=False,
     )
 
 
@@ -29,7 +29,7 @@ def mock_config():
 def mock_dms_client(mock_config):
     """
     Provide a mocked DMS client.
-    
+
     Returns:
         Mocked DMSClient instance
     """
@@ -42,7 +42,7 @@ def mock_dms_client(mock_config):
 def mock_boto3_client():
     """
     Provide a mocked boto3 DMS client.
-    
+
     Returns:
         Mocked boto3 client
     """
@@ -55,19 +55,19 @@ def mock_boto3_client():
 def sample_instance_response():
     """
     Provide sample replication instance response.
-    
+
     Returns:
         Dictionary with sample instance data
     """
     return {
-        "ReplicationInstanceArn": "arn:aws:dms:us-east-1:123456789:rep:TEST",
-        "ReplicationInstanceIdentifier": "test-instance",
-        "ReplicationInstanceClass": "dms.t3.medium",
-        "ReplicationInstanceStatus": "available",
-        "AllocatedStorage": 50,
-        "EngineVersion": "3.5.3",
-        "MultiAZ": False,
-        "PubliclyAccessible": False
+        'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123456789:rep:TEST',
+        'ReplicationInstanceIdentifier': 'test-instance',
+        'ReplicationInstanceClass': 'dms.t3.medium',
+        'ReplicationInstanceStatus': 'available',
+        'AllocatedStorage': 50,
+        'EngineVersion': '3.5.3',
+        'MultiAZ': False,
+        'PubliclyAccessible': False,
     }
 
 
@@ -75,21 +75,21 @@ def sample_instance_response():
 def sample_endpoint_response():
     """
     Provide sample endpoint response.
-    
+
     Returns:
         Dictionary with sample endpoint data
     """
     return {
-        "EndpointArn": "arn:aws:dms:us-east-1:123456789:endpoint:TEST",
-        "EndpointIdentifier": "test-endpoint",
-        "EndpointType": "source",
-        "EngineName": "mysql",
-        "ServerName": "mysql.example.com",
-        "Port": 3306,
-        "DatabaseName": "testdb",
-        "Username": "testuser",
-        "Status": "active",
-        "SslMode": "none"
+        'EndpointArn': 'arn:aws:dms:us-east-1:123456789:endpoint:TEST',
+        'EndpointIdentifier': 'test-endpoint',
+        'EndpointType': 'source',
+        'EngineName': 'mysql',
+        'ServerName': 'mysql.example.com',
+        'Port': 3306,
+        'DatabaseName': 'testdb',
+        'Username': 'testuser',
+        'Status': 'active',
+        'SslMode': 'none',
     }
 
 
@@ -97,18 +97,18 @@ def sample_endpoint_response():
 def sample_task_response():
     """
     Provide sample replication task response.
-    
+
     Returns:
         Dictionary with sample task data
     """
     return {
-        "ReplicationTaskArn": "arn:aws:dms:us-east-1:123456789:task:TEST",
-        "ReplicationTaskIdentifier": "test-task",
-        "Status": "running",
-        "MigrationType": "full-load-and-cdc",
-        "SourceEndpointArn": "arn:aws:dms:us-east-1:123456789:endpoint:SRC",
-        "TargetEndpointArn": "arn:aws:dms:us-east-1:123456789:endpoint:TGT",
-        "ReplicationInstanceArn": "arn:aws:dms:us-east-1:123456789:rep:INST"
+        'ReplicationTaskArn': 'arn:aws:dms:us-east-1:123456789:task:TEST',
+        'ReplicationTaskIdentifier': 'test-task',
+        'Status': 'running',
+        'MigrationType': 'full-load-and-cdc',
+        'SourceEndpointArn': 'arn:aws:dms:us-east-1:123456789:endpoint:SRC',
+        'TargetEndpointArn': 'arn:aws:dms:us-east-1:123456789:endpoint:TGT',
+        'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123456789:rep:INST',
     }
 
 

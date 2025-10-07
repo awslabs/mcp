@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 class ReplicationInstanceResponse(BaseModel):
     """Response model for replication instance."""
-    
+
     replication_instance_arn: str
     replication_instance_identifier: str
     replication_instance_class: str
@@ -28,7 +28,7 @@ class ReplicationInstanceResponse(BaseModel):
 
 class EndpointResponse(BaseModel):
     """Response model for endpoint."""
-    
+
     endpoint_arn: str
     endpoint_identifier: str
     endpoint_type: str
@@ -44,7 +44,7 @@ class EndpointResponse(BaseModel):
 
 class TaskResponse(BaseModel):
     """Response model for replication task."""
-    
+
     replication_task_arn: str
     replication_task_identifier: str
     status: str
@@ -61,7 +61,7 @@ class TaskResponse(BaseModel):
 
 class TableStatistics(BaseModel):
     """Model for table replication statistics."""
-    
+
     schema_name: str
     table_name: str
     inserts: int
@@ -84,47 +84,45 @@ class TableStatistics(BaseModel):
 
 class PaginationConfig(BaseModel):
     """Pagination configuration for API calls."""
-    
+
     max_results: int = Field(default=100, ge=1, le=100)
     marker: Optional[str] = None
 
 
 class FilterConfig(BaseModel):
     """Generic filter configuration for API calls."""
-    
+
     name: str = Field(..., description="Filter name (e.g., 'replication-instance-id')")
-    values: List[str] = Field(..., description="Filter values")
+    values: List[str] = Field(..., description='Filter values')
 
 
 class OperationResponse(BaseModel):
     """Standard operation response wrapper."""
-    
+
     success: bool
     message: str
     data: Optional[Any] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
+
     class Config:
         """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat() + "Z"
-        }
+
+        json_encoders = {datetime: lambda v: v.isoformat() + 'Z'}
 
 
 class ErrorResponse(BaseModel):
     """Standard error response wrapper."""
-    
+
     error: bool = True
     error_type: str
     message: str
     details: Optional[Dict[str, Any]] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
+
     class Config:
         """Pydantic configuration."""
-        json_encoders = {
-            datetime: lambda v: v.isoformat() + "Z"
-        }
+
+        json_encoders = {datetime: lambda v: v.isoformat() + 'Z'}
 
 
 # TODO: Add validation for AWS ARN formats
