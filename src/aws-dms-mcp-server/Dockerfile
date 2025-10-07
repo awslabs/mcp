@@ -12,63 +12,77 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# AWS DMS MCP Server Dockerfile
-# Multi-stage build for minimal production image
+# dependabot should continue to update this to the latest hash.
+FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d AS uv
 
-# Build stage
-FROM python:3.13-slim AS builder
-
-WORKDIR /build
-
-# Install uv for fast dependency resolution
-RUN pip install --no-cache-dir uv
-
-# Copy package files
-COPY pyproject.toml README.md ./
-COPY awslabs/ ./awslabs/
-
-# Install dependencies
-RUN uv pip install --system --no-cache .
-
-# Production stage
-FROM python:3.13-slim
-
-# Set working directory
+# Install the project into `/app`
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy from the cache instead of linking since it's a mounted volume
+ENV UV_LINK_MODE=copy
 
-# Copy application code
-COPY awslabs/ ./awslabs/
+# Prefer the system python
+ENV UV_PYTHON_PREFERENCE=only-system
 
-# Create non-root user
-RUN useradd -m -u 1000 mcp && \
-    chown -R mcp:mcp /app
+# Run without updating the uv.lock file like running with `--frozen`
+ENV UV_FROZEN=true
 
-USER mcp
+# Copy the required files first
+COPY pyproject.toml uv.lock uv-requirements.txt ./
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV DMS_LOG_LEVEL=INFO
+# Python optimization and uv configuration
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "from awslabs.aws_dms_mcp_server import __version__; print(__version__)" || exit 1
+# Install system dependencies and Python package manager
+RUN apk update && \
+    apk add --no-cache --virtual .build-deps \
+    build-base \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    cargo
 
-# Expose MCP server port (if applicable)
-# EXPOSE 8080
+# Install the project's dependencies using the lockfile and settings
+RUN --mount=type=cache,target=/root/.cache/uv \
+    pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
+    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
 
-# Entry point
+# Then, add the rest of the project source code and install it
+# Installing separately from its dependencies allows optimal layer caching
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --python 3.13 --frozen --no-dev --no-editable
+
+# Make the directory just in case it doesn't exist
+RUN mkdir -p /root/.local
+
+FROM public.ecr.aws/docker/library/python:3.13.5-alpine3.21@sha256:c9a09c45a4bcc618c7f7128585b8dd0d41d0c31a8a107db4c8255ffe0b69375d
+
+# Place executables in the environment at the front of the path and include other binaries
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
+
+# Install runtime dependencies and create application user
+RUN apk update && \
+    apk add --no-cache ca-certificates && \
+    update-ca-certificates && \
+    addgroup -S app && \
+    adduser -S app -G app -h /app
+
+# Copy application artifacts from build stage
+COPY --from=uv --chown=app:app /app/.venv /app/.venv
+
+# Get healthcheck script
+COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+
+# Run as non-root
+USER app
+
+# When running the container, add --db-path and a bind mount to the host's db file
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
 ENTRYPOINT ["awslabs.aws-dms-mcp-server"]
-
-# Default command (can be overridden)
-CMD []
