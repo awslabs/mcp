@@ -790,7 +790,7 @@ def _validate_file_path(file_path: str, service: str, operation: str):
         )
 
 
-def _validate_endpoint(endpoint: str):
+def _validate_endpoint(endpoint: str | None):
     if not endpoint:
         return
 
@@ -817,7 +817,8 @@ def _construct_command(
     operation_model: OperationModel | None = None,
 ) -> IRCommand:
     _validate_file_paths(command_metadata, parsed_args, parameters)
-    _validate_endpoint(global_args.endpoint_url)
+    endpoint_url = getattr(global_args, 'endpoint_url', None)
+    _validate_endpoint(endpoint_url)
 
     profile = getattr(global_args, 'profile', None)
     region = (
