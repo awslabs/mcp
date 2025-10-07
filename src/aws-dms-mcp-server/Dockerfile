@@ -68,7 +68,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # EXPOSE 8080
 
 # Entry point
-ENTRYPOINT ["aws-dms-mcp-server"]
+ENTRYPOINT ["awslabs.aws-dms-mcp-server"]
 
 # Default command (can be overridden)
 CMD []

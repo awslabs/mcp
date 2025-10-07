@@ -66,7 +66,7 @@ echo -e "${YELLOW}Installing to uvx...${NC}"
 echo -e "${YELLOW}Installing to uv tools...${NC}"
 uv tool install --force "$WHEEL_FILE"
 echo "✓ Installed to uv tools"
-uvx --from "$WHEEL_FILE" aws-dms-mcp-server --help 2>&1 | head -20
+uvx --from "$WHEEL_FILE" awslabs.aws-dms-mcp-server --help 2>&1 | head -20
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
@@ -74,7 +74,7 @@ echo -e "${GREEN}Installation Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "You can now run the server with:"
-echo -e "${YELLOW}  uvx --from $WHEEL_FILE aws-dms-mcp-server${NC}"
+echo -e "${YELLOW}  uvx --from $WHEEL_FILE awslabs.aws-dms-mcp-server${NC}"
 echo ""
 echo "Or test it:"
-echo -e "${YELLOW}  uvx --from $WHEEL_FILE aws-dms-mcp-server --version${NC}"
+echo -e "${YELLOW}  uvx --from $WHEEL_FILE awslabs.aws-dms-mcp-server --version${NC}"

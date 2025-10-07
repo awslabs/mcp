@@ -320,7 +320,7 @@ def create_server(server_config: Optional[DMSServerConfig] = None) -> FastMCP:
 
     logger.info(
         'Initializing AWS DMS MCP Server',
-        version='0.0.1',
+        version='0.0.3',
         region=config.aws_region,
         read_only_mode=config.read_only_mode,
     )

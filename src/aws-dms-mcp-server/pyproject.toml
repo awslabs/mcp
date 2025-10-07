@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "aws-dms-mcp-server"
-version = "0.0.2"
+name = "awslabs.aws-dms-mcp-server"
+version = "0.0.3"
 description = "AWS Database Migration Service MCP Server - Natural language access to AWS DMS operations"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,7 +40,7 @@ dependencies = [
 ]
 
 [project.scripts]
-"aws-dms-mcp-server" = "awslabs.aws_dms_mcp_server.server:main"
+"awslabs.aws-dms-mcp-server" = "awslabs.aws_dms_mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://awslabs.github.io/mcp/"
@@ -127,7 +127,7 @@ exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.0.0"
+version = "0.0.3"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
