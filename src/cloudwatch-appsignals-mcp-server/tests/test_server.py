@@ -1711,8 +1711,13 @@ async def test_query_sampled_traces_datetime_conversion(mock_aws_clients):
 
 @pytest.mark.asyncio
 async def test_query_sampled_traces_deduplication(mock_aws_clients):
-    """Test query_sampled_traces deduplicates traces with same error message."""
-    # Create 5 traces with the same error message
+    """Test query_sampled_traces deduplicates traces with same fault message.
+
+    Note: Only FaultRootCauses are deduplicated, not ErrorRootCauses.
+    This is because the primary use case is investigating server faults (5xx errors),
+    not client errors (4xx).
+    """
+    # Create 5 traces with the same fault message
     mock_traces = [
         {
             'Id': f'trace{i}',
@@ -1733,7 +1738,7 @@ async def test_query_sampled_traces_deduplication(mock_aws_clients):
         for i in range(1, 6)
     ]
 
-    # Add 2 traces with a different error
+    # Add 2 traces with ErrorRootCauses (these should NOT be deduplicated)
     mock_traces.extend(
         [
             {
@@ -1800,20 +1805,22 @@ async def test_query_sampled_traces_deduplication(mock_aws_clients):
 
         result = json.loads(result_json)
 
-        # Verify deduplication worked - should only have 4 traces
-        # 1 for database timeout (deduplicated from 5)
-        # 1 for API key error (deduplicated from 2)
+        # Verify deduplication worked - should only have 5 traces
+        # 1 for database timeout fault (deduplicated from 5)
+        # 2 for API key errors (NOT deduplicated - only faults are deduped)
         # 2 healthy traces (not deduplicated)
-        assert result['TraceCount'] == 4
-        assert len(result['TraceSummaries']) == 4
+        assert result['TraceCount'] == 5
+        assert len(result['TraceSummaries']) == 5
 
         # Verify deduplication stats
         assert 'DeduplicationStats' in result
         assert result['DeduplicationStats']['OriginalTraceCount'] == 9
-        assert result['DeduplicationStats']['DuplicatesRemoved'] == 5  # 9 - 4 = 5
-        assert result['DeduplicationStats']['UniqueErrorMessages'] == 2
+        assert result['DeduplicationStats']['DuplicatesRemoved'] == 4  # 9 - 5 = 4
+        assert (
+            result['DeduplicationStats']['UniqueFaultMessages'] == 1
+        )  # Only counting FaultRootCauses
 
-        # Find the traces by checking their error messages
+        # Find the trace with fault
         db_trace = next(
             (
                 t
@@ -1830,21 +1837,19 @@ async def test_query_sampled_traces_deduplication(mock_aws_clients):
         assert db_trace is not None
         assert db_trace['HasFault'] is True
 
-        api_trace = next(
-            (
-                t
-                for t in result['TraceSummaries']
-                if t.get('ErrorRootCauses')
-                and any(
-                    'Invalid API key' in str(s.get('Exceptions', []))
-                    for cause in t['ErrorRootCauses']
-                    for s in cause.get('Services', [])
-                )
-            ),
-            None,
-        )
-        assert api_trace is not None
-        assert api_trace['HasError'] is True
+        # Verify both error traces are present (not deduplicated)
+        error_traces = [
+            t
+            for t in result['TraceSummaries']
+            if t.get('ErrorRootCauses')
+            and any(
+                'Invalid API key' in str(s.get('Exceptions', []))
+                for cause in t['ErrorRootCauses']
+                for s in cause.get('Services', [])
+            )
+        ]
+        assert len(error_traces) == 2  # Both error traces should be kept
+        assert all(t['HasError'] is True for t in error_traces)
 
         # Verify healthy traces are included
         healthy_count = sum(
