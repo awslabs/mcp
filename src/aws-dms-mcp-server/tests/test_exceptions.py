@@ -86,9 +86,7 @@ class TestDMSMCPException:
     def test_to_dict_with_both_details_and_action(self):
         """Test to_dict with both details and suggested action."""
         details = {'resource': 'test'}
-        exc = DMSMCPException(
-            'Test error', details=details, suggested_action='Fix it'
-        )
+        exc = DMSMCPException('Test error', details=details, suggested_action='Fix it')
         error_dict = exc.to_dict()
 
         assert error_dict['details']['resource'] == 'test'
@@ -187,8 +185,7 @@ class TestAWSErrorMap:
         assert AWS_ERROR_MAP['ResourceNotFoundFault'] == DMSResourceNotFoundException
         assert AWS_ERROR_MAP['InvalidParameterValueException'] == DMSInvalidParameterException
         assert (
-            AWS_ERROR_MAP['InvalidParameterCombinationException']
-            == DMSInvalidParameterException
+            AWS_ERROR_MAP['InvalidParameterCombinationException'] == DMSInvalidParameterException
         )
         assert AWS_ERROR_MAP['AccessDeniedFault'] == DMSAccessDeniedException
         assert AWS_ERROR_MAP['AccessDeniedException'] == DMSAccessDeniedException

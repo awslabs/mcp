@@ -50,16 +50,18 @@ class TestReplicationInstanceTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'ReplicationInstances': [{
-                'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123:rep:TEST',
-                'ReplicationInstanceIdentifier': 'test-instance',
-                'ReplicationInstanceClass': 'dms.t3.medium',
-                'ReplicationInstanceStatus': 'available',
-                'AllocatedStorage': 50,
-                'EngineVersion': '3.5.3',
-                'MultiAZ': False,
-                'PubliclyAccessible': False,
-            }]
+            'ReplicationInstances': [
+                {
+                    'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123:rep:TEST',
+                    'ReplicationInstanceIdentifier': 'test-instance',
+                    'ReplicationInstanceClass': 'dms.t3.medium',
+                    'ReplicationInstanceStatus': 'available',
+                    'AllocatedStorage': 50,
+                    'EngineVersion': '3.5.3',
+                    'MultiAZ': False,
+                    'PubliclyAccessible': False,
+                }
+            ]
         }
         mock_boto_client.describe_replication_instances.return_value = mock_response
 
@@ -85,12 +87,14 @@ class TestReplicationInstanceTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'OrderableReplicationInstances': [{
-                'ReplicationInstanceClass': 'dms.t3.medium',
-                'StorageType': 'gp2',
-                'MinAllocatedStorage': 50,
-                'MaxAllocatedStorage': 6144,
-            }]
+            'OrderableReplicationInstances': [
+                {
+                    'ReplicationInstanceClass': 'dms.t3.medium',
+                    'StorageType': 'gp2',
+                    'MinAllocatedStorage': 50,
+                    'MaxAllocatedStorage': 6144,
+                }
+            ]
         }
         mock_boto_client.describe_orderable_replication_instances.return_value = mock_response
 
@@ -108,18 +112,20 @@ class TestEndpointTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'Endpoints': [{
-                'EndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TEST',
-                'EndpointIdentifier': 'test-endpoint',
-                'EndpointType': 'source',
-                'EngineName': 'mysql',
-                'ServerName': 'mysql.example.com',
-                'Port': 3306,
-                'DatabaseName': 'testdb',
-                'Username': 'testuser',
-                'Status': 'active',
-                'SslMode': 'none',
-            }]
+            'Endpoints': [
+                {
+                    'EndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TEST',
+                    'EndpointIdentifier': 'test-endpoint',
+                    'EndpointType': 'source',
+                    'EngineName': 'mysql',
+                    'ServerName': 'mysql.example.com',
+                    'Port': 3306,
+                    'DatabaseName': 'testdb',
+                    'Username': 'testuser',
+                    'Status': 'active',
+                    'SslMode': 'none',
+                }
+            ]
         }
         mock_boto_client.describe_endpoints.return_value = mock_response
 
@@ -133,11 +139,13 @@ class TestEndpointTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'SupportedEndpointTypes': [{
-                'EngineName': 'mysql',
-                'SupportsCDC': True,
-                'EndpointType': 'source',
-            }]
+            'SupportedEndpointTypes': [
+                {
+                    'EngineName': 'mysql',
+                    'SupportsCDC': True,
+                    'EndpointType': 'source',
+                }
+            ]
         }
         mock_boto_client.describe_endpoint_types.return_value = mock_response
 
@@ -151,10 +159,12 @@ class TestEndpointTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'EngineVersions': [{
-                'Version': '3.5.3',
-                'Lifecycle': 'active',
-            }]
+            'EngineVersions': [
+                {
+                    'Version': '3.5.3',
+                    'Lifecycle': 'active',
+                }
+            ]
         }
         mock_boto_client.describe_engine_versions.return_value = mock_response
 
@@ -172,15 +182,17 @@ class TestReplicationTaskTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'ReplicationTasks': [{
-                'ReplicationTaskArn': 'arn:aws:dms:us-east-1:123:task:TEST',
-                'ReplicationTaskIdentifier': 'test-task',
-                'Status': 'running',
-                'MigrationType': 'full-load-and-cdc',
-                'SourceEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:SRC',
-                'TargetEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TGT',
-                'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123:rep:INST',
-            }]
+            'ReplicationTasks': [
+                {
+                    'ReplicationTaskArn': 'arn:aws:dms:us-east-1:123:task:TEST',
+                    'ReplicationTaskIdentifier': 'test-task',
+                    'Status': 'running',
+                    'MigrationType': 'full-load-and-cdc',
+                    'SourceEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:SRC',
+                    'TargetEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TGT',
+                    'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123:rep:INST',
+                }
+            ]
         }
         mock_boto_client.describe_replication_tasks.return_value = mock_response
 
@@ -194,16 +206,18 @@ class TestReplicationTaskTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'TableStatistics': [{
-                'SchemaName': 'public',
-                'TableName': 'users',
-                'Inserts': 100,
-                'Deletes': 10,
-                'Updates': 50,
-                'Ddls': 0,
-                'FullLoadRows': 100,
-                'TableState': 'Table completed',
-            }]
+            'TableStatistics': [
+                {
+                    'SchemaName': 'public',
+                    'TableName': 'users',
+                    'Inserts': 100,
+                    'Deletes': 10,
+                    'Updates': 50,
+                    'Ddls': 0,
+                    'FullLoadRows': 100,
+                    'TableState': 'Table completed',
+                }
+            ]
         }
         mock_boto_client.describe_table_statistics.return_value = mock_response
 
@@ -221,11 +235,13 @@ class TestConnectionTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'Connections': [{
-                'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123:rep:INST',
-                'EndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TEST',
-                'Status': 'successful',
-            }]
+            'Connections': [
+                {
+                    'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123:rep:INST',
+                    'EndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TEST',
+                    'Status': 'successful',
+                }
+            ]
         }
         mock_boto_client.describe_connections.return_value = mock_response
 
@@ -243,11 +259,13 @@ class TestCertificateTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'Certificates': [{
-                'CertificateArn': 'arn:aws:dms:us-east-1:123:cert:TEST',
-                'CertificateIdentifier': 'test-cert',
-                'CertificateCreationDate': '2024-01-01',
-            }]
+            'Certificates': [
+                {
+                    'CertificateArn': 'arn:aws:dms:us-east-1:123:cert:TEST',
+                    'CertificateIdentifier': 'test-cert',
+                    'CertificateCreationDate': '2024-01-01',
+                }
+            ]
         }
         mock_boto_client.describe_certificates.return_value = mock_response
 
@@ -265,12 +283,14 @@ class TestSubnetGroupTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'ReplicationSubnetGroups': [{
-                'ReplicationSubnetGroupIdentifier': 'test-subnet-group',
-                'ReplicationSubnetGroupDescription': 'Test subnet group',
-                'VpcId': 'vpc-123456',
-                'SubnetGroupStatus': 'Complete',
-            }]
+            'ReplicationSubnetGroups': [
+                {
+                    'ReplicationSubnetGroupIdentifier': 'test-subnet-group',
+                    'ReplicationSubnetGroupDescription': 'Test subnet group',
+                    'VpcId': 'vpc-123456',
+                    'SubnetGroupStatus': 'Complete',
+                }
+            ]
         }
         mock_boto_client.describe_replication_subnet_groups.return_value = mock_response
 
@@ -288,13 +308,15 @@ class TestEventTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'Events': [{
-                'SourceIdentifier': 'test-instance',
-                'SourceType': 'replication-instance',
-                'Message': 'Replication instance created',
-                'EventCategories': ['creation'],
-                'Date': '2024-01-01T00:00:00Z',
-            }]
+            'Events': [
+                {
+                    'SourceIdentifier': 'test-instance',
+                    'SourceType': 'replication-instance',
+                    'Message': 'Replication instance created',
+                    'EventCategories': ['creation'],
+                    'Date': '2024-01-01T00:00:00Z',
+                }
+            ]
         }
         mock_boto_client.describe_events.return_value = mock_response
 
@@ -308,10 +330,12 @@ class TestEventTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'EventCategoryGroupList': [{
-                'SourceType': 'replication-instance',
-                'EventCategories': ['creation', 'deletion', 'failure'],
-            }]
+            'EventCategoryGroupList': [
+                {
+                    'SourceType': 'replication-instance',
+                    'EventCategories': ['creation', 'deletion', 'failure'],
+                }
+            ]
         }
         mock_boto_client.describe_event_categories.return_value = mock_response
 
@@ -325,13 +349,15 @@ class TestEventTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'EventSubscriptionsList': [{
-                'CustomerAwsId': '123456789',
-                'CustSubscriptionId': 'test-subscription',
-                'SnsTopicArn': 'arn:aws:sns:us-east-1:123:test-topic',
-                'Status': 'enabled',
-                'SourceType': 'replication-instance',
-            }]
+            'EventSubscriptionsList': [
+                {
+                    'CustomerAwsId': '123456789',
+                    'CustSubscriptionId': 'test-subscription',
+                    'SnsTopicArn': 'arn:aws:sns:us-east-1:123:test-topic',
+                    'Status': 'enabled',
+                    'SourceType': 'replication-instance',
+                }
+            ]
         }
         mock_boto_client.describe_event_subscriptions.return_value = mock_response
 
@@ -349,14 +375,18 @@ class TestMaintenanceTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'PendingMaintenanceActions': [{
-                'ResourceIdentifier': 'arn:aws:dms:us-east-1:123:rep:TEST',
-                'PendingMaintenanceActionDetails': [{
-                    'Action': 'system-update',
-                    'AutoAppliedAfterDate': '2024-02-01',
-                    'OptInStatus': 'pending-auto-apply',
-                }]
-            }]
+            'PendingMaintenanceActions': [
+                {
+                    'ResourceIdentifier': 'arn:aws:dms:us-east-1:123:rep:TEST',
+                    'PendingMaintenanceActionDetails': [
+                        {
+                            'Action': 'system-update',
+                            'AutoAppliedAfterDate': '2024-02-01',
+                            'OptInStatus': 'pending-auto-apply',
+                        }
+                    ],
+                }
+            ]
         }
         mock_boto_client.describe_pending_maintenance_actions.return_value = mock_response
 
@@ -374,13 +404,15 @@ class TestServerlessTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'ReplicationConfigs': [{
-                'ReplicationConfigArn': 'arn:aws:dms:us-east-1:123:config:TEST',
-                'ReplicationConfigIdentifier': 'test-config',
-                'SourceEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:SRC',
-                'TargetEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TGT',
-                'ReplicationType': 'full-load-and-cdc',
-            }]
+            'ReplicationConfigs': [
+                {
+                    'ReplicationConfigArn': 'arn:aws:dms:us-east-1:123:config:TEST',
+                    'ReplicationConfigIdentifier': 'test-config',
+                    'SourceEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:SRC',
+                    'TargetEndpointArn': 'arn:aws:dms:us-east-1:123:endpoint:TGT',
+                    'ReplicationType': 'full-load-and-cdc',
+                }
+            ]
         }
         mock_boto_client.describe_replication_configs.return_value = mock_response
 
@@ -394,10 +426,12 @@ class TestServerlessTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'Replications': [{
-                'ReplicationConfigArn': 'arn:aws:dms:us-east-1:123:config:TEST',
-                'Status': 'running',
-            }]
+            'Replications': [
+                {
+                    'ReplicationConfigArn': 'arn:aws:dms:us-east-1:123:config:TEST',
+                    'Status': 'running',
+                }
+            ]
         }
         mock_boto_client.describe_replications.return_value = mock_response
 
@@ -415,10 +449,12 @@ class TestMigrationProjectTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'MigrationProjects': [{
-                'MigrationProjectArn': 'arn:aws:dms:us-east-1:123:project:TEST',
-                'MigrationProjectName': 'test-project',
-            }]
+            'MigrationProjects': [
+                {
+                    'MigrationProjectArn': 'arn:aws:dms:us-east-1:123:project:TEST',
+                    'MigrationProjectName': 'test-project',
+                }
+            ]
         }
         mock_boto_client.describe_migration_projects.return_value = mock_response
 
@@ -436,11 +472,13 @@ class TestDataProviderTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'DataProviders': [{
-                'DataProviderArn': 'arn:aws:dms:us-east-1:123:provider:TEST',
-                'DataProviderName': 'test-provider',
-                'Engine': 'mysql',
-            }]
+            'DataProviders': [
+                {
+                    'DataProviderArn': 'arn:aws:dms:us-east-1:123:provider:TEST',
+                    'DataProviderName': 'test-provider',
+                    'Engine': 'mysql',
+                }
+            ]
         }
         mock_boto_client.describe_data_providers.return_value = mock_response
 
@@ -458,10 +496,12 @@ class TestInstanceProfileTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'InstanceProfiles': [{
-                'InstanceProfileArn': 'arn:aws:dms:us-east-1:123:profile:TEST',
-                'InstanceProfileName': 'test-profile',
-            }]
+            'InstanceProfiles': [
+                {
+                    'InstanceProfileArn': 'arn:aws:dms:us-east-1:123:profile:TEST',
+                    'InstanceProfileName': 'test-profile',
+                }
+            ]
         }
         mock_boto_client.describe_instance_profiles.return_value = mock_response
 
@@ -479,11 +519,13 @@ class TestDataMigrationTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'DataMigrations': [{
-                'DataMigrationArn': 'arn:aws:dms:us-east-1:123:migration:TEST',
-                'DataMigrationName': 'test-migration',
-                'MigrationType': 'full-load',
-            }]
+            'DataMigrations': [
+                {
+                    'DataMigrationArn': 'arn:aws:dms:us-east-1:123:migration:TEST',
+                    'DataMigrationName': 'test-migration',
+                    'MigrationType': 'full-load',
+                }
+            ]
         }
         mock_boto_client.describe_data_migrations.return_value = mock_response
 
@@ -501,11 +543,13 @@ class TestAccountTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'AccountQuotas': [{
-                'AccountQuotaName': 'ReplicationInstances',
-                'Used': 5,
-                'Max': 20,
-            }]
+            'AccountQuotas': [
+                {
+                    'AccountQuotaName': 'ReplicationInstances',
+                    'Used': 5,
+                    'Max': 20,
+                }
+            ]
         }
         mock_boto_client.describe_account_attributes.return_value = mock_response
 
@@ -544,11 +588,13 @@ class TestAssessmentTools:
         mock_boto3.client.return_value = mock_boto_client
 
         mock_response = {
-            'ReplicationTaskAssessmentRuns': [{
-                'ReplicationTaskAssessmentRunArn': 'arn:aws:dms:us-east-1:123:run:TEST',
-                'ReplicationTaskArn': 'arn:aws:dms:us-east-1:123:task:TEST',
-                'Status': 'running',
-            }]
+            'ReplicationTaskAssessmentRuns': [
+                {
+                    'ReplicationTaskAssessmentRunArn': 'arn:aws:dms:us-east-1:123:run:TEST',
+                    'ReplicationTaskArn': 'arn:aws:dms:us-east-1:123:task:TEST',
+                    'Status': 'running',
+                }
+            ]
         }
         mock_boto_client.describe_replication_task_assessment_runs.return_value = mock_response
 
