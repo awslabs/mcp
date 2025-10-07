@@ -1,3 +1,17 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Replication Instance Manager.
 
 Handles business logic for AWS DMS replication instance operations.
@@ -190,65 +204,15 @@ class ReplicationInstanceManager:
 
         return instance_class in valid_classes
 
-
-# TODO: Add instance status monitoring
-# TODO: Add instance modification support
-# TODO: Add instance deletion support
-"""
-Replication Instance Manager - Additional methods for complete API coverage.
-"""
-
-from .dms_client import DMSClient
-from typing import Any, Dict, List, Optional
-
-
-class ReplicationInstanceManager:
-    """Manager for replication instance operations."""
-
-    def __init__(self, client: DMSClient):
-        """Initialize manager with DMS client."""
-        self.client = client
-        logger.debug('Initialized ReplicationInstanceManager')
-
-    def list_instances(
-        self,
-        filters: Optional[List[Dict[str, Any]]] = None,
-        max_results: int = 100,
-        marker: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """List replication instances."""
-        params = {'MaxRecords': max_results}
-        if filters:
-            params['Filters'] = filters
-        if marker:
-            params['Marker'] = marker
-
-        response = self.client.call_api('describe_replication_instances', **params)
-        instances = [
-            ResponseFormatter.format_instance(i) for i in response.get('ReplicationInstances', [])
-        ]
-
-        result = {
-            'success': True,
-            'data': {'instances': instances, 'count': len(instances)},
-            'error': None,
-        }
-        if response.get('Marker'):
-            result['data']['next_marker'] = response['Marker']
-        return result
-
-    def create_instance(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Create replication instance."""
-        response = self.client.call_api('create_replication_instance', **params)
-        instance = ResponseFormatter.format_instance(response.get('ReplicationInstance', {}))
-        return {
-            'success': True,
-            'data': {'instance': instance, 'message': 'Instance created successfully'},
-            'error': None,
-        }
-
     def modify_instance(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Modify replication instance."""
+        """Modify replication instance.
+
+        Args:
+            params: Instance modification parameters
+
+        Returns:
+            Modified instance details
+        """
         response = self.client.call_api('modify_replication_instance', **params)
         instance = ResponseFormatter.format_instance(response.get('ReplicationInstance', {}))
         return {
@@ -258,7 +222,14 @@ class ReplicationInstanceManager:
         }
 
     def delete_instance(self, instance_arn: str) -> Dict[str, Any]:
-        """Delete replication instance."""
+        """Delete replication instance.
+
+        Args:
+            instance_arn: Instance ARN to delete
+
+        Returns:
+            Deleted instance details
+        """
         response = self.client.call_api(
             'delete_replication_instance', ReplicationInstanceArn=instance_arn
         )
@@ -270,7 +241,15 @@ class ReplicationInstanceManager:
         }
 
     def reboot_instance(self, instance_arn: str, force_failover: bool = False) -> Dict[str, Any]:
-        """Reboot replication instance."""
+        """Reboot replication instance.
+
+        Args:
+            instance_arn: Instance ARN to reboot
+            force_failover: Force failover to secondary AZ
+
+        Returns:
+            Rebooted instance details
+        """
         response = self.client.call_api(
             'reboot_replication_instance',
             ReplicationInstanceArn=instance_arn,
@@ -286,7 +265,15 @@ class ReplicationInstanceManager:
     def list_orderable_instances(
         self, max_results: int = 100, marker: Optional[str] = None
     ) -> Dict[str, Any]:
-        """List orderable instance configurations."""
+        """List orderable instance configurations.
+
+        Args:
+            max_results: Maximum results per page
+            marker: Pagination token
+
+        Returns:
+            List of orderable instance configurations
+        """
         params = {'MaxRecords': max_results}
         if marker:
             params['Marker'] = marker
@@ -306,7 +293,16 @@ class ReplicationInstanceManager:
     def get_task_logs(
         self, instance_arn: str, max_results: int = 100, marker: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Get task log metadata."""
+        """Get task log metadata.
+
+        Args:
+            instance_arn: Instance ARN
+            max_results: Maximum results per page
+            marker: Pagination token
+
+        Returns:
+            List of task log metadata
+        """
         params = {'ReplicationInstanceArn': instance_arn, 'MaxRecords': max_results}
         if marker:
             params['Marker'] = marker
@@ -318,3 +314,6 @@ class ReplicationInstanceManager:
         if response.get('Marker'):
             result['data']['next_marker'] = response['Marker']
         return result
+
+
+# TODO: Add instance status monitoring
