@@ -17,10 +17,11 @@
 from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
 )
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, field_validator, model_validator
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class WorkflowType(str, Enum):
@@ -205,3 +206,106 @@ class ContainerRegistryMap(BaseModel):
     def convert_none_to_empty_list(cls, v: Any) -> List[Any]:
         """Convert None values to empty lists for consistency."""
         return [] if v is None else v
+
+
+# Genomics File Search Models
+
+
+class GenomicsFileType(str, Enum):
+    """Enumeration of supported genomics file types."""
+
+    # Sequence files
+    FASTQ = 'fastq'
+    FASTA = 'fasta'
+    FNA = 'fna'
+
+    # Alignment files
+    BAM = 'bam'
+    CRAM = 'cram'
+    SAM = 'sam'
+
+    # Variant files
+    VCF = 'vcf'
+    GVCF = 'gvcf'
+    BCF = 'bcf'
+
+    # Annotation files
+    BED = 'bed'
+    GFF = 'gff'
+
+    # Index files
+    BAI = 'bai'
+    CRAI = 'crai'
+    FAI = 'fai'
+    DICT = 'dict'
+    TBI = 'tbi'
+    CSI = 'csi'
+
+    # BWA index files
+    BWA_AMB = 'bwa_amb'
+    BWA_ANN = 'bwa_ann'
+    BWA_BWT = 'bwa_bwt'
+    BWA_PAC = 'bwa_pac'
+    BWA_SA = 'bwa_sa'
+
+
+@dataclass
+class GenomicsFile:
+    """Represents a genomics file with metadata."""
+
+    path: str  # S3 path or access point path
+    file_type: GenomicsFileType
+    size_bytes: int
+    storage_class: str
+    last_modified: datetime
+    tags: Dict[str, str] = field(default_factory=dict)
+    source_system: str = ''  # 's3', 'sequence_store', 'reference_store'
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class GenomicsFileResult:
+    """Represents a search result with primary file and associated files."""
+
+    primary_file: GenomicsFile
+    associated_files: List[GenomicsFile] = field(default_factory=list)
+    relevance_score: float = 0.0
+    match_reasons: List[str] = field(default_factory=list)
+
+
+@dataclass
+class FileGroup:
+    """Represents a group of related genomics files."""
+
+    primary_file: GenomicsFile
+    associated_files: List[GenomicsFile] = field(default_factory=list)
+    group_type: str = ''  # 'bam_index', 'fastq_pair', 'fasta_index', etc.
+
+
+@dataclass
+class SearchConfig:
+    """Configuration for genomics file search."""
+
+    s3_bucket_paths: List[str] = field(default_factory=list)
+    max_concurrent_searches: int = 10
+    search_timeout_seconds: int = 300
+    enable_healthomics_search: bool = True
+    default_max_results: int = 100
+
+
+class GenomicsFileSearchRequest(BaseModel):
+    """Request model for genomics file search."""
+
+    file_type: Optional[str] = None
+    search_terms: List[str] = []
+    max_results: int = 100
+    include_associated_files: bool = True
+
+
+class GenomicsFileSearchResponse(BaseModel):
+    """Response model for genomics file search."""
+
+    results: List[Dict[str, Any]]  # Will contain serialized GenomicsFileResult objects
+    total_found: int
+    search_duration_ms: int
+    storage_systems_searched: List[str]
