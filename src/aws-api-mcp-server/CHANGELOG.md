@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support for --endpoint-url flag for localhost endpoints
+- Support for --endpoint-url flag for localhost endpoints (#1452)
 
 ## [1.0.0] - 2025-10-01
 
