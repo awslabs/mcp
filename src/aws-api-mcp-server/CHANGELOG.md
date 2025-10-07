@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent Script for creating Aurora DB with instances (#1401)
 - AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
 
+## [1.0.1] - 2025-10-07
+
+### Added
+
+- Support for --endpoint-url flag for localhost endpoints
+
 ## [1.0.0] - 2025-10-01
 
 ### Changed
