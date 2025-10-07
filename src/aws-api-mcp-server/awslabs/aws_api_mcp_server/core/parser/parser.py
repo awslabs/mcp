@@ -795,7 +795,7 @@ def _validate_endpoint(endpoint: str):
         return
 
     localhost_regex = re.compile(r'^(http://|https://)?localhost(:\d+)?$')
-    if not re.findall(localhost_regex, endpoint):
+    if not re.match(localhost_regex, endpoint):
         raise ValueError(f'Only localhost endpoints are allowed: {endpoint}')
 
 
