@@ -265,17 +265,21 @@ class TestExecuteLogInsightsQuery:
 
     async def test_invalid_parameters(self, ctx, cloudwatch_tools):
         """Test invalid parameter handling."""
-        with pytest.raises(Exception):
-            await cloudwatch_tools.execute_log_insights_query(
-                ctx,
-                log_group_names=['/aws/test/group1'],
-                log_group_identifiers=['/aws/test/group1'],  # Both provided - should fail
-                start_time='2023-01-01T00:00:00+00:00',
-                end_time='2023-01-01T01:00:00+00:00',
-                query_string='fields @timestamp, @message | limit 10',
-                limit=10,
-                max_timeout=30,
-            )
+        result = await cloudwatch_tools.execute_log_insights_query(
+            ctx,
+            log_group_names=['/aws/test/group1'],
+            log_group_identifiers=['/aws/test/group1'],  # Both provided - should fail
+            start_time='2023-01-01T00:00:00+00:00',
+            end_time='2023-01-01T01:00:00+00:00',
+            query_string='fields @timestamp, @message | limit 10',
+            limit=10,
+            max_timeout=30,
+        )
+
+        # Verify error response structure instead of exception
+        assert result['status'] == 'Error'
+        assert result['results'] == []
+        assert 'Error executing CloudWatch Logs Insights query' in result['message']
 
 
 @pytest.mark.asyncio
