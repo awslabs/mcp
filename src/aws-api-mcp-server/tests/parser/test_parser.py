@@ -741,10 +741,10 @@ def test_validate_output_file_propagates_validate_file_path_error(mock_validate_
 @pytest.mark.parametrize(
     'endpoint',
     [
-        (None,),
-        ('localhost:8080',),
-        ('http://localhost:8080'),
-        ('https://localhost:8080'),
+        None,
+        'localhost:8080',
+        'http://localhost:8080',
+        'https://localhost:8080',
     ],
 )
 def test_validate_endpoint_for_localhost(endpoint):
@@ -755,10 +755,10 @@ def test_validate_endpoint_for_localhost(endpoint):
 @pytest.mark.parametrize(
     'endpoint',
     [
-        ('test',),
-        ('alocalhost'),
-        ('https://google.com'),
-        ('https://localhost:a'),
+        'test',
+        'alocalhost',
+        'https://google.com',
+        'https://localhost:a',
     ],
 )
 def test_validate_endpoint_for_non_localhost(endpoint):
