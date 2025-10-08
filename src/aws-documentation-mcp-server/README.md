@@ -100,7 +100,7 @@ For Windows users, the MCP server configuration format is slightly different:
 
 > **Note**: Set `AWS_DOCUMENTATION_PARTITION` to `aws-cn` to query AWS China documentation instead of global AWS documentation.
 > 
-> **Corporate Networks**: If you're behind a corporate proxy or firewall that blocks certain User-Agent strings, set `MCP_USER_AGENT` to match your browser's User-Agent string to bypass restrictions.
+> **Corporate Networks**: If you're behind a corporate proxy or firewall that blocks certain User-Agent strings, set `MCP_USER_AGENT` to match your browser's User-Agent to an allowable string.
 
 or docker after a successful `docker build -t mcp/aws-documentation .`:
 
