@@ -16,7 +16,7 @@
 
 from ..models import GenomicsFile, GenomicsFileType
 from .pattern_matcher import PatternMatcher
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class ScoringEngine:
@@ -134,7 +134,7 @@ class ScoringEngine:
     def _calculate_pattern_score(
         self, file: GenomicsFile, search_terms: List[str]
     ) -> Tuple[float, List[str]]:
-        """Calculate score based on pattern matching against file path and tags."""
+        """Calculate score based on pattern matching against file path, tags, and metadata."""
         if not search_terms:
             return 0.5, ['No search terms provided - neutral pattern score']
 
@@ -144,11 +144,20 @@ class ScoringEngine:
         # Match against tags
         tag_score, tag_reasons = self.pattern_matcher.match_tags(file.tags, search_terms)
 
-        # Take the best score between path and tag matches
-        if path_score >= tag_score:
+        # Match against metadata (especially important for HealthOmics files)
+        metadata_score, metadata_reasons = self._match_metadata(file.metadata, search_terms)
+
+        # Take the best score among path, tag, and metadata matches
+        best_score = max(path_score, tag_score, metadata_score)
+
+        if best_score == metadata_score and metadata_score > 0:
+            return metadata_score, [f'Metadata matching: {reason}' for reason in metadata_reasons]
+        elif best_score == path_score and path_score > 0:
             return path_score, [f'Path matching: {reason}' for reason in path_reasons]
-        else:
+        elif best_score == tag_score and tag_score > 0:
             return tag_score, [f'Tag matching: {reason}' for reason in tag_reasons]
+        else:
+            return 0.0, ['No pattern matches found']
 
     def _calculate_file_type_score(
         self, file: GenomicsFile, file_type_filter: Optional[str]
@@ -329,3 +338,52 @@ class ScoringEngine:
             Sorted list of results by score (highest first)
         """
         return sorted(scored_results, key=lambda x: x[1], reverse=True)
+
+    def _match_metadata(
+        self, metadata: Dict[str, Any], search_terms: List[str]
+    ) -> Tuple[float, List[str]]:
+        """Match patterns against file metadata.
+
+        Args:
+            metadata: Dictionary of metadata key-value pairs
+            search_terms: List of search terms to match against
+
+        Returns:
+            Tuple of (score, match_reasons)
+        """
+        if not search_terms or not metadata:
+            return 0.0, []
+
+        max_score = 0.0
+        match_reasons = []
+
+        # Check specific metadata fields that are likely to contain searchable names
+        searchable_fields = [
+            'reference_name',
+            'read_set_name',
+            'name',
+            'description',
+            'subject_id',
+            'sample_id',
+            'store_name',
+        ]
+
+        for field in searchable_fields:
+            if field in metadata and isinstance(metadata[field], str) and metadata[field]:
+                field_value = metadata[field]
+                score, reasons = self.pattern_matcher.calculate_match_score(
+                    field_value, search_terms
+                )
+                if score > max_score:
+                    max_score = score
+                    match_reasons = [f'{field} "{field_value}": {reason}' for reason in reasons]
+
+        # Also check all other string metadata values
+        for key, value in metadata.items():
+            if key not in searchable_fields and isinstance(value, str) and value:
+                score, reasons = self.pattern_matcher.calculate_match_score(value, search_terms)
+                if score > max_score:
+                    max_score = score
+                    match_reasons = [f'{key} "{value}": {reason}' for reason in reasons]
+
+        return max_score, match_reasons

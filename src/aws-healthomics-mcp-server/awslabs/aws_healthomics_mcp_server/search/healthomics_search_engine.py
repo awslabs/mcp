@@ -177,7 +177,7 @@ class HealthOmicsSearchEngine:
                 # Execute the list operation asynchronously
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
-                    None, self.omics_client.list_sequence_stores, params
+                    None, lambda: self.omics_client.list_sequence_stores(**params)
                 )
 
                 # Add stores from this page
@@ -218,7 +218,7 @@ class HealthOmicsSearchEngine:
                 # Execute the list operation asynchronously
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
-                    None, self.omics_client.list_reference_stores, params
+                    None, lambda: self.omics_client.list_reference_stores(**params)
                 )
 
                 # Add stores from this page
@@ -300,8 +300,8 @@ class HealthOmicsSearchEngine:
         try:
             logger.debug(f'Searching reference store {store_id}')
 
-            # List references in the reference store
-            references = await self._list_references(store_id)
+            # List references in the reference store with server-side filtering
+            references = await self._list_references(store_id, search_terms)
             logger.debug(f'Found {len(references)} references in store {store_id}')
 
             genomics_files = []
@@ -349,7 +349,7 @@ class HealthOmicsSearchEngine:
                 # Execute the list operation asynchronously
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
-                    None, self.omics_client.list_read_sets, params
+                    None, lambda: self.omics_client.list_read_sets(**params)
                 )
 
                 # Add read sets from this page
@@ -367,11 +367,80 @@ class HealthOmicsSearchEngine:
 
         return read_sets
 
-    async def _list_references(self, reference_store_id: str) -> List[Dict[str, Any]]:
+    async def _list_references(
+        self, reference_store_id: str, search_terms: List[str] = None
+    ) -> List[Dict[str, Any]]:
         """List references in a HealthOmics reference store.
 
         Args:
             reference_store_id: ID of the reference store
+            search_terms: Optional list of search terms to filter by name on the server side
+
+        Returns:
+            List of reference dictionaries
+
+        Raises:
+            ClientError: If API call fails
+        """
+        references = []
+
+        # If we have search terms, try server-side filtering for each term
+        # This is more efficient than retrieving all references and filtering client-side
+        if search_terms:
+            logger.debug(
+                f'Searching reference store {reference_store_id} with terms: {search_terms}'
+            )
+
+            # First, try exact matches for each search term using server-side filtering
+            for search_term in search_terms:
+                logger.debug(f'Trying server-side exact match for: {search_term}')
+                term_references = await self._list_references_with_filter(
+                    reference_store_id, search_term
+                )
+                logger.debug(
+                    f'Server-side filter for "{search_term}" returned {len(term_references)} references'
+                )
+                references.extend(term_references)
+
+            # If no results from server-side filtering, fall back to getting all references
+            # This handles cases where the server-side filter requires exact matches
+            if not references:
+                logger.info(
+                    f'No server-side matches found for {search_terms}, falling back to client-side filtering'
+                )
+                references = await self._list_references_with_filter(reference_store_id, None)
+                logger.debug(
+                    f'Retrieved {len(references)} total references for client-side filtering'
+                )
+            else:
+                logger.debug(f'Server-side filtering found {len(references)} references')
+
+            # Remove duplicates based on reference ID
+            seen_ids = set()
+            unique_references = []
+            for ref in references:
+                ref_id = ref.get('id')
+                if ref_id and ref_id not in seen_ids:
+                    seen_ids.add(ref_id)
+                    unique_references.append(ref)
+
+            logger.debug(f'After deduplication: {len(unique_references)} unique references')
+            return unique_references
+        else:
+            # No search terms, get all references
+            logger.debug(
+                f'No search terms provided, retrieving all references from store {reference_store_id}'
+            )
+            return await self._list_references_with_filter(reference_store_id, None)
+
+    async def _list_references_with_filter(
+        self, reference_store_id: str, name_filter: str = None
+    ) -> List[Dict[str, Any]]:
+        """List references in a HealthOmics reference store with optional name filter.
+
+        Args:
+            reference_store_id: ID of the reference store
+            name_filter: Optional name filter to apply server-side
 
         Returns:
             List of reference dictionaries
@@ -392,10 +461,15 @@ class HealthOmicsSearchEngine:
                 if next_token:
                     params['nextToken'] = next_token
 
+                # Add server-side name filter if provided
+                if name_filter:
+                    params['filter'] = {'name': name_filter}
+                    logger.debug(f'Applying server-side name filter: {name_filter}')
+
                 # Execute the list operation asynchronously
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
-                    None, self.omics_client.list_references, params
+                    None, lambda: self.omics_client.list_references(**params)
                 )
 
                 # Add references from this page
@@ -468,13 +542,15 @@ class HealthOmicsSearchEngine:
             ):
                 return None
 
-            # Generate S3 access point path for HealthOmics data
-            # HealthOmics uses S3 access points with specific format
-            access_point_path = f's3://omics-{store_id}.s3-accesspoint.{self._get_region()}.amazonaws.com/{read_set_id}'
+            # Generate proper HealthOmics URI for read set data
+            # Format: omics://account_id.storage.region.amazonaws.com/sequence_store_id/readSet/read_set_id/source1
+            account_id = self._get_account_id()
+            region = self._get_region()
+            omics_uri = f'omics://{account_id}.storage.{region}.amazonaws.com/{store_id}/readSet/{read_set_id}/source1'
 
             # Create GenomicsFile object
             genomics_file = GenomicsFile(
-                path=access_point_path,
+                path=omics_uri,
                 file_type=detected_file_type,
                 size_bytes=read_set.get(
                     'totalReadLength', 0
@@ -493,6 +569,7 @@ class HealthOmicsSearchEngine:
                     'reference_arn': read_set.get('referenceArn', ''),
                     'status': read_set.get('status', ''),
                     'sequence_information': read_set.get('sequenceInformation', {}),
+                    'omics_uri': omics_uri,  # Store the clean URI for reference
                 },
             )
 
@@ -541,20 +618,70 @@ class HealthOmicsSearchEngine:
                 'description': reference.get('description', ''),
             }
 
-            # Check if reference matches search terms
+            # Check if reference matches search terms (client-side fallback)
+            # Note: Server-side filtering is applied first, this is additional validation
             if search_terms and not self._matches_search_terms_metadata(
                 reference_name, metadata, search_terms
             ):
+                logger.debug(
+                    f'Reference "{reference_name}" did not match search terms {search_terms} in client-side filtering'
+                )
                 return None
+            elif search_terms:
+                logger.debug(
+                    f'Reference "{reference_name}" matched search terms {search_terms} in client-side filtering'
+                )
 
-            # Generate S3 access point path for HealthOmics reference data
-            access_point_path = f's3://omics-{store_id}.s3-accesspoint.{self._get_region()}.amazonaws.com/{reference_id}'
+            # Generate proper HealthOmics URI for reference data
+            # Format: omics://account_id.storage.region.amazonaws.com/reference_store_id/reference/reference_id/source
+            account_id = self._get_account_id()
+            region = self._get_region()
+            omics_uri = f'omics://{account_id}.storage.{region}.amazonaws.com/{store_id}/reference/{reference_id}/source'
+
+            # Get file size information
+            source_size = 0
+            index_size = 0
+
+            # Check if files information is available in the reference response
+            if 'files' in reference:
+                files_info = reference['files']
+                if 'source' in files_info and 'contentLength' in files_info['source']:
+                    source_size = files_info['source']['contentLength']
+                if 'index' in files_info and 'contentLength' in files_info['index']:
+                    index_size = files_info['index']['contentLength']
+            else:
+                # Files information not available in ListReferences response
+                # Call GetReferenceMetadata to get file size information
+                try:
+                    logger.debug(
+                        f'Getting metadata for reference {reference_id} to retrieve file sizes'
+                    )
+                    loop = asyncio.get_event_loop()
+                    metadata_response = await loop.run_in_executor(
+                        None,
+                        lambda: self.omics_client.get_reference_metadata(
+                            referenceStoreId=store_id, id=reference_id
+                        ),
+                    )
+
+                    if 'files' in metadata_response:
+                        files_info = metadata_response['files']
+                        if 'source' in files_info and 'contentLength' in files_info['source']:
+                            source_size = files_info['source']['contentLength']
+                        if 'index' in files_info and 'contentLength' in files_info['index']:
+                            index_size = files_info['index']['contentLength']
+                        logger.debug(
+                            f'Retrieved file sizes: source={source_size}, index={index_size}'
+                        )
+                except Exception as e:
+                    logger.warning(f'Failed to get reference metadata for {reference_id}: {e}')
+                    # Continue with 0 sizes if metadata call fails
 
             # Create GenomicsFile object
             genomics_file = GenomicsFile(
-                path=access_point_path,
+                path=omics_uri,
                 file_type=detected_file_type,
-                size_bytes=0,  # Size not readily available from references API
+                size_bytes=source_size,
                 storage_class='STANDARD',  # HealthOmics manages storage internally
                 last_modified=reference.get('creationTime', datetime.now()),
                 tags={},  # HealthOmics doesn't expose tags through references API
@@ -566,8 +693,22 @@ class HealthOmicsSearchEngine:
                     'reference_name': reference_name,
                     'status': reference.get('status', ''),
                     'md5': reference.get('md5', ''),
+                    'omics_uri': omics_uri,  # Store the clean URI for reference
+                    'index_uri': f'omics://{account_id}.storage.{region}.amazonaws.com/{store_id}/reference/{reference_id}/index',
                 },
             )
+
+            # Store index file information for the file association engine to use
+            genomics_file._healthomics_index_info = {
+                'index_uri': f'omics://{account_id}.storage.{region}.amazonaws.com/{store_id}/reference/{reference_id}/index',
+                'index_size': index_size,
+                'store_id': store_id,
+                'store_name': store_info.get('name', ''),
+                'reference_id': reference_id,
+                'reference_name': reference_name,
+                'status': reference.get('status', ''),
+                'md5': reference.get('md5', ''),
+            }
 
             return genomics_file
 
@@ -593,18 +734,27 @@ class HealthOmicsSearchEngine:
         if not search_terms:
             return True
 
+        logger.debug(f'Checking if name "{name}" matches search terms {search_terms}')
+
         # Check name match
-        name_score, _ = self.pattern_matcher.calculate_match_score(name, search_terms)
+        name_score, reasons = self.pattern_matcher.calculate_match_score(name, search_terms)
         if name_score > 0:
+            logger.debug(f'Name match found: score={name_score}, reasons={reasons}')
             return True
 
         # Check metadata values
         for key, value in metadata.items():
             if isinstance(value, str) and value:
-                value_score, _ = self.pattern_matcher.calculate_match_score(value, search_terms)
+                value_score, value_reasons = self.pattern_matcher.calculate_match_score(
+                    value, search_terms
+                )
                 if value_score > 0:
+                    logger.debug(
+                        f'Metadata match found: key={key}, value={value}, score={value_score}, reasons={value_reasons}'
+                    )
                     return True
 
+        logger.debug(f'No match found for name "{name}" with search terms {search_terms}')
         return False
 
     def _get_region(self) -> str:
@@ -617,3 +767,14 @@ class HealthOmicsSearchEngine:
         from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_region
 
         return get_region()
+
+    def _get_account_id(self) -> str:
+        """Get the current AWS account ID.
+
+        Returns:
+            AWS account ID string
+        """
+        # Import here to avoid circular imports
+        from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_account_id
+
+        return get_account_id()

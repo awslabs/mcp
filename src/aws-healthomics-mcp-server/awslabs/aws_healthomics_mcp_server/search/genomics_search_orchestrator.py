@@ -94,8 +94,16 @@ class GenomicsSearchOrchestrator:
             deduplicated_files = self._deduplicate_files(all_files)
             logger.info(f'After deduplication: {len(deduplicated_files)} unique files')
 
+            # Extract HealthOmics associated files and add them to the file list
+            all_files_with_associations = self._extract_healthomics_associations(
+                deduplicated_files
+            )
+            logger.info(
+                f'After extracting HealthOmics associations: {len(all_files_with_associations)} total files'
+            )
+
             # Apply file associations and grouping
-            file_groups = self.association_engine.find_associations(deduplicated_files)
+            file_groups = self.association_engine.find_associations(all_files_with_associations)
             logger.info(f'Created {len(file_groups)} file groups with associations')
 
             # Score results
@@ -399,3 +407,59 @@ class GenomicsSearchOrchestrator:
             systems.extend(['healthomics_sequence_stores', 'healthomics_reference_stores'])
 
         return systems
+
+    def _extract_healthomics_associations(self, files: List[GenomicsFile]) -> List[GenomicsFile]:
+        """Extract associated files from HealthOmics files and add them to the file list.
+
+        Args:
+            files: List of GenomicsFile objects
+
+        Returns:
+            List of GenomicsFile objects including associated files
+        """
+        all_files = []
+
+        for file in files:
+            all_files.append(file)
+
+            # Check if this is a HealthOmics reference file with index information
+            if (
+                hasattr(file, '_healthomics_index_info')
+                and file._healthomics_index_info is not None
+            ):
+                logger.debug(f'Creating associated index file for {file.path}')
+
+                index_info = file._healthomics_index_info
+
+                # Import here to avoid circular imports
+                from awslabs.aws_healthomics_mcp_server.models import (
+                    GenomicsFile,
+                    GenomicsFileType,
+                )
+                from datetime import datetime
+
+                # Create the index file
+                index_file = GenomicsFile(
+                    path=index_info['index_uri'],
+                    file_type=GenomicsFileType.FAI,
+                    size_bytes=index_info['index_size'],
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='reference_store',
+                    metadata={
+                        'store_id': index_info['store_id'],
+                        'store_name': index_info['store_name'],
+                        'reference_id': index_info['reference_id'],
+                        'reference_name': index_info['reference_name'],
+                        'status': index_info['status'],
+                        'md5': index_info['md5'],
+                        'omics_uri': index_info['index_uri'],
+                        'is_index_file': True,
+                        'primary_file_uri': file.path,
+                    },
+                )
+
+                all_files.append(index_file)
+
+        return all_files

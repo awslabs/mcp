@@ -206,3 +206,22 @@ def get_ssm_client() -> Any:
         Exception: If client creation fails
     """
     return create_aws_client('ssm')
+
+
+def get_account_id() -> str:
+    """Get the current AWS account ID.
+
+    Returns:
+        str: AWS account ID
+
+    Raises:
+        Exception: If unable to retrieve account ID
+    """
+    try:
+        session = get_aws_session()
+        sts_client = session.client('sts')
+        response = sts_client.get_caller_identity()
+        return response['Account']
+    except Exception as e:
+        logger.error(f'Failed to get AWS account ID: {str(e)}')
+        raise

@@ -86,6 +86,12 @@ class FileAssociationEngine:
             file_groups.append(group)
             grouped_files.update([f.path for f in [group.primary_file] + group.associated_files])
 
+        # Handle HealthOmics-specific associations
+        healthomics_groups = self._find_healthomics_associations(files, file_map)
+        for group in healthomics_groups:
+            file_groups.append(group)
+            grouped_files.update([f.path for f in [group.primary_file] + group.associated_files])
+
         # Then handle other association patterns
         for file in files:
             if file.path in grouped_files:
@@ -238,3 +244,56 @@ class FileAssociationEngine:
 
         # Cap the total bonus at 0.5
         return min(base_bonus + type_bonus, 0.5)
+
+    def _find_healthomics_associations(
+        self, files: List[GenomicsFile], file_map: Dict[str, GenomicsFile]
+    ) -> List[FileGroup]:
+        """Find HealthOmics-specific file associations.
+
+        HealthOmics files have specific URI patterns and associations that don't follow
+        traditional file extension patterns.
+
+        Args:
+            files: List of genomics files to analyze
+            file_map: Dictionary mapping file paths to GenomicsFile objects
+
+        Returns:
+            List of FileGroup objects for HealthOmics associations
+        """
+        healthomics_groups = []
+
+        # Group HealthOmics files by their base URI (without /source or /index)
+        healthomics_base_groups: Dict[str, Dict[str, GenomicsFile]] = {}
+
+        for file in files:
+            # Check if this is a HealthOmics URI
+            if file.path.startswith('omics://') and file.source_system == 'reference_store':
+                # Extract the base URI (everything before /source or /index)
+                if '/source' in file.path:
+                    base_uri = file.path.replace('/source', '')
+                    file_type = 'source'
+                elif '/index' in file.path:
+                    base_uri = file.path.replace('/index', '')
+                    file_type = 'index'
+                else:
+                    continue  # Skip if not source or index
+
+                if base_uri not in healthomics_base_groups:
+                    healthomics_base_groups[base_uri] = {}
+
+                healthomics_base_groups[base_uri][file_type] = file
+
+        # Create file groups for HealthOmics references that have both source and index
+        for base_uri, file_types in healthomics_base_groups.items():
+            if 'source' in file_types and 'index' in file_types:
+                primary_file = file_types['source']
+                associated_files = [file_types['index']]
+
+                healthomics_group = FileGroup(
+                    primary_file=primary_file,
+                    associated_files=associated_files,
+                    group_type='healthomics_reference',
+                )
+                healthomics_groups.append(healthomics_group)
+
+        return healthomics_groups
