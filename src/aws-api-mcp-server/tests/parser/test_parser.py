@@ -21,6 +21,7 @@ from awslabs.aws_api_mcp_server.core.common.errors import (
     UnknownFiltersError,
 )
 from awslabs.aws_api_mcp_server.core.parser.parser import (
+    _validate_endpoint,
     _validate_output_file,
     parse,
 )
@@ -735,3 +736,70 @@ def test_validate_output_file_propagates_validate_file_path_error(mock_validate_
 
     with pytest.raises(ValueError, match='File validation error'):
         _validate_output_file(command_metadata, parsed_args)
+
+
+@pytest.mark.parametrize(
+    'endpoint',
+    [
+        None,
+        '',
+        'localhost:8080',
+        'http://localhost:8080',
+        'https://localhost:8080',
+        '127.0.0.1:8080',
+        'http://127.0.0.1:8080',
+        'http://[::1]:8080',
+    ],
+)
+def test_validate_endpoint_valid_loopback(endpoint):
+    """Test that valid loopback endpoints are accepted."""
+    _validate_endpoint(endpoint)
+
+
+@pytest.mark.parametrize(
+    'endpoint,expected_error',
+    [
+        ('localhost:invalid_port', 'Invalid endpoint or port'),
+        ('http://localhost:abc', 'Invalid endpoint or port'),
+        ('://invalid', 'Could not find hostname'),
+        ('http://', 'Could not find hostname'),
+        ('192.168.1.1:8080', 'Local endpoint was not a loopback address'),
+        ('http://192.168.1.1:8080', 'Local endpoint was not a loopback address'),
+        ('google.com:8080', 'Could not resolve endpoint'),
+        ('https://google.com', 'Could not resolve endpoint'),
+        ('example.com', 'Could not resolve endpoint'),
+        ('::1:8080', 'Invalid endpoint or port'),  # IPv6 without brackets
+    ],
+)
+def test_validate_endpoint_invalid(endpoint, expected_error):
+    """Test that invalid endpoints raise appropriate ValueError."""
+    with pytest.raises(ValueError, match=expected_error):
+        _validate_endpoint(endpoint)
+
+
+def test_validate_endpoint_empty_string():
+    """Test that empty string is handled like None."""
+    _validate_endpoint('')
+
+
+def test_validate_endpoint_localhost_conversion():
+    """Test that localhost is converted to 127.0.0.1."""
+    _validate_endpoint('localhost:8080')
+
+
+def test_validate_endpoint_ipv6_loopback():
+    """Test that IPv6 loopback addresses are accepted."""
+    _validate_endpoint('[::1]:8080')
+    _validate_endpoint('http://[::1]:8080')
+
+
+def test_validate_endpoint_protocol_handling():
+    """Test that endpoints with and without protocol are handled correctly."""
+    _validate_endpoint('localhost:8080')
+    _validate_endpoint('https://localhost:8080')
+
+
+def test_validate_endpoint_non_http_protocols():
+    """Test that non-HTTP protocols with localhost are accepted."""
+    _validate_endpoint('ftp://localhost:8080')
+    _validate_endpoint('ws://127.0.0.1:8080')

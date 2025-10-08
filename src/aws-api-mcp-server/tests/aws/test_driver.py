@@ -175,14 +175,13 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             ),
         ),
         (
-            'aws batch list-jobs --no-verify-ssl --debug --endpoint-url http://gooble.com --no-sign-request',
+            'aws batch list-jobs --no-verify-ssl --debug --no-sign-request',
             IRTranslation(
                 validation_failures=[
                     DeniedGlobalArgumentsError(
                         'batch',
                         [
                             '--debug',
-                            '--endpoint-url',
                             '--no-sign-request',
                             '--no-verify-ssl',
                         ],
