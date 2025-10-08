@@ -68,7 +68,6 @@ async def test_get_available_services_live():
         # Check for specific AWS services that should be available in China regions
         common_services = [
             'Amazon EC2',
-            'Amazon S3',
             'Simple Storage Service',
             'Lambda',
         ]

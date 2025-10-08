@@ -47,8 +47,6 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-api-mcp-server/CHA
 
 [project.scripts]
 "awslabs.aws-api-mcp-server" = "awslabs.aws_api_mcp_server.server:main"
-"generate-embeddings" = "awslabs.aws_api_mcp_server.scripts.generate_embeddings:main"
-"download-latest-embeddings" = "awslabs.aws_api_mcp_server.scripts.download_latest_embeddings:main"
 
 [dependency-groups]
 dev = [
