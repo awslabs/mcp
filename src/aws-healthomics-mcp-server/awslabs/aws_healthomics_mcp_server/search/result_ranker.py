@@ -56,8 +56,8 @@ class ResultRanker:
 
         logger.info(f'Ranked {len(ranked_results)} results by {sort_by}')
 
-        # Log top results for debugging
-        if ranked_results and logger.level <= 10:  # DEBUG level
+        # Log top results for debugging (always log since logger.debug will handle level filtering)
+        if ranked_results:
             top_scores = [f'{r.relevance_score:.3f}' for r in ranked_results[:5]]
             logger.debug(f'Top 5 relevance scores: {top_scores}')
 

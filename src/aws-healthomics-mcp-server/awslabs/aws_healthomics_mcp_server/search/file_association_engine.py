@@ -29,32 +29,32 @@ class FileAssociationEngine:
     # Association patterns: (primary_pattern, associated_pattern, group_type)
     ASSOCIATION_PATTERNS = [
         # BAM index patterns
-        (r'(.+)\.bam$', r'\1\.bam\.bai$', 'bam_index'),
-        (r'(.+)\.bam$', r'\1\.bai$', 'bam_index'),
+        (r'(.+)\.bam$', r'\1.bam.bai', 'bam_index'),
+        (r'(.+)\.bam$', r'\1.bai', 'bam_index'),
         # CRAM index patterns
-        (r'(.+)\.cram$', r'\1\.cram\.crai$', 'cram_index'),
-        (r'(.+)\.cram$', r'\1\.crai$', 'cram_index'),
+        (r'(.+)\.cram$', r'\1.cram.crai', 'cram_index'),
+        (r'(.+)\.cram$', r'\1.crai', 'cram_index'),
         # FASTQ pair patterns (R1/R2)
-        (r'(.+)_R1\.fastq(\.gz|\.bz2)?$', r'\1_R2\.fastq\2$', 'fastq_pair'),
-        (r'(.+)_1\.fastq(\.gz|\.bz2)?$', r'\1_2\.fastq\2$', 'fastq_pair'),
-        (r'(.+)\.R1\.fastq(\.gz|\.bz2)?$', r'\1\.R2\.fastq\2$', 'fastq_pair'),
-        (r'(.+)\.1\.fastq(\.gz|\.bz2)?$', r'\1\.2\.fastq\2$', 'fastq_pair'),
+        (r'(.+)_R1\.fastq(\.gz|\.bz2)?$', r'\1_R2.fastq\2', 'fastq_pair'),
+        (r'(.+)_1\.fastq(\.gz|\.bz2)?$', r'\1_2.fastq\2', 'fastq_pair'),
+        (r'(.+)\.R1\.fastq(\.gz|\.bz2)?$', r'\1.R2.fastq\2', 'fastq_pair'),
+        (r'(.+)\.1\.fastq(\.gz|\.bz2)?$', r'\1.2.fastq\2', 'fastq_pair'),
         # FASTA index patterns
-        (r'(.+)\.fasta$', r'\1\.fasta\.fai$', 'fasta_index'),
-        (r'(.+)\.fasta$', r'\1\.fai$', 'fasta_index'),
-        (r'(.+)\.fasta$', r'\1\.dict$', 'fasta_dict'),
-        (r'(.+)\.fa$', r'\1\.fa\.fai$', 'fasta_index'),
-        (r'(.+)\.fa$', r'\1\.fai$', 'fasta_index'),
-        (r'(.+)\.fa$', r'\1\.dict$', 'fasta_dict'),
-        (r'(.+)\.fna$', r'\1\.fna\.fai$', 'fasta_index'),
-        (r'(.+)\.fna$', r'\1\.fai$', 'fasta_index'),
-        (r'(.+)\.fna$', r'\1\.dict$', 'fasta_dict'),
+        (r'(.+)\.fasta$', r'\1.fasta.fai', 'fasta_index'),
+        (r'(.+)\.fasta$', r'\1.fai', 'fasta_index'),
+        (r'(.+)\.fasta$', r'\1.dict', 'fasta_dict'),
+        (r'(.+)\.fa$', r'\1.fa.fai', 'fasta_index'),
+        (r'(.+)\.fa$', r'\1.fai', 'fasta_index'),
+        (r'(.+)\.fa$', r'\1.dict', 'fasta_dict'),
+        (r'(.+)\.fna$', r'\1.fna.fai', 'fasta_index'),
+        (r'(.+)\.fna$', r'\1.fai', 'fasta_index'),
+        (r'(.+)\.fna$', r'\1.dict', 'fasta_dict'),
         # VCF index patterns
-        (r'(.+)\.vcf(\.gz)?$', r'\1\.vcf\2\.tbi$', 'vcf_index'),
-        (r'(.+)\.vcf(\.gz)?$', r'\1\.vcf\2\.csi$', 'vcf_index'),
-        (r'(.+)\.gvcf(\.gz)?$', r'\1\.gvcf\2\.tbi$', 'gvcf_index'),
-        (r'(.+)\.gvcf(\.gz)?$', r'\1\.gvcf\2\.csi$', 'gvcf_index'),
-        (r'(.+)\.bcf$', r'\1\.bcf\.csi$', 'bcf_index'),
+        (r'(.+)\.vcf(\.gz)?$', r'\1.vcf\2.tbi', 'vcf_index'),
+        (r'(.+)\.vcf(\.gz)?$', r'\1.vcf\2.csi', 'vcf_index'),
+        (r'(.+)\.gvcf(\.gz)?$', r'\1.gvcf\2.tbi', 'gvcf_index'),
+        (r'(.+)\.gvcf(\.gz)?$', r'\1.gvcf\2.csi', 'gvcf_index'),
+        (r'(.+)\.bcf$', r'\1.bcf.csi', 'bcf_index'),
     ]
 
     # BWA index collection patterns - all files that should be grouped together
@@ -62,10 +62,7 @@ class FileAssociationEngine:
 
     def __init__(self):
         """Initialize the file association engine."""
-        self._compiled_patterns = [
-            (re.compile(primary, re.IGNORECASE), re.compile(assoc, re.IGNORECASE), group_type)
-            for primary, assoc, group_type in self.ASSOCIATION_PATTERNS
-        ]
+        pass
 
     def find_associations(self, files: List[GenomicsFile]) -> List[FileGroup]:
         """Find file associations and group related files together.
@@ -125,21 +122,22 @@ class FileAssociationEngine:
         associated_files = []
         primary_path = primary_file.path
 
-        for primary_pattern, assoc_pattern, group_type in self._compiled_patterns:
-            primary_match = primary_pattern.search(primary_path)
-            if primary_match:
-                # Generate the expected associated file path
-                try:
-                    expected_assoc_path = assoc_pattern.sub(
-                        lambda m: primary_match.expand(m.group(0)), primary_path
+        # Iterate through original patterns to maintain correct pairing
+        for orig_primary, orig_assoc, group_type in self.ASSOCIATION_PATTERNS:
+            try:
+                # Check if the primary pattern matches
+                if re.search(orig_primary, primary_path, re.IGNORECASE):
+                    # Generate the expected associated file path
+                    expected_assoc_path = re.sub(
+                        orig_primary, orig_assoc, primary_path, flags=re.IGNORECASE
                     )
 
                     # Check if the associated file exists in our file map
-                    if expected_assoc_path in file_map:
+                    if expected_assoc_path in file_map and expected_assoc_path != primary_path:
                         associated_files.append(file_map[expected_assoc_path])
-                except re.error:
-                    # Skip if regex substitution fails
-                    continue
+            except re.error:
+                # Skip if regex substitution fails
+                continue
 
         return associated_files
 

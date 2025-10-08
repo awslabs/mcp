@@ -15,7 +15,7 @@
 """S3 search engine for genomics files."""
 
 import asyncio
-from awslabs.aws_healthomics_mcp_server.models import GenomicsFile, SearchConfig
+from awslabs.aws_healthomics_mcp_server.models import GenomicsFile, GenomicsFileType, SearchConfig
 from awslabs.aws_healthomics_mcp_server.search.file_type_detector import FileTypeDetector
 from awslabs.aws_healthomics_mcp_server.search.pattern_matcher import PatternMatcher
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
@@ -167,7 +167,9 @@ class S3SearchEngine:
         try:
             # Use head_bucket to check if bucket exists and we have access
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self.s3_client.head_bucket, {'Bucket': bucket_name})
+            await loop.run_in_executor(
+                None, lambda: self.s3_client.head_bucket(Bucket=bucket_name)
+            )
             logger.debug(f'Validated access to bucket: {bucket_name}')
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -221,7 +223,9 @@ class S3SearchEngine:
 
                 # Execute the list operation asynchronously
                 loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(None, self.s3_client.list_objects_v2, params)
+                response = await loop.run_in_executor(
+                    None, lambda: self.s3_client.list_objects_v2(**params)
+                )
 
                 # Add objects from this page
                 if 'Contents' in response:
@@ -269,9 +273,16 @@ class S3SearchEngine:
             # Skip files that are not recognized genomics file types
             return None
 
-        # Apply file type filter if specified
-        if file_type_filter and detected_file_type.value != file_type_filter:
-            return None
+        # Apply file type filter, but also include related index files
+        if file_type_filter:
+            # Include the requested file type
+            if detected_file_type.value == file_type_filter:
+                pass  # Include this file
+            # Also include index files that might be associated with the requested type
+            elif self._is_related_index_file(detected_file_type, file_type_filter):
+                pass  # Include this index file
+            else:
+                return None  # Skip unrelated files
 
         # Get object tags for pattern matching
         tags = await self._get_object_tags(bucket_name, key)
@@ -311,7 +322,7 @@ class S3SearchEngine:
         try:
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
-                None, self.s3_client.get_object_tagging, {'Bucket': bucket_name, 'Key': key}
+                None, lambda: self.s3_client.get_object_tagging(Bucket=bucket_name, Key=key)
             )
 
             # Convert tag list to dictionary
@@ -343,15 +354,41 @@ class S3SearchEngine:
             return True
 
         # Use pattern matcher to check if any search term matches the path or tags
-        for term in search_terms:
-            # Check path match
-            path_score = self.pattern_matcher.calculate_path_match_score(s3_path, term)
-            if path_score > 0:
-                return True
+        # Check path match
+        path_score, _ = self.pattern_matcher.match_file_path(s3_path, search_terms)
+        if path_score > 0:
+            return True
 
-            # Check tag matches
-            tag_score = self.pattern_matcher.calculate_tag_match_score(tags, term)
-            if tag_score > 0:
-                return True
+        # Check tag matches
+        tag_score, _ = self.pattern_matcher.match_tags(tags, search_terms)
+        if tag_score > 0:
+            return True
 
         return False
+
+    def _is_related_index_file(
+        self, detected_file_type: GenomicsFileType, requested_file_type: str
+    ) -> bool:
+        """Check if a detected file type is a related index file for the requested file type.
+
+        Args:
+            detected_file_type: The detected file type of the current file
+            requested_file_type: The file type being searched for
+
+        Returns:
+            True if the detected file type is a related index file
+        """
+        # Define relationships between primary file types and their index files
+        index_relationships = {
+            'bam': [GenomicsFileType.BAI],
+            'cram': [GenomicsFileType.CRAI],
+            'fasta': [GenomicsFileType.FAI, GenomicsFileType.DICT],
+            'fa': [GenomicsFileType.FAI, GenomicsFileType.DICT],
+            'fna': [GenomicsFileType.FAI, GenomicsFileType.DICT],
+            'vcf': [GenomicsFileType.TBI, GenomicsFileType.CSI],
+            'gvcf': [GenomicsFileType.TBI, GenomicsFileType.CSI],
+            'bcf': [GenomicsFileType.CSI],
+        }
+
+        related_indexes = index_relationships.get(requested_file_type, [])
+        return detected_file_type in related_indexes

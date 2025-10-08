@@ -309,3 +309,6 @@ class GenomicsFileSearchResponse(BaseModel):
     total_found: int
     search_duration_ms: int
     storage_systems_searched: List[str]
+    enhanced_response: Optional[Dict[str, Any]] = (
+        None  # Enhanced response with additional metadata
+    )

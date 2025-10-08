@@ -143,10 +143,8 @@ class GenomicsSearchOrchestrator:
                 total_found=response_dict['total_found'],
                 search_duration_ms=response_dict['search_duration_ms'],
                 storage_systems_searched=response_dict['storage_systems_searched'],
+                enhanced_response=response_dict,
             )
-
-            # Store the enhanced response for access by tools
-            response.enhanced_response = response_dict
 
             logger.info(
                 f'Search completed in {search_duration_ms}ms, returning {len(limited_results)} results'
