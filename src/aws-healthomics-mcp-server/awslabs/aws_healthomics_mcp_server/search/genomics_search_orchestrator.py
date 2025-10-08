@@ -231,6 +231,15 @@ class GenomicsSearchOrchestrator:
                 logger.info(f'{storage_system} search returned {len(result)} files')
                 all_files.extend(result)
 
+        # Periodically clean up expired cache entries (every 10th search)
+        import random
+
+        if random.randint(1, 10) == 1:  # 10% chance to clean up cache
+            try:
+                self.s3_engine.cleanup_expired_cache_entries()
+            except Exception as e:
+                logger.debug(f'Cache cleanup failed: {e}')
+
         return all_files
 
     async def _search_s3_with_timeout(

@@ -17,13 +17,21 @@
 import os
 from awslabs.aws_healthomics_mcp_server.consts import (
     DEFAULT_GENOMICS_SEARCH_ENABLE_HEALTHOMICS,
+    DEFAULT_GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH,
     DEFAULT_GENOMICS_SEARCH_MAX_CONCURRENT,
+    DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE,
+    DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL,
+    DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL,
     DEFAULT_GENOMICS_SEARCH_TIMEOUT,
     ERROR_INVALID_S3_BUCKET_PATH,
     ERROR_NO_S3_BUCKETS_CONFIGURED,
     GENOMICS_SEARCH_ENABLE_HEALTHOMICS_ENV,
+    GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH_ENV,
     GENOMICS_SEARCH_MAX_CONCURRENT_ENV,
+    GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE_ENV,
+    GENOMICS_SEARCH_RESULT_CACHE_TTL_ENV,
     GENOMICS_SEARCH_S3_BUCKETS_ENV,
+    GENOMICS_SEARCH_TAG_CACHE_TTL_ENV,
     GENOMICS_SEARCH_TIMEOUT_ENV,
 )
 from awslabs.aws_healthomics_mcp_server.models import SearchConfig
@@ -56,11 +64,25 @@ def get_genomics_search_config() -> SearchConfig:
     # Get HealthOmics search enablement
     enable_healthomics = get_enable_healthomics_search()
 
+    # Get S3 tag search configuration
+    enable_s3_tag_search = get_enable_s3_tag_search()
+
+    # Get tag batch size configuration
+    max_tag_batch_size = get_max_tag_batch_size()
+
+    # Get cache TTL configurations
+    result_cache_ttl = get_result_cache_ttl()
+    tag_cache_ttl = get_tag_cache_ttl()
+
     return SearchConfig(
         s3_bucket_paths=s3_bucket_paths,
         max_concurrent_searches=max_concurrent,
         search_timeout_seconds=timeout_seconds,
         enable_healthomics_search=enable_healthomics,
+        enable_s3_tag_search=enable_s3_tag_search,
+        max_tag_retrieval_batch_size=max_tag_batch_size,
+        result_cache_ttl_seconds=result_cache_ttl,
+        tag_cache_ttl_seconds=tag_cache_ttl,
     )
 
 
@@ -169,6 +191,107 @@ def get_enable_healthomics_search() -> bool:
             f'Invalid HealthOmics search enablement value: {env_value}. Using default: {DEFAULT_GENOMICS_SEARCH_ENABLE_HEALTHOMICS}'
         )
         return DEFAULT_GENOMICS_SEARCH_ENABLE_HEALTHOMICS
+
+
+def get_enable_s3_tag_search() -> bool:
+    """Get whether S3 tag-based search is enabled from environment variables.
+
+    Returns:
+        True if S3 tag search is enabled, False otherwise
+    """
+    env_value = os.environ.get(
+        GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH_ENV, str(DEFAULT_GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH)
+    ).lower()
+
+    # Accept various true/false representations
+    true_values = {'true', '1', 'yes', 'on', 'enabled'}
+    false_values = {'false', '0', 'no', 'off', 'disabled'}
+
+    if env_value in true_values:
+        return True
+    elif env_value in false_values:
+        return False
+    else:
+        logger.warning(
+            f'Invalid S3 tag search enablement value: {env_value}. Using default: {DEFAULT_GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH}'
+        )
+        return DEFAULT_GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH
+
+
+def get_max_tag_batch_size() -> int:
+    """Get the maximum tag retrieval batch size from environment variables.
+
+    Returns:
+        Maximum tag retrieval batch size
+    """
+    try:
+        batch_size = int(
+            os.environ.get(
+                GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE_ENV,
+                str(DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE),
+            )
+        )
+        if batch_size <= 0:
+            logger.warning(
+                f'Invalid max tag batch size value: {batch_size}. Using default: {DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE}'
+            )
+            return DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE
+        return batch_size
+    except ValueError:
+        logger.warning(
+            f'Invalid max tag batch size value in environment. Using default: {DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE}'
+        )
+        return DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE
+
+
+def get_result_cache_ttl() -> int:
+    """Get the result cache TTL in seconds from environment variables.
+
+    Returns:
+        Result cache TTL in seconds
+    """
+    try:
+        ttl = int(
+            os.environ.get(
+                GENOMICS_SEARCH_RESULT_CACHE_TTL_ENV, str(DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL)
+            )
+        )
+        if ttl < 0:
+            logger.warning(
+                f'Invalid result cache TTL value: {ttl}. Using default: {DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL}'
+            )
+            return DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL
+        return ttl
+    except ValueError:
+        logger.warning(
+            f'Invalid result cache TTL value in environment. Using default: {DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL}'
+        )
+        return DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL
+
+
+def get_tag_cache_ttl() -> int:
+    """Get the tag cache TTL in seconds from environment variables.
+
+    Returns:
+        Tag cache TTL in seconds
+    """
+    try:
+        ttl = int(
+            os.environ.get(
+                GENOMICS_SEARCH_TAG_CACHE_TTL_ENV, str(DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL)
+            )
+        )
+        if ttl < 0:
+            logger.warning(
+                f'Invalid tag cache TTL value: {ttl}. Using default: {DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL}'
+            )
+            return DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL
+        return ttl
+    except ValueError:
+        logger.warning(
+            f'Invalid tag cache TTL value in environment. Using default: {DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL}'
+        )
+        return DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL
 
 
 def validate_bucket_access_permissions() -> List[str]:

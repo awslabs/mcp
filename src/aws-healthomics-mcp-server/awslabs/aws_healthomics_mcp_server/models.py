@@ -291,6 +291,10 @@ class SearchConfig:
     search_timeout_seconds: int = 300
     enable_healthomics_search: bool = True
     default_max_results: int = 100
+    enable_s3_tag_search: bool = True  # Enable/disable S3 tag-based searching
+    max_tag_retrieval_batch_size: int = 100  # Maximum objects to retrieve tags for in batch
+    result_cache_ttl_seconds: int = 600  # Result cache TTL (10 minutes)
+    tag_cache_ttl_seconds: int = 300  # Tag cache TTL (5 minutes)
 
 
 class GenomicsFileSearchRequest(BaseModel):

@@ -15,6 +15,8 @@
 """S3 search engine for genomics files."""
 
 import asyncio
+import hashlib
+import time
 from awslabs.aws_healthomics_mcp_server.models import GenomicsFile, GenomicsFileType, SearchConfig
 from awslabs.aws_healthomics_mcp_server.search.file_type_detector import FileTypeDetector
 from awslabs.aws_healthomics_mcp_server.search.pattern_matcher import PatternMatcher
@@ -27,11 +29,11 @@ from awslabs.aws_healthomics_mcp_server.utils.s3_utils import parse_s3_path
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class S3SearchEngine:
-    """Search engine for genomics files in S3 buckets."""
+    """Search engine for genomics files in S3 buckets with optimized S3 API usage."""
 
     def __init__(self, config: SearchConfig):
         """Initialize the S3 search engine.
@@ -44,6 +46,17 @@ class S3SearchEngine:
         self.s3_client = self.session.client('s3')
         self.file_type_detector = FileTypeDetector()
         self.pattern_matcher = PatternMatcher()
+
+        # Caching for optimization
+        self._tag_cache = {}  # Cache for object tags
+        self._result_cache = {}  # Cache for search results
+
+        logger.info(
+            f'S3SearchEngine initialized with tag search: {config.enable_s3_tag_search}, '
+            f'tag batch size: {config.max_tag_retrieval_batch_size}, '
+            f'result cache TTL: {config.result_cache_ttl_seconds}s, '
+            f'tag cache TTL: {config.tag_cache_ttl_seconds}s'
+        )
 
     @classmethod
     def from_environment(cls) -> 'S3SearchEngine':
@@ -71,7 +84,7 @@ class S3SearchEngine:
     async def search_buckets(
         self, bucket_paths: List[str], file_type: Optional[str], search_terms: List[str]
     ) -> List[GenomicsFile]:
-        """Search for genomics files across multiple S3 bucket paths.
+        """Search for genomics files across multiple S3 bucket paths with result caching.
 
         Args:
             bucket_paths: List of S3 bucket paths to search
@@ -89,12 +102,19 @@ class S3SearchEngine:
             logger.warning('No S3 bucket paths provided for search')
             return []
 
+        # Check result cache first
+        cache_key = self._create_search_cache_key(bucket_paths, file_type, search_terms)
+        cached_result = self._get_cached_result(cache_key)
+        if cached_result is not None:
+            logger.info(f'Returning cached search results for {len(bucket_paths)} bucket paths')
+            return cached_result
+
         all_files = []
 
         # Create tasks for concurrent bucket searches
         tasks = []
         for bucket_path in bucket_paths:
-            task = self._search_single_bucket_path(bucket_path, file_type, search_terms)
+            task = self._search_single_bucket_path_optimized(bucket_path, file_type, search_terms)
             tasks.append(task)
 
         # Execute searches concurrently with semaphore to limit concurrent operations
@@ -115,12 +135,20 @@ class S3SearchEngine:
             else:
                 all_files.extend(result)
 
+        # Cache the results
+        self._cache_search_result(cache_key, all_files)
+
         return all_files
 
-    async def _search_single_bucket_path(
+    async def _search_single_bucket_path_optimized(
         self, bucket_path: str, file_type: Optional[str], search_terms: List[str]
     ) -> List[GenomicsFile]:
-        """Search a single S3 bucket path for genomics files.
+        """Search a single S3 bucket path for genomics files using optimized strategy.
+
+        This method implements smart filtering to minimize S3 API calls:
+        1. List all objects (single API call per 1000 objects)
+        2. Filter by file type and path patterns (no additional S3 calls)
+        3. Only retrieve tags for objects that need tag-based matching (batch calls)
 
         Args:
             bucket_path: S3 bucket path (e.g., 's3://bucket-name/prefix/')
@@ -136,19 +164,77 @@ class S3SearchEngine:
             # Validate bucket access
             await self._validate_bucket_access(bucket_name)
 
-            # List objects in the bucket with the given prefix
+            # Phase 1: Get all objects (minimal S3 calls)
             objects = await self._list_s3_objects(bucket_name, prefix)
+            logger.debug(f'Listed {len(objects)} objects in {bucket_path}')
 
-            # Filter and convert objects to GenomicsFile instances
-            genomics_files = []
+            # Phase 2: Filter by file type and path patterns (no S3 calls)
+            path_matched_objects = []
+            objects_needing_tags = []
+
             for obj in objects:
-                genomics_file = await self._convert_s3_object_to_genomics_file(
-                    obj, bucket_name, file_type, search_terms
+                key = obj['Key']
+                s3_path = f's3://{bucket_name}/{key}'
+
+                # File type filtering
+                detected_file_type = self.file_type_detector.detect_file_type(key)
+                if not detected_file_type:
+                    continue
+
+                if not self._matches_file_type_filter(detected_file_type, file_type):
+                    continue
+
+                # Path-based search term matching
+                if search_terms:
+                    path_score, _ = self.pattern_matcher.match_file_path(s3_path, search_terms)
+                    if path_score > 0:
+                        # Path matched, no need for tags
+                        path_matched_objects.append((obj, {}, detected_file_type))
+                        continue
+                    elif self.config.enable_s3_tag_search:
+                        # Need to check tags
+                        objects_needing_tags.append((obj, detected_file_type))
+                    # If path doesn't match and tag search is disabled, skip
+                else:
+                    # No search terms, include all type-matched files
+                    path_matched_objects.append((obj, {}, detected_file_type))
+
+            logger.debug(
+                f'After path filtering: {len(path_matched_objects)} path matches, '
+                f'{len(objects_needing_tags)} objects need tag checking'
+            )
+
+            # Phase 3: Batch retrieve tags only for objects that need them
+            tag_matched_objects = []
+            if objects_needing_tags and self.config.enable_s3_tag_search:
+                object_keys = [obj[0]['Key'] for obj in objects_needing_tags]
+                tag_map = await self._get_tags_for_objects_batch(bucket_name, object_keys)
+
+                for obj, detected_file_type in objects_needing_tags:
+                    key = obj['Key']
+                    tags = tag_map.get(key, {})
+
+                    # Check tag-based matching
+                    if search_terms:
+                        tag_score, _ = self.pattern_matcher.match_tags(tags, search_terms)
+                        if tag_score > 0:
+                            tag_matched_objects.append((obj, tags, detected_file_type))
+
+            # Phase 4: Convert to GenomicsFile objects
+            all_matched_objects = path_matched_objects + tag_matched_objects
+            genomics_files = []
+
+            for obj, tags, detected_file_type in all_matched_objects:
+                genomics_file = self._create_genomics_file_from_object(
+                    obj, bucket_name, tags, detected_file_type
                 )
                 if genomics_file:
                     genomics_files.append(genomics_file)
 
-            logger.info(f'Found {len(genomics_files)} files in {bucket_path}')
+            logger.info(
+                f'Found {len(genomics_files)} files in {bucket_path} '
+                f'({len(path_matched_objects)} path matches, {len(tag_matched_objects)} tag matches)'
+            )
             return genomics_files
 
         except Exception as e:
@@ -246,53 +332,28 @@ class S3SearchEngine:
         logger.debug(f'Listed {len(objects)} objects in s3://{bucket_name}/{prefix}')
         return objects
 
-    async def _convert_s3_object_to_genomics_file(
+    def _create_genomics_file_from_object(
         self,
         s3_object: Dict[str, Any],
         bucket_name: str,
-        file_type_filter: Optional[str],
-        search_terms: List[str],
-    ) -> Optional[GenomicsFile]:
-        """Convert an S3 object to a GenomicsFile if it matches the search criteria.
+        tags: Dict[str, str],
+        detected_file_type: GenomicsFileType,
+    ) -> GenomicsFile:
+        """Create a GenomicsFile object from S3 object metadata.
 
         Args:
             s3_object: S3 object dictionary from list_objects_v2
             bucket_name: Name of the S3 bucket
-            file_type_filter: Optional file type to filter by
-            search_terms: List of search terms to match against
+            tags: Object tags (already retrieved)
+            detected_file_type: Already detected file type
 
         Returns:
-            GenomicsFile object if the file matches criteria, None otherwise
+            GenomicsFile object
         """
         key = s3_object['Key']
         s3_path = f's3://{bucket_name}/{key}'
 
-        # Detect file type from extension
-        detected_file_type = self.file_type_detector.detect_file_type(key)
-        if not detected_file_type:
-            # Skip files that are not recognized genomics file types
-            return None
-
-        # Apply file type filter, but also include related index files
-        if file_type_filter:
-            # Include the requested file type
-            if detected_file_type.value == file_type_filter:
-                pass  # Include this file
-            # Also include index files that might be associated with the requested type
-            elif self._is_related_index_file(detected_file_type, file_type_filter):
-                pass  # Include this index file
-            else:
-                return None  # Skip unrelated files
-
-        # Get object tags for pattern matching
-        tags = await self._get_object_tags(bucket_name, key)
-
-        # Check if file matches search terms
-        if search_terms and not self._matches_search_terms(s3_path, tags, search_terms):
-            return None
-
-        # Create GenomicsFile object
-        genomics_file = GenomicsFile(
+        return GenomicsFile(
             path=s3_path,
             file_type=detected_file_type,
             size_bytes=s3_object.get('Size', 0),
@@ -307,7 +368,32 @@ class S3SearchEngine:
             },
         )
 
-        return genomics_file
+    async def _get_object_tags_cached(self, bucket_name: str, key: str) -> Dict[str, str]:
+        """Get tags for an S3 object with caching.
+
+        Args:
+            bucket_name: Name of the S3 bucket
+            key: Object key
+
+        Returns:
+            Dictionary of object tags
+        """
+        cache_key = f'{bucket_name}/{key}'
+
+        # Check cache first
+        if cache_key in self._tag_cache:
+            cached_entry = self._tag_cache[cache_key]
+            if time.time() - cached_entry['timestamp'] < self.config.tag_cache_ttl_seconds:
+                return cached_entry['tags']
+            else:
+                # Remove expired entry
+                del self._tag_cache[cache_key]
+
+        # Retrieve from S3 and cache
+        tags = await self._get_object_tags(bucket_name, key)
+        self._tag_cache[cache_key] = {'tags': tags, 'timestamp': time.time()}
+
+        return tags
 
     async def _get_object_tags(self, bucket_name: str, key: str) -> Dict[str, str]:
         """Get tags for an S3 object.
@@ -336,6 +422,155 @@ class S3SearchEngine:
             # If we can't get tags (e.g., no permission), return empty dict
             logger.debug(f'Could not get tags for s3://{bucket_name}/{key}: {e}')
             return {}
+
+    async def _get_tags_for_objects_batch(
+        self, bucket_name: str, object_keys: List[str]
+    ) -> Dict[str, Dict[str, str]]:
+        """Retrieve tags for multiple objects efficiently using batching and caching.
+
+        Args:
+            bucket_name: Name of the S3 bucket
+            object_keys: List of object keys to get tags for
+
+        Returns:
+            Dictionary mapping object keys to their tags
+        """
+        if not object_keys:
+            return {}
+
+        # Check cache for existing entries
+        tag_map = {}
+        keys_to_fetch = []
+
+        for key in object_keys:
+            cache_key = f'{bucket_name}/{key}'
+            if cache_key in self._tag_cache:
+                cached_entry = self._tag_cache[cache_key]
+                if time.time() - cached_entry['timestamp'] < self.config.tag_cache_ttl_seconds:
+                    tag_map[key] = cached_entry['tags']
+                    continue
+                else:
+                    # Remove expired entry
+                    del self._tag_cache[cache_key]
+
+            keys_to_fetch.append(key)
+
+        if not keys_to_fetch:
+            logger.debug(f'All {len(object_keys)} object tags found in cache')
+            return tag_map
+
+        logger.debug(
+            f'Fetching tags for {len(keys_to_fetch)} objects (batch size limit: {self.config.max_tag_retrieval_batch_size})'
+        )
+
+        # Process in batches to avoid overwhelming the API
+        batch_size = min(self.config.max_tag_retrieval_batch_size, len(keys_to_fetch))
+        semaphore = asyncio.Semaphore(10)  # Limit concurrent tag retrievals
+
+        async def get_single_tag(key: str) -> Tuple[str, Dict[str, str]]:
+            async with semaphore:
+                tags = await self._get_object_tags_cached(bucket_name, key)
+                return key, tags
+
+        # Process keys in batches
+        for i in range(0, len(keys_to_fetch), batch_size):
+            batch_keys = keys_to_fetch[i : i + batch_size]
+
+            # Execute batch in parallel
+            tasks = [get_single_tag(key) for key in batch_keys]
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Process batch results
+            for result in batch_results:
+                if isinstance(result, Exception):
+                    logger.warning(f'Failed to get tags in batch: {result}')
+                else:
+                    key, tags = result
+                    tag_map[key] = tags
+
+        logger.debug(f'Retrieved tags for {len(tag_map)} objects total')
+        return tag_map
+
+    def _matches_file_type_filter(
+        self, detected_file_type: GenomicsFileType, file_type_filter: Optional[str]
+    ) -> bool:
+        """Check if a detected file type matches the file type filter.
+
+        Args:
+            detected_file_type: The detected file type
+            file_type_filter: Optional file type filter
+
+        Returns:
+            True if the file type matches the filter or no filter is specified
+        """
+        if not file_type_filter:
+            return True
+
+        # Include the requested file type
+        if detected_file_type.value == file_type_filter:
+            return True
+
+        # Also include index files that might be associated with the requested type
+        if self._is_related_index_file(detected_file_type, file_type_filter):
+            return True
+
+        return False
+
+    def _create_search_cache_key(
+        self, bucket_paths: List[str], file_type: Optional[str], search_terms: List[str]
+    ) -> str:
+        """Create a cache key for search results.
+
+        Args:
+            bucket_paths: List of S3 bucket paths
+            file_type: Optional file type filter
+            search_terms: List of search terms
+
+        Returns:
+            Cache key string
+        """
+        # Create a deterministic cache key from search parameters
+        key_data = {
+            'bucket_paths': sorted(bucket_paths),  # Sort for consistency
+            'file_type': file_type or '',
+            'search_terms': sorted(search_terms),  # Sort for consistency
+        }
+
+        # Create hash of the key data
+        key_str = str(key_data)
+        return hashlib.md5(key_str.encode()).hexdigest()
+
+    def _get_cached_result(self, cache_key: str) -> Optional[List[GenomicsFile]]:
+        """Get cached search result if available and not expired.
+
+        Args:
+            cache_key: Cache key for the search
+
+        Returns:
+            Cached result if available and valid, None otherwise
+        """
+        if cache_key in self._result_cache:
+            cached_entry = self._result_cache[cache_key]
+            if time.time() - cached_entry['timestamp'] < self.config.result_cache_ttl_seconds:
+                logger.debug(f'Cache hit for search key: {cache_key}')
+                return cached_entry['results']
+            else:
+                # Remove expired entry
+                del self._result_cache[cache_key]
+                logger.debug(f'Cache expired for search key: {cache_key}')
+
+        return None
+
+    def _cache_search_result(self, cache_key: str, results: List[GenomicsFile]) -> None:
+        """Cache search results.
+
+        Args:
+            cache_key: Cache key for the search
+            results: Search results to cache
+        """
+        if self.config.result_cache_ttl_seconds > 0:  # Only cache if TTL > 0
+            self._result_cache[cache_key] = {'results': results, 'timestamp': time.time()}
+            logger.debug(f'Cached {len(results)} results for search key: {cache_key}')
 
     def _matches_search_terms(
         self, s3_path: str, tags: Dict[str, str], search_terms: List[str]
@@ -392,3 +627,69 @@ class S3SearchEngine:
 
         related_indexes = index_relationships.get(requested_file_type, [])
         return detected_file_type in related_indexes
+
+    def cleanup_expired_cache_entries(self) -> None:
+        """Clean up expired cache entries to prevent memory leaks."""
+        current_time = time.time()
+
+        # Clean up tag cache
+        expired_tag_keys = []
+        for cache_key, cached_entry in self._tag_cache.items():
+            if current_time - cached_entry['timestamp'] >= self.config.tag_cache_ttl_seconds:
+                expired_tag_keys.append(cache_key)
+
+        for key in expired_tag_keys:
+            del self._tag_cache[key]
+
+        # Clean up result cache
+        expired_result_keys = []
+        for cache_key, cached_entry in self._result_cache.items():
+            if current_time - cached_entry['timestamp'] >= self.config.result_cache_ttl_seconds:
+                expired_result_keys.append(cache_key)
+
+        for key in expired_result_keys:
+            del self._result_cache[key]
+
+        if expired_tag_keys or expired_result_keys:
+            logger.debug(
+                f'Cleaned up {len(expired_tag_keys)} expired tag cache entries and '
+                f'{len(expired_result_keys)} expired result cache entries'
+            )
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache statistics for monitoring.
+
+        Returns:
+            Dictionary with cache statistics
+        """
+        current_time = time.time()
+
+        # Count valid entries
+        valid_tag_entries = sum(
+            1
+            for entry in self._tag_cache.values()
+            if current_time - entry['timestamp'] < self.config.tag_cache_ttl_seconds
+        )
+
+        valid_result_entries = sum(
+            1
+            for entry in self._result_cache.values()
+            if current_time - entry['timestamp'] < self.config.result_cache_ttl_seconds
+        )
+
+        return {
+            'tag_cache': {
+                'total_entries': len(self._tag_cache),
+                'valid_entries': valid_tag_entries,
+                'ttl_seconds': self.config.tag_cache_ttl_seconds,
+            },
+            'result_cache': {
+                'total_entries': len(self._result_cache),
+                'valid_entries': valid_result_entries,
+                'ttl_seconds': self.config.result_cache_ttl_seconds,
+            },
+            'config': {
+                'enable_s3_tag_search': self.config.enable_s3_tag_search,
+                'max_tag_batch_size': self.config.max_tag_retrieval_batch_size,
+            },
+        }
