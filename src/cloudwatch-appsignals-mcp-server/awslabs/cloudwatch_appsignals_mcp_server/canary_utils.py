@@ -713,6 +713,7 @@ async def get_canary_code(canary: dict, region: str = "us-east-1") -> dict:
             import zipfile
             import tempfile
             import os
+            import ssl
             
             layer_arn = custom_layers[0]['Arn']
             layer_response = lambda_client.get_layer_version_by_arn(Arn=layer_arn)
@@ -720,14 +721,17 @@ async def get_canary_code(canary: dict, region: str = "us-east-1") -> dict:
             if 'Location' in layer_response['Content']:
                 layer_url = layer_response['Content']['Location']
                 
+                ssl_context = ssl._create_unverified_context()
                 with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
-                    urllib.request.urlretrieve(layer_url, tmp_file.name)
+                    with urllib.request.urlopen(layer_url, context=ssl_context) as response:
+                        tmp_file.write(response.read())
+                    tmp_file.flush()
                     
                     with zipfile.ZipFile(tmp_file.name, 'r') as zip_ref:
-                        js_files = [f for f in zip_ref.namelist() if f.endswith('.js') and 'node_modules' in f]
+                        js_files = [f for f in zip_ref.namelist() if f.endswith('.js')]
                         
                         if js_files:
-                            main_js = js_files[0]
+                            main_js = next((f for f in js_files if 'index.js' in f), js_files[0])
                             with zip_ref.open(main_js) as f:
                                 code_content = f.read().decode('utf-8')
                                 lines = code_content.split('\n')
