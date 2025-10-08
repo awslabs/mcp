@@ -47,19 +47,28 @@ This MCP server is in general availability.
 
 ## Configuration
 
-You can configure the Knowledge MCP server for use with any MCP client that supports Streamable HTTP transport (HTTP) using the following configuration:
+You can configure the Knowledge MCP server for use with any MCP client that supports Streamable HTTP transport (HTTP) using the following URL:
+
+```url
+https://knowledge-mcp.global.api.aws
+```
+
+**Note:** The specific configuration format varies by MCP client. Below is an example for [Amazon Q CLI](https://github.com/aws/amazon-q-developer-cli). If you are using a different client, refer to your client's documentation on how to add remote MCP servers using the URL above.
+
+**Q-CLI**
 
 ```json
 {
   "mcpServers": {
     "aws-knowledge-mcp-server": {
-      "url": "https://knowledge-mcp.global.api.aws"
+      "url": "https://knowledge-mcp.global.api.aws",
+      "type": "http"
     }
   }
 }
 ```
 
-If the client you are using does not support HTTP transport for MCP or if it encounters issues during setup, you can use the [fastmcp](https://github.com/jlowin/fastmcp) utility to proxy from stdio to HTTP transport. Clients that fall into this category may include Kiro and Q CLI. Below is a configuration example for the fastmcp utility.
+If the client you are using does not support HTTP transport for MCP or if it encounters issues during setup, you can use the [fastmcp](https://github.com/jlowin/fastmcp) utility to proxy from stdio to HTTP transport. Below is a configuration example for the fastmcp utility.
 
 **fastmcp**
 
