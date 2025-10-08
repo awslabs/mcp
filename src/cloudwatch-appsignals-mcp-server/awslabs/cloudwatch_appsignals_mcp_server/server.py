@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -1136,7 +1137,9 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
         selected_reason_lower = str(selected_reason).lower()
         
         # 1. ENOSPC: no space left on device
-        if "enospc" in selected_reason_lower or "no space left on device" in selected_reason_lower:
+        if any(re.search(pattern, selected_reason, re.IGNORECASE) for pattern in [
+            "enospc", "no space left on device"
+        ]):
             try:
                 telemetry_data = await extract_disk_memory_usage_metrics(canary_name, region)
                 if "error" not in telemetry_data:
@@ -1149,7 +1152,7 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
                 result += f"\n⚠️ Could not generate disk usage debugging code: {str(debug_error)}\n"
         
         # 2. Protocol error (Target.activateTarget): Session closed / detached Frame
-        elif any(pattern in selected_reason_lower for pattern in [
+        elif any(re.search(pattern, selected_reason, re.IGNORECASE) for pattern in [
             "protocol error", "target.activatetarget", "session closed", 
             "detached frame", "session already detached"
         ]):
@@ -1165,9 +1168,9 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
 
         
         # 3. Navigation timed out / Page.captureScreenshot timed out
-        elif any(pattern in selected_reason_lower for pattern in [
+        elif any(re.search(pattern, selected_reason, re.IGNORECASE) for pattern in [
             "navigation timeout", "navigation timed out", "ms exceeded",
-            "page.capturescreenshot timed out", "protocoltimeout", "Connection timed out"
+            "page.capturescreenshot timed out", "protocoltimeout", "connection timed out"
         ]):
             # Navigation timeout specific analysis using existing HAR data
             if har_files and bucket_name:
@@ -1195,7 +1198,7 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
                 result += f"• Check if target elements exist and page loads completely\n\n"
         
         # 4. Visual variation
-        elif "visual variation" in selected_reason_lower:
+        elif re.search("visual variation", selected_reason, re.IGNORECASE):
             error_recommendations.extend([
                 "🔧 VISUAL MONITORING ISSUE DETECTED:",
                 "• Website UI changed - not a technical failure",
@@ -1216,8 +1219,8 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
             code_analysis = await get_canary_code(canary, region)
             if "error" not in code_analysis and code_analysis.get('code_content'):
                 result += f"\ncanary code:\n{code_analysis['code_content']}\n"
-        except:
-            pass
+        except Exception as e:
+            result += f"Note: Could not retrieve canary code: {str(e)}\n"
 
         result += f"\n"
         return result
