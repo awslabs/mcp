@@ -355,7 +355,7 @@ class ScoringEngine:
             return 0.0, []
 
         max_score = 0.0
-        match_reasons = []
+        all_match_reasons = []
 
         # Check specific metadata fields that are likely to contain searchable names
         searchable_fields = [
@@ -366,6 +366,7 @@ class ScoringEngine:
             'subject_id',
             'sample_id',
             'store_name',
+            'store_description',
         ]
 
         for field in searchable_fields:
@@ -374,16 +375,20 @@ class ScoringEngine:
                 score, reasons = self.pattern_matcher.calculate_match_score(
                     field_value, search_terms
                 )
-                if score > max_score:
-                    max_score = score
-                    match_reasons = [f'{field} "{field_value}": {reason}' for reason in reasons]
+                if score > 0:
+                    max_score = max(max_score, score)
+                    # Add all matching reasons for this field
+                    field_reasons = [f'{field} "{field_value}": {reason}' for reason in reasons]
+                    all_match_reasons.extend(field_reasons)
 
         # Also check all other string metadata values
         for key, value in metadata.items():
             if key not in searchable_fields and isinstance(value, str) and value:
                 score, reasons = self.pattern_matcher.calculate_match_score(value, search_terms)
-                if score > max_score:
-                    max_score = score
-                    match_reasons = [f'{key} "{value}": {reason}' for reason in reasons]
+                if score > 0:
+                    max_score = max(max_score, score)
+                    # Add all matching reasons for this field
+                    field_reasons = [f'{key} "{value}": {reason}' for reason in reasons]
+                    all_match_reasons.extend(field_reasons)
 
-        return max_score, match_reasons
+        return max_score, all_match_reasons

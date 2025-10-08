@@ -92,6 +92,12 @@ class FileAssociationEngine:
             file_groups.append(group)
             grouped_files.update([f.path for f in [group.primary_file] + group.associated_files])
 
+        # Handle HealthOmics sequence store associations (BAM/CRAM index files)
+        sequence_store_groups = self._find_sequence_store_associations(files, file_map)
+        for group in sequence_store_groups:
+            file_groups.append(group)
+            grouped_files.update([f.path for f in [group.primary_file] + group.associated_files])
+
         # Then handle other association patterns
         for file in files:
             if file.path in grouped_files:
@@ -297,3 +303,144 @@ class FileAssociationEngine:
                 healthomics_groups.append(healthomics_group)
 
         return healthomics_groups
+
+    def _find_sequence_store_associations(
+        self, files: List[GenomicsFile], file_map: Dict[str, GenomicsFile]
+    ) -> List[FileGroup]:
+        """Find HealthOmics sequence store file associations.
+
+        For sequence stores, this handles:
+        1. Multi-source read sets (source1, source2, etc.) - paired-end FASTQ files
+        2. Index files (BAM/CRAM index files)
+
+        Args:
+            files: List of genomics files to analyze
+            file_map: Dictionary mapping file paths to GenomicsFile objects
+
+        Returns:
+            List of FileGroup objects for sequence store associations
+        """
+        sequence_store_groups = []
+
+        for file in files:
+            # Skip if not a sequence store file
+            if not (file.path.startswith('omics://') and file.source_system == 'sequence_store'):
+                continue
+
+            # Skip if this is a reference store file with index info
+            if hasattr(file, '_healthomics_index_info'):
+                continue
+
+            associated_files = []
+
+            # Handle multi-source read sets (source2, source3, etc.)
+            if hasattr(file, '_healthomics_multi_source_info'):
+                multi_source_info = file._healthomics_multi_source_info
+                files_info = multi_source_info['files']
+
+                # Create associated files for source2, source3, etc.
+                for source_key in sorted(files_info.keys()):
+                    if source_key.startswith('source') and source_key != 'source1':
+                        source_info = files_info[source_key]
+
+                        # Create URI for this source
+                        source_uri = f'omics://{multi_source_info["account_id"]}.storage.{multi_source_info["region"]}.amazonaws.com/{multi_source_info["store_id"]}/readSet/{multi_source_info["read_set_id"]}/{source_key}'
+
+                        # Create virtual GenomicsFile for this source
+                        source_file = GenomicsFile(
+                            path=source_uri,
+                            file_type=multi_source_info['file_type'],
+                            size_bytes=source_info.get('contentLength', 0),
+                            storage_class=multi_source_info['storage_class'],
+                            last_modified=multi_source_info['creation_time'],
+                            tags=multi_source_info['tags'],
+                            source_system='sequence_store',
+                            metadata={
+                                **multi_source_info['metadata_base'],
+                                'source_number': source_key,
+                                'is_associated_source': True,
+                                'primary_file_uri': file.path,
+                                's3_access_uri': source_info.get('s3Access', {}).get('s3Uri', ''),
+                                'omics_uri': source_uri,
+                            },
+                        )
+                        associated_files.append(source_file)
+
+            # Handle index files (BAM/CRAM)
+            if 'files' in file.metadata:
+                files_info = file.metadata['files']
+
+                if 'index' in files_info:
+                    index_info = files_info['index']
+
+                    # Get connection info from metadata or parse from URI
+                    account_id = file.metadata.get('account_id')
+                    region = file.metadata.get('region')
+                    if not account_id or not region:
+                        # Parse from URI as fallback
+                        account_id = file.path.split('.')[0].split('//')[1]
+                        region = file.path.split('.')[2]
+
+                    store_id = file.metadata.get('store_id', '')
+                    read_set_id = file.metadata.get('read_set_id', '')
+
+                    index_uri = f'omics://{account_id}.storage.{region}.amazonaws.com/{store_id}/readSet/{read_set_id}/index'
+
+                    # Determine index file type based on primary file type
+                    if file.file_type.value == 'bam':
+                        from awslabs.aws_healthomics_mcp_server.models import GenomicsFileType
+
+                        index_file_type = GenomicsFileType.BAI
+                    elif file.file_type.value == 'cram':
+                        from awslabs.aws_healthomics_mcp_server.models import GenomicsFileType
+
+                        index_file_type = GenomicsFileType.CRAI
+                    else:
+                        index_file_type = None  # No index for other file types
+
+                    if index_file_type:
+                        # Create virtual index file
+                        index_file = GenomicsFile(
+                            path=index_uri,
+                            file_type=index_file_type,
+                            size_bytes=index_info.get('contentLength', 0),
+                            storage_class=file.storage_class,
+                            last_modified=file.last_modified,
+                            tags=file.tags,  # Inherit tags from primary file
+                            source_system='sequence_store',
+                            metadata={
+                                **file.metadata,  # Inherit metadata from primary file
+                                'is_index_file': True,
+                                'primary_file_uri': file.path,
+                                's3_access_uri': index_info.get('s3Access', {}).get('s3Uri', ''),
+                            },
+                        )
+                        associated_files.append(index_file)
+
+            # Create file group if we have associated files
+            if associated_files:
+                # Determine group type based on what we found
+                has_sources = any(
+                    hasattr(f, 'metadata') and f.metadata.get('is_associated_source')
+                    for f in associated_files
+                )
+                has_index = any(
+                    hasattr(f, 'metadata') and f.metadata.get('is_index_file')
+                    for f in associated_files
+                )
+
+                if has_sources and has_index:
+                    group_type = 'sequence_store_multi_source_with_index'
+                elif has_sources:
+                    group_type = 'sequence_store_multi_source'
+                else:
+                    group_type = 'sequence_store_index'
+
+                sequence_store_group = FileGroup(
+                    primary_file=file,
+                    associated_files=associated_files,
+                    group_type=group_type,
+                )
+                sequence_store_groups.append(sequence_store_group)
+
+        return sequence_store_groups

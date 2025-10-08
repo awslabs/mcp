@@ -489,6 +489,55 @@ class HealthOmicsSearchEngine:
 
         return references
 
+    async def _get_read_set_metadata(self, store_id: str, read_set_id: str) -> Dict[str, Any]:
+        """Get detailed metadata for a read set using get-read-set-metadata API.
+
+        Args:
+            store_id: ID of the sequence store
+            read_set_id: ID of the read set
+
+        Returns:
+            Dictionary containing detailed read set metadata
+
+        Raises:
+            ClientError: If API call fails
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.omics_client.get_read_set_metadata(
+                    sequenceStoreId=store_id, id=read_set_id
+                ),
+            )
+            return response
+        except ClientError as e:
+            logger.warning(f'Failed to get detailed metadata for read set {read_set_id}: {e}')
+            return {}
+
+    async def _get_read_set_tags(self, read_set_arn: str) -> Dict[str, str]:
+        """Get tags for a read set using list-tags-for-resource API.
+
+        Args:
+            read_set_arn: ARN of the read set
+
+        Returns:
+            Dictionary of tag key-value pairs
+
+        Raises:
+            ClientError: If API call fails
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.omics_client.list_tags_for_resource(resourceArn=read_set_arn),
+            )
+            return response.get('tags', {})
+        except ClientError as e:
+            logger.debug(f'Failed to get tags for read set {read_set_arn}: {e}')
+            return {}
+
     async def _convert_read_set_to_genomics_file(
         self,
         read_set: Dict[str, Any],
@@ -513,34 +562,83 @@ class HealthOmicsSearchEngine:
             read_set_id = read_set['id']
             read_set_name = read_set.get('name', read_set_id)
 
-            # Determine file type based on read set type or default to FASTQ
-            file_format = read_set.get('fileType', 'FASTQ')
+            # Get enhanced metadata for better file information
+            enhanced_metadata = await self._get_read_set_metadata(store_id, read_set_id)
+
+            # Use enhanced metadata if available, otherwise fall back to list response
+            file_format = enhanced_metadata.get('fileType', read_set.get('fileType', 'FASTQ'))
+            actual_size = 0
+            files_info = enhanced_metadata.get('files', {})
+
+            # Calculate actual file size from files information
+            if 'source1' in files_info and 'contentLength' in files_info['source1']:
+                actual_size = files_info['source1']['contentLength']
+
+            # Determine file type based on read set type from HealthOmics metadata
             if file_format.upper() == 'FASTQ':
                 detected_file_type = GenomicsFileType.FASTQ
+            elif file_format.upper() == 'BAM':
+                detected_file_type = GenomicsFileType.BAM
+            elif file_format.upper() == 'CRAM':
+                detected_file_type = GenomicsFileType.CRAM
+            elif file_format.upper() == 'UBAM':
+                detected_file_type = GenomicsFileType.BAM  # uBAM is still BAM format
             else:
                 # Try to detect from name if available
                 detected_file_type = self.file_type_detector.detect_file_type(read_set_name)
                 if not detected_file_type:
-                    detected_file_type = GenomicsFileType.FASTQ  # Default for sequence data
+                    # Use the actual file type from HealthOmics if detection fails
+                    logger.warning(
+                        f'Unknown file type {file_format} for read set {read_set_id}, using FASTQ as fallback'
+                    )
+                    detected_file_type = GenomicsFileType.FASTQ
 
             # Apply file type filter if specified
             if file_type_filter and detected_file_type.value != file_type_filter:
                 return None
 
-            # Create metadata for pattern matching
+            # Filter out read sets that are not in ACTIVE status
+            read_set_status = enhanced_metadata.get('status', read_set.get('status', ''))
+            if read_set_status != 'ACTIVE':
+                logger.debug(f'Skipping read set {read_set_id} with status: {read_set_status}')
+                return None
+
+            # Get tags for the read set
+            read_set_arn = enhanced_metadata.get(
+                'arn',
+                f'arn:aws:omics:{self._get_region()}:{self._get_account_id()}:sequenceStore/{store_id}/readSet/{read_set_id}',
+            )
+            tags = await self._get_read_set_tags(read_set_arn)
+
+            # Create metadata for pattern matching - include sequence store info
             metadata = {
                 'name': read_set_name,
-                'description': read_set.get('description', ''),
-                'subject_id': read_set.get('subjectId', ''),
-                'sample_id': read_set.get('sampleId', ''),
-                'reference_arn': read_set.get('referenceArn', ''),
+                'description': enhanced_metadata.get(
+                    'description', read_set.get('description', '')
+                ),
+                'subject_id': enhanced_metadata.get('subjectId', read_set.get('subjectId', '')),
+                'sample_id': enhanced_metadata.get('sampleId', read_set.get('sampleId', '')),
+                'reference_arn': enhanced_metadata.get(
+                    'referenceArn', read_set.get('referenceArn', '')
+                ),
+                'store_name': store_info.get('name', ''),
+                'store_description': store_info.get('description', ''),
             }
 
-            # Check if read set matches search terms
-            if search_terms and not self._matches_search_terms_metadata(
-                read_set_name, metadata, search_terms
-            ):
-                return None
+            # Check if read set matches search terms (including tags as fallback)
+            if search_terms:
+                # First check metadata fields
+                metadata_match = self._matches_search_terms_metadata(
+                    read_set_name, metadata, search_terms
+                )
+
+                # If no metadata match and tags are available, check tags
+                if not metadata_match and tags:
+                    tag_score, _ = self.pattern_matcher.match_tags(tags, search_terms)
+                    if tag_score == 0:
+                        return None
+                elif not metadata_match:
+                    return None
 
             # Generate proper HealthOmics URI for read set data
             # Format: omics://account_id.storage.region.amazonaws.com/sequence_store_id/readSet/read_set_id/source1
@@ -548,30 +646,79 @@ class HealthOmicsSearchEngine:
             region = self._get_region()
             omics_uri = f'omics://{account_id}.storage.{region}.amazonaws.com/{store_id}/readSet/{read_set_id}/source1'
 
-            # Create GenomicsFile object
+            # Create GenomicsFile object with enhanced metadata
             genomics_file = GenomicsFile(
                 path=omics_uri,
                 file_type=detected_file_type,
-                size_bytes=read_set.get(
-                    'totalReadLength', 0
-                ),  # Use total read length as size approximation
+                size_bytes=actual_size,  # Use actual file size from enhanced metadata
                 storage_class='STANDARD',  # HealthOmics manages storage internally
-                last_modified=read_set.get('creationTime', datetime.now()),
-                tags={},  # HealthOmics doesn't expose tags through read sets API
+                last_modified=enhanced_metadata.get(
+                    'creationTime', read_set.get('creationTime', datetime.now())
+                ),
+                tags=tags,  # Include actual tags from HealthOmics
                 source_system='sequence_store',
                 metadata={
                     'store_id': store_id,
                     'store_name': store_info.get('name', ''),
+                    'store_description': store_info.get('description', ''),
                     'read_set_id': read_set_id,
                     'read_set_name': read_set_name,
-                    'subject_id': read_set.get('subjectId', ''),
-                    'sample_id': read_set.get('sampleId', ''),
-                    'reference_arn': read_set.get('referenceArn', ''),
-                    'status': read_set.get('status', ''),
-                    'sequence_information': read_set.get('sequenceInformation', {}),
+                    'subject_id': enhanced_metadata.get(
+                        'subjectId', read_set.get('subjectId', '')
+                    ),
+                    'sample_id': enhanced_metadata.get('sampleId', read_set.get('sampleId', '')),
+                    'reference_arn': enhanced_metadata.get(
+                        'referenceArn', read_set.get('referenceArn', '')
+                    ),
+                    'status': enhanced_metadata.get('status', read_set.get('status', '')),
+                    'sequence_information': enhanced_metadata.get(
+                        'sequenceInformation', read_set.get('sequenceInformation', {})
+                    ),
+                    'files': files_info,  # Include detailed file information
                     'omics_uri': omics_uri,  # Store the clean URI for reference
+                    's3_access_uri': files_info.get('source1', {})
+                    .get('s3Access', {})
+                    .get('s3Uri', ''),  # Include S3 URI if available
+                    'account_id': account_id,  # Store for association engine
+                    'region': region,  # Store for association engine
                 },
             )
+
+            # Store multi-source information for the file association engine
+            if len([k for k in files_info.keys() if k.startswith('source')]) > 1:
+                genomics_file._healthomics_multi_source_info = {
+                    'store_id': store_id,
+                    'read_set_id': read_set_id,
+                    'account_id': account_id,
+                    'region': region,
+                    'files': files_info,
+                    'file_type': detected_file_type,
+                    'tags': tags,
+                    'metadata_base': {
+                        'store_id': store_id,
+                        'store_name': store_info.get('name', ''),
+                        'store_description': store_info.get('description', ''),
+                        'read_set_id': read_set_id,
+                        'read_set_name': read_set_name,
+                        'subject_id': enhanced_metadata.get(
+                            'subjectId', read_set.get('subjectId', '')
+                        ),
+                        'sample_id': enhanced_metadata.get(
+                            'sampleId', read_set.get('sampleId', '')
+                        ),
+                        'reference_arn': enhanced_metadata.get(
+                            'referenceArn', read_set.get('referenceArn', '')
+                        ),
+                        'status': enhanced_metadata.get('status', read_set.get('status', '')),
+                        'sequence_information': enhanced_metadata.get(
+                            'sequenceInformation', read_set.get('sequenceInformation', {})
+                        ),
+                    },
+                    'creation_time': enhanced_metadata.get(
+                        'creationTime', read_set.get('creationTime', datetime.now())
+                    ),
+                    'storage_class': 'STANDARD',
+                }
 
             return genomics_file
 
@@ -580,6 +727,29 @@ class HealthOmicsSearchEngine:
                 f'Error converting read set {read_set.get("id", "unknown")} to GenomicsFile: {e}'
             )
             return None
+
+    async def _get_reference_tags(self, reference_arn: str) -> Dict[str, str]:
+        """Get tags for a reference using list-tags-for-resource API.
+
+        Args:
+            reference_arn: ARN of the reference
+
+        Returns:
+            Dictionary of tag key-value pairs
+
+        Raises:
+            ClientError: If API call fails
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.omics_client.list_tags_for_resource(resourceArn=reference_arn),
+            )
+            return response.get('tags', {})
+        except ClientError as e:
+            logger.debug(f'Failed to get tags for reference {reference_arn}: {e}')
+            return {}
 
     async def _convert_reference_to_genomics_file(
         self,
@@ -612,25 +782,51 @@ class HealthOmicsSearchEngine:
             if file_type_filter and detected_file_type.value != file_type_filter:
                 return None
 
-            # Create metadata for pattern matching
+            # Filter out references that are not in ACTIVE status
+            reference_status = reference.get('status', '')
+            if reference_status != 'ACTIVE':
+                logger.debug(f'Skipping reference {reference_id} with status: {reference_status}')
+                return None
+
+            # Get tags for the reference
+            reference_arn = reference.get(
+                'arn',
+                f'arn:aws:omics:{self._get_region()}:{self._get_account_id()}:referenceStore/{store_id}/reference/{reference_id}',
+            )
+            tags = await self._get_reference_tags(reference_arn)
+
+            # Create metadata for pattern matching - include reference store info
             metadata = {
                 'name': reference_name,
                 'description': reference.get('description', ''),
+                'store_name': store_info.get('name', ''),
+                'store_description': store_info.get('description', ''),
             }
 
-            # Check if reference matches search terms (client-side fallback)
-            # Note: Server-side filtering is applied first, this is additional validation
-            if search_terms and not self._matches_search_terms_metadata(
-                reference_name, metadata, search_terms
-            ):
-                logger.debug(
-                    f'Reference "{reference_name}" did not match search terms {search_terms} in client-side filtering'
+            # Check if reference matches search terms (including tags as fallback)
+            if search_terms:
+                # First check metadata fields
+                metadata_match = self._matches_search_terms_metadata(
+                    reference_name, metadata, search_terms
                 )
-                return None
-            elif search_terms:
-                logger.debug(
-                    f'Reference "{reference_name}" matched search terms {search_terms} in client-side filtering'
-                )
+
+                # If no metadata match and tags are available, check tags
+                if not metadata_match and tags:
+                    tag_score, _ = self.pattern_matcher.match_tags(tags, search_terms)
+                    if tag_score == 0:
+                        logger.debug(
+                            f'Reference "{reference_name}" did not match search terms {search_terms} in metadata or tags'
+                        )
+                        return None
+                elif not metadata_match:
+                    logger.debug(
+                        f'Reference "{reference_name}" did not match search terms {search_terms} in client-side filtering'
+                    )
+                    return None
+                else:
+                    logger.debug(
+                        f'Reference "{reference_name}" matched search terms {search_terms} in client-side filtering'
+                    )
 
             # Generate proper HealthOmics URI for reference data
             # Format: omics://account_id.storage.region.amazonaws.com/reference_store_id/reference/reference_id/source
@@ -684,11 +880,12 @@ class HealthOmicsSearchEngine:
                 size_bytes=source_size,
                 storage_class='STANDARD',  # HealthOmics manages storage internally
                 last_modified=reference.get('creationTime', datetime.now()),
-                tags={},  # HealthOmics doesn't expose tags through references API
+                tags=tags,  # Include actual tags from HealthOmics
                 source_system='reference_store',
                 metadata={
                     'store_id': store_id,
                     'store_name': store_info.get('name', ''),
+                    'store_description': store_info.get('description', ''),
                     'reference_id': reference_id,
                     'reference_name': reference_name,
                     'status': reference.get('status', ''),
