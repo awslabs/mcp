@@ -14,6 +14,7 @@
 
 import argparse
 import botocore.serialize
+import ipaddress
 import jmespath
 import os
 import re
@@ -70,6 +71,7 @@ from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
 from pathlib import Path
 from typing import Any, NamedTuple, cast
+from urllib.parse import urlparse
 
 
 ARN_PATTERN = re.compile(
@@ -794,9 +796,25 @@ def _validate_endpoint(endpoint: str | None):
     if not endpoint:
         return
 
-    localhost_regex = re.compile(r'^(http://|https://)?localhost(:\d+)?$')
-    if not re.match(localhost_regex, endpoint):
-        raise ValueError(f'Only localhost endpoints are allowed: {endpoint}')
+    try:
+        url = urlparse(endpoint if '://' in endpoint else f'http://{endpoint}')
+        url.port  # will throw an exception if the port is not a number
+    except Exception as e:
+        raise ValueError(f'Invalid endpoint or port: {endpoint}') from e
+
+    hostname = url.hostname
+    if not hostname:
+        raise ValueError(f'Could not find hostname {endpoint}')
+
+    if hostname == 'localhost':
+        hostname = '127.0.0.1'
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if not ip_obj.is_loopback:
+            raise ValueError(f'Local endpoint was not a loopback address: {hostname}')
+    except ValueError as e:
+        raise ValueError(f'Could not resolve endpoint: {e}')
 
 
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
