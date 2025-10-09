@@ -23,7 +23,7 @@ This MCP server provides comprehensive access to Amazon Bedrock AgentCore docume
 
 | Cursor | VS Code |
 |:------:|:-------:|
-| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.amazon-bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6W119) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=bedrock-agentcore-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuYW1hem9uLWJlZHJvY2stYWdlbnRjb3JlLW1jcC1zZXJ2ZXJAbGF0ZXN0IiwiZW52Ijp7IkZBU1RNQ1BfTE9HX0xFVkVMIjoiRVJST1IifSwiZGlzYWJsZWQiOmZhbHNlLCJhdXRvQXBwcm92ZSI6WyJzZWFyY2hfYWdlbnRjb3JlX2RvY3MiLCJmZXRjaF9hZ2VudGNvcmVfZG9jIl19) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=Bedrock%20AgentCore%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.amazon-bedrock-agentcore-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%22search_agentcore_docs%22%2C%22fetch_agentcore_doc%22%5D%7D) |
 
 Configure the MCP server in your MCP client configuration:
 
@@ -32,7 +32,7 @@ For [Kiro](https://kiro.dev/), add at the project level `.kiro/settings/mcp.json
 ```json
 {
   "mcpServers": {
-    "awslabs.amazon-bedrock-agentcore-mcp-server": {
+    "bedrock-agentcore-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.amazon-bedrock-agentcore-mcp-server@latest"],
       "env": {
@@ -52,7 +52,7 @@ Example, `~/.aws/amazonq/cli-agents/default.json`
 ```json
 {
   "mcpServers": {
-    "awslabs.amazon-bedrock-agentcore-mcp-server": {
+    "bedrock-agentcore-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.amazon-bedrock-agentcore-mcp-server@latest"],
       "env": {
@@ -76,7 +76,7 @@ For Windows users, the MCP server configuration format is slightly different:
 ```json
 {
   "mcpServers": {
-    "awslabs.amazon-bedrock-agentcore-mcp-server": {
+    "bedrock-agentcore-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -101,7 +101,7 @@ Or using Docker after a successful `docker build -t mcp/amazon-bedrock-agentcore
 ```json
 {
   "mcpServers": {
-    "awslabs.amazon-bedrock-agentcore-mcp-server": {
+    "bedrock-agentcore-mcp-server": {
       "command": "docker",
       "args": [
         "run",
