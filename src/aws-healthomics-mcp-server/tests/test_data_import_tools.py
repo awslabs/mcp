@@ -11,17 +11,16 @@
 """Tests for data import tools."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from mcp.server.fastmcp import Context
-
 from awslabs.aws_healthomics_mcp_server.tools.data_import_tools import (
-    validate_aho_s3_uri_format,
     discover_aho_genomic_files,
-    list_aho_s3_bucket_contents,
     get_aho_s3_file_metadata,
-    prepare_aho_import_sources,
+    list_aho_s3_bucket_contents,
     parse_s3_uri,
+    prepare_aho_import_sources,
+    validate_aho_s3_uri_format,
 )
+from mcp.server.fastmcp import Context
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
@@ -73,10 +72,9 @@ class TestDataImportTools:
         """Test validation of valid S3 URIs."""
         # Test valid S3 URI
         result = await validate_aho_s3_uri_format(
-            mock_context,
-            's3://my-genomics-bucket/data/sample1.fastq.gz'
+            mock_context, 's3://my-genomics-bucket/data/sample1.fastq.gz'
         )
-        
+
         assert result['valid'] is True
         assert result['bucket'] == 'my-genomics-bucket'
         assert result['key'] == 'data/sample1.fastq.gz'
@@ -101,46 +99,46 @@ class TestDataImportTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.data_import_tools.create_aws_client')
     @pytest.mark.asyncio
-    async def test_discover_aho_genomic_files_success(self, mock_create_client, mock_context, mock_s3_client):
+    async def test_discover_aho_genomic_files_success(
+        self, mock_create_client, mock_context, mock_s3_client
+    ):
         """Test successful genomic file discovery."""
         # Arrange
         mock_create_client.return_value = mock_s3_client
-        
+
         # Mock paginator
         mock_paginator = MagicMock()
         mock_s3_client.get_paginator.return_value = mock_paginator
-        
+
         from datetime import datetime
+
         mock_page = {
             'Contents': [
                 {
                     'Key': 'genomics/sample1_R1.fastq.gz',
                     'Size': 1024000,
                     'LastModified': datetime(2023, 10, 1, 12, 0, 0),
-                    'ETag': '"abc123"'
+                    'ETag': '"abc123"',
                 },
                 {
                     'Key': 'genomics/sample1_R2.fastq.gz',
                     'Size': 1024000,
                     'LastModified': datetime(2023, 10, 1, 12, 0, 0),
-                    'ETag': '"def456"'
+                    'ETag': '"def456"',
                 },
                 {
                     'Key': 'genomics/variants.vcf.gz',
                     'Size': 512000,
                     'LastModified': datetime(2023, 10, 1, 13, 0, 0),
-                    'ETag': '"ghi789"'
-                }
+                    'ETag': '"ghi789"',
+                },
             ]
         }
         mock_paginator.paginate.return_value = [mock_page]
 
         # Act
         result = await discover_aho_genomic_files(
-            mock_context,
-            's3://test-bucket/genomics/',
-            file_types=['FASTQ', 'VCF'],
-            max_files=100
+            mock_context, 's3://test-bucket/genomics/', file_types=['FASTQ', 'VCF'], max_files=100
         )
 
         # Assert
@@ -148,30 +146,33 @@ class TestDataImportTools:
         assert 'totalCount' in result
         assert result['totalCount'] == 3
         assert len(result['discoveredFiles']) == 3
-        
+
         # Check FASTQ files
         fastq_files = [f for f in result['discoveredFiles'] if f['fileType'] == 'FASTQ']
         assert len(fastq_files) == 2
-        
+
         # Check VCF files
         vcf_files = [f for f in result['discoveredFiles'] if f['fileType'] == 'VCF']
         assert len(vcf_files) == 1
-        
+
         # Verify S3 URIs are correctly formed
         for file_info in result['discoveredFiles']:
             assert file_info['s3Uri'].startswith('s3://test-bucket/')
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.data_import_tools.create_aws_client')
     @pytest.mark.asyncio
-    async def test_list_aho_s3_bucket_contents_success(self, mock_create_client, mock_context, mock_s3_client):
+    async def test_list_aho_s3_bucket_contents_success(
+        self, mock_create_client, mock_context, mock_s3_client
+    ):
         """Test successful S3 bucket content listing."""
         # Arrange
         mock_create_client.return_value = mock_s3_client
-        
+
         mock_paginator = MagicMock()
         mock_s3_client.get_paginator.return_value = mock_paginator
-        
+
         from datetime import datetime
+
         mock_page = {
             'Contents': [
                 {
@@ -179,25 +180,22 @@ class TestDataImportTools:
                     'Size': 1024,
                     'LastModified': datetime(2023, 10, 1, 12, 0, 0),
                     'ETag': '"abc123"',
-                    'StorageClass': 'STANDARD'
+                    'StorageClass': 'STANDARD',
                 },
                 {
                     'Key': 'data/file2.txt',
                     'Size': 2048,
                     'LastModified': datetime(2023, 10, 1, 13, 0, 0),
                     'ETag': '"def456"',
-                    'StorageClass': 'STANDARD'
-                }
+                    'StorageClass': 'STANDARD',
+                },
             ]
         }
         mock_paginator.paginate.return_value = [mock_page]
 
         # Act
         result = await list_aho_s3_bucket_contents(
-            mock_context,
-            's3://test-bucket/data/',
-            pattern='*.txt',
-            max_keys=1000
+            mock_context, 's3://test-bucket/data/', pattern='*.txt', max_keys=1000
         )
 
         # Assert
@@ -206,7 +204,7 @@ class TestDataImportTools:
         assert result['totalCount'] == 2
         assert len(result['objects']) == 2
         assert result['appliedPattern'] == '*.txt'
-        
+
         for obj in result['objects']:
             assert 's3Uri' in obj
             assert 'fileName' in obj
@@ -214,29 +212,28 @@ class TestDataImportTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.data_import_tools.create_aws_client')
     @pytest.mark.asyncio
-    async def test_get_aho_s3_file_metadata_success(self, mock_create_client, mock_context, mock_s3_client):
+    async def test_get_aho_s3_file_metadata_success(
+        self, mock_create_client, mock_context, mock_s3_client
+    ):
         """Test successful S3 file metadata retrieval."""
         # Arrange
         mock_create_client.return_value = mock_s3_client
-        
+
         from datetime import datetime
+
         mock_response = {
             'ContentLength': 1024000,
             'LastModified': datetime(2023, 10, 1, 12, 0, 0),
-            'ETag': '"abc123def456"',
+            'ETag': '"abc123def456"',  # pragma: allowlist secret
             'ContentType': 'application/gzip',
             'StorageClass': 'STANDARD',
-            'Metadata': {
-                'sample-id': 'sample-001',
-                'experiment': 'rna-seq'
-            }
+            'Metadata': {'sample-id': 'sample-001', 'experiment': 'rna-seq'},
         }
         mock_s3_client.head_object.return_value = mock_response
 
         # Act
         result = await get_aho_s3_file_metadata(
-            mock_context,
-            's3://test-bucket/data/sample1.fastq.gz'
+            mock_context, 's3://test-bucket/data/sample1.fastq.gz'
         )
 
         # Assert
@@ -252,27 +249,24 @@ class TestDataImportTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.data_import_tools.create_aws_client')
     @pytest.mark.asyncio
-    async def test_get_aho_s3_file_metadata_not_found(self, mock_create_client, mock_context, mock_s3_client):
+    async def test_get_aho_s3_file_metadata_not_found(
+        self, mock_create_client, mock_context, mock_s3_client
+    ):
         """Test S3 file metadata retrieval for non-existent file."""
         # Arrange
         from botocore.exceptions import ClientError
+
         mock_create_client.return_value = mock_s3_client
-        
+
         error_response = {
-            'Error': {
-                'Code': 'NoSuchKey',
-                'Message': 'The specified key does not exist.'
-            }
+            'Error': {'Code': 'NoSuchKey', 'Message': 'The specified key does not exist.'}
         }
         mock_s3_client.head_object.side_effect = ClientError(error_response, 'HeadObject')
 
         # Act & Assert
         with pytest.raises(Exception) as exc_info:
-            await get_aho_s3_file_metadata(
-                mock_context,
-                's3://test-bucket/nonexistent.txt'
-            )
-        
+            await get_aho_s3_file_metadata(mock_context, 's3://test-bucket/nonexistent.txt')
+
         assert 'File not found' in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -280,14 +274,8 @@ class TestDataImportTools:
         """Test successful preparation of import sources."""
         # Arrange
         files = [
-            {
-                's3Uri': 's3://test-bucket/sample1_R1.fastq.gz',
-                'fileType': 'FASTQ'
-            },
-            {
-                's3Uri': 's3://test-bucket/sample1_R2.fastq.gz',
-                'fileType': 'FASTQ'
-            }
+            {'s3Uri': 's3://test-bucket/sample1_R1.fastq.gz', 'fileType': 'FASTQ'},
+            {'s3Uri': 's3://test-bucket/sample1_R2.fastq.gz', 'fileType': 'FASTQ'},
         ]
 
         # Act
@@ -296,22 +284,22 @@ class TestDataImportTools:
             files=files,
             sample_id='sample-001',
             subject_id='patient-123',
-            reference_arn='arn:aws:omics:us-east-1:123456789012:referenceStore/123456789012345678/reference/1234567890123456'
+            reference_arn='arn:aws:omics:us-east-1:123456789012:referenceStore/123456789012345678/reference/1234567890123456',
         )
 
         # Assert
         assert 'importSources' in result
         assert 'totalFiles' in result
         assert 'configuration' in result
-        
+
         assert result['totalFiles'] == 2
         assert result['configuration']['sampleId'] == 'sample-001'
         assert result['configuration']['subjectId'] == 'patient-123'
-        
+
         # Check that paired-end FASTQ files are properly configured
         sources = result['importSources']
         assert len(sources) == 2
-        
+
         for source in sources:
             assert 'sourceFileType' in source
             assert 'sourceFiles' in source
@@ -324,30 +312,24 @@ class TestDataImportTools:
         """Test preparation of paired-end FASTQ import sources."""
         # Arrange
         files = [
-            {
-                's3Uri': 's3://test-bucket/sample1_R1.fastq.gz',
-                'fileType': 'FASTQ'
-            },
-            {
-                's3Uri': 's3://test-bucket/sample1_R2.fastq.gz',
-                'fileType': 'FASTQ'
-            }
+            {'s3Uri': 's3://test-bucket/sample1_R1.fastq.gz', 'fileType': 'FASTQ'},
+            {'s3Uri': 's3://test-bucket/sample1_R2.fastq.gz', 'fileType': 'FASTQ'},
         ]
 
         # Act
         result = await prepare_aho_import_sources(
-            mock_context,
-            files=files,
-            sample_id='sample-001'
+            mock_context, files=files, sample_id='sample-001'
         )
 
         # Assert
         sources = result['importSources']
-        
+
         # Find the R1 file source
-        r1_source = next((s for s in sources if 'sample1_R1.fastq.gz' in s['sourceFiles']['source1']), None)
+        r1_source = next(
+            (s for s in sources if 'sample1_R1.fastq.gz' in s['sourceFiles']['source1']), None
+        )
         assert r1_source is not None
-        
+
         # Check if R2 was automatically paired
         if 'source2' in r1_source['sourceFiles']:
             assert 'sample1_R2.fastq.gz' in r1_source['sourceFiles']['source2']

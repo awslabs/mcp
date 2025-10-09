@@ -55,32 +55,30 @@ async def list_aho_annotation_stores(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'maxResults': max_results
-        }
-        
+
+        params = {'maxResults': max_results}
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.list_annotation_stores(**params)
-        
+
         return {
             'annotationStores': response.get('annotationStores', []),
             'nextToken': response.get('nextToken'),
-            'totalCount': len(response.get('annotationStores', []))
+            'totalCount': len(response.get('annotationStores', [])),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to list annotation stores: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to list annotation stores: {error_code} - {error_message}")
+
+        logger.error(f'Failed to list annotation stores: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to list annotation stores: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error listing annotation stores: {str(e)}")
-        raise Exception(f"Failed to list annotation stores: {str(e)}")
+        logger.error(f'Unexpected error listing annotation stores: {str(e)}')
+        raise Exception(f'Failed to list annotation stores: {str(e)}')
 
 
 async def get_aho_annotation_store(
@@ -104,9 +102,9 @@ async def get_aho_annotation_store(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_annotation_store(name=annotation_store_id)
-        
+
         return {
             'annotationStore': {
                 'id': response.get('id'),
@@ -121,20 +119,20 @@ async def get_aho_annotation_store(
                 'updateTime': response.get('updateTime'),
                 'tags': response.get('tags', {}),
                 'storeFormat': response.get('storeFormat'),
-                'storeOptions': response.get('storeOptions')
+                'storeOptions': response.get('storeOptions'),
             }
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get annotation store: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get annotation store: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get annotation store: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get annotation store: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting annotation store: {str(e)}")
-        raise Exception(f"Failed to get annotation store: {str(e)}")
+        logger.error(f'Unexpected error getting annotation store: {str(e)}')
+        raise Exception(f'Failed to get annotation store: {str(e)}')
 
 
 async def search_aho_annotations(
@@ -197,19 +195,19 @@ async def search_aho_annotations(
     """
     try:
         client = get_omics_client()
-        
+
         # Build search criteria
         filter_criteria = {}
-        
+
         if gene:
             filter_criteria['gene'] = {'eq': gene}
-            
+
         if chromosome:
             # Normalize chromosome format
             if not chromosome.startswith('chr'):
                 chromosome = f'chr{chromosome}'
             filter_criteria['contigName'] = {'eq': chromosome}
-            
+
         if start_position is not None and end_position is not None:
             filter_criteria['start'] = {'gte': start_position}
             filter_criteria['end'] = {'lte': end_position}
@@ -217,23 +215,20 @@ async def search_aho_annotations(
             filter_criteria['start'] = {'gte': start_position}
         elif end_position is not None:
             filter_criteria['end'] = {'lte': end_position}
-            
+
         if annotation_type:
             filter_criteria['annotationType'] = {'eq': annotation_type}
-        
-        params = {
-            'annotationStoreId': annotation_store_id,
-            'maxResults': max_results
-        }
-        
+
+        params = {'annotationStoreId': annotation_store_id, 'maxResults': max_results}
+
         if filter_criteria:
             params['filter'] = filter_criteria
-            
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.search_annotations(**params)
-        
+
         return {
             'annotations': response.get('annotations', []),
             'nextToken': response.get('nextToken'),
@@ -244,20 +239,20 @@ async def search_aho_annotations(
                 'chromosome': chromosome,
                 'startPosition': start_position,
                 'endPosition': end_position,
-                'annotationType': annotation_type
-            }
+                'annotationType': annotation_type,
+            },
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to search annotations: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to search annotations: {error_code} - {error_message}")
+
+        logger.error(f'Failed to search annotations: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to search annotations: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error searching annotations: {str(e)}")
-        raise Exception(f"Failed to search annotations: {str(e)}")
+        logger.error(f'Unexpected error searching annotations: {str(e)}')
+        raise Exception(f'Failed to search annotations: {str(e)}')
 
 
 async def start_aho_annotation_import_job(
@@ -301,19 +296,19 @@ async def start_aho_annotation_import_job(
     """
     try:
         client = get_omics_client()
-        
+
         params = {
             'annotationStoreId': annotation_store_id,
             'roleArn': role_arn,
             'items': items,
-            'runLeftNormalization': run_left_normalization
+            'runLeftNormalization': run_left_normalization,
         }
-        
+
         if client_token:
             params['clientToken'] = client_token
-            
+
         response = client.start_annotation_import_job(**params)
-        
+
         return {
             'id': response.get('id'),
             'annotationStoreId': response.get('annotationStoreId'),
@@ -321,19 +316,19 @@ async def start_aho_annotation_import_job(
             'status': response.get('status'),
             'creationTime': response.get('creationTime'),
             'runLeftNormalization': run_left_normalization,
-            'items': items
+            'items': items,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to start annotation import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to start annotation import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to start annotation import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to start annotation import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error starting annotation import job: {str(e)}")
-        raise Exception(f"Failed to start annotation import job: {str(e)}")
+        logger.error(f'Unexpected error starting annotation import job: {str(e)}')
+        raise Exception(f'Failed to start annotation import job: {str(e)}')
 
 
 async def get_aho_annotation_import_job(
@@ -357,9 +352,9 @@ async def get_aho_annotation_import_job(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_annotation_import_job(id=annotation_import_job_id)
-        
+
         return {
             'id': response.get('id'),
             'annotationStoreId': response.get('annotationStoreId'),
@@ -370,16 +365,16 @@ async def get_aho_annotation_import_job(
             'updateTime': response.get('updateTime'),
             'completionTime': response.get('completionTime'),
             'items': response.get('items', []),
-            'runLeftNormalization': response.get('runLeftNormalization')
+            'runLeftNormalization': response.get('runLeftNormalization'),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get annotation import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get annotation import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get annotation import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get annotation import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting annotation import job: {str(e)}")
-        raise Exception(f"Failed to get annotation import job: {str(e)}")
+        logger.error(f'Unexpected error getting annotation import job: {str(e)}')
+        raise Exception(f'Failed to get annotation import job: {str(e)}')

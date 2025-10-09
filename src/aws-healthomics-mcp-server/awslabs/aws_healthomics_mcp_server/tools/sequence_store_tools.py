@@ -56,32 +56,30 @@ async def list_aho_sequence_stores(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'maxResults': max_results
-        }
-        
+
+        params = {'maxResults': max_results}
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.list_sequence_stores(**params)
-        
+
         return {
             'sequenceStores': response.get('sequenceStores', []),
             'nextToken': response.get('nextToken'),
-            'totalCount': len(response.get('sequenceStores', []))
+            'totalCount': len(response.get('sequenceStores', [])),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to list sequence stores: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to list sequence stores: {error_code} - {error_message}")
+
+        logger.error(f'Failed to list sequence stores: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to list sequence stores: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error listing sequence stores: {str(e)}")
-        raise Exception(f"Failed to list sequence stores: {str(e)}")
+        logger.error(f'Unexpected error listing sequence stores: {str(e)}')
+        raise Exception(f'Failed to list sequence stores: {str(e)}')
 
 
 async def list_aho_read_sets(
@@ -132,62 +130,59 @@ async def list_aho_read_sets(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'sequenceStoreId': sequence_store_id,
-            'maxResults': max_results
-        }
-        
+
+        params = {'sequenceStoreId': sequence_store_id, 'maxResults': max_results}
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         # Apply filters
         filters = {}
-        
+
         if species:
             # Note: This would need to be mapped to actual read set metadata fields
             # The exact filtering depends on how metadata is stored
-            logger.info(f"Filtering by species: {species}")
-            
+            logger.info(f'Filtering by species: {species}')
+
         if chromosome:
-            logger.info(f"Filtering by chromosome: {chromosome}")
-            
+            logger.info(f'Filtering by chromosome: {chromosome}')
+
         if uploaded_after:
             try:
                 upload_time = datetime.fromisoformat(uploaded_after.replace('Z', '+00:00'))
                 filters['createdAfter'] = upload_time
             except ValueError:
-                raise Exception(f"Invalid datetime format for uploaded_after: {uploaded_after}")
-        
+                raise Exception(f'Invalid datetime format for uploaded_after: {uploaded_after}')
+
         if filters:
             params['filter'] = filters
-            
+
         response = client.list_read_sets(**params)
-        
+
         # Post-process for additional filtering if needed
         read_sets = response.get('readSets', [])
-        
+
         if species or chromosome:
             filtered_read_sets = []
             for read_set in read_sets:
                 include = True
-                
+
                 # Filter by species in metadata
                 if species:
                     read_set_species = read_set.get('subjectId', '').lower()
                     if species.lower() not in read_set_species:
                         include = False
-                        
+
                 # Filter by chromosome would require examining file references
                 if chromosome and include:
                     # This would need implementation based on HealthOmics data structure
                     pass
-                    
+
                 if include:
                     filtered_read_sets.append(read_set)
-                    
+
             read_sets = filtered_read_sets
-        
+
         return {
             'readSets': read_sets,
             'nextToken': response.get('nextToken'),
@@ -196,20 +191,20 @@ async def list_aho_read_sets(
             'appliedFilters': {
                 'species': species,
                 'chromosome': chromosome,
-                'uploadedAfter': uploaded_after
-            }
+                'uploadedAfter': uploaded_after,
+            },
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to list read sets: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to list read sets: {error_code} - {error_message}")
+
+        logger.error(f'Failed to list read sets: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to list read sets: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error listing read sets: {str(e)}")
-        raise Exception(f"Failed to list read sets: {str(e)}")
+        logger.error(f'Unexpected error listing read sets: {str(e)}')
+        raise Exception(f'Failed to list read sets: {str(e)}')
 
 
 async def get_aho_read_set(
@@ -238,12 +233,9 @@ async def get_aho_read_set(
     """
     try:
         client = get_omics_client()
-        
-        response = client.get_read_set_metadata(
-            sequenceStoreId=sequence_store_id,
-            id=read_set_id
-        )
-        
+
+        response = client.get_read_set_metadata(sequenceStoreId=sequence_store_id, id=read_set_id)
+
         return {
             'readSet': {
                 'id': response.get('id'),
@@ -259,21 +251,21 @@ async def get_aho_read_set(
                 'creationTime': response.get('creationTime'),
                 'sequenceInformation': response.get('sequenceInformation'),
                 'files': response.get('files'),
-                'etag': response.get('etag')
+                'etag': response.get('etag'),
             },
-            'sequenceStoreId': sequence_store_id
+            'sequenceStoreId': sequence_store_id,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get read set metadata: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get read set metadata: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get read set metadata: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get read set metadata: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting read set metadata: {str(e)}")
-        raise Exception(f"Failed to get read set metadata: {str(e)}")
+        logger.error(f'Unexpected error getting read set metadata: {str(e)}')
+        raise Exception(f'Failed to get read set metadata: {str(e)}')
 
 
 async def start_aho_read_set_import_job(
@@ -312,37 +304,33 @@ async def start_aho_read_set_import_job(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'sequenceStoreId': sequence_store_id,
-            'roleArn': role_arn,
-            'sources': sources
-        }
-        
+
+        params = {'sequenceStoreId': sequence_store_id, 'roleArn': role_arn, 'sources': sources}
+
         if client_token:
             params['clientToken'] = client_token
-            
+
         response = client.start_read_set_import_job(**params)
-        
+
         return {
             'id': response.get('id'),
             'sequenceStoreId': response.get('sequenceStoreId'),
             'roleArn': response.get('roleArn'),
             'status': response.get('status'),
             'creationTime': response.get('creationTime'),
-            'sources': sources
+            'sources': sources,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to start read set import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to start read set import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to start read set import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to start read set import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error starting read set import job: {str(e)}")
-        raise Exception(f"Failed to start read set import job: {str(e)}")
+        logger.error(f'Unexpected error starting read set import job: {str(e)}')
+        raise Exception(f'Failed to start read set import job: {str(e)}')
 
 
 async def get_aho_read_set_import_job(
@@ -371,12 +359,11 @@ async def get_aho_read_set_import_job(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_read_set_import_job(
-            sequenceStoreId=sequence_store_id,
-            id=import_job_id
+            sequenceStoreId=sequence_store_id, id=import_job_id
         )
-        
+
         return {
             'id': response.get('id'),
             'sequenceStoreId': response.get('sequenceStoreId'),
@@ -385,19 +372,19 @@ async def get_aho_read_set_import_job(
             'statusMessage': response.get('statusMessage'),
             'creationTime': response.get('creationTime'),
             'completionTime': response.get('completionTime'),
-            'sources': response.get('sources', [])
+            'sources': response.get('sources', []),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get read set import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get read set import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get read set import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get read set import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting read set import job: {str(e)}")
-        raise Exception(f"Failed to get read set import job: {str(e)}")
+        logger.error(f'Unexpected error getting read set import job: {str(e)}')
+        raise Exception(f'Failed to get read set import job: {str(e)}')
 
 
 async def list_aho_read_set_import_jobs(
@@ -433,31 +420,28 @@ async def list_aho_read_set_import_jobs(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'sequenceStoreId': sequence_store_id,
-            'maxResults': max_results
-        }
-        
+
+        params = {'sequenceStoreId': sequence_store_id, 'maxResults': max_results}
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.list_read_set_import_jobs(**params)
-        
+
         return {
             'importJobs': response.get('importJobs', []),
             'nextToken': response.get('nextToken'),
             'totalCount': len(response.get('importJobs', [])),
-            'sequenceStoreId': sequence_store_id
+            'sequenceStoreId': sequence_store_id,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to list read set import jobs: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to list read set import jobs: {error_code} - {error_message}")
+
+        logger.error(f'Failed to list read set import jobs: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to list read set import jobs: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error listing read set import jobs: {str(e)}")
-        raise Exception(f"Failed to list read set import jobs: {str(e)}")
+        logger.error(f'Unexpected error listing read set import jobs: {str(e)}')
+        raise Exception(f'Failed to list read set import jobs: {str(e)}')

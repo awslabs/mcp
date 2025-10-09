@@ -55,32 +55,30 @@ async def list_aho_variant_stores(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'maxResults': max_results
-        }
-        
+
+        params = {'maxResults': max_results}
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.list_variant_stores(**params)
-        
+
         return {
             'variantStores': response.get('variantStores', []),
             'nextToken': response.get('nextToken'),
-            'totalCount': len(response.get('variantStores', []))
+            'totalCount': len(response.get('variantStores', [])),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to list variant stores: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to list variant stores: {error_code} - {error_message}")
+
+        logger.error(f'Failed to list variant stores: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to list variant stores: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error listing variant stores: {str(e)}")
-        raise Exception(f"Failed to list variant stores: {str(e)}")
+        logger.error(f'Unexpected error listing variant stores: {str(e)}')
+        raise Exception(f'Failed to list variant stores: {str(e)}')
 
 
 async def get_aho_variant_store(
@@ -104,9 +102,9 @@ async def get_aho_variant_store(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_variant_store(name=variant_store_id)
-        
+
         return {
             'variantStore': {
                 'id': response.get('id'),
@@ -119,20 +117,20 @@ async def get_aho_variant_store(
                 'sseConfig': response.get('sseConfig'),
                 'creationTime': response.get('creationTime'),
                 'updateTime': response.get('updateTime'),
-                'tags': response.get('tags', {})
+                'tags': response.get('tags', {}),
             }
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get variant store: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get variant store: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get variant store: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get variant store: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting variant store: {str(e)}")
-        raise Exception(f"Failed to get variant store: {str(e)}")
+        logger.error(f'Unexpected error getting variant store: {str(e)}')
+        raise Exception(f'Failed to get variant store: {str(e)}')
 
 
 async def search_aho_variants(
@@ -195,19 +193,19 @@ async def search_aho_variants(
     """
     try:
         client = get_omics_client()
-        
+
         # Build search criteria
         filter_criteria = {}
-        
+
         if gene:
             filter_criteria['gene'] = {'eq': gene}
-            
+
         if chromosome:
             # Normalize chromosome format
             if not chromosome.startswith('chr'):
                 chromosome = f'chr{chromosome}'
             filter_criteria['contigName'] = {'eq': chromosome}
-            
+
         if start_position is not None and end_position is not None:
             filter_criteria['start'] = {'gte': start_position}
             filter_criteria['end'] = {'lte': end_position}
@@ -215,23 +213,20 @@ async def search_aho_variants(
             filter_criteria['start'] = {'gte': start_position}
         elif end_position is not None:
             filter_criteria['end'] = {'lte': end_position}
-            
+
         if variant_type:
             filter_criteria['variantType'] = {'eq': variant_type.upper()}
-        
-        params = {
-            'variantStoreId': variant_store_id,
-            'maxResults': max_results
-        }
-        
+
+        params = {'variantStoreId': variant_store_id, 'maxResults': max_results}
+
         if filter_criteria:
             params['filter'] = filter_criteria
-            
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.search_variants(**params)
-        
+
         return {
             'variants': response.get('variants', []),
             'nextToken': response.get('nextToken'),
@@ -242,20 +237,20 @@ async def search_aho_variants(
                 'chromosome': chromosome,
                 'startPosition': start_position,
                 'endPosition': end_position,
-                'variantType': variant_type
-            }
+                'variantType': variant_type,
+            },
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to search variants: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to search variants: {error_code} - {error_message}")
+
+        logger.error(f'Failed to search variants: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to search variants: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error searching variants: {str(e)}")
-        raise Exception(f"Failed to search variants: {str(e)}")
+        logger.error(f'Unexpected error searching variants: {str(e)}')
+        raise Exception(f'Failed to search variants: {str(e)}')
 
 
 async def count_aho_variants(
@@ -296,35 +291,31 @@ async def count_aho_variants(
         # Use search with a large max_results to get an accurate count
         # In practice, this might need to be implemented differently
         # depending on the actual HealthOmics API capabilities
-        
+
         search_result = await search_aho_variants(
             ctx=ctx,
             variant_store_id=variant_store_id,
             gene=gene,
             chromosome=chromosome,
             variant_type=variant_type,
-            max_results=1000  # Use large number for counting
+            max_results=1000,  # Use large number for counting
         )
-        
+
         # If there's a nextToken, we need to continue searching to get accurate count
         total_count = len(search_result['variants'])
         has_more = 'nextToken' in search_result and search_result['nextToken']
-        
+
         return {
             'variantCount': total_count,
             'hasMoreResults': has_more,
             'variantStoreId': variant_store_id,
-            'countCriteria': {
-                'gene': gene,
-                'chromosome': chromosome,
-                'variantType': variant_type
-            },
-            'note': 'Count may be partial if hasMoreResults is true'
+            'countCriteria': {'gene': gene, 'chromosome': chromosome, 'variantType': variant_type},
+            'note': 'Count may be partial if hasMoreResults is true',
         }
-        
+
     except Exception as e:
-        logger.error(f"Unexpected error counting variants: {str(e)}")
-        raise Exception(f"Failed to count variants: {str(e)}")
+        logger.error(f'Unexpected error counting variants: {str(e)}')
+        raise Exception(f'Failed to count variants: {str(e)}')
 
 
 async def start_aho_variant_import_job(
@@ -368,19 +359,19 @@ async def start_aho_variant_import_job(
     """
     try:
         client = get_omics_client()
-        
+
         params = {
             'variantStoreId': variant_store_id,
             'roleArn': role_arn,
             'items': items,
-            'runLeftNormalization': run_left_normalization
+            'runLeftNormalization': run_left_normalization,
         }
-        
+
         if client_token:
             params['clientToken'] = client_token
-            
+
         response = client.start_variant_import_job(**params)
-        
+
         return {
             'id': response.get('id'),
             'variantStoreId': response.get('variantStoreId'),
@@ -388,19 +379,19 @@ async def start_aho_variant_import_job(
             'status': response.get('status'),
             'creationTime': response.get('creationTime'),
             'runLeftNormalization': run_left_normalization,
-            'items': items
+            'items': items,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to start variant import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to start variant import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to start variant import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to start variant import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error starting variant import job: {str(e)}")
-        raise Exception(f"Failed to start variant import job: {str(e)}")
+        logger.error(f'Unexpected error starting variant import job: {str(e)}')
+        raise Exception(f'Failed to start variant import job: {str(e)}')
 
 
 async def get_aho_variant_import_job(
@@ -424,9 +415,9 @@ async def get_aho_variant_import_job(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_variant_import_job(id=variant_import_job_id)
-        
+
         return {
             'id': response.get('id'),
             'variantStoreId': response.get('variantStoreId'),
@@ -437,16 +428,16 @@ async def get_aho_variant_import_job(
             'updateTime': response.get('updateTime'),
             'completionTime': response.get('completionTime'),
             'items': response.get('items', []),
-            'runLeftNormalization': response.get('runLeftNormalization')
+            'runLeftNormalization': response.get('runLeftNormalization'),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get variant import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get variant import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get variant import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get variant import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting variant import job: {str(e)}")
-        raise Exception(f"Failed to get variant import job: {str(e)}")
+        logger.error(f'Unexpected error getting variant import job: {str(e)}')
+        raise Exception(f'Failed to get variant import job: {str(e)}')

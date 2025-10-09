@@ -11,17 +11,15 @@
 """Tests for sequence store tools."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from mcp.server.fastmcp import Context
-
 from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
-    list_aho_sequence_stores,
-    list_aho_read_sets,
     get_aho_read_set,
-    start_aho_read_set_import_job,
     get_aho_read_set_import_job,
-    list_aho_read_set_import_jobs,
+    list_aho_read_sets,
+    list_aho_sequence_stores,
+    start_aho_read_set_import_job,
 )
+from mcp.server.fastmcp import Context
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
@@ -42,7 +40,9 @@ class TestSequenceStoreTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client')
     @pytest.mark.asyncio
-    async def test_list_aho_sequence_stores_success(self, mock_get_client, mock_context, mock_omics_client):
+    async def test_list_aho_sequence_stores_success(
+        self, mock_get_client, mock_context, mock_omics_client
+    ):
         """Test successful listing of sequence stores."""
         # Arrange
         mock_get_client.return_value = mock_omics_client
@@ -51,7 +51,7 @@ class TestSequenceStoreTools:
                 {
                     'id': 'test-store-1',
                     'name': 'Test Store 1',
-                    'arn': 'arn:aws:omics:us-east-1:123456789012:sequenceStore/test-store-1'
+                    'arn': 'arn:aws:omics:us-east-1:123456789012:sequenceStore/test-store-1',
                 }
             ]
         }
@@ -70,7 +70,9 @@ class TestSequenceStoreTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client')
     @pytest.mark.asyncio
-    async def test_list_aho_read_sets_success(self, mock_get_client, mock_context, mock_omics_client):
+    async def test_list_aho_read_sets_success(
+        self, mock_get_client, mock_context, mock_omics_client
+    ):
         """Test successful listing of read sets."""
         # Arrange
         mock_get_client.return_value = mock_omics_client
@@ -81,7 +83,7 @@ class TestSequenceStoreTools:
                     'arn': 'arn:aws:omics:us-east-1:123456789012:readSet/test-readset-1',
                     'sequenceStoreId': 'test-store-1',
                     'sampleId': 'sample-1',
-                    'subjectId': 'subject-1'
+                    'subjectId': 'subject-1',
                 }
             ]
         }
@@ -89,9 +91,7 @@ class TestSequenceStoreTools:
 
         # Act
         result = await list_aho_read_sets(
-            mock_context,
-            sequence_store_id='test-store-1',
-            max_results=10
+            mock_context, sequence_store_id='test-store-1', max_results=10
         )
 
         # Assert
@@ -106,7 +106,9 @@ class TestSequenceStoreTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client')
     @pytest.mark.asyncio
-    async def test_get_aho_read_set_success(self, mock_get_client, mock_context, mock_omics_client):
+    async def test_get_aho_read_set_success(
+        self, mock_get_client, mock_context, mock_omics_client
+    ):
         """Test successful retrieval of read set metadata."""
         # Arrange
         mock_get_client.return_value = mock_omics_client
@@ -118,15 +120,13 @@ class TestSequenceStoreTools:
             'sampleId': 'sample-1',
             'subjectId': 'subject-1',
             'status': 'ACTIVE',
-            'fileType': 'FASTQ'
+            'fileType': 'FASTQ',
         }
         mock_omics_client.get_read_set_metadata.return_value = mock_response
 
         # Act
         result = await get_aho_read_set(
-            mock_context,
-            sequence_store_id='test-store-1',
-            read_set_id='test-readset-1'
+            mock_context, sequence_store_id='test-store-1', read_set_id='test-readset-1'
         )
 
         # Assert
@@ -136,13 +136,14 @@ class TestSequenceStoreTools:
         assert result['readSet']['id'] == 'test-readset-1'
         assert result['readSet']['status'] == 'ACTIVE'
         mock_omics_client.get_read_set_metadata.assert_called_once_with(
-            sequenceStoreId='test-store-1',
-            id='test-readset-1'
+            sequenceStoreId='test-store-1', id='test-readset-1'
         )
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client')
     @pytest.mark.asyncio
-    async def test_start_aho_read_set_import_job_success(self, mock_get_client, mock_context, mock_omics_client):
+    async def test_start_aho_read_set_import_job_success(
+        self, mock_get_client, mock_context, mock_omics_client
+    ):
         """Test successful start of read set import job."""
         # Arrange
         mock_get_client.return_value = mock_omics_client
@@ -151,7 +152,7 @@ class TestSequenceStoreTools:
             'sequenceStoreId': 'test-store-1',
             'roleArn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
             'status': 'SUBMITTED',
-            'creationTime': '2023-10-01T12:00:00Z'
+            'creationTime': '2023-10-01T12:00:00Z',
         }
         mock_omics_client.start_read_set_import_job.return_value = mock_response
 
@@ -160,10 +161,10 @@ class TestSequenceStoreTools:
                 'sourceFileType': 'FASTQ',
                 'sourceFiles': {
                     'source1': 's3://test-bucket/sample1_R1.fastq.gz',
-                    'source2': 's3://test-bucket/sample1_R2.fastq.gz'
+                    'source2': 's3://test-bucket/sample1_R2.fastq.gz',
                 },
                 'sampleId': 'sample-1',
-                'subjectId': 'subject-1'
+                'subjectId': 'subject-1',
             }
         ]
 
@@ -172,7 +173,7 @@ class TestSequenceStoreTools:
             mock_context,
             sequence_store_id='test-store-1',
             role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
-            sources=sources
+            sources=sources,
         )
 
         # Assert
@@ -185,39 +186,42 @@ class TestSequenceStoreTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client')
     @pytest.mark.asyncio
-    async def test_list_aho_sequence_stores_client_error(self, mock_get_client, mock_context, mock_omics_client):
+    async def test_list_aho_sequence_stores_client_error(
+        self, mock_get_client, mock_context, mock_omics_client
+    ):
         """Test handling of AWS client errors."""
         # Arrange
         from botocore.exceptions import ClientError
+
         mock_get_client.return_value = mock_omics_client
         error_response = {
             'Error': {
                 'Code': 'AccessDeniedException',
-                'Message': 'User is not authorized to perform this operation'
+                'Message': 'User is not authorized to perform this operation',
             }
         }
-        mock_omics_client.list_sequence_stores.side_effect = ClientError(error_response, 'ListSequenceStores')
+        mock_omics_client.list_sequence_stores.side_effect = ClientError(
+            error_response, 'ListSequenceStores'
+        )
 
         # Act & Assert
         with pytest.raises(Exception) as exc_info:
             await list_aho_sequence_stores(mock_context, max_results=10)
-        
+
         assert 'AccessDeniedException' in str(exc_info.value)
         assert 'User is not authorized' in str(exc_info.value)
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client')
     @pytest.mark.asyncio
-    async def test_list_aho_read_sets_with_filters(self, mock_get_client, mock_context, mock_omics_client):
+    async def test_list_aho_read_sets_with_filters(
+        self, mock_get_client, mock_context, mock_omics_client
+    ):
         """Test read set listing with filters applied."""
         # Arrange
         mock_get_client.return_value = mock_omics_client
         mock_response = {
             'readSets': [
-                {
-                    'id': 'test-readset-1',
-                    'subjectId': 'human-sample-1',
-                    'sampleId': 'sample-1'
-                }
+                {'id': 'test-readset-1', 'subjectId': 'human-sample-1', 'sampleId': 'sample-1'}
             ]
         }
         mock_omics_client.list_read_sets.return_value = mock_response
@@ -229,7 +233,7 @@ class TestSequenceStoreTools:
             species='human',
             chromosome='chr1',
             uploaded_after='2023-01-01T00:00:00Z',
-            max_results=10
+            max_results=10,
         )
 
         # Assert
@@ -241,7 +245,9 @@ class TestSequenceStoreTools:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools.get_omics_client')
     @pytest.mark.asyncio
-    async def test_get_aho_read_set_import_job_success(self, mock_get_client, mock_context, mock_omics_client):
+    async def test_get_aho_read_set_import_job_success(
+        self, mock_get_client, mock_context, mock_omics_client
+    ):
         """Test successful retrieval of import job status."""
         # Arrange
         mock_get_client.return_value = mock_omics_client
@@ -252,15 +258,13 @@ class TestSequenceStoreTools:
             'status': 'COMPLETED',
             'creationTime': '2023-10-01T12:00:00Z',
             'completionTime': '2023-10-01T12:30:00Z',
-            'sources': []
+            'sources': [],
         }
         mock_omics_client.get_read_set_import_job.return_value = mock_response
 
         # Act
         result = await get_aho_read_set_import_job(
-            mock_context,
-            sequence_store_id='test-store-1',
-            import_job_id='import-job-123'
+            mock_context, sequence_store_id='test-store-1', import_job_id='import-job-123'
         )
 
         # Assert
@@ -268,6 +272,5 @@ class TestSequenceStoreTools:
         assert result['status'] == 'COMPLETED'
         assert 'completionTime' in result
         mock_omics_client.get_read_set_import_job.assert_called_once_with(
-            sequenceStoreId='test-store-1',
-            id='import-job-123'
+            sequenceStoreId='test-store-1', id='import-job-123'
         )

@@ -55,32 +55,30 @@ async def list_aho_reference_stores(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'maxResults': max_results
-        }
-        
+
+        params = {'maxResults': max_results}
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.list_reference_stores(**params)
-        
+
         return {
             'referenceStores': response.get('referenceStores', []),
             'nextToken': response.get('nextToken'),
-            'totalCount': len(response.get('referenceStores', []))
+            'totalCount': len(response.get('referenceStores', [])),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to list reference stores: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to list reference stores: {error_code} - {error_message}")
+
+        logger.error(f'Failed to list reference stores: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to list reference stores: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error listing reference stores: {str(e)}")
-        raise Exception(f"Failed to list reference stores: {str(e)}")
+        logger.error(f'Unexpected error listing reference stores: {str(e)}')
+        raise Exception(f'Failed to list reference stores: {str(e)}')
 
 
 async def get_aho_reference_store(
@@ -104,9 +102,9 @@ async def get_aho_reference_store(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_reference_store(id=reference_store_id)
-        
+
         return {
             'referenceStore': {
                 'id': response.get('id'),
@@ -116,20 +114,20 @@ async def get_aho_reference_store(
                 'sseConfig': response.get('sseConfig'),
                 'creationTime': response.get('creationTime'),
                 'status': response.get('status'),
-                'statusMessage': response.get('statusMessage')
+                'statusMessage': response.get('statusMessage'),
             }
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get reference store: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get reference store: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get reference store: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get reference store: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting reference store: {str(e)}")
-        raise Exception(f"Failed to get reference store: {str(e)}")
+        logger.error(f'Unexpected error getting reference store: {str(e)}')
+        raise Exception(f'Failed to get reference store: {str(e)}')
 
 
 async def list_aho_references(
@@ -165,34 +163,31 @@ async def list_aho_references(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'referenceStoreId': reference_store_id,
-            'maxResults': max_results
-        }
-        
+
+        params = {'referenceStoreId': reference_store_id, 'maxResults': max_results}
+
         if next_token:
             params['nextToken'] = next_token
-            
+
         response = client.list_references(**params)
-        
+
         return {
             'references': response.get('references', []),
             'nextToken': response.get('nextToken'),
             'totalCount': len(response.get('references', [])),
-            'referenceStoreId': reference_store_id
+            'referenceStoreId': reference_store_id,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to list references: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to list references: {error_code} - {error_message}")
+
+        logger.error(f'Failed to list references: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to list references: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error listing references: {str(e)}")
-        raise Exception(f"Failed to list references: {str(e)}")
+        logger.error(f'Unexpected error listing references: {str(e)}')
+        raise Exception(f'Failed to list references: {str(e)}')
 
 
 async def get_aho_reference(
@@ -221,12 +216,11 @@ async def get_aho_reference(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_reference_metadata(
-            referenceStoreId=reference_store_id,
-            id=reference_id
+            referenceStoreId=reference_store_id, id=reference_id
         )
-        
+
         return {
             'reference': {
                 'id': response.get('id'),
@@ -238,21 +232,21 @@ async def get_aho_reference(
                 'description': response.get('description'),
                 'creationTime': response.get('creationTime'),
                 'updateTime': response.get('updateTime'),
-                'files': response.get('files')
+                'files': response.get('files'),
             },
-            'referenceStoreId': reference_store_id
+            'referenceStoreId': reference_store_id,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get reference metadata: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get reference metadata: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get reference metadata: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get reference metadata: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting reference metadata: {str(e)}")
-        raise Exception(f"Failed to get reference metadata: {str(e)}")
+        logger.error(f'Unexpected error getting reference metadata: {str(e)}')
+        raise Exception(f'Failed to get reference metadata: {str(e)}')
 
 
 async def start_aho_reference_import_job(
@@ -291,37 +285,33 @@ async def start_aho_reference_import_job(
     """
     try:
         client = get_omics_client()
-        
-        params = {
-            'referenceStoreId': reference_store_id,
-            'roleArn': role_arn,
-            'sources': sources
-        }
-        
+
+        params = {'referenceStoreId': reference_store_id, 'roleArn': role_arn, 'sources': sources}
+
         if client_token:
             params['clientToken'] = client_token
-            
+
         response = client.start_reference_import_job(**params)
-        
+
         return {
             'id': response.get('id'),
             'referenceStoreId': response.get('referenceStoreId'),
             'roleArn': response.get('roleArn'),
             'status': response.get('status'),
             'creationTime': response.get('creationTime'),
-            'sources': sources
+            'sources': sources,
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to start reference import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to start reference import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to start reference import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to start reference import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error starting reference import job: {str(e)}")
-        raise Exception(f"Failed to start reference import job: {str(e)}")
+        logger.error(f'Unexpected error starting reference import job: {str(e)}')
+        raise Exception(f'Failed to start reference import job: {str(e)}')
 
 
 async def get_aho_reference_import_job(
@@ -350,12 +340,11 @@ async def get_aho_reference_import_job(
     """
     try:
         client = get_omics_client()
-        
+
         response = client.get_reference_import_job(
-            referenceStoreId=reference_store_id,
-            id=import_job_id
+            referenceStoreId=reference_store_id, id=import_job_id
         )
-        
+
         return {
             'id': response.get('id'),
             'referenceStoreId': response.get('referenceStoreId'),
@@ -364,16 +353,16 @@ async def get_aho_reference_import_job(
             'statusMessage': response.get('statusMessage'),
             'creationTime': response.get('creationTime'),
             'completionTime': response.get('completionTime'),
-            'sources': response.get('sources', [])
+            'sources': response.get('sources', []),
         }
-        
+
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         error_message = e.response['Error']['Message']
-        
-        logger.error(f"Failed to get reference import job: {error_code} - {error_message}")
-        
-        raise Exception(f"Failed to get reference import job: {error_code} - {error_message}")
+
+        logger.error(f'Failed to get reference import job: {error_code} - {error_message}')
+
+        raise Exception(f'Failed to get reference import job: {error_code} - {error_message}')
     except Exception as e:
-        logger.error(f"Unexpected error getting reference import job: {str(e)}")
-        raise Exception(f"Failed to get reference import job: {str(e)}")
+        logger.error(f'Unexpected error getting reference import job: {str(e)}')
+        raise Exception(f'Failed to get reference import job: {str(e)}')
