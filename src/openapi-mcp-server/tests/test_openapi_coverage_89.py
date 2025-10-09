@@ -42,7 +42,9 @@ paths:
                 mock_parser.side_effect = Exception('Prance failed')
                 with patch.dict(sys.modules, {'yaml': None}):
                     # This should raise ImportError about pyyaml
-                    with pytest.raises(ImportError, match="Required dependency 'pyyaml' not installed"):
+                    with pytest.raises(
+                        ImportError, match="Required dependency 'pyyaml' not installed"
+                    ):
                         load_openapi_spec(path=temp_path)
         finally:
             # Clean up
