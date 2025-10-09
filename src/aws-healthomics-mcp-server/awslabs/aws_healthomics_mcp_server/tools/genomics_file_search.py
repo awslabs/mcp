@@ -56,6 +56,16 @@ async def search_genomics_files(
         None,
         description='Continuation token from previous search response for paginated results',
     ),
+    enable_storage_pagination: bool = Field(
+        False,
+        description='Enable efficient storage-level pagination for large datasets (recommended for >1000 results)',
+    ),
+    pagination_buffer_size: int = Field(
+        500,
+        description='Buffer size for storage-level pagination (100-50000). Larger values improve ranking accuracy but use more memory.',
+        ge=100,
+        le=50000,
+    ),
 ) -> Dict[str, Any]:
     """Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores.
 
@@ -71,6 +81,8 @@ async def search_genomics_files(
         include_associated_files: Whether to include associated files in results (default: True)
         offset: Number of results to skip for pagination (0-based offset, default: 0)
         continuation_token: Continuation token from previous search response for paginated results
+        enable_storage_pagination: Enable efficient storage-level pagination for large datasets
+        pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)
 
     Returns:
         Comprehensive dictionary containing:
@@ -115,7 +127,9 @@ async def search_genomics_files(
             f'Starting genomics file search: file_type={file_type}, '
             f'search_terms={search_terms}, max_results={max_results}, '
             f'include_associated_files={include_associated_files}, '
-            f'offset={offset}, continuation_token={continuation_token is not None}'
+            f'offset={offset}, continuation_token={continuation_token is not None}, '
+            f'enable_storage_pagination={enable_storage_pagination}, '
+            f'pagination_buffer_size={pagination_buffer_size}'
         )
 
         # Validate file_type parameter if provided
@@ -139,6 +153,8 @@ async def search_genomics_files(
             include_associated_files=include_associated_files,
             offset=offset,
             continuation_token=continuation_token,
+            enable_storage_pagination=enable_storage_pagination,
+            pagination_buffer_size=pagination_buffer_size,
         )
 
         # Initialize search orchestrator from environment configuration
@@ -150,17 +166,17 @@ async def search_genomics_files(
             await ctx.error(error_message)
             raise
 
-        # Execute the search
+        # Execute the search - use paginated search if enabled
         try:
-            response = await orchestrator.search(search_request)
+            if enable_storage_pagination:
+                response = await orchestrator.search_paginated(search_request)
+            else:
+                response = await orchestrator.search(search_request)
         except Exception as e:
             error_message = f'Search execution failed: {str(e)}'
             logger.error(error_message)
             await ctx.error(error_message)
             raise
-
-        # Get the enhanced response with comprehensive JSON structure
-        response = await orchestrator.search(search_request)
 
         # Use the enhanced response if available, otherwise fall back to basic structure
         if hasattr(response, 'enhanced_response') and response.enhanced_response:

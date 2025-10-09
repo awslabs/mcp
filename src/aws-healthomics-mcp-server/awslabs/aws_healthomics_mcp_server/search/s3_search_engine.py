@@ -17,7 +17,13 @@
 import asyncio
 import hashlib
 import time
-from awslabs.aws_healthomics_mcp_server.models import GenomicsFile, GenomicsFileType, SearchConfig
+from awslabs.aws_healthomics_mcp_server.models import (
+    GenomicsFile,
+    GenomicsFileType,
+    SearchConfig,
+    StoragePaginationRequest,
+    StoragePaginationResponse,
+)
 from awslabs.aws_healthomics_mcp_server.search.file_type_detector import FileTypeDetector
 from awslabs.aws_healthomics_mcp_server.search.pattern_matcher import PatternMatcher
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
@@ -149,6 +155,129 @@ class S3SearchEngine:
 
         return all_files
 
+    async def search_buckets_paginated(
+        self,
+        bucket_paths: List[str],
+        file_type: Optional[str],
+        search_terms: List[str],
+        pagination_request: 'StoragePaginationRequest',
+    ) -> 'StoragePaginationResponse':
+        """Search for genomics files across multiple S3 bucket paths with storage-level pagination.
+
+        This method implements efficient pagination by:
+        1. Using native S3 continuation tokens for each bucket
+        2. Implementing buffer-based result fetching for global ranking
+        3. Handling parallel bucket searches with individual pagination state
+
+        Args:
+            bucket_paths: List of S3 bucket paths to search
+            file_type: Optional file type filter
+            search_terms: List of search terms to match against
+            pagination_request: Pagination parameters and continuation tokens
+
+        Returns:
+            StoragePaginationResponse with paginated results and continuation tokens
+
+        Raises:
+            ValueError: If bucket paths are invalid
+            ClientError: If S3 access fails
+        """
+        from awslabs.aws_healthomics_mcp_server.models import (
+            GlobalContinuationToken,
+            StoragePaginationResponse,
+        )
+
+        if not bucket_paths:
+            logger.warning('No S3 bucket paths provided for paginated search')
+            return StoragePaginationResponse(results=[], has_more_results=False)
+
+        # Parse continuation token to get per-bucket tokens
+        global_token = GlobalContinuationToken()
+        if pagination_request.continuation_token:
+            try:
+                global_token = GlobalContinuationToken.decode(
+                    pagination_request.continuation_token
+                )
+            except ValueError as e:
+                logger.warning(f'Invalid continuation token, starting fresh search: {e}')
+                global_token = GlobalContinuationToken()
+
+        all_files = []
+        total_scanned = 0
+        bucket_tokens = {}
+        has_more_results = False
+        buffer_overflow = False
+
+        # Create tasks for concurrent paginated bucket searches
+        tasks = []
+        for bucket_path in bucket_paths:
+            bucket_token = global_token.s3_tokens.get(bucket_path)
+            task = self._search_single_bucket_path_paginated(
+                bucket_path, file_type, search_terms, bucket_token, pagination_request.buffer_size
+            )
+            tasks.append((bucket_path, task))
+
+        # Execute searches concurrently with semaphore to limit concurrent operations
+        semaphore = asyncio.Semaphore(self.config.max_concurrent_searches)
+
+        async def bounded_search(bucket_path_task):
+            bucket_path, task = bucket_path_task
+            async with semaphore:
+                return bucket_path, await task
+
+        results = await asyncio.gather(
+            *[bounded_search(task_tuple) for task_tuple in tasks], return_exceptions=True
+        )
+
+        # Collect results and handle exceptions
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f'Error in paginated bucket search: {result}')
+                continue
+
+            bucket_path, bucket_result = result
+            bucket_files, next_token, scanned_count = bucket_result
+
+            all_files.extend(bucket_files)
+            total_scanned += scanned_count
+
+            # Store continuation token for this bucket
+            if next_token:
+                bucket_tokens[bucket_path] = next_token
+                has_more_results = True
+
+        # Check if we exceeded the buffer size (indicates potential ranking issues)
+        if len(all_files) > pagination_request.buffer_size:
+            buffer_overflow = True
+            logger.warning(
+                f'Buffer overflow: got {len(all_files)} results, buffer size {pagination_request.buffer_size}'
+            )
+
+        # Create next continuation token
+        next_continuation_token = None
+        if has_more_results:
+            next_global_token = GlobalContinuationToken(
+                s3_tokens=bucket_tokens,
+                healthomics_sequence_token=global_token.healthomics_sequence_token,
+                healthomics_reference_token=global_token.healthomics_reference_token,
+                page_number=global_token.page_number + 1,
+                total_results_seen=global_token.total_results_seen + len(all_files),
+            )
+            next_continuation_token = next_global_token.encode()
+
+        logger.info(
+            f'S3 paginated search completed: {len(all_files)} results, '
+            f'{total_scanned} objects scanned, has_more: {has_more_results}'
+        )
+
+        return StoragePaginationResponse(
+            results=all_files,
+            next_continuation_token=next_continuation_token,
+            has_more_results=has_more_results,
+            total_scanned=total_scanned,
+            buffer_overflow=buffer_overflow,
+        )
+
     async def _search_single_bucket_path_optimized(
         self, bucket_path: str, file_type: Optional[str], search_terms: List[str]
     ) -> List[GenomicsFile]:
@@ -250,6 +379,119 @@ class S3SearchEngine:
             logger.error(f'Error searching bucket path {bucket_path}: {e}')
             raise
 
+    async def _search_single_bucket_path_paginated(
+        self,
+        bucket_path: str,
+        file_type: Optional[str],
+        search_terms: List[str],
+        continuation_token: Optional[str] = None,
+        max_results: int = 1000,
+    ) -> Tuple[List[GenomicsFile], Optional[str], int]:
+        """Search a single S3 bucket path with pagination support.
+
+        This method implements efficient pagination by:
+        1. Using native S3 continuation tokens for object listing
+        2. Filtering during object listing to minimize API calls
+        3. Implementing buffer-based result fetching for ranking
+
+        Args:
+            bucket_path: S3 bucket path (e.g., 's3://bucket-name/prefix/')
+            file_type: Optional file type filter
+            search_terms: List of search terms to match against
+            continuation_token: S3 continuation token for this bucket
+            max_results: Maximum number of results to return
+
+        Returns:
+            Tuple of (genomics_files, next_continuation_token, objects_scanned)
+        """
+        try:
+            bucket_name, prefix = parse_s3_path(bucket_path)
+
+            # Validate bucket access
+            await self._validate_bucket_access(bucket_name)
+
+            # Phase 1: Get objects with pagination
+            objects, next_token, total_scanned = await self._list_s3_objects_paginated(
+                bucket_name, prefix, continuation_token, max_results
+            )
+            logger.debug(
+                f'Listed {len(objects)} objects in {bucket_path} (scanned {total_scanned})'
+            )
+
+            # Phase 2: Filter by file type and path patterns (no S3 calls)
+            path_matched_objects = []
+            objects_needing_tags = []
+
+            for obj in objects:
+                key = obj['Key']
+                s3_path = f's3://{bucket_name}/{key}'
+
+                # File type filtering
+                detected_file_type = self.file_type_detector.detect_file_type(key)
+                if not detected_file_type:
+                    continue
+
+                if not self._matches_file_type_filter(detected_file_type, file_type):
+                    continue
+
+                # Path-based search term matching
+                if search_terms:
+                    path_score, _ = self.pattern_matcher.match_file_path(s3_path, search_terms)
+                    if path_score > 0:
+                        # Path matched, no need for tags
+                        path_matched_objects.append((obj, {}, detected_file_type))
+                        continue
+                    elif self.config.enable_s3_tag_search:
+                        # Need to check tags
+                        objects_needing_tags.append((obj, detected_file_type))
+                    # If path doesn't match and tag search is disabled, skip
+                else:
+                    # No search terms, include all type-matched files
+                    path_matched_objects.append((obj, {}, detected_file_type))
+
+            logger.debug(
+                f'After path filtering: {len(path_matched_objects)} path matches, '
+                f'{len(objects_needing_tags)} objects need tag checking'
+            )
+
+            # Phase 3: Batch retrieve tags only for objects that need them
+            tag_matched_objects = []
+            if objects_needing_tags and self.config.enable_s3_tag_search:
+                object_keys = [obj[0]['Key'] for obj in objects_needing_tags]
+                tag_map = await self._get_tags_for_objects_batch(bucket_name, object_keys)
+
+                for obj, detected_file_type in objects_needing_tags:
+                    key = obj['Key']
+                    tags = tag_map.get(key, {})
+
+                    # Check tag-based matching
+                    if search_terms:
+                        tag_score, _ = self.pattern_matcher.match_tags(tags, search_terms)
+                        if tag_score > 0:
+                            tag_matched_objects.append((obj, tags, detected_file_type))
+
+            # Phase 4: Convert to GenomicsFile objects
+            all_matched_objects = path_matched_objects + tag_matched_objects
+            genomics_files = []
+
+            for obj, tags, detected_file_type in all_matched_objects:
+                genomics_file = self._create_genomics_file_from_object(
+                    obj, bucket_name, tags, detected_file_type
+                )
+                if genomics_file:
+                    genomics_files.append(genomics_file)
+
+            logger.debug(
+                f'Found {len(genomics_files)} files in {bucket_path} '
+                f'({len(path_matched_objects)} path matches, {len(tag_matched_objects)} tag matches)'
+            )
+
+            return genomics_files, next_token, total_scanned
+
+        except Exception as e:
+            logger.error(f'Error in paginated search of bucket path {bucket_path}: {e}')
+            raise
+
     async def _validate_bucket_access(self, bucket_name: str) -> None:
         """Validate that we have access to the specified S3 bucket.
 
@@ -340,6 +582,84 @@ class S3SearchEngine:
 
         logger.debug(f'Listed {len(objects)} objects in s3://{bucket_name}/{prefix}')
         return objects
+
+    async def _list_s3_objects_paginated(
+        self,
+        bucket_name: str,
+        prefix: str,
+        continuation_token: Optional[str] = None,
+        max_results: int = 1000,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], int]:
+        """List objects in an S3 bucket with pagination support.
+
+        Args:
+            bucket_name: Name of the S3 bucket
+            prefix: Object key prefix to filter by
+            continuation_token: S3 continuation token from previous request
+            max_results: Maximum number of objects to return
+
+        Returns:
+            Tuple of (objects, next_continuation_token, total_objects_scanned)
+        """
+        objects = []
+        total_scanned = 0
+        current_token = continuation_token
+
+        try:
+            while len(objects) < max_results:
+                # Calculate how many more objects we need
+                remaining_needed = max_results - len(objects)
+                page_size = min(1000, remaining_needed)  # AWS maximum is 1000
+
+                # Prepare list_objects_v2 parameters
+                params = {
+                    'Bucket': bucket_name,
+                    'Prefix': prefix,
+                    'MaxKeys': page_size,
+                }
+
+                if current_token:
+                    params['ContinuationToken'] = current_token
+
+                # Execute the list operation asynchronously
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None, lambda: self.s3_client.list_objects_v2(**params)
+                )
+
+                # Add objects from this page
+                page_objects = response.get('Contents', [])
+                objects.extend(page_objects)
+                total_scanned += len(page_objects)
+
+                # Check if there are more pages
+                if response.get('IsTruncated', False):
+                    current_token = response.get('NextContinuationToken')
+
+                    # If we have enough objects, return with the continuation token
+                    if len(objects) >= max_results:
+                        break
+                else:
+                    # No more pages available
+                    current_token = None
+                    break
+
+        except ClientError as e:
+            logger.error(
+                f'Error listing objects in bucket {bucket_name} with prefix {prefix}: {e}'
+            )
+            raise
+
+        # Trim to exact max_results if we got more
+        if len(objects) > max_results:
+            objects = objects[:max_results]
+
+        logger.debug(
+            f'Listed {len(objects)} objects in s3://{bucket_name}/{prefix} '
+            f'(scanned {total_scanned}, next_token: {bool(current_token)})'
+        )
+
+        return objects, current_token, total_scanned
 
     def _create_genomics_file_from_object(
         self,

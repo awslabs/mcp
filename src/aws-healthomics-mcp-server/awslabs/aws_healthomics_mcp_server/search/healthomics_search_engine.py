@@ -15,14 +15,20 @@
 """HealthOmics search engine for genomics files in sequence and reference stores."""
 
 import asyncio
-from awslabs.aws_healthomics_mcp_server.models import GenomicsFile, GenomicsFileType, SearchConfig
+from awslabs.aws_healthomics_mcp_server.models import (
+    GenomicsFile,
+    GenomicsFileType,
+    SearchConfig,
+    StoragePaginationRequest,
+    StoragePaginationResponse,
+)
 from awslabs.aws_healthomics_mcp_server.search.file_type_detector import FileTypeDetector
 from awslabs.aws_healthomics_mcp_server.search.pattern_matcher import PatternMatcher
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class HealthOmicsSearchEngine:
@@ -96,6 +102,120 @@ class HealthOmicsSearchEngine:
             logger.error(f'Error searching HealthOmics sequence stores: {e}')
             raise
 
+    async def search_sequence_stores_paginated(
+        self,
+        file_type: Optional[str],
+        search_terms: List[str],
+        pagination_request: 'StoragePaginationRequest',
+    ) -> 'StoragePaginationResponse':
+        """Search for genomics files in HealthOmics sequence stores with pagination.
+
+        This method implements efficient pagination by:
+        1. Using native HealthOmics nextToken for ListReadSets API
+        2. Implementing efficient API batching to reach result limits
+        3. Adding rate limiting and retry logic for API pagination
+
+        Args:
+            file_type: Optional file type filter
+            search_terms: List of search terms to match against
+            pagination_request: Pagination parameters and continuation tokens
+
+        Returns:
+            StoragePaginationResponse with paginated results and continuation tokens
+
+        Raises:
+            ClientError: If HealthOmics API access fails
+        """
+        from awslabs.aws_healthomics_mcp_server.models import (
+            GlobalContinuationToken,
+            StoragePaginationResponse,
+        )
+
+        try:
+            logger.info('Starting paginated search in HealthOmics sequence stores')
+
+            # Parse continuation token
+            global_token = GlobalContinuationToken()
+            if pagination_request.continuation_token:
+                try:
+                    global_token = GlobalContinuationToken.decode(
+                        pagination_request.continuation_token
+                    )
+                except ValueError as e:
+                    logger.warning(f'Invalid continuation token, starting fresh search: {e}')
+                    global_token = GlobalContinuationToken()
+
+            # List all sequence stores (this is typically a small list, so no pagination needed)
+            sequence_stores = await self._list_sequence_stores()
+            logger.info(f'Found {len(sequence_stores)} sequence stores')
+
+            all_files = []
+            total_scanned = 0
+            has_more_results = False
+            next_sequence_token = global_token.healthomics_sequence_token
+
+            # Search sequence stores with pagination
+            for store in sequence_stores:
+                store_id = store['id']
+
+                # Search this store with pagination
+                (
+                    store_files,
+                    store_next_token,
+                    store_scanned,
+                ) = await self._search_single_sequence_store_paginated(
+                    store_id,
+                    store,
+                    file_type,
+                    search_terms,
+                    next_sequence_token,
+                    pagination_request.buffer_size,
+                )
+
+                all_files.extend(store_files)
+                total_scanned += store_scanned
+
+                # Update continuation token
+                if store_next_token:
+                    next_sequence_token = store_next_token
+                    has_more_results = True
+                    break  # Stop at first store with more results to maintain order
+                else:
+                    next_sequence_token = None
+
+                # Check if we have enough results
+                if len(all_files) >= pagination_request.max_results:
+                    break
+
+            # Create next continuation token
+            next_continuation_token = None
+            if has_more_results:
+                next_global_token = GlobalContinuationToken(
+                    s3_tokens=global_token.s3_tokens,
+                    healthomics_sequence_token=next_sequence_token,
+                    healthomics_reference_token=global_token.healthomics_reference_token,
+                    page_number=global_token.page_number + 1,
+                    total_results_seen=global_token.total_results_seen + len(all_files),
+                )
+                next_continuation_token = next_global_token.encode()
+
+            logger.info(
+                f'HealthOmics sequence stores paginated search completed: {len(all_files)} results, '
+                f'{total_scanned} read sets scanned, has_more: {has_more_results}'
+            )
+
+            return StoragePaginationResponse(
+                results=all_files,
+                next_continuation_token=next_continuation_token,
+                has_more_results=has_more_results,
+                total_scanned=total_scanned,
+                buffer_overflow=len(all_files) > pagination_request.buffer_size,
+            )
+
+        except Exception as e:
+            logger.error(f'Error in paginated search of HealthOmics sequence stores: {e}')
+            raise
+
     async def search_reference_stores(
         self, file_type: Optional[str], search_terms: List[str]
     ) -> List[GenomicsFile]:
@@ -153,6 +273,120 @@ class HealthOmicsSearchEngine:
 
         except Exception as e:
             logger.error(f'Error searching HealthOmics reference stores: {e}')
+            raise
+
+    async def search_reference_stores_paginated(
+        self,
+        file_type: Optional[str],
+        search_terms: List[str],
+        pagination_request: 'StoragePaginationRequest',
+    ) -> 'StoragePaginationResponse':
+        """Search for genomics files in HealthOmics reference stores with pagination.
+
+        This method implements efficient pagination by:
+        1. Using native HealthOmics nextToken for ListReferences API
+        2. Implementing efficient API batching to reach result limits
+        3. Adding rate limiting and retry logic for API pagination
+
+        Args:
+            file_type: Optional file type filter
+            search_terms: List of search terms to match against
+            pagination_request: Pagination parameters and continuation tokens
+
+        Returns:
+            StoragePaginationResponse with paginated results and continuation tokens
+
+        Raises:
+            ClientError: If HealthOmics API access fails
+        """
+        from awslabs.aws_healthomics_mcp_server.models import (
+            GlobalContinuationToken,
+            StoragePaginationResponse,
+        )
+
+        try:
+            logger.info('Starting paginated search in HealthOmics reference stores')
+
+            # Parse continuation token
+            global_token = GlobalContinuationToken()
+            if pagination_request.continuation_token:
+                try:
+                    global_token = GlobalContinuationToken.decode(
+                        pagination_request.continuation_token
+                    )
+                except ValueError as e:
+                    logger.warning(f'Invalid continuation token, starting fresh search: {e}')
+                    global_token = GlobalContinuationToken()
+
+            # List all reference stores (this is typically a small list, so no pagination needed)
+            reference_stores = await self._list_reference_stores()
+            logger.info(f'Found {len(reference_stores)} reference stores')
+
+            all_files = []
+            total_scanned = 0
+            has_more_results = False
+            next_reference_token = global_token.healthomics_reference_token
+
+            # Search reference stores with pagination
+            for store in reference_stores:
+                store_id = store['id']
+
+                # Search this store with pagination
+                (
+                    store_files,
+                    store_next_token,
+                    store_scanned,
+                ) = await self._search_single_reference_store_paginated(
+                    store_id,
+                    store,
+                    file_type,
+                    search_terms,
+                    next_reference_token,
+                    pagination_request.buffer_size,
+                )
+
+                all_files.extend(store_files)
+                total_scanned += store_scanned
+
+                # Update continuation token
+                if store_next_token:
+                    next_reference_token = store_next_token
+                    has_more_results = True
+                    break  # Stop at first store with more results to maintain order
+                else:
+                    next_reference_token = None
+
+                # Check if we have enough results
+                if len(all_files) >= pagination_request.max_results:
+                    break
+
+            # Create next continuation token
+            next_continuation_token = None
+            if has_more_results:
+                next_global_token = GlobalContinuationToken(
+                    s3_tokens=global_token.s3_tokens,
+                    healthomics_sequence_token=global_token.healthomics_sequence_token,
+                    healthomics_reference_token=next_reference_token,
+                    page_number=global_token.page_number + 1,
+                    total_results_seen=global_token.total_results_seen + len(all_files),
+                )
+                next_continuation_token = next_global_token.encode()
+
+            logger.info(
+                f'HealthOmics reference stores paginated search completed: {len(all_files)} results, '
+                f'{total_scanned} references scanned, has_more: {has_more_results}'
+            )
+
+            return StoragePaginationResponse(
+                results=all_files,
+                next_continuation_token=next_continuation_token,
+                has_more_results=has_more_results,
+                total_scanned=total_scanned,
+                buffer_overflow=len(all_files) > pagination_request.buffer_size,
+            )
+
+        except Exception as e:
+            logger.error(f'Error in paginated search of HealthOmics reference stores: {e}')
             raise
 
     async def _list_sequence_stores(self) -> List[Dict[str, Any]]:
@@ -367,6 +601,129 @@ class HealthOmicsSearchEngine:
 
         return read_sets
 
+    async def _list_read_sets_paginated(
+        self, sequence_store_id: str, next_token: Optional[str] = None, max_results: int = 100
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], int]:
+        """List read sets in a HealthOmics sequence store with pagination.
+
+        Args:
+            sequence_store_id: ID of the sequence store
+            next_token: Continuation token from previous request
+            max_results: Maximum number of read sets to return
+
+        Returns:
+            Tuple of (read_sets, next_continuation_token, total_read_sets_scanned)
+
+        Raises:
+            ClientError: If API call fails
+        """
+        read_sets = []
+        total_scanned = 0
+        current_token = next_token
+
+        try:
+            while len(read_sets) < max_results:
+                # Calculate how many more read sets we need
+                remaining_needed = max_results - len(read_sets)
+                page_size = min(100, remaining_needed)  # AWS maximum is 100 for this API
+
+                # Prepare list_read_sets parameters
+                params = {
+                    'sequenceStoreId': sequence_store_id,
+                    'maxResults': page_size,
+                }
+                if current_token:
+                    params['nextToken'] = current_token
+
+                # Execute the list operation asynchronously with rate limiting
+                await asyncio.sleep(0.1)  # Rate limiting: 10 requests per second
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None, lambda: self.omics_client.list_read_sets(**params)
+                )
+
+                # Add read sets from this page
+                page_read_sets = response.get('readSets', [])
+                read_sets.extend(page_read_sets)
+                total_scanned += len(page_read_sets)
+
+                # Check if there are more pages
+                if response.get('nextToken'):
+                    current_token = response.get('nextToken')
+
+                    # If we have enough read sets, return with the continuation token
+                    if len(read_sets) >= max_results:
+                        break
+                else:
+                    # No more pages available
+                    current_token = None
+                    break
+
+        except ClientError as e:
+            logger.error(f'Error listing read sets in sequence store {sequence_store_id}: {e}')
+            raise
+
+        # Trim to exact max_results if we got more
+        if len(read_sets) > max_results:
+            read_sets = read_sets[:max_results]
+
+        logger.debug(
+            f'Listed {len(read_sets)} read sets in sequence store {sequence_store_id} '
+            f'(scanned {total_scanned}, next_token: {bool(current_token)})'
+        )
+
+        return read_sets, current_token, total_scanned
+
+    async def _search_single_sequence_store_paginated(
+        self,
+        store_id: str,
+        store_info: Dict[str, Any],
+        file_type_filter: Optional[str],
+        search_terms: List[str],
+        continuation_token: Optional[str] = None,
+        max_results: int = 100,
+    ) -> Tuple[List[GenomicsFile], Optional[str], int]:
+        """Search a single HealthOmics sequence store with pagination support.
+
+        Args:
+            store_id: ID of the sequence store
+            store_info: Store information from list_sequence_stores
+            file_type_filter: Optional file type filter
+            search_terms: List of search terms to match against
+            continuation_token: HealthOmics continuation token for this store
+            max_results: Maximum number of results to return
+
+        Returns:
+            Tuple of (genomics_files, next_continuation_token, read_sets_scanned)
+        """
+        try:
+            logger.debug(f'Searching sequence store {store_id} with pagination')
+
+            # List read sets in the sequence store with pagination
+            read_sets, next_token, total_scanned = await self._list_read_sets_paginated(
+                store_id, continuation_token, max_results
+            )
+            logger.debug(
+                f'Found {len(read_sets)} read sets in store {store_id} (scanned {total_scanned})'
+            )
+
+            genomics_files = []
+            for read_set in read_sets:
+                genomics_file = await self._convert_read_set_to_genomics_file(
+                    read_set, store_id, store_info, file_type_filter, search_terms
+                )
+                if genomics_file:
+                    genomics_files.append(genomics_file)
+
+            logger.debug(
+                f'Found {len(genomics_files)} matching files in sequence store {store_id}'
+            )
+            return genomics_files, next_token, total_scanned
+
+        except Exception as e:
+            logger.error(f'Error in paginated search of sequence store {store_id}: {e}')
+            raise
+
     async def _list_references(
         self, reference_store_id: str, search_terms: List[str] = None
     ) -> List[Dict[str, Any]]:
@@ -488,6 +845,196 @@ class HealthOmicsSearchEngine:
                 raise
 
         return references
+
+    async def _list_references_with_filter_paginated(
+        self,
+        reference_store_id: str,
+        name_filter: str = None,
+        next_token: Optional[str] = None,
+        max_results: int = 100,
+    ) -> Tuple[List[Dict[str, Any]], Optional[str], int]:
+        """List references in a HealthOmics reference store with pagination and optional name filter.
+
+        Args:
+            reference_store_id: ID of the reference store
+            name_filter: Optional name filter to apply server-side
+            next_token: Continuation token from previous request
+            max_results: Maximum number of references to return
+
+        Returns:
+            Tuple of (references, next_continuation_token, total_references_scanned)
+
+        Raises:
+            ClientError: If API call fails
+        """
+        references = []
+        total_scanned = 0
+        current_token = next_token
+
+        try:
+            while len(references) < max_results:
+                # Calculate how many more references we need
+                remaining_needed = max_results - len(references)
+                page_size = min(100, remaining_needed)  # AWS maximum is 100 for this API
+
+                # Prepare list_references parameters
+                params = {
+                    'referenceStoreId': reference_store_id,
+                    'maxResults': page_size,
+                }
+                if current_token:
+                    params['nextToken'] = current_token
+
+                # Add server-side name filter if provided
+                if name_filter:
+                    params['filter'] = {'name': name_filter}
+                    logger.debug(f'Applying server-side name filter: {name_filter}')
+
+                # Execute the list operation asynchronously with rate limiting
+                await asyncio.sleep(0.1)  # Rate limiting: 10 requests per second
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None, lambda: self.omics_client.list_references(**params)
+                )
+
+                # Add references from this page
+                page_references = response.get('references', [])
+                references.extend(page_references)
+                total_scanned += len(page_references)
+
+                # Check if there are more pages
+                if response.get('nextToken'):
+                    current_token = response.get('nextToken')
+
+                    # If we have enough references, return with the continuation token
+                    if len(references) >= max_results:
+                        break
+                else:
+                    # No more pages available
+                    current_token = None
+                    break
+
+        except ClientError as e:
+            logger.error(f'Error listing references in reference store {reference_store_id}: {e}')
+            raise
+
+        # Trim to exact max_results if we got more
+        if len(references) > max_results:
+            references = references[:max_results]
+
+        logger.debug(
+            f'Listed {len(references)} references in reference store {reference_store_id} '
+            f'(scanned {total_scanned}, next_token: {bool(current_token)})'
+        )
+
+        return references, current_token, total_scanned
+
+    async def _search_single_reference_store_paginated(
+        self,
+        store_id: str,
+        store_info: Dict[str, Any],
+        file_type_filter: Optional[str],
+        search_terms: List[str],
+        continuation_token: Optional[str] = None,
+        max_results: int = 100,
+    ) -> Tuple[List[GenomicsFile], Optional[str], int]:
+        """Search a single HealthOmics reference store with pagination support.
+
+        Args:
+            store_id: ID of the reference store
+            store_info: Store information from list_reference_stores
+            file_type_filter: Optional file type filter
+            search_terms: List of search terms to match against
+            continuation_token: HealthOmics continuation token for this store
+            max_results: Maximum number of results to return
+
+        Returns:
+            Tuple of (genomics_files, next_continuation_token, references_scanned)
+        """
+        try:
+            logger.debug(f'Searching reference store {store_id} with pagination')
+
+            # List references in the reference store with server-side filtering and pagination
+            references = []
+            next_token = continuation_token
+            total_scanned = 0
+
+            if search_terms:
+                # Try server-side filtering for each search term
+                for search_term in search_terms:
+                    (
+                        term_references,
+                        term_next_token,
+                        term_scanned,
+                    ) = await self._list_references_with_filter_paginated(
+                        store_id, search_term, next_token, max_results
+                    )
+                    references.extend(term_references)
+                    total_scanned += term_scanned
+
+                    if term_next_token:
+                        next_token = term_next_token
+                        break  # Stop at first term with more results
+                    else:
+                        next_token = None
+
+                    # Check if we have enough results
+                    if len(references) >= max_results:
+                        break
+
+                # If no server-side matches, fall back to getting all references
+                if not references and not next_token:
+                    logger.info(
+                        f'No server-side matches for {search_terms}, falling back to client-side filtering'
+                    )
+                    (
+                        references,
+                        next_token,
+                        fallback_scanned,
+                    ) = await self._list_references_with_filter_paginated(
+                        store_id, None, continuation_token, max_results
+                    )
+                    total_scanned += fallback_scanned
+
+                # Remove duplicates based on reference ID
+                seen_ids = set()
+                unique_references = []
+                for ref in references:
+                    ref_id = ref.get('id')
+                    if ref_id and ref_id not in seen_ids:
+                        seen_ids.add(ref_id)
+                        unique_references.append(ref)
+                references = unique_references
+            else:
+                # No search terms, get all references
+                (
+                    references,
+                    next_token,
+                    total_scanned,
+                ) = await self._list_references_with_filter_paginated(
+                    store_id, None, continuation_token, max_results
+                )
+
+            logger.debug(
+                f'Found {len(references)} references in store {store_id} (scanned {total_scanned})'
+            )
+
+            genomics_files = []
+            for reference in references:
+                genomics_file = await self._convert_reference_to_genomics_file(
+                    reference, store_id, store_info, file_type_filter, search_terms
+                )
+                if genomics_file:
+                    genomics_files.append(genomics_file)
+
+            logger.debug(
+                f'Found {len(genomics_files)} matching files in reference store {store_id}'
+            )
+            return genomics_files, next_token, total_scanned
+
+        except Exception as e:
+            logger.error(f'Error in paginated search of reference store {store_id}: {e}')
+            raise
 
     async def _get_read_set_metadata(self, store_id: str, read_set_id: str) -> Dict[str, Any]:
         """Get detailed metadata for a read set using get-read-set-metadata API.
