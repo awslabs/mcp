@@ -64,6 +64,29 @@ pip install -e .[dev]
 pytest
 ```
 
+## Prompts
+
+MCP supports **prompts** that can be listed and retrieved by clients.
+You can define them using the `@mcp.prompt` decorator. Prompts automatically expose argument schemas based on type hints.
+
+### Example
+
+```python
+@mcp.prompt
+def greeting(name: str, excited: bool = False) -> str:
+    """
+    A simple greeting prompt.
+    """
+    if excited:
+        return f"Hello, {name}!!! 🎉"
+    return f"Hello, {name}."
+```
+
+### Available Requests
+
+* `prompts/list` → Lists all registered prompts with metadata (name, description, arguments, tags).
+* `prompts/get` → Retrieves the rendered content of a prompt given its `name` and optional `arguments`.
+
 ## Contributing
 
 Contributions are welcome! Please see the [CONTRIBUTING.md](../../CONTRIBUTING.md) in the monorepo root for guidelines.
