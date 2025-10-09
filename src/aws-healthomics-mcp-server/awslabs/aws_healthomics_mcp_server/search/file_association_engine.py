@@ -55,10 +55,33 @@ class FileAssociationEngine:
         (r'(.+)\.gvcf(\.gz)?$', r'\1.gvcf\2.tbi', 'gvcf_index'),
         (r'(.+)\.gvcf(\.gz)?$', r'\1.gvcf\2.csi', 'gvcf_index'),
         (r'(.+)\.bcf$', r'\1.bcf.csi', 'bcf_index'),
+        # BWA index patterns (regular and 64-bit variants)
+        (r'(.+\.(fasta|fa|fna))$', r'\1.amb', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.ann', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.bwt', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.pac', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.sa', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.64.amb', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.64.ann', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.64.bwt', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.64.pac', 'bwa_index'),
+        (r'(.+\.(fasta|fa|fna))$', r'\1.64.sa', 'bwa_index'),
     ]
 
     # BWA index collection patterns - all files that should be grouped together
-    BWA_INDEX_EXTENSIONS = ['.amb', '.ann', '.bwt', '.pac', '.sa']
+    # Includes both regular and 64-bit variants
+    BWA_INDEX_EXTENSIONS = [
+        '.amb',
+        '.ann',
+        '.bwt',
+        '.pac',
+        '.sa',
+        '.64.amb',
+        '.64.ann',
+        '.64.bwt',
+        '.64.pac',
+        '.64.sa',
+    ]
 
     def __init__(self):
         """Initialize the file association engine."""
@@ -164,23 +187,40 @@ class FileAssociationEngine:
 
         for file in files:
             file_path = Path(file.path)
+            file_name = file_path.name
 
-            # Check if this is a BWA index file
+            # Check if this is a BWA index file and extract base name
+            base_name = None
             for ext in self.BWA_INDEX_EXTENSIONS:
-                if file_path.name.endswith(ext):
-                    # Extract the base name (remove BWA extension)
-                    base_name = str(file_path).replace(ext, '')
-
-                    if base_name not in bwa_base_groups:
-                        bwa_base_groups[base_name] = []
-                    bwa_base_groups[base_name].append(file)
+                if file_name.endswith(ext):
+                    # Extract the base name by removing the BWA extension from the end
+                    base_name = str(file_path)[: -len(ext)]
                     break
+
+            if base_name:
+                # Normalize base name to handle both regular and 64-bit variants
+                # For files like "ref.fasta.64.amb" and "ref.fasta.amb",
+                # we want them to group under "ref.fasta"
+                normalized_base = self._normalize_bwa_base_name(base_name)
+
+                if normalized_base not in bwa_base_groups:
+                    bwa_base_groups[normalized_base] = []
+                bwa_base_groups[normalized_base].append(file)
 
         # Create groups for BWA index collections (need at least 2 files)
         for base_name, bwa_files in bwa_base_groups.items():
             if len(bwa_files) >= 2:
-                # Sort files to have a consistent primary file (e.g., .bwt file as primary)
-                bwa_files.sort(key=lambda f: f.path)
+                # Sort files to have a consistent primary file
+                # Prioritize the original FASTA file if present, otherwise use .bwt file
+                bwa_files.sort(
+                    key=lambda f: (
+                        0
+                        if any(f.path.endswith(ext) for ext in ['.fasta', '.fa', '.fna'])
+                        else 1
+                        if '.bwt' in f.path
+                        else 2
+                    )
+                )
 
                 # Use the first file as primary, rest as associated
                 primary_file = bwa_files[0]
@@ -194,6 +234,19 @@ class FileAssociationEngine:
                 bwa_groups.append(bwa_group)
 
         return bwa_groups
+
+    def _normalize_bwa_base_name(self, base_name: str) -> str:
+        """Normalize BWA base name to handle both regular and 64-bit variants.
+
+        For example:
+        - "ref.fasta" -> "ref.fasta"
+        - "ref.fasta.64" -> "ref.fasta"
+        - "/path/to/ref.fasta.64" -> "/path/to/ref.fasta"
+        """
+        # Remove trailing .64 if present (for 64-bit BWA indexes)
+        if base_name.endswith('.64'):
+            return base_name[:-3]
+        return base_name
 
     def _determine_group_type(
         self, primary_file: GenomicsFile, associated_files: List[GenomicsFile]
@@ -211,8 +264,19 @@ class FileAssociationEngine:
         ):
             return 'fastq_pair'
         elif any(ext in primary_path for ext in ['.fasta', '.fa', '.fna']):
+            # Check if associated files include BWA index files
+            has_bwa_indexes = any(
+                any(f.path.endswith(bwa_ext) for bwa_ext in self.BWA_INDEX_EXTENSIONS)
+                for f in associated_files
+            )
             # Check if associated files include dict files
-            if any('.dict' in f.path for f in associated_files):
+            has_dict = any('.dict' in f.path for f in associated_files)
+
+            if has_bwa_indexes and has_dict:
+                return 'fasta_bwa_dict'
+            elif has_bwa_indexes:
+                return 'fasta_bwa_index'
+            elif has_dict:
                 return 'fasta_dict'
             else:
                 return 'fasta_index'
@@ -244,6 +308,8 @@ class FileAssociationEngine:
             'fastq_pair': 0.2,  # Complete paired-end reads
             'bwa_index_collection': 0.3,  # Complete BWA index
             'fasta_dict': 0.25,  # FASTA with both index and dict
+            'fasta_bwa_index': 0.35,  # FASTA with BWA indexes
+            'fasta_bwa_dict': 0.4,  # FASTA with BWA indexes and dict
         }
 
         type_bonus = group_type_bonuses.get(file_group.group_type, 0.1)
@@ -328,14 +394,14 @@ class FileAssociationEngine:
                 continue
 
             # Skip if this is a reference store file with index info
-            if hasattr(file, '_healthomics_index_info'):
+            if file.metadata.get('_healthomics_index_info') is not None:
                 continue
 
             associated_files = []
 
             # Handle multi-source read sets (source2, source3, etc.)
-            if hasattr(file, '_healthomics_multi_source_info'):
-                multi_source_info = file._healthomics_multi_source_info
+            multi_source_info = file.metadata.get('_healthomics_multi_source_info')
+            if multi_source_info:
                 files_info = multi_source_info['files']
 
                 # Create associated files for source2, source3, etc.

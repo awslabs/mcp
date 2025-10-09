@@ -49,7 +49,7 @@ async def search_genomics_files(
     ),
     offset: int = Field(
         0,
-        description='Number of results to skip for pagination (0-based offset)',
+        description='Number of results to skip for pagination (0-based offset), ignored if enable_storage_pagination is true',
         ge=0,
     ),
     continuation_token: Optional[str] = Field(
@@ -79,7 +79,7 @@ async def search_genomics_files(
         search_terms: List of search terms to match against file paths and tags
         max_results: Maximum number of results to return (default: 100, max: 10000)
         include_associated_files: Whether to include associated files in results (default: True)
-        offset: Number of results to skip for pagination (0-based offset, default: 0)
+        offset: Number of results to skip for pagination (0-based offset, default: 0), allows arbitray page skippig, ignored of enable_storage_pagination is true
         continuation_token: Continuation token from previous search response for paginated results
         enable_storage_pagination: Enable efficient storage-level pagination for large datasets
         pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)

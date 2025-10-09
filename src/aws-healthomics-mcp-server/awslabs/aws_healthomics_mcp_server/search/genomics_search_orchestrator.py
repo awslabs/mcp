@@ -465,9 +465,11 @@ class GenomicsSearchOrchestrator:
             if isinstance(result, Exception):
                 logger.error(f'Error in {storage_system} search: {result}')
                 # Continue with other results rather than failing completely
-            else:
+            elif isinstance(result, list):
                 logger.info(f'{storage_system} search returned {len(result)} files')
                 all_files.extend(result)
+            else:
+                logger.warning(f'Unexpected result type from {storage_system}: {type(result)}')
 
         # Periodically clean up expired cache entries (approximately every 10th search)
         import random
@@ -546,52 +548,57 @@ class GenomicsSearchOrchestrator:
                 logger.error(f'Error in {storage_system} paginated search: {result}')
                 # Continue with other results rather than failing completely
             else:
-                storage_response = result
-                logger.info(
-                    f'{storage_system} paginated search returned {len(storage_response.results)} files'
-                )
-                all_files.extend(storage_response.results)
-                total_scanned += storage_response.total_scanned
+                # Assume result is a valid storage response object
+                try:
+                    # Type guard: access attributes safely
+                    results_list = getattr(result, 'results', [])
+                    total_scanned_count = getattr(result, 'total_scanned', 0)
+                    has_more = getattr(result, 'has_more_results', False)
+                    next_token = getattr(result, 'next_continuation_token', None)
 
-                # Update continuation tokens based on storage system
-                if storage_response.has_more_results and storage_response.next_continuation_token:
-                    has_more_results = True
+                    logger.info(
+                        f'{storage_system} paginated search returned {len(results_list)} files'
+                    )
+                    all_files.extend(results_list)
+                    total_scanned += total_scanned_count
 
-                    if storage_system == 's3':
-                        # Parse S3 continuation tokens from the response
-                        try:
-                            response_token = GlobalContinuationToken.decode(
-                                storage_response.next_continuation_token
-                            )
-                            next_global_token.s3_tokens.update(response_token.s3_tokens)
-                        except ValueError:
-                            logger.warning(
-                                f'Failed to parse S3 continuation token from {storage_system}'
-                            )
-                    elif storage_system == 'healthomics_sequences':
-                        try:
-                            response_token = GlobalContinuationToken.decode(
-                                storage_response.next_continuation_token
-                            )
-                            next_global_token.healthomics_sequence_token = (
-                                response_token.healthomics_sequence_token
-                            )
-                        except ValueError:
-                            logger.warning(
-                                f'Failed to parse sequence store continuation token from {storage_system}'
-                            )
-                    elif storage_system == 'healthomics_references':
-                        try:
-                            response_token = GlobalContinuationToken.decode(
-                                storage_response.next_continuation_token
-                            )
-                            next_global_token.healthomics_reference_token = (
-                                response_token.healthomics_reference_token
-                            )
-                        except ValueError:
-                            logger.warning(
-                                f'Failed to parse reference store continuation token from {storage_system}'
-                            )
+                    # Update continuation tokens based on storage system
+                    if has_more and next_token:
+                        has_more_results = True
+
+                        if storage_system == 's3':
+                            # Parse S3 continuation tokens from the response
+                            try:
+                                response_token = GlobalContinuationToken.decode(next_token)
+                                next_global_token.s3_tokens.update(response_token.s3_tokens)
+                            except ValueError:
+                                logger.warning(
+                                    f'Failed to parse S3 continuation token from {storage_system}'
+                                )
+                        elif storage_system == 'healthomics_sequences':
+                            try:
+                                response_token = GlobalContinuationToken.decode(next_token)
+                                next_global_token.healthomics_sequence_token = (
+                                    response_token.healthomics_sequence_token
+                                )
+                            except ValueError:
+                                logger.warning(
+                                    f'Failed to parse sequence store continuation token from {storage_system}'
+                                )
+                        elif storage_system == 'healthomics_references':
+                            try:
+                                response_token = GlobalContinuationToken.decode(next_token)
+                                next_global_token.healthomics_reference_token = (
+                                    response_token.healthomics_reference_token
+                                )
+                            except ValueError:
+                                logger.warning(
+                                    f'Failed to parse reference store continuation token from {storage_system}'
+                                )
+                except AttributeError as e:
+                    logger.warning(
+                        f'Unexpected result type from {storage_system}: {type(result)} - {e}'
+                    )
 
         # Return next token only if there are more results
         final_next_token = next_global_token if has_more_results else None
@@ -800,7 +807,7 @@ class GenomicsSearchOrchestrator:
     async def _score_results(
         self,
         file_groups: List,
-        file_type_filter: str,
+        file_type_filter: Optional[str],
         search_terms: List[str],
         include_associated_files: bool = True,
     ) -> List[GenomicsFileResult]:
@@ -870,13 +877,9 @@ class GenomicsSearchOrchestrator:
             all_files.append(file)
 
             # Check if this is a HealthOmics reference file with index information
-            if (
-                hasattr(file, '_healthomics_index_info')
-                and file._healthomics_index_info is not None
-            ):
+            index_info = file.metadata.get('_healthomics_index_info')
+            if index_info is not None:
                 logger.debug(f'Creating associated index file for {file.path}')
-
-                index_info = file._healthomics_index_info
 
                 # Import here to avoid circular imports
                 from awslabs.aws_healthomics_mcp_server.models import (

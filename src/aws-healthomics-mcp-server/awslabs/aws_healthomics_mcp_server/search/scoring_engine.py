@@ -57,7 +57,7 @@ class ScoringEngine:
                 'related': [
                     GenomicsFileType.BWA_AMB,
                     GenomicsFileType.BWA_ANN,
-                    GenomicsFile.BWA_BWT,
+                    GenomicsFileType.BWA_BWT,
                     GenomicsFileType.BWA_PAC,
                     GenomicsFileType.BWA_SA,
                 ],

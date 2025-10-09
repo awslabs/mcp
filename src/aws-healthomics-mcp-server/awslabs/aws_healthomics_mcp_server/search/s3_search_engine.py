@@ -147,8 +147,10 @@ class S3SearchEngine:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f'Error searching bucket path {bucket_paths[i]}: {result}')
-            else:
+            elif isinstance(result, list):
                 all_files.extend(result)
+            else:
+                logger.warning(f'Unexpected result type from bucket path: {type(result)}')
 
         # Cache the results
         self._cache_search_result(cache_key, all_files)
@@ -234,8 +236,11 @@ class S3SearchEngine:
             if isinstance(result, Exception):
                 logger.error(f'Error in paginated bucket search: {result}')
                 continue
-
-            bucket_path, bucket_result = result
+            elif isinstance(result, tuple) and len(result) == 2:
+                bucket_path, bucket_result = result
+            else:
+                logger.warning(f'Unexpected result type in paginated search: {type(result)}')
+                continue
             bucket_files, next_token, scanned_count = bucket_result
 
             all_files.extend(bucket_files)
@@ -813,9 +818,11 @@ class S3SearchEngine:
             for result in batch_results:
                 if isinstance(result, Exception):
                     logger.warning(f'Failed to get tags in batch: {result}')
-                else:
+                elif isinstance(result, tuple) and len(result) == 2:
                     key, tags = result
                     tag_map[key] = tags
+                else:
+                    logger.warning(f'Unexpected result type in tag batch: {type(result)}')
 
         logger.debug(f'Retrieved tags for {len(tag_map)} objects total')
         return tag_map

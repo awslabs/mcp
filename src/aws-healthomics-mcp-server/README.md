@@ -301,6 +301,7 @@ The genomics file search includes several optimizations to minimize S3 API calls
 2. **Production Execution**:
    ```
    User: "Run my alignment workflow on these FASTQ files"
+   → Use SearchGenomicsFiles to find FASTQ files for the run
    → Use StartAHORun with appropriate parameters
    → Monitor with ListAHORuns and GetAHORun
    → Track task progress with ListAHORunTasks

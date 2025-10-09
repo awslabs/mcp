@@ -84,12 +84,17 @@ class FileTypeDetector:
         '.vcf.gz.csi': GenomicsFileType.CSI,
         '.gvcf.gz.csi': GenomicsFileType.CSI,
         '.bcf.csi': GenomicsFileType.CSI,
-        # BWA index files
+        # BWA index files (regular and 64-bit variants)
         '.amb': GenomicsFileType.BWA_AMB,
         '.ann': GenomicsFileType.BWA_ANN,
         '.bwt': GenomicsFileType.BWA_BWT,
         '.pac': GenomicsFileType.BWA_PAC,
         '.sa': GenomicsFileType.BWA_SA,
+        '.64.amb': GenomicsFileType.BWA_AMB,
+        '.64.ann': GenomicsFileType.BWA_ANN,
+        '.64.bwt': GenomicsFileType.BWA_BWT,
+        '.64.pac': GenomicsFileType.BWA_PAC,
+        '.64.sa': GenomicsFileType.BWA_SA,
     }
 
     # Pre-sorted extensions by length (longest first) for efficient matching

@@ -87,11 +87,14 @@ def get_omics_endpoint_url() -> str | None:
     return endpoint_url
 
 
-def get_aws_session() -> boto3.Session:
+def get_aws_session():
     """Get an AWS session with the centralized region configuration.
 
     Returns:
         boto3.Session: Configured AWS session
+
+    Raises:
+        ImportError: If boto3 is not available
     """
     botocore_session = botocore.session.Session()
     user_agent_extra = f'awslabs/mcp/aws-healthomics-mcp-server/{__version__}'

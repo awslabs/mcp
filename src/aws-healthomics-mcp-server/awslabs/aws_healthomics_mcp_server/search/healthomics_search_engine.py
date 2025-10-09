@@ -92,8 +92,10 @@ class HealthOmicsSearchEngine:
                 if isinstance(result, Exception):
                     store_id = sequence_stores[i]['id']
                     logger.error(f'Error searching sequence store {store_id}: {result}')
-                else:
+                elif isinstance(result, list):
                     all_files.extend(result)
+                else:
+                    logger.warning(f'Unexpected result type from sequence store: {type(result)}')
 
             logger.info(f'Found {len(all_files)} files in sequence stores')
             return all_files
@@ -265,8 +267,10 @@ class HealthOmicsSearchEngine:
                 if isinstance(result, Exception):
                     store_id = reference_stores[i]['id']
                     logger.error(f'Error searching reference store {store_id}: {result}')
-                else:
+                elif isinstance(result, list):
                     all_files.extend(result)
+                else:
+                    logger.warning(f'Unexpected result type from reference store: {type(result)}')
 
             logger.info(f'Found {len(all_files)} files in reference stores')
             return all_files
@@ -725,7 +729,7 @@ class HealthOmicsSearchEngine:
             raise
 
     async def _list_references(
-        self, reference_store_id: str, search_terms: List[str] = None
+        self, reference_store_id: str, search_terms: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """List references in a HealthOmics reference store.
 
@@ -791,7 +795,7 @@ class HealthOmicsSearchEngine:
             return await self._list_references_with_filter(reference_store_id, None)
 
     async def _list_references_with_filter(
-        self, reference_store_id: str, name_filter: str = None
+        self, reference_store_id: str, name_filter: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """List references in a HealthOmics reference store with optional name filter.
 
@@ -849,7 +853,7 @@ class HealthOmicsSearchEngine:
     async def _list_references_with_filter_paginated(
         self,
         reference_store_id: str,
-        name_filter: str = None,
+        name_filter: Optional[str] = None,
         next_token: Optional[str] = None,
         max_results: int = 100,
     ) -> Tuple[List[Dict[str, Any]], Optional[str], int]:
@@ -1233,7 +1237,7 @@ class HealthOmicsSearchEngine:
 
             # Store multi-source information for the file association engine
             if len([k for k in files_info.keys() if k.startswith('source')]) > 1:
-                genomics_file._healthomics_multi_source_info = {
+                genomics_file.metadata['_healthomics_multi_source_info'] = {
                     'store_id': store_id,
                     'read_set_id': read_set_id,
                     'account_id': account_id,
@@ -1443,7 +1447,7 @@ class HealthOmicsSearchEngine:
             )
 
             # Store index file information for the file association engine to use
-            genomics_file._healthomics_index_info = {
+            genomics_file.metadata['_healthomics_index_info'] = {
                 'index_uri': f'omics://{account_id}.storage.{region}.amazonaws.com/{store_id}/reference/{reference_id}/index',
                 'index_size': index_size,
                 'store_id': store_id,

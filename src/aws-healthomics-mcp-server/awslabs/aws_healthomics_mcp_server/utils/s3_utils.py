@@ -141,6 +141,7 @@ def validate_bucket_access(bucket_paths: List[str]) -> List[str]:
     errors = []
 
     for bucket_path in bucket_paths:
+        bucket_name = None  # Initialize to handle cases where parsing fails
         try:
             # Parse bucket name from path
             bucket_name, _ = parse_s3_path(bucket_path)
@@ -156,17 +157,19 @@ def validate_bucket_access(bucket_paths: List[str]) -> List[str]:
             errors.append(error_msg)
         except ClientError as e:
             error_code = e.response['Error']['Code']
+            bucket_ref = bucket_name if bucket_name else bucket_path
             if error_code == '404':
-                error_msg = f'Bucket {bucket_name} does not exist'
+                error_msg = f'Bucket {bucket_ref} does not exist'
             elif error_code == '403':
-                error_msg = f'Access denied to bucket {bucket_name}'
+                error_msg = f'Access denied to bucket {bucket_ref}'
             else:
-                error_msg = f'Error accessing bucket {bucket_name}: {e}'
+                error_msg = f'Error accessing bucket {bucket_ref}: {e}'
 
             logger.error(error_msg)
             errors.append(error_msg)
         except Exception as e:
-            error_msg = f'Unexpected error accessing bucket {bucket_name}: {e}'
+            bucket_ref = bucket_name if bucket_name else bucket_path
+            error_msg = f'Unexpected error accessing bucket {bucket_ref}: {e}'
             logger.error(error_msg)
             errors.append(error_msg)
 

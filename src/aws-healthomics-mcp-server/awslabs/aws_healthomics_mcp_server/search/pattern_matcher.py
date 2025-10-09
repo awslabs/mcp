@@ -15,7 +15,7 @@
 """Pattern matching algorithms for genomics file search."""
 
 from difflib import SequenceMatcher
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 class PatternMatcher:
@@ -160,7 +160,7 @@ class PatternMatcher:
             return 0.6 * similarity  # Max 0.6 for fuzzy matches
         return 0.0
 
-    def extract_filename_components(self, file_path: str) -> Dict[str, str]:
+    def extract_filename_components(self, file_path: str) -> Dict[str, Optional[str]]:
         """Extract useful components from a file path for matching.
 
         Args:
