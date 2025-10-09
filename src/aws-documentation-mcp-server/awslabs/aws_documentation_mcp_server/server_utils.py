@@ -36,9 +36,11 @@ except Exception:
 # Allow User-Agent override via environment variable
 BASE_USER_AGENT = os.getenv(
     'MCP_USER_AGENT',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
 )
-DEFAULT_USER_AGENT = f'{BASE_USER_AGENT} ModelContextProtocol/{__version__} (AWS Documentation Server)'
+DEFAULT_USER_AGENT = (
+    f'{BASE_USER_AGENT} ModelContextProtocol/{__version__} (AWS Documentation Server)'
+)
 
 
 async def read_documentation_impl(
