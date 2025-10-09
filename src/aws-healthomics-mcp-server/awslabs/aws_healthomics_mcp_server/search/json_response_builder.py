@@ -47,8 +47,6 @@ class JsonResponseBuilder:
 
         Returns:
             Dictionary containing structured JSON response with all required metadata
-
-        Requirements: 5.1, 5.2, 5.3, 5.4
         """
         logger.info(f'Building JSON response for {len(results)} results')
 
@@ -91,8 +89,6 @@ class JsonResponseBuilder:
 
         Returns:
             List of dictionaries representing the results with clear relationships for grouped files
-
-        Requirements: 5.1, 5.2, 5.3, 5.4
         """
         serialized_results = []
 
@@ -140,23 +136,32 @@ class JsonResponseBuilder:
         Returns:
             Dictionary representation of the GenomicsFile with all metadata
         """
-        return {
+        # Start with basic dataclass fields
+        base_dict = {
             'path': file.path,
             'file_type': file.file_type.value,
             'size_bytes': file.size_bytes,
-            'size_human_readable': self._format_file_size(file.size_bytes),
             'storage_class': file.storage_class,
             'last_modified': file.last_modified.isoformat(),
             'tags': file.tags,
             'source_system': file.source_system,
             'metadata': file.metadata,
-            'file_info': {
-                'extension': self._extract_file_extension(file.path),
-                'basename': self._extract_basename(file.path),
-                'is_compressed': self._is_compressed_file(file.path),
-                'storage_tier': self._categorize_storage_tier(file.storage_class),
-            },
         }
+
+        # Add computed/enhanced fields
+        base_dict.update(
+            {
+                'size_human_readable': self._format_file_size(file.size_bytes),
+                'file_info': {
+                    'extension': self._extract_file_extension(file.path),
+                    'basename': self._extract_basename(file.path),
+                    'is_compressed': self._is_compressed_file(file.path),
+                    'storage_tier': self._categorize_storage_tier(file.storage_class),
+                },
+            }
+        )
+
+        return base_dict
 
     def _build_performance_metrics(
         self, search_duration_ms: int, returned_count: int, total_found: int

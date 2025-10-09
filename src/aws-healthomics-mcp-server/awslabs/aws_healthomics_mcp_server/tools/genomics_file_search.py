@@ -35,7 +35,7 @@ async def search_genomics_files(
     ),
     search_terms: List[str] = Field(
         default_factory=list,
-        description='List of search terms to match against file paths and tags. If empty, returns all files of the specified type.',
+        description='List of search terms to match against file paths, tags and metadata. If empty, returns all files of the specified file type.',
     ),
     max_results: int = Field(
         100,
@@ -46,6 +46,15 @@ async def search_genomics_files(
     include_associated_files: bool = Field(
         True,
         description='Whether to include associated files (e.g., BAM index files, FASTQ pairs) in the results',
+    ),
+    offset: int = Field(
+        0,
+        description='Number of results to skip for pagination (0-based offset)',
+        ge=0,
+    ),
+    continuation_token: Optional[str] = Field(
+        None,
+        description='Continuation token from previous search response for paginated results',
     ),
 ) -> Dict[str, Any]:
     """Search for genomics files across S3 buckets, HealthOmics sequence stores, and reference stores.
@@ -60,13 +69,42 @@ async def search_genomics_files(
         search_terms: List of search terms to match against file paths and tags
         max_results: Maximum number of results to return (default: 100, max: 10000)
         include_associated_files: Whether to include associated files in results (default: True)
+        offset: Number of results to skip for pagination (0-based offset, default: 0)
+        continuation_token: Continuation token from previous search response for paginated results
 
     Returns:
-        Dictionary containing:
-        - results: List of genomics files with metadata and associations
-        - total_found: Total number of files found (before limiting)
+        Comprehensive dictionary containing:
+
+        **Core Results:**
+        - results: List of file result objects, each containing:
+          - primary_file: Main genomics file with full metadata (path, file_type, size_bytes,
+            size_human_readable, storage_class, last_modified, tags, source_system, metadata, file_info)
+          - associated_files: List of related files (index files, paired reads, etc.) with same metadata structure
+          - file_group: Summary of the file group (total_files, total_size_bytes, has_associations, association_types)
+          - relevance_score: Numerical relevance score (0.0-1.0)
+          - match_reasons: List of reasons why this file matched the search
+          - ranking_info: Score breakdown and match quality assessment
+
+        **Search Metadata:**
+        - total_found: Total number of files found before pagination
+        - returned_count: Number of results actually returned
         - search_duration_ms: Time taken for the search in milliseconds
         - storage_systems_searched: List of storage systems that were searched
+
+        **Performance & Analytics:**
+        - performance_metrics: Search efficiency statistics including results_per_second and truncation_ratio
+        - search_statistics: Optional detailed search metrics if available
+        - pagination: Pagination information including:
+          - has_more: Boolean indicating if more results are available
+          - next_offset: Offset value to use for the next page
+          - continuation_token: Token to use for the next page (if applicable)
+          - current_page: Current page number (if applicable)
+
+        **Content Analysis:**
+        - metadata: Analysis of the result set including:
+          - file_type_distribution: Count of each file type found
+          - source_system_distribution: Count of files from each storage system
+          - association_summary: Statistics about file associations and groupings
 
     Raises:
         ValueError: If search parameters are invalid
@@ -76,7 +114,8 @@ async def search_genomics_files(
         logger.info(
             f'Starting genomics file search: file_type={file_type}, '
             f'search_terms={search_terms}, max_results={max_results}, '
-            f'include_associated_files={include_associated_files}'
+            f'include_associated_files={include_associated_files}, '
+            f'offset={offset}, continuation_token={continuation_token is not None}'
         )
 
         # Validate file_type parameter if provided
@@ -98,6 +137,8 @@ async def search_genomics_files(
             search_terms=search_terms,
             max_results=max_results,
             include_associated_files=include_associated_files,
+            offset=offset,
+            continuation_token=continuation_token,
         )
 
         # Initialize search orchestrator from environment configuration

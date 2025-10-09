@@ -119,7 +119,7 @@ class GenomicsSearchOrchestrator:
 
             # Apply result limits and pagination
             limited_results = self.result_ranker.apply_pagination(
-                ranked_results, request.max_results
+                ranked_results, request.max_results, request.offset
             )
 
             # Get ranking statistics
@@ -130,10 +130,14 @@ class GenomicsSearchOrchestrator:
             storage_systems_searched = self._get_searched_storage_systems()
 
             pagination_info = {
-                'offset': 0,
+                'offset': request.offset,
                 'limit': request.max_results,
                 'total_available': len(ranked_results),
-                'has_more': len(ranked_results) > request.max_results,
+                'has_more': (request.offset + len(limited_results)) < len(ranked_results),
+                'next_offset': request.offset + len(limited_results)
+                if (request.offset + len(limited_results)) < len(ranked_results)
+                else None,
+                'continuation_token': request.continuation_token,  # Pass through for now
             }
 
             response_dict = self.json_builder.build_search_response(
@@ -239,7 +243,7 @@ class GenomicsSearchOrchestrator:
                 logger.info(f'{storage_system} search returned {len(result)} files')
                 all_files.extend(result)
 
-        # Periodically clean up expired cache entries (every 10th search)
+        # Periodically clean up expired cache entries (approximately every 10th search)
         import random
 
         if random.randint(1, 10) == 1:  # 10% chance to clean up cache

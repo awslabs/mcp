@@ -37,8 +37,6 @@ class ResultRanker:
 
         Returns:
             List of GenomicsFileResult objects sorted by relevance score in descending order
-
-        Requirements: 2.2, 5.1
         """
         if not results:
             logger.info('No results to rank')
@@ -75,8 +73,6 @@ class ResultRanker:
 
         Returns:
             Paginated list of GenomicsFileResult objects
-
-        Requirements: 2.2, 5.1
         """
         if not results:
             logger.info('No results to paginate')

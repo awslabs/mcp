@@ -33,7 +33,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 class S3SearchEngine:
-    """Search engine for genomics files in S3 buckets with optimized S3 API usage."""
+    """Search engine for genomics files in S3 buckets."""
 
     def __init__(self, config: SearchConfig):
         """Initialize the S3 search engine.
@@ -66,7 +66,7 @@ class S3SearchEngine:
             S3SearchEngine instance configured from environment
 
         Raises:
-            ValueError: If configuration is invalid or S3 access fails
+            ValueError: If configuration is invalid or no S3 buckets are accessible
         """
         config = get_genomics_search_config()
 
@@ -74,10 +74,19 @@ class S3SearchEngine:
         try:
             accessible_buckets = validate_bucket_access_permissions()
             # Update config to only include accessible buckets
+            original_count = len(config.s3_bucket_paths)
             config.s3_bucket_paths = accessible_buckets
+
+            if len(accessible_buckets) < original_count:
+                logger.warning(
+                    f'Only {len(accessible_buckets)} of {original_count} configured buckets are accessible'
+                )
+            else:
+                logger.info(f'All {len(accessible_buckets)} configured buckets are accessible')
+
         except ValueError as e:
             logger.error(f'S3 bucket access validation failed: {e}')
-            raise
+            raise ValueError(f'Cannot create S3SearchEngine: {e}') from e
 
         return cls(config)
 
@@ -617,7 +626,15 @@ class S3SearchEngine:
         index_relationships = {
             'bam': [GenomicsFileType.BAI],
             'cram': [GenomicsFileType.CRAI],
-            'fasta': [GenomicsFileType.FAI, GenomicsFileType.DICT],
+            'fasta': [
+                GenomicsFileType.FAI,
+                GenomicsFileType.DICT,
+                GenomicsFileType.BWA_AMB,
+                GenomicsFileType.BWA_ANN,
+                GenomicsFileType.BWA_BWT,
+                GenomicsFileType.BWA_PAC,
+                GenomicsFileType.BWA_SA,
+            ],
             'fa': [GenomicsFileType.FAI, GenomicsFileType.DICT],
             'fna': [GenomicsFileType.FAI, GenomicsFileType.DICT],
             'vcf': [GenomicsFileType.TBI, GenomicsFileType.CSI],

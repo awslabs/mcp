@@ -304,6 +304,8 @@ class GenomicsFileSearchRequest(BaseModel):
     search_terms: List[str] = []
     max_results: int = 100
     include_associated_files: bool = True
+    offset: int = 0
+    continuation_token: Optional[str] = None
 
 
 class GenomicsFileSearchResponse(BaseModel):

@@ -54,7 +54,13 @@ class ScoringEngine:
             },
             GenomicsFileType.FASTA: {
                 'primary': [GenomicsFileType.FASTA, GenomicsFileType.FNA],
-                'related': [],
+                'related': [
+                    GenomicsFileType.BWA_AMB,
+                    GenomicsFileType.BWA_ANN,
+                    GenomicsFile.BWA_BWT,
+                    GenomicsFileType.BWA_PAC,
+                    GenomicsFileType.BWA_SA,
+                ],
                 'indexes': [GenomicsFileType.FAI, GenomicsFileType.DICT],
             },
             GenomicsFileType.BAM: {
@@ -342,7 +348,7 @@ class ScoringEngine:
     def _match_metadata(
         self, metadata: Dict[str, Any], search_terms: List[str]
     ) -> Tuple[float, List[str]]:
-        """Match patterns against file metadata.
+        """Match patterns against HealthOmics file metadata.
 
         Args:
             metadata: Dictionary of metadata key-value pairs

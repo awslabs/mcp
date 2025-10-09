@@ -92,6 +92,9 @@ class FileTypeDetector:
         '.sa': GenomicsFileType.BWA_SA,
     }
 
+    # Pre-sorted extensions by length (longest first) for efficient matching
+    _SORTED_EXTENSIONS = sorted(EXTENSION_MAPPING.keys(), key=len, reverse=True)
+
     @classmethod
     def detect_file_type(cls, file_path: str) -> Optional[GenomicsFileType]:
         """Detect the genomics file type from a file path.
@@ -109,10 +112,8 @@ class FileTypeDetector:
         path_lower = file_path.lower()
 
         # Try exact extension matches first (longest matches first)
-        # Sort by length in descending order to match longer extensions first
-        sorted_extensions = sorted(cls.EXTENSION_MAPPING.keys(), key=len, reverse=True)
-
-        for extension in sorted_extensions:
+        # Use pre-sorted extensions for efficiency
+        for extension in cls._SORTED_EXTENSIONS:
             if path_lower.endswith(extension):
                 return cls.EXTENSION_MAPPING[extension]
 
