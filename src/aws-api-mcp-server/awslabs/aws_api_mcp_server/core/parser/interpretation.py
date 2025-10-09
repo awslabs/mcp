@@ -53,7 +53,7 @@ def interpret(
         region_name=region,
         connect_timeout=TIMEOUT_AFTER_SECONDS,
         read_timeout=TIMEOUT_AFTER_SECONDS,
-        retries={'max_attempts': 1},
+        retries={'max_attempts': 3, 'mode': 'adaptive'},
         user_agent_extra=get_user_agent_extra(),
     )
 
