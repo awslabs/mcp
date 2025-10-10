@@ -25,6 +25,8 @@ from awslabs.aws_healthomics_mcp_server.models import (
     PaginationCacheEntry,
     PaginationMetrics,
     SearchConfig,
+    StoragePaginationRequest,
+    StoragePaginationResponse,
 )
 from awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator import (
     GenomicsSearchOrchestrator,
@@ -91,12 +93,38 @@ class TestGenomicsSearchOrchestrator:
     @pytest.fixture
     def orchestrator(self, mock_config):
         """Create a GenomicsSearchOrchestrator instance for testing."""
-        return GenomicsSearchOrchestrator(mock_config)
+        # Mock only the expensive initialization parts, not the engines themselves
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.s3_search_engine.S3SearchEngine.__init__',
+                return_value=None,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+                return_value=None,
+            ),
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config)
 
-    def test_init(self, mock_config):
+            # The engines are real objects, but their __init__ was mocked to avoid expensive setup
+            # We need to ensure they have the methods our tests expect
+            if not hasattr(orchestrator.s3_engine, 'search_buckets'):
+                orchestrator.s3_engine.search_buckets = AsyncMock()
+            if not hasattr(orchestrator.s3_engine, 'search_buckets_paginated'):
+                orchestrator.s3_engine.search_buckets_paginated = AsyncMock()
+            if not hasattr(orchestrator.healthomics_engine, 'search_sequence_stores'):
+                orchestrator.healthomics_engine.search_sequence_stores = AsyncMock()
+            if not hasattr(orchestrator.healthomics_engine, 'search_reference_stores'):
+                orchestrator.healthomics_engine.search_reference_stores = AsyncMock()
+            if not hasattr(orchestrator.healthomics_engine, 'search_sequence_stores_paginated'):
+                orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock()
+            if not hasattr(orchestrator.healthomics_engine, 'search_reference_stores_paginated'):
+                orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock()
+
+            return orchestrator
+
+    def test_init(self, orchestrator, mock_config):
         """Test GenomicsSearchOrchestrator initialization."""
-        orchestrator = GenomicsSearchOrchestrator(mock_config)
-
         assert orchestrator.config == mock_config
         assert orchestrator.s3_engine is not None
         assert orchestrator.healthomics_engine is not None
@@ -687,3 +715,827 @@ class TestGenomicsSearchOrchestrator:
             assert result[0].match_reasons == ['file_type_match']
 
             mock_score.assert_called_once_with(sample_genomics_files[0], ['sample'], 'fastq', [])
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_success(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches - success case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        mock_s3_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        mock_healthomics_response = StoragePaginationResponse(
+            results=[],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=0,
+        )
+
+        with (
+            patch.object(
+                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+            ) as mock_s3,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_sequences_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_seq,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_references_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_ref,
+        ):
+            mock_s3.return_value = mock_s3_response
+            mock_seq.return_value = mock_healthomics_response
+            mock_ref.return_value = mock_healthomics_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            assert len(files) == 1
+            assert files[0].path == 's3://test-bucket/file1.fastq'
+            assert next_token is None  # No more results
+            assert total_scanned == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_with_continuation(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with continuation tokens."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token='test_token',
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        # Mock response with continuation token
+        mock_s3_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=True,
+            next_continuation_token=GlobalContinuationToken(
+                s3_tokens={'bucket1': 'next_token'}
+            ).encode(),
+            total_scanned=1,
+        )
+
+        mock_healthomics_response = StoragePaginationResponse(
+            results=[],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=0,
+        )
+
+        with (
+            patch.object(
+                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+            ) as mock_s3,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_sequences_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_seq,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_references_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_ref,
+        ):
+            mock_s3.return_value = mock_s3_response
+            mock_seq.return_value = mock_healthomics_response
+            mock_ref.return_value = mock_healthomics_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            assert len(files) == 1
+            assert next_token is not None  # Should have continuation token
+            assert total_scanned == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_s3_only(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with S3 only."""
+        # Disable HealthOmics search
+        orchestrator.config.enable_healthomics_search = False
+
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        mock_s3_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        with patch.object(
+            orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+        ) as mock_s3:
+            mock_s3.return_value = mock_s3_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            assert len(files) == 1
+            assert files[0].path == 's3://test-bucket/file1.fastq'
+            assert next_token is None
+            assert total_scanned == 1
+            mock_s3.assert_called_once_with(sample_search_request, storage_request)
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_healthomics_only(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with HealthOmics only."""
+        # Disable S3 search
+        orchestrator.config.s3_bucket_paths = []
+
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        mock_seq_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='omics://sequence-store/seq123',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='sequence_store',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        mock_ref_response = StoragePaginationResponse(
+            results=[],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=0,
+        )
+
+        with (
+            patch.object(
+                orchestrator,
+                '_search_healthomics_sequences_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_seq,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_references_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_ref,
+        ):
+            mock_seq.return_value = mock_seq_response
+            mock_ref.return_value = mock_ref_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            assert len(files) == 1
+            assert files[0].path == 'omics://sequence-store/seq123'
+            assert next_token is None
+            assert total_scanned == 1
+            mock_seq.assert_called_once_with(sample_search_request, storage_request)
+            mock_ref.assert_called_once_with(sample_search_request, storage_request)
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_with_exceptions(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with some systems failing."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        mock_s3_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        with (
+            patch.object(
+                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+            ) as mock_s3,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_sequences_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_seq,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_references_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_ref,
+        ):
+            mock_s3.return_value = mock_s3_response
+            mock_seq.side_effect = Exception('HealthOmics sequences failed')
+            mock_ref.side_effect = Exception('HealthOmics references failed')
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            # Should still return S3 results despite HealthOmics failures
+            assert len(files) == 1
+            assert files[0].path == 's3://test-bucket/file1.fastq'
+            assert next_token is None
+            assert total_scanned == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_no_systems_configured(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with no systems configured."""
+        # Disable all systems
+        orchestrator.config.s3_bucket_paths = []
+        orchestrator.config.enable_healthomics_search = False
+
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        files, next_token, total_scanned = await orchestrator._execute_parallel_paginated_searches(
+            sample_search_request, storage_request, global_token
+        )
+
+        assert files == []
+        assert next_token is None
+        assert total_scanned == 0
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_mixed_continuation_tokens(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with mixed continuation token scenarios."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token='test_token',
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        # Mock S3 with continuation token
+        mock_s3_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=True,
+            next_continuation_token=GlobalContinuationToken(
+                s3_tokens={'bucket1': 'next_s3_token'}
+            ).encode(),
+            total_scanned=1,
+        )
+
+        # Mock HealthOmics sequences with continuation token
+        mock_seq_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='omics://sequence-store/seq123',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='sequence_store',
+                    metadata={},
+                )
+            ],
+            has_more_results=True,
+            next_continuation_token=GlobalContinuationToken(
+                healthomics_sequence_token='next_seq_token'
+            ).encode(),
+            total_scanned=1,
+        )
+
+        # Mock HealthOmics references without continuation token
+        mock_ref_response = StoragePaginationResponse(
+            results=[],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=0,
+        )
+
+        with (
+            patch.object(
+                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+            ) as mock_s3,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_sequences_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_seq,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_references_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_ref,
+        ):
+            mock_s3.return_value = mock_s3_response
+            mock_seq.return_value = mock_seq_response
+            mock_ref.return_value = mock_ref_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            assert len(files) == 2  # One from S3, one from sequences
+            assert (
+                next_token is not None
+            )  # Should have continuation token due to S3 and sequences having more
+            assert total_scanned == 2
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_invalid_continuation_tokens(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with invalid continuation tokens."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token='test_token',
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        # Mock responses with invalid continuation tokens
+        mock_s3_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=True,
+            next_continuation_token='invalid_token_format',  # Invalid token
+            total_scanned=1,
+        )
+
+        mock_healthomics_response = StoragePaginationResponse(
+            results=[],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=0,
+        )
+
+        with (
+            patch.object(
+                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+            ) as mock_s3,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_sequences_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_seq,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_references_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_ref,
+        ):
+            mock_s3.return_value = mock_s3_response
+            mock_seq.return_value = mock_healthomics_response
+            mock_ref.return_value = mock_healthomics_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            # Should still return results despite invalid continuation token
+            assert len(files) == 1
+            assert files[0].path == 's3://test-bucket/file1.fastq'
+            # next_token might be None due to invalid token parsing
+            assert total_scanned == 1
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_unexpected_response_format(
+        self, orchestrator, sample_search_request
+    ):
+        """Test executing parallel paginated searches with unexpected response formats."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+        global_token = GlobalContinuationToken()
+
+        # Mock response with missing attributes (simulating unexpected response format)
+        mock_unexpected_response = MagicMock()
+        mock_unexpected_response.results = []
+        mock_unexpected_response.has_more_results = False
+        mock_unexpected_response.next_continuation_token = None
+        mock_unexpected_response.total_scanned = 0
+        # Don't set the expected attributes to simulate unexpected response format
+
+        mock_normal_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        with (
+            patch.object(
+                orchestrator, '_search_s3_paginated_with_timeout', new_callable=AsyncMock
+            ) as mock_s3,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_sequences_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_seq,
+            patch.object(
+                orchestrator,
+                '_search_healthomics_references_paginated_with_timeout',
+                new_callable=AsyncMock,
+            ) as mock_ref,
+        ):
+            mock_s3.return_value = mock_normal_response
+            mock_seq.return_value = mock_unexpected_response  # Unexpected format
+            mock_ref.return_value = mock_normal_response
+
+            (
+                files,
+                next_token,
+                total_scanned,
+            ) = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, storage_request, global_token
+            )
+
+            # Should handle unexpected response gracefully and return available results
+            assert len(files) >= 1  # At least S3 and ref results
+            assert total_scanned >= 1
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_success(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 paginated search with timeout - success case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+
+        mock_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='s3://test-bucket/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        with patch.object(
+            orchestrator.s3_engine, 'search_buckets_paginated', new_callable=AsyncMock
+        ) as mock_search:
+            mock_search.return_value = mock_response
+
+            result = await orchestrator._search_s3_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert result == mock_response
+            mock_search.assert_called_once_with(
+                orchestrator.config.s3_bucket_paths,
+                sample_search_request.file_type,
+                sample_search_request.search_terms,
+                storage_request,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_timeout(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 paginated search with timeout - timeout case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+
+        with patch.object(
+            orchestrator.s3_engine, 'search_buckets_paginated', new_callable=AsyncMock
+        ) as mock_search:
+            mock_search.side_effect = asyncio.TimeoutError()
+
+            result = await orchestrator._search_s3_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert isinstance(result, StoragePaginationResponse)
+            assert result.results == []
+            assert result.has_more_results is False
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_exception(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 paginated search with timeout - exception case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+
+        with patch.object(
+            orchestrator.s3_engine, 'search_buckets_paginated', new_callable=AsyncMock
+        ) as mock_search:
+            mock_search.side_effect = Exception('S3 search failed')
+
+            result = await orchestrator._search_s3_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert isinstance(result, StoragePaginationResponse)
+            assert result.results == []
+            assert result.has_more_results is False
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_sequences_paginated_with_timeout_success(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics sequence paginated search with timeout - success case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+
+        mock_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='omics://sequence-store/seq123',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='sequence_store',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        with patch.object(
+            orchestrator.healthomics_engine,
+            'search_sequence_stores_paginated',
+            new_callable=AsyncMock,
+        ) as mock_search:
+            mock_search.return_value = mock_response
+
+            result = await orchestrator._search_healthomics_sequences_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert result == mock_response
+            mock_search.assert_called_once_with(
+                sample_search_request.file_type,
+                sample_search_request.search_terms,
+                storage_request,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_sequences_paginated_with_timeout_timeout(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics sequence paginated search with timeout - timeout case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+
+        with patch.object(
+            orchestrator.healthomics_engine,
+            'search_sequence_stores_paginated',
+            new_callable=AsyncMock,
+        ) as mock_search:
+            mock_search.side_effect = asyncio.TimeoutError()
+
+            result = await orchestrator._search_healthomics_sequences_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert isinstance(result, StoragePaginationResponse)
+            assert result.results == []
+            assert result.has_more_results is False
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_references_paginated_with_timeout_success(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics reference paginated search with timeout - success case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+
+        mock_response = StoragePaginationResponse(
+            results=[
+                GenomicsFile(
+                    path='omics://reference-store/ref123',
+                    file_type=GenomicsFileType.FASTA,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='reference_store',
+                    metadata={},
+                )
+            ],
+            has_more_results=False,
+            next_continuation_token=None,
+            total_scanned=1,
+        )
+
+        with patch.object(
+            orchestrator.healthomics_engine,
+            'search_reference_stores_paginated',
+            new_callable=AsyncMock,
+        ) as mock_search:
+            mock_search.return_value = mock_response
+
+            result = await orchestrator._search_healthomics_references_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert result == mock_response
+            mock_search.assert_called_once_with(
+                sample_search_request.file_type,
+                sample_search_request.search_terms,
+                storage_request,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_references_paginated_with_timeout_timeout(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics reference paginated search with timeout - timeout case."""
+        storage_request = StoragePaginationRequest(
+            max_results=1000,
+            continuation_token=None,
+            buffer_size=1000,
+        )
+
+        with patch.object(
+            orchestrator.healthomics_engine,
+            'search_reference_stores_paginated',
+            new_callable=AsyncMock,
+        ) as mock_search:
+            mock_search.side_effect = asyncio.TimeoutError()
+
+            result = await orchestrator._search_healthomics_references_paginated_with_timeout(
+                sample_search_request, storage_request
+            )
+
+            assert isinstance(result, StoragePaginationResponse)
+            assert result.results == []
+            assert result.has_more_results is False
