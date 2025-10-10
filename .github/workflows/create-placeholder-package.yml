@@ -1,0 +1,677 @@
+name: Create Placeholder Package
+run-name: ${{inputs.namespace}}.${{inputs.package_name}} by ${{github.actor}} triggering ${{github.triggering_actor}}
+
+on:
+    workflow_dispatch:
+        inputs:
+            package_name:
+                description: 'Base package name (e.g., "package-name")'
+                required: true
+                type: string
+            namespace:
+                description: 'Namespace prefix (e.g., "namespace")'
+                required: true
+                type: string
+                default: "awslabs"
+
+jobs:
+    fast-fail-if-exists:
+        runs-on: ubuntu-latest
+        outputs:
+            package-exists: ${{ steps.check.outputs.package-exists }}
+
+        steps:
+            - name: Check if package already exists on PyPI
+              id: check
+              run: |
+                  PACKAGE_NAME="${{ github.event.inputs.package_name }}"
+                  NAMESPACE="${{ github.event.inputs.namespace }}"
+                  FULL_PACKAGE_NAME="${NAMESPACE}.${PACKAGE_NAME}"
+
+                  echo "Checking if package $FULL_PACKAGE_NAME already exists on PyPI..."
+
+                  # Check if package exists using PyPI API
+                  HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/$FULL_PACKAGE_NAME/json")
+
+                  if [[ "$HTTP_STATUS" == "200" ]]; then
+                    echo "❌ Package $FULL_PACKAGE_NAME already exists on PyPI"
+                    echo "   Package URL: https://pypi.org/project/$FULL_PACKAGE_NAME/"
+                    echo "   Please choose a different package name or check if you own this package"
+                    echo "package-exists=true" >> $GITHUB_OUTPUT
+                    exit 1
+                  elif [[ "$HTTP_STATUS" == "404" ]]; then
+                    echo "✅ Package $FULL_PACKAGE_NAME is available on PyPI"
+                    echo "package-exists=false" >> $GITHUB_OUTPUT
+                  else
+                    echo "⚠️ Unable to check package status (HTTP $HTTP_STATUS)"
+                    echo "   This might be a temporary PyPI issue"
+                    echo "   Proceeding with caution..."
+                    echo "package-exists=unknown" >> $GITHUB_OUTPUT
+                  fi
+
+                  # Also check specific version 0.0.0 as requested
+                  echo "Checking if version 0.0.0 specifically exists..."
+
+                  # Install jq if not available
+                  if ! command -v jq &> /dev/null; then
+                    echo "Installing jq for JSON parsing..."
+                    sudo apt-get update && sudo apt-get install -y jq
+                  fi
+
+                  # Use the provided curl command to check version 0.0.0
+                  if curl -s "https://pypi.org/pypi/$FULL_PACKAGE_NAME/0.0.0/json" | jq -r 'if .message == "Not Found" then . else (error("Package Already Exists") | halt_error(9)) end' > /dev/null 2>&1; then
+                    echo "✅ Version 0.0.0 is available for package $FULL_PACKAGE_NAME"
+                  else
+                    EXIT_CODE=$?
+                    if [[ $EXIT_CODE -eq 9 ]]; then
+                      echo "❌ Version 0.0.0 of package $FULL_PACKAGE_NAME already exists"
+                      echo "   Cannot create placeholder package with existing version"
+                      exit 1
+                    else
+                      echo "✅ Version 0.0.0 appears to be available (got expected 'Not Found')"
+                    fi
+                  fi
+
+    validate-inputs:
+        runs-on: ubuntu-latest
+        needs: [fast-fail-if-exists]
+        outputs:
+            package-name: ${{ steps.validate.outputs.package-name }}
+            full-package-name: ${{ steps.validate.outputs.full-package-name }}
+            python-module-name: ${{ steps.validate.outputs.python-module-name }}
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+
+            - name: Set up Python
+              uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+              with:
+                  python-version: "3.13"
+
+            - name: Validate inputs and prepare package names
+              id: validate
+              run: |
+                  echo "Validating package name: ${{ github.event.inputs.package_name }}"
+                  echo "Validating namespace: ${{ github.event.inputs.namespace }}"
+
+                  # Store inputs for validation
+                  PACKAGE_NAME="${{ github.event.inputs.package_name }}"
+                  NAMESPACE="${{ github.event.inputs.namespace }}"
+
+                  # Validate package name is not empty
+                  if [[ -z "$PACKAGE_NAME" ]]; then
+                    echo "Error: Package name cannot be empty"
+                    exit 1
+                  fi
+
+                  # Validate namespace is not empty
+                  if [[ -z "$NAMESPACE" ]]; then
+                    echo "Error: Namespace cannot be empty"
+                    exit 1
+                  fi
+
+                  # Validate package name length (PyPI max is 214 characters)
+                  if [[ ${#PACKAGE_NAME} -gt 214 ]]; then
+                    echo "Error: Package name '$PACKAGE_NAME' is too long (max 214 characters)"
+                    exit 1
+                  fi
+
+                  # Validate package name characters (PEP 508 compliance)
+                  # Allow letters, numbers, hyphens, underscores, and periods
+                  if [[ ! "$PACKAGE_NAME" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+                    echo "Error: Package name '$PACKAGE_NAME' contains invalid characters"
+                    echo "Use only letters, numbers, hyphens, underscores, and periods"
+                    exit 1
+                  fi
+
+                  # Validate package name doesn't start or end with special characters
+                  if [[ "$PACKAGE_NAME" =~ ^[._-] ]] || [[ "$PACKAGE_NAME" =~ [._-]$ ]]; then
+                    echo "Error: Package name '$PACKAGE_NAME' cannot start or end with special characters"
+                    exit 1
+                  fi
+
+                  # Validate no consecutive special characters
+                  if [[ "$PACKAGE_NAME" =~ [._-]{2,} ]]; then
+                    echo "Error: Package name '$PACKAGE_NAME' cannot contain consecutive special characters"
+                    exit 1
+                  fi
+
+                  # Validate namespace format
+                  if [[ ! "$NAMESPACE" =~ ^[a-zA-Z][a-zA-Z0-9]*$ ]]; then
+                    echo "Error: Namespace '$NAMESPACE' must start with a letter and contain only letters and numbers"
+                    exit 1
+                  fi
+
+                  # Create full package name and Python module name
+                  FULL_PACKAGE_NAME="${NAMESPACE}.${PACKAGE_NAME}"
+                  PYTHON_MODULE_NAME=$(echo "$PACKAGE_NAME" | tr '-' '_')
+
+                  # Validate full package name length
+                  if [[ ${#FULL_PACKAGE_NAME} -gt 214 ]]; then
+                    echo "Error: Full package name '$FULL_PACKAGE_NAME' is too long (max 214 characters)"
+                    exit 1
+                  fi
+
+                  echo "package-name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+                  echo "full-package-name=$FULL_PACKAGE_NAME" >> $GITHUB_OUTPUT
+                  echo "python-module-name=$PYTHON_MODULE_NAME" >> $GITHUB_OUTPUT
+
+                  echo "✅ Validation successful!"
+                  echo "Generated names:"
+                  echo "  Package name: $PACKAGE_NAME"
+                  echo "  Full package name: $FULL_PACKAGE_NAME"
+                  echo "  Python module name: $PYTHON_MODULE_NAME"
+
+    publish-to-pypi:
+        runs-on: ubuntu-latest
+        needs: [fast-fail-if-exists, validate-inputs]
+        environment: release
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+
+            - name: Set up Python
+              uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+              with:
+                  python-version: "3.13"
+
+            - name: Install build dependencies
+              run: |
+                  pip install --require-hashes --requirement .github/workflows/build_twine-requirements.txt
+
+            - name: Display package information
+              run: |
+                  echo "Package name: ${{ needs.validate-inputs.outputs.package-name }}"
+                  echo "Full package name: ${{ needs.validate-inputs.outputs.full-package-name }}"
+                  echo "Python module name: ${{ needs.validate-inputs.outputs.python-module-name }}"
+
+            - name: Generate package structure
+              run: |
+                  PACKAGE_NAME="${{ needs.validate-inputs.outputs.package-name }}"
+                  NAMESPACE="${{ github.event.inputs.namespace }}"
+                  PYTHON_MODULE_NAME="${{ needs.validate-inputs.outputs.python-module-name }}"
+                  TODAY=$(date +%Y-%m-%d)
+
+                  echo "Creating package directory structure..."
+
+                  # Create base package directory
+                  mkdir -p "$PACKAGE_NAME"
+                  cd "$PACKAGE_NAME"
+
+                  # Create source directory structure
+                  mkdir -p "src/$NAMESPACE/$PYTHON_MODULE_NAME"
+
+                  # Create tests directory
+                  mkdir -p "tests"
+
+                  # Create tests __init__.py
+                  touch "tests/__init__.py"
+
+                  # Create LICENSE file
+                  cat > LICENSE << 'EOF'
+                                                   Apache License
+                                             Version 2.0, January 2004
+                                          http://www.apache.org/licenses/
+
+                     TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+                     1. Definitions.
+
+                        "License" shall mean the terms and conditions for use, reproduction,
+                        and distribution as defined by Sections 1 through 9 of this document.
+
+                        "Licensor" shall mean the copyright owner or entity granting the License.
+
+                        "Legal Entity" shall mean the union of the acting entity and all
+                        other entities that control, are controlled by, or are under common
+                        control with that entity. For the purposes of this definition,
+                        "control" means (i) the power, direct or indirect, to cause the
+                        direction or management of such entity, whether by contract or
+                        otherwise, or (ii) ownership of fifty percent (50%) or more of the
+                        outstanding shares, or (iii) beneficial ownership of such entity.
+
+                        "You" (or "Your") shall mean an individual or Legal Entity
+                        exercising permissions granted by this License.
+
+                        "Source" form shall mean the preferred form for making modifications,
+                        including but not limited to software source code, documentation
+                        source, and configuration files.
+
+                        "Object" form shall mean any form resulting from mechanical
+                        transformation or translation of a Source form, including but
+                        not limited to compiled object code, generated documentation,
+                        and conversions to other media types.
+
+                        "Work" shall mean the work of authorship, whether in Source or
+                        Object form, made available under the License, as indicated by a
+                        copyright notice that is included in or attached to the work
+                        (which shall not include communications that are solely written
+                        by You).
+
+                        "Derivative Works" shall mean any work, whether in Source or Object
+                        form, that is based upon (or derived from) the Work and for which the
+                        editorial revisions, annotations, elaborations, or other modifications
+                        represent, as a whole, an original work of authorship. For the purposes
+                        of this License, Derivative Works shall not include works that remain
+                        separable from, or merely link (or bind by name) to the interfaces of,
+                        the Work and derivative works thereof.
+
+                        "Contribution" shall mean any work of authorship, including
+                        the original version of the Work and any modifications or additions
+                        to that Work or Derivative Works thereof, that is intentionally
+                        submitted to Licensor for inclusion in the Work by the copyright owner
+                        or by an individual or Legal Entity authorized to submit on behalf of
+                        the copyright owner. For the purposes of this definition, "submitted"
+                        means any form of electronic, verbal, or written communication sent
+                        to the Licensor or its representatives, including but not limited to
+                        communication on electronic mailing lists, source code control
+                        systems, and issue tracking systems that are managed by, or on behalf
+                        of, the Licensor for the purpose of discussing and improving the Work,
+                        but excluding communication that is conspicuously marked or otherwise
+                        designated in writing by the copyright owner as "Not a Contribution."
+
+                        "Contributor" shall mean Licensor and any individual or Legal Entity
+                        on behalf of whom a Contribution has been received by Licensor and
+                        subsequently incorporated within the Work.
+
+                     2. Grant of Copyright License. Subject to the terms and conditions of
+                        this License, each Contributor hereby grants to You a perpetual,
+                        worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+                        copyright license to use, reproduce, modify, distribute, and prepare
+                        Derivative Works of, publicly display, publicly perform, sublicense,
+                        and distribute the Work and such Derivative Works in Source or Object
+                        form.
+
+                     3. Grant of Patent License. Subject to the terms and conditions of
+                        this License, each Contributor hereby grants to You a perpetual,
+                        worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+                        (except as stated in this section) patent license to make, have made,
+                        use, offer to sell, sell, import, and otherwise transfer the Work,
+                        where such license applies only to those patent claims licensable
+                        by such Contributor that are necessarily infringed by their
+                        Contribution(s) alone or by combination of their Contribution(s)
+                        with the Work to which such Contribution(s) was submitted. If You
+                        institute patent litigation against any entity (including a
+                        cross-claim or counterclaim in a lawsuit) alleging that the Work
+                        or a Contribution incorporated within the Work constitutes direct
+                        or contributory patent infringement, then any patent licenses
+                        granted to You under this License for that Work shall terminate
+                        as of the date such litigation is filed.
+
+                     4. Redistribution. You may reproduce and distribute copies of the
+                        Work or Derivative Works thereof in any medium, with or without
+                        modifications, and in Source or Object form, provided that You
+                        meet the following conditions:
+
+                        (a) You must give any other recipients of the Work or
+                            Derivative Works a copy of this License; and
+
+                        (b) You must cause any modified files to carry prominent notices
+                            stating that You changed the files; and
+
+                        (c) You must retain, in the Source form of any Derivative Works
+                            that You distribute, all copyright, trademark, patent,
+                            attribution and other notices from the Source form of the Work,
+                            excluding those notices that do not pertain to any part of
+                            the Derivative Works; and
+
+                        (d) If the Work includes a "NOTICE" text file as part of its
+                            distribution, then any Derivative Works that You distribute must
+                            include a readable copy of the attribution notices contained
+                            within such NOTICE file, excluding those notices that do not
+                            pertain to any part of the Derivative Works, in at least one
+                            of the following places: within a NOTICE text file distributed
+                            as part of the Derivative Works; within the Source form or
+                            documentation, if provided along with the Derivative Works; or,
+                            within a display generated by the Derivative Works, if and
+                            wherever such third-party notices normally appear. The contents
+                            of the NOTICE file are for informational purposes only and
+                            do not modify the License. You may add Your own attribution
+                            notices within Derivative Works that You distribute, alongside
+                            or as an addendum to the NOTICE text from the Work, provided
+                            that such additional attribution notices cannot be construed
+                            as modifying the License.
+
+                     You may add Your own copyright notice to Your modifications and
+                     may provide additional or different license terms and conditions
+                     for use, reproduction, or distribution of Your modifications, or
+                     for any such Derivative Works as a whole, provided Your use,
+                     reproduction, and distribution of the Work otherwise complies with
+                     the conditions stated in this License.
+
+                     5. Submission of Contributions. Unless You explicitly state otherwise,
+                        any Contribution intentionally submitted for inclusion in the Work
+                        by You to the Licensor shall be under the terms and conditions of
+                        this License, without any additional terms or conditions.
+                        Notwithstanding the above, nothing herein shall supersede or modify
+                        the terms of any separate license agreement you may have executed
+                        with Licensor regarding such Contributions.
+
+                     6. Trademarks. This License does not grant permission to use the trade
+                        names, trademarks, service marks, or product names of the Licensor,
+                        except as required for reasonable and customary use in describing the
+                        origin of the Work and reproducing the content of the NOTICE file.
+
+                     7. Disclaimer of Warranty. Unless required by applicable law or
+                        agreed to in writing, Licensor provides the Work (and each
+                        Contributor provides its Contributions) on an "AS IS" BASIS,
+                        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+                        implied, including, without limitation, any warranties or conditions
+                        of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+                        PARTICULAR PURPOSE. You are solely responsible for determining the
+                        appropriateness of using or redistributing the Work and assume any
+                        risks associated with Your exercise of permissions under this License.
+
+                     8. Limitation of Liability. In no event and under no legal theory,
+                        whether in tort (including negligence), contract, or otherwise,
+                        unless required by applicable law (such as deliberate and grossly
+                        negligent acts) or agreed to in writing, shall any Contributor be
+                        liable to You for damages, including any direct, indirect, special,
+                        incidental, or consequential damages of any character arising as a
+                        result of this License or out of the use or inability to use the
+                        Work (including but not limited to damages for loss of goodwill,
+                        work stoppage, computer failure or malfunction, or any and all
+                        other commercial damages or losses), even if such Contributor
+                        has been advised of the possibility of such damages.
+
+                     9. Accepting Warranty or Additional Support. When redistributing
+                        the Work or Derivative Works thereof, You may choose to offer,
+                        and charge a fee for, acceptance of support, warranty, indemnity,
+                        or other liability obligations and/or rights consistent with this
+                        License. However, in accepting such obligations, You may act only
+                        on Your own behalf and on Your sole responsibility, not on behalf
+                        of any other Contributor, and only if You agree to indemnify,
+                        defend, and hold each Contributor harmless for any liability
+                        incurred by, or claims asserted against, such Contributor by reason
+                        of your accepting any such warranty or additional support.
+
+                     END OF TERMS AND CONDITIONS
+
+                     APPENDIX: How to apply the Apache License to your work.
+
+                        To apply the Apache License to your work, attach the following
+                        boilerplate notice, with the fields enclosed by brackets "[]"
+                        replaced with your own identifying information. (Don't include
+                        the brackets!)  The text should be enclosed in the appropriate
+                        comment syntax for the file format. We also recommend that a
+                        file or class name and description of purpose be included on the
+                        same "printed page" as the copyright notice for easier
+                        identification within third-party archives.
+
+                     Copyright [yyyy] [name of copyright owner]
+
+                     Licensed under the Apache License, Version 2.0 (the "License");
+                     you may not use this file except in compliance with the License.
+                     You may obtain a copy of the License at
+
+                         http://www.apache.org/licenses/LICENSE-2.0
+
+                     Unless required by applicable law or agreed to in writing, software
+                     distributed under the License is distributed on an "AS IS" BASIS,
+                     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                     See the License for the specific language governing permissions and
+                     limitations under the License.
+                  EOF
+
+                  # Create NOTICE file
+                  cat > NOTICE << EOF
+                  $NAMESPACE.$PACKAGE_NAME
+                  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+                  This product includes software developed at
+                  Amazon Web Services (https://aws.amazon.com/).
+                  EOF
+
+                  # Create pyproject.toml
+                  FULL_PACKAGE_NAME="${{ needs.validate-inputs.outputs.full-package-name }}"
+                  cat > pyproject.toml << EOF
+                  [build-system]
+                  requires = ["setuptools>=61.0", "wheel"]
+                  build-backend = "setuptools.build_meta"
+
+                  [project]
+                  name = "$FULL_PACKAGE_NAME"
+                  version = "0.0.0"
+                  description = "Placeholder package - not operational"
+                  readme = "README.md"
+                  license = {text = "Apache-2.0"}
+                  authors = [
+                      {name = "AWS Labs", email = "awslabs@amazon.com"}
+                  ]
+                  classifiers = [
+                      "Development Status :: 1 - Planning",
+                      "Intended Audience :: Developers",
+                      "License :: OSI Approved :: Apache Software License",
+                      "Programming Language :: Python :: 3",
+                      "Programming Language :: Python :: 3.10",
+                      "Programming Language :: Python :: 3.11",
+                      "Programming Language :: Python :: 3.12",
+                      "Programming Language :: Python :: 3.13"
+                  ]
+                  keywords = ["placeholder", "reserved", "awslabs"]
+                  requires-python = ">=3.10"
+
+                  [project.urls]
+                  Homepage = "https://github.com/${{ github.repository }}"
+                  Repository = "https://github.com/${{ github.repository }}"
+                  Issues = "https://github.com/${{ github.repository }}/issues"
+
+                  [tool.setuptools.packages.find]
+                  where = ["src"]
+
+                  [tool.setuptools.package-dir]
+                  "" = "src"
+                  EOF
+
+                  # Create README.md
+                  cat > README.md << EOF
+                  # $FULL_PACKAGE_NAME
+
+                  ⚠️ **This is a placeholder package** ⚠️
+
+                  This package is currently a placeholder and is not operational. It has been created to reserve the package name on PyPI.
+
+                  ## Warning
+
+                  If you import or use this package, you will see a warning message: "this is a non-operational placeholder package"
+
+                  ## Installation
+
+                  \`\`\`bash
+                  pip install $FULL_PACKAGE_NAME
+                  \`\`\`
+
+                  ## Usage
+
+                  This package is not intended for use. Any attempt to import or use it will display a warning message.
+
+                  ## License
+
+                  This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+                  ## Copyright
+
+                  Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+                  EOF
+
+                  # Create CHANGELOG.md
+                  cat > CHANGELOG.md << EOF
+                  # Changelog
+
+                  All notable changes to this project will be documented in this file.
+
+                  The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+                  and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+                  ## Unreleased
+
+                  ## [0.0.0] - $TODAY
+
+                  ### Added
+
+                  - Initial non-operational project
+
+                  ### Note
+
+                  This is a placeholder package and is not operational.
+                  EOF
+
+                  # Create namespace __init__.py
+                  cat > "src/$NAMESPACE/__init__.py" << 'EOF'
+                  # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+                  #
+                  # Licensed under the Apache License, Version 2.0 (the "License");
+                  # you may not use this file except in compliance with the License.
+                  # You may obtain a copy of the License at
+                  #
+                  #     http://www.apache.org/licenses/LICENSE-2.0
+                  #
+                  # Unless required by applicable law or agreed to in writing, software
+                  # distributed under the License is distributed on an "AS IS" BASIS,
+                  # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                  # See the License for the specific language governing permissions and
+                  # limitations under the License.
+                  EOF
+
+                  # Create main package __init__.py with warning logic
+                  cat > "src/$NAMESPACE/$PYTHON_MODULE_NAME/__init__.py" << 'EOF'
+                  # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+                  #
+                  # Licensed under the Apache License, Version 2.0 (the "License");
+                  # you may not use this file except in compliance with the License.
+                  # You may obtain a copy of the License at
+                  #
+                  #     http://www.apache.org/licenses/LICENSE-2.0
+                  #
+                  # Unless required by applicable law or agreed to in writing, software
+                  # distributed under the License is distributed on an "AS IS" BASIS,
+                  # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                  # See the License for the specific language governing permissions and
+                  # limitations under the License.
+
+                  """Placeholder package - not operational."""
+
+                  import warnings
+                  import sys
+
+
+                  def _show_placeholder_warning():
+                      """Display placeholder warning message."""
+                      message = "this is a non-operational placeholder package"
+                      print(f"WARNING: {message}", file=sys.stderr)
+                      warnings.warn(message, UserWarning, stacklevel=2)
+
+
+                  # Execute warning on import
+                  _show_placeholder_warning()
+
+
+                  def __getattr__(name):
+                      """Override attribute access to show warnings."""
+                      _show_placeholder_warning()
+                      raise AttributeError(f"'{__name__}' is a non-operational placeholder package and has no attribute '{name}'")
+
+
+                  # Package metadata
+                  __version__ = "0.0.0"
+                  __author__ = "AWS Labs"
+                  __email__ = "203918161+awslabs-mcp@users.noreply.github.com"
+                  __license__ = "Apache-2.0"
+                  EOF
+
+                  echo "✅ Package directory structure created:"
+                  find . -type d | sort
+                  echo "✅ License files created:"
+                  ls -la LICENSE NOTICE
+                  echo "✅ Package metadata created:"
+                  ls -la pyproject.toml
+                  echo "✅ Documentation files created:"
+                  ls -la README.md CHANGELOG.md
+                  echo "✅ Python package files created:"
+                  ls -la "src/$NAMESPACE/__init__.py"
+                  ls -la "src/$NAMESPACE/$PYTHON_MODULE_NAME/__init__.py"
+
+            - name: Build package
+              run: |
+                  PACKAGE_NAME="${{ needs.validate-inputs.outputs.package-name }}"
+                  cd "$PACKAGE_NAME"
+
+                  echo "Building package..."
+
+                  # Build wheel and source distribution
+                  python -m build
+
+                  echo "✅ Package built successfully:"
+                  ls -la dist/
+
+                  # Validate package structure
+                  echo "Validating package structure..."
+                  python -m twine check dist/*
+
+                  echo "✅ Package validation completed"
+
+            - name: Publish to PyPI
+              run: |
+                  PACKAGE_NAME="${{ needs.validate-inputs.outputs.package-name }}"
+                  FULL_PACKAGE_NAME="${{ needs.validate-inputs.outputs.full-package-name }}"
+
+                  cd "$PACKAGE_NAME"
+
+                  echo "Publishing package $FULL_PACKAGE_NAME to PyPI..."
+
+                  # Verify token is available
+                  if [[ -z "$TWINE_PASSWORD" ]]; then
+                    echo "❌ Error: PYPI_API_TOKEN not found in environment secrets"
+                    echo "Please ensure the PYPI_API_TOKEN secret is configured in the pypi-publishing environment"
+                    exit 1
+                  fi
+
+                  # Verify package files exist
+                  if [[ ! -d "dist" ]] || [[ -z "$(ls -A dist/)" ]]; then
+                    echo "❌ Error: No package files found in dist/ directory"
+                    echo "Package build may have failed"
+                    exit 1
+                  fi
+
+                  echo "Package files to upload:"
+                  ls -la dist/
+
+                  # Upload to PyPI with retry logic
+                  MAX_RETRIES=3
+                  RETRY_COUNT=0
+
+                  while [[ $RETRY_COUNT -lt $MAX_RETRIES ]]; do
+                    echo "Upload attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
+                    
+                    if python -m twine upload dist/* --verbose; then
+                      echo "✅ Package successfully published to PyPI!"
+                      echo "Package URL: https://pypi.org/project/$FULL_PACKAGE_NAME/"
+                      break
+                    else
+                      RETRY_COUNT=$((RETRY_COUNT + 1))
+                      if [[ $RETRY_COUNT -lt $MAX_RETRIES ]]; then
+                        echo "⚠️ Upload failed, retrying in 10 seconds..."
+                        sleep 10
+                      else
+                        echo "❌ Upload failed after $MAX_RETRIES attempts"
+                        echo "Please check the error messages above for details"
+                        exit 1
+                      fi
+                    fi
+                  done
+
+                  # Verify package is available
+                  echo "Verifying package availability..."
+                  sleep 5  # Wait for PyPI to process
+
+                  if curl -f -s "https://pypi.org/pypi/$FULL_PACKAGE_NAME/json" > /dev/null; then
+                    echo "✅ Package verified on PyPI: https://pypi.org/project/$FULL_PACKAGE_NAME/"
+                  else
+                    echo "⚠️ Package may still be processing on PyPI"
+                    echo "Check manually: https://pypi.org/project/$FULL_PACKAGE_NAME/"
+                  fi
+              env:
+                  TWINE_USERNAME: __token__
+                  TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}

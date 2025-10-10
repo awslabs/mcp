@@ -1,0 +1,373 @@
+---
+name: Workflow
+run-name: ${{ github.workflow}} by @${{ github.triggering_actor }} for @${{ github.actor }}
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.event_name}}-${{ github.ref}}
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'The package'
+        required: true
+        default: 'core-mcp-server'
+        type: string
+permissions:
+    actions: none
+    attestations: none
+    checks: none
+    contents: none
+    deployments: none
+    discussions: none
+    id-token: none
+    issues: none
+    models: none
+    packages: none
+    pages: none
+    pull-requests: none
+    repository-projects: none
+    security-events: none
+    statuses: none
+jobs:
+#   debug:
+#     concurrency:
+#       cancel-in-progress: true
+#       group: ${{ github.workflow}}-${{ github.event_name}}-${{ github.ref}}-${{ matrix.builder }}
+#     continue-on-error: true
+#     if: true || always() || cancelled() || failure() || success() # github, inputs, vars, needs
+#     name: Debug - ${{ github.event_name }}
+#     needs: []
+#     outputs:
+#       version: ${{ steps.stepper.outputs.version }}
+#     permissions: 
+#       actions: none
+#       attestations: none
+#       checks: none
+#       contents: none
+#       deployments: none
+#       discussions: none
+#       id-token: none
+#       issues: none
+#       models: none
+#       packages: none
+#       pages: none
+#       pull-requests: none
+#       repository-projects: none
+#       security-events: none
+#       statuses: none
+#     runs-on: ubuntu-latest
+#     steps:
+#       - continue-on-error: true
+#         id: stepper
+#         if: ${{ ( true || always() || cancelled() || failure() || success() || hashFiles('**/*') ) }}
+#         name: Stepper ${{ matrix.builder }}
+#         run: |
+#           echo "::group::GITHUB object"
+#           echo "${{ toJson(github) }}"
+#           echo "::endgroup::"
+#           echo "::group::INPUTS object"
+#           echo "${{ toJson(inputs) }}"
+#           echo "::endgroup::"
+#           echo "::group::VARS object"
+#           echo "${{ toJson(vars) }}"
+#           echo "::endgroup::"
+#           echo "::group::NEEDS object"
+#           echo "${{ toJson(needs) }}"
+#           echo "::endgroup::"
+#           echo "::group::STRATEGY object"
+#           echo "${{ toJson(strategy) }}"
+#           echo "::endgroup::"
+#           echo "::group::MATRIX object"
+#           echo "${{ toJson(matrix) }}"
+#           echo "::endgroup::"
+#           echo "::group::STEPS object"
+#           echo "${{ toJson(steps) }}"
+#           echo "::endgroup::"
+#           echo "::group::JOB object"
+#           echo "${{ toJson(job) }}"
+#           echo "::endgroup::"
+#           echo "::group::RUNNER object"
+#           echo "${{ toJson(runner) }}"
+#           echo "::endgroup::"
+#           echo "::group::ENV object"
+#           echo "${{ toJson(env) }}"
+#           echo "::endgroup::"
+#         shell: bash
+#         timeout-minutes: 1
+#         working-directory: .
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         builder: [ docker, finch, podman ]
+#       max-parallel: 3
+#     timeout-minutes: 3
+
+  # docker:
+  #   name: Docker ${{ matrix.platform }}
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       platform:
+  #         - linux/amd64
+  #         - linux/arm64
+  #     max-parallel: 2
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: docker/setup-qemu-action@v3
+  #     - uses: docker/setup-buildx-action@v3
+  #     - name: Build and Load
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         load: true
+  #         platforms: ${{ matrix.platform }}
+  #         context: ./src/${{ inputs.package }}
+  #         file: ./src/${{ inputs.package }}/Dockerfile
+  # finch:
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       platform:
+  #         - linux/amd64
+  #         - linux/arm64
+  #     max-parallel: 2
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Install Finch
+  #       run: |
+  #         curl -fsSL https://artifact.runfinch.com/deb/GPG_KEY.pub | sudo gpg --dearmor -o /usr/share/keyrings/runfinch-finch-archive-keyring.gpg
+  #         echo "deb [signed-by=/usr/share/keyrings/runfinch-finch-archive-keyring.gpg arch=amd64] https://artifact.runfinch.com/deb noble main" | sudo tee /etc/apt/sources.list.d/runfinch-finch.list
+  #         sudo apt update
+  #         sudo apt install runfinch-finch
+  #         which finch
+  #       shell: bash
+  #     - run: |
+  #         finch build --platform ${{ matrix.platform }} .
+  #       shell: bash
+  #       working-directory: ./src/${{ inputs.package }}
+  # podman:
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       platform:
+  #         - linux/amd64
+  #         - linux/arm64
+  #     max-parallel: 2
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Install Podman
+  #       run: |
+  #         run: |
+  #           sudo apt-get update
+  #           sudo apt-get install -y podman
+  #           which podman
+  #       shell: bash
+  #     - run: |
+  #         podman build --platform ${{ matrix.platform }} .
+  #       shell: bash
+  #       working-directory: ./src/${{ inputs.package }}
+  install-finch:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install Finch with Dependency Resolution
+      run: |
+        set -e  # Exit on any error
+        
+        echo "=== Finch Installation with Dependency Resolution ==="
+        echo "GitHub Runner: $(lsb_release -d)"
+        echo "Kernel: $(uname -r)"
+        echo "Architecture: $(uname -m)"
+        
+        echo ""
+        echo "=== Step 1: Pre-installation System Analysis ==="
+        echo "Checking existing Docker installations..."
+        
+        # Check what's currently installed
+        dpkg -l | grep -E "(docker)" || echo "No Docker-related packages found"
+        
+        echo ""
+        echo "=== Step 2: Stop and Remove Conflicting Services ==="
+        
+        # Stop Docker services if running
+        sudo systemctl stop docker.service || echo "Docker service not running"
+        sudo systemctl stop docker.socket || echo "Docker socket not running"
+        
+        # Disable services to prevent auto-start
+        sudo systemctl disable docker.service || echo "Docker service not enabled"
+        sudo systemctl disable docker.socket || echo "Docker socket not enabled"
+        
+        echo ""
+        # echo "=== Step 3: Remove Conflicting Packages ==="
+        
+        # # Remove Docker and related packages that conflict with finch
+        # sudo apt-get remove -y --purge \
+        #   docker-ce \
+        #   docker-ce-cli \
+        #   docker-buildx-plugin \
+        #   docker-compose-plugin \
+        #   || echo "Some packages were not installed"
+        
+        # # Remove any held packages
+        # sudo apt-mark unhold docker-ce || echo "No packages were held"
+        
+        # # Clean up package cache and fix any broken dependencies
+        # sudo apt-get autoremove -y
+        # sudo apt-get autoclean
+        # sudo dpkg --configure -a
+        # sudo apt-get -f install
+        
+        echo ""
+        echo "=== Step 4: Update Package Lists ==="
+        sudo apt-get update
+        
+        echo ""
+        echo "=== Step 5: Add Finch Repository ==="
+        
+        # Add Finch GPG key
+        curl -fsSL https://artifact.runfinch.com/deb/GPG_KEY.pub | sudo gpg --dearmor -o /usr/share/keyrings/runfinch-finch-archive-keyring.gpg
+        
+        # Add Finch repository
+        echo "deb [signed-by=/usr/share/keyrings/runfinch-finch-archive-keyring.gpg arch=amd64] https://artifact.runfinch.com/deb noble main" | sudo tee /etc/apt/sources.list.d/runfinch-finch.list
+        
+        # Update package lists again
+        sudo apt-get update
+        
+        echo ""
+        echo "=== Step 6: Install Dependencies in Order ==="
+        
+        # First, install runc from Ubuntu repos to satisfy basic dependency
+        sudo apt-get install -y runc
+        
+        # Check runc version
+        echo "Installed runc version:"
+        runc --version || echo "runc not working yet"
+        
+        echo ""
+        echo "=== Step 7: Install Finch Packages ==="
+        
+        # Install finch packages with conflict resolution
+        sudo apt-get install -y \
+          --allow-downgrades \
+          --allow-remove-essential \
+          --allow-change-held-packages \
+          runfinch-finch
+        
+        echo ""
+        echo "=== Step 8: Post-Installation Verification ==="
+        
+        # Check installed packages
+        echo "Finch-related packages installed:"
+        dpkg -l | grep -E "(finch|runc|containerd)" || echo "No finch packages found"
+        
+        # Check finch binary
+        echo ""
+        echo "Finch binary location and version:"
+        which finch || echo "finch binary not found in PATH"
+        
+        if command -v finch &> /dev/null; then
+          echo "Finch version:"
+          sudo finch version || echo "finch version command failed"
+          
+          echo ""
+          echo "=== Step 9: Initialize Finch VM ==="
+          
+          sudo finch --help          
+          echo ""
+          echo "=== Step 10: Test Basic Functionality ==="
+          
+          # Test basic finch commands
+          echo "Testing finch info:"
+          timeout 60 sudo finch info || echo "finch info failed"
+          
+          echo ""
+          echo "Testing simple container run:" 
+          timeout 120 sudo finch run --rm public.ecr.aws/finch/hello-finch:latest || echo "Container run test failed"
+        else
+          echo "ERROR: finch binary not found after installation"
+          exit 1
+        fi
+        
+        echo ""
+        echo "=== Installation Summary ==="
+        echo "✅ Finch installation completed successfully!"
+        echo "Finch is ready to use for container operations."
+
+    - name: Test Finch Functionality
+      run: |
+        echo "=== Additional Finch Tests ==="
+        
+        echo ""
+        echo "Testing container build capability:"
+        
+        # Create a simple Dockerfile for testing
+        cat > Dockerfile << 'EOF'
+        FROM docker.io/alpine:latest
+        RUN echo "Hello from Finch!" > /hello.txt
+        CMD cat /hello.txt
+        EOF
+
+        cat ./Dockerfile
+        
+        # Test building an image
+        echo "Building test image..."
+        
+        sudo finch build --help
+        sudo finch --debug build . || echo "Build test failed" && exit 1
+        
+        # Test running the built image
+        echo "Running test image..."
+        sudo finch run --rm test-image || echo "Run test failed" && exit 2
+        
+        # Clean up
+        rm -f Dockerfile
+        sudo finch rmi test-image || echo "Image cleanup failed" && exit 3
+        
+        echo ""
+        echo "=== All Tests Completed ==="
+
+    - name: Troubleshooting Information
+      if: true || always() || cancelled() || failure() || success()
+      run: |
+        echo "=== Troubleshooting Information ==="
+        
+        echo "System information:"
+        uname -a
+        lsb_release -a
+        
+        echo ""
+        echo "Installed packages:"
+        dpkg -l | grep -E "(finch|runc|containerd|docker)"
+        
+        echo ""
+        echo "Process information:"
+        ps aux | grep -E "(finch|containerd|docker)" || echo "No related processes"
+        
+        echo ""
+        echo "Service status:"
+        systemctl status containerd || echo "containerd service not found"
+        systemctl status docker || echo "docker service not found"
+        
+        echo ""
+        echo "Finch logs (if available):"
+        ls -la ~/.finch/ || echo "No finch directory found"
+        
+        if [ -d ~/.finch/logs ]; then
+          echo "Finch log files:"
+          ls -la ~/.finch/logs/
+          echo "Latest log entries:"
+          tail -50 ~/.finch/logs/* || echo "No log files to display"
+        fi
+        
+        echo ""
+        echo "System logs related to finch:"
+        journalctl -u finch* --no-pager -n 50 || echo "No finch service logs"
+        
+        echo ""
+        echo "Available disk space:"
+        df -h
+        
+        echo ""
+        echo "Memory usage:"
+        free -h
