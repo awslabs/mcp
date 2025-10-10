@@ -552,6 +552,17 @@ def create_operation_prompt(
                 named_args = dict(zip(param_names, args))
                 named_args.update(kwargs)
 
+                # Validate required parameters
+                missing_required = []
+                for arg in prompt_arguments:
+                    if arg.required and (
+                        arg.name not in named_args or named_args[arg.name] is None
+                    ):
+                        missing_required.append(arg.name)
+
+                if missing_required:
+                    raise TypeError(f'Missing required argument(s): {", ".join(missing_required)}')
+
                 # Extract the values in the correct order for handler_with_fixed_args
                 arg_values = []
                 for arg in prompt_arguments:

@@ -10,9 +10,9 @@ requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=1.11.0",
-    "pydantic>=2.10.6",
+    "pydantic<2.10.0",
     "boto3>=1.40.8",
-    "pyiceberg>=0.9.1",
+    "pyiceberg==0.9.1",
     "pyarrow>=20.0.0",
     "sqlparse>=0.4.0",
     "daft>=0.5.8",
