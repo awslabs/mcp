@@ -130,3 +130,19 @@ class NeptuneServer:
             ValueError: If using unsupported query language for analytics
         """
         return self.graph.query_gremlin(query)
+
+    def explain_opencypher(self, query: str, params: Optional[dict] = None, explainMode="details") -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+        """
+        return self.graph.explain_opencypher(query, params, explainMode)
+    
+    def explain_gremlin(self, query: str) -> str:
+        """Explains the given query.
+
+        Args:
+            query (str): The query to explain
+        """
+        return self.graph.explain_gremlin(query)
