@@ -37,7 +37,7 @@ async def call_mcp_tool_directly(tool_func, ctx: Context, **kwargs) -> Any:
     sig = inspect.signature(tool_func)
 
     # Build the actual parameters, using defaults from Field annotations where needed
-    actual_params = {'ctx': ctx}
+    actual_params: Dict[str, Any] = {'ctx': ctx}
 
     for param_name, param in sig.parameters.items():
         if param_name == 'ctx':

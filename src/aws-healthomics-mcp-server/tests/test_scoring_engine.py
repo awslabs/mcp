@@ -36,8 +36,8 @@ class TestScoringEngine:
         path: str,
         file_type: GenomicsFileType,
         storage_class: str = 'STANDARD',
-        tags: dict = None,
-        metadata: dict = None,
+        tags: dict | None = None,
+        metadata: dict | None = None,
     ) -> GenomicsFile:
         """Helper method to create test GenomicsFile objects."""
         return GenomicsFile(
@@ -46,9 +46,9 @@ class TestScoringEngine:
             size_bytes=1000,
             storage_class=storage_class,
             last_modified=self.base_datetime,
-            tags=tags or {},
+            tags=tags if tags is not None else {},
             source_system='s3',
-            metadata=metadata or {},
+            metadata=metadata if metadata is not None else {},
         )
 
     def test_calculate_score_basic(self):

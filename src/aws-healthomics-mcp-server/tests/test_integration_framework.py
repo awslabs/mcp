@@ -249,11 +249,12 @@ class TestIntegrationFramework:
 
     def _format_file_size(self, size_bytes: int) -> str:
         """Format file size in human-readable format."""
+        size_float = float(size_bytes)
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if size_bytes < 1024.0:
-                return f'{size_bytes:.1f} {unit}'
-            size_bytes /= 1024.0
-        return f'{size_bytes:.1f} PB'
+            if size_float < 1024.0:
+                return f'{size_float:.1f} {unit}'
+            size_float /= 1024.0
+        return f'{size_float:.1f} PB'
 
     def _create_basic_mock_response(self, test_data: List[Dict]):
         """Create a basic mock response for testing."""

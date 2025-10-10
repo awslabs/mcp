@@ -36,7 +36,7 @@ class TestFileAssociationEngine:
         path: str,
         file_type: GenomicsFileType,
         source_system: str = 's3',
-        metadata: dict = None,
+        metadata: dict | None = None,
     ) -> GenomicsFile:
         """Helper method to create test GenomicsFile objects."""
         return GenomicsFile(
@@ -47,7 +47,7 @@ class TestFileAssociationEngine:
             last_modified=self.base_datetime,
             tags={},
             source_system=source_system,
-            metadata=metadata or {},
+            metadata=metadata if metadata is not None else {},
         )
 
     def test_bam_index_associations(self):
