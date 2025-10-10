@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- CLI commands that don't expect any parameters (#1494)
+
 ### Added
 
 - Support for `--endpoint-url` flag for localhost endpoints (#1452)
