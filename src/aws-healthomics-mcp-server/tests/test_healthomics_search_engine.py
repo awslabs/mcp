@@ -923,10 +923,12 @@ class TestHealthOmicsSearchEngine:
 
         store_info = {'id': 'seq-store-001', 'name': 'test-store'}
 
-        # Mock the metadata and tags methods to return empty data
+        # Mock the metadata, tags, and AWS account/region methods to return empty data
         search_engine._get_read_set_metadata = AsyncMock(return_value={})
         search_engine._get_read_set_tags = AsyncMock(return_value={})
         search_engine._matches_search_terms_metadata = MagicMock(return_value=True)
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
 
         genomics_file = await search_engine._convert_read_set_to_genomics_file(
             read_set,
@@ -953,9 +955,11 @@ class TestHealthOmicsSearchEngine:
 
         store_info = {'id': 'ref-store-001', 'name': 'test-ref-store'}
 
-        # Mock the tags method to return empty data
+        # Mock the tags method and AWS account/region methods to return empty data
         search_engine._get_reference_tags = AsyncMock(return_value={})
         search_engine._matches_search_terms_metadata = MagicMock(return_value=True)
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
 
         genomics_file = await search_engine._convert_reference_to_genomics_file(
             reference,
