@@ -403,3 +403,207 @@ For deploying to Amazon EKS, refer to:
 - [Amazon EKS User Guide](https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html)
 - [Getting started with Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html)
 - [Deploying applications to Amazon EKS](https://docs.aws.amazon.com/eks/latest/userguide/deploy-apps.html)
+
+## Deploying to AWS AgentCore Runtime with AWS CDK
+
+You can leverage this `openapi-mcp-sever` in your own CDK projects to MCP-fy your APIs.
+
+The example below leverages git submodule functionality and creates an AgentCore Runtime MCP server using CDK, based on this repository.
+
+First off, clone this repo as a submodule within your own repo
+
+```
+git submodule add https://github.com/awslabs/mcp.git mcp
+```
+
+Then create your runtime stack as in the example below.
+
+```python
+from aws_cdk import (
+    Stack,
+    aws_apigateway as apigateway,
+    aws_cognito as cognito,
+    aws_iam as iam,
+    aws_ecr_assets as ecr_assets,
+    aws_bedrockagentcore as bedrockagentcore,
+    CfnOutput,
+)
+from cdk_nag import NagSuppressions
+from constructs import Construct
+import os
+from typing import Protocol
+
+class APIProps(Protocol):
+    api: apigateway.RestApiBase
+    user_pool: cognito.UserPool
+    app_client: cognito.UserPoolClient
+    cognito_domain: cognito.UserPoolDomain | None
+
+class OpenApiMcpServerStack(Stack):
+    """
+    CDK Stack for deploying the OpenAPI MCP Server to AgentCore Runtime.
+    This stack creates the necessary infrastructure to host the OpenAPI MCP server
+    as a containerized service that can access external APIs through MCP protocol.
+    """
+
+    def __init__(self, scope: Construct, construct_id: str, api_stack: APIProps, **kwargs) -> None:
+        super().__init__(scope, construct_id, **kwargs)
+
+        # Store reference to ESG API stack for cross-stack references
+        self.api_stack = api_stack
+
+        # Build and push Docker image using CDK Docker Asset
+        self.docker_image = ecr_assets.DockerImageAsset(
+            self, "OpenApiMcpServerDockerImage",
+            directory=os.path.join(os.path.dirname(__file__), "..", "mcp", "src", "openapi-mcp-server"),  # replace with the correct path to the submodule
+            platform=ecr_assets.Platform.LINUX_ARM64
+        )
+
+        # Get account and region for IAM policies
+        account_id = Stack.of(self).account
+        region = Stack.of(self).region
+
+        # Create IAM role for the AgentCore Runtime with proper permissions
+        self.mcp_server_role = iam.Role(
+            self, "OpenApiMcpServerRole",
+            assumed_by=iam.ServicePrincipal("bedrock-agentcore.amazonaws.com"),
+            inline_policies={
+                "BedrockAgentCoreRuntimePolicy": iam.PolicyDocument(
+                    statements=[
+                        iam.PolicyStatement(
+                            actions=["ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"],
+                            resources=[f"arn:aws:ecr:{region}:{account_id}:repository/*"]
+                        ),
+                        iam.PolicyStatement(
+                            actions=["logs:DescribeLogStreams", "logs:CreateLogGroup"],
+                            resources=[f"arn:aws:logs:{region}:{account_id}:log-group:/aws/bedrock-agentcore/runtimes/*"]
+                        ),
+                        iam.PolicyStatement(
+                            actions=["logs:DescribeLogGroups"],
+                            resources=[f"arn:aws:logs:{region}:{account_id}:log-group:*"]
+                        ),
+                        iam.PolicyStatement(
+                            actions=["logs:CreateLogStream", "logs:PutLogEvents"],
+                            resources=[f"arn:aws:logs:{region}:{account_id}:log-group:/aws/bedrock-agentcore/runtimes/*:log-stream:*"]
+                        ),
+                        iam.PolicyStatement(
+                            actions=["ecr:GetAuthorizationToken"],
+                            resources=["*"]
+                        ),
+                        iam.PolicyStatement(
+                            actions=["xray:PutTraceSegments", "xray:PutTelemetryRecords", "xray:GetSamplingRules", "xray:GetSamplingTargets"],
+                            resources=["*"]
+                        ),
+                        iam.PolicyStatement(
+                            actions=["cloudwatch:PutMetricData"],
+                            resources=["*"],
+                            conditions={"StringEquals": {"cloudwatch:namespace": "bedrock-agentcore"}}
+                        ),
+                        iam.PolicyStatement(
+                            actions=[
+                                "bedrock-agentcore:GetWorkloadAccessToken",
+                                "bedrock-agentcore:GetWorkloadAccessTokenForJWT",
+                                "bedrock-agentcore:GetWorkloadAccessTokenForUserId"
+                            ],
+                            resources=[
+                                f"arn:aws:bedrock-agentcore:{region}:{account_id}:workload-identity-directory/default",
+                                f"arn:aws:bedrock-agentcore:{region}:{account_id}:workload-identity-directory/default/workload-identity/*"
+                            ]
+                        ),
+                        # Additional permissions for Cognito authentication
+                        iam.PolicyStatement(
+                            actions=[
+                                "cognito-idp:InitiateAuth",
+                                "cognito-idp:RespondToAuthChallenge",
+                                "cognito-idp:GetUser"
+                            ],
+                            resources=[
+                                self.api_stack.user_pool.user_pool_arn,
+                                f"{self.api_stack.user_pool.user_pool_arn}/*"
+                            ]
+                        )
+                    ]
+                )
+            }
+        )
+
+        # Create the AgentCore Runtime for OpenAPI MCP Server with JWT authentication
+        self.mcp_runtime = bedrockagentcore.CfnRuntime(
+            self, "OpenApiMcpServerRuntime",
+            agent_runtime_name="openapi_mcp_server_runtime",
+            agent_runtime_artifact=bedrockagentcore.CfnRuntime.AgentRuntimeArtifactProperty(
+                container_configuration=bedrockagentcore.CfnRuntime.ContainerConfigurationProperty(
+                    container_uri=self.docker_image.image_uri
+                )
+            ),
+            network_configuration=bedrockagentcore.CfnRuntime.NetworkConfigurationProperty(
+                network_mode="PUBLIC"
+            ),
+            role_arn=self.mcp_server_role.role_arn,
+            description="OpenAPI MCP Server runtime for connecting to external APIs through MCP protocol with Cognito JWT authentication",
+            # Enable JWT authentication for inbound requests using Cognito
+            authorizer_configuration=bedrockagentcore.CfnRuntime.AuthorizerConfigurationProperty(
+                custom_jwt_authorizer=bedrockagentcore.CfnRuntime.CustomJWTAuthorizerConfigurationProperty(
+                    discovery_url=f"{self.api_stack.user_pool.user_pool_provider_url}/.well-known/openid-configuration",
+                    allowed_clients=[self.api_stack.app_client.user_pool_client_id]
+                )
+            ),
+            protocol_configuration="MCP",
+            environment_variables={
+                "API_NAME": "your-api-name",
+                "API_BASE_URL": self.api_stack.api.url,
+                "API_SPEC_URL": f"{self.api_stack.api.url}openapi.json",  # make sure your api exposes a /openapi.json endpoint with the json for the spec
+                "SERVER_TRANSPORT": "streamable-http",  # This is important to make sure it runs on AgentCore Runtime
+                "LOG_LEVEL": "INFO",
+                # Cognito authentication configuration - If you have a different AUTH, change this
+                "AUTH_TYPE": "cognito",
+                "AUTH_COGNITO_CLIENT_ID": self.api_stack.app_client.user_pool_client_id,
+                "AUTH_COGNITO_USER_POOL_ID": self.api_stack.user_pool.user_pool_id,
+                "AUTH_COGNITO_REGION": Stack.of(self).region,
+                "AUTH_COGNITO_USERNAME": os.environ.get("COGNITO_USERNAME", ""),
+                "AUTH_COGNITO_PASSWORD": os.environ.get("COGNITO_PASSWORD", ""),
+                # Enhanced Cognito configuration for better reliability
+                "AUTH_TOKEN_TTL": "3600",  # 1 hour token cache TTL
+                "AUTH_COGNITO_DOMAIN": self.api_stack.cognito_domain.domain_name,  # Cognito domain for OAuth flows
+                "ENABLE_PROMETHEUS": "false",
+                "ENABLE_OPERATION_PROMPTS": "true",
+                "OTEL_PYTHON_DISTRO": "aws_distro",  # Uses AWS Distro for OpenTelemetry
+                "OTEL_PYTHON_CONFIGURATOR": "aws_configurator",  # Sets AWS configurator for ADOT SDK
+                "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",  # Configures export protocol
+            }
+        )
+
+        # Ensure the runtime waits for the role and its policies to be created
+        self.mcp_runtime.node.add_dependency(self.mcp_server_role)
+
+        # Output the runtime ARN and other useful information
+        CfnOutput(
+            self, "McpServerRuntimeArn",
+            value=self.mcp_runtime.attr_agent_runtime_arn,
+            description="ARN of the OpenAPI MCP Server AgentCore Runtime"
+        )
+
+        CfnOutput(
+            self, "McpServerRuntimeName",
+            value=self.mcp_runtime.agent_runtime_name,
+            description="Name of the OpenAPI MCP Server AgentCore Runtime"
+        )
+
+        CfnOutput(
+            self, "McpServerImageUri",
+            value=self.docker_image.image_uri,
+            description="URI of the OpenAPI MCP Server Docker image"
+        )
+
+        CfnOutput(
+            self, "McpServerJwtDiscoveryUrl",
+            value=f"https://cognito-idp.{Stack.of(self).region}.amazonaws.com/{self.api_stack.user_pool.user_pool_id}/.well-known/openid-configuration",
+            description="JWT discovery URL for MCP server authentication"
+        )
+
+        # Store outputs as instance variables
+        self.mcp_runtime_arn = self.mcp_runtime.attr_agent_runtime_arn
+        self.image_uri = self.docker_image.image_uri
+        self.api_base_url = self.api_stack.api.url
+
+```

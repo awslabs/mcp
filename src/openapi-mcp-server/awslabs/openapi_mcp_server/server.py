@@ -513,8 +513,11 @@ def main():
         sys.exit(1)
 
     # Run server with stdio transport only
-    logger.info('Running server with stdio transport')
-    mcp_server.run()
+    logger.info('Running server with streamable-http transport')
+    if config.transport == 'streamable-http':
+        mcp_server.run(transport='streamable-http', stateless_http=True, host='0.0.0.0')
+    else:
+        mcp_server.run()
 
 
 if __name__ == '__main__':
