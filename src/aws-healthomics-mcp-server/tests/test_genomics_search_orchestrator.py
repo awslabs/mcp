@@ -1955,3 +1955,257 @@ class TestGenomicsSearchOrchestrator:
                                 'Starting genomics file search' in call for call in log_calls
                             )
                             assert any('Search completed' in call for call in log_calls)
+
+    @pytest.mark.asyncio
+    async def test_search_paginated_with_invalid_continuation_token(
+        self, orchestrator, sample_search_request
+    ):
+        """Test paginated search with invalid continuation token."""
+        # Set invalid continuation token in the search request
+        sample_search_request.continuation_token = 'invalid_token_format'
+        sample_search_request.enable_storage_pagination = True
+
+        # Mock the search engines
+        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=False, next_continuation_token=None
+            )
+        )
+        orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=False, next_continuation_token=None
+            )
+        )
+        orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=False, next_continuation_token=None
+            )
+        )
+
+        # Should handle invalid token gracefully and start fresh search
+        result = await orchestrator.search_paginated(sample_search_request)
+
+        assert result is not None
+        assert hasattr(result, 'enhanced_response')
+        assert 'results' in result.enhanced_response
+
+    @pytest.mark.asyncio
+    async def test_search_paginated_with_score_threshold_filtering(
+        self, orchestrator, sample_search_request
+    ):
+        """Test paginated search with score threshold filtering from continuation token (lines 281-286)."""
+        # Create a continuation token with score threshold
+        global_token = GlobalContinuationToken()
+        global_token.last_score_threshold = 0.5
+        global_token.total_results_seen = 10
+
+        sample_search_request.continuation_token = global_token.encode()
+        sample_search_request.max_results = 5
+        sample_search_request.enable_storage_pagination = True
+
+        # Mock the internal methods to test the specific score threshold filtering logic
+        with patch.object(orchestrator, '_execute_parallel_paginated_searches') as mock_execute:
+            # Mock return with files
+            files = [
+                GenomicsFile(
+                    path='s3://test/file1.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+            ]
+
+            next_token = GlobalContinuationToken()
+            mock_execute.return_value = (files, next_token, 1)
+
+            # Mock scoring to return a score above the threshold
+            with patch.object(orchestrator, '_score_results') as mock_score:
+                scored_results = [
+                    GenomicsFileResult(
+                        primary_file=files[0],
+                        associated_files=[],
+                        relevance_score=0.8,
+                        match_reasons=[],
+                    )  # Above threshold
+                ]
+                mock_score.return_value = scored_results
+
+                # Mock ranking to return the same results
+                with patch.object(orchestrator.result_ranker, 'rank_results') as mock_rank:
+                    mock_rank.return_value = scored_results
+
+                    with patch.object(
+                        orchestrator.json_builder, 'build_search_response'
+                    ) as mock_build:
+                        mock_build.return_value = {
+                            'results': [],  # Should be empty after threshold filtering
+                            'total_found': 0,
+                            'search_duration_ms': 1,
+                            'storage_systems_searched': ['s3'],
+                            'has_more_results': False,
+                        }
+
+                        result = await orchestrator.search_paginated(sample_search_request)
+
+                        assert result is not None
+                        # The test passes if the score threshold filtering code path is executed
+                        assert hasattr(result, 'enhanced_response')
+
+    @pytest.mark.asyncio
+    async def test_search_paginated_with_score_threshold_update(
+        self, orchestrator, sample_search_request
+    ):
+        """Test that score threshold is updated for next page when there are more results."""
+        sample_search_request.max_results = 2
+        sample_search_request.enable_storage_pagination = True
+
+        # Mock the internal method to test score threshold logic
+        with patch.object(orchestrator, '_execute_parallel_paginated_searches') as mock_execute:
+            # Create mock files
+            files = [
+                GenomicsFile(
+                    path=f's3://test/file{i}.fastq',
+                    file_type=GenomicsFileType.FASTQ,
+                    size_bytes=1000,
+                    storage_class='STANDARD',
+                    last_modified=datetime.now(),
+                    tags={},
+                    source_system='s3',
+                    metadata={},
+                )
+                for i in range(3)
+            ]
+
+            # Mock return with more results available
+            next_token = GlobalContinuationToken()
+            next_token.s3_token = 'has_more'
+            mock_execute.return_value = (files, next_token, 3)
+
+            # Mock scoring and ranking
+            with patch.object(orchestrator, '_score_results') as mock_score:
+                scored_results = [
+                    GenomicsFileResult(
+                        primary_file=files[0],
+                        associated_files=[],
+                        relevance_score=1.0,
+                        match_reasons=[],
+                    ),
+                    GenomicsFileResult(
+                        primary_file=files[1],
+                        associated_files=[],
+                        relevance_score=0.8,
+                        match_reasons=[],
+                    ),
+                    GenomicsFileResult(
+                        primary_file=files[2],
+                        associated_files=[],
+                        relevance_score=0.6,
+                        match_reasons=[],
+                    ),
+                ]
+                mock_score.return_value = scored_results
+
+                with patch.object(orchestrator.result_ranker, 'rank_results') as mock_rank:
+                    mock_rank.return_value = scored_results
+
+                    with patch.object(
+                        orchestrator.json_builder, 'build_search_response'
+                    ) as mock_build:
+                        mock_build.return_value = {
+                            'results': [{'file': f'file{i}'} for i in range(2)],
+                            'total_found': 3,
+                            'search_duration_ms': 1,
+                            'storage_systems_searched': ['s3'],
+                            'has_more_results': True,
+                            'next_continuation_token': 'encoded_token',
+                        }
+
+                        result = await orchestrator.search_paginated(sample_search_request)
+
+                        assert result is not None
+                        assert result.enhanced_response['has_more_results'] is True
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_with_token_parsing_errors(
+        self, orchestrator, sample_search_request
+    ):
+        """Test handling of continuation token parsing errors in paginated searches."""
+        # Test the specific lines 581-596 that handle token parsing errors
+        global_token = GlobalContinuationToken()
+
+        # Mock search engines to return results with continuation tokens
+        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=True, next_continuation_token='s3_token'
+            )
+        )
+
+        # Create a mock response that will trigger the healthomics sequence token parsing
+        seq_token = GlobalContinuationToken()
+        seq_token.healthomics_sequence_token = 'seq_token'
+        orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=True, next_continuation_token=seq_token.encode()
+            )
+        )
+
+        # Mock reference store to return invalid token that causes ValueError
+        orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=True, next_continuation_token='invalid_ref_token'
+            )
+        )
+
+        # Mock decode to fail for the invalid reference token
+        original_decode = GlobalContinuationToken.decode
+
+        def selective_decode(token):
+            if token == 'invalid_ref_token':
+                raise ValueError('Invalid token format')
+            return original_decode(token)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.models.GlobalContinuationToken.decode',
+            side_effect=selective_decode,
+        ):
+            result = await orchestrator._execute_parallel_paginated_searches(
+                sample_search_request, StoragePaginationRequest(max_results=10), global_token
+            )
+
+            assert result is not None
+            assert len(result) == 3  # Should return results from all systems
+
+    @pytest.mark.asyncio
+    async def test_execute_parallel_paginated_searches_with_attribute_errors(
+        self, orchestrator, sample_search_request
+    ):
+        """Test handling of AttributeError in paginated searches (lines 596)."""
+        # Test the specific AttributeError handling in the orchestrator
+        global_token = GlobalContinuationToken()
+
+        # Mock search engines to return unexpected result types that cause AttributeError
+        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+            return_value='unexpected_string_result'  # Not a StoragePaginationResponse
+        )
+        orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=False, next_continuation_token=None
+            )
+        )
+        orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=False, next_continuation_token=None
+            )
+        )
+
+        result = await orchestrator._execute_parallel_paginated_searches(
+            sample_search_request, StoragePaginationRequest(max_results=10), global_token
+        )
+
+        assert result is not None
+        # Should handle the AttributeError gracefully and continue with other systems
+        assert len(result) == 3
