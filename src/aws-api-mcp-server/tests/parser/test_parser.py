@@ -29,6 +29,16 @@ from unittest.mock import Mock, patch
 
 
 @pytest.mark.parametrize(
+    'command',
+    [('aws organizations describe-organization')],
+)
+def test_service_without_parameters(command):
+    """Test that parsing of commands that do not take any parameters succeeds."""
+    ir = parse(command)
+    assert ir.parameters == {}
+
+
+@pytest.mark.parametrize(
     'command,service',
     [
         ('aws s4 ls', 's4'),
