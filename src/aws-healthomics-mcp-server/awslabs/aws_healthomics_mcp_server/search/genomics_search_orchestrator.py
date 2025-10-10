@@ -15,6 +15,7 @@
 """Genomics search orchestrator that coordinates searches across multiple storage systems."""
 
 import asyncio
+import secrets
 import time
 from awslabs.aws_healthomics_mcp_server.models import (
     GenomicsFile,
@@ -337,9 +338,7 @@ class GenomicsSearchOrchestrator:
                 self._cache_pagination_state(cache_key, cache_entry)
 
             # Clean up expired cache entries periodically
-            import random
-
-            if random.randint(1, 20) == 1:  # 5% chance to clean up cache
+            if secrets.randbelow(20) == 0:  # 5% chance to clean up cache
                 try:
                     self.cleanup_expired_pagination_cache()
                 except Exception as e:
@@ -472,9 +471,7 @@ class GenomicsSearchOrchestrator:
                 logger.warning(f'Unexpected result type from {storage_system}: {type(result)}')
 
         # Periodically clean up expired cache entries (approximately every 10th search)
-        import random
-
-        if random.randint(1, 10) == 1:  # 10% chance to clean up cache
+        if secrets.randbelow(10) == 0:  # 10% chance to clean up cache
             try:
                 self.s3_engine.cleanup_expired_cache_entries()
             except Exception as e:
@@ -940,7 +937,7 @@ class GenomicsSearchOrchestrator:
         }
 
         key_str = json.dumps(key_data, separators=(',', ':'))
-        return hashlib.md5(key_str.encode()).hexdigest()
+        return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()
 
     def _get_cached_pagination_state(self, cache_key: str) -> Optional['PaginationCacheEntry']:
         """Get cached pagination state if available and not expired.

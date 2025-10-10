@@ -874,7 +874,7 @@ class S3SearchEngine:
 
         # Create hash of the key data
         key_str = str(key_data)
-        return hashlib.md5(key_str.encode()).hexdigest()
+        return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()
 
     def _get_cached_result(self, cache_key: str) -> Optional[List[GenomicsFile]]:
         """Get cached search result if available and not expired.
