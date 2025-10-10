@@ -43,6 +43,17 @@ SEARCH_API_URL = 'https://proxy.search.docs.aws.amazon.com/search'
 RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
 SESSION_UUID = str(uuid.uuid4())
 
+
+# Dict for domain modifiers for search if search terms contain any of the terms
+SEARCH_TERM_DOMAIN_MODIFIERS = [
+    {
+        'terms': ['neuron', 'neuron sdk'],
+        'domains': [{'key': 'domain', 'value': 'awsdocs-neuron.readthedocs-hosted.com'}],
+        'regex': r'^https?://awsdocs-neuron\.readthedocs-hosted\.com/',
+    }
+]
+
+
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
@@ -134,9 +145,14 @@ async def read_documentation(
     """
     # Validate that URL is from docs.aws.amazon.com and ends with .html
     url_str = str(url)
-    if not re.match(r'^https?://docs\.aws\.amazon\.com/', url_str):
-        await ctx.error(f'Invalid URL: {url_str}. URL must be from the docs.aws.amazon.com domain')
-        raise ValueError('URL must be from the docs.aws.amazon.com domain')
+
+    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
+    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
+        supported_domains_regex.append(modifier['regex'])
+
+    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
+        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
+        raise ValueError('URL must be from list of supported domains')
     if not url_str.endswith('.html'):
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
         raise ValueError('URL must end with .html')
@@ -195,6 +211,9 @@ async def search_documentation(
         'acceptSuggestionBody': 'RawText',
         'locales': ['en_us'],
     }
+    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
+        if any(term in search_phrase.lower() for term in modifier['terms']):
+            request_body['contextAttributes'].extend(modifier['domains'])
 
     search_url_with_session = f'{SEARCH_API_URL}?session={SESSION_UUID}'
 
