@@ -2,6 +2,7 @@
 
 import json
 import pytest
+import sys
 import tempfile
 from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec
 from pathlib import Path
@@ -36,19 +37,15 @@ paths:
             temp_path = f.name
 
         try:
-            # Mock yaml import to raise ImportError
-            with patch('builtins.__import__') as mock_import:
-
-                def side_effect(name, *args, **kwargs):
-                    if name == 'yaml':
-                        raise ImportError('No module named yaml')
-                    return __import__(name, *args, **kwargs)
-
-                mock_import.side_effect = side_effect
-
-                # This should raise ImportError about pyyaml
-                with pytest.raises(ImportError, match="Required dependency 'pyyaml' not installed"):
-                    load_openapi_spec(path=temp_path)
+            # Mock prance to fail and remove yaml from sys.modules to simulate ImportError
+            with patch('awslabs.openapi_mcp_server.utils.openapi.ResolvingParser') as mock_parser:
+                mock_parser.side_effect = Exception('Prance failed')
+                with patch.dict(sys.modules, {'yaml': None}):
+                    # This should raise ImportError about pyyaml
+                    with pytest.raises(
+                        ImportError, match="Required dependency 'pyyaml' not installed"
+                    ):
+                        load_openapi_spec(path=temp_path)
         finally:
             # Clean up
             Path(temp_path).unlink(missing_ok=True)
@@ -91,17 +88,9 @@ paths:
             temp_path = f.name
 
         try:
-            # Mock prance to not be available and yaml import to fail
+            # Mock prance to not be available and remove yaml from sys.modules
             with patch('awslabs.openapi_mcp_server.utils.openapi.PRANCE_AVAILABLE', False):
-                with patch('builtins.__import__') as mock_import:
-
-                    def side_effect(name, *args, **kwargs):
-                        if name == 'yaml':
-                            raise ImportError('No module named yaml')
-                        return __import__(name, *args, **kwargs)
-
-                    mock_import.side_effect = side_effect
-
+                with patch.dict(sys.modules, {'yaml': None}):
                     # This should raise ImportError about pyyaml
                     with pytest.raises(
                         ImportError, match="Required dependency 'pyyaml' not installed"
