@@ -134,21 +134,49 @@ def validate_bucket_access(bucket_paths: List[str]) -> List[str]:
     """
     from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
 
+    if not bucket_paths:
+        raise ValueError('No S3 bucket paths provided')
+
     session = get_aws_session()
     s3_client = session.client('s3')
 
-    accessible_buckets = []
+    # Parse and deduplicate bucket names while preserving path mapping
+    bucket_to_paths = {}
     errors = []
 
     for bucket_path in bucket_paths:
-        bucket_name = None  # Initialize to handle cases where parsing fails
         try:
+            # Validate S3 path format first
+            if not bucket_path.startswith('s3://'):
+                raise ValueError(f"Invalid S3 path format: {bucket_path}. Must start with 's3://'")
+
             # Parse bucket name from path
             bucket_name, _ = parse_s3_path(bucket_path)
 
-            # Test bucket access
+            # Group paths by bucket name
+            if bucket_name not in bucket_to_paths:
+                bucket_to_paths[bucket_name] = []
+            bucket_to_paths[bucket_name].append(bucket_path)
+
+        except ValueError as e:
+            errors.append(str(e))
+            continue
+
+    # If we couldn't parse any valid paths, raise error
+    if not bucket_to_paths:
+        error_summary = 'No valid S3 bucket paths found. Errors: ' + '; '.join(errors)
+        raise ValueError(error_summary)
+
+    # Test access for each unique bucket
+    accessible_buckets = []
+
+    for bucket_name, paths in bucket_to_paths.items():
+        try:
+            # Test bucket access (only once per unique bucket)
             s3_client.head_bucket(Bucket=bucket_name)
-            accessible_buckets.append(bucket_path)
+
+            # If successful, add all paths for this bucket
+            accessible_buckets.extend(paths)
             logger.info(f'Validated access to bucket: {bucket_name}')
 
         except NoCredentialsError:
@@ -157,19 +185,17 @@ def validate_bucket_access(bucket_paths: List[str]) -> List[str]:
             errors.append(error_msg)
         except ClientError as e:
             error_code = e.response['Error']['Code']
-            bucket_ref = bucket_name if bucket_name else bucket_path
             if error_code == '404':
-                error_msg = f'Bucket {bucket_ref} does not exist'
+                error_msg = f'Bucket {bucket_name} does not exist'
             elif error_code == '403':
-                error_msg = f'Access denied to bucket {bucket_ref}'
+                error_msg = f'Access denied to bucket {bucket_name}'
             else:
-                error_msg = f'Error accessing bucket {bucket_ref}: {e}'
+                error_msg = f'Error accessing bucket {bucket_name}: {e}'
 
             logger.error(error_msg)
             errors.append(error_msg)
         except Exception as e:
-            bucket_ref = bucket_name if bucket_name else bucket_path
-            error_msg = f'Unexpected error accessing bucket {bucket_ref}: {e}'
+            error_msg = f'Unexpected error accessing bucket {bucket_name}: {e}'
             logger.error(error_msg)
             errors.append(error_msg)
 
