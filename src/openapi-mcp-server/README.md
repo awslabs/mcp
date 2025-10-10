@@ -209,6 +209,13 @@ export SERVER_PORT=8000
 export SERVER_TRANSPORT="stdio"  # Option: stdio, streamable-http
 export LOG_LEVEL="INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
+# HTTP transport configuration
+export TRANSPORT="stdio"  # Transport protocol: "stdio" (default) or "streamable-http"
+export MCP_PATH="/mcp"  # Path for MCP remote connection URL (only used with streamable-http)
+export STATELESS_HTTP="true"  # Enable stateless HTTP mode (only used with streamable-http)
+export JSON_RESPONSE="true"  # Use JSON responses instead of SSE stream (only used with streamable-http)
+export FASTMCP_LOG_LEVEL="INFO"  # FastMCP logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
 # Metrics and monitoring configuration
 export ENABLE_PROMETHEUS="false"  # Enable/disable Prometheus metrics (default: false)
 export PROMETHEUS_PORT=9090  # Port for Prometheus metrics server

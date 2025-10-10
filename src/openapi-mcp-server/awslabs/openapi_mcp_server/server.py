@@ -56,6 +56,7 @@ def create_mcp_server(config: Config) -> FastMCP:
     # Create the FastMCP server
     server = FastMCP(
         'awslabs.openapi-mcp-server',
+        json_response=config.json_response,
         instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
         dependencies=[
             'pydantic',
@@ -200,6 +201,7 @@ def create_mcp_server(config: Config) -> FastMCP:
             client=client,
             name=config.api_name or 'OpenAPI MCP Server',
             route_maps=custom_mappings,  # Custom mappings take precedence over default mappings
+            json_response=config.json_response,
         )
 
         # Log route information at debug level
@@ -450,6 +452,15 @@ def main():
         help='Comma-separated list of scopes for Cognito OAuth 2.0 client credentials flow',
     )
 
+    parser.add_argument(
+        '--transport',
+        help='Transport prototocol. stdio or streamable-http.',
+    )
+
+    parser.add_argument('--host', help='Server host (default: 127.0.0.1)')
+    parser.add_argument('--port', type=int, help='Server port (default: 8000)')
+    parser.add_argument('--mcp-path', help='The path for the mcp server (default: /mcp)')
+
     args = parser.parse_args()
 
     # Set up logging with loguru at specified level
@@ -512,12 +523,22 @@ def main():
         logger.error(f'Traceback: {traceback.format_exc()}')
         sys.exit(1)
 
+    run_params = {}
     if config.transport == 'streamable-http':
-        logger.info('Running server with streamable-http transport')
-        mcp_server.run(transport='streamable-http', stateless_http=True, host='0.0.0.0')
+        logger.info(
+            f'Starting OpenAPI-MCP-SERVER on {config.host}:{config.port} with transport=streamable-http...'
+        )
+        run_params = {
+            'host': config.host,
+            'port': config.port,
+            'path': config.mcp_path,
+            'stateless_http': config.stateless_http,
+            'log_level': config.fastmcp_log_level,
+        }
     else:
-        logger.info('Running server with stdio transport')
-        mcp_server.run()
+        logger.info('Starting OpenAPI-MCP-SERVER with transport=stdio...')
+
+    mcp_server.run(transport=config.transport, **run_params)
 
 
 if __name__ == '__main__':

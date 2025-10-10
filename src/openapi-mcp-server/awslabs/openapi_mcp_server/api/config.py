@@ -53,9 +53,15 @@ class Config:
     host: str = '127.0.0.1'
     port: int = 8000
     debug: bool = False
-    transport: str = 'stdio'  # stdio only
+    transport: str = 'stdio'  # stdio or streamable-http
     message_timeout: int = 60
     version: str = '0.2.0'
+
+    # HTTP transport configuration
+    mcp_path: str = '/mcp'
+    stateless_http: bool = True
+    json_response: bool = True
+    fastmcp_log_level: str = 'INFO'
 
 
 def load_config(args: Any = None) -> Config:
@@ -107,6 +113,12 @@ def load_config(args: Any = None) -> Config:
         'SERVER_DEBUG': (lambda v: setattr(config, 'debug', v.lower() == 'true')),
         'SERVER_TRANSPORT': (lambda v: setattr(config, 'transport', v)),
         'SERVER_MESSAGE_TIMEOUT': (lambda v: setattr(config, 'message_timeout', int(v))),
+        # HTTP transport configuration
+        'TRANSPORT': (lambda v: setattr(config, 'transport', v)),
+        'MCP_PATH': (lambda v: setattr(config, 'mcp_path', v)),
+        'STATELESS_HTTP': (lambda v: setattr(config, 'stateless_http', v.lower() == 'true')),
+        'JSON_RESPONSE': (lambda v: setattr(config, 'json_response', v.lower() == 'true')),
+        'FASTMCP_LOG_LEVEL': (lambda v: setattr(config, 'fastmcp_log_level', v)),
     }
 
     # Load environment variables
@@ -140,6 +152,10 @@ def load_config(args: Any = None) -> Config:
             logger.debug(f'Setting API spec path from arguments: {args.spec_path}')
             config.api_spec_path = args.spec_path
 
+        if hasattr(args, 'host') and args.host:
+            logger.debug(f'Setting host from arguments: {args.host}')
+            config.host = args.host
+
         if hasattr(args, 'port') and args.port:
             logger.debug(f'Setting port from arguments: {args.port}')
             config.port = args.port
@@ -147,6 +163,14 @@ def load_config(args: Any = None) -> Config:
         if hasattr(args, 'debug') and args.debug:
             logger.debug('Setting debug mode from arguments')
             config.debug = True
+
+        if hasattr(args, 'transport') and args.transport:
+            logger.debug(f'Setting transport from arguments: {args.transport}')
+            config.transport = args.transport
+
+        if hasattr(args, 'mcp_path') and args.mcp_path:
+            logger.debug(f'Setting MCP path from arguments: {args.mcp_path}')
+            config.mcp_path = args.mcp_path
 
         # Authentication arguments
         if hasattr(args, 'auth_type') and args.auth_type:
