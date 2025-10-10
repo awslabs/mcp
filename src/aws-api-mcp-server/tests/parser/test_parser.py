@@ -32,8 +32,8 @@ from unittest.mock import Mock, patch
     'command',
     [('aws organizations describe-organization')],
 )
-def test_service_without_parameters(command):
-    """Test that parsing of commands that do not take any parameters succeeds."""
+def test_service_not_expecting_parameters(command):
+    """Test that parsing of commands that do not expect any parameters succeeds."""
     ir = parse(command)
     assert ir.parameters == {}
 
