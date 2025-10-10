@@ -1114,6 +1114,8 @@ class TestHealthOmicsSearchEngine:
 
         search_engine._get_read_set_metadata = AsyncMock(return_value=enhanced_metadata)
         search_engine._get_read_set_tags = AsyncMock(return_value={'project': 'test'})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
 
         result = await search_engine._convert_read_set_to_genomics_file(
             read_set, store_id, store_info, None, ['sample']
@@ -1149,6 +1151,8 @@ class TestHealthOmicsSearchEngine:
                 return_value={'status': 'ACTIVE', 'fileType': file_type}
             )
             search_engine._get_read_set_tags = AsyncMock(return_value={})
+            search_engine._get_account_id = MagicMock(return_value='123456789012')
+            search_engine._get_region = MagicMock(return_value='us-east-1')
 
             result = await search_engine._convert_read_set_to_genomics_file(
                 read_set, store_id, store_info, None, []
@@ -1167,6 +1171,8 @@ class TestHealthOmicsSearchEngine:
         search_engine._get_read_set_metadata = AsyncMock(
             return_value={'status': 'ACTIVE', 'fileType': 'BAM'}
         )
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
 
         # Test with matching filter
         result = await search_engine._convert_read_set_to_genomics_file(
@@ -1196,6 +1202,8 @@ class TestHealthOmicsSearchEngine:
 
         search_engine._get_read_set_metadata = AsyncMock(return_value=enhanced_metadata)
         search_engine._get_read_set_tags = AsyncMock(return_value={'tissue': 'tumor'})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
 
         # Test with matching search terms
         result = await search_engine._convert_read_set_to_genomics_file(
