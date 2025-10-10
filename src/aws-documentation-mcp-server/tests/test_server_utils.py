@@ -372,6 +372,32 @@ class TestReadDocumentationImpl:
                 )
 
 
+class TestUserAgentCustomization:
+    """Test custom User-Agent functionality."""
+
+    @patch.dict('os.environ', {'MCP_USER_AGENT': 'Custom/1.0 Browser'}, clear=False)
+    def test_custom_user_agent_from_env(self):
+        """Test that custom User-Agent is used when MCP_USER_AGENT is set."""
+        import awslabs.aws_documentation_mcp_server.server_utils as server_utils
+        import importlib
+
+        importlib.reload(server_utils)
+
+        assert 'Custom/1.0 Browser' in server_utils.DEFAULT_USER_AGENT
+        assert 'ModelContextProtocol' in server_utils.DEFAULT_USER_AGENT
+
+    @patch.dict('os.environ', {}, clear=True)
+    def test_default_user_agent_when_no_env(self):
+        """Test that default User-Agent is used when MCP_USER_AGENT is not set."""
+        import awslabs.aws_documentation_mcp_server.server_utils as server_utils
+        import importlib
+
+        importlib.reload(server_utils)
+
+        assert 'Chrome' in server_utils.DEFAULT_USER_AGENT
+        assert 'ModelContextProtocol' in server_utils.DEFAULT_USER_AGENT
+
+
 class TestVersionImport:
     """Test version import logic with metadata and fallback scenarios."""
 

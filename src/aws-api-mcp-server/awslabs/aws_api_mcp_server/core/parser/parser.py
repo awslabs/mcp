@@ -649,7 +649,7 @@ def _validate_parameters(
     errors = []
 
     input_shape = operation_model.input_shape
-    boto3_members = getattr(input_shape, 'members')
+    boto3_members = getattr(input_shape, 'members', {})
 
     for key, value in parameters.items():
         boto3_shape = boto3_members.get(key)

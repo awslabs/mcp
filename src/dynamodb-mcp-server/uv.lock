@@ -197,6 +197,7 @@ name = "awslabs-dynamodb-mcp-server"
 version = "2.0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "awslabs-mysql-mcp-server" },
     { name = "boto3" },
     { name = "dspy-ai" },
     { name = "loguru" },
@@ -222,6 +223,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "awslabs-mysql-mcp-server", specifier = "==1.0.5" },
     { name = "boto3", specifier = "==1.40.5" },
     { name = "dspy-ai", specifier = ">=2.6.27" },
     { name = "loguru", specifier = "==0.7.3" },
@@ -243,6 +245,22 @@ dev = [
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-mock", specifier = ">=3.12.0" },
     { name = "ruff", specifier = ">=0.9.7" },
+]
+
+[[package]]
+name = "awslabs-mysql-mcp-server"
+version = "1.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "loguru" },
+    { name = "mcp", extra = ["cli"] },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/74/af/60684a88d3da7bdc0e03ae2af26dbad32f209146d4a519c0ab08582ed511/awslabs_mysql_mcp_server-1.0.5.tar.gz", hash = "sha256:a168c3bc63d5f215603041a510716509ab9192d89d463f5d44f92b4d9788ee5b", size = 85049, upload-time = "2025-08-21T18:29:43.875Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/92/a8/01b3171433594d4e0649757207cc25d1c0a8340d6a5a25dc6758265fd69c/awslabs_mysql_mcp_server-1.0.5-py3-none-any.whl", hash = "sha256:bd23fa850137d15d1b1aecf60ae49e546b73999e54563cd69b10f5d8be01aa11", size = 15042, upload-time = "2025-08-21T18:29:42.72Z" },
 ]
 
 [[package]]
