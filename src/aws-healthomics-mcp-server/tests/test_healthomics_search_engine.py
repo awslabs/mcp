@@ -448,6 +448,8 @@ class TestHealthOmicsSearchEngine:
             }
         )
         search_engine._get_read_set_tags = AsyncMock(return_value={'sample_id': 'test'})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
 
         result = await search_engine._convert_read_set_to_genomics_file(
             read_set, 'seq-store-001', store_info, None, ['test']
@@ -481,8 +483,10 @@ class TestHealthOmicsSearchEngine:
 
         store_info = {'id': 'ref-store-001', 'name': 'test-ref-store'}
 
-        # Mock the tag retrieval
+        # Mock the tag retrieval and AWS utilities
         search_engine._get_reference_tags = AsyncMock(return_value={'genome_build': 'GRCh38'})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
 
         result = await search_engine._convert_reference_to_genomics_file(
             reference, 'ref-store-001', store_info, None, ['test']
