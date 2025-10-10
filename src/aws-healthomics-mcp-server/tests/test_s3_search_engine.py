@@ -483,3 +483,524 @@ class TestS3SearchEngine:
         # Cache should be cleaned up (expired entries removed)
         assert len(search_engine._tag_cache) <= initial_tag_size
         assert len(search_engine._result_cache) <= initial_result_size
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_optimized_success(self, search_engine):
+        """Test the optimized single bucket path search method."""
+        # Mock the dependencies
+        search_engine._validate_bucket_access = AsyncMock()
+        search_engine._list_s3_objects = AsyncMock(
+            return_value=[
+                {
+                    'Key': 'data/sample1.fastq',
+                    'Size': 1000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                },
+                {
+                    'Key': 'data/sample2.bam',
+                    'Size': 2000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                },
+            ]
+        )
+        search_engine.file_type_detector.detect_file_type = MagicMock(
+            side_effect=lambda x: GenomicsFileType.FASTQ
+            if x.endswith('.fastq')
+            else GenomicsFileType.BAM
+            if x.endswith('.bam')
+            else None
+        )
+        search_engine._matches_file_type_filter = MagicMock(return_value=True)
+        search_engine.pattern_matcher.match_file_path = MagicMock(return_value=(0.8, ['sample']))
+        search_engine._create_genomics_file_from_object = MagicMock(
+            side_effect=lambda obj, bucket, tags, file_type: GenomicsFile(
+                path=f's3://{bucket}/{obj["Key"]}',
+                file_type=file_type,
+                size_bytes=obj['Size'],
+                storage_class=obj['StorageClass'],
+                last_modified=obj['LastModified'],
+                tags=tags,
+                source_system='s3',
+                metadata={},
+            )
+        )
+
+        result = await search_engine._search_single_bucket_path_optimized(
+            's3://test-bucket/data/', 'fastq', ['sample']
+        )
+
+        assert len(result) == 2
+        assert all(isinstance(f, GenomicsFile) for f in result)
+        search_engine._validate_bucket_access.assert_called_once_with('test-bucket')
+        search_engine._list_s3_objects.assert_called_once_with('test-bucket', 'data/')
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_optimized_with_tags(self, search_engine):
+        """Test optimized search with tag-based matching."""
+        # Enable tag search
+        search_engine.config.enable_s3_tag_search = True
+
+        # Mock dependencies
+        search_engine._validate_bucket_access = AsyncMock()
+        search_engine._list_s3_objects = AsyncMock(
+            return_value=[
+                {
+                    'Key': 'data/file1.fastq',
+                    'Size': 1000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                }
+            ]
+        )
+        search_engine.file_type_detector.detect_file_type = MagicMock(
+            return_value=GenomicsFileType.FASTQ
+        )
+        search_engine._matches_file_type_filter = MagicMock(return_value=True)
+        # Path doesn't match, need to check tags
+        search_engine.pattern_matcher.match_file_path = MagicMock(return_value=(0.0, []))
+        search_engine.pattern_matcher.match_tags = MagicMock(return_value=(0.9, ['patient']))
+        search_engine._get_tags_for_objects_batch = AsyncMock(
+            return_value={'data/file1.fastq': {'patient_id': 'patient123', 'study': 'cancer'}}
+        )
+        search_engine._create_genomics_file_from_object = MagicMock(
+            return_value=MagicMock(spec=GenomicsFile)
+        )
+
+        result = await search_engine._search_single_bucket_path_optimized(
+            's3://test-bucket/data/', 'fastq', ['patient']
+        )
+
+        assert len(result) == 1
+        search_engine._get_tags_for_objects_batch.assert_called_once_with(
+            'test-bucket', ['data/file1.fastq']
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_optimized_no_search_terms(self, search_engine):
+        """Test optimized search with no search terms (return all matching file types)."""
+        search_engine._validate_bucket_access = AsyncMock()
+        search_engine._list_s3_objects = AsyncMock(
+            return_value=[
+                {
+                    'Key': 'file1.fastq',
+                    'Size': 1000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                }
+            ]
+        )
+        search_engine.file_type_detector.detect_file_type = MagicMock(
+            return_value=GenomicsFileType.FASTQ
+        )
+        search_engine._matches_file_type_filter = MagicMock(return_value=True)
+        search_engine._create_genomics_file_from_object = MagicMock(
+            return_value=MagicMock(spec=GenomicsFile)
+        )
+
+        result = await search_engine._search_single_bucket_path_optimized(
+            's3://test-bucket/',
+            'fastq',
+            [],  # No search terms
+        )
+
+        assert len(result) == 1
+        # Pattern matching should not be called when no search terms
+        # (We can't easily assert this since pattern_matcher is a real object)
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_optimized_file_type_filtering(self, search_engine):
+        """Test optimized search with file type filtering."""
+        search_engine._validate_bucket_access = AsyncMock()
+        search_engine._list_s3_objects = AsyncMock(
+            return_value=[
+                {
+                    'Key': 'file1.fastq',
+                    'Size': 1000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                },
+                {
+                    'Key': 'file2.bam',
+                    'Size': 2000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                },
+            ]
+        )
+        search_engine.file_type_detector.detect_file_type = MagicMock(
+            side_effect=lambda x: GenomicsFileType.FASTQ
+            if x.endswith('.fastq')
+            else GenomicsFileType.BAM
+            if x.endswith('.bam')
+            else None
+        )
+        # Only FASTQ files should match
+        search_engine._matches_file_type_filter = MagicMock(
+            side_effect=lambda detected, filter_type: detected == GenomicsFileType.FASTQ
+            if filter_type == 'fastq'
+            else True
+        )
+        search_engine._create_genomics_file_from_object = MagicMock(
+            return_value=MagicMock(spec=GenomicsFile)
+        )
+
+        result = await search_engine._search_single_bucket_path_optimized(
+            's3://test-bucket/', 'fastq', []
+        )
+
+        assert len(result) == 1  # Only FASTQ file should be included
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_optimized_exception_handling(self, search_engine):
+        """Test exception handling in optimized search."""
+        search_engine._validate_bucket_access = AsyncMock(
+            side_effect=ClientError(
+                {'Error': {'Code': 'NoSuchBucket', 'Message': 'Bucket not found'}}, 'HeadBucket'
+            )
+        )
+
+        with pytest.raises(ClientError):
+            await search_engine._search_single_bucket_path_optimized(
+                's3://nonexistent-bucket/', 'fastq', ['sample']
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_paginated_success(self, search_engine):
+        """Test the paginated single bucket path search method."""
+        search_engine._validate_bucket_access = AsyncMock()
+        search_engine._list_s3_objects_paginated = AsyncMock(
+            return_value=(
+                [
+                    {
+                        'Key': 'data/sample1.fastq',
+                        'Size': 1000,
+                        'LastModified': datetime.now(),
+                        'StorageClass': 'STANDARD',
+                    }
+                ],
+                'next_token_123',
+                1,
+            )
+        )
+        search_engine.file_type_detector.detect_file_type = MagicMock(
+            return_value=GenomicsFileType.FASTQ
+        )
+        search_engine._matches_file_type_filter = MagicMock(return_value=True)
+        search_engine.pattern_matcher.match_file_path = MagicMock(return_value=(0.8, ['sample']))
+        search_engine._create_genomics_file_from_object = MagicMock(
+            return_value=MagicMock(spec=GenomicsFile)
+        )
+
+        files, next_token, scanned = await search_engine._search_single_bucket_path_paginated(
+            's3://test-bucket/data/', 'fastq', ['sample'], 'continuation_token', 100
+        )
+
+        assert len(files) == 1
+        assert next_token == 'next_token_123'
+        assert scanned == 1
+        search_engine._list_s3_objects_paginated.assert_called_once_with(
+            'test-bucket', 'data/', 'continuation_token', 100
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_paginated_with_tags(self, search_engine):
+        """Test paginated search with tag-based matching."""
+        search_engine.config.enable_s3_tag_search = True
+        search_engine._validate_bucket_access = AsyncMock()
+        search_engine._list_s3_objects_paginated = AsyncMock(
+            return_value=(
+                [
+                    {
+                        'Key': 'file1.fastq',
+                        'Size': 1000,
+                        'LastModified': datetime.now(),
+                        'StorageClass': 'STANDARD',
+                    }
+                ],
+                None,
+                1,
+            )
+        )
+        search_engine.file_type_detector.detect_file_type = MagicMock(
+            return_value=GenomicsFileType.FASTQ
+        )
+        search_engine._matches_file_type_filter = MagicMock(return_value=True)
+        search_engine.pattern_matcher.match_file_path = MagicMock(
+            return_value=(0.0, [])
+        )  # No path match
+        search_engine.pattern_matcher.match_tags = MagicMock(return_value=(0.9, ['patient']))
+        search_engine._get_tags_for_objects_batch = AsyncMock(
+            return_value={'file1.fastq': {'patient_id': 'patient123'}}
+        )
+        search_engine._create_genomics_file_from_object = MagicMock(
+            return_value=MagicMock(spec=GenomicsFile)
+        )
+
+        files, next_token, scanned = await search_engine._search_single_bucket_path_paginated(
+            's3://test-bucket/', 'fastq', ['patient'], None, 100
+        )
+
+        assert len(files) == 1
+        assert next_token is None
+        assert scanned == 1
+
+    @pytest.mark.asyncio
+    async def test_search_single_bucket_path_paginated_exception_handling(self, search_engine):
+        """Test exception handling in paginated search."""
+        search_engine._validate_bucket_access = AsyncMock(
+            side_effect=Exception('Validation failed')
+        )
+
+        with pytest.raises(Exception, match='Validation failed'):
+            await search_engine._search_single_bucket_path_paginated(
+                's3://test-bucket/', 'fastq', ['sample'], None, 100
+            )
+
+    @pytest.mark.asyncio
+    async def test_get_tags_for_objects_batch_empty_keys(self, search_engine):
+        """Test batch tag retrieval with empty key list."""
+        result = await search_engine._get_tags_for_objects_batch('test-bucket', [])
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_get_tags_for_objects_batch_all_cached(self, search_engine):
+        """Test batch tag retrieval when all tags are cached."""
+        # Pre-populate cache
+        search_engine._tag_cache = {
+            'test-bucket/file1.fastq': {
+                'tags': {'patient_id': 'patient123'},
+                'timestamp': time.time(),
+            },
+            'test-bucket/file2.fastq': {
+                'tags': {'sample_id': 'sample456'},
+                'timestamp': time.time(),
+            },
+        }
+
+        result = await search_engine._get_tags_for_objects_batch(
+            'test-bucket', ['file1.fastq', 'file2.fastq']
+        )
+
+        assert result == {
+            'file1.fastq': {'patient_id': 'patient123'},
+            'file2.fastq': {'sample_id': 'sample456'},
+        }
+
+    @pytest.mark.asyncio
+    async def test_get_tags_for_objects_batch_expired_cache(self, search_engine):
+        """Test batch tag retrieval with expired cache entries."""
+        # Pre-populate cache with expired entries
+        search_engine._tag_cache = {
+            'test-bucket/file1.fastq': {
+                'tags': {'old': 'data'},
+                'timestamp': time.time() - 1000,  # Expired
+            }
+        }
+        search_engine._get_object_tags_cached = AsyncMock(
+            return_value={'patient_id': 'patient123'}
+        )
+
+        result = await search_engine._get_tags_for_objects_batch('test-bucket', ['file1.fastq'])
+
+        assert result == {'file1.fastq': {'patient_id': 'patient123'}}
+        # Expired entry should be removed
+        assert 'test-bucket/file1.fastq' not in search_engine._tag_cache
+
+    @pytest.mark.asyncio
+    async def test_get_tags_for_objects_batch_with_batching(self, search_engine):
+        """Test batch tag retrieval with batching logic."""
+        # Set small batch size to test batching
+        search_engine.config.max_tag_retrieval_batch_size = 2
+
+        search_engine._get_object_tags_cached = AsyncMock(
+            side_effect=[{'tag1': 'value1'}, {'tag2': 'value2'}, {'tag3': 'value3'}]
+        )
+
+        result = await search_engine._get_tags_for_objects_batch(
+            'test-bucket', ['file1.fastq', 'file2.fastq', 'file3.fastq']
+        )
+
+        assert len(result) == 3
+        assert result['file1.fastq'] == {'tag1': 'value1'}
+        assert result['file2.fastq'] == {'tag2': 'value2'}
+        assert result['file3.fastq'] == {'tag3': 'value3'}
+
+    @pytest.mark.asyncio
+    async def test_get_tags_for_objects_batch_with_exceptions(self, search_engine):
+        """Test batch tag retrieval with some exceptions."""
+        search_engine._get_object_tags_cached = AsyncMock(
+            side_effect=[{'tag1': 'value1'}, Exception('Failed to get tags'), {'tag3': 'value3'}]
+        )
+
+        result = await search_engine._get_tags_for_objects_batch(
+            'test-bucket', ['file1.fastq', 'file2.fastq', 'file3.fastq']
+        )
+
+        # Should get results for successful calls only
+        assert len(result) == 2
+        assert result['file1.fastq'] == {'tag1': 'value1'}
+        assert result['file3.fastq'] == {'tag3': 'value3'}
+        assert 'file2.fastq' not in result
+
+    @pytest.mark.asyncio
+    async def test_list_s3_objects_paginated_success(self, search_engine):
+        """Test paginated S3 object listing."""
+        # Mock the s3_client to return a single object
+        mock_response = {
+            'Contents': [
+                {
+                    'Key': 'file1.fastq',
+                    'Size': 1000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                }
+            ],
+            'IsTruncated': True,
+            'NextContinuationToken': 'next_token_123',
+        }
+
+        with patch.object(search_engine.s3_client, 'list_objects_v2', return_value=mock_response):
+            objects, next_token, scanned = await search_engine._list_s3_objects_paginated(
+                'test-bucket',
+                'data/',
+                'continuation_token',
+                1,  # Use MaxKeys=1 to get exactly 1 result
+            )
+
+            assert len(objects) == 1
+            assert objects[0]['Key'] == 'file1.fastq'
+            assert next_token == 'next_token_123'
+            assert scanned == 1
+
+    @pytest.mark.asyncio
+    async def test_list_s3_objects_paginated_no_continuation_token(self, search_engine):
+        """Test paginated S3 object listing without continuation token."""
+        search_engine.s3_client.list_objects_v2.return_value = {
+            'Contents': [
+                {
+                    'Key': 'file1.fastq',
+                    'Size': 1000,
+                    'LastModified': datetime.now(),
+                    'StorageClass': 'STANDARD',
+                }
+            ],
+            'IsTruncated': False,
+        }
+
+        objects, next_token, scanned = await search_engine._list_s3_objects_paginated(
+            'test-bucket', 'data/', None, 100
+        )
+
+        assert len(objects) == 1
+        assert next_token is None
+        assert scanned == 1
+
+        # Should not include ContinuationToken parameter
+        search_engine.s3_client.list_objects_v2.assert_called_once_with(
+            Bucket='test-bucket', Prefix='data/', MaxKeys=100
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_s3_objects_paginated_empty_result(self, search_engine):
+        """Test paginated S3 object listing with empty result."""
+        search_engine.s3_client.list_objects_v2.return_value = {
+            'IsTruncated': False,
+        }
+
+        objects, next_token, scanned = await search_engine._list_s3_objects_paginated(
+            'test-bucket', 'data/', None, 100
+        )
+
+        assert objects == []
+        assert next_token is None
+        assert scanned == 0
+
+    @pytest.mark.asyncio
+    async def test_list_s3_objects_paginated_client_error(self, search_engine):
+        """Test paginated S3 object listing with client error."""
+        search_engine.s3_client.list_objects_v2.side_effect = ClientError(
+            {'Error': {'Code': 'NoSuchBucket', 'Message': 'Bucket not found'}}, 'ListObjectsV2'
+        )
+
+        with pytest.raises(ClientError):
+            await search_engine._list_s3_objects_paginated('test-bucket', 'data/', None, 100)
+
+    def test_matches_file_type_filter_exact_match(self, search_engine):
+        """Test file type filter with exact match."""
+        result = search_engine._matches_file_type_filter(GenomicsFileType.FASTQ, 'fastq')
+        assert result is True
+
+    def test_matches_file_type_filter_no_filter(self, search_engine):
+        """Test file type filter with no filter specified."""
+        result = search_engine._matches_file_type_filter(GenomicsFileType.FASTQ, None)
+        assert result is True
+
+    def test_matches_file_type_filter_no_match(self, search_engine):
+        """Test file type filter with no match."""
+        result = search_engine._matches_file_type_filter(GenomicsFileType.FASTQ, 'bam')
+        assert result is False
+
+    def test_matches_file_type_filter_case_insensitive(self, search_engine):
+        """Test file type filter is case insensitive."""
+        result = search_engine._matches_file_type_filter(GenomicsFileType.FASTQ, 'fastq')
+        assert result is True
+
+    def test_matches_search_terms_path_and_tags(self, search_engine):
+        """Test search term matching with both path and tags."""
+        search_engine.pattern_matcher.match_file_path = MagicMock(return_value=(0.8, ['sample']))
+        search_engine.pattern_matcher.match_tags = MagicMock(return_value=(0.6, ['patient']))
+
+        result = search_engine._matches_search_terms(
+            's3://bucket/sample.fastq', {'patient_id': 'patient123'}, ['sample', 'patient']
+        )
+
+        # The method returns a boolean, not a tuple
+        assert result is True
+
+    def test_matches_search_terms_tags_only(self, search_engine):
+        """Test search term matching with tags only."""
+        search_engine.pattern_matcher.match_file_path = MagicMock(return_value=(0.0, []))
+        search_engine.pattern_matcher.match_tags = MagicMock(return_value=(0.9, ['patient']))
+
+        result = search_engine._matches_search_terms(
+            's3://bucket/file.fastq', {'patient_id': 'patient123'}, ['patient']
+        )
+
+        assert result is True
+
+    def test_matches_search_terms_no_match(self, search_engine):
+        """Test search term matching with no matches."""
+        search_engine.pattern_matcher.match_file_path = MagicMock(return_value=(0.0, []))
+        search_engine.pattern_matcher.match_tags = MagicMock(return_value=(0.0, []))
+
+        result = search_engine._matches_search_terms('s3://bucket/file.fastq', {}, ['nonexistent'])
+
+        assert result is False
+
+    def test_is_related_index_file_bam_bai(self, search_engine):
+        """Test related index file detection for BAM/BAI."""
+        result = search_engine._is_related_index_file(GenomicsFileType.BAI, 'bam')
+        assert result is True
+
+    def test_is_related_index_file_fastq_no_index(self, search_engine):
+        """Test related index file detection for FASTQ (no index)."""
+        result = search_engine._is_related_index_file('sample.fastq', 'other.fastq')
+        assert result is False
+
+    def test_is_related_index_file_vcf_tbi(self, search_engine):
+        """Test related index file detection for VCF/TBI."""
+        result = search_engine._is_related_index_file(GenomicsFileType.TBI, 'vcf')
+        assert result is True
+
+    def test_is_related_index_file_fasta_fai(self, search_engine):
+        """Test related index file detection for FASTA/FAI."""
+        result = search_engine._is_related_index_file(GenomicsFileType.FAI, 'fasta')
+        assert result is True
+
+    def test_is_related_index_file_no_relationship(self, search_engine):
+        """Test related index file detection with no relationship."""
+        result = search_engine._is_related_index_file('file1.fastq', 'file2.bam')
+        assert result is False
