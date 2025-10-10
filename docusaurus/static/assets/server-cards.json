@@ -473,6 +473,29 @@
       ]
     },
     {
+      "category": "AI & Machine Learning",
+      "description": "Manage custom models in Bedrock for on-demand inference",
+      "icon": "\ud83e\udd16",
+      "id": "aws-bedrock-custom-model-import-mcp-server",
+      "name": "Amazon Bedrock Custom Model Import MCP Server",
+      "source_path": "src/aws-bedrock-custom-model-import-mcp-server/",
+      "subcategory": "Model Orchestration",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "vibe-coding",
+        "conversational",
+        "machine-learning",
+        "ai-tools",
+        "serverless"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational",
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Data & Analytics",
       "description": "Complete DynamoDB operations and table management",
       "icon": "\ud83d\udcca",
@@ -716,6 +739,50 @@
         "performance",
         "autonomous",
         "caching-performance"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "AWS AppSync backend API management and operations execution",
+      "icon": "\ud83d\udcca",
+      "id": "aws-appsync-mcp-server",
+      "name": "AWS AppSync MCP Server",
+      "source_path": "src/aws-appsync-mcp-server/",
+      "subcategory": "Backend API Providers",
+      "tags": [
+        "api",
+        "graphql",
+        "appsync",
+        "api-management",
+        "graphql-operations",
+        "api-operations",
+        "autonomous",
+        "data-operations",
+        "event-based",
+        "real-time-events",
+        "event-notifications"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "AWS IoT SiteWise functionality for industrial IoT asset management, data ingestion, monitoring, and analytics",
+      "icon": "\ud83d\udcca",
+      "id": "aws-iot-sitewise-mcp-server",
+      "name": "AWS IoT Sitewise MCP Server",
+      "source_path": "src/aws-iot-sitewise-mcp-server",
+      "subcategory": "Industrial Internet of Things and Asset Management",
+      "tags": [
+        "autonomous",
+        "data-operations",
+        "event-based",
+        "real-time-events",
+        "event-notifications"
       ],
       "workflows": [
         "autonomous"
@@ -1081,6 +1148,25 @@
       ]
     },
     {
+      "category": "Healthcare & Lifesciences",
+      "description": "Perform Fast Healthcare Interoperability Resources (FHIR) interactions and manage AWS HealthLake datastores",
+      "icon": "\ud83e\uddc0",
+      "id": "healthlake-mcp-server",
+      "name": "HealthLake MCP Server",
+      "source_path": "src/healthlake-mcp-server/",
+      "subcategory": "FHIR resource management",
+      "tags": [
+        "healthcare",
+        "lifesciences",
+        "healthlake",
+        "fhir",
+        "vibe-coding"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
       "category": "Cost & Operations",
       "description": "Application monitoring and performance insights",
       "icon": "\ud83d\udcb0",
@@ -1116,6 +1202,31 @@
         "metrics",
         "alarms",
         "logs",
+        "analysis",
+        "troubleshooting",
+        "autonomous",
+        "operations-monitoring"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
+      "category": "Cost & Operations",
+      "description": "AWS API Activity, User or Resource analysis using CloudTrail Logs",
+      "icon": "\ud83d\udcb0",
+      "id": "cloudtrail-mcp-server",
+      "name": "AWS CloudTrail MCP Server",
+      "source_path": "src/cloutrail-mcp-server/",
+      "subcategory": "Monitoring & Logging",
+      "tags": [
+        "cost-operations",
+        "cloudtrail",
+        "activity",
+        "audit",
+        "compliance",
+        "logs",
+        "events",
         "analysis",
         "troubleshooting",
         "autonomous",
@@ -1189,6 +1300,30 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Allows you to build, deploy, and manage intelligent agents with advanced capabilities like memory, OAuth authentication, and gateway integrations",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-bedrock-agentcore-mcp-server",
+      "name": "Amazon Bedrock AgentCore MCP Server",
+      "source_path": "src/amazon-bedrock-agentcore-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "conversational",
+        "knowledge-search",
+        "agentcore",
+        "agents",
+        "ai-agents",
+        "agentic",
+        "runtime",
+        "mcp"
+      ],
+      "workflows": [
+        "conversational"
       ]
     },
     {

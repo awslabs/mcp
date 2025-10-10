@@ -13,22 +13,38 @@
 # limitations under the License.
 """Tests for the main function in server.py."""
 
-from awslabs.core_mcp_server.server import main
-from unittest.mock import patch
+import pytest
+from unittest.mock import AsyncMock, patch
 
 
 class TestMain:
     """Tests for the main function."""
 
-    @patch('awslabs.core_mcp_server.server.mcp.run')
-    @patch('sys.argv', ['awslabs.core-mcp-server'])
-    def test_main_default(self, mock_run):
+    @pytest.fixture
+    def mock_setup(self):
+        """Fixture to provide a mock setup function."""
+        with patch('awslabs.core_mcp_server.server.setup', new_callable=AsyncMock) as mock:
+            yield mock
+
+    @pytest.fixture
+    def mock_mcp(self):
+        """Fixture to provide a mock MCP instance."""
+        with patch('awslabs.core_mcp_server.server.mcp') as mock:
+            yield mock
+
+    def test_main_default(self, mock_setup, mock_mcp):
         """Test main function with default arguments."""
+        # Import the main function
+        from awslabs.core_mcp_server.server import main
+
         # Call the main function
         main()
 
-        # Check that mcp.run was called with the correct arguments
-        mock_run.assert_called_once()
+        # Check that setup was called
+        mock_setup.assert_called_once()
+
+        # Check that mcp.run was called
+        mock_mcp.run.assert_called_once()
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""

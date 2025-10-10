@@ -127,18 +127,6 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             ),
         ),
         (
-            'aws dynamodb wait table-exists --table-name MyTable',
-            IRTranslation(
-                command=IRCommand(
-                    command_metadata=CommandMetadata('dynamodb', None, 'wait table-exists'),
-                    region='us-east-1',
-                    parameters={'--table-name': 'MyTable'},
-                    is_awscli_customization=True,
-                ),
-                command_metadata=CommandMetadata('dynamodb', None, 'wait table-exists'),
-            ),
-        ),
-        (
             'aws ec2 lss',
             IRTranslation(
                 validation_failures=[InvalidServiceOperationError('ec2', 'lss').as_failure()]
@@ -187,14 +175,13 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             ),
         ),
         (
-            'aws batch list-jobs --no-verify-ssl --debug --endpoint-url http://gooble.com --no-sign-request',
+            'aws batch list-jobs --no-verify-ssl --debug --no-sign-request',
             IRTranslation(
                 validation_failures=[
                     DeniedGlobalArgumentsError(
                         'batch',
                         [
                             '--debug',
-                            '--endpoint-url',
                             '--no-sign-request',
                             '--no-verify-ssl',
                         ],

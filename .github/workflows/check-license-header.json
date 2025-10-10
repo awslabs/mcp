@@ -53,7 +53,8 @@
       "**/*.pyc",
       "**/trivy-results.sarif",
       "**/py.typed",
-      "**/*.npz"
+      "**/*.npz",
+      "**/*.template"
     ]
   }
 ]

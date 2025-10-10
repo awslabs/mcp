@@ -12,6 +12,7 @@ This MCP server provides tools for:
 
 ### 🧬 Workflow Management
 - **Create and validate workflows**: Support for WDL, CWL, and Nextflow workflow languages
+- **Lint workflow definitions**: Validate WDL and CWL workflows using industry-standard linting tools
 - **Version management**: Create and manage workflow versions with different configurations
 - **Package workflows**: Bundle workflow definitions into deployable packages
 
@@ -33,11 +34,13 @@ This MCP server provides tools for:
 ### Workflow Management Tools
 
 1. **ListAHOWorkflows** - List available HealthOmics workflows with pagination support
-2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions
+2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions from base64-encoded ZIP files or S3 URIs, with optional container registry mappings
 3. **GetAHOWorkflow** - Retrieve detailed workflow information and export definitions
-4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows
+4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows from base64-encoded ZIP files or S3 URIs, with optional container registry mappings
 5. **ListAHOWorkflowVersions** - List all versions of a specific workflow
-6. **PackageAHOWorkflow** - Package workflow files into base64-encoded ZIP format
+6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool
+7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support
+8. **PackageAHOWorkflow** - Package workflow files into base64-encoded ZIP format
 
 ### Workflow Execution Tools
 
@@ -76,14 +79,30 @@ AWS HealthOmics is designed for genomic data analysis workflows. Key concepts:
 ### Workflow Management Best Practices
 
 1. **Creating Workflows**:
-   - Use `PackageAHOWorkflow` to bundle workflow files before creating
+   - **From local files**: Use `PackageAHOWorkflow` to bundle workflow files, then use the base64-encoded ZIP with `CreateAHOWorkflow`
+   - **From S3**: Store your workflow definition ZIP file in S3 and reference it using the `definition_uri` parameter
    - Validate workflows with appropriate language syntax (WDL, CWL, Nextflow)
    - Include parameter templates to guide users on required inputs
+   - Choose the appropriate method based on your workflow storage preferences
 
-2. **Version Management**:
+2. **S3 URI Support**:
+   - Both `CreateAHOWorkflow` and `CreateAHOWorkflowVersion` support S3 URIs as an alternative to base64-encoded ZIP files
+   - **Benefits of S3 URIs**:
+     - Better for large workflow definitions (no base64 encoding overhead)
+     - Easier integration with CI/CD pipelines that store artifacts in S3
+     - Reduced memory usage during workflow creation
+     - Direct reference to existing S3-stored workflow definitions
+   - **Requirements**:
+     - S3 URI must start with `s3://`
+     - The S3 bucket must be in the same region as the HealthOmics service
+     - Appropriate S3 permissions must be configured for the HealthOmics service
+   - **Usage**: Specify either `definition_zip_base64` OR `definition_uri`, but not both
+
+3. **Version Management**:
    - Create new versions for workflow updates rather than modifying existing ones
    - Use descriptive version names that indicate changes or improvements
    - List versions to help users choose the appropriate one
+   - Both base64 ZIP and S3 URI methods are supported for version creation
 
 ### Workflow Execution Guidance
 
@@ -119,14 +138,35 @@ When workflows fail, follow this diagnostic approach:
    - Review task resource utilization patterns
    - Optimize workflow parameters based on analysis results
 
+### Workflow Linting and Validation
+
+The MCP server includes built-in workflow linting capabilities for validating WDL and CWL workflows before deployment:
+
+1. **Lint Workflow Definitions**:
+   - **Single files**: Use `LintAHOWorkflowDefinition` for individual workflow files
+   - **Multi-file bundles**: Use `LintAHOWorkflowBundle` for workflows with imports and dependencies
+   - **Syntax errors**: Catch parsing issues before deployment
+   - **Missing components**: Identify missing inputs, outputs, or steps
+   - **Runtime requirements**: Ensure tasks have proper runtime specifications
+   - **Import resolution**: Validate imports and dependencies between files
+   - **Best practices**: Get warnings about potential improvements
+
+2. **Supported Formats**:
+   - **WDL**: Uses miniwdl for comprehensive validation
+   - **CWL**: Uses cwltool for standards-compliant validation
+
+3. **No Additional Installation Required**:
+   Both miniwdl and cwltool are included as dependencies and available immediately after installing the MCP server.
+
 ### Common Use Cases
 
 1. **Workflow Development**:
    ```
    User: "Help me create a new genomic variant calling workflow"
-   → Use CreateAHOWorkflow with WDL/CWL/Nextflow definition
-   → Package workflow files appropriately
+   → Option A: Use PackageAHOWorkflow to bundle files, then CreateAHOWorkflow with base64 ZIP
+   → Option B: Upload workflow ZIP to S3, then CreateAHOWorkflow with S3 URI
    → Validate syntax and parameters
+   → Choose method based on workflow size and storage preferences
    ```
 
 2. **Production Execution**:
@@ -151,6 +191,16 @@ When workflows fail, follow this diagnostic approach:
    → Use AnalyzeAHORunPerformance to identify bottlenecks
    → Review resource utilization patterns
    → Suggest optimization strategies
+   ```
+
+5. **Workflow Validation**:
+   ```
+   User: "Check if my WDL workflow is valid"
+   → Use LintAHOWorkflowDefinition for single files
+   → Use LintAHOWorkflowBundle for multi-file workflows with imports
+   → Check for missing inputs, outputs, or runtime requirements
+   → Validate import resolution and dependencies
+   → Get detailed error messages and warnings
    ```
 
 ### Important Considerations
@@ -198,6 +248,24 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 - `AWS_REGION` - AWS region for HealthOmics operations (default: us-east-1)
 - `AWS_PROFILE` - AWS profile for authentication
 - `FASTMCP_LOG_LEVEL` - Server logging level (default: WARNING)
+- `HEALTHOMICS_DEFAULT_MAX_RESULTS` - Default maximum number of results for paginated API calls (default: 10)
+
+#### Testing Configuration Variables
+
+The following environment variables are primarily intended for testing scenarios, such as integration testing against mock service endpoints:
+
+- `HEALTHOMICS_SERVICE_NAME` - Override the AWS service name used by the HealthOmics client (default: omics)
+  - **Use case**: Testing against mock services or alternative implementations
+  - **Validation**: Cannot be empty or whitespace-only; falls back to default with warning if invalid
+  - **Example**: `export HEALTHOMICS_SERVICE_NAME=omics-mock`
+
+- `HEALTHOMICS_ENDPOINT_URL` - Override the endpoint URL used by the HealthOmics client
+  - **Use case**: Integration testing against local mock services or alternative endpoints
+  - **Validation**: Must begin with `http://` or `https://`; ignored with warning if invalid
+  - **Example**: `export HEALTHOMICS_ENDPOINT_URL=http://localhost:8080`
+  - **Note**: Only affects the HealthOmics client; other AWS services use default endpoints
+
+> **Important**: These testing configuration variables should only be used in development and testing environments. In production, always use the default AWS HealthOmics service endpoints for security and reliability.
 
 ### AWS Credentials
 
@@ -260,7 +328,30 @@ Add to your Claude Desktop configuration:
       "args": ["awslabs.aws-healthomics-mcp-server"],
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_PROFILE": "your-profile"
+        "AWS_PROFILE": "your-profile",
+        "HEALTHOMICS_DEFAULT_MAX_RESULTS": "10"
+      }
+    }
+  }
+}
+```
+
+#### Testing Configuration Example
+
+For integration testing against mock services:
+
+```json
+{
+  "mcpServers": {
+    "aws-healthomics-test": {
+      "command": "uvx",
+      "args": ["awslabs.aws-healthomics-mcp-server"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "test-profile",
+        "HEALTHOMICS_SERVICE_NAME": "omics-mock",
+        "HEALTHOMICS_ENDPOINT_URL": "http://localhost:8080",
+        "FASTMCP_LOG_LEVEL": "DEBUG"
       }
     }
   }
@@ -297,6 +388,37 @@ For Windows users, the MCP server configuration format is slightly different:
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
+      }
+    }
+  }
+}
+```
+
+#### Windows Testing Configuration
+
+For testing scenarios on Windows:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-healthomics-mcp-server-test": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.aws-healthomics-mcp-server@latest",
+        "awslabs.aws-healthomics-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "DEBUG",
+        "AWS_PROFILE": "test-profile",
+        "AWS_REGION": "us-east-1",
+        "HEALTHOMICS_SERVICE_NAME": "omics-mock",
+        "HEALTHOMICS_ENDPOINT_URL": "http://localhost:8080"
       }
     }
   }
