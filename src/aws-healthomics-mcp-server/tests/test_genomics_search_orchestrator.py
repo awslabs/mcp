@@ -1539,3 +1539,419 @@ class TestGenomicsSearchOrchestrator:
             assert isinstance(result, StoragePaginationResponse)
             assert result.results == []
             assert result.has_more_results is False
+
+    @pytest.mark.asyncio
+    async def test_search_main_method_success(
+        self, orchestrator, sample_search_request, sample_genomics_files
+    ):
+        """Test the main search method with successful results."""
+        # Mock the parallel search execution
+        with patch.object(
+            orchestrator, '_execute_parallel_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            mock_execute.return_value = sample_genomics_files
+
+            # Create proper GenomicsFileResult objects
+            from awslabs.aws_healthomics_mcp_server.models import GenomicsFileResult
+
+            result_obj = GenomicsFileResult(
+                primary_file=sample_genomics_files[0],
+                associated_files=[],
+                relevance_score=0.8,
+                match_reasons=['test reason'],
+            )
+
+            # Mock the scoring method to return proper results
+            with patch.object(
+                orchestrator, '_score_results', new_callable=AsyncMock
+            ) as mock_score:
+                mock_score.return_value = [result_obj]
+
+                with patch.object(orchestrator.result_ranker, 'rank_results') as mock_rank:
+                    mock_rank.return_value = [result_obj]
+
+                    with patch.object(
+                        orchestrator.json_builder, 'build_search_response'
+                    ) as mock_build:
+                        mock_response_dict = {
+                            'results': [{'file': 'test'}],
+                            'total_found': 1,
+                            'search_duration_ms': 100,
+                            'storage_systems_searched': ['s3'],
+                            'search_statistics': {},
+                            'pagination_info': {},
+                        }
+                        mock_build.return_value = mock_response_dict
+
+                        result = await orchestrator.search(sample_search_request)
+
+                        # Verify the method was called and returned results
+                        assert result.total_found == 1
+                        assert result.enhanced_response == mock_response_dict
+                        mock_execute.assert_called_once_with(sample_search_request)
+                        mock_build.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_main_method_validation_error(self, orchestrator):
+        """Test the main search method with validation error."""
+        # Test that Pydantic validation works at the model level
+        with pytest.raises(ValueError) as exc_info:
+            GenomicsFileSearchRequest(
+                file_type='invalid_type',
+                search_terms=['test'],
+                max_results=0,  # Invalid
+            )
+
+        assert 'max_results must be greater than 0' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_main_method_execution_error(self, orchestrator, sample_search_request):
+        """Test the main search method with execution error."""
+        # Mock the parallel search execution to raise an exception
+        with patch.object(
+            orchestrator, '_execute_parallel_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            mock_execute.side_effect = Exception('Search execution failed')
+
+            with pytest.raises(Exception) as exc_info:
+                await orchestrator.search(sample_search_request)
+
+            assert 'Search execution failed' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_paginated_main_method_success(
+        self, orchestrator, sample_search_request, sample_genomics_files
+    ):
+        """Test the main search_paginated method with successful results."""
+        # Mock the parallel paginated search execution
+        with patch.object(
+            orchestrator, '_execute_parallel_paginated_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            from awslabs.aws_healthomics_mcp_server.models import GlobalContinuationToken
+
+            next_token = GlobalContinuationToken()
+            mock_execute.return_value = (
+                sample_genomics_files,
+                next_token,
+                len(sample_genomics_files),
+            )
+
+            # Create proper GenomicsFileResult objects
+            from awslabs.aws_healthomics_mcp_server.models import GenomicsFileResult
+
+            result_obj = GenomicsFileResult(
+                primary_file=sample_genomics_files[0],
+                associated_files=[],
+                relevance_score=0.8,
+                match_reasons=['test reason'],
+            )
+
+            # Mock the scoring method to return proper results
+            with patch.object(
+                orchestrator, '_score_results', new_callable=AsyncMock
+            ) as mock_score:
+                mock_score.return_value = [result_obj]
+
+                with patch.object(orchestrator.result_ranker, 'rank_results') as mock_rank:
+                    mock_rank.return_value = [result_obj]
+
+                    with patch.object(
+                        orchestrator.json_builder, 'build_search_response'
+                    ) as mock_build:
+                        mock_response_dict = {
+                            'results': [{'file': 'test'}],
+                            'total_found': 1,
+                            'search_duration_ms': 100,
+                            'storage_systems_searched': ['s3'],
+                            'search_statistics': {},
+                            'pagination_info': {},
+                        }
+                        mock_build.return_value = mock_response_dict
+
+                        result = await orchestrator.search_paginated(sample_search_request)
+
+                        # Verify the method was called and returned results
+                        assert result.total_found == 1
+                        assert result.enhanced_response == mock_response_dict
+                        mock_execute.assert_called_once()
+                        mock_build.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_paginated_with_continuation_token(
+        self, orchestrator, sample_search_request
+    ):
+        """Test search_paginated with continuation token."""
+        # Create request with continuation token
+        token = GlobalContinuationToken(
+            s3_tokens={'s3://test-bucket/': 's3_token_123'},
+            healthomics_sequence_token='seq_token_456',
+            healthomics_reference_token='ref_token_789',
+        )
+        sample_search_request.continuation_token = token.encode()
+
+        with patch.object(
+            orchestrator, '_execute_parallel_paginated_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            next_token = GlobalContinuationToken()
+            mock_execute.return_value = ([], next_token, 0)
+
+            with patch.object(orchestrator.json_builder, 'build_search_response') as mock_build:
+                mock_response_dict = {
+                    'results': [],
+                    'total_found': 0,
+                    'search_duration_ms': 100,
+                    'storage_systems_searched': ['s3'],
+                    'search_statistics': {},
+                    'pagination_info': {},
+                }
+                mock_build.return_value = mock_response_dict
+
+                result = await orchestrator.search_paginated(sample_search_request)
+
+                # Verify the method handled the continuation token
+                assert result.total_found == 0
+                assert result.enhanced_response == mock_response_dict
+                mock_execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_paginated_validation_error(self, orchestrator):
+        """Test search_paginated with validation error."""
+        # Test that Pydantic validation works at the model level
+        with pytest.raises(ValueError) as exc_info:
+            GenomicsFileSearchRequest(
+                file_type='fastq',
+                search_terms=['test'],
+                max_results=-1,  # Invalid
+            )
+
+        assert 'max_results must be greater than 0' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_with_file_associations(
+        self, orchestrator, sample_search_request, sample_genomics_files
+    ):
+        """Test search with file association detection."""
+        # Add a BAM file and its index to test associations
+        bam_file = GenomicsFile(
+            path='s3://test-bucket/sample.bam',
+            file_type=GenomicsFileType.BAM,
+            size_bytes=1000000,
+            storage_class='STANDARD',
+            last_modified=datetime.now(),
+            tags={'project': 'test'},
+            source_system='s3',
+            metadata={'sample_id': 'sample'},
+        )
+        bai_file = GenomicsFile(
+            path='s3://test-bucket/sample.bam.bai',
+            file_type=GenomicsFileType.BAI,
+            size_bytes=100000,
+            storage_class='STANDARD',
+            last_modified=datetime.now(),
+            tags={'project': 'test'},
+            source_system='s3',
+            metadata={'sample_id': 'sample'},
+        )
+        files_with_associations = [bam_file, bai_file]
+
+        with patch.object(
+            orchestrator, '_execute_parallel_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            mock_execute.return_value = files_with_associations
+
+            # Create proper GenomicsFileResult objects
+            from awslabs.aws_healthomics_mcp_server.models import GenomicsFileResult
+
+            result_obj = GenomicsFileResult(
+                primary_file=bam_file,
+                associated_files=[bai_file],
+                relevance_score=0.9,
+                match_reasons=['association bonus'],
+            )
+
+            # Mock the scoring method to return proper results
+            with patch.object(
+                orchestrator, '_score_results', new_callable=AsyncMock
+            ) as mock_score:
+                mock_score.return_value = [result_obj]
+
+                with patch.object(orchestrator.result_ranker, 'rank_results') as mock_rank:
+                    mock_rank.return_value = [result_obj]
+
+                    with patch.object(
+                        orchestrator.json_builder, 'build_search_response'
+                    ) as mock_build:
+                        mock_response_dict = {
+                            'results': [{'file': 'test_with_associations'}],
+                            'total_found': 1,
+                            'search_duration_ms': 100,
+                            'storage_systems_searched': ['s3'],
+                            'search_statistics': {},
+                            'pagination_info': {},
+                        }
+                        mock_build.return_value = mock_response_dict
+
+                        result = await orchestrator.search(sample_search_request)
+
+                        # Verify associations were found and processed
+                        assert result.total_found == 1
+                        assert result.enhanced_response == mock_response_dict
+                        mock_execute.assert_called_once_with(sample_search_request)
+                        mock_score.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_with_empty_results(self, orchestrator, sample_search_request):
+        """Test search with no results found."""
+        with patch.object(
+            orchestrator, '_execute_parallel_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            mock_execute.return_value = []  # No files found
+
+            with patch.object(orchestrator.json_builder, 'build_search_response') as mock_build:
+                mock_response_dict = {
+                    'results': [],
+                    'total_found': 0,
+                    'search_duration_ms': 100,
+                    'storage_systems_searched': ['s3'],
+                    'search_statistics': {},
+                    'pagination_info': {},
+                }
+                mock_build.return_value = mock_response_dict
+
+                result = await orchestrator.search(sample_search_request)
+
+                # Verify empty results are handled correctly
+                assert result.total_found == 0
+                assert result.enhanced_response == mock_response_dict
+                mock_execute.assert_called_once_with(sample_search_request)
+                mock_build.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_with_healthomics_associations(self, orchestrator, sample_search_request):
+        """Test search with HealthOmics-specific file associations."""
+        # Create HealthOmics files with index information
+        ho_file = GenomicsFile(
+            path='omics://123456789012.storage.us-east-1.amazonaws.com/seq-store-123/readSet/readset-456/source1',
+            file_type=GenomicsFileType.BAM,
+            size_bytes=1000000,
+            storage_class='STANDARD',
+            last_modified=datetime.now(),
+            tags={},
+            source_system='sequence_store',
+            metadata={
+                'files': {
+                    'source1': {'contentLength': 1000000},
+                    'index': {'contentLength': 100000},
+                },
+                'account_id': '123456789012',
+                'region': 'us-east-1',
+                'store_id': 'seq-store-123',
+                'read_set_id': 'readset-456',
+            },
+        )
+
+        with patch.object(
+            orchestrator, '_execute_parallel_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            mock_execute.return_value = [ho_file]
+
+            # Create proper GenomicsFileResult objects
+            from awslabs.aws_healthomics_mcp_server.models import GenomicsFileResult
+
+            result_obj = GenomicsFileResult(
+                primary_file=ho_file,
+                associated_files=[],
+                relevance_score=0.8,
+                match_reasons=['healthomics file'],
+            )
+
+            # Mock the scoring method to return proper results
+            with patch.object(
+                orchestrator, '_score_results', new_callable=AsyncMock
+            ) as mock_score:
+                mock_score.return_value = [result_obj]
+
+                with patch.object(orchestrator.result_ranker, 'rank_results') as mock_rank:
+                    mock_rank.return_value = [result_obj]
+
+                    with patch.object(
+                        orchestrator.json_builder, 'build_search_response'
+                    ) as mock_build:
+                        mock_response_dict = {
+                            'results': [{'file': 'healthomics_test'}],
+                            'total_found': 1,
+                            'search_duration_ms': 100,
+                            'storage_systems_searched': ['s3'],
+                            'search_statistics': {},
+                            'pagination_info': {},
+                        }
+                        mock_build.return_value = mock_response_dict
+
+                        result = await orchestrator.search(sample_search_request)
+
+                        # Verify HealthOmics associations were processed
+                        assert result.total_found == 1
+                        assert result.enhanced_response == mock_response_dict
+                        mock_execute.assert_called_once_with(sample_search_request)
+                        mock_score.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_performance_logging(
+        self, orchestrator, sample_search_request, sample_genomics_files
+    ):
+        """Test that search performance is logged correctly."""
+        with patch.object(
+            orchestrator, '_execute_parallel_searches', new_callable=AsyncMock
+        ) as mock_execute:
+            mock_execute.return_value = sample_genomics_files
+
+            # Create proper GenomicsFileResult objects
+            from awslabs.aws_healthomics_mcp_server.models import GenomicsFileResult
+
+            result_obj = GenomicsFileResult(
+                primary_file=sample_genomics_files[0],
+                associated_files=[],
+                relevance_score=0.8,
+                match_reasons=['test reason'],
+            )
+
+            # Mock the scoring method to return proper results
+            with patch.object(
+                orchestrator, '_score_results', new_callable=AsyncMock
+            ) as mock_score:
+                mock_score.return_value = [result_obj]
+
+                with patch.object(orchestrator.result_ranker, 'rank_results') as mock_rank:
+                    mock_rank.return_value = [result_obj]
+
+                    with patch.object(
+                        orchestrator.json_builder, 'build_search_response'
+                    ) as mock_build:
+                        mock_response_dict = {
+                            'results': [{'file': 'test'}],
+                            'total_found': 1,
+                            'search_duration_ms': 100,
+                            'storage_systems_searched': ['s3'],
+                            'search_statistics': {},
+                            'pagination_info': {},
+                        }
+                        mock_build.return_value = mock_response_dict
+
+                        # Mock logger to verify logging calls
+                        with patch(
+                            'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.logger'
+                        ) as mock_logger:
+                            result = await orchestrator.search(sample_search_request)
+
+                            # Verify performance logging occurred
+                            assert result.total_found == 1
+                            assert result.enhanced_response == mock_response_dict
+                            # Should have logged start and completion
+                            assert mock_logger.info.call_count >= 2
+
+                            # Check that timing information was logged
+                            log_calls = [call.args[0] for call in mock_logger.info.call_args_list]
+                            assert any(
+                                'Starting genomics file search' in call for call in log_calls
+                            )
+                            assert any('Search completed' in call for call in log_calls)

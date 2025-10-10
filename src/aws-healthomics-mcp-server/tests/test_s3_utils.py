@@ -238,6 +238,13 @@ class TestValidateAndNormalizeS3Path:
 class TestValidateBucketAccess:
     """Test cases for validate_bucket_access function."""
 
+    def test_validate_bucket_access_empty_paths(self):
+        """Test bucket access validation with empty bucket paths."""
+        with pytest.raises(ValueError) as exc_info:
+            validate_bucket_access([])
+
+        assert 'No S3 bucket paths provided' in str(exc_info.value)
+
     @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
     def test_validate_bucket_access_all_accessible(self, mock_get_session):
         """Test bucket access validation when all buckets are accessible."""

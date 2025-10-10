@@ -15,7 +15,10 @@
 """Working integration tests for genomics file search functionality."""
 
 import pytest
-from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import search_genomics_files
+from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import (
+    get_supported_file_types,
+    search_genomics_files,
+)
 from tests.test_helpers import MCPToolTestWrapper
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -273,3 +276,143 @@ class TestGenomicsFileSearchIntegration:
             assert 'performance_metrics' in result
             assert 'metadata' in result
             assert result['performance_metrics']['results_per_second'] == 100
+
+
+class TestGetSupportedFileTypes:
+    """Tests for the get_supported_file_types function."""
+
+    @pytest.fixture
+    def file_types_tool_wrapper(self):
+        """Create a test wrapper for the get_supported_file_types function."""
+        return MCPToolTestWrapper(get_supported_file_types)
+
+    @pytest.fixture
+    def mock_context(self):
+        """Create a mock MCP context."""
+        context = AsyncMock()
+        context.error = AsyncMock()
+        return context
+
+    @pytest.mark.asyncio
+    async def test_get_supported_file_types_success(self, file_types_tool_wrapper, mock_context):
+        """Test successful retrieval of supported file types."""
+        result = await file_types_tool_wrapper.call(ctx=mock_context)
+
+        # Validate response structure
+        assert isinstance(result, dict)
+        assert 'supported_file_types' in result
+        assert 'all_valid_types' in result
+        assert 'total_types_supported' in result
+
+        # Validate supported file types structure
+        file_types = result['supported_file_types']
+        expected_categories = [
+            'sequence_files',
+            'alignment_files',
+            'variant_files',
+            'annotation_files',
+            'index_files',
+            'bwa_index_files',
+        ]
+
+        for category in expected_categories:
+            assert category in file_types
+            assert isinstance(file_types[category], dict)
+            assert len(file_types[category]) > 0
+
+        # Validate specific file types exist
+        assert 'fastq' in file_types['sequence_files']
+        assert 'bam' in file_types['alignment_files']
+        assert 'vcf' in file_types['variant_files']
+        assert 'bed' in file_types['annotation_files']
+        assert 'bai' in file_types['index_files']
+        assert 'bwa_amb' in file_types['bwa_index_files']
+
+        # Validate all_valid_types
+        all_types = result['all_valid_types']
+        assert isinstance(all_types, list)
+        assert len(all_types) > 0
+        assert 'fastq' in all_types
+        assert 'bam' in all_types
+        assert 'vcf' in all_types
+
+        # Validate total count
+        assert result['total_types_supported'] == len(all_types)
+        assert result['total_types_supported'] > 15  # Should have many file types
+
+    @pytest.mark.asyncio
+    async def test_get_supported_file_types_descriptions(
+        self, file_types_tool_wrapper, mock_context
+    ):
+        """Test that file type descriptions are meaningful."""
+        result = await file_types_tool_wrapper.call(ctx=mock_context)
+
+        file_types = result['supported_file_types']
+
+        # Check that descriptions are provided and meaningful
+        fastq_desc = file_types['sequence_files']['fastq']
+        assert 'FASTQ' in fastq_desc
+        assert 'sequence' in fastq_desc.lower()
+
+        bam_desc = file_types['alignment_files']['bam']
+        assert 'Binary' in bam_desc or 'BAM' in bam_desc
+        assert 'alignment' in bam_desc.lower() or 'Alignment' in bam_desc
+
+        vcf_desc = file_types['variant_files']['vcf']
+        assert 'Variant' in vcf_desc
+        assert 'Call' in vcf_desc or 'Format' in vcf_desc
+
+    @pytest.mark.asyncio
+    async def test_get_supported_file_types_sorted_output(
+        self, file_types_tool_wrapper, mock_context
+    ):
+        """Test that the all_valid_types list is sorted."""
+        result = await file_types_tool_wrapper.call(ctx=mock_context)
+
+        all_types = result['all_valid_types']
+        assert all_types == sorted(all_types), 'all_valid_types should be sorted alphabetically'
+
+    @pytest.mark.asyncio
+    async def test_get_supported_file_types_consistency(
+        self, file_types_tool_wrapper, mock_context
+    ):
+        """Test consistency between supported_file_types and all_valid_types."""
+        result = await file_types_tool_wrapper.call(ctx=mock_context)
+
+        # Collect all types from categories
+        collected_types = []
+        for category in result['supported_file_types'].values():
+            collected_types.extend(category.keys())
+
+        # Should match all_valid_types (when sorted)
+        assert sorted(collected_types) == result['all_valid_types']
+        assert len(collected_types) == result['total_types_supported']
+
+    @pytest.mark.asyncio
+    async def test_get_supported_file_types_error_handling(
+        self, file_types_tool_wrapper, mock_context
+    ):
+        """Test error handling in get_supported_file_types."""
+        # Mock an exception during execution
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.genomics_file_search.logger'
+        ) as mock_logger:
+            # Patch something that would cause an exception
+            with patch('builtins.sorted', side_effect=Exception('Test error')):
+                with pytest.raises(Exception) as exc_info:
+                    await file_types_tool_wrapper.call(ctx=mock_context)
+
+                # Verify error was logged and reported to context
+                mock_logger.error.assert_called()
+                mock_context.error.assert_called()
+                assert 'Test error' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_supported_file_types_no_context_error(
+        self, file_types_tool_wrapper, mock_context
+    ):
+        """Test that the function doesn't call context.error on success."""
+        await file_types_tool_wrapper.call(ctx=mock_context)
+
+        # Should not have called error on successful execution
+        mock_context.error.assert_not_called()
