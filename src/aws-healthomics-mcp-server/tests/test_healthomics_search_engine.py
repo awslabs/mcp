@@ -1506,3 +1506,634 @@ class TestHealthOmicsSearchEngine:
         # Should return results (may not be limited as expected due to mocking)
         assert len(result.results) >= 0
         # The has_more_results flag depends on the actual implementation
+
+    @pytest.mark.asyncio
+    async def test_search_sequence_stores_with_general_exception(
+        self, search_engine, sample_sequence_stores
+    ):
+        """Test exception handling in search_sequence_stores (lines 103-105)."""
+        search_engine._list_sequence_stores = AsyncMock(
+            side_effect=Exception('Database connection failed')
+        )
+
+        # Should re-raise the exception when it occurs in _list_sequence_stores
+        with pytest.raises(Exception) as exc_info:
+            await search_engine.search_sequence_stores('fastq', ['test'])
+
+        assert 'Database connection failed' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_sequence_stores_paginated_with_general_exception(self, search_engine):
+        """Test exception handling in search_sequence_stores_paginated (lines 217-219)."""
+        pagination_request = StoragePaginationRequest(max_results=10)
+
+        # Mock _list_sequence_stores to raise an exception
+        search_engine._list_sequence_stores = AsyncMock(
+            side_effect=Exception('Database connection failed')
+        )
+
+        # Should re-raise the exception
+        with pytest.raises(Exception) as exc_info:
+            await search_engine.search_sequence_stores_paginated(
+                'fastq', ['test'], pagination_request
+            )
+
+        assert 'Database connection failed' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_reference_stores_with_general_exception(
+        self, search_engine, sample_reference_stores
+    ):
+        """Test exception handling in search_reference_stores (lines 278-280)."""
+        search_engine._list_reference_stores = AsyncMock(
+            side_effect=Exception('Service unavailable')
+        )
+
+        # Should re-raise the exception when it occurs in _list_reference_stores
+        with pytest.raises(Exception) as exc_info:
+            await search_engine.search_reference_stores('fasta', ['test'])
+
+        assert 'Service unavailable' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_reference_stores_paginated_with_general_exception(self, search_engine):
+        """Test exception handling in search_reference_stores_paginated."""
+        pagination_request = StoragePaginationRequest(max_results=10)
+
+        # Mock _list_reference_stores to raise an exception
+        search_engine._list_reference_stores = AsyncMock(
+            side_effect=Exception('Service unavailable')
+        )
+
+        # Should re-raise the exception
+        with pytest.raises(Exception) as exc_info:
+            await search_engine.search_reference_stores_paginated(
+                'fasta', ['test'], pagination_request
+            )
+
+        assert 'Service unavailable' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_convert_read_set_to_genomics_file_with_inactive_status(self, search_engine):
+        """Test read set conversion with inactive status (lines 1154-1155)."""
+        read_set = {'id': 'readset-123', 'name': 'sample_data', 'fileType': 'FASTQ'}
+        store_id = 'seq-store-456'
+        store_info = {'id': store_id, 'name': 'Test Store'}
+
+        # Mock metadata with INACTIVE status
+        enhanced_metadata = {
+            'status': 'INACTIVE',  # Not ACTIVE
+            'fileType': 'FASTQ',
+        }
+
+        search_engine._get_read_set_metadata = AsyncMock(return_value=enhanced_metadata)
+
+        result = await search_engine._convert_read_set_to_genomics_file(
+            read_set, store_id, store_info, None, []
+        )
+
+        # Should return None for inactive read sets
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_convert_read_set_to_genomics_file_with_missing_status(self, search_engine):
+        """Test read set conversion with missing status in metadata."""
+        read_set = {
+            'id': 'readset-123',
+            'name': 'sample_data',
+            'fileType': 'FASTQ',
+            'status': 'PENDING',  # Status in read_set but not ACTIVE
+        }
+        store_id = 'seq-store-456'
+        store_info = {'id': store_id, 'name': 'Test Store'}
+
+        # Mock metadata without status field
+        enhanced_metadata = {
+            'fileType': 'FASTQ'
+            # No 'status' field in enhanced_metadata
+        }
+
+        search_engine._get_read_set_metadata = AsyncMock(return_value=enhanced_metadata)
+
+        result = await search_engine._convert_read_set_to_genomics_file(
+            read_set, store_id, store_info, None, []
+        )
+
+        # Should return None because status from read_set is PENDING, not ACTIVE
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_convert_read_set_to_genomics_file_with_conversion_exception(
+        self, search_engine
+    ):
+        """Test exception handling in _convert_read_set_to_genomics_file (lines 1276-1280)."""
+        read_set = {'id': 'readset-123', 'name': 'sample_data', 'fileType': 'FASTQ'}
+        store_id = 'seq-store-456'
+        store_info = {'id': store_id, 'name': 'Test Store'}
+
+        # Mock _get_read_set_metadata to raise an exception
+        search_engine._get_read_set_metadata = AsyncMock(
+            side_effect=Exception('API rate limit exceeded')
+        )
+
+        result = await search_engine._convert_read_set_to_genomics_file(
+            read_set, store_id, store_info, None, []
+        )
+
+        # Should return None on exception, not raise
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_search_sequence_stores_paginated_max_results_break(
+        self, search_engine, sample_sequence_stores
+    ):
+        """Test early break when max_results is reached in paginated search (line 190)."""
+        pagination_request = StoragePaginationRequest(max_results=2)
+
+        search_engine._list_sequence_stores = AsyncMock(return_value=sample_sequence_stores)
+
+        # Mock to return files that would exceed max_results
+        mock_files = []
+        for i in range(5):  # More than max_results
+            file = GenomicsFile(
+                path=f's3://test/file{i}.fastq',
+                file_type=GenomicsFileType.FASTQ,
+                size_bytes=1000,
+                storage_class='STANDARD',
+                last_modified=datetime.now(timezone.utc),
+                tags={},
+                source_system='sequence_store',
+                metadata={},
+            )
+            mock_files.append(file)
+
+        # Mock the paginated search to return different results for each store
+        search_engine._search_single_sequence_store_paginated = AsyncMock(
+            side_effect=[
+                (mock_files[:2], 'token1', 2),  # First store returns 2 files
+                (mock_files[2:], 'token2', 3),  # Second store would return more, but should break
+            ]
+        )
+
+        result = await search_engine.search_sequence_stores_paginated(
+            'fastq', ['test'], pagination_request
+        )
+
+        # Should stop at max_results
+        assert len(result.results) == 2
+        assert result.has_more_results is True
+
+    @pytest.mark.asyncio
+    async def test_get_read_set_metadata_with_client_error_handling(self, search_engine):
+        """Test _get_read_set_metadata with ClientError exception handling."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetReadSetMetadata'
+        )
+        search_engine.omics_client.get_read_set_metadata = MagicMock(side_effect=error)
+
+        # The method catches ClientError and returns empty dict, doesn't re-raise
+        result = await search_engine._get_read_set_metadata('seq-store-001', 'readset-001')
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_get_read_set_tags_with_client_error_handling(self, search_engine):
+        """Test _get_read_set_tags with ClientError exception handling."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'ResourceNotFound', 'Message': 'Resource not found'}},
+            'ListTagsForResource',
+        )
+        search_engine.omics_client.list_tags_for_resource = MagicMock(side_effect=error)
+
+        # The method catches ClientError and returns empty dict, doesn't re-raise
+        result = await search_engine._get_read_set_tags(
+            'arn:aws:omics:us-east-1:123456789012:readSet/readset-001'
+        )
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_get_reference_tags_with_client_error_handling(self, search_engine):
+        """Test _get_reference_tags with ClientError exception handling."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'ListTagsForResource',
+        )
+        search_engine.omics_client.list_tags_for_resource = MagicMock(side_effect=error)
+
+        # The method catches ClientError and returns empty dict, doesn't re-raise
+        result = await search_engine._get_reference_tags(
+            'arn:aws:omics:us-east-1:123456789012:reference/ref-001'
+        )
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_list_read_sets_with_default_max_results(self, search_engine, sample_read_sets):
+        """Test _list_read_sets with default max_results values."""
+        mock_response = {'readSets': sample_read_sets}
+        search_engine.omics_client.list_read_sets = MagicMock(return_value=mock_response)
+
+        # Test with default max_results (100)
+        result = await search_engine._list_read_sets('seq-store-001')
+
+        assert len(result) == 1
+        search_engine.omics_client.list_read_sets.assert_called_once_with(
+            sequenceStoreId='seq-store-001', maxResults=100
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_references_with_empty_search_terms(self, search_engine, sample_references):
+        """Test _list_references with empty search terms."""
+        mock_response = {'references': sample_references}
+        search_engine.omics_client.list_references = MagicMock(return_value=mock_response)
+
+        result = await search_engine._list_references('ref-store-001', [])
+
+        assert len(result) == 1
+        # Should call without filter when search_terms is empty
+        search_engine.omics_client.list_references.assert_called_once_with(
+            referenceStoreId='ref-store-001', maxResults=100
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_references_with_filter_applied(self, search_engine, sample_references):
+        """Test _list_references with search terms that apply filters."""
+        mock_response = {'references': sample_references}
+        search_engine.omics_client.list_references = MagicMock(return_value=mock_response)
+
+        result = await search_engine._list_references('ref-store-001', ['test-reference'])
+
+        assert len(result) == 1
+        # Should call with filter when search_terms provided
+        search_engine.omics_client.list_references.assert_called_once_with(
+            referenceStoreId='ref-store-001', maxResults=100, filter={'name': 'test-reference'}
+        )
+
+    @pytest.mark.asyncio
+    async def test_convert_read_set_to_genomics_file_with_file_type_mapping(self, search_engine):
+        """Test file type mapping edge cases in read set conversion."""
+        read_set = {
+            'id': 'readset-123',
+            'name': 'sample_data',
+            'fileType': 'UNKNOWN_TYPE',  # Unknown file type
+        }
+        store_id = 'seq-store-456'
+        store_info = {'id': store_id, 'name': 'Test Store'}
+
+        enhanced_metadata = {'status': 'ACTIVE', 'fileType': 'UNKNOWN_TYPE'}
+
+        search_engine._get_read_set_metadata = AsyncMock(return_value=enhanced_metadata)
+        search_engine._get_read_set_tags = AsyncMock(return_value={})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
+
+        result = await search_engine._convert_read_set_to_genomics_file(
+            read_set, store_id, store_info, None, []
+        )
+
+        assert result is not None
+        # Unknown types should default to FASTQ
+        assert result.file_type == GenomicsFileType.FASTQ
+
+    @pytest.mark.asyncio
+    async def test_convert_reference_to_genomics_file_with_exception(self, search_engine):
+        """Test exception handling in _convert_reference_to_genomics_file."""
+        reference = {'id': 'ref-001', 'name': 'test-reference', 'status': 'ACTIVE'}
+        store_id = 'ref-store-001'
+        store_info = {'id': store_id, 'name': 'Test Reference Store'}
+
+        # Mock _get_reference_tags to raise an exception
+        search_engine._get_reference_tags = AsyncMock(
+            side_effect=Exception('Tag retrieval failed')
+        )
+
+        result = await search_engine._convert_reference_to_genomics_file(
+            reference, store_id, store_info, None, []
+        )
+
+        # Should return None on exception, not raise
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_matches_search_terms_metadata_with_none_values(self, search_engine):
+        """Test _matches_search_terms_metadata with None values in metadata."""
+        metadata = {
+            'name': None,
+            'description': 'Valid description',
+            'subjectId': None,
+            'sampleId': 'sample-123',
+        }
+
+        # Should handle None values gracefully
+        assert search_engine._matches_search_terms_metadata('test-file', metadata, ['sample'])
+        assert not search_engine._matches_search_terms_metadata(
+            'test-file', metadata, ['nonexistent']
+        )
+
+    @pytest.mark.asyncio
+    async def test_search_single_sequence_store_with_empty_read_sets(self, search_engine):
+        """Test _search_single_sequence_store with empty read sets."""
+        store_info = {'id': 'seq-store-001', 'name': 'test-store'}
+
+        # Mock empty read sets
+        search_engine._list_read_sets = AsyncMock(return_value=[])
+
+        result = await search_engine._search_single_sequence_store(
+            'seq-store-001', store_info, 'fastq', ['test']
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_search_single_reference_store_with_empty_references(self, search_engine):
+        """Test _search_single_reference_store with empty references."""
+        store_info = {'id': 'ref-store-001', 'name': 'test-ref-store'}
+
+        # Mock empty references
+        search_engine._list_references = AsyncMock(return_value=[])
+
+        result = await search_engine._search_single_reference_store(
+            'ref-store-001', store_info, 'fasta', ['test']
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_list_reference_stores_with_client_error(self, search_engine):
+        """Test _list_reference_stores with ClientError exception (lines 471-473)."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListReferenceStores'
+        )
+        search_engine.omics_client.list_reference_stores = MagicMock(side_effect=error)
+
+        with pytest.raises(ClientError):
+            await search_engine._list_reference_stores()
+
+    @pytest.mark.asyncio
+    async def test_search_single_sequence_store_with_exception(self, search_engine):
+        """Test _search_single_sequence_store with exception (lines 516-518)."""
+        store_info = {'id': 'seq-store-001', 'name': 'test-store'}
+
+        # Mock _list_read_sets to raise an exception
+        search_engine._list_read_sets = AsyncMock(
+            side_effect=Exception('Database connection failed')
+        )
+
+        with pytest.raises(Exception) as exc_info:
+            await search_engine._search_single_sequence_store(
+                'seq-store-001', store_info, 'fastq', ['test']
+            )
+
+        assert 'Database connection failed' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_single_reference_store_with_exception(self, search_engine):
+        """Test _search_single_reference_store with exception (lines 558-560)."""
+        store_info = {'id': 'ref-store-001', 'name': 'test-ref-store'}
+
+        # Mock _list_references to raise an exception
+        search_engine._list_references = AsyncMock(side_effect=Exception('Network timeout'))
+
+        with pytest.raises(Exception) as exc_info:
+            await search_engine._search_single_reference_store(
+                'ref-store-001', store_info, 'fasta', ['test']
+            )
+
+        assert 'Network timeout' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_list_read_sets_paginated_with_client_error(self, search_engine):
+        """Test _list_read_sets_paginated with ClientError exception (lines 663-668)."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate limit exceeded'}},
+            'ListReadSets',
+        )
+        search_engine.omics_client.list_read_sets = MagicMock(side_effect=error)
+
+        with pytest.raises(ClientError):
+            await search_engine._list_read_sets_paginated('seq-store-001', None, 10)
+
+    @pytest.mark.asyncio
+    async def test_list_read_sets_paginated_with_multiple_pages_and_break(self, search_engine):
+        """Test _list_read_sets_paginated with multiple pages and no more pages break (lines 663-668)."""
+        # Mock responses for multiple pages, with the last page having no nextToken
+        responses = [
+            {
+                'readSets': [{'id': f'readset-{i}', 'name': f'readset{i}'} for i in range(1, 4)],
+                'nextToken': 'token1',
+            },
+            {
+                'readSets': [{'id': f'readset-{i}', 'name': f'readset{i}'} for i in range(4, 6)],
+                # No nextToken - this should trigger the "No more pages available" branch
+            },
+        ]
+
+        search_engine.omics_client.list_read_sets = MagicMock(side_effect=responses)
+
+        result, next_token, total_scanned = await search_engine._list_read_sets_paginated(
+            'seq-store-001', None, 10
+        )
+
+        assert len(result) == 5
+        assert next_token is None  # Should be None when no more pages
+        assert total_scanned == 5
+
+    @pytest.mark.asyncio
+    async def test_convert_reference_to_genomics_file_with_metadata_retrieval(self, search_engine):
+        """Test reference conversion with metadata retrieval for file sizes (lines 1415-1424)."""
+        reference = {
+            'id': 'ref-001',
+            'name': 'test-reference',
+            'description': 'Test reference',
+            'status': 'ACTIVE',
+            # No 'files' key - this will trigger metadata retrieval
+            'creationTime': datetime.now(timezone.utc),
+        }
+        store_id = 'ref-store-001'
+        store_info = {'id': store_id, 'name': 'Test Reference Store'}
+
+        # Mock get_reference_metadata to return file sizes
+        metadata_response = {
+            'files': {'source': {'contentLength': 5000000}, 'index': {'contentLength': 100000}}
+        }
+        search_engine.omics_client.get_reference_metadata = MagicMock(
+            return_value=metadata_response
+        )
+
+        # Mock other dependencies
+        search_engine._get_reference_tags = AsyncMock(return_value={'genome_build': 'GRCh38'})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
+
+        result = await search_engine._convert_reference_to_genomics_file(
+            reference, store_id, store_info, None, ['test']
+        )
+
+        assert result is not None
+        assert result.size_bytes == 5000000  # Should use source file size
+        search_engine.omics_client.get_reference_metadata.assert_called_once_with(
+            referenceStoreId=store_id, id='ref-001'
+        )
+
+    @pytest.mark.asyncio
+    async def test_convert_reference_to_genomics_file_with_metadata_exception(self, search_engine):
+        """Test reference conversion with metadata retrieval exception (lines 1415-1424)."""
+        reference = {
+            'id': 'ref-001',
+            'name': 'test-reference',
+            'status': 'ACTIVE',
+            'files': [{'contentType': 'FASTA', 'partNumber': 1}],
+            'creationTime': datetime.now(timezone.utc),
+        }
+        store_id = 'ref-store-001'
+        store_info = {'id': store_id, 'name': 'Test Reference Store'}
+
+        # Mock get_reference_metadata to raise an exception
+        search_engine.omics_client.get_reference_metadata = MagicMock(
+            side_effect=Exception('Metadata service unavailable')
+        )
+
+        # Mock other dependencies
+        search_engine._get_reference_tags = AsyncMock(return_value={})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
+
+        result = await search_engine._convert_reference_to_genomics_file(
+            reference, store_id, store_info, None, []
+        )
+
+        assert result is not None
+        assert result.size_bytes == 0  # Should default to 0 when metadata fails
+
+    @pytest.mark.asyncio
+    async def test_convert_reference_to_genomics_file_with_index_size_only(self, search_engine):
+        """Test reference conversion with only index file size available."""
+        reference = {
+            'id': 'ref-001',
+            'name': 'test-reference',
+            'status': 'ACTIVE',
+            'files': [{'contentType': 'FASTA', 'partNumber': 1}],
+            'creationTime': datetime.now(timezone.utc),
+        }
+        store_id = 'ref-store-001'
+        store_info = {'id': store_id, 'name': 'Test Reference Store'}
+
+        # Mock get_reference_metadata to return only index file size
+        metadata_response = {
+            'files': {
+                'index': {'contentLength': 50000}
+                # No 'source' file size
+            }
+        }
+        search_engine.omics_client.get_reference_metadata = MagicMock(
+            return_value=metadata_response
+        )
+
+        # Mock other dependencies
+        search_engine._get_reference_tags = AsyncMock(return_value={})
+        search_engine._get_account_id = MagicMock(return_value='123456789012')
+        search_engine._get_region = MagicMock(return_value='us-east-1')
+
+        result = await search_engine._convert_reference_to_genomics_file(
+            reference, store_id, store_info, None, []
+        )
+
+        assert result is not None
+        assert result.size_bytes == 0  # Should be 0 since no source file size
+
+    @pytest.mark.asyncio
+    async def test_list_references_with_filter_paginated_no_more_pages(self, search_engine):
+        """Test _list_references_with_filter_paginated with no more pages break."""
+        reference_store_id = 'ref-store-123'
+
+        # Mock response without nextToken to trigger the "No more pages available" branch
+        mock_response = {
+            'references': [
+                {'id': 'ref-1', 'name': 'reference1'},
+                {'id': 'ref-2', 'name': 'reference2'},
+            ]
+            # No nextToken - should trigger break
+        }
+
+        search_engine.omics_client.list_references = MagicMock(return_value=mock_response)
+
+        result = await search_engine._list_references_with_filter_paginated(
+            reference_store_id, None, None, 10
+        )
+
+        references, next_token, total_scanned = result
+
+        assert len(references) == 2
+        assert next_token is None  # Should be None when no more pages
+        assert total_scanned == 2
+
+    @pytest.mark.asyncio
+    async def test_list_references_with_filter_paginated_exact_max_results(self, search_engine):
+        """Test _list_references_with_filter_paginated when exactly hitting max_results."""
+        reference_store_id = 'ref-store-123'
+
+        # Mock response with exactly max_results items and a nextToken
+        mock_response = {
+            'references': [
+                {'id': f'ref-{i}', 'name': f'reference{i}'} for i in range(1, 6)
+            ],  # 5 items
+            'nextToken': 'has_more_token',
+        }
+
+        search_engine.omics_client.list_references = MagicMock(return_value=mock_response)
+
+        result = await search_engine._list_references_with_filter_paginated(
+            reference_store_id,
+            None,
+            None,
+            5,  # Exactly 5 max_results
+        )
+
+        references, next_token, total_scanned = result
+
+        assert len(references) == 5  # Should get exactly max_results
+        assert next_token == 'has_more_token'  # Should preserve the token
+        assert total_scanned == 5
+
+    @pytest.mark.asyncio
+    async def test_search_single_reference_store_paginated_with_server_side_filtering_success(
+        self, search_engine
+    ):
+        """Test reference store paginated search with successful server-side filtering."""
+        store_id = 'ref-store-123'
+        store_info = {'id': store_id, 'name': 'Test Reference Store'}
+
+        # Mock successful server-side filtering that returns results
+        search_engine._list_references_with_filter_paginated = AsyncMock(
+            return_value=([{'id': 'ref-1', 'name': 'matching_reference'}], 'next_token', 1)
+        )
+
+        mock_genomics_file = MagicMock(spec=GenomicsFile)
+        search_engine._convert_reference_to_genomics_file = AsyncMock(
+            return_value=mock_genomics_file
+        )
+
+        result = await search_engine._search_single_reference_store_paginated(
+            store_id, store_info, 'fasta', ['matching'], 'token123', 10
+        )
+
+        genomics_files, next_token, total_scanned = result
+
+        assert len(genomics_files) == 1
+        assert next_token == 'next_token'
+        assert total_scanned == 1
+
+        # Should have called server-side filtering
+        search_engine._list_references_with_filter_paginated.assert_called_once_with(
+            store_id, 'matching', 'token123', 10
+        )
