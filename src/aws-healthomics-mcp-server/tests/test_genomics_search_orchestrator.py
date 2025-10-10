@@ -2081,8 +2081,7 @@ class TestGenomicsSearchOrchestrator:
             ]
 
             # Mock return with more results available
-            next_token = GlobalContinuationToken()
-            next_token.s3_token = 'has_more'
+            next_token = GlobalContinuationToken(s3_tokens={'s3://test-bucket/': 'has_more'})
             mock_execute.return_value = (files, next_token, 3)
 
             # Mock scoring and ranking
