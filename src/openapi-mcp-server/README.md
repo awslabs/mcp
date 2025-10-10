@@ -206,7 +206,7 @@ export SERVER_DEBUG=true
 export SERVER_MESSAGE_TIMEOUT=60
 export SERVER_HOST="0.0.0.0"
 export SERVER_PORT=8000
-export SERVER_TRANSPORT="stdio"  # Option: stdio
+export SERVER_TRANSPORT="stdio"  # Option: stdio, streamable-http
 export LOG_LEVEL="INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 # Metrics and monitoring configuration
