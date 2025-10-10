@@ -255,32 +255,57 @@ async def _execute_protected_statement(
 
     # Execute BEGIN statement
     begin_sql = 'BEGIN READ WRITE;' if allow_read_write else 'BEGIN READ ONLY;'
-    await _execute_statement(
-        cluster_info=cluster_info,
-        cluster_identifier=cluster_identifier,
-        database_name=database_name,
-        sql=begin_sql,
-        session_id=session_id,
-    )
+    
+    try:
+        await _execute_statement(
+            cluster_info=cluster_info,
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=begin_sql,
+            session_id=session_id,
+        )
 
-    # Execute user SQL with parameters
-    user_query_id = await _execute_statement(
-        cluster_info=cluster_info,
-        cluster_identifier=cluster_identifier,
-        database_name=database_name,
-        sql=sql,
-        parameters=parameters,
-        session_id=session_id,
-    )
+        # Execute user SQL with parameters
+        user_query_id = await _execute_statement(
+            cluster_info=cluster_info,
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            parameters=parameters,
+            session_id=session_id,
+        )
 
-    # Execute END statement to close transaction
-    await _execute_statement(
-        cluster_info=cluster_info,
-        cluster_identifier=cluster_identifier,
-        database_name=database_name,
-        sql='END;',
-        session_id=session_id,
-    )
+        # Execute END statement to close transaction successfully
+        await _execute_statement(
+            cluster_info=cluster_info,
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql='END;',
+            session_id=session_id,
+        )
+        
+    except Exception as e:
+        # If any statement failed, the transaction is in an aborted state
+        # We must execute ROLLBACK instead of END to properly clean up
+        logger.warning(f"Transaction failed, executing ROLLBACK: {str(e)}")
+        
+        try:
+            await _execute_statement(
+                cluster_info=cluster_info,
+                cluster_identifier=cluster_identifier,
+                database_name=database_name,
+                sql='ROLLBACK;',
+                session_id=session_id,
+            )
+            logger.debug("Successfully executed ROLLBACK after transaction failure")
+        except Exception as rollback_error:
+            # If ROLLBACK also fails, the session is likely corrupted
+            # Log the error but don't mask the original exception
+            logger.error(f"ROLLBACK failed after transaction error: {rollback_error}")
+        
+        
+        # Re-raise the original exception that caused the transaction to fail
+        raise e
 
     # Get results from user query
     data_client = client_manager.redshift_data_client()
