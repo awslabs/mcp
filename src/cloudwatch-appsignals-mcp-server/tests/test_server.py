@@ -1877,9 +1877,7 @@ def test_filter_operation_targets_ignores_non_service_operation():
     provided = [
         {
             'Type': 'service',
-            'Data': {
-                'Service': {'Type': 'Service', 'Name': 'test-service'}
-            },
+            'Data': {'Service': {'Type': 'Service', 'Name': 'test-service'}},
         },
         {
             'Type': 'service_operation',

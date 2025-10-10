@@ -646,7 +646,9 @@ class TestExpandServiceOperationWildcardPatterns:
         assert len(result) == 1
         assert result[0]['Type'] == 'service'
 
-    def test_expand_service_operation_fault_to_availability_conversion(self, mock_appsignals_client):
+    def test_expand_service_operation_fault_to_availability_conversion(
+        self, mock_appsignals_client
+    ):
         """Test that operations with Fault metrics match when looking for Availability."""
         # Mock an operation that only has Fault metric but we're looking for Availability
         mock_appsignals_client.list_service_operations.return_value = {
