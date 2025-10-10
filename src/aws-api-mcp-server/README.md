@@ -26,8 +26,6 @@ Choose the installation method that best fits your workflow and get started with
 ### ⚡ Using uv
 Add the following configuration to your MCP client config file (e.g., for Amazon Q Developer CLI, edit `~/.aws/amazonq/mcp.json`):
 
-**For Linux/MacOS users:**
-
 ```json
 {
   "mcpServers": {
@@ -48,24 +46,10 @@ Add the following configuration to your MCP client config file (e.g., for Amazon
 
 **For Windows users:**
 
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-api-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "awslabs.aws-api-mcp-server@latest",
-        "awslabs.aws-api-mcp-server.exe"
-      ],
-      "env": {
-        "AWS_REGION": "us-east-1"
-      },
-      "disabled": false,
-      "autoApprove": []
-    }
-  }
-}
+Make sure your `uv --version` is at least 0.8.12, otherwise you may see the below error:
+```
+error: Failed to spawn: `awslabs.<mcp server name>`
+  Caused by: program not found
 ```
 
 
