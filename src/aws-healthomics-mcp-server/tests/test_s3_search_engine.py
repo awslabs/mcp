@@ -1004,3 +1004,33 @@ class TestS3SearchEngine:
         """Test related index file detection with no relationship."""
         result = search_engine._is_related_index_file('file1.fastq', 'file2.bam')
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_search_buckets_with_cached_results(self, search_engine):
+        """Test search_buckets with cached results (lines 124-125)."""
+        # Mock the cache to return cached results
+        search_engine._get_cached_result = MagicMock(return_value=[])
+        search_engine._create_search_cache_key = MagicMock(return_value='test_cache_key')
+
+        result = await search_engine.search_buckets(['s3://test-bucket/'], 'fastq', ['test'])
+
+        assert isinstance(result, list)
+        search_engine._get_cached_result.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_tags_for_objects_batch_with_client_error(self, search_engine):
+        """Test get_tags_for_objects_batch with ClientError (lines 264-271)."""
+        from botocore.exceptions import ClientError
+
+        search_engine.s3_client.get_object_tagging = MagicMock(
+            side_effect=ClientError(
+                {'Error': {'Code': 'NoSuchKey', 'Message': 'Key does not exist'}},
+                'GetObjectTagging',
+            )
+        )
+
+        result = await search_engine._get_tags_for_objects_batch('test-bucket', ['test-key'])
+
+        assert isinstance(result, dict)
+        assert 'test-key' in result
+        assert result['test-key'] == {}

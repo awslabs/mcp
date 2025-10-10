@@ -2208,3 +2208,86 @@ class TestGenomicsSearchOrchestrator:
         assert result is not None
         # Should handle the AttributeError gracefully and continue with other systems
         assert len(result) == 3
+
+    @pytest.mark.asyncio
+    async def test_cache_cleanup_during_search(self, orchestrator, sample_search_request):
+        """Test cache cleanup during search execution (lines 475-478)."""
+        # Mock the random function to always trigger cache cleanup
+        with patch('secrets.randbelow', return_value=0):  # Always return 0 to trigger cleanup
+            orchestrator.s3_engine.search_buckets = AsyncMock(return_value=[])
+            orchestrator.s3_engine.cleanup_expired_cache_entries = MagicMock()
+            orchestrator.healthomics_engine.search_sequence_stores = AsyncMock(return_value=[])
+            orchestrator.healthomics_engine.search_reference_stores = AsyncMock(return_value=[])
+
+            result = await orchestrator._execute_parallel_searches(sample_search_request)
+
+            assert isinstance(result, list)
+            # Verify cache cleanup was called
+            orchestrator.s3_engine.cleanup_expired_cache_entries.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cache_cleanup_exception_handling(self, orchestrator, sample_search_request):
+        """Test cache cleanup exception handling (lines 475-478)."""
+        # Mock the random function to always trigger cache cleanup
+        with patch('secrets.randbelow', return_value=0):  # Always return 0 to trigger cleanup
+            orchestrator.s3_engine.search_buckets = AsyncMock(return_value=[])
+            orchestrator.s3_engine.cleanup_expired_cache_entries = MagicMock(
+                side_effect=Exception('Cache cleanup failed')
+            )
+            orchestrator.healthomics_engine.search_sequence_stores = AsyncMock(return_value=[])
+            orchestrator.healthomics_engine.search_reference_stores = AsyncMock(return_value=[])
+
+            # Should not raise exception even if cache cleanup fails
+            result = await orchestrator._execute_parallel_searches(sample_search_request)
+
+            assert isinstance(result, list)
+            # Verify cache cleanup was attempted
+            orchestrator.s3_engine.cleanup_expired_cache_entries.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_references_with_timeout_exception(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics reference search with general exception (lines 675-682)."""
+        orchestrator.healthomics_engine.search_reference_stores = AsyncMock(
+            side_effect=Exception('General error')
+        )
+
+        result = await orchestrator._search_healthomics_references_with_timeout(
+            sample_search_request
+        )
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_sequences_with_timeout_exception(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics sequence search with general exception (lines 653-655)."""
+        orchestrator.healthomics_engine.search_sequence_stores = AsyncMock(
+            side_effect=Exception('General error')
+        )
+
+        result = await orchestrator._search_healthomics_sequences_with_timeout(
+            sample_search_request
+        )
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_sequences_paginated_with_timeout_exception(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics sequence paginated search with general exception (lines 779-781)."""
+        orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
+            side_effect=Exception('General error')
+        )
+
+        pagination_request = StoragePaginationRequest(max_results=10)
+        result = await orchestrator._search_healthomics_sequences_paginated_with_timeout(
+            sample_search_request, pagination_request
+        )
+
+        assert hasattr(result, 'results')
+        assert result.results == []
+        assert result.has_more_results is False
