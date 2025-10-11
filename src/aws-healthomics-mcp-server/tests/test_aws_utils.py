@@ -24,6 +24,7 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     create_zip_file,
     decode_from_base64,
     encode_to_base64,
+    get_account_id,
     get_aws_session,
     get_logs_client,
     get_omics_client,
@@ -671,3 +672,36 @@ class TestServiceNameAndEndpointConfiguration:
         mock_session.client.assert_called_once_with('omics')
         mock_logger.warning.assert_called_once()
         assert result == mock_client
+
+
+class TestGetAccountId:
+    """Test cases for get_account_id function."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_account_id_success(self, mock_get_session):
+        """Test successful account ID retrieval."""
+        mock_session = MagicMock()
+        mock_sts_client = MagicMock()
+        mock_session.client.return_value = mock_sts_client
+        mock_sts_client.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_get_session.return_value = mock_session
+
+        result = get_account_id()
+
+        assert result == '123456789012'
+        mock_get_session.assert_called_once()
+        mock_session.client.assert_called_once_with('sts')
+        mock_sts_client.get_caller_identity.assert_called_once()
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.logger')
+    def test_get_account_id_failure(self, mock_logger, mock_get_session):
+        """Test account ID retrieval failure."""
+        mock_get_session.side_effect = Exception('AWS credentials not found')
+
+        with pytest.raises(Exception) as exc_info:
+            get_account_id()
+
+        assert 'AWS credentials not found' in str(exc_info.value)
+        mock_logger.error.assert_called_once()
+        assert 'Failed to get AWS account ID' in mock_logger.error.call_args[0][0]
