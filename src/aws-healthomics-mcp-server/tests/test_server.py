@@ -29,6 +29,7 @@ def test_server_has_required_tools():
     """Test that the server has all required tools registered."""
     # Arrange
     expected_tools = [
+        # Workflow tools
         'ListAHOWorkflows',
         'CreateAHOWorkflow',
         'GetAHOWorkflow',
@@ -47,6 +48,35 @@ def test_server_has_required_tools():
         'DiagnoseAHORunFailure',
         'PackageAHOWorkflow',
         'GetAHOSupportedRegions',
+        # Data store tools
+        'ListAHOSequenceStores',
+        'ListAHOReadSets',
+        'GetAHOReadSet',
+        'StartAHOReadSetImportJob',
+        'GetAHOReadSetImportJob',
+        'ListAHOReadSetImportJobs',
+        'ListAHOVariantStores',
+        'GetAHOVariantStore',
+        'SearchAHOVariants',
+        'CountAHOVariants',
+        'StartAHOVariantImportJob',
+        'GetAHOVariantImportJob',
+        'ListAHOReferenceStores',
+        'GetAHOReferenceStore',
+        'ListAHOReferences',
+        'GetAHOReference',
+        'StartAHOReferenceImportJob',
+        'GetAHOReferenceImportJob',
+        'ListAHOAnnotationStores',
+        'GetAHOAnnotationStore',
+        'SearchAHOAnnotations',
+        'StartAHOAnnotationImportJob',
+        'GetAHOAnnotationImportJob',
+        'ValidateAHOS3UriFormat',
+        'DiscoverAHOGenomicFiles',
+        'ListAHOS3BucketContents',
+        'GetAHOS3FileMetadata',
+        'PrepareAHOImportSources',
     ]
 
     # Act
