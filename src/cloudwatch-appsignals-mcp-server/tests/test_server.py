@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from awslabs.cloudwatch_appsignals_mcp_server.server import main
+from awslabs.cloudwatch_appsignals_mcp_server.server import _filter_operation_targets, main
 from awslabs.cloudwatch_appsignals_mcp_server.service_tools import (
     get_service_detail,
     list_monitored_services,
@@ -1896,3 +1896,237 @@ def test_main_entry_point(mock_aws_clients):
         mock_mcp.run.side_effect = KeyboardInterrupt()
         # Should handle KeyboardInterrupt gracefully
         main()
+
+
+def test_filter_operation_targets_fault_to_availability():
+    """Test _filter_operation_targets converts Fault to Availability."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify the MetricType was changed from Fault to Availability
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_non_fault_unchanged():
+    """Test _filter_operation_targets leaves non-Fault MetricTypes unchanged."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Latency',
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service-2'},
+                    'Operation': 'POST /api',
+                    'MetricType': 'Error',
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify non-Fault MetricTypes are unchanged
+    assert len(operation_targets) == 2
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Latency'
+    assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'Error'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_multiple_fault_conversions():
+    """Test _filter_operation_targets converts multiple Fault entries to Availability."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'service-1'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'service-2'},
+                    'Operation': 'POST /api',
+                    'MetricType': 'Latency',
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'service-3'},
+                    'Operation': 'PUT /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify multiple Fault entries are converted
+    assert len(operation_targets) == 3
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'Latency'
+    assert operation_targets[2]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_with_wildcards():
+    """Test _filter_operation_targets detects wildcards and converts Fault to Availability."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': '*payment*'},
+                    'Operation': '*GET*',
+                    'MetricType': 'Fault',
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify wildcard detection and Fault conversion
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is True
+
+
+def test_filter_operation_targets_ignores_non_service_operation():
+    """Test _filter_operation_targets ignores non-service_operation targets."""
+    provided = [
+        {
+            'Type': 'service',
+            'Data': {'Service': {'Type': 'Service', 'Name': 'test-service'}},
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Fault',
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify only service_operation targets are included
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Type'] == 'service_operation'
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_empty_metric_type():
+    """Test _filter_operation_targets handles empty MetricType gracefully."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': '',
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify empty MetricType is unchanged
+    assert len(operation_targets) == 1
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == ''
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_missing_metric_type():
+    """Test _filter_operation_targets handles missing MetricType gracefully."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    # MetricType is missing
+                }
+            },
+        }
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify missing MetricType doesn't cause errors
+    assert len(operation_targets) == 1
+    # MetricType should remain missing (empty string from .get())
+    assert operation_targets[0]['Data']['ServiceOperation'].get('MetricType', '') == ''
+    assert has_wildcards is False
+
+
+def test_filter_operation_targets_case_sensitive():
+    """Test _filter_operation_targets is case-sensitive for Fault conversion."""
+    provided = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'fault',  # lowercase
+                }
+            },
+        },
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service-2'},
+                    'Operation': 'POST /api',
+                    'MetricType': 'FAULT',  # uppercase
+                }
+            },
+        },
+    ]
+
+    operation_targets, has_wildcards = _filter_operation_targets(provided)
+
+    # Verify only exact case "Fault" is converted
+    assert len(operation_targets) == 2
+    assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'fault'  # unchanged
+    assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
+    assert has_wildcards is False
