@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "awslabs.aws-dms-mcp-server": {
+      "args": [
+        "awslabs.aws-dms-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "DMS_LOG_LEVEL": "INFO",
+        "DMS_READ_ONLY_MODE": "false"
+      }
+    }
+  }
+}
