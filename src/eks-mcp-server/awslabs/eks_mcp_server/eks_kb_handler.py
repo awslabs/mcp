@@ -81,6 +81,7 @@ class EKSKnowledgeBaseHandler:
                 API_ENDPOINT,
                 json={'question': query},
                 auth=AWSSigV4(AWS_SERVICE, region=AWS_REGION),
+                timeout=30,
             )
             response.raise_for_status()
             return response.text

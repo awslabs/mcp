@@ -157,7 +157,7 @@ async def get_savings_plans_coverage(
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
         # Use the paginate_aws_response utility for consistent pagination
-        all_coverages, pagination_metadata = await paginate_aws_response(
+        all_coverages, pagination_metadata = await paginate_aws_response(  # nosec B105: paginate_aws_response is used for pagination
             ctx=ctx,
             operation_name='GetSavingsPlansCoverage',
             api_function=ce_client.get_savings_plans_coverage,
@@ -234,7 +234,7 @@ async def get_savings_plans_utilization(
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
         # Use the paginate_aws_response utility for consistent pagination
-        all_utilizations, pagination_metadata = await paginate_aws_response(
+        all_utilizations, pagination_metadata = await paginate_aws_response(  # nosec B105: paginate_aws_response is used for pagination
             ctx=ctx,
             operation_name='GetSavingsPlansUtilization',
             api_function=ce_client.get_savings_plans_utilization,
@@ -428,7 +428,7 @@ async def get_savings_plans_utilization_details(
             request_params['MaxResults'] = 20  # Default
 
         # Use the paginate_aws_response utility for consistent pagination
-        all_details, pagination_metadata = await paginate_aws_response(
+        all_details, pagination_metadata = await paginate_aws_response(  # nosec B105: paginate_aws_response is used for pagination
             ctx=ctx,
             operation_name='GetSavingsPlansUtilizationDetails',
             api_function=ce_client.get_savings_plans_utilization_details,

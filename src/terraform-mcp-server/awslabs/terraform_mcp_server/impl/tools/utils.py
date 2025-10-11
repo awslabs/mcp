@@ -72,7 +72,7 @@ async def get_github_release_details(owner: str, repo: str) -> Dict[str, Any]:
     logger.debug(f'Making request to GitHub releases API: {release_url}')
 
     try:
-        response = requests.get(release_url)
+        response = requests.get(release_url, timeout=30)
         logger.debug(f'GitHub releases API response code: {response.status_code}')
 
         if response.status_code == 200:
@@ -102,7 +102,7 @@ async def get_github_release_details(owner: str, repo: str) -> Dict[str, Any]:
     logger.debug(f'No releases found, trying tags: {tags_url}')
 
     try:
-        response = requests.get(tags_url)
+        response = requests.get(tags_url, timeout=30)
         logger.debug(f'GitHub tags API response code: {response.status_code}')
 
         if response.status_code == 200 and response.json():
