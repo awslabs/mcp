@@ -124,7 +124,16 @@ async def list_monitored_services() -> str:
 
 async def get_service_detail(
     service_name: str = Field(
-        ..., description='Name of the service to get details for (case-sensitive)'
+        ...,
+        description='Name of the service to get details for (case-sensitive). Use list_monitored_services() to see available services.',
+    ),
+    environment: str = Field(
+        ...,
+        description='Environment of the service (e.g., production, staging, dev). Use list_monitored_services() to see available environments.',
+    ),
+    service_type: str = Field(
+        default='Service',
+        description='Type of the service. Defaults to "Service" for standard Application Signals services. Other types: RemoteService, AWS::Service. Use list_monitored_services() to see the Type for each service.',
     ),
 ) -> str:
     """Get detailed information about a specific Application Signals service.
@@ -160,34 +169,24 @@ async def get_service_detail(
     but audit_services() is the primary tool for operation discovery and performance analysis.
     """
     start_time_perf = timer()
-    logger.debug(f'Starting get_service_healthy_detail request for service: {service_name}')
+    logger.debug(
+        f'Starting get_service_healthy_detail request for service: {service_name}, environment: {environment}, type: {service_type}'
+    )
 
     try:
         # Calculate time range (last 24 hours)
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=24)
 
-        # First, get all services to find the one we want
-        services_response = appsignals_client.list_services(
-            StartTime=start_time, EndTime=end_time, MaxResults=100
-        )
-
-        # Find the service with matching name
-        target_service = None
-        for service in services_response.get('ServiceSummaries', []):
-            key_attrs = service.get('KeyAttributes', {})
-            if key_attrs.get('Name') == service_name:
-                target_service = service
-                break
-
-        if not target_service:
-            logger.warning(f"Service '{service_name}' not found in Application Signals")
-            return f"Service '{service_name}' not found in Application Signals."
+        # Build KeyAttributes from parameters
+        key_attributes = {'Type': service_type, 'Name': service_name, 'Environment': environment}
 
         # Get detailed service information
-        logger.debug(f'Getting detailed information for service: {service_name}')
+        logger.debug(
+            f'Getting detailed information for service: {service_name} in environment: {environment}'
+        )
         service_response = appsignals_client.get_service(
-            StartTime=start_time, EndTime=end_time, KeyAttributes=target_service['KeyAttributes']
+            StartTime=start_time, EndTime=end_time, KeyAttributes=key_attributes
         )
 
         service_details = service_response['Service']
@@ -243,7 +242,7 @@ async def get_service_detail(
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
         logger.error(f'AWS ClientError in get_service_detail: {error_code} - {error_message}')
-        return f'AWS Error: {error_message}'
+        return f"AWS Error: {error_message}\n\nService not found with Name='{service_name}', Environment='{environment}', Type='{service_type}'. Use list_monitored_services() to see available services."
     except Exception as e:
         logger.error(
             f"Unexpected error in get_service_healthy_detail for '{service_name}': {str(e)}",
@@ -254,11 +253,20 @@ async def get_service_detail(
 
 async def query_service_metrics(
     service_name: str = Field(
-        ..., description='Name of the service to get metrics for (case-sensitive)'
+        ...,
+        description='Name of the service to get metrics for (case-sensitive). Use list_monitored_services() to see available services.',
+    ),
+    environment: str = Field(
+        ...,
+        description='Environment of the service (e.g., production, staging, dev). Use list_monitored_services() to see available environments.',
     ),
     metric_name: str = Field(
         ...,
         description='Specific metric name (e.g., Latency, Error, Fault). Leave empty to list available metrics',
+    ),
+    service_type: str = Field(
+        default='Service',
+        description='Type of the service. Defaults to "Service" for standard Application Signals services. Other types: RemoteService, AWS::Service. Use list_monitored_services() to see the Type for each service.',
     ),
     statistic: str = Field(
         default='Average',
@@ -296,7 +304,7 @@ async def query_service_metrics(
     """
     start_time_perf = timer()
     logger.info(
-        f'Starting query_service_metrics request - service: {service_name}, metric: {metric_name}, hours: {hours}'
+        f'Starting query_service_metrics request - service: {service_name}, environment: {environment}, metric: {metric_name}, hours: {hours}'
     )
 
     try:
@@ -304,26 +312,12 @@ async def query_service_metrics(
         end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours)
 
-        # Get service details to find metrics
-        services_response = appsignals_client.list_services(
-            StartTime=start_time, EndTime=end_time, MaxResults=100
-        )
-
-        # Find the target service
-        target_service = None
-        for service in services_response.get('ServiceSummaries', []):
-            key_attrs = service.get('KeyAttributes', {})
-            if key_attrs.get('Name') == service_name:
-                target_service = service
-                break
-
-        if not target_service:
-            logger.warning(f"Service '{service_name}' not found in Application Signals")
-            return f"Service '{service_name}' not found in Application Signals."
+        # Build KeyAttributes from parameters
+        key_attributes = {'Type': service_type, 'Name': service_name, 'Environment': environment}
 
         # Get detailed service info for metric references
         service_response = appsignals_client.get_service(
-            StartTime=start_time, EndTime=end_time, KeyAttributes=target_service['KeyAttributes']
+            StartTime=start_time, EndTime=end_time, KeyAttributes=key_attributes
         )
 
         metric_refs = service_response['Service'].get('MetricReferences', [])
@@ -449,7 +443,7 @@ async def query_service_metrics(
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
         logger.error(f'AWS ClientError in query_service_metrics: {error_code} - {error_message}')
-        return f'AWS Error: {error_message}'
+        return f"AWS Error: {error_message}\n\nService not found with Name='{service_name}', Environment='{environment}', Type='{service_type}'. Use list_monitored_services() to see available services."
     except Exception as e:
         logger.error(
             f"Unexpected error in query_service_metrics for '{service_name}/{metric_name}': {str(e)}",
@@ -460,7 +454,16 @@ async def query_service_metrics(
 
 async def list_service_operations(
     service_name: str = Field(
-        ..., description='Name of the service to list operations for (case-sensitive)'
+        ...,
+        description='Name of the service to list operations for (case-sensitive). Use list_monitored_services() to see available services.',
+    ),
+    environment: str = Field(
+        ...,
+        description='Environment of the service (e.g., production, staging, dev). Use list_monitored_services() to see available environments.',
+    ),
+    service_type: str = Field(
+        default='Service',
+        description='Type of the service. Defaults to "Service" for standard Application Signals services. Other types: RemoteService, AWS::Service. Use list_monitored_services() to see the Type for each service.',
     ),
     hours: int = Field(
         default=24,
@@ -516,7 +519,9 @@ async def list_service_operations(
     comprehensive operation auditing, performance analysis, and operation insights regardless of recent activity.
     """
     start_time_perf = timer()
-    logger.debug(f'Starting list_service_operations request for service: {service_name}')
+    logger.debug(
+        f'Starting list_service_operations request for service: {service_name}, environment: {environment}'
+    )
 
     try:
         # Calculate time range - enforce 24 hour maximum for Application Signals operation discovery
@@ -524,29 +529,17 @@ async def list_service_operations(
         hours = min(hours, 24)  # Enforce maximum of 24 hours
         start_time = end_time - timedelta(hours=hours)
 
-        # First, get the service to find its key attributes
-        services_response = appsignals_client.list_services(
-            StartTime=start_time, EndTime=end_time, MaxResults=100
-        )
-
-        # Find the target service
-        target_service = None
-        for service in services_response.get('ServiceSummaries', []):
-            key_attrs = service.get('KeyAttributes', {})
-            if key_attrs.get('Name') == service_name:
-                target_service = service
-                break
-
-        if not target_service:
-            logger.warning(f"Service '{service_name}' not found in Application Signals")
-            return f"Service '{service_name}' not found in Application Signals. Use list_monitored_services() to see available services."
+        # Build KeyAttributes from parameters
+        key_attributes = {'Type': service_type, 'Name': service_name, 'Environment': environment}
 
         # Get operations for the service using ListServiceOperations API
-        logger.debug(f'Getting operations for service: {service_name}')
+        logger.debug(
+            f'Getting operations for service: {service_name} in environment: {environment}'
+        )
         operations_response = appsignals_client.list_service_operations(
             StartTime=start_time,
             EndTime=end_time,
-            KeyAttributes=target_service['KeyAttributes'],
+            KeyAttributes=key_attributes,
             MaxResults=100,
         )
 
@@ -650,7 +643,7 @@ async def list_service_operations(
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
         logger.error(f'AWS ClientError in list_service_operations: {error_code} - {error_message}')
-        return f'AWS Error: {error_message}'
+        return f"AWS Error: {error_message}\n\nService not found with Name='{service_name}', Environment='{environment}', Type='{service_type}'. Use list_monitored_services() to see available services."
     except Exception as e:
         logger.error(
             f"Unexpected error in list_service_operations for '{service_name}': {str(e)}",

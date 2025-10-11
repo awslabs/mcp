@@ -147,15 +147,13 @@ async def test_list_monitored_services_empty(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_get_service_detail_success(mock_aws_clients):
     """Test successful retrieval of service details."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
     mock_get_response = {
         'Service': {
-            'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'},
+            'KeyAttributes': {
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'production',
+            },
             'AttributeMaps': [{'Platform': 'ECS', 'Application': 'test-app'}],
             'MetricReferences': [
                 {
@@ -169,13 +167,13 @@ async def test_get_service_detail_success(mock_aws_clients):
         }
     }
 
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
 
-    result = await get_service_detail('test-service')
+    result = await get_service_detail(service_name='test-service', environment='production')
 
     assert 'Service Details: test-service' in result
-    assert 'AWS::ECS::Service' in result
+    assert 'Type: Service' in result
+    assert 'Environment: production' in result
     assert 'Platform: ECS' in result
     assert 'AWS/ApplicationSignals/Latency' in result
     assert '/aws/ecs/test-service' in result
@@ -184,24 +182,232 @@ async def test_get_service_detail_success(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_get_service_detail_not_found(mock_aws_clients):
     """Test when service is not found."""
-    mock_response = {'ServiceSummaries': []}
+    mock_aws_clients['appsignals_client'].get_service.side_effect = ClientError(
+        error_response={
+            'Error': {
+                'Code': 'ResourceNotFoundException',
+                'Message': 'Service not found',
+            }
+        },
+        operation_name='GetService',
+    )
 
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_response
+    result = await get_service_detail(service_name='nonexistent-service', environment='production')
 
-    result = await get_service_detail('nonexistent-service')
+    assert 'AWS Error: Service not found' in result
+    assert "Service not found with Name='nonexistent-service', Environment='production'" in result
 
-    assert "Service 'nonexistent-service' not found" in result
+
+@pytest.mark.asyncio
+async def test_get_service_detail_distinguishes_environments(mock_aws_clients):
+    """Test that we can distinguish between same service name in different environments."""
+    # Mock response for production environment
+    mock_production_response = {
+        'Service': {
+            'KeyAttributes': {
+                'Name': 'api-service',
+                'Type': 'Service',
+                'Environment': 'production',
+            },
+            'AttributeMaps': [{'Platform': 'EKS', 'Application': 'prod-app'}],
+        }
+    }
+
+    # Mock response for staging environment
+    mock_staging_response = {
+        'Service': {
+            'KeyAttributes': {
+                'Name': 'api-service',
+                'Type': 'Service',
+                'Environment': 'staging',
+            },
+            'AttributeMaps': [{'Platform': 'ECS', 'Application': 'staging-app'}],
+        }
+    }
+
+    # Test production environment
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_production_response
+    result_prod = await get_service_detail(service_name='api-service', environment='production')
+
+    assert 'Service Details: api-service' in result_prod
+    assert 'Environment: production' in result_prod
+    assert 'Platform: EKS' in result_prod
+    assert 'Application: prod-app' in result_prod
+
+    # Test staging environment
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_staging_response
+    result_staging = await get_service_detail(service_name='api-service', environment='staging')
+
+    assert 'Service Details: api-service' in result_staging
+    assert 'Environment: staging' in result_staging
+    assert 'Platform: ECS' in result_staging
+    assert 'Application: staging-app' in result_staging
+
+    # Verify they're different
+    assert 'prod-app' in result_prod and 'prod-app' not in result_staging
+    assert 'staging-app' in result_staging and 'staging-app' not in result_prod
+
+
+@pytest.mark.asyncio
+async def test_get_service_detail_passes_correct_key_attributes(mock_aws_clients):
+    """Verify KeyAttributes dict is constructed correctly from parameters."""
+    mock_response = {
+        'Service': {
+            'KeyAttributes': {
+                'Name': 'payment-service',
+                'Type': 'RemoteService',
+                'Environment': 'production',
+            },
+        }
+    }
+
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_response
+
+    await get_service_detail(
+        service_name='payment-service',
+        environment='production',
+        service_type='RemoteService',
+    )
+
+    # Verify get_service was called with correct KeyAttributes
+    call_args = mock_aws_clients['appsignals_client'].get_service.call_args
+    assert call_args is not None
+
+    key_attributes = call_args[1]['KeyAttributes']
+    assert key_attributes == {
+        'Type': 'RemoteService',
+        'Name': 'payment-service',
+        'Environment': 'production',
+    }
+
+    # Verify all three fields are present and correct
+    assert key_attributes['Type'] == 'RemoteService'
+    assert key_attributes['Name'] == 'payment-service'
+    assert key_attributes['Environment'] == 'production'
+
+
+@pytest.mark.asyncio
+async def test_get_service_detail_remote_service_type(mock_aws_clients):
+    """Test get_service_detail with Type='RemoteService'."""
+    mock_response = {
+        'Service': {
+            'KeyAttributes': {
+                'Name': 'external-api',
+                'Type': 'RemoteService',
+                'Environment': 'production',
+            },
+            'AttributeMaps': [{'RemoteType': 'HTTP', 'RemoteTarget': 'api.example.com'}],
+            'MetricReferences': [
+                {
+                    'Namespace': 'AWS/ApplicationSignals',
+                    'MetricName': 'Latency',
+                    'Dimensions': [],
+                }
+            ],
+        }
+    }
+
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_response
+
+    result = await get_service_detail(
+        service_name='external-api',
+        environment='production',
+        service_type='RemoteService',
+    )
+
+    assert 'Service Details: external-api' in result
+    assert 'Type: RemoteService' in result
+    assert 'Environment: production' in result
+    assert 'RemoteType: HTTP' in result
+    assert 'RemoteTarget: api.example.com' in result
+
+
+@pytest.mark.asyncio
+async def test_get_service_detail_aws_service_type(mock_aws_clients):
+    """Test get_service_detail with Type='AWS::Service'."""
+    mock_response = {
+        'Service': {
+            'KeyAttributes': {
+                'Name': 'dynamodb',
+                'Type': 'AWS::Service',
+                'Environment': 'production',
+            },
+            'AttributeMaps': [{'ResourceType': 'AWS::DynamoDB::Table', 'TableName': 'users'}],
+            'MetricReferences': [
+                {
+                    'Namespace': 'AWS/ApplicationSignals',
+                    'MetricName': 'Fault',
+                    'Dimensions': [],
+                }
+            ],
+        }
+    }
+
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_response
+
+    result = await get_service_detail(
+        service_name='dynamodb',
+        environment='production',
+        service_type='AWS::Service',
+    )
+
+    assert 'Service Details: dynamodb' in result
+    assert 'Type: AWS::Service' in result
+    assert 'Environment: production' in result
+    assert 'ResourceType: AWS::DynamoDB::Table' in result
+    assert 'TableName: users' in result
+
+
+@pytest.mark.asyncio
+async def test_key_attributes_structure_validation(mock_aws_clients):
+    """Verify KeyAttributes dict has exactly Type, Name, Environment with correct values."""
+    mock_response = {
+        'Service': {
+            'KeyAttributes': {
+                'Name': 'test-service',
+                'Type': 'Service',
+                'Environment': 'dev',
+            },
+        }
+    }
+
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_response
+
+    await get_service_detail(
+        service_name='test-service', environment='dev', service_type='Service'
+    )
+
+    # Get the call arguments
+    call_args = mock_aws_clients['appsignals_client'].get_service.call_args
+    key_attributes = call_args[1]['KeyAttributes']
+
+    # Verify structure: exactly 3 keys
+    assert len(key_attributes) == 3, f'Expected 3 keys, got {len(key_attributes)}'
+
+    # Verify required keys exist
+    assert 'Type' in key_attributes, 'Missing required key: Type'
+    assert 'Name' in key_attributes, 'Missing required key: Name'
+    assert 'Environment' in key_attributes, 'Missing required key: Environment'
+
+    # Verify no extra keys
+    expected_keys = {'Type', 'Name', 'Environment'}
+    actual_keys = set(key_attributes.keys())
+    assert actual_keys == expected_keys, f'Extra keys found: {actual_keys - expected_keys}'
+
+    # Verify types are strings
+    assert isinstance(key_attributes['Type'], str), 'Type must be a string'
+    assert isinstance(key_attributes['Name'], str), 'Name must be a string'
+    assert isinstance(key_attributes['Environment'], str), 'Environment must be a string'
+
+    # Verify values match parameters
+    assert key_attributes['Type'] == 'Service'
+    assert key_attributes['Name'] == 'test-service'
+    assert key_attributes['Environment'] == 'dev'
 
 
 @pytest.mark.asyncio
 async def test_query_service_metrics_success(mock_aws_clients):
     """Test successful query of service metrics."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
     mock_get_response = {
         'Service': {
             'MetricReferences': [
@@ -225,12 +431,12 @@ async def test_query_service_metrics_success(mock_aws_clients):
         ]
     }
 
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
     mock_aws_clients['cloudwatch_client'].get_metric_statistics.return_value = mock_metric_response
 
     result = await query_service_metrics(
         service_name='test-service',
+        environment='production',
         metric_name='Latency',
         statistic='Average',
         extended_statistic='p99',
@@ -245,12 +451,6 @@ async def test_query_service_metrics_success(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_query_service_metrics_list_available(mock_aws_clients):
     """Test listing available metrics when no specific metric is requested."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
     mock_get_response = {
         'Service': {
             'MetricReferences': [
@@ -268,11 +468,11 @@ async def test_query_service_metrics_list_available(mock_aws_clients):
         }
     }
 
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
 
     result = await query_service_metrics(
         service_name='test-service',
+        environment='production',
         metric_name='',  # Empty to list available metrics
         statistic='Average',
         extended_statistic='p99',
@@ -678,13 +878,6 @@ async def test_list_monitored_services_general_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_get_service_detail_client_error(mock_aws_clients):
     """Test ClientError handling in get_service_detail."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.side_effect = ClientError(
         error_response={
             'Error': {
@@ -695,7 +888,7 @@ async def test_get_service_detail_client_error(mock_aws_clients):
         operation_name='GetService',
     )
 
-    result = await get_service_detail('test-service')
+    result = await get_service_detail(service_name='test-service', environment='production')
 
     assert 'AWS Error: Service not found in Application Signals' in result
 
@@ -703,18 +896,11 @@ async def test_get_service_detail_client_error(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_get_service_detail_general_exception(mock_aws_clients):
     """Test general exception handling in get_service_detail."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.side_effect = Exception(
         'Unexpected error in get_service'
     )
 
-    result = await get_service_detail('test-service')
+    result = await get_service_detail(service_name='test-service', environment='production')
 
     assert 'Error: Unexpected error in get_service' in result
 
@@ -722,12 +908,6 @@ async def test_get_service_detail_general_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_query_service_metrics_no_datapoints(mock_aws_clients):
     """Test query service metrics when no datapoints are returned."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
     mock_get_response = {
         'Service': {
             'MetricReferences': [
@@ -742,12 +922,12 @@ async def test_query_service_metrics_no_datapoints(mock_aws_clients):
 
     mock_metric_response = {'Datapoints': []}
 
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
     mock_aws_clients['cloudwatch_client'].get_metric_statistics.return_value = mock_metric_response
 
     result = await query_service_metrics(
         service_name='test-service',
+        environment='production',
         metric_name='Latency',
         statistic='Average',
         extended_statistic='p99',
@@ -917,37 +1097,39 @@ async def test_list_slis_with_error_in_sli_client(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_query_service_metrics_service_not_found(mock_aws_clients):
     """Test query service metrics when service is not found."""
-    mock_list_response = {'ServiceSummaries': []}
-
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
+    mock_aws_clients['appsignals_client'].get_service.side_effect = ClientError(
+        error_response={
+            'Error': {
+                'Code': 'ResourceNotFoundException',
+                'Message': 'Service not found',
+            }
+        },
+        operation_name='GetService',
+    )
 
     result = await query_service_metrics(
         service_name='nonexistent-service',
+        environment='production',
         metric_name='Latency',
         statistic='Average',
         extended_statistic='p99',
         hours=1,
     )
 
-    assert "Service 'nonexistent-service' not found" in result
+    assert 'AWS Error: Service not found' in result
+    assert "Service not found with Name='nonexistent-service', Environment='production'" in result
 
 
 @pytest.mark.asyncio
 async def test_query_service_metrics_no_metrics(mock_aws_clients):
     """Test query service metrics when service has no metrics."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
     mock_get_response = {'Service': {'MetricReferences': []}}
 
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
 
     result = await query_service_metrics(
         service_name='test-service',
+        environment='production',
         metric_name='Latency',
         statistic='Average',
         extended_statistic='p99',
@@ -960,12 +1142,6 @@ async def test_query_service_metrics_no_metrics(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_query_service_metrics_metric_not_found(mock_aws_clients):
     """Test query service metrics when specific metric is not found."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
     mock_get_response = {
         'Service': {
             'MetricReferences': [
@@ -978,11 +1154,11 @@ async def test_query_service_metrics_metric_not_found(mock_aws_clients):
         }
     }
 
-    mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
     mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
 
     result = await query_service_metrics(
         service_name='test-service',
+        environment='production',
         metric_name='Latency',  # Looking for Latency but only Error exists
         statistic='Average',
         extended_statistic='p99',
@@ -996,18 +1172,19 @@ async def test_query_service_metrics_metric_not_found(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_query_service_metrics_client_error(mock_aws_clients):
     """Test query service metrics with client error."""
-    mock_aws_clients['appsignals_client'].list_services.side_effect = ClientError(
+    mock_aws_clients['appsignals_client'].get_service.side_effect = ClientError(
         error_response={
             'Error': {
                 'Code': 'AccessDeniedException',
                 'Message': 'User is not authorized',
             }
         },
-        operation_name='ListServices',
+        operation_name='GetService',
     )
 
     result = await query_service_metrics(
         service_name='test-service',
+        environment='production',
         metric_name='Latency',
         statistic='Average',
         extended_statistic='p99',
@@ -1139,12 +1316,6 @@ async def test_query_service_metrics_different_periods(mock_aws_clients):
     ]
 
     for hours, expected_period in test_cases:
-        mock_list_response = {
-            'ServiceSummaries': [
-                {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-            ]
-        }
-
         mock_get_response = {
             'Service': {
                 'MetricReferences': [
@@ -1161,7 +1332,6 @@ async def test_query_service_metrics_different_periods(mock_aws_clients):
             'Datapoints': [{'Timestamp': datetime.now(timezone.utc), 'Average': 100.0}]
         }
 
-        mock_aws_clients['appsignals_client'].list_services.return_value = mock_list_response
         mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
         mock_aws_clients[
             'cloudwatch_client'
@@ -1169,6 +1339,7 @@ async def test_query_service_metrics_different_periods(mock_aws_clients):
 
         await query_service_metrics(
             service_name='test-service',
+            environment='production',
             metric_name='Latency',
             statistic='Average',
             extended_statistic='p99',
@@ -1183,10 +1354,11 @@ async def test_query_service_metrics_different_periods(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_query_service_metrics_general_exception(mock_aws_clients):
     """Test query service metrics with unexpected exception."""
-    mock_aws_clients['appsignals_client'].list_services.side_effect = Exception('Unexpected error')
+    mock_aws_clients['appsignals_client'].get_service.side_effect = Exception('Unexpected error')
 
     result = await query_service_metrics(
         service_name='test-service',
+        environment='production',
         metric_name='Latency',
         statistic='Average',
         extended_statistic='p99',
@@ -1194,6 +1366,136 @@ async def test_query_service_metrics_general_exception(mock_aws_clients):
     )
 
     assert 'Error: Unexpected error' in result
+
+
+@pytest.mark.asyncio
+async def test_query_service_metrics_distinguishes_environments(mock_aws_clients):
+    """Test that we can query metrics for same service name in different environments."""
+    # Mock response for production environment
+    mock_prod_get_response = {
+        'Service': {
+            'MetricReferences': [
+                {
+                    'Namespace': 'AWS/ApplicationSignals',
+                    'MetricName': 'Latency',
+                    'Dimensions': [],
+                }
+            ]
+        }
+    }
+
+    # Mock response for staging environment
+    mock_staging_get_response = {
+        'Service': {
+            'MetricReferences': [
+                {
+                    'Namespace': 'AWS/ApplicationSignals',
+                    'MetricName': 'Latency',
+                    'Dimensions': [],
+                }
+            ]
+        }
+    }
+
+    # Mock metrics with different values for each environment
+    mock_prod_metric_response = {
+        'Datapoints': [{'Timestamp': datetime.now(timezone.utc), 'Average': 150.0, 'p99': 500.0}]
+    }
+
+    mock_staging_metric_response = {
+        'Datapoints': [{'Timestamp': datetime.now(timezone.utc), 'Average': 50.0, 'p99': 100.0}]
+    }
+
+    # Test production environment
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_prod_get_response
+    mock_aws_clients[
+        'cloudwatch_client'
+    ].get_metric_statistics.return_value = mock_prod_metric_response
+
+    result_prod = await query_service_metrics(
+        service_name='api-service',
+        environment='production',
+        metric_name='Latency',
+        statistic='Average',
+        extended_statistic='p99',
+        hours=1,
+    )
+
+    assert 'Metrics for api-service - Latency' in result_prod
+    assert '150.00' in result_prod
+    assert '500.00' in result_prod
+
+    # Test staging environment
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_staging_get_response
+    mock_aws_clients[
+        'cloudwatch_client'
+    ].get_metric_statistics.return_value = mock_staging_metric_response
+
+    result_staging = await query_service_metrics(
+        service_name='api-service',
+        environment='staging',
+        metric_name='Latency',
+        statistic='Average',
+        extended_statistic='p99',
+        hours=1,
+    )
+
+    assert 'Metrics for api-service - Latency' in result_staging
+    assert '50.00' in result_staging
+    assert '100.00' in result_staging
+
+    # Verify they have different values (use more specific checks to avoid substring matches)
+    assert 'Latest: 150.00' in result_prod and 'Latest: 150.00' not in result_staging
+    assert 'Latest: 50.00' in result_staging and 'Latest: 50.00' not in result_prod
+
+
+@pytest.mark.asyncio
+async def test_query_service_metrics_passes_correct_key_attributes(mock_aws_clients):
+    """Verify KeyAttributes dict is constructed correctly from parameters."""
+    mock_get_response = {
+        'Service': {
+            'MetricReferences': [
+                {
+                    'Namespace': 'AWS/ApplicationSignals',
+                    'MetricName': 'Error',
+                    'Dimensions': [],
+                }
+            ]
+        }
+    }
+
+    mock_metric_response = {
+        'Datapoints': [{'Timestamp': datetime.now(timezone.utc), 'Average': 5.0}]
+    }
+
+    mock_aws_clients['appsignals_client'].get_service.return_value = mock_get_response
+    mock_aws_clients['cloudwatch_client'].get_metric_statistics.return_value = mock_metric_response
+
+    await query_service_metrics(
+        service_name='payment-service',
+        environment='staging',
+        service_type='AWS::Service',
+        metric_name='Error',
+        statistic='Average',
+        extended_statistic='p99',
+        hours=1,
+    )
+
+    # Verify get_service was called with correct KeyAttributes
+    call_args = mock_aws_clients['appsignals_client'].get_service.call_args
+    assert call_args is not None
+
+    key_attributes = call_args[1]['KeyAttributes']
+    assert key_attributes == {
+        'Type': 'AWS::Service',
+        'Name': 'payment-service',
+        'Environment': 'staging',
+    }
+
+    # Verify all three fields are present and correct
+    assert key_attributes['Type'] == 'AWS::Service'
+    assert key_attributes['Name'] == 'payment-service'
+    assert key_attributes['Environment'] == 'staging'
 
 
 @pytest.mark.asyncio
