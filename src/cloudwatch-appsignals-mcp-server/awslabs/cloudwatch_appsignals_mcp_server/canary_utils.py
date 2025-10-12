@@ -174,7 +174,6 @@ async def analyze_har_file(s3_client, bucket_name, har_files, is_failed_run=True
         # Handle .har.html format
         if har_key.endswith('.har.html'):
             # Extract JSON from HTML wrapper - find matching braces
-            import re
             start_match = re.search(r'var harOutput\s*=\s*({)', content_str)
             if start_match:
                 json_start = start_match.start(1)
@@ -619,10 +618,13 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = "us-
         canary_response = synthetics_client.get_canary(Name=canary_name)
         canary = canary_response['Canary']
         
-        # Extract Lambda function name from EngineArn
+        # Handle both EngineArn and EngineConfigs
         engine_arn = canary.get('EngineArn', '')
         if not engine_arn:
-            return {"error": "No EngineArn found for canary"}
+            engine_configs = canary.get('EngineConfigs', [])
+            if not engine_configs:
+                return {"error": "No EngineArn or EngineConfigs found for canary"}
+            engine_arn = engine_configs[0]['EngineArn']
         
         function_name = engine_arn.split(':function:')[1].split(':')[0]
         log_group_name = f"/aws/lambda/{function_name}"
@@ -649,12 +651,14 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = "us-
         # Wait for completion
         max_wait = 30
         wait_time = 0
+        delay = 1
         while wait_time < max_wait:
             result = logs_client.get_query_results(queryId=query_id)
             if result['status'] == 'Complete':
                 break
-            await asyncio.sleep(2)
-            wait_time += 2
+            await asyncio.sleep(delay)
+            wait_time += delay
+            delay = min(delay * 2, 8)
         
         if not result.get('results'):
             return {"error": "No telemetry data found in canary logs"}
@@ -687,7 +691,10 @@ async def get_canary_code(canary: dict, region: str = "us-east-1") -> dict:
     try:
         engine_arn = canary.get('EngineArn', '')
         if not engine_arn:
-            return {"error": "No EngineArn found for canary"}
+            engine_configs = canary.get('EngineConfigs', [])
+            if not engine_configs:
+                return {"error": "No EngineArn or EngineConfigs found for canary"}
+            engine_arn = engine_configs[0]['EngineArn']
         
         function_name = engine_arn.split(':function:')[1].split(':')[0]
         
@@ -704,40 +711,80 @@ async def get_canary_code(canary: dict, region: str = "us-east-1") -> dict:
             "code_content": ""
         }
         
-        # Get layer code
-        layers = config.get('Layers', [])
-        custom_layers = [l for l in layers if not l['Arn'].startswith('arn:aws:lambda:us-east-1:378653112637:layer:Synthetics')]
+        source_location_arn = canary.get('Code', {}).get('SourceLocationArn', '')
+        if source_location_arn and ':layer:' in source_location_arn:
+            try:
+                layer_response = lambda_client.get_layer_version_by_arn(Arn=source_location_arn)
+                if 'Location' in layer_response['Content']:
+                    with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
+                        import requests
+                        response = requests.get(layer_response['Content']['Location'])
+                        tmp_file.write(response.content)
+                        tmp_file.flush()
+                        
+                        with zipfile.ZipFile(tmp_file.name, 'r') as zip_ref:
+                            code_files = [f for f in zip_ref.namelist() if f.endswith(('.js', '.py'))]
+                            
+                            # Find the actual canary file using handler info
+                            handler = canary.get('Code', {}).get('Handler', '')
+                            if handler:
+                                handler_path = handler.replace('.handler', '')
+                                canary_file = next((f for f in code_files if handler_path in f), None)
+                                if canary_file:
+                                    with zip_ref.open(canary_file) as f:
+                                        code_content = f.read().decode('utf-8')
+                                        lines = code_content.split('\n')
+                                        result["code_content"] = '\n'.join(f"{i+1}: {line}" for i, line in enumerate(lines))
+                        os.unlink(tmp_file.name)
+            except Exception:
+                pass
         
-        if custom_layers:
-            import urllib.request
-            import zipfile
-            import tempfile
-            import os
-            import ssl
+        # Try custom layers from function config if no code found yet
+        if not result["code_content"]:
+            custom_layers = [l for l in config.get('Layers', []) if ':layer:Synthetics' not in l['Arn']]
             
-            layer_arn = custom_layers[0]['Arn']
-            layer_response = lambda_client.get_layer_version_by_arn(Arn=layer_arn)
-            
-            if 'Location' in layer_response['Content']:
-                layer_url = layer_response['Content']['Location']
-                
-                ssl_context = ssl._create_unverified_context()
+            for layer in custom_layers:
+                try:
+                    layer_response = lambda_client.get_layer_version_by_arn(Arn=layer['Arn'])
+                    if 'Location' in layer_response['Content']:
+                        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
+                            import requests
+                            response = requests.get(layer_response['Content']['Location'])
+                            tmp_file.write(response.content)
+                            tmp_file.flush()
+                            
+                            with zipfile.ZipFile(tmp_file.name, 'r') as zip_ref:
+                                code_files = [f for f in zip_ref.namelist() if f.endswith(('.js', '.py'))]
+                                if code_files:
+                                    with zip_ref.open(code_files[0]) as f:
+                                        code_content = f.read().decode('utf-8')
+                                        lines = code_content.split('\n')
+                                        result["code_content"] = '\n'.join(f"{i+1}: {line}" for i, line in enumerate(lines))
+                                        break
+                            os.unlink(tmp_file.name)
+                except Exception:
+                    continue
+        
+        # If no code found in layers, try function code directly
+        if not result["code_content"]:
+            try:
+                code_location = function_response['Code']['Location']
                 with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
-                    with urllib.request.urlopen(layer_url, context=ssl_context) as response:
-                        tmp_file.write(response.read())
+                    import requests
+                    response = requests.get(code_location)
+                    tmp_file.write(response.content)
                     tmp_file.flush()
                     
                     with zipfile.ZipFile(tmp_file.name, 'r') as zip_ref:
-                        js_files = [f for f in zip_ref.namelist() if f.endswith('.js')]
-                        
-                        if js_files:
-                            main_js = next((f for f in js_files if 'index.js' in f), js_files[0])
-                            with zip_ref.open(main_js) as f:
+                        code_files = [f for f in zip_ref.namelist() if f.endswith(('.js', '.py'))]
+                        if code_files:
+                            with zip_ref.open(code_files[0]) as f:
                                 code_content = f.read().decode('utf-8')
                                 lines = code_content.split('\n')
                                 result["code_content"] = '\n'.join(f"{i+1}: {line}" for i, line in enumerate(lines))
-                    
                     os.unlink(tmp_file.name)
+            except Exception as e:
+                result["code_content"] = f"Could not extract function code: {str(e)}"
         
         return result
         
@@ -748,80 +795,28 @@ async def get_canary_code(canary: dict, region: str = "us-east-1") -> dict:
 async def get_canary_metrics_and_service_insights(canary_name: str, region: str) -> str:
     """Get canary metrics and service insights using Application Signals audit API."""
     import time
-    import subprocess
-    import json
     
     try:
         # Get caller identity for account ID
         caller_identity = sts_client.get_caller_identity()
         account_id = caller_identity['Account']
 
-        # Note: Will use execute_audit_api once canary changes are released
-        # from .audit_utils import execute_audit_api
-        # audit_input = {
-        #     'StartTime': int(time.time()) - 900,
-        #     'EndTime': int(time.time()),
-        #     'AuditTargets': [{
-        #         "Type": "canary", 
-        #         "Data": {
-        #             "Canary": {
-        #                 "CanaryName": canary_name
-        #             }
-        #         }
-        #     }],
-        #     'Auditors': ['canary', 'operation_metric', 'trace']
-        # }
-        # return await execute_audit_api(audit_input, region, f"Canary Analysis for {canary_name}\n")
-
-        cmd = [
-            'aws', 'application-signals-demo', 'list-audit-findings',
-            '--region', region,
-            '--endpoint-url', 'https://application-signals-gamma.us-west-2.api.aws',
-            '--start-time', str(int(time.time()) - 900),
-            '--end-time', str(int(time.time())),
-            '--audit-targets', f'[{{"Type": "canary", "Data": {{"Canary": {{"CanaryName": "{canary_name}"}}}}}}]',
-            '--auditors', 'canary', 'operation_metric', 'trace'
-        ]
-
-        telemetry_result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        
-        if telemetry_result.returncode != 0:
-            return f"Error: {telemetry_result.stderr}"
-            
-        # Parse and format the JSON response
-        try:
-            response = json.loads(telemetry_result.stdout)
-            findings = response.get('AuditFindings', [])
-            
-            if not findings:
-                return "No telemetry findings available for this canary."
-            
-            formatted_output = []
-            for finding in findings:
-                key_attrs = finding.get('KeyAttributes', {})
-                service_name = key_attrs.get('Name', 'Unknown Service')
-                operation = finding.get('Operation', 'N/A')
-                finding_type = finding.get('Type', 'Unknown')
-                
-                formatted_output.append(f"\n**Service**: {service_name}")
-                formatted_output.append(f"**Operation**: {operation}")
-                formatted_output.append(f"**Type**: {finding_type}")
-                
-                auditor_results = finding.get('AuditorResults', [])
-                for result in auditor_results:
-                    auditor = result.get('Auditor', 'Unknown')
-                    severity = result.get('Severity', 'Unknown')
-                    description = result.get('Description', 'No description')
-                    
-                    formatted_output.append(f"\n🔍 **{auditor} Analysis** (Severity: {severity})")
-                    formatted_output.append(description)
-                
-                formatted_output.append("\n" + "─" * 50)
-            
-            return "\n".join(formatted_output)
-            
-        except json.JSONDecodeError:
-            return telemetry_result.stdout
+        # Use execute_audit_api for canary analysis
+        from .audit_utils import execute_audit_api
+        audit_input = {
+            'StartTime': int(time.time()) - 900,
+            'EndTime': int(time.time()),
+            'AuditTargets': [{
+                "Type": "canary", 
+                "Data": {
+                    "Canary": {
+                        "CanaryName": canary_name
+                    }
+                }
+            }],
+            'Auditors': ['canary', 'operation_metric', 'trace']
+        }
+        return await execute_audit_api(audit_input, region, f"Canary Analysis for {canary_name}\n")
         
     except Exception as e:
-        return f"Telemetry API unavailable: {str(e)}"
+        return f"ListAuditFindings API unavailable: {str(e)}"

@@ -959,6 +959,10 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
                 bucket_name = bucket_and_path.split('/')[0]
                 base_path = '/'.join(bucket_and_path.split('/')[1:]) if '/' in bucket_and_path else ''
                 
+                # If base_path is empty, construct canary path
+                if not base_path:
+                    base_path = f"canary/{region}/{canary_name}"
+
                 # Check for failure artifacts using date-based path
                 from datetime import datetime
                 failure_time = selected_failure.get('Timeline', {}).get('Started')

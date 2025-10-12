@@ -51,6 +51,37 @@ def mock_aws_clients():
 
 
 @pytest.mark.asyncio
+async def test_analyze_har_file_malformed_json():
+    """Test analyze_har_file with malformed JSON content."""
+    from awslabs.cloudwatch_appsignals_mcp_server.canary_utils import analyze_har_file
+    
+    # Mock S3 client
+    mock_s3_client = MagicMock()
+    
+    # Mock malformed HAR file content (invalid JSON)
+    malformed_content = b'{"log": {"entries": [invalid json content'
+    mock_s3_client.get_object.return_value = {
+        'Body': MagicMock(read=MagicMock(return_value=malformed_content))
+    }
+    
+    har_files = [{'Key': 'test-har-file.har'}]
+    
+    # Test malformed HAR file handling
+    result = await analyze_har_file(mock_s3_client, 'test-bucket', har_files)
+    
+    # Verify error handling
+    assert result['status'] == 'error'
+    assert len(result['insights']) == 1
+    assert 'HAR analysis failed:' in result['insights'][0]
+    
+    # Verify S3 client was called
+    mock_s3_client.get_object.assert_called_once_with(
+        Bucket='test-bucket', 
+        Key='test-har-file.har'
+    )
+
+
+@pytest.mark.asyncio
 async def test_analyze_canary_failures_success_with_failures(mock_aws_clients):
     """Test successful analyze_canary_failures with failed runs."""
     # Mock canary runs response with failures
@@ -159,6 +190,10 @@ async def test_analyze_canary_failures_success_with_failures(mock_aws_clients):
         assert 'Failed requests: 2' in result
         assert 'SCREENSHOT ANALYSIS:' in result
         assert 'LOG ANALYSIS:' in result
+
+        mock_har.assert_called()
+        mock_screenshots.assert_called()
+        mock_logs.assert_called()
 
         # Verify AWS client calls
         mock_aws_clients['synthetics_client'].get_canary_runs.assert_called_once_with(
@@ -403,6 +438,9 @@ async def test_analyze_canary_failures_enospc_error(mock_aws_clients):
         assert 'ENOSPC: no space left on device' in result
         assert 'DISK USAGE ROOT CAUSE ANALYSIS' in result
         assert 'Storage: 512.5 MB peak' in result
+        
+        # Verify disk usage metrics were extracted
+        mock_disk_usage.assert_called_once_with('enospc-canary', 'us-east-1')
         assert 'Usage: 95.2% peak' in result
 
 
@@ -553,6 +591,9 @@ async def test_analyze_canary_failures_client_error_s3(mock_aws_clients):
         # Verify fallback to CloudWatch logs
         assert 'Navigation timeout' in result
         assert '⚠️ Artifacts not available - Checking CloudWatch Logs for root cause' in result
+        
+        # Verify invoke
+        mock_logs.assert_called_once()
         assert 'CLOUDWATCH LOGS ANALYSIS' in result or '📋 Log analysis failed' in result
         assert 'Navigation timeout occurred' in result or 'Navigation timeout' in result
 
