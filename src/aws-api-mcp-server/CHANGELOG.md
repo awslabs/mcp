@@ -7,11 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- CLI commands that don't expect any parameters (#1494)
+
+### Added
+
+- Support for `--endpoint-url` flag for localhost endpoints (#1452)
+- Change max retries to 3 when interpreting CLI command (#1485)
+
+## [1.0.1] - 2025-10-06
+
+### Added
+
+- Agent Script for creating Aurora DB with instances (#1401)
+- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
+
+## [1.0.0] - 2025-10-01
+
+### Changed
+
+- Replace local knowledge base with a remote endpoint for `suggest_aws_commands` (#1282)
+
+### Removed
+
+- `wait` and other polling AWS CLI commands(#1402)
+
+## [0.3.4] - 2025-09-30
+
+### Removed
+
+- Command output logging (#1388)
+
+### Fixed
+
+- Mark more operations as mutating (#1387)
+
+## [0.3.3] - 2025-09-30
+
+### Fixed
+
+- Mark sts:AssumeRole as mutating (#1364)
+
+## [0.3.1] - 2025-09-23
+
+### Added
+
+- Agent script for CloudTrail Multi-Region Setup (#1320)
+- Add telemetry for AWS CLI customizations (#1335)
+- Enforcement of `AUTH_TYPE=no-auth` for streamable-http mode (#1345)
+- Agent Script for troubleshooting permissions using CloudTrail events (#1313)
+
+## [0.3.0] - 2025-09-22
+
+### Fixed
+
+- Loading of security policy from `~/.aws/aws-api-mcp/mcp-security-policy.json` (#1311)
+- Enforcement of `READ_OPERATIONS_ONLY_MODE` and `REQUIRE_MUTATION_CONSENT` in security policy (#1301)
+
+## [0.2.14] - 2025-09-15
+
+### Added
+
+- Agent Script for debugging Lambda timeouts (#1271)
+- Agent Script for failure troubleshooting (#1276)
+- Safe execution for AWS APIs within working directory (#1261)
+
+## [0.2.13] - 2025-09-10
+
 ### Added
 
 - Support for custom security policy configuration via `~/.aws/aws-api-mcp/mcp-security-policy.json` file (#1213)
 - Custom deny list and elicitation required lists for AWS operations with pattern matching support (#1213)
 - Documentation for security policy configuration in README (#1240)
+
+## [0.2.12] - 2025-09-04
+
+### Added
+
 - Support for custom agent scripts directory via `AWS_API_MCP_AGENT_SCRIPTS_DIR` environment variable (#1227)
 - Scrubbing of sensitive logs (#1228)
 

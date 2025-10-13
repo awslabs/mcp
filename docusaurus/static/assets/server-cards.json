@@ -764,6 +764,25 @@
       ]
     },
     {
+      "category": "Data & Analytics",
+      "description": "AWS IoT SiteWise functionality for industrial IoT asset management, data ingestion, monitoring, and analytics",
+      "icon": "\ud83d\udcca",
+      "id": "aws-iot-sitewise-mcp-server",
+      "name": "AWS IoT Sitewise MCP Server",
+      "source_path": "src/aws-iot-sitewise-mcp-server",
+      "subcategory": "Industrial Internet of Things and Asset Management",
+      "tags": [
+        "autonomous",
+        "data-operations",
+        "event-based",
+        "real-time-events",
+        "event-notifications"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Developer Tools & Support",
       "description": "Semantic code search and repository analysis",
       "icon": "\ud83d\udee0\ufe0f",
@@ -1275,6 +1294,30 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Allows you to build, deploy, and manage intelligent agents with advanced capabilities like memory, OAuth authentication, and gateway integrations",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-bedrock-agentcore-mcp-server",
+      "name": "Amazon Bedrock AgentCore MCP Server",
+      "source_path": "src/amazon-bedrock-agentcore-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "conversational",
+        "knowledge-search",
+        "agentcore",
+        "agents",
+        "ai-agents",
+        "agentic",
+        "runtime",
+        "mcp"
+      ],
+      "workflows": [
+        "conversational"
       ]
     },
     {

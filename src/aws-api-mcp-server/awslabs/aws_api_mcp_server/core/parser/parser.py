@@ -14,6 +14,7 @@
 
 import argparse
 import botocore.serialize
+import ipaddress
 import jmespath
 import os
 import re
@@ -52,6 +53,7 @@ from ..common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
+from ..common.file_system_controls import validate_file_path
 from ..common.helpers import expand_user_home_directory
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
@@ -69,6 +71,7 @@ from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
 from pathlib import Path
 from typing import Any, NamedTuple, cast
+from urllib.parse import urlparse
 
 
 ARN_PATTERN = re.compile(
@@ -84,7 +87,7 @@ DENIED_CUSTOM_SERVICES = frozenset({'configure', 'history'})
 # to not do any subprocess calls and are therefore allowed.
 ALLOWED_CUSTOM_OPERATIONS = {
     # blanket allow these custom operation regardless of service
-    '*': ['wait'],
+    '*': [],
     's3': ['ls', 'website', 'sync', 'cp', 'mv', 'rm', 'mb', 'rb', 'presign'],
     'cloudformation': ['package', 'deploy'],
     'cloudfront': ['sign'],
@@ -113,7 +116,6 @@ ALLOWED_CUSTOM_OPERATIONS = {
     ],
     'emr-containers': ['update-role-trust-policy'],
     'gamelift': ['upload-build', 'get-game-session-log'],
-    'logs': ['start-live-tail'],
     'rds': ['generate-db-auth-token'],
     'servicecatalog': ['generate'],
     'deploy': ['push', 'register', 'deregister'],
@@ -274,7 +276,7 @@ class GlobalArgParser(MainArgParser):
     # Overwrite _build's parent method as it automatically injects a `version` action in the
     # parser. Version actions print the current version and then exit the program, which is
     # not what we want.
-    def _build(self, command_table, version_string, argument_table):
+    def _build(self, command_table, version_string, argument_table):  # noqa: ARG002
         for argument_name in argument_table:
             argument = argument_table[argument_name]
             argument.add_to_parser(self)
@@ -419,7 +421,7 @@ def _handle_service_command(
     ):
         global_args.region = GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
 
-    _validate_output_file(command_metadata, parsed_args)
+    _validate_file_paths(command_metadata, parsed_args, parameters)
 
     _validate_request_serialization(
         operation,
@@ -621,8 +623,6 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
     denied_args = []
     if global_args.debug:
         denied_args.append('--debug')
-    if global_args.endpoint_url:
-        denied_args.append('--endpoint-url')
     if not global_args.verify_ssl:
         denied_args.append('--no-verify-ssl')
     if not global_args.sign_request:
@@ -649,7 +649,7 @@ def _validate_parameters(
     errors = []
 
     input_shape = operation_model.input_shape
-    boto3_members = getattr(input_shape, 'members')
+    boto3_members = getattr(input_shape, 'members', {})
 
     for key, value in parameters.items():
         boto3_shape = boto3_members.get(key)
@@ -745,13 +745,38 @@ def _validate_request_serialization(
         ) from err
 
 
+def _validate_file_paths(
+    command_metadata: CommandMetadata,
+    parsed_args: ParsedOperationArgs | None,
+    parameters: dict[str, Any],
+):
+    """Validate all file paths in the command."""
+    from ..common.file_operations import extract_file_paths_from_parameters
+
+    # Validate --outfile parameter for streaming operations
+    if command_metadata.has_streaming_output and parsed_args:
+        output_file_path = parsed_args.operation_args.outfile
+        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
+            raise ValueError(f'{output_file_path} should be an absolute path')
+
+        if output_file_path != '-':
+            validate_file_path(output_file_path)
+
+    # Extract and validate all file paths using comprehensive detection
+    file_paths = extract_file_paths_from_parameters(command_metadata, parameters)
+    for file_path in file_paths:
+        validate_file_path(file_path)
+
+
 def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
     if command_metadata.has_streaming_output:
-        _validate_file_path(
-            parsed_args.operation_args.outfile,
-            command_metadata.service_sdk_name,
-            command_metadata.operation_sdk_name,
-        )
+        output_file_path = parsed_args.operation_args.outfile
+        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
+            raise ValueError(f'{output_file_path} should be an absolute path')
+
+        # Validate file path is within working directory
+        if output_file_path != '-':
+            validate_file_path(output_file_path)
 
 
 def _validate_file_path(file_path: str, service: str, operation: str):
@@ -765,6 +790,31 @@ def _validate_file_path(file_path: str, service: str, operation: str):
             file_path=file_path,
             reason='should be an absolute path',
         )
+
+
+def _validate_endpoint(endpoint: str | None):
+    if not endpoint:
+        return
+
+    try:
+        url = urlparse(endpoint if '://' in endpoint else f'http://{endpoint}')
+        url.port  # will throw an exception if the port is not a number
+    except Exception as e:
+        raise ValueError(f'Invalid endpoint or port: {endpoint}') from e
+
+    hostname = url.hostname
+    if not hostname:
+        raise ValueError(f'Could not find hostname {endpoint}')
+
+    if hostname == 'localhost':
+        hostname = '127.0.0.1'
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if not ip_obj.is_loopback:
+            raise ValueError(f'Local endpoint was not a loopback address: {hostname}')
+    except ValueError as e:
+        raise ValueError(f'Could not resolve endpoint: {e}')
 
 
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
@@ -784,6 +834,10 @@ def _construct_command(
     parsed_args: ParsedOperationArgs | None = None,
     operation_model: OperationModel | None = None,
 ) -> IRCommand:
+    _validate_file_paths(command_metadata, parsed_args, parameters)
+    endpoint_url = getattr(global_args, 'endpoint_url', None)
+    _validate_endpoint(endpoint_url)
+
     profile = getattr(global_args, 'profile', None)
     region = (
         getattr(global_args, 'region', None)
@@ -819,6 +873,7 @@ def _construct_command(
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
         output_file=output_file,
+        endpoint_url=global_args.endpoint_url,
     )
 
 

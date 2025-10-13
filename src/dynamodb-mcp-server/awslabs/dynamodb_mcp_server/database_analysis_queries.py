@@ -25,7 +25,7 @@ mysql_analysis_queries = {
         'sql': 'SELECT @@performance_schema;',
         'parameters': [],
     },
-    'pattern_analysis': {
+    'query_pattern_analysis': {
         'name': 'Query Pattern Analysis',
         'description': 'Returns query patterns from Performance Schema with execution counts, calculated RPS, average execution time, average rows examined per execution, scan counts, execution timeframes, and SQL complexity classification',
         'sql': """SELECT
@@ -38,7 +38,7 @@ mysql_analysis_queries = {
 FROM performance_schema.events_statements_summary_by_digest
 WHERE SCHEMA_NAME = '{target_database}'
 AND COUNT_STAR > 0
-AND LAST_SEEN >= DATE_SUB(NOW(), INTERVAL {analysis_days} DAY)
+AND LAST_SEEN >= DATE_SUB(NOW(), INTERVAL {pattern_analysis_days} DAY)
 -- Exclude system and administrative queries
 AND DIGEST_TEXT NOT LIKE 'SET%'
 AND DIGEST_TEXT NOT LIKE 'USE %'
@@ -66,7 +66,7 @@ AND DIGEST_TEXT NOT LIKE '%MD5%'
 AND DIGEST_TEXT NOT LIKE '%SHA%'
 AND DIGEST_TEXT NOT LIKE '%CONCAT_WS%'
 ORDER BY frequency DESC;""",
-        'parameters': ['target_database', 'analysis_days'],
+        'parameters': ['target_database', 'pattern_analysis_days'],
     },
     'table_analysis': {
         'name': 'Table Structure Analysis',
