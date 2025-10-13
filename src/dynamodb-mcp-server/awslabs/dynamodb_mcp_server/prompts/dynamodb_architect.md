@@ -188,7 +188,7 @@ A markdown table which shows 5-10 representative items for the table
 
 - **Purpose**: [what this table stores and why this design was chosen]
 - **Aggregate Boundary**: [what data is grouped together in this table and why]
-- **Partition Key**: [field] - [detailed justification including distribution reasoning, whether it's an identifying relationhip and if so why]
+- **Partition Key**: [field] - [detailed justification including distribution reasoning, whether it's an identifying relationship and if so why]
 - **Sort Key**: [field] - [justification including query patterns enabled]
 - **SK Taxonomy**: [list SK prefixes and their semantics; e.g., `PROFILE`, `ORDER#<id>`, `PAYMENT#<id>`]
 - **Attributes**: [list all key attributes with data types]
@@ -841,3 +841,110 @@ ExpressionAttributeValues: {
   ":now": Math.floor(Date.now() / 1000)  // Convert to Unix epoch
 }
 ```
+
+## Implementation JSON Generation
+
+After completing the markdown design, automatically generate a dynamodb_data_model.json file:
+
+🔴 **AUTOMATIC GENERATION**: Immediately after creating dynamodb_data_model.md, automatically generate the JSON file without requiring user confirmation or additional requests.
+
+### JSON Output: dynamodb_data_model.json
+
+```json
+{
+  "tables": [
+    {
+      "AttributeDefinitions": [
+        {"AttributeName": "partition_key_name", "AttributeType": "S|N|B"},
+        {"AttributeName": "sort_key_name", "AttributeType": "S|N|B"},
+        {"AttributeName": "gsi_key_name", "AttributeType": "S|N|B"}
+      ],
+      "TableName": "TableName",
+      "KeySchema": [
+        {"AttributeName": "partition_key_name", "KeyType": "HASH"},
+        {"AttributeName": "sort_key_name", "KeyType": "RANGE"}
+      ],
+      "GlobalSecondaryIndexes": [
+        {
+          "IndexName": "GSIName",
+          "KeySchema": [
+            {"AttributeName": "gsi_partition_key", "KeyType": "HASH"},
+            {"AttributeName": "gsi_sort_key", "KeyType": "RANGE"}
+          ],
+          "Projection": {
+            "ProjectionType": "ALL|KEYS_ONLY|INCLUDE",
+            "NonKeyAttributes": ["attr1", "attr2"]
+          }
+        }
+      ],
+      "BillingMode": "PAY_PER_REQUEST"
+    }
+  ],
+  "items": {
+    "TableName": [
+      {
+        "PutRequest": {
+          "Item": {
+            "partition_key": {"S": "value"},
+            "sort_key": {"S": "value"},
+            "attribute": {"S|N|B|SS|NS|BS|M|L|BOOL|NULL": "value"}
+          }
+        }
+      }
+    ]
+  },
+  "access_patterns": [
+    {
+      "pattern": "1",
+      "description": "Pattern description",
+      "table": "TableName",
+      "index": "GSIName|null",
+      "dynamodb_operation": "Query|GetItem|PutItem|UpdateItem|DeleteItem|BatchGetItem|TransactWrite",
+      "implementation": "aws dynamodb [operation] --table-name TableName --key-condition-expression 'pk = :pk' --expression-attribute-values '{\":pk\":{\"S\":\"value\"}}'",
+      "reason": "Optional: Why pattern cannot be implemented in DynamoDB"
+    }
+  ]
+}
+```
+
+🔴 **JSON Generation Rules**:
+
+### Tables Section
+Generate boto3 create_table format with AttributeDefinitions, TableName, KeySchema, GlobalSecondaryIndexes, BillingMode
+- Map attribute types: string→S, number→N, binary→B
+- Include ALL key attributes (table keys AND GSI keys) in AttributeDefinitions
+- Extract partition_key and sort_key from table description
+- Include GlobalSecondaryIndexes array with GSI definitions from `### GSIName GSI` sections
+- If no GSIs exist for a table, omit the GlobalSecondaryIndexes field entirely
+- If multiple GSIs exist for a table, include all of them in the GlobalSecondaryIndexes array
+- For each GSI: Include IndexName, KeySchema, Projection with correct ProjectionType
+- Use INCLUDE projection with NonKeyAttributes from "Per‑Pattern Projected Attributes" section
+
+### Items Section
+Generate boto3 batch_write_item format grouped by TableName
+- Each table contains array of PutRequest objects with Item data
+- Convert values to DynamoDB format: strings→S, numbers→N, etc.
+- Create one PutRequest per data row
+- Include ALL item definitions found in markdown - do not skip any items
+
+### Access Patterns Section
+Convert to new format with keys: pattern, description, table/index (optional), dynamodb_operation (optional), implementation (optional), reason (optional)
+- Use "table" key for table operations (queries/scans on main table)
+- Use both "table" and "index" keys for GSI operations (queries/scans on indexes)
+- For external services or patterns that don't involve DynamoDB operations, omit table/index, dynamodb_operation, and implementation keys and include "reason" key explaining why it was skipped
+- Convert DynamoDB Operations to dynamodb_operation values: Query, Scan, GetItem, PutItem, UpdateItem, DeleteItem, BatchGetItem, BatchWriteItem, TransactGetItems, TransactWriteItems
+- Convert Implementation Notes to valid AWS CLI commands in implementation field with complete syntax:
+  - Include `--table-name <TableName>` for all operations
+  - Include both partition and sort keys in `--key` parameters
+  - Use `--expression-attribute-names` for reserved keywords
+  - Include `--expression-attribute-values` with actual values
+  - Ensure complete item structures with all required attributes
+  - Include all required keys in TransactWrite operations
+  - Commands must be executable and syntactically correct
+- Preserve pattern ranges (e.g. "1-2") when multiple patterns share the same description, operation, and implementation
+- Split pattern ranges when multiple operations exist (e.g. "16-19" with GetItem/UpdateItem becomes two entries: "16-19" with GetItem operation and "16-19" with UpdateItem operation)
+
+### Output Requirements
+- Write JSON to `dynamodb_data_model.json` with 2-space indentation
+- Always include all three sections: tables, items, access_patterns
+- **ALWAYS include all three keys in the JSON output: "tables", "items", "access_patterns" - even if empty arrays**
