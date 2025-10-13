@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import httpx
+import os
 from awslabs.aws_documentation_mcp_server.models import SearchResult
 from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
@@ -32,7 +33,14 @@ except Exception:
     from . import __version__
 
 
-DEFAULT_USER_AGENT = f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 ModelContextProtocol/{__version__} (AWS Documentation Server)'
+# Allow User-Agent override via environment variable
+BASE_USER_AGENT = os.getenv(
+    'MCP_USER_AGENT',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+)
+DEFAULT_USER_AGENT = (
+    f'{BASE_USER_AGENT} ModelContextProtocol/{__version__} (AWS Documentation Server)'
+)
 
 
 async def read_documentation_impl(
