@@ -81,7 +81,9 @@ async def test_check_iam_exists_for_canary(mock_canary_clients, canary_config, e
         ),
     ],
 )
-async def test_check_lambda_permissions(mock_canary_clients, policies, expected_basic, expected_vpc):
+async def test_check_lambda_permissions(
+    mock_canary_clients, policies, expected_basic, expected_vpc
+):
     """Test check lambda permissions."""
     mock_iam = mock_canary_clients['iam_client']
     mock_iam.list_attached_role_policies.return_value = {'AttachedPolicies': policies}
@@ -225,7 +227,9 @@ async def test_analyze_har_file_with_failures_and_timing(mock_canary_clients):
 )
 async def test_analyze_screenshots(mock_canary_clients, screenshots, expected_status):
     """Test analyze screenshots."""
-    result = await analyze_screenshots(mock_canary_clients['s3_client'], 'bucket', screenshots, True)
+    result = await analyze_screenshots(
+        mock_canary_clients['s3_client'], 'bucket', screenshots, True
+    )
     assert result['status'] == expected_status
 
 
@@ -364,8 +368,6 @@ async def test_get_canary_metrics_and_service_insights():
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_integration():
     """Test analyze canary failures integration."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     with (
         patch(
             'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.synthetics_client'
@@ -375,6 +377,8 @@ async def test_analyze_canary_failures_integration():
         patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.sts_client') as mock_sts,
         patch('subprocess.run') as mock_subprocess,
     ):
+        from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
         mock_synthetics.get_canary_runs.return_value = {
             'CanaryRuns': [
                 {

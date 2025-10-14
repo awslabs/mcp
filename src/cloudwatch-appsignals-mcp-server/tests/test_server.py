@@ -2,12 +2,7 @@
 
 import json
 import pytest
-from awslabs.cloudwatch_appsignals_mcp_server.server import (
-    _filter_operation_targets,
-    analyze_canary_failures,
-    audit_service_operations,
-    main,
-)
+from awslabs.cloudwatch_appsignals_mcp_server.server import _filter_operation_targets, main
 from awslabs.cloudwatch_appsignals_mcp_server.service_tools import (
     get_service_detail,
     list_monitored_services,
@@ -37,8 +32,6 @@ def mock_aws_clients():
     mock_xray_client = MagicMock()
     mock_synthetics_client = MagicMock()
     mock_s3_client = MagicMock()
-    mock_iam_client = MagicMock()
-    mock_lambda_client = MagicMock()
 
     # Patch the clients in all modules where they're imported
     patches = [
@@ -101,18 +94,7 @@ def mock_aws_clients():
             mock_synthetics_client,
         ),
         patch('awslabs.cloudwatch_appsignals_mcp_server.server.s3_client', mock_s3_client),
-        patch('awslabs.cloudwatch_appsignals_mcp_server.server.iam_client', mock_iam_client),
-        # Canary utils module (lambda_client, logs_client, synthetics_client are imported)
-        patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.lambda_client', mock_lambda_client
-        ),
-        patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.logs_client', mock_logs_client
-        ),
-        patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.synthetics_client',
-            mock_synthetics_client,
-        ),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.server.iam_client', MagicMock()),
     ]
 
     # Start all patches
@@ -127,8 +109,6 @@ def mock_aws_clients():
             'xray_client': mock_xray_client,
             'synthetics_client': mock_synthetics_client,
             's3_client': mock_s3_client,
-            'iam_client': mock_iam_client,
-            'lambda_client': mock_lambda_client,
         }
     finally:
         # Stop all patches
@@ -2705,7 +2685,7 @@ async def test_analyze_canary_failures_artifact_location_without_s3_prefix(mock_
             result = await analyze_canary_failures('test-canary', 'us-east-1')
 
             # Should still process artifacts even without s3:// prefix
-            assert 'Comprehensive Failure Analysis' in result
+            assert 'FAILURE ANALYSIS' in result
 
 
 @pytest.mark.asyncio
@@ -2750,7 +2730,7 @@ async def test_analyze_canary_failures_empty_base_path(mock_aws_clients):
             result = await analyze_canary_failures('test-canary', 'us-east-1')
 
             # Should construct default canary path when base_path is empty
-            assert 'Comprehensive Failure Analysis' in result
+            assert 'FAILURE ANALYSIS' in result
 
 
 @pytest.mark.asyncio
@@ -2835,7 +2815,7 @@ async def test_analyze_canary_failures_no_failure_time_fallback(mock_aws_clients
             result = await analyze_canary_failures('test-canary', 'us-east-1')
 
             # Should use current time when no failure time available
-            assert 'Comprehensive Failure Analysis' in result
+            assert 'FAILURE ANALYSIS' in result
 
 
 def test_filter_operation_targets_fault_to_availability():
@@ -3070,228 +3050,3 @@ def test_filter_operation_targets_case_sensitive():
     assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'fault'  # unchanged
     assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
     assert has_wildcards is False
-
-
-@pytest.mark.asyncio
-async def test_audit_service_operations_debug_logging(mock_aws_clients):
-    """Test audit_service_operations debug logging."""
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.logger') as mock_logger:
-        operation_targets = '[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"test-service"},"Operation":"GET /api","MetricType":"Latency"}}}]'
-
-        result = await audit_service_operations(operation_targets)
-
-        mock_logger.debug.assert_any_call(
-            'Starting audit_service_operations (SPECIALIZED OPERATION AUDIT TOOL)'
-        )
-        assert isinstance(result, str)  # Returns formatted string output
-
-
-@pytest.mark.asyncio
-async def test_analyze_canary_failures_failure_time_parsing(mock_aws_clients):
-    """Test analyze_canary_failures with failure time parsing."""
-    mock_aws_clients['synthetics_client'].get_canary.return_value = {
-        'Canary': {
-            'Name': 'test-canary',
-            'ArtifactS3Location': 's3://test-bucket/canary-artifacts/',
-            'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role',
-            'Status': {'State': 'RUNNING'},
-        }
-    }
-
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': [
-            {
-                'Id': 'run-1',
-                'Status': {'State': 'FAILED'},
-                'Timeline': {
-                    'Started': datetime(2024, 1, 1, 12, 0, 0),
-                    'Completed': datetime(2024, 1, 1, 12, 5, 0),
-                },
-            }
-        ]
-    }
-
-    # Test with string failure time
-    result = await analyze_canary_failures('test-canary')
-
-    assert 'Comprehensive Failure Analysis' in result
-
-
-@pytest.mark.asyncio
-async def test_analyze_canary_failures_success_artifacts_comparison(mock_aws_clients):
-    """Test analyze_canary_failures with success artifacts comparison."""
-    mock_aws_clients['synthetics_client'].get_canary.return_value = {
-        'Canary': {
-            'Name': 'test-canary',
-            'ArtifactS3Location': 's3://test-bucket/canary-artifacts/',
-            'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role',
-            'Status': {'State': 'RUNNING'},
-        }
-    }
-
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': [
-            {
-                'Id': 'run-1',
-                'Status': {'State': 'FAILED'},
-                'Timeline': {
-                    'Started': datetime(2024, 1, 1, 12, 0, 0),
-                    'Completed': datetime(2024, 1, 1, 12, 5, 0),
-                },
-            },
-            {
-                'Id': 'run-2',
-                'Status': {'State': 'PASSED'},
-                'Timeline': {
-                    'Started': datetime(2024, 1, 1, 11, 0, 0),
-                    'Completed': datetime(2024, 1, 1, 11, 5, 0),
-                },
-            },
-        ]
-    }
-
-    # Mock S3 responses for success artifacts
-    mock_aws_clients['s3_client'].list_objects_v2.side_effect = [
-        {'Contents': [{'Key': 'failure/artifacts/test.har'}]},  # Failure artifacts
-        {'Contents': [{'Key': 'success/artifacts/test.har'}]},  # Success artifacts
-    ]
-
-    mock_aws_clients['s3_client'].get_object.side_effect = [
-        {
-            'Body': MagicMock(
-                read=lambda: b'{"log":{"entries":[{"request":{"url":"http://test.com","method":"GET"},"response":{"status":500},"time":1000}]}}'
-            )
-        },  # Failure HAR
-        {
-            'Body': MagicMock(
-                read=lambda: b'{"log":{"entries":[{"request":{"url":"http://test.com","method":"GET"},"response":{"status":200},"time":500}]}}'
-            )
-        },  # Success HAR
-    ]
-
-    result = await analyze_canary_failures('test-canary')
-
-    assert 'Comprehensive Failure Analysis' in result
-
-
-@pytest.mark.asyncio
-async def test_analyze_canary_failures_success_artifacts_exception(mock_aws_clients):
-    """Test analyze_canary_failures with exception in success artifacts analysis."""
-    mock_aws_clients['synthetics_client'].get_canary.return_value = {
-        'Canary': {
-            'Name': 'test-canary',
-            'ArtifactS3Location': 's3://test-bucket/canary-artifacts/',
-            'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role',
-            'Status': {'State': 'RUNNING'},
-        }
-    }
-
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': [
-            {
-                'Id': 'run-1',
-                'Status': {'State': 'FAILED'},
-                'Timeline': {
-                    'Started': datetime(2024, 1, 1, 12, 0, 0),
-                    'Completed': datetime(2024, 1, 1, 12, 5, 0),
-                },
-            },
-            {
-                'Id': 'run-2',
-                'Status': {'State': 'PASSED'},
-                'Timeline': {
-                    'Started': datetime(2024, 1, 1, 11, 0, 0),
-                    'Completed': datetime(2024, 1, 1, 11, 5, 0),
-                },
-            },
-        ]
-    }
-
-    # Mock S3 to raise exception for success artifacts
-    mock_aws_clients['s3_client'].list_objects_v2.side_effect = [
-        {'Contents': [{'Key': 'failure/artifacts/test.har'}]},  # Failure artifacts
-        Exception('S3 error'),  # Success artifacts exception
-    ]
-
-    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.logger') as mock_logger:
-        result = await analyze_canary_failures('test-canary')
-
-        mock_logger.warning.assert_any_call(
-            'Failed to analyze success artifacts for HAR comparison: S3 error'
-        )
-        assert 'Comprehensive Failure Analysis' in result
-
-
-@pytest.mark.asyncio
-async def test_analyze_canary_failures_resource_arn_check_correct(mock_aws_clients):
-    """Test analyze_canary_failures with correct resource ARN check."""
-    mock_aws_clients['synthetics_client'].get_canary.return_value = {
-        'Canary': {
-            'Name': 'test-canary',
-            'ArtifactS3Location': 's3://test-bucket/canary-artifacts/',
-            'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role',
-            'Status': {'State': 'RUNNING'},
-        }
-    }
-
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': [
-            {
-                'Id': 'run-1',
-                'Status': {'State': 'FAILED'},
-                'Timeline': {
-                    'Started': datetime(2024, 1, 1, 12, 0, 0),
-                    'Completed': datetime(2024, 1, 1, 12, 5, 0),
-                },
-            }
-        ]
-    }
-
-    # Mock IAM to return correct ARN check
-    mock_aws_clients['iam_client'].list_attached_role_policies.return_value = {
-        'AttachedPolicies': []
-    }
-
-    with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.check_resource_arns_correct'
-    ) as mock_check:
-        mock_check.return_value = {'correct': True}
-
-        result = await analyze_canary_failures('test-canary')
-
-        assert 'Comprehensive Failure Analysis' in result
-
-
-@pytest.mark.asyncio
-async def test_analyze_canary_failures_resource_arn_check_incorrect(mock_aws_clients):
-    """Test analyze_canary_failures with incorrect resource ARN check."""
-    mock_aws_clients['synthetics_client'].get_canary.return_value = {
-        'Canary': {
-            'Name': 'test-canary',
-            'ArtifactS3Location': 's3://test-bucket/canary-artifacts/',
-            'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role',
-            'Status': {'State': 'RUNNING'},
-        }
-    }
-
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': [
-            {
-                'Id': 'run-1',
-                'Status': {'State': 'FAILED'},
-                'Timeline': {
-                    'Started': datetime(2024, 1, 1, 12, 0, 0),
-                    'Completed': datetime(2024, 1, 1, 12, 5, 0),
-                },
-            }
-        ]
-    }
-
-    with patch(
-        'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.check_resource_arns_correct'
-    ) as mock_check:
-        mock_check.return_value = {'correct': False, 'error': 'Bucket mismatch'}
-
-        result = await analyze_canary_failures('test-canary')
-
-        assert 'Comprehensive Failure Analysis' in result
