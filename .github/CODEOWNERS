@@ -47,7 +47,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/billing-cost-management-mcp-server          @awslabs/mcp-admins @awslabs/mcp-maintainers  @chittev @Rahul-1404
 /src/ccapi-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @novekm
 /src/cdk-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
-/src/cfn-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @karamvsingh
+/src/cfn-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @scottschreckengaust @krokoko @alexa-perlov # @karamvsingh
 /src/cloudtrail-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @rokafella
 /src/cloudwatch-appsignals-mcp-server            @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @iismd17 @syed-ahsan-ishtiaque
 /src/cloudwatch-logs-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @lemmoi @shri-tambe
@@ -62,7 +62,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/elasticache-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
 /src/finch-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @Shubhranshu153 @pendo324
 /src/frontend-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @jimini55
-/src/git-repo-research-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @jonslo
+/src/git-repo-research-mcp-server                @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @theagenticguy
 /src/healthlake-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @aws-steve @awsri
 /src/iam-mcp-server                              @awslabs/mcp-admins @awslabs/mcp-maintainers  @oshardik
 /src/lambda-tool-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @danilop @jsamuel1
