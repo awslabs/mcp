@@ -25,9 +25,14 @@ def test_synthetics_endpoint_logging():
     with patch.dict('os.environ', {'MCP_SYNTHETICS_ENDPOINT': 'https://synthetics.test.com'}):
         with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.logger') as mock_logger:
             with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.boto3'):
-                from awslabs.cloudwatch_appsignals_mcp_server.aws_clients import _initialize_aws_clients
+                from awslabs.cloudwatch_appsignals_mcp_server.aws_clients import (
+                    _initialize_aws_clients,
+                )
+
                 _initialize_aws_clients()
-                mock_logger.debug.assert_any_call('Using Synthetics endpoint override: https://synthetics.test.com')
+                mock_logger.debug.assert_any_call(
+                    'Using Synthetics endpoint override: https://synthetics.test.com'
+                )
 
 
 def test_module_as_main():

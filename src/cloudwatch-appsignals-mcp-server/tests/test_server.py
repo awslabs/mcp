@@ -2215,8 +2215,8 @@ async def test_analyze_canary_failures_navigation_timeout_with_har(mock_aws_clie
                     'High server response time',
                     'Network connectivity issues',
                     'Resource loading delays',
-                    'JavaScript execution timeout'
-                ]
+                    'JavaScript execution timeout',
+                ],
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
@@ -2745,7 +2745,7 @@ async def test_analyze_canary_failures_multiple_failure_causes(mock_aws_clients)
             'Timeline': {'Started': '2024-01-01T00:00:00Z'},
         },
         {
-            'Id': 'failed-run-2', 
+            'Id': 'failed-run-2',
             'Status': {'State': 'FAILED', 'StateReason': 'Access denied'},
             'Timeline': {'Started': '2024-01-01T00:01:00Z'},
         },
@@ -2753,7 +2753,7 @@ async def test_analyze_canary_failures_multiple_failure_causes(mock_aws_clients)
             'Id': 'success-run',
             'Status': {'State': 'PASSED'},
             'Timeline': {'Started': '2023-12-31T23:59:00Z'},
-        }
+        },
     ]
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}

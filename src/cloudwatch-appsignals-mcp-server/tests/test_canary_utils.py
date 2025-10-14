@@ -462,7 +462,7 @@ async def test_analyze_har_file_html_complete_json():
     # HTML content that will trigger the brace counting logic
     # Key: file must end with .har.html to trigger HTML parsing path
     html_content = 'var harOutput = {"log":{"entries":[]}};'
-    
+
     mock_s3.get_object.return_value = {
         'Body': MagicMock(read=MagicMock(return_value=html_content.encode('utf-8')))
     }
