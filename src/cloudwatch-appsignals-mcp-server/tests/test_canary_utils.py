@@ -1333,3 +1333,143 @@ async def test_coverage_analyze_iam_role_with_vpc():
 
         assert result['status'] == 'completed'
         assert '✅ Has Lambda VPC permissions' in result['checks']['lambda_vpc']
+
+
+def test_check_resource_arns_correct_no_execution_role():
+    """Test check_resource_arns_correct with no execution role."""
+    canary = {}
+    iam_client = MagicMock()
+
+    result = check_resource_arns_correct(canary, iam_client)
+
+    assert result['correct'] is False
+    assert 'No execution role configured' in result['error']
+
+
+def test_check_resource_arns_correct_iam_exception():
+    """Test check_resource_arns_correct with IAM client exception."""
+    canary = {
+        'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role',
+        'ArtifactS3Location': 's3://test-bucket/path/',
+    }
+    iam_client = MagicMock()
+    iam_client.list_attached_role_policies.side_effect = Exception('IAM error')
+
+    result = check_resource_arns_correct(canary, iam_client)
+
+    assert result['correct'] is False
+    assert 'IAM error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_logs_with_time_window_exception():
+    """Test analyze_canary_logs_with_time_window with exception during processing."""
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.logs_client'
+    ) as mock_logs_client:
+        mock_logs_client.describe_log_groups.side_effect = Exception('Logs error')
+
+        result = await analyze_canary_logs_with_time_window(
+            'test-canary', '2024-01-01T00:00:00Z', '2024-01-01T01:00:00Z'
+        )
+
+        assert result['status'] == 'error'
+        assert 'Log analysis failed:' in result['insights'][0]
+
+
+@pytest.mark.asyncio
+async def test_extract_disk_memory_usage_metrics_exception():
+    """Test extract_disk_memory_usage_metrics with exception."""
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.synthetics_client'
+    ) as mock_synthetics_client:
+        mock_synthetics_client.get_canary.side_effect = Exception('CloudWatch error')
+
+        result = await extract_disk_memory_usage_metrics('test-canary')
+
+        assert 'error' in result
+        assert 'Resource analysis failed: CloudWatch error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_extract_disk_memory_usage_metrics_telemetry_exception():
+    """Test extract_disk_memory_usage_metrics with telemetry processing exception."""
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.logs_client'
+    ) as mock_logs_client:
+        # Mock successful log group check but fail during telemetry processing
+        mock_logs_client.describe_log_groups.return_value = {
+            'logGroups': [{'logGroupName': '/aws/synthetics/canary/test-canary'}]
+        }
+        mock_logs_client.start_query.return_value = {'queryId': 'test-query-id'}
+        mock_logs_client.get_query_results.return_value = {
+            'status': 'Complete',
+            'results': [
+                [
+                    {'field': '@timestamp', 'value': '2024-01-01T00:00:00Z'},
+                    {'field': '@message', 'value': 'invalid json'},
+                ]
+            ],
+        }
+
+        result = await extract_disk_memory_usage_metrics('test-canary')
+
+        # Should handle JSON parsing errors gracefully
+        assert 'error' in result
+        assert 'Resource analysis failed:' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_check_iam_exists_for_canary_no_such_entity():
+    """Test check_iam_exists_for_canary with NoSuchEntity error."""
+    canary = {'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/nonexistent-role'}
+    iam_client = MagicMock()
+
+    error_response = {'Error': {'Code': 'NoSuchEntity', 'Message': 'Role does not exist'}}
+    iam_client.get_role.side_effect = ClientError(error_response, 'GetRole')
+
+    result = await check_iam_exists_for_canary(canary, iam_client)
+
+    assert result['exists'] is False
+    assert "Role 'nonexistent-role' does not exist" in result['error']
+
+
+@pytest.mark.asyncio
+async def test_check_iam_exists_for_canary_other_client_error():
+    """Test check_iam_exists_for_canary with other ClientError."""
+    canary = {'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role'}
+    iam_client = MagicMock()
+
+    error_response = {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}
+    iam_client.get_role.side_effect = ClientError(error_response, 'GetRole')
+
+    result = await check_iam_exists_for_canary(canary, iam_client)
+
+    assert result['exists'] is False
+    assert 'Cannot check role: Access denied' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_check_lambda_permissions_exception():
+    """Test check_lambda_permissions with exception."""
+    canary = {'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/test-role'}
+    iam_client = MagicMock()
+    iam_client.list_attached_role_policies.side_effect = Exception('IAM error')
+
+    result = await check_lambda_permissions(canary, iam_client)
+
+    assert result['has_basic_execution'] is False
+    assert result['has_vpc_permissions'] is False
+    assert result['needs_vpc_check'] is False
+    assert 'IAM error' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_get_canary_code_exception():
+    """Test get_canary_code with general exception."""
+    canary = None  # Invalid canary to trigger exception
+
+    result = await get_canary_code(canary)
+
+    assert 'error' in result
+    assert 'Canary code analysis failed:' in result['error']
