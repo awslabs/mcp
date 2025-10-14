@@ -47,8 +47,8 @@ from .core.common.models import (
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
 from botocore.exceptions import NoCredentialsError
-from loguru import logger
 from fastmcp import Context, FastMCP
+from loguru import logger
 from mcp.types import ToolAnnotations
 from pathlib import Path
 from pydantic import Field
@@ -65,7 +65,7 @@ logger.add(log_file, rotation='10 MB', retention='7 days')
 
 server = FastMCP(
     name='AWS-API-MCP',
-    log_level=FASTMCP_LOG_LEVEL, #type: ignore
+    log_level=FASTMCP_LOG_LEVEL,
     host=HOST,
     port=PORT,
     stateless_http=STATELESS_HTTP,
