@@ -51,11 +51,10 @@ def mock_aws_clients():
             'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.xray_client', mock_xray_client
         ),
         patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.synthetics_client', mock_synthetics_client
+            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.synthetics_client',
+            mock_synthetics_client,
         ),
-        patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.aws_clients.s3_client', mock_s3_client
-        ),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.s3_client', mock_s3_client),
         # Service tools module (check what's actually imported)
         patch(
             'awslabs.cloudwatch_appsignals_mcp_server.service_tools.appsignals_client',
@@ -1904,6 +1903,7 @@ def test_main_entry_point(mock_aws_clients):
         # Should handle KeyboardInterrupt gracefully
         main()
 
+
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_no_runs(mock_aws_clients):
     """Test analyze_canary_failures when no runs are found."""
@@ -1932,9 +1932,7 @@ async def test_analyze_canary_failures_healthy_canary(mock_aws_clients):
         }
     ]
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {
         'Canary': {'Name': 'test-canary'}
     }
@@ -1963,9 +1961,7 @@ async def test_analyze_canary_failures_telemetry_unavailable(mock_aws_clients):
         }
     ]
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {
         'Canary': {'Name': 'test-canary'}
     }
@@ -2008,9 +2004,7 @@ async def test_analyze_canary_failures_with_failures(mock_aws_clients):
         'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     # Mock S3 artifacts
@@ -2025,9 +2019,7 @@ async def test_analyze_canary_failures_with_failures(mock_aws_clients):
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file'
-        ) as mock_har:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
             with patch(
                 'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_screenshots'
             ) as mock_screenshots:
@@ -2066,9 +2058,7 @@ async def test_analyze_canary_failures_iam_analysis(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2117,9 +2107,7 @@ async def test_analyze_canary_failures_enospc_error(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2159,9 +2147,7 @@ async def test_analyze_canary_failures_protocol_error(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2197,17 +2183,13 @@ async def test_analyze_canary_failures_navigation_timeout_with_har(mock_aws_clie
         'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file'
-        ) as mock_har:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
             mock_insights.return_value = 'Telemetry insights'
             mock_har.return_value = {
                 'failed_requests': 5,
@@ -2240,9 +2222,7 @@ async def test_analyze_canary_failures_s3_exception(mock_aws_clients):
         'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     mock_aws_clients['s3_client'].list_objects_v2.side_effect = Exception('S3 access denied')
@@ -2259,11 +2239,8 @@ async def test_analyze_canary_failures_s3_exception(mock_aws_clients):
                 'time_window': '2024-01-01 00:00:00 - 2024-01-01 00:05:00',
                 'total_events': 5,
                 'error_events': [
-                    {
-                        'timestamp': datetime.now(timezone.utc),
-                        'message': 'Test error message'
-                    }
-                ]
+                    {'timestamp': datetime.now(timezone.utc), 'message': 'Test error message'}
+                ],
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
@@ -2288,21 +2265,15 @@ async def test_analyze_canary_failures_visual_variation(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_code'
-        ) as mock_code:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_code') as mock_code:
             mock_insights.return_value = 'Telemetry insights'
-            mock_code.return_value = {
-                'code_content': 'const synthetics = require("Synthetics");'
-            }
+            mock_code.return_value = {'code_content': 'const synthetics = require("Synthetics");'}
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
 
@@ -2326,17 +2297,13 @@ async def test_analyze_canary_failures_get_canary_code_exception(mock_aws_client
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_code'
-        ) as mock_code:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_code') as mock_code:
             mock_insights.return_value = 'Telemetry insights'
             # Make get_canary_code raise an exception
             mock_code.side_effect = Exception('Code retrieval failed')
@@ -2361,9 +2328,7 @@ async def test_analyze_canary_failures_iam_analysis_exception(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2396,9 +2361,7 @@ async def test_analyze_canary_failures_disk_usage_exception(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2413,7 +2376,10 @@ async def test_analyze_canary_failures_disk_usage_exception(mock_aws_clients):
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
 
-            assert '⚠️ Could not generate disk usage debugging code: Disk usage analysis failed' in result
+            assert (
+                '⚠️ Could not generate disk usage debugging code: Disk usage analysis failed'
+                in result
+            )
 
 
 @pytest.mark.asyncio
@@ -2424,16 +2390,17 @@ async def test_analyze_canary_failures_memory_usage_exception(mock_aws_clients):
     mock_runs = [
         {
             'Id': 'failed-run',
-            'Status': {'State': 'FAILED', 'StateReason': 'Protocol error (Target.activateTarget): Session closed'},
+            'Status': {
+                'State': 'FAILED',
+                'StateReason': 'Protocol error (Target.activateTarget): Session closed',
+            },
             'Timeline': {'Started': '2024-01-01T00:00:00Z'},
         }
     ]
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2448,7 +2415,9 @@ async def test_analyze_canary_failures_memory_usage_exception(mock_aws_clients):
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
 
-            assert '⚠️ Could not collect memory usage metrics: Memory usage analysis failed' in result
+            assert (
+                '⚠️ Could not collect memory usage metrics: Memory usage analysis failed' in result
+            )
 
 
 @pytest.mark.asyncio
@@ -2469,9 +2438,7 @@ async def test_analyze_canary_failures_har_timeout_exception(mock_aws_clients):
         'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     # Mock S3 to return HAR files
@@ -2484,9 +2451,7 @@ async def test_analyze_canary_failures_har_timeout_exception(mock_aws_clients):
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file'
-        ) as mock_har:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
             mock_insights.return_value = 'Telemetry insights'
             # Make HAR analysis raise an exception
             mock_har.side_effect = Exception('HAR analysis failed')
@@ -2519,9 +2484,7 @@ async def test_analyze_canary_failures_success_artifacts_exception(mock_aws_clie
         'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     # Mock S3 to return failure artifacts but fail on success artifacts
@@ -2540,14 +2503,12 @@ async def test_analyze_canary_failures_success_artifacts_exception(mock_aws_clie
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file'
-        ) as mock_har:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
             mock_insights.return_value = 'Telemetry insights'
             mock_har.return_value = {
                 'failed_requests': 2,
                 'total_requests': 10,
-                'request_details': []
+                'request_details': [],
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
@@ -2571,9 +2532,7 @@ async def test_analyze_canary_failures_no_failure_timestamp(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2601,9 +2560,7 @@ async def test_analyze_canary_failures_log_analysis_failure(mock_aws_clients):
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2615,7 +2572,7 @@ async def test_analyze_canary_failures_log_analysis_failure(mock_aws_clients):
             mock_insights.return_value = 'Telemetry insights'
             mock_logs.return_value = {
                 'status': 'failed',
-                'insights': ['Log analysis failed due to missing log group']
+                'insights': ['Log analysis failed due to missing log group'],
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
@@ -2651,9 +2608,7 @@ async def test_analyze_canary_failures_no_har_files_navigation_timeout(mock_aws_
 
     mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     with patch(
@@ -2685,9 +2640,7 @@ async def test_analyze_canary_failures_artifact_location_without_s3_prefix(mock_
         'ArtifactS3Location': 'test-bucket/canary/us-east-1/test-canary',  # No s3:// prefix
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     # Mock S3 to return artifacts
@@ -2700,14 +2653,12 @@ async def test_analyze_canary_failures_artifact_location_without_s3_prefix(mock_
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file'
-        ) as mock_har:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
             mock_insights.return_value = 'Telemetry insights'
             mock_har.return_value = {
                 'failed_requests': 1,
                 'total_requests': 5,
-                'request_details': []
+                'request_details': [],
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
@@ -2734,9 +2685,7 @@ async def test_analyze_canary_failures_empty_base_path(mock_aws_clients):
         'ArtifactS3Location': 's3://test-bucket',  # Only bucket, no path
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     # Mock S3 to return artifacts
@@ -2749,14 +2698,12 @@ async def test_analyze_canary_failures_empty_base_path(mock_aws_clients):
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file'
-        ) as mock_har:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
             mock_insights.return_value = 'Telemetry insights'
             mock_har.return_value = {
                 'failed_requests': 1,
                 'total_requests': 5,
-                'request_details': []
+                'request_details': [],
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
@@ -2783,9 +2730,7 @@ async def test_analyze_canary_failures_no_failure_time_fallback(mock_aws_clients
         'ArtifactS3Location': 's3://test-bucket/canary/us-east-1/test-canary',
     }
 
-    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {
-        'CanaryRuns': mock_runs
-    }
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
     # Mock S3 to return artifacts
@@ -2798,14 +2743,12 @@ async def test_analyze_canary_failures_no_failure_time_fallback(mock_aws_clients
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
-        with patch(
-            'awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file'
-        ) as mock_har:
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.server.analyze_har_file') as mock_har:
             mock_insights.return_value = 'Telemetry insights'
             mock_har.return_value = {
                 'failed_requests': 1,
                 'total_requests': 5,
-                'request_details': []
+                'request_details': [],
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')

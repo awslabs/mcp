@@ -1061,7 +1061,9 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
                                         for req in failure_har['request_details'][:3]:
                                             result += f'• {req.get("url", "Unknown")}: {req.get("status", "Unknown")} ({req.get("time", 0):.1f}ms)\n'
                             except Exception as e:
-                                logger.warning(f'Failed to analyze success artifacts for HAR comparison: {str(e)}')
+                                logger.warning(
+                                    f'Failed to analyze success artifacts for HAR comparison: {str(e)}'
+                                )
                         else:
                             result += (
                                 '🔍 FAILURE ANALYSIS (no success run available for comparison):\n'

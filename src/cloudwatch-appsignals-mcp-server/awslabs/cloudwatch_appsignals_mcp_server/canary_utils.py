@@ -818,7 +818,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
                                         )
                         os.unlink(tmp_file.name)
             except Exception as e:
-                logger.warning(f'Failed to extract canary code from layer {source_location_arn}: {str(e)}')
+                logger.warning(
+                    f'Failed to extract canary code from layer {source_location_arn}: {str(e)}'
+                )
 
         # Try custom layers from function config if no code found yet
         if not result['code_content']:
@@ -833,7 +835,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
                         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
                             import requests
 
-                            response = requests.get(layer_response['Content']['Location'], timeout=30)
+                            response = requests.get(
+                                layer_response['Content']['Location'], timeout=30
+                            )
                             tmp_file.write(response.content)
                             tmp_file.flush()
 
@@ -851,7 +855,9 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
                                         break
                             os.unlink(tmp_file.name)
                 except Exception as e:
-                    logger.warning(f'Failed to extract canary code from custom layer {layer["Arn"]}: {str(e)}')
+                    logger.warning(
+                        f'Failed to extract canary code from custom layer {layer["Arn"]}: {str(e)}'
+                    )
                     continue
 
         # If no code found in layers, try function code directly
