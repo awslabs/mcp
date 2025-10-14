@@ -124,7 +124,9 @@ def test_initialize_aws_clients_with_profile():
         ):
             with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.Config'):
                 # Call the initialization function
-                logs, appsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts = _initialize_aws_clients()
+                logs, appsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts = (
+                    _initialize_aws_clients()
+                )
 
                 # Verify Session was called with the profile
                 mock_session.assert_called_once()

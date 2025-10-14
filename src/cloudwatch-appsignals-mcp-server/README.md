@@ -155,7 +155,7 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 **Deep dive into CloudWatch Synthetics canary failures with root cause identification**
 
 - Comprehensive canary failure analysis with deep dive into issues
-- Analyze historical patterns and specific incident details  
+- Analyze historical patterns and specific incident details
 - Get comprehensive artifact analysis including logs, screenshots, and HAR files
 - Receive actionable recommendations based on AWS debugging methodology
 - Correlate canary failures with Application Signals telemetry data
