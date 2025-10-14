@@ -2816,6 +2816,8 @@ async def test_analyze_canary_failures_no_failure_time_fallback(mock_aws_clients
 
             # Should use current time when no failure time available
             assert 'FAILURE ANALYSIS' in result
+
+
 def test_filter_operation_targets_fault_to_availability():
     """Test _filter_operation_targets converts Fault to Availability."""
     provided = [
