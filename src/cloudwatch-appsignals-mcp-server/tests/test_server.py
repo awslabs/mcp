@@ -89,6 +89,12 @@ def mock_aws_clients():
             'awslabs.cloudwatch_appsignals_mcp_server.sli_report_client.cloudwatch_client',
             mock_cloudwatch_client,
         ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.synthetics_client',
+            mock_synthetics_client,
+        ),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.server.s3_client', mock_s3_client),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.server.iam_client', MagicMock()),
     ]
 
     # Start all patches
