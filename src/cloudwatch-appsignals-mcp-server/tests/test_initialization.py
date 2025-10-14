@@ -20,6 +20,16 @@ def test_aws_client_initialization_error():
             import awslabs.cloudwatch_appsignals_mcp_server.aws_clients  # noqa: F401
 
 
+def test_synthetics_endpoint_logging():
+    """Test synthetics endpoint override logging."""
+    with patch.dict('os.environ', {'MCP_SYNTHETICS_ENDPOINT': 'https://synthetics.test.com'}):
+        with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.logger') as mock_logger:
+            with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.boto3'):
+                from awslabs.cloudwatch_appsignals_mcp_server.aws_clients import _initialize_aws_clients
+                _initialize_aws_clients()
+                mock_logger.debug.assert_any_call('Using Synthetics endpoint override: https://synthetics.test.com')
+
+
 def test_module_as_main():
     """Test module execution when run as __main__."""
     # Remove the module from sys.modules if it exists

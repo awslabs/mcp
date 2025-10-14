@@ -455,6 +455,26 @@ async def test_check_lambda_permissions_policy_errors():
 
 
 @pytest.mark.asyncio
+async def test_analyze_har_file_html_complete_json():
+    """Test analyze har file html with complete JSON that requires brace counting."""
+    mock_s3 = MagicMock()
+
+    # HTML content that will trigger the brace counting logic
+    # Key: file must end with .har.html to trigger HTML parsing path
+    html_content = 'var harOutput = {"log":{"entries":[]}};'
+    
+    mock_s3.get_object.return_value = {
+        'Body': MagicMock(read=MagicMock(return_value=html_content.encode('utf-8')))
+    }
+
+    # Use .har.html extension to trigger the HTML parsing path with brace counting
+    result = await analyze_har_file(mock_s3, 'bucket', [{'Key': 'test.har.html'}], True)
+
+    # This covers lines 216-220: brace counting logic where brace_count == 0 and json_end > 0
+    assert result['status'] == 'empty_har'  # Empty entries array
+
+
+@pytest.mark.asyncio
 async def test_analyze_har_file_html_incomplete_json():
     """Test analyze har file html incomplete json."""
     mock_s3 = MagicMock()
