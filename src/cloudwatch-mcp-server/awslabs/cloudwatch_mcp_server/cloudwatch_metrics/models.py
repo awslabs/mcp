@@ -22,7 +22,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
 )
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator, model_validator, model_serializer
+from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
 from typing import Any, ClassVar, Dict, List, Optional, Union
 
 
@@ -58,6 +58,13 @@ class Seasonality(Enum):
             if abs(closest.value - seconds) < closest.value * SEASONALITY_ROUNDING_THRESHOLD
             else cls.NONE
         )
+
+
+class DecompositionResult(BaseModel):
+    """Result of metric data decomposition into seasonal and trend components."""
+
+    seasonality: Seasonality
+    trend: Trend
 
 
 class SortOrder(str, Enum):
@@ -219,6 +226,7 @@ class AlarmRecommendation(BaseModel):
 
     @model_serializer
     def serialize_model(self):
+        """Serialize alarm recommendation to dict format."""
         data = {
             'alarmDescription': self.alarmDescription,
             'threshold': self.threshold,

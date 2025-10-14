@@ -13,26 +13,27 @@
 # limitations under the License.
 
 import numpy as np
-import statsmodels.api as sm
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
     NUMERICAL_STABILITY_THRESHOLD,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData, Seasonality, Trend
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import SeasonalityDetector
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+    DecompositionResult,
+    MetricData,
+    Seasonality,
+    Trend,
+)
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import MetricDataDecomposer
 from collections import Counter
 from loguru import logger
-from statsmodels.regression.linear_model import OLS
 from typing import Any, Dict, Optional
 
 
 class MetricAnalyzer:
     """Metric analysis including trend, density, seasonality, and statistical measures."""
 
-    STATISTICAL_SIGNIFICANCE_THRESHOLD = 0.05
-
     def __init__(self):
         """Initialize the metric analyzer."""
-        self.seasonality_detector = SeasonalityDetector()
+        self.decomposer = MetricDataDecomposer()
 
     def analyze_metric_data(self, metric_data: MetricData) -> Dict[str, Any]:
         """Analyze metric data and return comprehensive analysis results.
@@ -41,10 +42,10 @@ class MetricAnalyzer:
             metric_data: MetricData object containing timestamps and values
 
         Returns:
-            Dict containing analysis results including seasonality, trend, and statistics
+            Dict containing analysis results including seasonality, trend, statistics, and message
         """
         if not metric_data.timestamps or not metric_data.values:
-            return self._empty_analysis_result()
+            return {'message': 'No metric data available for analysis'}
 
         clean_data = [
             (ts, val)
@@ -53,107 +54,60 @@ class MetricAnalyzer:
         ]
 
         if len(clean_data) < 2:
-            # Return empty result but preserve original data count
-            result = self._empty_analysis_result()
-            result['data_points_found'] = len(metric_data.values)
-            return result
+            return {'message': 'Insufficient valid data points for analysis'}
 
         clean_timestamps, clean_values = zip(*clean_data)
         clean_timestamps = list(clean_timestamps)
         clean_values = list(clean_values)
 
-        # Compute detailed analysis
-        publishing_period_seconds = self._compute_publishing_period(clean_timestamps)
-        density_ratio = self._compute_density_ratio(clean_timestamps, publishing_period_seconds)
-        seasonality = self._compute_seasonality(
-            clean_timestamps, clean_values, density_ratio, publishing_period_seconds
-        )
-        trend = self._compute_trend(clean_values)
-        statistics = self._compute_statistics(clean_values)
-
-        return {
-            'data_points_found': len(metric_data.values),
-            'seasonality_seconds': seasonality.value,
-            'trend': trend,
-            'statistics': statistics,
-            'data_quality': {
-                'total_points': len(metric_data.values),
-                'density_ratio': density_ratio,
-                'publishing_period_seconds': publishing_period_seconds,
-            },
-        }
-
-    def _empty_analysis_result(self) -> Dict[str, Any]:
-        """Return empty analysis result."""
-        return {
-            'data_points_found': 0,
-            'seasonality_seconds': 0,
-            'trend': Trend.NONE,
-            'statistics': {
-                'std_deviation': None,
-                'variance': None,
-                'coefficient_of_variation': None,
-            },
-            'data_quality': {
-                'total_points': None,
-                'density_ratio': None,
-                'publishing_period_seconds': None,
-            },
-        }
-
-    def _compute_trend(self, values: list[float]) -> Trend:
-        if not values or len(values) <= 2:
-            return Trend.NONE
-
         try:
-            valid_data = [
-                (i, v) for i, v in enumerate(values) if not np.isnan(v) and not np.isinf(v)
-            ]
-            if len(valid_data) <= 2:
-                return Trend.NONE
-
-            x_vals = np.array([x for x, _ in valid_data])
-            y_vals = np.array([y for _, y in valid_data])
-
-            # Check if all values are the same (flat line)
-            if np.std(y_vals) < NUMERICAL_STABILITY_THRESHOLD:
-                return Trend.NONE
-
-            x_vals = (x_vals - x_vals.min()) / (
-                x_vals.max() - x_vals.min() + NUMERICAL_STABILITY_THRESHOLD
+            # Compute detailed analysis
+            publishing_period_seconds = self._compute_publishing_period(clean_timestamps)
+            density_ratio = self._compute_density_ratio(
+                clean_timestamps, publishing_period_seconds
             )
+            decomposition = self._compute_seasonality_and_trend(
+                clean_timestamps, clean_values, density_ratio, publishing_period_seconds
+            )
+            statistics = self._compute_statistics(clean_values)
 
-            X = sm.add_constant(x_vals)
-            model = OLS(y_vals, X).fit()
-
-            slope = model.params[1]
-            p_value = model.pvalues[1]
-
-            if p_value >= self.STATISTICAL_SIGNIFICANCE_THRESHOLD:
-                return Trend.NONE
-
-            return Trend.POSITIVE if slope > 0 else Trend.NEGATIVE
+            return {
+                'data_points_found': len(metric_data.values),
+                'seasonality_seconds': decomposition.seasonality.value,
+                'trend': decomposition.trend,
+                'statistics': statistics,
+                'data_quality': {
+                    'total_points': len(metric_data.values),
+                    'density_ratio': density_ratio,
+                    'publishing_period_seconds': publishing_period_seconds,
+                },
+                'message': 'Metric analysis completed successfully',
+            }
         except Exception as e:
-            logger.warning(f'Error computing trend: {e}')
-            raise
+            logger.error(f'Error during metric analysis: {str(e)}')
+            return {'message': 'Unable to analyze metric data'}
 
-    def _compute_seasonality(
+    def _compute_seasonality_and_trend(
         self,
         timestamps_ms: list[int],
         values: list[float],
         density_ratio: Optional[float],
         publishing_period_seconds: Optional[float],
-    ) -> Seasonality:
-        """Compute seasonality analysis using the seasonal detector with density information."""
+    ):
+        """Compute seasonality and trend using decomposition.
+
+        Returns:
+            DecompositionResult with seasonality and trend
+        """
         if density_ratio is None or publishing_period_seconds is None:
-            return Seasonality.NONE
+            return DecompositionResult(seasonality=Seasonality.NONE, trend=Trend.NONE)
 
         try:
-            return self.seasonality_detector.detect_seasonality(
+            return self.decomposer.detect_seasonality_and_trend(
                 timestamps_ms, values, density_ratio, int(publishing_period_seconds)
             )
         except Exception as e:
-            logger.error(f'Error computing seasonality: {e}')
+            logger.error(f'Error computing seasonality and trend: {e}')
             raise
 
     def _compute_publishing_period(self, timestamps_ms: list[int]) -> Optional[float]:

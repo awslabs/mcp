@@ -45,8 +45,7 @@ class TestAnalyzeMetric:
                 dimensions=[Dimension(name='InstanceId', value='i-test123')],
             )
 
-            assert result['alarm_recommendations_allowed'] is False
-            assert result['data_points_found'] == 0
+            assert result['message'] == 'No metric data available for analysis'
 
     @pytest.mark.asyncio
     async def test_analyze_metric_with_data(self, ctx, cloudwatch_metrics_tools):
@@ -72,7 +71,6 @@ class TestAnalyzeMetric:
                 dimensions=[Dimension(name='InstanceId', value='i-test123')],
             )
 
-            assert result['alarm_recommendations_allowed'] is False
             assert result['data_points_found'] == 5
             assert 'seasonality_seconds' in result
             assert 'trend' in result
@@ -129,7 +127,7 @@ class TestAnalyzeMetric:
                 ctx, namespace='AWS/EC2', metric_name='CPUUtilization', dimensions=[]
             )
 
-            assert result['data_points_found'] == 0
+            assert result['message'] == 'No metric data available for analysis'
 
     @pytest.mark.asyncio
     async def test_analyze_metric_mismatched_timestamps_values(
@@ -162,7 +160,6 @@ class TestAnalyzeMetric:
 
             # Should handle gracefully - takes min(timestamps, values) = 2
             assert result['data_points_found'] == 2
-            assert result['alarm_recommendations_allowed'] is False  # Too few points
 
     @pytest.mark.asyncio
     async def test_analyze_metric_with_nan_values(self, cloudwatch_metrics_tools, ctx):
@@ -187,9 +184,9 @@ class TestAnalyzeMetric:
                 ctx, namespace='AWS/EC2', metric_name='CPUUtilization', dimensions=[]
             )
 
-            # Should handle NaN values gracefully - processes valid values
-            assert result['data_points_found'] == 2
-            assert result['alarm_recommendations_allowed'] is False  # Too few points
+            # Only 1 valid value after filtering NaN - insufficient for analysis
+            assert result['message'] == 'Insufficient valid data points for analysis'
+            assert 'metric_info' in result
 
     @pytest.mark.asyncio
     async def test_analyze_metric_get_metric_data_returns_empty(
@@ -207,4 +204,4 @@ class TestAnalyzeMetric:
             )
 
             # Should handle empty results gracefully
-            assert result['data_points_found'] == 0
+            assert result['message'] == 'No metric data available for analysis'

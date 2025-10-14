@@ -6,9 +6,10 @@ import pytest
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer import MetricAnalyzer
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AnomalyDetectionAlarmThreshold,
+    DecompositionResult,
     Seasonality,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import SeasonalityDetector
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import MetricDataDecomposer
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from datetime import datetime
 from tests.cloudwatch_metrics.test_utils import (
@@ -26,7 +27,7 @@ class TestSeasonalDetector:
     @pytest.fixture
     def detector(self):
         """Create a SeasonalityDetector instance."""
-        return SeasonalityDetector()
+        return MetricDataDecomposer()
 
     @pytest.fixture
     def metric_analyzer(self):
@@ -38,17 +39,17 @@ class TestSeasonalDetector:
         """Test that low density (≤50%) data returns NONE."""
         timestamps_ms, values = create_sparse_data(48, 0.3)
 
-        result = detector.detect_seasonality(timestamps_ms, values, 0.3, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 0.3, 60)
 
-        assert result == Seasonality.NONE
+        assert result.seasonality == Seasonality.NONE
 
     def test_exactly_50_percent_density_returns_none(self, detector):
         """Test that exactly 50% density returns NONE."""
         timestamps_ms, values = create_sparse_data(48, 0.5)
 
-        result = detector.detect_seasonality(timestamps_ms, values, 0.5, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 0.5, 60)
 
-        assert result == Seasonality.NONE
+        assert result.seasonality == Seasonality.NONE
 
     def test_high_density_allows_detection(self, detector):
         """Test that high density (>50%) allows seasonality detection."""
@@ -56,9 +57,9 @@ class TestSeasonalDetector:
             48, 1, lambda m, b, a: sine_wave_pattern_minutes(m, b, a)
         )
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
-        assert result != Seasonality.NONE
+        assert result.seasonality != Seasonality.NONE
 
     # Seasonality detection tests for all periods
     @pytest.mark.parametrize(
@@ -75,9 +76,9 @@ class TestSeasonalDetector:
             duration_hours, 1, lambda m, b, a: sine_wave_pattern_minutes(m, b, a, period_hours)
         )
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
-        assert result == expected_seasonality
+        assert result.seasonality == expected_seasonality
 
     def test_short_period_seasonality_detection(self, detector):
         """Test detection of shorter seasonal periods."""
@@ -88,10 +89,10 @@ class TestSeasonalDetector:
             lambda m, b, a: sine_wave_pattern_minutes(m, b, a, 0.25),  # 15-minute period
         )
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
         # May detect as 15-minute or higher period depending on strength
-        assert result in [
+        assert result.seasonality in [
             Seasonality.FIFTEEN_MINUTES,
             Seasonality.ONE_HOUR,
             Seasonality.SIX_HOURS,
@@ -108,10 +109,10 @@ class TestSeasonalDetector:
             lambda m, b, a: sine_wave_pattern_minutes(m, b, a, 1),  # 1-hour period
         )
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
         # May detect as hourly or higher period depending on strength
-        assert result in [
+        assert result.seasonality in [
             Seasonality.ONE_HOUR,
             Seasonality.SIX_HOURS,
             Seasonality.ONE_DAY,
@@ -123,9 +124,9 @@ class TestSeasonalDetector:
         # Flat line data
         timestamps_ms, values = create_timestamps_and_values_by_duration(48, 1)
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
-        assert result == Seasonality.NONE
+        assert result.seasonality == Seasonality.NONE
 
     def test_random_noise_returns_none(self, detector):
         """Test that random noise returns NONE."""
@@ -133,24 +134,24 @@ class TestSeasonalDetector:
             48, 1, lambda m, b, a: b + np.random.normal(0, a / 10)
         )
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
-        assert result == Seasonality.NONE
+        assert result.seasonality == Seasonality.NONE
 
     # Edge cases and error handling
     def test_empty_data(self, detector):
         """Test handling of empty data."""
-        result = detector.detect_seasonality([], [], 1.0, 60)
-        assert result == Seasonality.NONE
+        result = detector.detect_seasonality_and_trend([], [], 1.0, 60)
+        assert result.seasonality == Seasonality.NONE
 
     def test_single_point(self, detector):
         """Test handling of single data point."""
         timestamps_ms = [int(datetime.utcnow().timestamp() * 1000)]
         values = [1000.0]
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
-        assert result == Seasonality.NONE
+        assert result.seasonality == Seasonality.NONE
 
     def test_two_points(self, detector):
         """Test handling of two data points."""
@@ -158,9 +159,9 @@ class TestSeasonalDetector:
         timestamps_ms = [base_time, base_time + 60 * 1000]
         values = [1000.0, 1500.0]
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
-        assert result == Seasonality.NONE
+        assert result.seasonality == Seasonality.NONE
 
     def test_insufficient_data_for_period(self, detector):
         """Test handling of insufficient data for seasonal period."""
@@ -169,10 +170,10 @@ class TestSeasonalDetector:
             1, 1, lambda m, b, a: sine_wave_pattern_minutes(m, b, a, 24)
         )
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
         # Should not detect daily seasonality with only 1 hour of data
-        assert result != Seasonality.ONE_DAY
+        assert result.seasonality != Seasonality.ONE_DAY
 
     def test_zero_publishing_period(self, detector):
         """Test handling of zero publishing period."""
@@ -180,9 +181,9 @@ class TestSeasonalDetector:
 
         # Zero period should cause an error in interpolation
         try:
-            result = detector.detect_seasonality(timestamps_ms, values, 1.0, 0)
+            result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 0)
             # If no error, should return a valid seasonality
-            assert isinstance(result, Seasonality)
+            assert isinstance(result, DecompositionResult)
         except ValueError:
             # Expected behavior - zero period causes ValueError in range()
             pass
@@ -207,11 +208,13 @@ class TestSeasonalDetector:
         # Ensure we actually have data
         assert len(timestamps_ms) > 0, 'Test data generation failed'
 
-        result = detector.detect_seasonality(timestamps_ms, values, 0.8, 300)  # 5-minute period
+        result = detector.detect_seasonality_and_trend(
+            timestamps_ms, values, 0.8, 300
+        )  # 5-minute period
 
         # Should preserve seasonality with sufficient density and strong pattern
         # Result may vary based on actual pattern strength detected
-        assert result in [Seasonality.ONE_DAY, Seasonality.NONE]
+        assert result.seasonality in [Seasonality.ONE_DAY, Seasonality.NONE]
 
     def test_interpolation_with_single_point(self, detector):
         """Test interpolation with single data point."""
@@ -240,16 +243,16 @@ class TestSeasonalDetector:
         # Create perfect sine wave
         values = np.array([math.sin(2 * math.pi * i / 24) for i in range(72)])  # 3 days
 
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         # Perfect sine wave should have high seasonal strength
-        assert strength > SeasonalityDetector.SEASONALITY_STRENGTH_THRESHOLD
+        assert strength > MetricDataDecomposer.SEASONALITY_STRENGTH_THRESHOLD
 
     def test_seasonal_strength_flat_line(self, detector):
         """Test seasonal strength calculation with flat line."""
         values = np.array([1000.0] * 72)
 
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         # Flat line should have zero seasonal strength
         assert strength == 0.0
@@ -258,7 +261,7 @@ class TestSeasonalDetector:
         """Test seasonal strength calculation with insufficient data."""
         values = np.array([1.0, 2.0, 3.0])  # Less than 2 periods
 
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         assert strength == 0.0
 
@@ -266,7 +269,7 @@ class TestSeasonalDetector:
         """Test seasonal strength calculation with zero period."""
         values = np.array([1.0, 2.0, 3.0, 4.0])
 
-        strength = detector._calculate_seasonal_strength(values, 0)
+        strength, _ = detector._calculate_seasonal_strength(values, 0)
 
         assert strength == 0.0
 
@@ -274,7 +277,7 @@ class TestSeasonalDetector:
         """Test seasonal strength calculation with negative period."""
         values = np.array([1.0, 2.0, 3.0, 4.0])
 
-        strength = detector._calculate_seasonal_strength(values, -1)
+        strength, _ = detector._calculate_seasonal_strength(values, -1)
 
         assert strength == 0.0
 
@@ -328,7 +331,7 @@ class TestSeasonalDetector:
             mock_template_gen.return_value.generate_output.return_value = []
 
             # Test the anomaly detection creation directly
-            from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import (
+            from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import (
                 Seasonality,
             )
 
@@ -370,10 +373,10 @@ class TestSeasonalDetector:
         values[10] = 1000000  # Extreme high outlier
         values[20] = -1000000  # Extreme low outlier
 
-        result = detector.detect_seasonality(timestamps_ms, values, 1.0, 60)
+        result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)
 
         # Should still detect seasonality despite outliers
-        assert result != Seasonality.NONE
+        assert result.seasonality != Seasonality.NONE
 
     # Numerical stability tests
     def test_numerical_stability_with_constant_values(self, detector):
@@ -381,7 +384,7 @@ class TestSeasonalDetector:
         values = np.array([1000.0] * 72)
 
         # This should not crash and should return 0 strength
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         assert strength == 0.0
 
@@ -421,7 +424,7 @@ class TestSeasonalDetector:
         # Create data shorter than one seasonal period
         values = np.array([1.0, 2.0])  # Only 2 points for period of 24
 
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         assert strength == 0.0
 
@@ -436,7 +439,7 @@ class TestSeasonalDetector:
         result = detector._detect_strongest_seasonality(timestamps_ms, values, None)
 
         # Should calculate period from timestamp gap and return a result
-        assert isinstance(result, Seasonality)
+        assert isinstance(result, DecompositionResult)
 
     def test_interpolation_with_negative_calculated_period(self, detector):
         """Test detect_strongest_seasonality handles invalid calculated period."""
@@ -449,14 +452,14 @@ class TestSeasonalDetector:
         result = detector._detect_strongest_seasonality(timestamps_ms, values, None)
 
         # Should use default 300 seconds when calculated period is invalid
-        assert isinstance(result, Seasonality)
+        assert isinstance(result, DecompositionResult)
 
     def test_calculate_seasonal_strength_insufficient_cycles(self, detector):
         """Test seasonal strength calculation when n_cycles is exactly 0."""
         # Create data that results in exactly 0 cycles
         values = np.array([])  # Empty array
 
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         assert strength == 0.0
 
@@ -465,7 +468,7 @@ class TestSeasonalDetector:
         # Single value with period larger than data length
         values = np.array([1.0])  # 1 value, period 24 -> n_cycles = 1//24 = 0
 
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         assert strength == 0.0
 
@@ -474,7 +477,7 @@ class TestSeasonalDetector:
         # 2 values with period 24 -> n_cycles = 2//24 = 0
         values = np.array([1.0, 2.0])  # 2 values, period 24
 
-        strength = detector._calculate_seasonal_strength(values, 24)
+        strength, _ = detector._calculate_seasonal_strength(values, 24)
 
         assert strength == 0.0
 
@@ -485,7 +488,7 @@ class TestSeasonalDetector:
         seasonal_period = 10  # period > len(values), so n_cycles = 3//10 = 0
 
         # Call the method directly
-        strength = detector._calculate_seasonal_strength(values, seasonal_period)
+        strength, _ = detector._calculate_seasonal_strength(values, seasonal_period)
 
         # Should return 0.0 due to n_cycles <= 0 condition
         assert strength == 0.0

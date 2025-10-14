@@ -89,9 +89,7 @@ class TestMetricAnalyzer:
         """Test comprehensive analysis with empty data."""
         result = self._analyze_with_metric_data(analyzer, [], [])
 
-        assert result['trend'] == Trend.NONE
-        assert result['seasonality_seconds'] == 0  # NONE in seconds
-        assert result['data_quality']['total_points'] is None
+        assert result == {'message': 'No metric data available for analysis'}
 
     def test_analyze_mismatched_data(self, analyzer):
         """Test comprehensive analysis with mismatched timestamp and value lengths."""
@@ -105,9 +103,7 @@ class TestMetricAnalyzer:
 
         result = self._analyze_with_metric_data(analyzer, timestamps, values)
 
-        assert result['trend'] == Trend.NONE
-        assert result['seasonality_seconds'] == 0  # NONE in seconds
-        assert result['data_quality']['total_points'] is None
+        assert result == {'message': 'Insufficient valid data points for analysis'}
 
     def test_analyze_with_nan_values(self, analyzer):
         """Test comprehensive analysis filters out NaN values."""
@@ -116,62 +112,21 @@ class TestMetricAnalyzer:
 
         result = self._analyze_with_metric_data(analyzer, timestamps, values)
 
-        assert result['data_quality']['total_points'] == 4
-        assert result['seasonality_seconds'] == 0  # NONE in seconds
+        # With 2 valid values (10.0 and 12.0), analysis should succeed
+        assert result['message'] == 'Metric analysis completed successfully'
+        assert result['data_points_found'] == 4
+
+    def test_analyze_with_all_invalid_values(self, analyzer):
+        """Test comprehensive analysis with all NaN/inf values."""
+        timestamps, _ = create_timestamps_and_values(4)
+        values = [float('nan'), float('inf'), float('nan'), float('inf')]
+
+        result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
+        assert result == {'message': 'Insufficient valid data points for analysis'}
 
     # Trend computation tests
-    def test_compute_trend_insufficient_data(self, analyzer):
-        """Test trend computation with insufficient data."""
-        result = analyzer._compute_trend([self.BASE_VALUE])
 
-        assert result == Trend.NONE
-
-    def test_compute_trend_positive(self, analyzer):
-        """Test trend computation with positive trend."""
-        values = [linear_trend_pattern(i, self.BASE_VALUE, 2.0) for i in range(5)]
-
-        result = analyzer._compute_trend(values)
-
-        assert result == Trend.POSITIVE
-
-    def test_compute_trend_negative(self, analyzer):
-        """Test trend computation with negative trend."""
-        values = [linear_trend_pattern(i, self.BASE_VALUE, -2.0) for i in range(5)]
-
-        result = analyzer._compute_trend(values)
-
-        assert result == Trend.NEGATIVE
-
-    def test_compute_trend_flat(self, analyzer):
-        """Test trend computation with flat data."""
-        values = [self.BASE_VALUE] * 5
-
-        result = analyzer._compute_trend(values)
-
-        assert result == Trend.NONE
-
-    def test_compute_trend_insignificant_slope(self, analyzer):
-        """Test trend computation with statistically insignificant slope."""
-        # Create data with noise that overwhelms any trend
-        np.random.seed(42)  # For reproducible results
-        base_values = [1000.0 + i * 0.01 for i in range(50)]  # Very small trend
-        noise = np.random.normal(0, 100, 50)  # Large noise
-        values = [base + n for base, n in zip(base_values, noise)]
-
-        result = analyzer._compute_trend(values)
-
-        # Should return NONE due to statistical insignificance (noise overwhelms trend)
-        assert result == Trend.NONE
-
-    def test_compute_trend_negative_significant(self, analyzer):
-        """Test trend computation with significant negative trend."""
-        values = [linear_trend_pattern(i, self.BASE_VALUE, -50.0) for i in range(20)]
-
-        result = analyzer._compute_trend(values)
-
-        assert result == Trend.NEGATIVE
-
-    # Publishing period and density tests
     def test_compute_publishing_period_insufficient_data(self, analyzer):
         """Test publishing period computation with insufficient data."""
         timestamps, _ = create_timestamps_and_values(1)
@@ -330,23 +285,15 @@ class TestMetricAnalyzer:
         assert 'seasonality_seconds' in result
         assert 'trend' in result
 
-    def test_compute_trend_exception_handling(self, analyzer):
-        """Test trend computation handles exceptions gracefully."""
-        # Create data that will cause statsmodels to fail
-        values = [float('inf'), float('nan'), 1.0]
-
-        result = analyzer._compute_trend(values)
-
-        assert result == Trend.NONE
-
     def test_compute_seasonality_exception_handling(self, analyzer):
         """Test seasonality computation handles exceptions gracefully."""
         timestamps, values = create_timestamps_and_values(5)
 
         # Force an exception by passing invalid parameters
-        result = analyzer._compute_seasonality(timestamps, values, None, None)
+        result = analyzer._compute_seasonality_and_trend(timestamps, values, None, None)
 
-        assert result == Seasonality.NONE
+        assert result.seasonality == Seasonality.NONE
+        assert result.trend == Trend.NONE
 
     def test_compute_publishing_period_exception_handling(self, analyzer):
         """Test publishing period computation handles exceptions gracefully."""
@@ -403,28 +350,16 @@ class TestMetricAnalyzer:
         import pytest
         from unittest.mock import patch
 
-        # Mock the seasonal detector to raise an exception
+        # Mock the seasonal decomposer to raise an exception
         with patch.object(
-            analyzer.seasonality_detector,
-            'detect_seasonality',
+            analyzer.decomposer,
+            'detect_seasonality_and_trend',
             side_effect=Exception('Seasonality error'),
         ):
             with pytest.raises(Exception, match='Seasonality error'):
-                analyzer._compute_seasonality([1000, 2000, 3000], [1.0, 2.0, 3.0], 0.8, 60.0)
-
-    def test_compute_trend_exception_handling_ols_error(self, analyzer):
-        """Test trend computation with OLS exception."""
-        import pytest
-        from unittest.mock import patch
-
-        # Mock statsmodels OLS to raise an exception
-        with patch(
-            'awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer.OLS'
-        ) as mock_ols:
-            mock_ols.side_effect = Exception('OLS error')
-
-            with pytest.raises(Exception, match='OLS error'):
-                analyzer._compute_trend([1.0, 2.0, 3.0])
+                analyzer._compute_seasonality_and_trend(
+                    [1000, 2000, 3000], [1.0, 2.0, 3.0], 0.8, 60.0
+                )
 
     def test_compute_statistics_exception_handling_numpy_error(self, analyzer):
         """Test statistics computation with numpy exception."""
@@ -439,3 +374,17 @@ class TestMetricAnalyzer:
 
             with pytest.raises(Exception, match='Numpy error'):
                 analyzer._compute_statistics([1.0, 2.0, 3.0])
+
+    def test_analyze_metric_data_exception_returns_empty_with_message(self, analyzer):
+        """Test that exceptions during analysis return empty dict with message."""
+        from unittest.mock import patch
+
+        timestamps, values = create_timestamps_and_values(5)
+
+        # Mock _compute_publishing_period to raise an exception
+        with patch.object(
+            analyzer, '_compute_publishing_period', side_effect=Exception('Test error')
+        ):
+            result = self._analyze_with_metric_data(analyzer, timestamps, values)
+
+            assert result == {'message': 'Unable to analyze metric data'}

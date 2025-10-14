@@ -41,7 +41,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     MetricMetadataIndexKey,
     StaticAlarmThreshold,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.seasonal_detector import Seasonality
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import Seasonality
 from botocore.config import Config
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -687,6 +687,21 @@ class CloudWatchMetricsTools:
                 description='AWS region for consistency. Note: This function uses local metadata and does not make AWS API calls. Defaults to us-east-1.'
             ),
         ] = 'us-east-1',
+        statistic: Annotated[
+            Literal[
+                'AVG',
+                'COUNT',
+                'MAX',
+                'MIN',
+                'SUM',
+                'Average',
+                'Sum',
+                'Maximum',
+                'Minimum',
+                'SampleCount',
+            ],
+            Field(description='The statistic to use for alarm recommendations'),
+        ] = 'AVG',
     ) -> AlarmRecommendationResult:
         """Gets recommended alarms for a CloudWatch metric.
 
@@ -703,6 +718,15 @@ class CloudWatchMetricsTools:
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
             region: AWS region to query. Defaults to 'us-east-1'.
+            statistic: The statistic to use for alarm recommendations. Must match the metric's data type:
+                - Aggregate count metrics (RequestCount, Errors, Faults, Throttles, CacheHits, Connections, EventsProcessed): Use 'Sum'
+                - Event occurrence metrics (Invocations, CacheMisses): Use 'SampleCount'
+                - Utilization metrics (CPUUtilization, MemoryUtilization, DiskUtilization, NetworkUtilization): Use 'Average'
+                - Latency/Time metrics (Duration, Latency, ResponseTime, ProcessingTime, Delay, ExecutionTime, WaitTime): Use 'Average'
+                - Size metrics (PayloadSize, MessageSize, RequestSize, BodySize): Use 'Average'
+                If uncertain about the correct statistic for a custom metric, ask the user
+                to confirm the metric type before generating recommendations. Using the wrong statistic
+                (e.g., 'Average' on Invocations) will produce ineffective alarm thresholds
 
         Returns:
             AlarmRecommendationResult: A result containing alarm recommendations and optional message.
@@ -770,6 +794,7 @@ class CloudWatchMetricsTools:
                 metric_name,
                 dimensions,
                 region,
+                statistic,
             )
 
             # Generate additional recommendations based on seasonality
@@ -790,20 +815,18 @@ class CloudWatchMetricsTools:
                 )
 
             if len(additional_recommendations) > 0:
-                logger.info(
-                    f'Generated {len(additional_recommendations)} alarm recommendation(s) for {namespace}/{metric_name} based on metric analysis'
-                )
+                message = f'Generated {len(additional_recommendations)} alarm recommendation(s) for {namespace}/{metric_name} based on metric analysis'
+                logger.info(message)
                 return AlarmRecommendationResult(
                     recommendations=additional_recommendations,
-                    message=f'Generated {len(additional_recommendations)} alarm recommendation(s) for {namespace}/{metric_name} based on metric analysis',
+                    message=message,
                 )
 
-            logger.info(
-                f'No alarm recommendations available for {namespace}/{metric_name} with the provided dimensions'
-            )
+            message = f'No alarm recommendations available for {namespace}/{metric_name} with the provided dimensions'
+            logger.info(message)
             return AlarmRecommendationResult(
                 recommendations=[],
-                message=f'No alarm recommendations available for {namespace}/{metric_name} with the provided dimensions',
+                message=message,
             )
         except Exception as e:
             logger.error(f'Error in get_recommended_metric_alarms: {str(e)}')
@@ -884,7 +907,7 @@ class CloudWatchMetricsTools:
         threshold = self._create_alarm_threshold(threshold_data)
 
         # Generate CloudFormation template only for anomaly detection alarms
-        cfn_template = self.cloudformation_generator._generate_metric_alarm_template(alarm_data)
+        cfn_template = self.cloudformation_generator.generate_metric_alarm_template(alarm_data)
 
         # Build alarm recommendation kwargs
         alarm_kwargs = {
@@ -990,7 +1013,6 @@ class CloudWatchMetricsTools:
 
         return dimensions
 
-
     def _parse_metric_data_response(
         self, response: GetMetricDataResponse, period_seconds: int
     ) -> MetricData:
@@ -1028,6 +1050,21 @@ class CloudWatchMetricsTools:
             str,
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
+        statistic: Annotated[
+            Literal[
+                'AVG',
+                'COUNT',
+                'MAX',
+                'MIN',
+                'SUM',
+                'Average',
+                'Sum',
+                'Maximum',
+                'Minimum',
+                'SampleCount',
+            ],
+            Field(description='The statistic to use for the metric analysis'),
+        ] = 'AVG',
     ) -> Dict[str, Any]:
         """Analyzes CloudWatch metric data to determine seasonality, trend, data density and statistical properties.
 
@@ -1037,18 +1074,23 @@ class CloudWatchMetricsTools:
         - Data density and publishing period
         - Advanced statistical measures (min/max/median, std dev, noise)
 
-        Usage: Use this tool to get objective metric analysis data. For alarm recommendations,
-        use the get_recommended_metric_alarms tool instead.
+        Usage: Use this tool to get objective metric analysis data.
 
         Args:
             ctx: The MCP context object for error handling and logging.
             namespace: The metric namespace (e.g., "AWS/EC2", "AWS/Lambda")
             metric_name: The name of the metric (e.g., "CPUUtilization", "Duration")
             dimensions: List of dimensions with name and value pairs
+            statistic: The statistic to use for metric analysis. For guidance on choosing the correct statistic, refer to the get_recommended_metric_alarms tool.
             region: AWS region to query. Defaults to 'us-east-1'.
 
         Returns:
-            Dict[str, Any]: Raw analysis data including seasonality, trend, density, and statistics only.
+            Dict[str, Any]: Analysis results including:
+                - message: Status message indicating success or reason for empty result
+                - seasonality_seconds: Detected seasonality period in seconds
+                - trend: Trend direction (INCREASING, DECREASING, or NONE)
+                - statistics: Statistical measures (std_deviation, variance, etc.)
+                - data_quality: Data density and publishing period information
 
         Example:
             analysis = await analyze_metric(
@@ -1059,9 +1101,9 @@ class CloudWatchMetricsTools:
                     Dimension(name="InstanceId", value="i-1234567890abcdef0")
                 ]
             )
-            print(f"Seasonal strength: {analysis['seasonality_seconds']['seasonal_strength']}")
-            print(f"Trend direction: {analysis['trend']['trend_direction']}")
-            print(f"Data quality: {analysis['data_quality']['quality_score']}")
+            print(f"Status: {analysis['message']}")
+            print(f"Seasonality: {analysis['seasonality_seconds']} seconds")
+            print(f"Trend: {analysis['trend']}")
         """
         try:
             analysis_period_minutes = DEFAULT_ANALYSIS_PERIOD_MINUTES
@@ -1078,7 +1120,7 @@ class CloudWatchMetricsTools:
                 dimensions=dimensions,
                 start_time=start_time.isoformat(),
                 end_time=end_time.isoformat(),
-                statistic='Average',
+                statistic=statistic,
                 region=region,
                 target_datapoints=analysis_period_minutes,
             )
@@ -1092,10 +1134,10 @@ class CloudWatchMetricsTools:
 
             analysis_result.update(
                 {
-                    'alarm_recommendations_allowed': False,
                     'metric_info': {
                         'namespace': namespace,
                         'metric_name': metric_name,
+                        'statistic': statistic,
                         'dimensions': [{'name': d.name, 'value': d.value} for d in dimensions],
                         'analysis_period_minutes': analysis_period_minutes,
                         'time_range': {

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class CloudFormationTemplateGenerator:
     """Generate CloudFormation JSON for CloudWatch Anomaly Detection Alarms."""
 
-    def _generate_metric_alarm_template(self, alarm_data: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_metric_alarm_template(self, alarm_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate CFN template for a single CloudWatch Alarm."""
         if not self._is_anomaly_detection_alarm(alarm_data):
             return {}

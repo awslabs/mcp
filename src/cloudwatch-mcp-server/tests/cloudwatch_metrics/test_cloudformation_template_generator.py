@@ -55,7 +55,7 @@ class TestCloudFormationTemplateGenerator:
             'comparisonOperator': 'GreaterThanThreshold'  # Not anomaly detection
         }
 
-        result = generator._generate_metric_alarm_template(alarm_data)
+        result = generator.generate_metric_alarm_template(alarm_data)
 
         assert result == {}
 
@@ -85,7 +85,7 @@ class TestCloudFormationTemplateGenerator:
             'period': 300,
         }
 
-        result = generator._generate_metric_alarm_template(alarm_data)
+        result = generator.generate_metric_alarm_template(alarm_data)
 
         # Serialize to JSON string (this is what happens when MCP returns the response)
         template_json = json.dumps(result)
@@ -122,7 +122,7 @@ class TestCloudFormationTemplateGenerator:
             'comparisonOperator': COMPARISON_OPERATOR_ANOMALY,
         }
 
-        result = generator._generate_metric_alarm_template(alarm_data)
+        result = generator.generate_metric_alarm_template(alarm_data)
 
         # Should generate successfully without alarmName
         assert result is not None
@@ -142,7 +142,7 @@ class TestCloudFormationTemplateGenerator:
         }
 
         with pytest.raises(ValueError, match='Metric Name is required'):
-            generator._generate_metric_alarm_template(alarm_data)
+            generator.generate_metric_alarm_template(alarm_data)
 
     def test_missing_namespace_raises_error(self, generator):
         """Test that missing namespace raises ValueError."""
@@ -153,7 +153,7 @@ class TestCloudFormationTemplateGenerator:
         }
 
         with pytest.raises(ValueError, match='Metric Namespace is required'):
-            generator._generate_metric_alarm_template(alarm_data)
+            generator.generate_metric_alarm_template(alarm_data)
 
     def test_empty_metric_name_raises_error(self, generator):
         """Test that empty metricName raises ValueError."""
@@ -165,7 +165,7 @@ class TestCloudFormationTemplateGenerator:
         }
 
         with pytest.raises(ValueError, match='Metric Name is required'):
-            generator._generate_metric_alarm_template(alarm_data)
+            generator.generate_metric_alarm_template(alarm_data)
 
     def test_dimensions_optional(self, generator):
         """Test that dimensions are optional."""
@@ -176,7 +176,7 @@ class TestCloudFormationTemplateGenerator:
             'comparisonOperator': COMPARISON_OPERATOR_ANOMALY,
         }
 
-        result = generator._generate_metric_alarm_template(alarm_data)
+        result = generator.generate_metric_alarm_template(alarm_data)
 
         # Should succeed without dimensions
         assert result is not None

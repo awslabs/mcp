@@ -14,29 +14,41 @@
 
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
     NUMERICAL_STABILITY_THRESHOLD,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import Seasonality
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+    DecompositionResult,
+    Seasonality,
+    Trend,
+)
+from loguru import logger
+from statsmodels.regression.linear_model import OLS
 from typing import List, Optional, Tuple
 
 
-class SeasonalityDetector:
-    """Detects seasonal patterns in CloudWatch metric data."""
+class MetricDataDecomposer:
+    """Decomposes metric time series data into seasonal and trend components."""
 
     SEASONALITY_STRENGTH_THRESHOLD = 0.6  # See https://robjhyndman.com/hyndsight/tsoutliers/
+    STATISTICAL_SIGNIFICANCE_THRESHOLD = 0.05
 
-    def detect_seasonality(
+    def detect_seasonality_and_trend(
         self,
         timestamps_ms: List[int],
         values: List[float],
         density_ratio: float,
         publishing_period_seconds: int,
-    ) -> Seasonality:
-        """Analyze seasonality using density ratio and publishing period."""
+    ) -> DecompositionResult:
+        """Analyze seasonality and extract trend component.
+
+        Returns:
+            DecompositionResult with seasonality and trend
+        """
         # Return NONE for empty data or insufficient density
         if not timestamps_ms or not values or density_ratio <= 0.5:
-            return Seasonality.NONE
+            return DecompositionResult(seasonality=Seasonality.NONE, trend=Trend.NONE)
 
         # Interpolate if we have sufficient density
         timestamps_ms, values = self._interpolate_to_regular_grid(
@@ -66,8 +78,8 @@ class SeasonalityDetector:
 
     def _detect_strongest_seasonality(
         self, timestamps_ms: List[int], values: List[float], period_seconds: Optional[float]
-    ) -> Seasonality:
-        """Detect seasonal patterns in the data."""
+    ) -> DecompositionResult:
+        """Detect seasonal patterns and compute trend in the data."""
         timestamps_ms = sorted(timestamps_ms)
 
         # Calculate period for analysis
@@ -94,6 +106,7 @@ class SeasonalityDetector:
 
         best_seasonality = Seasonality.NONE
         best_strength = 0.0
+        best_deseasonalized = None
 
         for seasonal_period_seconds in seasonal_periods_seconds:
             datapoints_per_period = seasonal_period_seconds / period_seconds
@@ -102,29 +115,38 @@ class SeasonalityDetector:
             if len(values) < min_required_points or datapoints_per_period <= 0:
                 continue
 
-            strength = self._calculate_seasonal_strength(
+            strength, deseasonalized = self._calculate_seasonal_strength(
                 winsorized_values, int(datapoints_per_period)
             )
             if strength > best_strength:
                 best_strength = strength
                 best_seasonality = Seasonality.from_seconds(seasonal_period_seconds)
+                best_deseasonalized = deseasonalized
 
-        # Return seasonality if strength is above threshold
-        return (
-            best_seasonality
-            if best_strength > self.SEASONALITY_STRENGTH_THRESHOLD
-            else Seasonality.NONE
-        )
+        # Compute trend from deseasonalized data if seasonality detected
+        if best_strength > self.SEASONALITY_STRENGTH_THRESHOLD and best_deseasonalized is not None:
+            trend = self._compute_trend(best_deseasonalized)
+            return DecompositionResult(seasonality=best_seasonality, trend=trend)
+        else:
+            # No seasonality, compute trend on raw values
+            trend = self._compute_trend(winsorized_values)
+            return DecompositionResult(seasonality=Seasonality.NONE, trend=trend)
 
-    def _calculate_seasonal_strength(self, values: np.ndarray, seasonal_period: int) -> float:
-        """Calculate seasonal strength using improved algorithm."""
+    def _calculate_seasonal_strength(
+        self, values: np.ndarray, seasonal_period: int
+    ) -> Tuple[float, Optional[np.ndarray]]:
+        """Calculate seasonal strength and extract deseasonalized data for trend.
+
+        Returns:
+            Tuple of (strength, deseasonalized_values) where deseasonalized = original - seasonal_pattern
+        """
         if len(values) < seasonal_period * 2 or seasonal_period <= 0:
-            return 0.0
+            return (0.0, None)
 
         # Reshape data into seasonal cycles
         n_cycles = len(values) // seasonal_period
         if n_cycles <= 0:
-            return 0.0
+            return (0.0, None)
 
         truncated_values = values[: n_cycles * seasonal_period]
         reshaped = truncated_values.reshape(n_cycles, seasonal_period)
@@ -133,7 +155,7 @@ class SeasonalityDetector:
         seasonal_pattern = np.mean(reshaped, axis=0)
         tiled_pattern = np.tile(seasonal_pattern, n_cycles)
 
-        # Calculate trend (moving average)
+        # Calculate trend (moving average) for seasonal strength calculation
         trend = (
             pd.Series(truncated_values)
             .rolling(window=seasonal_period, center=True, min_periods=1)
@@ -150,7 +172,47 @@ class SeasonalityDetector:
         var_detrended = np.var(detrended)
 
         if var_detrended <= NUMERICAL_STABILITY_THRESHOLD:
-            return 0.0
+            return (0.0, None)
 
         strength = max(0.0, 1 - var_remainder / var_detrended)
-        return strength
+
+        # Return deseasonalized data (original - seasonal pattern) for trend calculation
+        deseasonalized = truncated_values - tiled_pattern
+        return (strength, deseasonalized)
+
+    def _compute_trend(self, values: np.ndarray) -> Trend:
+        """Compute trend using OLS on trend component values."""
+        if len(values) <= 2:
+            return Trend.NONE
+
+        try:
+            valid_data = [
+                (i, v) for i, v in enumerate(values) if not np.isnan(v) and not np.isinf(v)
+            ]
+            if len(valid_data) <= 2:
+                return Trend.NONE
+
+            x_vals = np.array([x for x, _ in valid_data])
+            y_vals = np.array([y for _, y in valid_data])
+
+            # Check if all values are the same (flat line)
+            if np.std(y_vals) < NUMERICAL_STABILITY_THRESHOLD:
+                return Trend.NONE
+
+            x_vals = (x_vals - x_vals.min()) / (
+                x_vals.max() - x_vals.min() + NUMERICAL_STABILITY_THRESHOLD
+            )
+
+            X = sm.add_constant(x_vals)
+            model = OLS(y_vals, X).fit()
+
+            slope = model.params[1]
+            p_value = model.pvalues[1]
+
+            if p_value >= self.STATISTICAL_SIGNIFICANCE_THRESHOLD:
+                return Trend.NONE
+
+            return Trend.POSITIVE if slope > 0 else Trend.NEGATIVE
+        except Exception as e:
+            logger.warning(f'Error computing trend: {e}')
+            return Trend.NONE
