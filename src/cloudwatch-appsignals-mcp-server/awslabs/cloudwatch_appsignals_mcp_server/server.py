@@ -110,6 +110,12 @@ def _filter_operation_targets(provided):
                 if '*' in service_name or '*' in operation:
                     has_wildcards = True
 
+                # For fault metrics, ListAuditFindings uses Availability metric type.
+                # API only supports Availability/Latency/Error for service_operation targets.
+                metric_type = service_op_data.get('MetricType', '')
+                if metric_type == 'Fault':
+                    service_op_data['MetricType'] = 'Availability'
+
                 operation_only_targets.append(target)
             else:
                 logger.warning(
