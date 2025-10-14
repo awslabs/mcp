@@ -1374,7 +1374,7 @@ async def test_analyze_canary_logs_with_time_window_exception():
         mock_logs_client.describe_log_groups.side_effect = Exception('Logs error')
 
         result = await analyze_canary_logs_with_time_window(
-            'test-canary', '2024-01-01T00:00:00Z', '2024-01-01T01:00:00Z'
+            'test-canary', '2024-01-01T00:00:00Z', {}, 3
         )
 
         assert result['status'] == 'error'
@@ -1430,7 +1430,7 @@ async def test_check_iam_exists_for_canary_no_such_entity():
     iam_client = MagicMock()
 
     error_response = {'Error': {'Code': 'NoSuchEntity', 'Message': 'Role does not exist'}}
-    iam_client.get_role.side_effect = ClientError(error_response, 'GetRole')
+    iam_client.get_role.side_effect = ClientError(error_response, 'GetRole')  # type: ignore
 
     result = await check_iam_exists_for_canary(canary, iam_client)
 
@@ -1445,7 +1445,7 @@ async def test_check_iam_exists_for_canary_other_client_error():
     iam_client = MagicMock()
 
     error_response = {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}
-    iam_client.get_role.side_effect = ClientError(error_response, 'GetRole')
+    iam_client.get_role.side_effect = ClientError(error_response, 'GetRole')  # type: ignore
 
     result = await check_iam_exists_for_canary(canary, iam_client)
 
@@ -1471,9 +1471,9 @@ async def test_check_lambda_permissions_exception():
 @pytest.mark.asyncio
 async def test_get_canary_code_exception():
     """Test get_canary_code with general exception."""
-    canary = None  # Invalid canary to trigger exception
+    canary = {}  # Invalid canary to trigger exception
 
     result = await get_canary_code(canary)
 
     assert 'error' in result
-    assert 'Canary code analysis failed:' in result['error']
+    assert 'No EngineArn or EngineConfigs found for canary' in result['error']
