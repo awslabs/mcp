@@ -23,7 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
-def mock_aws_clients():
+def mock_canary_clients():
     """Mock AWS clients for testing."""
     return {
         'iam_client': MagicMock(),
@@ -42,9 +42,9 @@ def mock_aws_clients():
         ({'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/TestRole'}, True),
     ],
 )
-async def test_check_iam_exists_for_canary(mock_aws_clients, canary_config, expected_exists):
+async def test_check_iam_exists_for_canary(mock_canary_clients, canary_config, expected_exists):
     """Test check iam exists for canary."""
-    mock_iam = mock_aws_clients['iam_client']
+    mock_iam = mock_canary_clients['iam_client']
 
     if expected_exists:
         mock_iam.get_role.return_value = {'Role': {'RoleName': 'TestRole'}}
@@ -81,9 +81,9 @@ async def test_check_iam_exists_for_canary(mock_aws_clients, canary_config, expe
         ),
     ],
 )
-async def test_check_lambda_permissions(mock_aws_clients, policies, expected_basic, expected_vpc):
+async def test_check_lambda_permissions(mock_canary_clients, policies, expected_basic, expected_vpc):
     """Test check lambda permissions."""
-    mock_iam = mock_aws_clients['iam_client']
+    mock_iam = mock_canary_clients['iam_client']
     mock_iam.list_attached_role_policies.return_value = {'AttachedPolicies': policies}
 
     canary = {'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/TestRole'}
@@ -94,9 +94,9 @@ async def test_check_lambda_permissions(mock_aws_clients, policies, expected_bas
 
 
 @pytest.mark.asyncio
-async def test_analyze_iam_role_and_policies_comprehensive(mock_aws_clients):
+async def test_analyze_iam_role_and_policies_comprehensive(mock_canary_clients):
     """Test analyze iam role and policies comprehensive."""
-    mock_iam = mock_aws_clients['iam_client']
+    mock_iam = mock_canary_clients['iam_client']
 
     with (
         patch(
@@ -130,9 +130,9 @@ async def test_analyze_iam_role_and_policies_comprehensive(mock_aws_clients):
         ('s3://custom-bucket/', True),  # Custom bucket
     ],
 )
-def test_check_resource_arns_correct(mock_aws_clients, s3_location, expected_correct):
+def test_check_resource_arns_correct(mock_canary_clients, s3_location, expected_correct):
     """Test check resource arns correct."""
-    mock_iam = mock_aws_clients['iam_client']
+    mock_iam = mock_canary_clients['iam_client']
     mock_iam.list_attached_role_policies.return_value = {'AttachedPolicies': []}
 
     canary = {'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/TestRole'}
@@ -175,9 +175,9 @@ def test_matches_bucket_pattern(actual_bucket, pattern, expected):
         ),  # Valid HAR
     ],
 )
-async def test_analyze_har_file(mock_aws_clients, har_files, har_content, expected_status):
+async def test_analyze_har_file(mock_canary_clients, har_files, har_content, expected_status):
     """Test analyze har file."""
-    mock_s3 = mock_aws_clients['s3_client']
+    mock_s3 = mock_canary_clients['s3_client']
 
     if har_content:
         mock_s3.get_object.return_value = {
@@ -189,9 +189,9 @@ async def test_analyze_har_file(mock_aws_clients, har_files, har_content, expect
 
 
 @pytest.mark.asyncio
-async def test_analyze_har_file_with_failures_and_timing(mock_aws_clients):
+async def test_analyze_har_file_with_failures_and_timing(mock_canary_clients):
     """Test analyze har file with failures and timing."""
-    mock_s3 = mock_aws_clients['s3_client']
+    mock_s3 = mock_canary_clients['s3_client']
     har_data = {
         'log': {
             'entries': [
@@ -223,9 +223,9 @@ async def test_analyze_har_file_with_failures_and_timing(mock_aws_clients):
         ([{'Key': 'step1-timeout-screenshot.png'}], 'analyzed'),  # Timeout screenshot
     ],
 )
-async def test_analyze_screenshots(mock_aws_clients, screenshots, expected_status):
+async def test_analyze_screenshots(mock_canary_clients, screenshots, expected_status):
     """Test analyze screenshots."""
-    result = await analyze_screenshots(mock_aws_clients['s3_client'], 'bucket', screenshots, True)
+    result = await analyze_screenshots(mock_canary_clients['s3_client'], 'bucket', screenshots, True)
     assert result['status'] == expected_status
 
 
@@ -242,9 +242,9 @@ async def test_analyze_screenshots(mock_aws_clients, screenshots, expected_statu
         ),  # Multiple errors
     ],
 )
-async def test_analyze_log_files(mock_aws_clients, logs, log_content, expected_patterns):
+async def test_analyze_log_files(mock_canary_clients, logs, log_content, expected_patterns):
     """Test analyze log files."""
-    mock_s3 = mock_aws_clients['s3_client']
+    mock_s3 = mock_canary_clients['s3_client']
 
     if log_content:
         mock_s3.get_object.return_value = {

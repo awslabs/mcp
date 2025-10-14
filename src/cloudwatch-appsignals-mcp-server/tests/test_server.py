@@ -37,6 +37,8 @@ def mock_aws_clients():
     mock_xray_client = MagicMock()
     mock_synthetics_client = MagicMock()
     mock_s3_client = MagicMock()
+    mock_iam_client = MagicMock()
+    mock_lambda_client = MagicMock()
 
     # Patch the clients in all modules where they're imported
     patches = [
@@ -99,7 +101,18 @@ def mock_aws_clients():
             mock_synthetics_client,
         ),
         patch('awslabs.cloudwatch_appsignals_mcp_server.server.s3_client', mock_s3_client),
-        patch('awslabs.cloudwatch_appsignals_mcp_server.server.iam_client', MagicMock()),
+        patch('awslabs.cloudwatch_appsignals_mcp_server.server.iam_client', mock_iam_client),
+        # Canary utils module (lambda_client, logs_client, synthetics_client are imported)
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.lambda_client', mock_lambda_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.logs_client', mock_logs_client
+        ),
+        patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.canary_utils.synthetics_client',
+            mock_synthetics_client,
+        ),
     ]
 
     # Start all patches
@@ -114,7 +127,8 @@ def mock_aws_clients():
             'xray_client': mock_xray_client,
             'synthetics_client': mock_synthetics_client,
             's3_client': mock_s3_client,
-            'iam_client': MagicMock(),
+            'iam_client': mock_iam_client,
+            'lambda_client': mock_lambda_client,
         }
     finally:
         # Stop all patches
