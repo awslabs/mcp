@@ -35,6 +35,7 @@ def _initialize_aws_clients():
     logs_endpoint = os.environ.get('MCP_LOGS_ENDPOINT')
     cloudwatch_endpoint = os.environ.get('MCP_CLOUDWATCH_ENDPOINT')
     xray_endpoint = os.environ.get('MCP_XRAY_ENDPOINT')
+    synthetics_endpoint = os.environ.get('MCP_SYNTHETICS_ENDPOINT')
 
     # Log endpoint overrides
     if appsignals_endpoint:
@@ -45,6 +46,8 @@ def _initialize_aws_clients():
         logger.debug(f'Using CloudWatch endpoint override: {cloudwatch_endpoint}')
     if xray_endpoint:
         logger.debug(f'Using X-Ray endpoint override: {xray_endpoint}')
+    if synthetics_endpoint:
+        logger.debug(f'Using Synthetics endpoint override: {synthetics_endpoint}')
 
     # Check for AWS_PROFILE environment variable
     if aws_profile := os.environ.get('AWS_PROFILE'):
@@ -59,6 +62,11 @@ def _initialize_aws_clients():
         )
         cloudwatch = session.client('cloudwatch', config=config, endpoint_url=cloudwatch_endpoint)
         xray = session.client('xray', config=config, endpoint_url=xray_endpoint)
+        synthetics = session.client('synthetics', config=config, endpoint_url=synthetics_endpoint)
+        s3 = session.client('s3', config=config)
+        iam = session.client('iam', config=config)
+        lambda_client = session.client('lambda', config=config)
+        sts = session.client('sts', config=config)
     else:
         logs = boto3.client(
             'logs', region_name=AWS_REGION, config=config, endpoint_url=logs_endpoint
@@ -75,14 +83,32 @@ def _initialize_aws_clients():
         xray = boto3.client(
             'xray', region_name=AWS_REGION, config=config, endpoint_url=xray_endpoint
         )
+        # Additional clients for canary functionality
+        synthetics = boto3.client(
+            'synthetics', region_name=AWS_REGION, config=config, endpoint_url=synthetics_endpoint
+        )
+        s3 = boto3.client('s3', region_name=AWS_REGION, config=config)
+        iam = boto3.client('iam', region_name=AWS_REGION, config=config)
+        lambda_client = boto3.client('lambda', region_name=AWS_REGION, config=config)
+        sts = boto3.client('sts', region_name=AWS_REGION, config=config)
 
     logger.debug('AWS clients initialized successfully')
-    return logs, appsignals, cloudwatch, xray
+    return logs, appsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts
 
 
 # Initialize clients at module level
 try:
-    logs_client, appsignals_client, cloudwatch_client, xray_client = _initialize_aws_clients()
+    (
+        logs_client,
+        appsignals_client,
+        cloudwatch_client,
+        xray_client,
+        synthetics_client,
+        s3_client,
+        iam_client,
+        lambda_client,
+        sts_client,
+    ) = _initialize_aws_clients()
 except Exception as e:
     logger.error(f'Failed to initialize AWS clients: {str(e)}')
     raise

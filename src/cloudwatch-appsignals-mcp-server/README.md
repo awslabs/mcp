@@ -151,7 +151,35 @@ FILTER attributes.aws.local.service = "payment-service" and attributes.aws.local
 - `duration > 5` - Find slow requests (over 5 seconds)
 - `annotation[aws.local.operation]="GET /api/orders"` - Filter by specific operation
 
-#### 12. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
+#### 12. **`analyze_canary_failures`** - Comprehensive Canary Failure Analysis
+**Deep dive into CloudWatch Synthetics canary failures with root cause identification**
+
+- Comprehensive canary failure analysis with deep dive into issues
+- Analyze historical patterns and specific incident details
+- Get comprehensive artifact analysis including logs, screenshots, and HAR files
+- Receive actionable recommendations based on AWS debugging methodology
+- Correlate canary failures with Application Signals telemetry data
+- Identify performance degradation and availability issues across service dependencies
+
+**Key Features:**
+- **Failure Pattern Analysis**: Identifies recurring failure modes and temporal patterns
+- **Artifact Deep Dive**: Analyzes canary logs, screenshots, and network traces for root causes
+- **Service Correlation**: Links canary failures to upstream/downstream service issues using Application Signals
+- **Performance Insights**: Detects latency spikes, fault rates, and connection issues
+- **Actionable Remediation**: Provides specific steps based on AWS operational best practices
+- **IAM Analysis**: Validates IAM roles and permissions for common canary access issues
+- **Backend Service Integration**: Correlates canary failures with backend service errors and exceptions
+
+**Common Use Cases:**
+- Incident Response: Rapid diagnosis of canary failures during outages
+- Performance Investigation: Understanding latency and availability degradation
+- Dependency Analysis: Identifying which services are causing canary failures
+- Historical Trending: Analyzing failure patterns over time for proactive improvements
+- Root Cause Analysis: Deep dive into specific failure scenarios with full context
+- Infrastructure Issues: Diagnose S3 access, VPC connectivity, and browser target problems
+- Backend Service Debugging: Identify application code issues affecting canary success
+
+#### 13. **`list_slis`** - Legacy SLI Status Report (Specialized Tool)
 **Use `audit_services()` as the PRIMARY tool for service auditing**
 
 - Basic report showing summary counts (total, healthy, breached, insufficient data)
@@ -494,6 +522,68 @@ Found 8 services being monitored:
 1. Focus immediate attention on payment-processor error investigation
 2. Monitor checkout-service latency trends
 3. Review payment-api-service timeout configurations
+```
+
+### Example 6: Canary Failure Analysis and Root Cause Investigation
+```
+User: "My Pet Clinic canaries are failing. Can you help me diagnose the issues?"
+Assistant: I'll analyze your Pet Clinic canaries to identify the root causes of failures.
+
+[Uses analyze_canary_failures for comprehensive canary analysis]
+
+analyze_canary_failures(canary_name="pc-visit-vet")
+analyze_canary_failures(canary_name="pc-add-visit")
+analyze_canary_failures(canary_name="webapp-erorrpagecanary")
+
+🔍 CANARY FAILURE ANALYSIS RESULTS:
+
+🔴 CRITICAL ISSUES IDENTIFIED:
+
+**pc-visit-vet canary:**
+• Root Cause: S3 bucket access issue
+• Error Pattern: Exit status 127, "No such file or directory"
+• Failure Count: 5 consecutive failures
+• IAM Analysis: ✅ Role exists but S3 bucket ARN patterns incorrect in policies
+
+**pc-add-visit canary:**
+• Root Cause: Selector timeout + backend service errors
+• Error Pattern: 30000ms timeout waiting for UI element + MissingFormatArgumentException
+• Backend Issue: Format specifier '% o' error in BedrockRuntimeV1Service.invokeTitanModel()
+• Performance: 34 second average response time, 0% success rate
+
+**webapp-erorrpagecanary:**
+• Root Cause: Browser target close during selector wait
+• Error Pattern: "Target closed" waiting for `#jsError` selector
+• Failure Count: 5 consecutive failures with 60000ms connection timeouts
+
+🔍 BACKEND SERVICE CORRELATION:
+• MissingFormatArgumentException detected in Pet Clinic backend
+• Location: org.springframework.samples.petclinic.customers.aws.BedrockRuntimeV1Service.invokeTitanModel (line 75)
+• Impact: Affects multiple canaries testing Pet Clinic functionality
+• 20% fault rate on GET /api/customer/diagnose/owners/{ownerId}/pets/{petId}
+
+🛠️ RECOMMENDED ACTIONS:
+
+**Immediate (Critical):**
+1. Fix S3 bucket ARN patterns in pc-visit-vet IAM policy
+2. Fix format string bug in BedrockRuntimeV1Service: change '% o' to '%s' or correct format
+3. Add VPC permissions to canary IAM roles if Lambda runs in VPC
+
+**Infrastructure (High Priority):**
+4. Investigate browser target stability issues (webapp-erorrpagecanary)
+5. Review canary timeout configurations - consider increasing from 30s to 60s
+6. Implement circuit breaker pattern for external service dependencies
+
+**Monitoring (Medium Priority):**
+7. Add Application Signals monitoring for canary success rates
+8. Set up alerts for consecutive canary failures (>3 failures)
+9. Implement canary health dashboard with real-time status
+
+🎯 EXPECTED OUTCOMES:
+• S3 access fix: Immediate resolution of pc-visit-vet failures
+• Backend service fix: 80%+ improvement in Pet Clinic canary success rates
+• Infrastructure improvements: Reduced browser target close errors
+• Enhanced monitoring: Proactive failure detection and faster resolution
 ```
 
 ## Recommended Workflows
