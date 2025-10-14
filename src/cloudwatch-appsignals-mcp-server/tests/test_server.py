@@ -2192,6 +2192,13 @@ async def test_analyze_canary_failures_navigation_timeout_with_har(mock_aws_clie
     mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
 
+    # Mock S3 to return HAR files
+    mock_aws_clients['s3_client'].list_objects_v2.return_value = {
+        'Contents': [
+            {'Key': 'canary/us-east-1/test-canary/2024/01/01/test.har'},
+        ]
+    }
+
     with patch(
         'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
     ) as mock_insights:
@@ -2203,11 +2210,19 @@ async def test_analyze_canary_failures_navigation_timeout_with_har(mock_aws_clie
                 'request_details': [
                     {'url': 'https://example.com/slow', 'status': 200, 'time': 5000}
                 ],
+                'insights': [
+                    'Slow DNS resolution detected',
+                    'High server response time',
+                    'Network connectivity issues',
+                    'Resource loading delays',
+                    'JavaScript execution timeout'
+                ]
             }
 
             result = await analyze_canary_failures('test-canary', 'us-east-1')
 
             assert '🔍 Comprehensive Failure Analysis for test-canary' in result
+            assert 'Slow DNS resolution detected' in result
 
 
 @pytest.mark.asyncio
@@ -2716,6 +2731,46 @@ async def test_analyze_canary_failures_empty_base_path(mock_aws_clients):
 
             # Should construct default canary path when base_path is empty
             assert 'FAILURE ANALYSIS' in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_canary_failures_multiple_failure_causes(mock_aws_clients):
+    """Test analyze_canary_failures with multiple different failure causes."""
+    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
+
+    mock_runs = [
+        {
+            'Id': 'failed-run-1',
+            'Status': {'State': 'FAILED', 'StateReason': 'Navigation timeout'},
+            'Timeline': {'Started': '2024-01-01T00:00:00Z'},
+        },
+        {
+            'Id': 'failed-run-2', 
+            'Status': {'State': 'FAILED', 'StateReason': 'Access denied'},
+            'Timeline': {'Started': '2024-01-01T00:01:00Z'},
+        },
+        {
+            'Id': 'success-run',
+            'Status': {'State': 'PASSED'},
+            'Timeline': {'Started': '2023-12-31T23:59:00Z'},
+        }
+    ]
+
+    mock_canary = {'Name': 'test-canary', 'ArtifactS3Location': ''}
+
+    mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': mock_runs}
+    mock_aws_clients['synthetics_client'].get_canary.return_value = {'Canary': mock_canary}
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.get_canary_metrics_and_service_insights'
+    ) as mock_insights:
+        mock_insights.return_value = 'Telemetry insights'
+
+        result = await analyze_canary_failures('test-canary', 'us-east-1')
+
+        assert 'Multiple failure causes (2 different issues):' in result
+        assert '1. **Navigation timeout** (1 occurrences)' in result
+        assert '2. **Access denied** (1 occurrences)' in result
 
 
 @pytest.mark.asyncio
