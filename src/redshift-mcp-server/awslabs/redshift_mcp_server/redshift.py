@@ -263,27 +263,50 @@ async def _execute_protected_statement(
         session_id=session_id,
     )
 
-    # Execute user SQL with parameters
-    user_query_id = await _execute_statement(
-        cluster_info=cluster_info,
-        cluster_identifier=cluster_identifier,
-        database_name=database_name,
-        sql=sql,
-        parameters=parameters,
-        session_id=session_id,
-    )
+    # Execute user SQL with parameters, ensuring transaction is always closed
+    user_query_id = None
+    user_sql_error = None
 
-    # Execute END statement to close transaction
-    await _execute_statement(
-        cluster_info=cluster_info,
-        cluster_identifier=cluster_identifier,
-        database_name=database_name,
-        sql='END;',
-        session_id=session_id,
-    )
+    try:
+        user_query_id = await _execute_statement(
+            cluster_info=cluster_info,
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            parameters=parameters,
+            session_id=session_id,
+        )
+    except Exception as e:
+        user_sql_error = e
+        logger.error(f'User SQL execution failed: {e}')
+
+    # Always execute END statement to close transaction
+    try:
+        await _execute_statement(
+            cluster_info=cluster_info,
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql='END;',
+            session_id=session_id,
+        )
+    except Exception as end_error:
+        logger.error(f'END statement execution failed: {end_error}')
+        if user_sql_error:
+            # Both failed - raise combined error
+            raise Exception(
+                f'User SQL failed: {user_sql_error}; END statement failed: {end_error}'
+            )
+        else:
+            # Only END failed
+            raise end_error
+
+    # If user SQL failed but END succeeded, raise user SQL error
+    if user_sql_error:
+        raise user_sql_error
 
     # Get results from user query
     data_client = client_manager.redshift_data_client()
+    assert user_query_id is not None, 'user_query_id should not be None at this point'
     results_response = data_client.get_statement_result(Id=user_query_id)
     return results_response, user_query_id
 
