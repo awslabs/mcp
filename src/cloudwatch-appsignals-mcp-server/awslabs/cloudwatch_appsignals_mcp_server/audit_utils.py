@@ -654,7 +654,12 @@ def expand_service_operation_wildcard_patterns(
                                 # Check if this operation has the required metric type
                                 metric_refs = operation.get('MetricReferences', [])
                                 has_metric_type = any(
-                                    ref.get('MetricType', '') == metric_type for ref in metric_refs
+                                    ref.get('MetricType', '') == metric_type
+                                    or (
+                                        metric_type == 'Availability'
+                                        and ref.get('MetricType', '') == 'Fault'
+                                    )
+                                    for ref in metric_refs
                                 )
 
                                 if has_metric_type:
