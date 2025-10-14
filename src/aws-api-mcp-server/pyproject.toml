@@ -20,6 +20,7 @@ dependencies = [
     "importlib_resources>=6.0.0",
     "requests>=2.32.4",
     "python-frontmatter>=1.1.0",
+    "fastmcp>=2.12.4",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
