@@ -47,8 +47,8 @@ from .core.common.models import (
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
 from botocore.exceptions import NoCredentialsError
+from fastmcp import Context, FastMCP
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pathlib import Path
 from pydantic import Field
