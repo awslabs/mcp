@@ -34,6 +34,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.mutable_sql_detector import detect_mutating_keywords
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
@@ -211,28 +212,56 @@ class AthenaQueryHandler:
                 f'Athena Query Handler - Tool: manage_aws_athena_queries - Operation: {operation}',
             )
 
-            if not self.allow_write and operation in [
-                'start-query-execution',
-            ]:
-                error_message = (
-                    f'Operation {operation} for select query is only allowed without write access'
-                )
-                log_with_request_id(ctx, LogLevel.ERROR, error_message)
-
-                if (
-                    operation == 'start-query-execution'
-                    and query_string
-                    and (
-                        'select' not in query_string.lower()
-                        or 'create table as select' in query_string.lower()
+            if operation == 'start-query-execution':
+                if query_string is None:
+                    raise ValueError(
+                        'query_string is required for start-query-execution operation'
                     )
-                ):
+
+                matched = detect_mutating_keywords(query_string)
+                if not self.allow_write and matched:
+                    error_message = f"Mutating operations: {matched} are not allowed when write access is disabled"
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
                     return StartQueryExecutionResponse(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
                         query_execution_id='',
                         operation='start-query-execution',
                     )
+
+                # Prepare parameters
+                params = {'QueryString': query_string}
+
+                if client_request_token is not None:
+                    params['ClientRequestToken'] = client_request_token
+
+                if query_execution_context is not None:
+                    params['QueryExecutionContext'] = query_execution_context
+
+                if result_configuration is not None:
+                    params['ResultConfiguration'] = result_configuration
+
+                if work_group is not None:
+                    params['WorkGroup'] = work_group
+
+                if execution_parameters is not None:
+                    params['ExecutionParameters'] = execution_parameters
+
+                if result_reuse_configuration is not None:
+                    params['ResultReuseConfiguration'] = result_reuse_configuration
+
+                # Start query execution
+                response = self.athena_client.start_query_execution(**params)
+
+                return StartQueryExecutionResponse(
+                    isError=False,
+                    content=[
+                        TextContent(type='text', text='Successfully started query execution')
+                    ],
+                    query_execution_id=response.get('QueryExecutionId', ''),
+                    operation='start-query-execution',
+                )
 
             if operation == 'batch-get-query-execution':
                 if query_execution_ids is None:
@@ -364,45 +393,6 @@ class AthenaQueryHandler:
                     count=len(query_execution_ids_res),
                     next_token=response.get('NextToken'),
                     operation='list-query-executions',
-                )
-
-            elif operation == 'start-query-execution':
-                if query_string is None:
-                    raise ValueError(
-                        'query_string is required for start-query-execution operation'
-                    )
-
-                # Prepare parameters
-                params = {'QueryString': query_string}
-
-                if client_request_token is not None:
-                    params['ClientRequestToken'] = client_request_token
-
-                if query_execution_context is not None:
-                    params['QueryExecutionContext'] = query_execution_context
-
-                if result_configuration is not None:
-                    params['ResultConfiguration'] = result_configuration
-
-                if work_group is not None:
-                    params['WorkGroup'] = work_group
-
-                if execution_parameters is not None:
-                    params['ExecutionParameters'] = execution_parameters
-
-                if result_reuse_configuration is not None:
-                    params['ResultReuseConfiguration'] = result_reuse_configuration
-
-                # Start query execution
-                response = self.athena_client.start_query_execution(**params)
-
-                return StartQueryExecutionResponse(
-                    isError=False,
-                    content=[
-                        TextContent(type='text', text='Successfully started query execution')
-                    ],
-                    query_execution_id=response.get('QueryExecutionId', ''),
-                    operation='start-query-execution',
                 )
 
             elif operation == 'stop-query-execution':
