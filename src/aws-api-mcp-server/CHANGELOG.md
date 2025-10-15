@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [1.1.0]
+
+### Changed
+
+- Converted MCP server to use FastMCP framework instead of python mcp sdk (#1513)
+
 ### Fixed
 
 - CLI commands that don't expect any parameters (#1494)
@@ -14,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Support for `--endpoint-url` flag for localhost endpoints (#1452)
-- Change max retries to 3 when interpreting CLI command (#1485)
+- Change max retries to 3 when interpreting CLI command (#1485) 
 
 ## [1.0.1] - 2025-10-06
 
