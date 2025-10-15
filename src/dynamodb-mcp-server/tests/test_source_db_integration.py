@@ -197,20 +197,28 @@ def test_save_analysis_files_with_data(tmp_path, monkeypatch):
     }
 
     saved_files, save_errors = DatabaseAnalyzer.save_analysis_files(
-        results, 'mysql', 'test_db', 30, 500, str(tmp_path)
+        results, 'mysql', 'test_db', 30, 500, str(tmp_path), []
     )
 
-    assert len(saved_files) == 2
+    # Should generate markdown files for all expected queries (6 total)
+    assert len(saved_files) == 6
     assert len(save_errors) == 0
 
-    # Verify files were created
+    # Verify markdown files were created
     for filename in saved_files:
         assert os.path.exists(filename)
+        assert filename.endswith('.md')
         with open(filename, 'r') as f:
-            data = json.load(f)
-            assert 'query_name' in data
-            assert 'database' in data
-            assert data['database'] == 'test_db'
+            content = f.read()
+            # Verify it's markdown content with expected structure
+            assert content.startswith('#')
+            # Check for any of the expected markdown patterns
+            assert any(pattern in content for pattern in [
+                '**Query Description**',
+                '**Database**',
+                '**Query Skipped**',
+                '**Generated**'
+            ])
 
 
 def test_save_analysis_files_creation_error(tmp_path, monkeypatch):
@@ -397,14 +405,19 @@ def test_save_analysis_files_json_error(tmp_path, monkeypatch):
     """Test save_analysis_files with JSON serialization error."""
     results = {'test': {'description': 'Test', 'data': []}}
 
+    def mock_markdown_formatter_init(*args, **kwargs):
+        raise Exception('Markdown generation failed')
+
     monkeypatch.setattr(
-        'json.dump', lambda *args, **kwargs: (_ for _ in ()).throw(TypeError('Not serializable'))
+        'awslabs.dynamodb_mcp_server.database_analyzers.MarkdownFormatter',
+        mock_markdown_formatter_init,
     )
+    
     saved, errors = DatabaseAnalyzer.save_analysis_files(
-        results, 'mysql', 'db', 30, 500, str(tmp_path)
+        results, 'mysql', 'db', 30, 500, str(tmp_path), []
     )
     assert len(errors) == 1
-    assert 'Failed to save test' in errors[0]
+    assert 'Markdown generation failed' in errors[0]
 
 
 @pytest.mark.asyncio
@@ -451,7 +464,7 @@ async def test_analyze_performance_disabled():
     with patch.object(MySQLAnalyzer, 'execute_query_batch', side_effect=mock_execute_query_batch):
         result = await MySQLAnalyzer.analyze(connection_params)
         assert not result['performance_enabled']
-        assert 'Performance Schema disabled - skipping query_pattern_analysis' in result['errors']
+        assert 'query_pattern_analysis' in result['skipped_queries']
 
 
 @pytest.mark.asyncio
