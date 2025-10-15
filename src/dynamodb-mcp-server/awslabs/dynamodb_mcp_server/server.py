@@ -123,13 +123,10 @@ async def source_db_analyzer(
     patterns to help you design an optimal DynamoDB data model.
 
     Output & Next Steps:
-    - Creates timestamped folder (database_analysis_YYYYMMDD_HHMMSS) with 4-5 JSON files:
-      * table_analysis_results.json - Table-level statistics
-      * column_analysis_results.json - Column definitions for all tables
-      * index_analysis_results.json - Index structures and compositions
-      * foreign_key_analysis_results.json - Relationship mappings
-      * query_pattern_analysis_results.json - Query patterns (only if Performance Schema enabled)
-    - Each file contains query results with metadata (database name, analysis period, descriptions)
+    - Creates timestamped folder (database_analysis_YYYYMMDD_HHMMSS) with Markdown analysis files
+    - Start by reading manifest.md - it tells you which analysis files to read next
+    - The manifest includes summary statistics and links to all available analysis files
+    - Files for skipped queries explain why they were skipped (e.g., Performance Schema disabled)
     - Use these files with the dynamodb_data_modeling tool to design your DynamoDB schema
     - Analysis is read-only
 
@@ -199,6 +196,8 @@ async def source_db_analyzer(
             connection_params.get('pattern_analysis_days'),
             connection_params.get('max_results'),
             connection_params.get('output_dir'),
+            analysis_result.get('performance_enabled', True),
+            analysis_result.get('skipped_queries', []),
         )
 
         # Generate report

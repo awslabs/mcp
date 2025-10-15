@@ -22,12 +22,14 @@ mysql_analysis_queries = {
     'performance_schema_check': {
         'name': 'Performance Schema Status Check',
         'description': 'Returns the status of the performance_schema system variable (ON/OFF)',
+        'category': 'internal', 
         'sql': 'SELECT @@performance_schema;',
         'parameters': [],
     },
     'query_pattern_analysis': {
         'name': 'Query Pattern Analysis',
         'description': 'Returns query patterns from Performance Schema with execution counts, calculated RPS, average execution time, average rows examined per execution, scan counts, execution timeframes, and SQL complexity classification',
+        'category': 'performance_schema',
         'sql': """SELECT
   -- Basic pattern information
   DIGEST_TEXT as query_pattern,
@@ -71,6 +73,7 @@ ORDER BY frequency DESC;""",
     'table_analysis': {
         'name': 'Table Structure Analysis',
         'description': 'Returns table statistics including row counts, data size in MB, index size in MB, column counts, foreign key counts, and creation/modification timestamps',
+        'category': 'information_schema',
         'sql': """SELECT
   TABLE_NAME,
   TABLE_ROWS,
@@ -94,6 +97,7 @@ ORDER BY TABLE_ROWS DESC;""",
     'column_analysis': {
         'name': 'Column Information Analysis',
         'description': 'Returns all column definitions including table name, column name, data type, nullability, key type, default value, and extra attributes',
+        'category': 'information_schema',
         'sql': """SELECT
   TABLE_NAME,
   COLUMN_NAME,
@@ -110,6 +114,7 @@ ORDER BY TABLE_NAME, ORDINAL_POSITION;""",
     'index_analysis': {
         'name': 'Index Statistics Analysis',
         'description': 'Returns index structure details including table name, index name, column name, uniqueness flag, and column position within each index',
+        'category': 'information_schema',
         'sql': """SELECT
   TABLE_NAME,
   INDEX_NAME,
@@ -124,6 +129,7 @@ ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;""",
     'foreign_key_analysis': {
         'name': 'Foreign Key Relationship Analysis',
         'description': 'Returns foreign key relationships including constraint names, child/parent table and column mappings, referential action rules, and estimated relationship cardinality',
+        'category': 'information_schema',
         'sql': """SELECT
   kcu.CONSTRAINT_NAME,
   kcu.TABLE_NAME as child_table,
@@ -158,6 +164,7 @@ ORDER BY kcu.TABLE_NAME, kcu.COLUMN_NAME;""",
     'database_objects': {
         'name': 'Database Objects Summary',
         'description': 'Returns object counts and concatenated names grouped by object type: tables, triggers, stored procedures, and functions',
+        'category': 'information_schema',
         'sql': """SELECT
   'Tables' as object_type,
   COUNT(*) as count,
@@ -208,3 +215,55 @@ def get_query_resource(query_name: str, max_query_results: int, **params) -> Dic
     query_info['sql'] = f'{sql} LIMIT {max_query_results};'
 
     return query_info
+
+
+def get_queries_by_category(category: str) -> list[str]:
+    """
+    Get list of query names for a specific category.
+    
+    Args:
+        category: Query category ('information_schema', 'performance_schema', 'internal')
+    
+    Returns:
+        List of query names in the specified category
+    """
+    return [
+        query_name 
+        for query_name, query_info in mysql_analysis_queries.items()
+        if query_info.get('category') == category
+    ]
+
+
+def get_schema_queries() -> list[str]:
+    """
+    Get list of schema-related query names.
+    
+    Returns:
+        List of query names that analyze database schema
+    """
+    return get_queries_by_category('information_schema')
+
+
+def get_performance_queries() -> list[str]:
+    """
+    Get list of performance-related query names.
+    
+    Returns:
+        List of query names that analyze database performance
+    """
+    return get_queries_by_category('performance_schema')
+
+
+def get_query_descriptions() -> Dict[str, str]:
+    """
+    Get mapping of query names to their descriptions.
+    
+    Returns:
+        Dictionary mapping query names to human-readable descriptions
+    """
+    descriptions = {}
+    for query_name, query_info in mysql_analysis_queries.items():
+        # Skip internal queries (like performance_schema_check)
+        if query_info.get('category') != 'internal':
+            descriptions[query_name] = query_info.get('description', 'No description available')
+    return descriptions
