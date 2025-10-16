@@ -953,3 +953,514 @@ class TestResourceOperations:
 
         with pytest.raises(ClientError, match='Invalid AWS credentials'):
             await delete_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_create_resource_impl_request_region_priority(
+        self, mock_progress, mock_environ, mock_client
+    ):
+        """Test that request.region has highest priority over session region."""
+        mock_environ.get.return_value = 'disabled'
+        mock_client.return_value.create_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {'credentials_valid': True, 'readonly_mode': False, 'region': 'us-west-2'},
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = CreateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region='eu-west-1',  # Should override session region
+        )
+
+        await create_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'eu-west-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_create_resource_impl_session_region_fallback(
+        self, mock_progress, mock_environ, mock_client
+    ):
+        """Test that session region is used when request.region is None."""
+        mock_environ.get.return_value = 'disabled'
+        mock_client.return_value.create_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'region': 'ap-southeast-1',
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = CreateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region=None,  # No request region
+        )
+
+        await create_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'ap-southeast-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_create_resource_impl_default_region_fallback(
+        self, mock_progress, mock_environ, mock_client
+    ):
+        """Test that us-east-1 is used when both request and session regions are None."""
+        mock_environ.get.return_value = 'disabled'
+        mock_client.return_value.create_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {'credentials_valid': True, 'readonly_mode': False, 'region': None},
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = CreateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region=None,  # No request region
+        )
+
+        await create_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'us-east-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_create_resource_impl_empty_session_region_uses_default(
+        self, mock_progress, mock_environ, mock_client
+    ):
+        """Test that us-east-1 is used when session region is empty string."""
+        mock_environ.get.return_value = 'disabled'
+        mock_client.return_value.create_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {'credentials_valid': True, 'readonly_mode': False, 'region': ''},
+            },  # Empty string
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = CreateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region=None,
+        )
+
+        await create_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'us-east-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_update_resource_impl_request_region_priority(
+        self, mock_progress, mock_environ, mock_client
+    ):
+        """Test that request.region has highest priority over session region in update_resource_impl."""
+        mock_environ.get.return_value = 'disabled'
+        mock_client.return_value.update_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {'credentials_valid': True, 'readonly_mode': False, 'region': 'us-west-2'},
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region='eu-west-1',  # Should override session region
+        )
+
+        await update_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'eu-west-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_update_resource_impl_session_region_fallback(
+        self, mock_progress, mock_environ, mock_client
+    ):
+        """Test that session region is used when request.region is None in update_resource_impl."""
+        mock_environ.get.return_value = 'disabled'
+        mock_client.return_value.update_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'region': 'ap-southeast-1',
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region=None,  # No request region
+        )
+
+        await update_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'ap-southeast-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_update_resource_impl_default_region_fallback(
+        self, mock_progress, mock_environ, mock_client
+    ):
+        """Test that us-east-1 is used when both request and session regions are None in update_resource_impl."""
+        mock_environ.get.return_value = 'disabled'
+        mock_client.return_value.update_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {'credentials_valid': True, 'readonly_mode': False, 'region': None},
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region=None,  # No request region
+        )
+
+        await update_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'us-east-1')
+
+    # Delete resource region priority tests
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_delete_resource_impl_request_region_priority(self, mock_progress, mock_client):
+        """Test that request.region has highest priority over session region in delete_resource_impl."""
+        mock_client.return_value.delete_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {'credentials_valid': True, 'readonly_mode': False, 'region': 'us-west-2'},
+            },
+            'explained': {
+                'type': 'explained_delete',
+                'data': {'test': 'value'},
+                'operation': 'delete',
+            },
+        }
+
+        request = DeleteResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            confirmed=True,
+            region='eu-west-1',  # Should override session region
+        )
+
+        await delete_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'eu-west-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_delete_resource_impl_session_region_fallback(self, mock_progress, mock_client):
+        """Test that session region is used when request.region is None in delete_resource_impl."""
+        mock_client.return_value.delete_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'region': 'ap-southeast-1',
+                },
+            },
+            'explained': {
+                'type': 'explained_delete',
+                'data': {'test': 'value'},
+                'operation': 'delete',
+            },
+        }
+
+        request = DeleteResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            confirmed=True,
+            region=None,  # No request region
+        )
+
+        await delete_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'ap-southeast-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_delete_resource_impl_default_region_fallback(self, mock_progress, mock_client):
+        """Test that us-east-1 is used when both request and session regions are None in delete_resource_impl."""
+        mock_client.return_value.delete_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {'credentials_valid': True, 'readonly_mode': False, 'region': None},
+            },
+            'explained': {
+                'type': 'explained_delete',
+                'data': {'test': 'value'},
+                'operation': 'delete',
+            },
+        }
+
+        request = DeleteResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            confirmed=True,
+            region=None,  # No request region
+        )
+
+        await delete_resource_impl(request, workflow_store)
+        mock_client.assert_called_with('cloudcontrol', 'us-east-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    async def test_get_resource_impl_request_region_priority(self, mock_client):
+        """Test that request.region has highest priority over environment region in get_resource_impl."""
+        mock_client.return_value.get_resource.return_value = {
+            'ResourceDescription': {
+                'Identifier': 'test-bucket',
+                'Properties': '{"BucketName": "test-bucket"}',
+            }
+        }
+
+        request = GetResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            region='eu-west-1',  # Should override environment region
+            analyze_security=False,
+        )
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ'
+        ) as mock_environ:
+            mock_environ.get.return_value = 'us-west-2'  # Environment AWS_REGION
+            await get_resource_impl(request)
+            mock_client.assert_called_with('cloudcontrol', 'eu-west-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    async def test_get_resource_impl_environment_region_fallback(self, mock_client):
+        """Test that environment region is used when request.region is None in get_resource_impl."""
+        mock_client.return_value.get_resource.return_value = {
+            'ResourceDescription': {
+                'Identifier': 'test-bucket',
+                'Properties': '{"BucketName": "test-bucket"}',
+            }
+        }
+
+        request = GetResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            region=None,  # No request region
+            analyze_security=False,
+        )
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ'
+        ) as mock_environ:
+            mock_environ.get.return_value = 'ap-southeast-1'  # Environment AWS_REGION
+            await get_resource_impl(request)
+            mock_client.assert_called_with('cloudcontrol', 'ap-southeast-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    async def test_get_resource_impl_default_region_fallback(self, mock_client):
+        """Test that us-east-1 is used when both request and environment regions are None in get_resource_impl."""
+        mock_client.return_value.get_resource.return_value = {
+            'ResourceDescription': {
+                'Identifier': 'test-bucket',
+                'Properties': '{"BucketName": "test-bucket"}',
+            }
+        }
+
+        request = GetResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            region=None,  # No request region
+            analyze_security=False,
+        )
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ'
+        ) as mock_environ:
+            mock_environ.get.side_effect = (
+                lambda key, default=None: default if key == 'AWS_REGION' else None
+            )
+            await get_resource_impl(request)
+            mock_client.assert_called_with('cloudcontrol', 'us-east-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_get_resource_request_status_impl_request_region_priority(
+        self, mock_progress, mock_client
+    ):
+        """Test that request region has highest priority over environment region in get_resource_request_status_impl."""
+        mock_client.return_value.get_resource_request_status.return_value = {
+            'ProgressEvent': {'Status': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ'
+        ) as mock_environ:
+            mock_environ.get.return_value = 'us-west-2'  # Environment AWS_REGION
+            await get_resource_request_status_impl(
+                'test-token', 'eu-west-1'
+            )  # Should override environment
+            mock_client.assert_called_with('cloudcontrol', 'eu-west-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_get_resource_request_status_impl_environment_region_fallback(
+        self, mock_progress, mock_client
+    ):
+        """Test that environment region is used when request region is None in get_resource_request_status_impl."""
+        mock_client.return_value.get_resource_request_status.return_value = {
+            'ProgressEvent': {'Status': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ'
+        ) as mock_environ:
+            mock_environ.get.return_value = 'ap-southeast-1'  # Environment AWS_REGION
+            await get_resource_request_status_impl('test-token', None)  # No request region
+            mock_client.assert_called_with('cloudcontrol', 'ap-southeast-1')
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event')
+    async def test_get_resource_request_status_impl_default_region_fallback(
+        self, mock_progress, mock_client
+    ):
+        """Test that us-east-1 is used when both request and environment regions are None in get_resource_request_status_impl."""
+        mock_client.return_value.get_resource_request_status.return_value = {
+            'ProgressEvent': {'Status': 'SUCCESS'}
+        }
+        mock_progress.return_value = {'status': 'SUCCESS'}
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ'
+        ) as mock_environ:
+            mock_environ.get.side_effect = (
+                lambda key, default=None: default if key == 'AWS_REGION' else None
+            )
+            await get_resource_request_status_impl('test-token', None)  # No request region
+            mock_client.assert_called_with('cloudcontrol', 'us-east-1')
