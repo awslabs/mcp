@@ -302,6 +302,7 @@ class TestAlarmRecommendation:
         )
 
         assert alarm.alarmDescription == 'Test alarm description'
+        assert isinstance(alarm.threshold, StaticAlarmThreshold)
         assert alarm.threshold.staticValue == 80.0
         assert alarm.period == 300
         assert alarm.comparisonOperator == 'GreaterThanThreshold'
@@ -332,6 +333,83 @@ class TestAlarmRecommendation:
         assert alarm.alarmDescription == 'Minimal alarm'
         assert len(alarm.dimensions) == 0  # Default empty list
         assert alarm.cloudformation_template is None  # Default None for non-anomaly alarms
+
+    def test_alarm_recommendation_serialization(self):
+        """Test alarm recommendation serialization."""
+        threshold = StaticAlarmThreshold(staticValue=80.0, justification='Test')
+        alarm = AlarmRecommendation(
+            alarmDescription='Test',
+            threshold=threshold,
+            period=300,
+            comparisonOperator='GreaterThanThreshold',
+            statistic='Average',
+            evaluationPeriods=1,
+            datapointsToAlarm=1,
+            treatMissingData='missing',
+            intent='Test',
+            cloudformation_template={'test': 'value'},
+        )
+
+        serialized = alarm.model_dump()
+        assert 'alarmDescription' in serialized
+        assert 'cloudformation_template' in serialized
+        assert serialized['cloudformation_template'] == {'test': 'value'}
+
+    def test_alarm_recommendation_serialization_without_template(self):
+        """Test alarm recommendation serialization without cloudformation_template."""
+        threshold = StaticAlarmThreshold(staticValue=80.0, justification='Test')
+        alarm = AlarmRecommendation(
+            alarmDescription='Test',
+            threshold=threshold,
+            period=300,
+            comparisonOperator='GreaterThanThreshold',
+            statistic='Average',
+            evaluationPeriods=1,
+            datapointsToAlarm=1,
+            treatMissingData='missing',
+            intent='Test',
+        )
+
+        serialized = alarm.model_dump()
+        assert 'alarmDescription' in serialized
+        assert 'cloudformation_template' not in serialized
+
+
+class TestAnomalyDetectionAlarmThreshold:
+    """Tests for AnomalyDetectionAlarmThreshold model."""
+
+    def test_sensitivity_validation_invalid_zero(self):
+        """Test sensitivity validation rejects zero."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+            AnomalyDetectionAlarmThreshold,
+        )
+
+        with pytest.raises(
+            ValueError, match='Sensitivity must be above 0 and less than or equal to 100'
+        ):
+            AnomalyDetectionAlarmThreshold(sensitivity=0, justification='Test')
+
+    def test_sensitivity_validation_invalid_negative(self):
+        """Test sensitivity validation rejects negative values."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+            AnomalyDetectionAlarmThreshold,
+        )
+
+        with pytest.raises(
+            ValueError, match='Sensitivity must be above 0 and less than or equal to 100'
+        ):
+            AnomalyDetectionAlarmThreshold(sensitivity=-1, justification='Test')
+
+    def test_sensitivity_validation_invalid_over_100(self):
+        """Test sensitivity validation rejects values over 100."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+            AnomalyDetectionAlarmThreshold,
+        )
+
+        with pytest.raises(
+            ValueError, match='Sensitivity must be above 0 and less than or equal to 100'
+        ):
+            AnomalyDetectionAlarmThreshold(sensitivity=101, justification='Test')
 
 
 class TestMetricData:

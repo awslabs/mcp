@@ -156,12 +156,12 @@ class MetricDataDecomposer:
         tiled_pattern = np.tile(seasonal_pattern, n_cycles)
 
         # Calculate trend (moving average) for seasonal strength calculation
-        trend = (
+        trend_series = (
             pd.Series(truncated_values)
             .rolling(window=seasonal_period, center=True, min_periods=1)
             .mean()
-            .values
         )
+        trend = np.asarray(trend_series)
 
         # Calculate components
         detrended = truncated_values - trend
@@ -174,7 +174,7 @@ class MetricDataDecomposer:
         if var_detrended <= NUMERICAL_STABILITY_THRESHOLD:
             return (0.0, None)
 
-        strength = max(0.0, 1 - var_remainder / var_detrended)
+        strength = max(0.0, float(1 - var_remainder / var_detrended))
 
         # Return deseasonalized data (original - seasonal pattern) for trend calculation
         deseasonalized = truncated_values - tiled_pattern

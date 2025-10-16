@@ -109,6 +109,8 @@ class TestCloudFormationTemplateGenerator:
                 detector_resource = resource
 
         # Verify values are preserved after round-trip
+        assert detector_resource is not None
+        assert alarm_resource is not None
         assert detector_resource['Properties']['MetricName'] == 'Metric"With"Quotes'
         assert detector_resource['Properties']['Namespace'] == 'Namespace\\With\\Backslash'
         assert alarm_resource['Properties']['AlarmDescription'] == 'Test\nWith\nNewlines'
@@ -181,3 +183,21 @@ class TestCloudFormationTemplateGenerator:
         # Should succeed without dimensions
         assert result is not None
         assert 'Resources' in result
+
+    def test_sanitize_resource_name_empty_string(self, generator):
+        """Test sanitization of empty string resource name."""
+        result = generator._sanitize_resource_name('')
+        assert result == 'Resource'
+        assert result[0].isalpha()
+
+    def test_sanitize_resource_name_starts_with_number(self, generator):
+        """Test sanitization when name starts with number."""
+        result = generator._sanitize_resource_name('123Test')
+        assert result.startswith('Resource')
+        assert result[0].isalpha()
+
+    def test_sanitize_resource_name_long_string(self, generator):
+        """Test sanitization truncates long strings."""
+        long_name = 'A' * 300
+        result = generator._sanitize_resource_name(long_name)
+        assert len(result) == 255

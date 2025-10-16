@@ -330,6 +330,11 @@ class TestErrorHandling:
             # Should handle missing fields gracefully with defaults
             assert isinstance(result, AlarmRecommendation)
             assert result.alarmDescription == ''
+            from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+                StaticAlarmThreshold,
+            )
+
+            assert isinstance(result.threshold, StaticAlarmThreshold)
             assert result.threshold.staticValue == 0.0
             assert result.threshold.justification == ''
             assert result.period == 300

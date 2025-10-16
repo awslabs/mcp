@@ -26,6 +26,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
     DEFAULT_ANALYSIS_PERIOD_MINUTES,
 )
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer import MetricAnalyzer
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import Seasonality
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AlarmRecommendation,
     AlarmRecommendationDimension,
@@ -41,7 +42,6 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     MetricMetadataIndexKey,
     StaticAlarmThreshold,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import Seasonality
 from botocore.config import Config
 from datetime import datetime, timedelta, timezone
 from loguru import logger

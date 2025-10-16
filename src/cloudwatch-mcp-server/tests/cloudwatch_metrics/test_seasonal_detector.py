@@ -4,12 +4,14 @@ import math
 import numpy as np
 import pytest
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_analyzer import MetricAnalyzer
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import (
+    MetricDataDecomposer,
+)
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AnomalyDetectionAlarmThreshold,
     DecompositionResult,
     Seasonality,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import MetricDataDecomposer
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.tools import CloudWatchMetricsTools
 from datetime import datetime
 from tests.cloudwatch_metrics.test_utils import (
@@ -86,7 +88,7 @@ class TestSeasonalDetector:
         timestamps_ms, values = create_timestamps_and_values_by_duration(
             2,
             1,  # 2 hours of 1-minute data
-            lambda m, b, a: sine_wave_pattern_minutes(m, b, a, 0.25),  # 15-minute period
+            lambda m, b, a: sine_wave_pattern_minutes(m, b, a, 1),  # 1-hour period
         )
 
         result = detector.detect_seasonality_and_trend(timestamps_ms, values, 1.0, 60)

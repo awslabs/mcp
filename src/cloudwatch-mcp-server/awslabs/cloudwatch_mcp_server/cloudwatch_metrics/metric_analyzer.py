@@ -16,13 +16,15 @@ import numpy as np
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
     NUMERICAL_STABILITY_THRESHOLD,
 )
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import (
+    MetricDataDecomposer,
+)
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     DecompositionResult,
     MetricData,
     Seasonality,
     Trend,
 )
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.metric_data_decomposer import MetricDataDecomposer
 from collections import Counter
 from loguru import logger
 from typing import Any, Dict, Optional
@@ -64,7 +66,7 @@ class MetricAnalyzer:
             # Compute detailed analysis
             publishing_period_seconds = self._compute_publishing_period(clean_timestamps)
             density_ratio = self._compute_density_ratio(
-                clean_timestamps, publishing_period_seconds
+                clean_timestamps, publishing_period_seconds or 0.0
             )
             decomposition = self._compute_seasonality_and_trend(
                 clean_timestamps, clean_values, density_ratio, publishing_period_seconds
