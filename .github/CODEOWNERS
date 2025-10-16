@@ -25,7 +25,6 @@ NOTICE                                           @awslabs/mcp-admins
 /src/amazon-neptune-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @bechbd @cornerwings @krlawrence
 /src/amazon-qbusiness-anonymous-mcp-server       @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
 /src/amazon-qindex-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
-# /src/amazon-rekognition-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @ayush987goyal
 /src/amazon-sns-sqs-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
 /src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko # @silver83 @marcbowes @kennthhz
 /src/aws-api-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
