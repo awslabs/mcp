@@ -22,6 +22,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Suppress AST deprecation warnings for Python 3.14 compatibility
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='ast')
+# Suppress deprecation warnings from bandit and other libraries using deprecated AST features
+warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*ast\.Bytes.*')
+warnings.filterwarnings(
+    'ignore', category=DeprecationWarning, message='.*Attribute n is deprecated.*'
+)
 
 
 class SecurityIssue(BaseModel):
