@@ -124,11 +124,11 @@ async def source_db_analyzer(
 
     Output & Next Steps:
     - Creates timestamped folder (database_analysis_YYYYMMDD_HHMMSS) with Markdown analysis files
-    - Start by reading manifest.md - it tells you which analysis files to read next
-    - The manifest includes summary statistics and links to all available analysis files
+    - CRITICAL: Immediately read manifest.md from the timestamped folder - it lists all analysis files
+    - The manifest includes summary statistics, links to all analysis files, and skipped queries
+    - Read ALL analysis files listed in the manifest to understand the complete database structure
     - Files for skipped queries explain why they were skipped (e.g., Performance Schema disabled)
-    - Use these files with the dynamodb_data_modeling tool to design your DynamoDB schema
-    - Analysis is read-only
+    - Use these analysis files with the dynamodb_data_modeling tool to design your DynamoDB schema
 
     Connection Requirements (MySQL/Aurora):
     - AWS RDS Data API enabled on your Aurora MySQL cluster

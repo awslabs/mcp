@@ -279,19 +279,11 @@ class MySQLAnalyzer(DatabaseAnalyzer):
         for query_name in query_names:
             try:
                 # Get query with appropriate parameters
-                if query_name == 'query_pattern_analysis' and pattern_analysis_days:
-                    query = get_query_resource(
-                        query_name,
-                        max_query_results=self.max_results,
-                        target_database=self.database,
-                        pattern_analysis_days=pattern_analysis_days,
-                    )
-                else:
-                    query = get_query_resource(
-                        query_name,
-                        max_query_results=self.max_results,
-                        target_database=self.database,
-                    )
+                query = get_query_resource(
+                    query_name,
+                    max_query_results=self.max_results,
+                    target_database=self.database,
+                )
 
                 result = await self._run_query(query['sql'])
 
@@ -348,11 +340,9 @@ class MySQLAnalyzer(DatabaseAnalyzer):
             )
 
             if performance_enabled:
-                # Run performance queries with pattern analysis days parameter
-                pattern_analysis_days = connection_params.get('pattern_analysis_days', 30)
+                # Run performance queries
                 perf_results, perf_errors = await analyzer.execute_query_batch(
-                    cls.PERFORMANCE_QUERIES,
-                    pattern_analysis_days=pattern_analysis_days
+                    cls.PERFORMANCE_QUERIES
                 )
                 all_results.update(perf_results)
                 all_errors.extend(perf_errors)

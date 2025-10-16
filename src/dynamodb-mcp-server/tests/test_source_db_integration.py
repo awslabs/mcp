@@ -55,13 +55,11 @@ def test_query_resource_functions():
 
     # Test parameter substitution
     query = get_query_resource(
-        'query_pattern_analysis',
+        'all_queries_stats',
         max_query_results=1000,
         target_database='employees',
-        pattern_analysis_days=30,
     )
     assert 'employees' in query['sql']
-    assert '30' in query['sql']
 
     # Test invalid query name
     with pytest.raises(ValueError, match="Query 'invalid_query' not found"):
@@ -73,19 +71,17 @@ def test_query_limit_parameter_override(monkeypatch):
     # Test parameter override (takes precedence over env var)
     monkeypatch.setenv('MYSQL_MAX_QUERY_RESULTS', '100')
     query = get_query_resource(
-        'query_pattern_analysis',
+        'all_queries_stats',
         max_query_results=200,
         target_database='test',
-        pattern_analysis_days=30,
     )
     assert 'LIMIT 200' in query['sql']  # Parameter takes precedence
 
     # Test environment variable fallback
     query = get_query_resource(
-        'query_pattern_analysis',
+        'all_queries_stats',
         max_query_results=100,
         target_database='test',
-        pattern_analysis_days=30,
     )
     assert 'LIMIT 100' in query['sql']  # Falls back to env var
 
@@ -186,11 +182,11 @@ def test_save_analysis_files_with_data(tmp_path, monkeypatch):
     monkeypatch.setattr('awslabs.dynamodb_mcp_server.database_analyzers.datetime', MockDateTime)
 
     results = {
-        'table_analysis': {
+        'comprehensive_table_analysis': {
             'data': [{'table': 'users', 'rows': 100}],
             'description': 'Table analysis',
         },
-        'query_pattern_analysis': {
+        'all_queries_stats': {
             'data': [{'pattern': 'SELECT * FROM users', 'frequency': 10}],
             'description': 'Query patterns',
         },
@@ -200,8 +196,8 @@ def test_save_analysis_files_with_data(tmp_path, monkeypatch):
         results, 'mysql', 'test_db', 30, 500, str(tmp_path), []
     )
 
-    # Should generate markdown files for all expected queries (6 total)
-    assert len(saved_files) == 6
+    # Should generate markdown files for all expected queries (7 total: 4 schema + 3 performance)
+    assert len(saved_files) == 7
     assert len(save_errors) == 0
 
     # Verify markdown files were created
@@ -327,8 +323,8 @@ async def test_execute_query_batch_handles_empty_result_sets():
     )
 
     with patch.object(analyzer, '_run_query', return_value=[]):
-        results, errors = await analyzer.execute_query_batch(['table_analysis'])
-        assert results['table_analysis']['data'] == []
+        results, errors = await analyzer.execute_query_batch(['comprehensive_table_analysis'])
+        assert results['comprehensive_table_analysis']['data'] == []
 
 
 @pytest.mark.asyncio
@@ -350,7 +346,7 @@ async def test_execute_query_batch_handles_query_failures(monkeypatch):
         raise Exception('Query failed')
 
     monkeypatch.setattr(analyzer, '_run_query', mock_run_query)
-    results, errors = await analyzer.execute_query_batch(['table_analysis'])
+    results, errors = await analyzer.execute_query_batch(['comprehensive_table_analysis'])
     assert len(errors) > 0
     assert 'Query failed' in errors[0]
 
@@ -371,7 +367,7 @@ async def test_execute_query_batch_handles_error_results():
     )
 
     with patch.object(analyzer, '_run_query', return_value=[{'error': 'SQL syntax error'}]):
-        results, errors = await analyzer.execute_query_batch(['table_analysis'])
+        results, errors = await analyzer.execute_query_batch(['comprehensive_table_analysis'])
         assert len(errors) > 0
         assert 'SQL syntax error' in errors[0]
 
@@ -436,8 +432,8 @@ async def test_execute_query_batch_pattern_analysis():
     )
 
     with patch.object(analyzer, '_run_query', return_value=[{'result': 'data'}]):
-        results, errors = await analyzer.execute_query_batch(['query_pattern_analysis'], 30)
-        assert 'query_pattern_analysis' in results
+        results, errors = await analyzer.execute_query_batch(['all_queries_stats'])
+        assert 'all_queries_stats' in results
 
 
 @pytest.mark.asyncio
@@ -453,18 +449,18 @@ async def test_analyze_performance_disabled():
         'output_dir': '/tmp',
     }
 
-    def mock_execute_query_batch(query_names, pattern_analysis_days=None):
+    def mock_execute_query_batch(query_names):
         if 'performance_schema_check' in query_names:
             return (
                 {'performance_schema_check': {'description': 'Check', 'data': [{'': '0'}]}},
                 [],
             )
-        return ({'table_analysis': {'description': 'Tables', 'data': []}}, [])
+        return ({'comprehensive_table_analysis': {'description': 'Tables', 'data': []}}, [])
 
     with patch.object(MySQLAnalyzer, 'execute_query_batch', side_effect=mock_execute_query_batch):
         result = await MySQLAnalyzer.analyze(connection_params)
         assert not result['performance_enabled']
-        assert 'query_pattern_analysis' in result['skipped_queries']
+        assert 'all_queries_stats' in result['skipped_queries']
 
 
 @pytest.mark.asyncio
@@ -484,9 +480,9 @@ async def test_analyze_performance_enabled():
         MySQLAnalyzer,
         'execute_query_batch',
         side_effect=[
-            ({'table_analysis': {'description': 'Tables', 'data': []}}, []),
+            ({'comprehensive_table_analysis': {'description': 'Tables', 'data': []}}, []),
             ({'performance_schema_check': {'description': 'Check', 'data': [{'': '1'}]}}, []),
-            ({'query_pattern_analysis': {'description': 'Patterns', 'data': []}}, []),
+            ({'all_queries_stats': {'description': 'Patterns', 'data': []}}, []),
         ],
     ):
         result = await MySQLAnalyzer.analyze(connection_params)
