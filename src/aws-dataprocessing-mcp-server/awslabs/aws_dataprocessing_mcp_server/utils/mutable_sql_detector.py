@@ -52,7 +52,6 @@ DDL_REGEX = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 
-
 def detect_mutating_keywords(sql: str) -> list[str]:
     """Return a list of mutating keywords found in the SQL (excluding comments)."""
     matched = []
