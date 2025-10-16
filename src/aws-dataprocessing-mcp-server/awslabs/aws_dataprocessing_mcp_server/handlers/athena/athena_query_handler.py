@@ -34,7 +34,9 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.mutable_sql_detector import detect_mutating_keywords
+from awslabs.aws_dataprocessing_mcp_server.utils.mutable_sql_detector import (
+    detect_mutating_keywords,
+)
 from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 from pydantic import Field
@@ -220,7 +222,7 @@ class AthenaQueryHandler:
 
                 matched = detect_mutating_keywords(query_string)
                 if not self.allow_write and matched:
-                    error_message = f"Mutating operations: {matched} are not allowed when write access is disabled"
+                    error_message = f'Mutating operations: {matched} are not allowed when write access is disabled'
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
                     return StartQueryExecutionResponse(
