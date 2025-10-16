@@ -391,6 +391,124 @@ class TestExecuteProtectedStatement:
                 'target-cluster', 'test-db', 'SELECT 1', allow_read_write=False
             )
 
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_user_sql_fails_end_succeeds(self, mocker):
+        """Test user SQL fails but END succeeds - should raise user SQL error."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+
+        # Mock _execute_statement to fail for user SQL, succeed for BEGIN and END
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        def execute_side_effect(cluster_info, cluster_identifier, database_name, sql, **kwargs):
+            if sql == 'BEGIN READ ONLY;':
+                return 'begin-stmt-id'
+            elif sql == 'SELECT invalid_syntax':
+                raise Exception('SQL syntax error')
+            elif sql == 'END;':
+                return 'end-stmt-id'
+            return 'stmt-id'
+
+        mock_execute_statement.side_effect = execute_side_effect
+
+        with pytest.raises(Exception, match='SQL syntax error'):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', 'SELECT invalid_syntax', allow_read_write=False
+            )
+
+        # Verify END was still called
+        assert mock_execute_statement.call_count == 3
+        calls = mock_execute_statement.call_args_list
+        assert calls[0][1]['sql'] == 'BEGIN READ ONLY;'
+        assert calls[1][1]['sql'] == 'SELECT invalid_syntax'
+        assert calls[2][1]['sql'] == 'END;'
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_user_sql_succeeds_end_fails(self, mocker):
+        """Test user SQL succeeds but END fails - should raise END error."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+
+        # Mock _execute_statement to succeed for user SQL, fail for END
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        def execute_side_effect(cluster_info, cluster_identifier, database_name, sql, **kwargs):
+            if sql == 'BEGIN READ ONLY;':
+                return 'begin-stmt-id'
+            elif sql == 'SELECT 1':
+                return 'user-stmt-id'
+            elif sql == 'END;':
+                raise Exception('END statement failed')
+            return 'stmt-id'
+
+        mock_execute_statement.side_effect = execute_side_effect
+
+        with pytest.raises(Exception, match='END statement failed'):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+            )
+
+    @pytest.mark.asyncio
+    async def test_execute_protected_statement_both_user_sql_and_end_fail(self, mocker):
+        """Test both user SQL and END fail - should raise combined error."""
+        # Mock discover_clusters
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned'}
+        ]
+
+        # Mock session manager
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+
+        # Mock _execute_statement to fail for both user SQL and END
+        mock_execute_statement = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement'
+        )
+
+        def execute_side_effect(cluster_info, cluster_identifier, database_name, sql, **kwargs):
+            if sql == 'BEGIN READ ONLY;':
+                return 'begin-stmt-id'
+            elif sql == 'SELECT invalid_syntax':
+                raise Exception('SQL syntax error')
+            elif sql == 'END;':
+                raise Exception('END statement failed')
+            return 'stmt-id'
+
+        mock_execute_statement.side_effect = execute_side_effect
+
+        with pytest.raises(
+            Exception,
+            match='User SQL failed: SQL syntax error; END statement failed: END statement failed',
+        ):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', 'SELECT invalid_syntax', allow_read_write=False
+            )
+
 
 class TestExecuteStatement:
     """Tests for _execute_statement function."""
