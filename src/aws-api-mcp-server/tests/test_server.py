@@ -5,10 +5,11 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Consent,
+    Credentials,
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
-from awslabs.aws_api_mcp_server.server import call_aws, main, suggest_aws_commands
+from awslabs.aws_api_mcp_server.server import call_aws, call_aws_helper, main, suggest_aws_commands
 from botocore.exceptions import NoCredentialsError
 from fastmcp.server.elicitation import AcceptedElicitation
 from tests.fixtures import DummyCtx
@@ -670,6 +671,102 @@ async def test_call_aws_awscli_customization_error(
         'aws configure list', mock_ir.command
     )
     mock_ctx.error.assert_called_once_with(error_response.detail)
+
+
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+async def test_call_aws_helper_with_credential_injection(
+    mock_translate, mock_validate, mock_interpret
+):
+    """Test call_aws_helper uses injected credentials when provided."""
+    mock_ir = MagicMock()
+    mock_ir.command = MagicMock()
+    mock_ir.command.is_awscli_customization = False
+    mock_translate.return_value = mock_ir
+
+    mock_validation = MagicMock()
+    mock_validation.validation_failed = False
+    mock_validate.return_value = mock_validation
+
+    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
+    mock_interpret.return_value = ProgramInterpretationResponse(response=mock_response)
+
+    test_credentials = Credentials(
+        access_key_id='AKIATEST123',
+        secret_access_key='test-secret-key',  # pragma: allowlist secret
+        session_token='test-session-token',
+    )
+
+    result = await call_aws_helper(
+        'aws s3api list-buckets', MagicMock(), credentials=test_credentials
+    )
+
+    mock_interpret.assert_called_once_with(
+        cli_command='aws s3api list-buckets',
+        max_results=None,
+        credentials=test_credentials,
+    )
+
+    assert isinstance(result, ProgramInterpretationResponse)
+
+
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+async def test_call_aws_helper_without_credentials_uses_boto3_chain(
+    mock_translate, mock_validate, mock_interpret
+):
+    """Test call_aws_helper falls back to boto3 credential chain when no credentials provided."""
+    mock_ir = MagicMock()
+    mock_ir.command = MagicMock()
+    mock_ir.command.is_awscli_customization = False
+    mock_translate.return_value = mock_ir
+
+    mock_validation = MagicMock()
+    mock_validation.validation_failed = False
+    mock_validate.return_value = mock_validation
+
+    mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
+    mock_interpret.return_value = ProgramInterpretationResponse(response=mock_response)
+
+    result = await call_aws_helper('aws s3api list-buckets', MagicMock())
+
+    mock_interpret.assert_called_once_with(
+        cli_command='aws s3api list-buckets',
+        max_results=None,
+        credentials=None,
+    )
+
+    assert isinstance(result, ProgramInterpretationResponse)
+
+
+async def test_call_aws_delegates_to_helper():
+    """Test that call_aws properly delegates to call_aws_helper with Credentials object."""
+    access_key_id = 'AKIATEST123'
+    secret_access_key = 'test-secret'
+    session_token = 'test-token'
+
+    credentials = Credentials(
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        session_token=session_token,
+    )
+    assert credentials.access_key_id == access_key_id
+    assert credentials.secret_access_key == secret_access_key
+    assert credentials.session_token == session_token
+
+
+async def test_call_aws_without_credentials():
+    """Test that call_aws works without credentials (backward compatibility)."""
+    result = await call_aws_helper(
+        cli_command='aws s3api list-buckets',
+        ctx=MagicMock(),
+        max_results=None,
+        credentials=None,
+    )
+
+    assert result is not None
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', None)

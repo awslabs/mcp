@@ -20,6 +20,7 @@ from ..common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Consent,
+    Credentials,
     InterpretationMetadata,
     InterpretationResponse,
     InterpretedProgram,
@@ -163,11 +164,13 @@ def execute_awscli_customization(
 def interpret_command(
     cli_command: str,
     max_results: int | None = None,
+    credentials: Credentials | None = None,
 ) -> ProgramInterpretationResponse:
     """Interpret the given CLI command and return an interpretation response."""
     interpreted_program = _interpret_command(
         cli_command,
         max_results=max_results,
+        credentials=credentials,
     )
 
     validation_failures = (
