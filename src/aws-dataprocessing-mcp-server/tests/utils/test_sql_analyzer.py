@@ -281,6 +281,7 @@ class TestSqlAnalyzer:
         assert not SqlAnalyzer.is_read_only_query(None)
         assert not SqlAnalyzer.is_read_only_query('')
         assert not SqlAnalyzer.is_read_only_query('   ')
+        assert not SqlAnalyzer.is_read_only_query(';')
 
         # Unknown statements
         assert not SqlAnalyzer.is_read_only_query('UNKNOWN_STATEMENT')
@@ -336,6 +337,7 @@ class TestSqlAnalyzer:
         assert SqlAnalyzer.get_query_type(None) == 'UNKNOWN'
         assert SqlAnalyzer.get_query_type('') == 'UNKNOWN'
         assert SqlAnalyzer.get_query_type('   ') == 'UNKNOWN'
+        assert SqlAnalyzer.get_query_type(';') == 'UNKNOWN'
 
         # Only comments
         assert SqlAnalyzer.get_query_type('/* only comment */') == 'UNKNOWN'
