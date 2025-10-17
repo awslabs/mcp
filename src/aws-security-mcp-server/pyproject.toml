@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aws-security-mcp-server"
+version = "0.1.0"
+description = "MCP Server for AWS Security services (GuardDuty and Security Hub)"
+authors = [
+    {name = "AWS Labs", email = "aws-mcp-servers@amazon.com"}
+]
+license = {text = "Apache-2.0"}
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["mcp", "aws", "security", "guardduty", "securityhub"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "mcp>=1.0.0",
+    "boto3>=1.34.0",
+    "pydantic>=2.0.0",
+    "loguru>=0.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+]
+
+[project.scripts]
+aws-security-mcp-server = "awslabs.aws_security_mcp_server.server:cli_main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=awslabs.aws_security_mcp_server --cov-report=term-missing --cov-branch"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["awslabs/aws_security_mcp_server"]
+omit = ["tests/*"]
