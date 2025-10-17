@@ -45,6 +45,7 @@ from .canary_utils import (
     get_canary_metrics_and_service_insights,
 )
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
+from .enablement_tools import enable_application_signals
 from .service_tools import (
     get_service_detail,
     list_monitored_services,
@@ -1327,6 +1328,7 @@ async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) ->
 
 
 # Register all imported tools with the MCP server
+mcp.tool()(enable_application_signals)
 mcp.tool()(list_monitored_services)
 mcp.tool()(get_service_detail)
 mcp.tool()(query_service_metrics)
