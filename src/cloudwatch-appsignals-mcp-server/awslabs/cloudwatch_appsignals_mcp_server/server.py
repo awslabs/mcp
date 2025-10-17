@@ -33,6 +33,16 @@ from .aws_clients import (
     s3_client,
     synthetics_client,
 )
+from .batch_processing_utils import (
+    create_batch_session,
+    format_batch_result,
+    get_batch_session,
+    process_next_batch,
+)
+from .batch_tools import (
+    cleanup_audit_sessions,
+    continue_audit_batch,
+)
 from .canary_utils import (
     analyze_canary_logs_with_time_window,
     analyze_har_file,
@@ -64,6 +74,7 @@ from typing import Optional
 
 # Constants
 BATCH_SIZE_THRESHOLD = 5
+AUDIT_SERVICE_BATCH_SIZE_THRESHOLD = 10
 
 RUN_STATES = {'RUNNING': 'RUNNING', 'PASSED': 'PASSED', 'FAILED': 'FAILED'}
 
@@ -166,6 +177,11 @@ async def audit_services(
 ) -> str:
     """PRIMARY SERVICE AUDIT TOOL - The #1 tool for comprehensive AWS service health auditing and monitoring.
 
+    **🚨 CRITICAL: When findings are discovered, ALWAYS ASK USER TO CHOOSE:**
+    - **Option A: Investigate specific finding** (deep dive with auditors="all")
+    - **Option B: Continue processing** (use continue_audit_batch())
+    **DO NOT auto-continue when findings exist - WAIT for user decision**
+
     **IMPORTANT: For operation-specific auditing, use audit_service_operations() as the PRIMARY tool instead.**
 
     **USE THIS FIRST FOR ALL SERVICE-LEVEL AUDITING TASKS**
@@ -263,11 +279,16 @@ async def audit_services(
     **TYPICAL SERVICE AUDIT WORKFLOWS:**
     1. **Basic Service Audit** (most common):
        - Call `audit_services()` with service targets - automatically discovers services when using wildcard patterns
+       - For large service lists (>5 services), uses interactive batch processing
+       - Returns results of each batch
+       - If services in batch look normal, continue with `continue_audit_batch()`
+       - If audit returns findings/issues, ASK USER TO CHOOSE: investigate or continue
        - Uses default fast auditors (slo,operation_metric) for quick health overview
        - Supports wildcard patterns like `*` or `*payment*` for automatic service discovery
     2. **Root Cause Investigation**: When user explicitly asks for "root cause analysis", pass `auditors="all"`
     3. **Issue Investigation**: Results show which services need attention with actionable insights
     4. **Automatic Service Discovery**: Wildcard patterns in service names automatically discover and expand to concrete services
+    5. **Interactive Batch Processing**: For large target lists, process in batches and interactively ask user to proceed
 
     **AUDIT RESULTS INCLUDE:**
     - **Prioritized findings** by severity (critical, warning, info)
@@ -279,19 +300,35 @@ async def audit_services(
     **IMPORTANT: This tool provides comprehensive service audit coverage and should be your first choice for any service auditing task.**
 
     **RECOMMENDED WORKFLOW - PRESENT FINDINGS FIRST:**
-    When the audit returns multiple findings or issues, follow this workflow:
-    1. **Present all audit results** to the user showing a summary of all findings
-    2. **Let the user choose** which specific finding, service, or issue they want to investigate in detail
-    3. **Then perform targeted root cause analysis** using auditors="all" for the user-selected finding
+    **For Large Service Lists (>5 services):**
+    1. **audit_services() automatically starts interactive batch processing**
+    2. **System processes first batch and shows full JSON findings** for MCP observation
+    3. **🚨 IF BATCH HAS FINDINGS/ISSUES - MANDATORY WORKFLOW:**
+       1. **STOP processing immediately**
+       2. **Present complete audit findings** in clear summary format
+       3. **ASK USER TO CHOOSE:** Investigate specific finding OR continue processing
+       4. **WAIT for user decision** - Do not auto-continue
+       5. **If investigating:** Follow-up call with `auditors="all"` for user-selected finding only
+       6. **If continuing:** Use `continue_audit_batch()` to process next batch
+    4. **✅ If batch looks healthy (NO findings):**
+       - Use `continue_audit_batch(session_id)` to process next batch immediately
+    5. **When all services processed, conclude the audit results in all batches**
 
-    **DO NOT automatically jump into detailed root cause analysis** of one specific issue when multiple findings exist.
-    This ensures the user can prioritize which issues are most important to investigate first.
+    **For Small Service Lists (≤5 services):**
+    1. **Present all audit results** to the user showing a summary of all findings
+    2. **🚨 IF FINDINGS EXIST:** Ask user to choose which specific finding to investigate
+    3. **WAIT for user decision** before performing targeted root cause analysis
+    4. **Then perform targeted root cause analysis** using auditors="all" for user-selected finding
 
     **Example workflow:**
-    - First call: `audit_services()` with default auditors for overview
-    - Present findings summary to user
-    - User selects specific service/issue to investigate
-    - Follow-up call: `audit_services()` with `auditors="all"` for selected service only
+    1. First call: `audit_services()` with default auditors for overview → Returns batch session with first batch results and findings
+    2. **🚨 IF FINDINGS DISCOVERED:** Present findings summary to user and ask for choice
+    3. **WAIT for user decision:** User selects specific service/issue to investigate OR user chooses to continue processing
+    4. **If investigating:** Follow-up call: `audit_services()` with `auditors="all"` for selected service only
+    5. **If continuing:** `continue_audit_batch(session_id)` → Process next batch
+    6. **Repeat:** Continue batch processing cycle with user choice at each step when findings exist
+    7. **Conclude:** When all services processed, summarize audit results from all batches
+    8. **Cleanup:** After completing full audit, call `cleanup_audit_sessions()` to free memory resources
     """
     start_time_perf = timer()
     logger.debug('Starting audit_services (PRIMARY SERVICE AUDIT TOOL)')
@@ -379,8 +416,8 @@ async def audit_services(
             f'⏰ Time: {unix_start}–{unix_end}\n'
         )
 
-        if len(normalized_targets) > BATCH_SIZE_THRESHOLD:
-            banner += f'📦 Batching: Processing {len(normalized_targets)} targets in batches of {BATCH_SIZE_THRESHOLD}\n'
+        if len(normalized_targets) > AUDIT_SERVICE_BATCH_SIZE_THRESHOLD:
+            banner += f'📦 Batching: Processing {len(normalized_targets)} targets in batches of {AUDIT_SERVICE_BATCH_SIZE_THRESHOLD}\n'
 
         banner += '\n'
 
@@ -393,12 +430,43 @@ async def audit_services(
         if auditors_list:
             input_obj['Auditors'] = auditors_list
 
-        # Execute audit API using shared utility
-        result = await execute_audit_api(input_obj, region, banner)
+        # Interactive Batch Processing Logic
+        if len(normalized_targets) > AUDIT_SERVICE_BATCH_SIZE_THRESHOLD:
+            # Create interactive batch session for large target lists
+            session_id = create_batch_session(
+                targets=normalized_targets,
+                input_obj=input_obj,
+                region=region,
+                banner=banner,
+                batch_size=AUDIT_SERVICE_BATCH_SIZE_THRESHOLD,
+                auto_complete=None,  # Auto-decide based on target count
+            )
 
-        elapsed = timer() - start_time_perf
-        logger.debug(f'audit_services completed in {elapsed:.3f}s (region={region})')
-        return result
+            # Process first batch
+            batch_result = process_next_batch(session_id, appsignals_client)
+            session = get_batch_session(session_id)
+
+            if batch_result.get('error'):
+                return f'Error processing first batch: {batch_result["error"]}'
+
+            # Format and return interactive batch result
+            if session is not None:
+                formatted_result = banner + format_batch_result(batch_result, session)
+            else:
+                formatted_result = banner + 'Error: Session not found for batch processing'
+
+            elapsed = timer() - start_time_perf
+            logger.debug(
+                f'audit_services (interactive batch mode) completed first batch in {elapsed:.3f}s (region={region})'
+            )
+            return formatted_result
+        else:
+            # Execute audit API using shared utility for small target lists
+            result = await execute_audit_api(input_obj, region, banner)
+
+            elapsed = timer() - start_time_perf
+            logger.debug(f'audit_services completed in {elapsed:.3f}s (region={region})')
+            return result
 
     except Exception as e:
         logger.error(f'Unexpected error in audit_services: {e}', exc_info=True)
@@ -1337,6 +1405,10 @@ mcp.tool()(search_transaction_spans)
 mcp.tool()(query_sampled_traces)
 mcp.tool()(list_slis)
 mcp.tool()(analyze_canary_failures)
+
+# Register batch processing tools
+mcp.tool()(continue_audit_batch)
+mcp.tool()(cleanup_audit_sessions)
 
 
 def main():

@@ -588,10 +588,37 @@ analyze_canary_failures(canary_name="webapp-erorrpagecanary")
 
 ## Recommended Workflows
 
-### 🎯 Primary Audit Workflow (Most Common)
+### 🎯 Primary Service Audit Workflow (Interactive Batch Processing)
+
+#### **For Large Service Lists (>10 services) - Interactive Batch Mode:**
 1. **Start with `audit_services()`** - Use wildcard patterns for automatic service discovery
-2. **Review findings summary** - Let user choose which issues to investigate further
-3. **Deep dive with `auditors="all"`** - For selected services needing root cause analysis
+   ```
+   audit_services(service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*"}}}]')
+   ```
+2. **System automatically starts batch processing** - Processes first batch of 10 services
+3. **🚨 CRITICAL: When findings are discovered in a batch:**
+   - **STOP processing immediately**
+   - **Present complete audit findings** to user in clear summary
+   - **ALWAYS ASK USER TO CHOOSE:**
+     - **Option A:** Investigate specific finding with `auditors="all"`
+     - **Option B:** Continue processing with `continue_audit_batch(session_id)`
+   - **WAIT for user decision** - Never auto-continue when findings exist
+4. **✅ When batch has NO findings (all services healthy):**
+   - **Auto-continue** to next batch with `continue_audit_batch(session_id)`
+5. **Repeat** batch processing cycle with user choice at each step when findings exist
+6. **When all services processed** - Summarize audit results from all batches
+7. **Cleanup after completion** - Call `cleanup_audit_sessions()` to free memory resources
+
+#### **For Small Service Lists (≤10 services) - Direct Processing:**
+1. **Start with `audit_services()`** - Processes all services immediately
+2. **Present all audit results** showing summary of findings
+3. **🚨 IF FINDINGS EXIST:** Ask user which specific finding to investigate
+4. **WAIT for user decision** before performing targeted root cause analysis
+5. **Targeted investigation** - Use `auditors="all"` for user-selected finding only
+
+#### **Available Batch Management Tools:**
+- **`continue_audit_batch(session_id)`** - Continue to next batch in active session
+- **`cleanup_audit_sessions()`** - Clean up all batch sessions and free memory
 
 ### 🔍 SLO Investigation Workflow
 1. **Use `get_slo()`** - Understand SLO configuration and thresholds

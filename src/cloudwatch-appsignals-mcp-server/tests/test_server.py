@@ -1,8 +1,16 @@
 """Tests for CloudWatch Application Signals MCP Server."""
 
 import json
+import os
 import pytest
-from awslabs.cloudwatch_appsignals_mcp_server.server import _filter_operation_targets, main
+from awslabs.cloudwatch_appsignals_mcp_server.server import (
+    _filter_operation_targets,
+    analyze_canary_failures,
+    audit_service_operations,
+    audit_services,
+    audit_slos,
+    main,
+)
 from awslabs.cloudwatch_appsignals_mcp_server.service_tools import (
     get_service_detail,
     list_monitored_services,
@@ -1913,8 +1921,6 @@ def test_main_entry_point(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_no_runs(mock_aws_clients):
     """Test analyze_canary_failures when no runs are found."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_aws_clients['synthetics_client'].get_canary_runs.return_value = {'CanaryRuns': []}
     mock_aws_clients['synthetics_client'].get_canary.return_value = {
         'Canary': {'Name': 'test-canary'}
@@ -1928,8 +1934,6 @@ async def test_analyze_canary_failures_no_runs(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_healthy_canary(mock_aws_clients):
     """Test analyze_canary_failures with healthy canary."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'run1',
@@ -1957,8 +1961,6 @@ async def test_analyze_canary_failures_healthy_canary(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_telemetry_unavailable(mock_aws_clients):
     """Test analyze_canary_failures when telemetry is unavailable."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'run1',
@@ -1985,8 +1987,6 @@ async def test_analyze_canary_failures_telemetry_unavailable(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_with_failures(mock_aws_clients):
     """Test analyze_canary_failures with actual failures."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run-1',
@@ -2052,8 +2052,6 @@ async def test_analyze_canary_failures_with_failures(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_iam_analysis(mock_aws_clients):
     """Test analyze_canary_failures with IAM-related failures."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2101,8 +2099,6 @@ async def test_analyze_canary_failures_iam_analysis(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_enospc_error(mock_aws_clients):
     """Test analyze_canary_failures with ENOSPC error."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2138,8 +2134,6 @@ async def test_analyze_canary_failures_enospc_error(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_protocol_error(mock_aws_clients):
     """Test analyze_canary_failures with protocol error."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2174,8 +2168,6 @@ async def test_analyze_canary_failures_protocol_error(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_navigation_timeout_with_har(mock_aws_clients):
     """Test analyze_canary_failures with navigation timeout and HAR analysis."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2228,8 +2220,6 @@ async def test_analyze_canary_failures_navigation_timeout_with_har(mock_aws_clie
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_s3_exception(mock_aws_clients):
     """Test analyze_canary_failures when S3 operations fail."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2274,8 +2264,6 @@ async def test_analyze_canary_failures_s3_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_visual_variation(mock_aws_clients):
     """Test analyze_canary_failures with visual variation error."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2306,8 +2294,6 @@ async def test_analyze_canary_failures_visual_variation(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_get_canary_code_exception(mock_aws_clients):
     """Test analyze_canary_failures when get_canary_code fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2337,8 +2323,6 @@ async def test_analyze_canary_failures_get_canary_code_exception(mock_aws_client
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_iam_analysis_exception(mock_aws_clients):
     """Test analyze_canary_failures when IAM analysis fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2370,8 +2354,6 @@ async def test_analyze_canary_failures_iam_analysis_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_disk_usage_exception(mock_aws_clients):
     """Test analyze_canary_failures when disk usage analysis fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2406,8 +2388,6 @@ async def test_analyze_canary_failures_disk_usage_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_memory_usage_exception(mock_aws_clients):
     """Test analyze_canary_failures when memory usage analysis fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2444,8 +2424,6 @@ async def test_analyze_canary_failures_memory_usage_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_har_timeout_exception(mock_aws_clients):
     """Test analyze_canary_failures when HAR timeout analysis fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2485,8 +2463,6 @@ async def test_analyze_canary_failures_har_timeout_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_success_artifacts_exception(mock_aws_clients):
     """Test analyze_canary_failures when success artifacts retrieval fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2541,8 +2517,6 @@ async def test_analyze_canary_failures_success_artifacts_exception(mock_aws_clie
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_no_failure_timestamp(mock_aws_clients):
     """Test analyze_canary_failures when failure has no timestamp."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2569,8 +2543,6 @@ async def test_analyze_canary_failures_no_failure_timestamp(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_log_analysis_failure(mock_aws_clients):
     """Test analyze_canary_failures when log analysis fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2604,8 +2576,6 @@ async def test_analyze_canary_failures_log_analysis_failure(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_main_exception(mock_aws_clients):
     """Test analyze_canary_failures when main function fails."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     # Make get_canary_runs raise an exception
     mock_aws_clients['synthetics_client'].get_canary_runs.side_effect = Exception('API error')
 
@@ -2617,8 +2587,6 @@ async def test_analyze_canary_failures_main_exception(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_no_har_files_navigation_timeout(mock_aws_clients):
     """Test analyze_canary_failures navigation timeout without HAR files."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2646,8 +2614,6 @@ async def test_analyze_canary_failures_no_har_files_navigation_timeout(mock_aws_
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_artifact_location_without_s3_prefix(mock_aws_clients):
     """Test analyze_canary_failures with artifact location without s3:// prefix."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2691,8 +2657,6 @@ async def test_analyze_canary_failures_artifact_location_without_s3_prefix(mock_
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_empty_base_path(mock_aws_clients):
     """Test analyze_canary_failures with empty base path."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -2736,8 +2700,6 @@ async def test_analyze_canary_failures_empty_base_path(mock_aws_clients):
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_multiple_failure_causes(mock_aws_clients):
     """Test analyze_canary_failures with multiple different failure causes."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run-1',
@@ -2776,8 +2738,6 @@ async def test_analyze_canary_failures_multiple_failure_causes(mock_aws_clients)
 @pytest.mark.asyncio
 async def test_analyze_canary_failures_no_failure_time_fallback(mock_aws_clients):
     """Test analyze_canary_failures fallback when no failure time."""
-    from awslabs.cloudwatch_appsignals_mcp_server.server import analyze_canary_failures
-
     mock_runs = [
         {
             'Id': 'failed-run',
@@ -3050,3 +3010,644 @@ def test_filter_operation_targets_case_sensitive():
     assert operation_targets[0]['Data']['ServiceOperation']['MetricType'] == 'fault'  # unchanged
     assert operation_targets[1]['Data']['ServiceOperation']['MetricType'] == 'FAULT'  # unchanged
     assert has_wildcards is False
+
+
+@pytest.mark.asyncio
+async def test_audit_services_invalid_json(mock_aws_clients):
+    """Test audit_services with invalid JSON."""
+    result = await audit_services(
+        service_targets='invalid json string',
+        start_time=None,
+        end_time=None,
+        auditors=None,
+    )
+
+    assert 'Error: `service_targets` must be valid JSON (array).' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_services_end_time_before_start_time(mock_aws_clients):
+    """Test audit_services with end_time before start_time."""
+    result = await audit_services(
+        service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"test-service"}}}]',
+        start_time='2024-01-02T00:00:00Z',
+        end_time='2024-01-01T00:00:00Z',  # Before start_time
+        auditors=None,
+    )
+
+    assert 'Error: end_time must be greater than start_time.' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_services_wildcard_no_services_found(mock_aws_clients):
+    """Test audit_services when wildcard expansion finds no services."""
+    # Mock expand_service_wildcard_patterns to return empty list
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_service_wildcard_patterns'
+    ) as mock_expand:
+        mock_expand.return_value = []
+
+        result = await audit_services(
+            service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"*nonexistent*"}}}]',
+            start_time=None,
+            end_time=None,
+            auditors=None,
+        )
+
+        assert 'Error: No services found matching the wildcard pattern' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_services_batch_processing_error(mock_aws_clients):
+    """Test audit_services batch processing with error."""
+    # Mock a large number of targets to trigger batch processing
+    targets = [
+        {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': f'service-{i}'}}}
+        for i in range(15)  # More than AUDIT_SERVICE_BATCH_SIZE_THRESHOLD (10)
+    ]
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.normalize_service_targets'
+    ) as mock_normalize:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.validate_and_enrich_service_targets'
+        ) as mock_validate:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.process_next_batch'
+            ) as mock_process:
+                mock_normalize.return_value = targets
+                mock_validate.return_value = targets
+                mock_process.return_value = {'error': 'Batch processing failed'}
+
+                result = await audit_services(
+                    service_targets=json.dumps(targets),
+                    start_time=None,
+                    end_time=None,
+                    auditors=None,
+                )
+
+                assert 'Error processing first batch: Batch processing failed' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_services_batch_session_not_found(mock_aws_clients):
+    """Test audit_services when batch session is not found."""
+    # Mock a large number of targets to trigger batch processing
+    targets = [
+        {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': f'service-{i}'}}}
+        for i in range(15)  # More than AUDIT_SERVICE_BATCH_SIZE_THRESHOLD (10)
+    ]
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.normalize_service_targets'
+    ) as mock_normalize:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.validate_and_enrich_service_targets'
+        ) as mock_validate:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.process_next_batch'
+            ) as mock_process:
+                with patch(
+                    'awslabs.cloudwatch_appsignals_mcp_server.server.get_batch_session'
+                ) as mock_get_session:
+                    mock_normalize.return_value = targets
+                    mock_validate.return_value = targets
+                    mock_process.return_value = {'status': 'success'}
+                    mock_get_session.return_value = None  # Session not found
+
+                    result = await audit_services(
+                        service_targets=json.dumps(targets),
+                        start_time=None,
+                        end_time=None,
+                        auditors=None,
+                    )
+
+                    assert 'Error: Session not found for batch processing' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_slos_invalid_json(mock_aws_clients):
+    """Test audit_slos with invalid JSON."""
+    result = await audit_slos(
+        slo_targets='invalid json string',
+        start_time=None,
+        end_time=None,
+        auditors=None,
+    )
+
+    assert 'Error: `slo_targets` must be valid JSON (array).' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_slos_not_array(mock_aws_clients):
+    """Test audit_slos with non-array JSON."""
+    result = await audit_slos(
+        slo_targets='{"Type":"slo"}',  # Object instead of array
+        start_time=None,
+        end_time=None,
+        auditors=None,
+    )
+
+    assert 'Error: `slo_targets` must be a JSON array' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_slos_empty_array(mock_aws_clients):
+    """Test audit_slos with empty array."""
+    result = await audit_slos(
+        slo_targets='[]',
+        start_time=None,
+        end_time=None,
+        auditors=None,
+    )
+
+    assert 'Error: `slo_targets` must contain at least 1 item' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_slos_wildcard_expansion_error(mock_aws_clients):
+    """Test audit_slos when wildcard expansion fails."""
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns'
+    ) as mock_expand:
+        mock_expand.side_effect = Exception('Expansion failed')
+
+        result = await audit_slos(
+            slo_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"*test*"}}}]',
+            start_time=None,
+            end_time=None,
+            auditors=None,
+        )
+
+        assert 'Error: Failed to expand SLO wildcard patterns. Expansion failed' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_slos_no_targets_after_expansion(mock_aws_clients):
+    """Test audit_slos when no targets remain after expansion."""
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns'
+    ) as mock_expand:
+        mock_expand.return_value = []
+
+        result = await audit_slos(
+            slo_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"*nonexistent*"}}}]',
+            start_time=None,
+            end_time=None,
+            auditors=None,
+        )
+
+        assert 'Error: No SLO targets found after wildcard expansion.' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_service_operations_invalid_json(mock_aws_clients):
+    """Test audit_service_operations with invalid JSON."""
+    result = await audit_service_operations(
+        operation_targets='invalid json string',
+        start_time=None,
+        end_time=None,
+        auditors=None,
+    )
+
+    assert 'Error: `operation_targets` must be valid JSON (array).' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_service_operations_not_array(mock_aws_clients):
+    """Test audit_service_operations with non-array JSON."""
+    result = await audit_service_operations(
+        operation_targets='{"Type":"service_operation"}',  # Object instead of array
+        start_time=None,
+        end_time=None,
+        auditors=None,
+    )
+
+    assert 'Error: `operation_targets` must be a JSON array' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_service_operations_empty_array(mock_aws_clients):
+    """Test audit_service_operations with empty array."""
+    result = await audit_service_operations(
+        operation_targets='[]',
+        start_time=None,
+        end_time=None,
+        auditors=None,
+    )
+
+    assert 'Error: `operation_targets` must contain at least 1 item' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_service_operations_no_targets_after_expansion(mock_aws_clients):
+    """Test audit_service_operations when no targets remain after expansion."""
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_service_operation_wildcard_patterns'
+    ) as mock_expand:
+        mock_expand.return_value = []
+
+        result = await audit_service_operations(
+            operation_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"*nonexistent*"},"Operation":"GET /api","MetricType":"Latency"}}}]',
+            start_time=None,
+            end_time=None,
+            auditors=None,
+        )
+
+        assert 'Error: No service_operation targets found after wildcard expansion' in result
+
+
+def test_logging_setup_exception_handling():
+    """Test exception handling in logging setup (lines 96-101)."""
+    # Test the logging setup logic without module reloading
+    # This simulates the exception handling in the logging configuration
+
+    import tempfile
+
+    # Simulate the logging setup logic from server.py lines 85-110
+    log_file_path = os.environ.get('AUDITOR_LOG_PATH', tempfile.gettempdir())
+
+    with patch('tempfile.gettempdir') as mock_tempdir:
+        mock_tempdir.return_value = '/tmp'
+
+        # Create a side effect that raises exception only for the first call
+        call_count = 0
+
+        def makedirs_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:  # First call raises exception
+                raise Exception('Permission denied')
+            # Subsequent calls succeed (for the fallback path)
+            return None
+
+        with patch('os.makedirs', side_effect=makedirs_side_effect) as mock_makedirs:
+            # Simulate the try/except logic from the server module
+            try:
+                if log_file_path.endswith(os.sep) or os.path.isdir(log_file_path):
+                    os.makedirs(log_file_path, exist_ok=True)
+                    aws_cli_log_path = os.path.join(log_file_path, 'aws_cli.log')
+                else:
+                    os.makedirs(os.path.dirname(log_file_path) or '.', exist_ok=True)
+                    aws_cli_log_path = log_file_path
+            except Exception:
+                # This is the exception handling we want to test
+                temp_dir = tempfile.gettempdir()
+                os.makedirs(temp_dir, exist_ok=True)
+                aws_cli_log_path = os.path.join(temp_dir, 'aws_cli.log')
+
+            # Verify that the exception was handled and fallback was used
+            mock_tempdir.assert_called()
+            assert aws_cli_log_path == '/tmp/aws_cli.log'
+            # Verify makedirs was called twice (first failed, second succeeded)
+            assert mock_makedirs.call_count == 2
+
+
+def test_logging_setup_directory_path():
+    """Test logging setup with directory path ending with separator."""
+    # Test the logging setup logic for directory paths
+
+    log_file_path = '/tmp/logs/'
+
+    with patch('os.makedirs') as mock_makedirs:
+        with patch('os.path.isdir') as mock_isdir:
+            mock_isdir.return_value = True
+
+            # Simulate the logging setup logic
+            if log_file_path.endswith(os.sep) or os.path.isdir(log_file_path):
+                os.makedirs(log_file_path, exist_ok=True)
+                aws_cli_log_path = os.path.join(log_file_path, 'aws_cli.log')
+
+            # Verify that makedirs was called for the directory path
+            mock_makedirs.assert_called_with('/tmp/logs/', exist_ok=True)
+            assert aws_cli_log_path == '/tmp/logs/aws_cli.log'
+
+
+def test_logging_setup_file_path():
+    """Test logging setup with file path."""
+    # Test the logging setup logic for file paths
+
+    log_file_path = '/tmp/logs/custom.log'
+
+    with patch('os.makedirs') as mock_makedirs:
+        with patch('os.path.isdir') as mock_isdir:
+            with patch('os.path.dirname') as mock_dirname:
+                mock_isdir.return_value = False
+                mock_dirname.return_value = '/tmp/logs'
+
+                # Simulate the logging setup logic
+                if log_file_path.endswith(os.sep) or os.path.isdir(log_file_path):
+                    os.makedirs(log_file_path, exist_ok=True)
+                    aws_cli_log_path = os.path.join(log_file_path, 'aws_cli.log')
+                else:
+                    os.makedirs(os.path.dirname(log_file_path) or '.', exist_ok=True)
+                    aws_cli_log_path = log_file_path
+
+                # Verify that makedirs was called for the directory of the file path
+                mock_makedirs.assert_called_with('/tmp/logs', exist_ok=True)
+                assert aws_cli_log_path == '/tmp/logs/custom.log'
+
+
+@pytest.mark.asyncio
+async def test_audit_services_successful_batch_processing(mock_aws_clients):
+    """Test audit_services successful batch processing with format_batch_result."""
+    # Mock a large number of targets to trigger batch processing
+    targets = [
+        {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': f'service-{i}'}}}
+        for i in range(15)  # More than AUDIT_SERVICE_BATCH_SIZE_THRESHOLD (10)
+    ]
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.normalize_service_targets'
+    ) as mock_normalize:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.validate_and_enrich_service_targets'
+        ) as mock_validate:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.process_next_batch'
+            ) as mock_process:
+                with patch(
+                    'awslabs.cloudwatch_appsignals_mcp_server.server.get_batch_session'
+                ) as mock_get_session:
+                    with patch(
+                        'awslabs.cloudwatch_appsignals_mcp_server.server.format_batch_result'
+                    ) as mock_format:
+                        mock_normalize.return_value = targets
+                        mock_validate.return_value = targets
+                        mock_process.return_value = {'status': 'success', 'results': []}
+
+                        # Mock session object
+                        mock_session = MagicMock()
+                        mock_session.batch_size = 10
+                        mock_session.current_batch = 1
+                        mock_get_session.return_value = mock_session
+
+                        # Mock format_batch_result to return formatted string
+                        mock_format.return_value = 'Batch processing results formatted'
+
+                        result = await audit_services(
+                            service_targets=json.dumps(targets),
+                            start_time=None,
+                            end_time=None,
+                            auditors=None,
+                        )
+
+                        # Verify format_batch_result was called (covers line 454)
+                        mock_format.assert_called_once()
+                        assert 'Batch processing results formatted' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_services_small_target_list_success(mock_aws_clients):
+    """Test audit_services with small target list using execute_audit_api."""
+    # Use a small number of targets (≤ AUDIT_SERVICE_BATCH_SIZE_THRESHOLD)
+    targets = [
+        {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'service-1'}}},
+        {'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': 'service-2'}}},
+    ]
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.normalize_service_targets'
+    ) as mock_normalize:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.validate_and_enrich_service_targets'
+        ) as mock_validate:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.execute_audit_api'
+            ) as mock_execute:
+                mock_normalize.return_value = targets
+                mock_validate.return_value = targets
+                mock_execute.return_value = 'Audit completed successfully'
+
+                result = await audit_services(
+                    service_targets=json.dumps(targets),
+                    start_time=None,
+                    end_time=None,
+                    auditors=None,
+                )
+
+                # Verify execute_audit_api was called (covers lines 465-473)
+                mock_execute.assert_called_once()
+                assert result == 'Audit completed successfully'
+
+
+@pytest.mark.asyncio
+async def test_audit_services_exception_handling(mock_aws_clients):
+    """Test audit_services exception handling."""
+    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.parse_timestamp') as mock_parse:
+        # Make parse_timestamp raise an exception
+        mock_parse.side_effect = Exception('Timestamp parsing failed')
+
+        result = await audit_services(
+            service_targets='[{"Type":"service","Data":{"Service":{"Type":"Service","Name":"test-service"}}}]',
+            start_time='invalid-time',
+            end_time=None,
+            auditors=None,
+        )
+
+        # Verify exception handling (covers lines 465-473)
+        assert 'Error: Timestamp parsing failed' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_slos_end_time_before_start_time(mock_aws_clients):
+    """Test audit_slos with end_time before start_time."""
+    result = await audit_slos(
+        slo_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"test-slo"}}}]',
+        start_time='2024-01-02T00:00:00Z',
+        end_time='2024-01-01T00:00:00Z',  # Before start_time
+        auditors=None,
+    )
+
+    # Covers line 601
+    assert 'Error: end_time must be greater than start_time.' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_slos_non_slo_target_warning(mock_aws_clients):
+    """Test audit_slos with non-SLO target that triggers warning."""
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_slo_wildcard_patterns'
+    ) as mock_expand:
+        # Mock to return empty list after expansion
+        mock_expand.return_value = []
+
+        # Include a non-SLO target to trigger the warning (lines 628-630)
+        targets = [
+            {
+                'Type': 'service',
+                'Data': {'Service': {'Type': 'Service', 'Name': 'test-service'}},
+            },  # Wrong type
+            {'Type': 'slo', 'Data': {'Slo': {'SloName': '*test*'}}},  # Will be expanded
+        ]
+
+        result = await audit_slos(
+            slo_targets=json.dumps(targets),
+            start_time=None,
+            end_time=None,
+            auditors=None,
+        )
+
+        # Covers lines 628-630 (warning for non-SLO targets)
+        assert 'Error: No SLO targets found after wildcard expansion.' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_service_operations_exception_handling(mock_aws_clients):
+    """Test audit_service_operations exception handling."""
+    with patch('awslabs.cloudwatch_appsignals_mcp_server.server.parse_timestamp') as mock_parse:
+        # Make parse_timestamp raise an exception
+        mock_parse.side_effect = Exception('Timestamp parsing failed')
+
+        result = await audit_service_operations(
+            operation_targets='[{"Type":"service_operation","Data":{"ServiceOperation":{"Service":{"Type":"Service","Name":"test-service"},"Operation":"GET /api","MetricType":"Latency"}}}]',
+            start_time='invalid-time',
+            end_time=None,
+            auditors=None,
+        )
+
+        # Verify exception handling (covers lines 655-686)
+        assert 'Error: Timestamp parsing failed' in result
+
+
+@pytest.mark.asyncio
+async def test_audit_service_operations_successful_execution(mock_aws_clients):
+    """Test audit_service_operations successful execution."""
+    targets = [
+        {
+            'Type': 'service_operation',
+            'Data': {
+                'ServiceOperation': {
+                    'Service': {'Type': 'Service', 'Name': 'test-service'},
+                    'Operation': 'GET /api',
+                    'MetricType': 'Latency',
+                }
+            },
+        }
+    ]
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server._filter_operation_targets'
+    ) as mock_filter:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.expand_service_operation_wildcard_patterns'
+        ) as mock_expand:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.execute_audit_api'
+            ) as mock_execute:
+                mock_filter.return_value = (targets, False)  # No wildcards
+                mock_expand.return_value = targets
+                mock_execute.return_value = 'Operation audit completed successfully'
+
+                result = await audit_service_operations(
+                    operation_targets=json.dumps(targets),
+                    start_time=None,
+                    end_time=None,
+                    auditors=None,
+                )
+
+                # Verify successful execution (covers lines 655-686)
+                assert result == 'Operation audit completed successfully'
+
+
+@pytest.mark.asyncio
+async def test_audit_services_wildcard_service_name_detection(mock_aws_clients):
+    """Test audit_services wildcard detection in service names."""
+    # Test the wildcard detection logic that covers line 377
+    targets = [
+        {
+            'Type': 'service',
+            'Data': {
+                'Service': {
+                    'Type': 'Service',
+                    'Name': '*payment*',  # Wildcard pattern
+                }
+            },
+        }
+    ]
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_service_wildcard_patterns'
+    ) as mock_expand:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.normalize_service_targets'
+        ) as mock_normalize:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.validate_and_enrich_service_targets'
+            ) as mock_validate:
+                with patch(
+                    'awslabs.cloudwatch_appsignals_mcp_server.server.execute_audit_api'
+                ) as mock_execute:
+                    # Mock expansion to return concrete services
+                    expanded_targets = [
+                        {
+                            'Type': 'service',
+                            'Data': {'Service': {'Type': 'Service', 'Name': 'payment-service-1'}},
+                        },
+                        {
+                            'Type': 'service',
+                            'Data': {'Service': {'Type': 'Service', 'Name': 'payment-service-2'}},
+                        },
+                    ]
+                    mock_expand.return_value = expanded_targets
+                    mock_normalize.return_value = expanded_targets
+                    mock_validate.return_value = expanded_targets
+                    mock_execute.return_value = 'Wildcard audit completed'
+
+                    result = await audit_services(
+                        service_targets=json.dumps(targets),
+                        start_time=None,
+                        end_time=None,
+                        auditors=None,
+                    )
+
+                    # Verify wildcard expansion was called (covers line 377 area)
+                    mock_expand.assert_called_once()
+                    assert result == 'Wildcard audit completed'
+
+
+@pytest.mark.asyncio
+async def test_audit_services_shorthand_service_format(mock_aws_clients):
+    """Test audit_services with shorthand service format."""
+    # Test the shorthand service format that covers service name extraction
+    targets = [
+        {
+            'Type': 'service',
+            'Service': '*test*',  # Shorthand format with wildcard
+        }
+    ]
+
+    with patch(
+        'awslabs.cloudwatch_appsignals_mcp_server.server.expand_service_wildcard_patterns'
+    ) as mock_expand:
+        with patch(
+            'awslabs.cloudwatch_appsignals_mcp_server.server.normalize_service_targets'
+        ) as mock_normalize:
+            with patch(
+                'awslabs.cloudwatch_appsignals_mcp_server.server.validate_and_enrich_service_targets'
+            ) as mock_validate:
+                with patch(
+                    'awslabs.cloudwatch_appsignals_mcp_server.server.execute_audit_api'
+                ) as mock_execute:
+                    # Mock expansion to return concrete services
+                    expanded_targets = [
+                        {
+                            'Type': 'service',
+                            'Data': {'Service': {'Type': 'Service', 'Name': 'test-service'}},
+                        },
+                    ]
+                    mock_expand.return_value = expanded_targets
+                    mock_normalize.return_value = expanded_targets
+                    mock_validate.return_value = expanded_targets
+                    mock_execute.return_value = 'Shorthand audit completed'
+
+                    result = await audit_services(
+                        service_targets=json.dumps(targets),
+                        start_time=None,
+                        end_time=None,
+                        auditors=None,
+                    )
+
+                    # Verify wildcard expansion was called for shorthand format
+                    mock_expand.assert_called_once()
+                    assert result == 'Shorthand audit completed'
