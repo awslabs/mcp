@@ -12,6 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.cloudwatch-mcp-server"""
+# CloudWatch MCP Server Constants
 
-MCP_SERVER_VERSION = '0.0.12'
+# Time constants
+SECONDS_PER_MINUTE = 60
+MINUTES_PER_HOUR = 60
+HOURS_PER_DAY = 24
+DAYS_PER_WEEK = 7
+
+# Analysis constants
+DEFAULT_ANALYSIS_PERIOD_MINUTES = 20160  # 2 weeks
+
+# Threshold constants
+COMPARISON_OPERATOR_ANOMALY = 'LessThanLowerOrGreaterThanUpperThreshold'
+
+# Numerical stability
+NUMERICAL_STABILITY_THRESHOLD = 1e-10
