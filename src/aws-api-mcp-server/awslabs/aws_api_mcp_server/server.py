@@ -42,6 +42,7 @@ from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
+    Credentials,
     ProgramInterpretationResponse,
 )
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
@@ -167,58 +168,16 @@ async def suggest_aws_commands(
         return AwsApiMcpServerErrorResponse(detail=error_message)
 
 
-@server.tool(
-    name='call_aws',
-    description=f"""Execute AWS CLI commands with validation and proper error handling. This is the PRIMARY tool to use when you are confident about the exact AWS CLI command needed to fulfill a user's request. Always prefer this tool over 'suggest_aws_commands' when you have a specific command in mind.
-    Key points:
-    - The command MUST start with "aws" and follow AWS CLI syntax
-    - Commands are executed in {DEFAULT_REGION} region by default
-    - For cross-region or account-wide operations, explicitly include --region parameter
-    - All commands are validated before execution to prevent errors
-    - Supports pagination control via max_results parameter
-    - The current working directory is {WORKING_DIRECTORY}
-    - File paths should always have forward slash (/) as a separator regardless of the system. Example: 'c:/folder/file.txt'
-
-    Best practices for command generation:
-    - Always use the most specific service and operation names
-    - Always use the working directory when writing files, unless user explicitly mentioned another directory
-    - Include --region when operating across regions
-    - Only use filters (--filters, --query, --prefix, --pattern, etc) when necessary or user explicitly asked for it
-
-    Command restrictions:
-    - DO NOT use bash/zsh pipes (|) or any shell operators
-    - DO NOT use bash/zsh tools like grep, awk, sed, etc.
-    - DO NOT use shell redirection operators (>, >>, <)
-    - DO NOT use command substitution ($())
-    - DO NOT use shell variables or environment variables
-    - DO NOT use relative paths for reading or writing files, use absolute paths instead
-
-    Common pitfalls to avoid:
-    1. Missing required parameters - always include all required parameters
-    2. Incorrect parameter values - ensure values match expected format
-    3. Missing --region when operating across regions
-
-    Returns:
-        CLI execution results with API response data or error message
-    """,
-    annotations=ToolAnnotations(
-        title='Execute AWS CLI commands',
-        readOnlyHint=READ_OPERATIONS_ONLY_MODE,
-        destructiveHint=not READ_OPERATIONS_ONLY_MODE,
-        openWorldHint=True,
-    ),
-)
-async def call_aws(
-    cli_command: Annotated[
-        str, Field(description='The complete AWS CLI command to execute. MUST start with "aws"')
-    ],
+async def call_aws_helper(
+    cli_command: str,
     ctx: Context,
-    max_results: Annotated[
-        int | None,
-        Field(description='Optional limit for number of results (useful for pagination)'),
-    ] = None,
+    max_results: int | None = None,
+    credentials: Credentials | None = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
-    """Call AWS with the given CLI command and return the result as a dictionary."""
+    """Helper method for call_aws with optional credential injection.
+
+    If credentials are provided, use them. Otherwise, fall back to boto3 credential chain.
+    """
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
@@ -285,6 +244,7 @@ async def call_aws(
         return interpret_command(
             cli_command=cli_command,
             max_results=max_results,
+            credentials=credentials,
         )
     except NoCredentialsError:
         error_message = (
@@ -308,6 +268,87 @@ async def call_aws(
         return AwsApiMcpServerErrorResponse(
             detail=error_message,
         )
+
+
+@server.tool(
+    name='call_aws',
+    description=f"""Execute AWS CLI commands with validation and proper error handling. This is the PRIMARY tool to use when you are confident about the exact AWS CLI command needed to fulfill a user's request. Always prefer this tool over 'suggest_aws_commands' when you have a specific command in mind.
+    Key points:
+    - The command MUST start with "aws" and follow AWS CLI syntax
+    - Commands are executed in {DEFAULT_REGION} region by default
+    - For cross-region or account-wide operations, explicitly include --region parameter
+    - All commands are validated before execution to prevent errors
+    - Supports pagination control via max_results parameter
+    - The current working directory is {WORKING_DIRECTORY}
+    - File paths should always have forward slash (/) as a separator regardless of the system. Example: 'c:/folder/file.txt'
+
+    Best practices for command generation:
+    - Always use the most specific service and operation names
+    - Always use the working directory when writing files, unless user explicitly mentioned another directory
+    - Include --region when operating across regions
+    - Only use filters (--filters, --query, --prefix, --pattern, etc) when necessary or user explicitly asked for it
+
+    Command restrictions:
+    - DO NOT use bash/zsh pipes (|) or any shell operators
+    - DO NOT use bash/zsh tools like grep, awk, sed, etc.
+    - DO NOT use shell redirection operators (>, >>, <)
+    - DO NOT use command substitution ($())
+    - DO NOT use shell variables or environment variables
+    - DO NOT use relative paths for reading or writing files, use absolute paths instead
+
+    Common pitfalls to avoid:
+    1. Missing required parameters - always include all required parameters
+    2. Incorrect parameter values - ensure values match expected format
+    3. Missing --region when operating across regions
+
+    Returns:
+        CLI execution results with API response data or error message
+    """,
+    annotations=ToolAnnotations(
+        title='Execute AWS CLI commands',
+        readOnlyHint=READ_OPERATIONS_ONLY_MODE,
+        destructiveHint=not READ_OPERATIONS_ONLY_MODE,
+        openWorldHint=True,
+    ),
+)
+async def call_aws(
+    cli_command: Annotated[
+        str, Field(description='The complete AWS CLI command to execute. MUST start with "aws"')
+    ],
+    ctx: Context,
+    max_results: Annotated[
+        int | None,
+        Field(description='Optional limit for number of results (useful for pagination)'),
+    ] = None,
+    access_key_id: Annotated[
+        str | None,
+        Field(description='Optional AWS access key ID for credential injection'),
+    ] = None,
+    secret_access_key: Annotated[
+        str | None,
+        Field(description='Optional AWS secret access key for credential injection'),
+    ] = None,
+    session_token: Annotated[
+        str | None,
+        Field(description='Optional AWS session token for credential injection'),
+    ] = None,
+) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
+    """Call AWS with the given CLI command and return the result as a dictionary."""
+    # Create Credentials object if credentials are provided
+    credentials = None
+    if access_key_id and secret_access_key:
+        credentials = Credentials(
+            access_key_id=access_key_id,
+            secret_access_key=secret_access_key,
+            session_token=session_token,
+        )
+
+    return await call_aws_helper(
+        cli_command=cli_command,
+        ctx=ctx,
+        max_results=max_results,
+        credentials=credentials,
+    )
 
 
 # EXPERIMENTAL: Agent scripts tool - only registered if ENABLE_AGENT_SCRIPTS is True
