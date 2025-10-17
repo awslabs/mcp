@@ -1,0 +1,16 @@
+{
+  "_copy_without_render": [
+    ".gitignore",
+    ".pre-commit-config.yaml"
+  ],
+  "author_email": "githubusername@users.noreply.github.com",
+  "author_name": "Your Name",
+  "project_domain": "Documentation Domain",
+  "project_name": "Documentation MCP Server",
+  "description": "A Model Context Protocol (MCP) server for {{ cookiecutter.project_domain }} documentation",
+  "instructions": "This MCP server provides comprehensive access to {{ cookiecutter.project_domain }} documentation, enabling developers to search and retrieve detailed information about {{ cookiecutter.project_domain }} services, APIs, tutorials, and best practices.",
+  "search_tool_name": "search_{{ cookiecutter.project_domain | lower | replace(' ', '_') | replace('-', '_') }}_docs",
+  "fetch_tool_name": "fetch_{{ cookiecutter.project_domain | lower | replace(' ', '_') | replace('-', '_') }}_doc",
+  "default_llm_txt_urls": "https://example.com/docs/llms.txt",
+  "allowed_domains": "https://example.com,https://docs.example.com"
+}
