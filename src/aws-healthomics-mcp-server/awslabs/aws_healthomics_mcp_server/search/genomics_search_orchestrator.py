@@ -39,20 +39,39 @@ from awslabs.aws_healthomics_mcp_server.search.s3_search_engine import S3SearchE
 from awslabs.aws_healthomics_mcp_server.search.scoring_engine import ScoringEngine
 from awslabs.aws_healthomics_mcp_server.utils.config_utils import get_genomics_search_config
 from loguru import logger
-from typing import Any, Dict, List, Optional, Set, Tuple
+
+# Import here to avoid circular imports
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+
+
+if TYPE_CHECKING:
+    from awslabs.aws_healthomics_mcp_server.search.s3_search_engine import S3SearchEngine
 
 
 class GenomicsSearchOrchestrator:
     """Orchestrates genomics file searches across multiple storage systems."""
 
-    def __init__(self, config: SearchConfig):
+    def __init__(self, config: SearchConfig, s3_engine: Optional['S3SearchEngine'] = None):
         """Initialize the search orchestrator.
 
         Args:
             config: Search configuration containing settings for all storage systems
+            s3_engine: Optional pre-configured S3SearchEngine (for testing)
         """
         self.config = config
-        self.s3_engine = S3SearchEngine(config)
+
+        # Use provided S3 engine (for testing) or create from environment with validation
+        if s3_engine is not None:
+            self.s3_engine = s3_engine
+        else:
+            try:
+                self.s3_engine = S3SearchEngine.from_environment()
+            except ValueError as e:
+                logger.warning(
+                    f'S3SearchEngine initialization failed: {e}. S3 search will be disabled.'
+                )
+                self.s3_engine = None
+
         self.healthomics_engine = HealthOmicsSearchEngine(config)
         self.association_engine = FileAssociationEngine()
         self.scoring_engine = ScoringEngine()
@@ -435,8 +454,8 @@ class GenomicsSearchOrchestrator:
         """
         search_tasks = []
 
-        # Add S3 search task if bucket paths are configured
-        if self.config.s3_bucket_paths:
+        # Add S3 search task if bucket paths are configured and S3 engine is available
+        if self.config.s3_bucket_paths and self.s3_engine is not None:
             logger.info(f'Adding S3 search task for {len(self.config.s3_bucket_paths)} buckets')
             s3_task = self._search_s3_with_timeout(request)
             search_tasks.append(('s3', s3_task))
@@ -471,7 +490,9 @@ class GenomicsSearchOrchestrator:
                 logger.warning(f'Unexpected result type from {storage_system}: {type(result)}')
 
         # Periodically clean up expired cache entries (approximately every 10th search)
-        if secrets.randbelow(10) == 0:  # 10% chance to clean up cache
+        if (
+            secrets.randbelow(10) == 0 and self.s3_engine is not None
+        ):  # 10% chance to clean up cache
             try:
                 self.s3_engine.cleanup_expired_cache_entries()
             except Exception as e:
@@ -507,8 +528,8 @@ class GenomicsSearchOrchestrator:
             total_results_seen=global_token.total_results_seen,
         )
 
-        # Add S3 paginated search task if bucket paths are configured
-        if self.config.s3_bucket_paths:
+        # Add S3 paginated search task if bucket paths are configured and S3 engine is available
+        if self.config.s3_bucket_paths and self.s3_engine is not None:
             logger.info(
                 f'Adding S3 paginated search task for {len(self.config.s3_bucket_paths)} buckets'
             )
@@ -613,6 +634,10 @@ class GenomicsSearchOrchestrator:
         Returns:
             List of GenomicsFile objects from S3 search
         """
+        if self.s3_engine is None:
+            logger.warning('S3 search engine not available, skipping S3 search')
+            return []
+
         try:
             return await asyncio.wait_for(
                 self.s3_engine.search_buckets(
@@ -696,6 +721,10 @@ class GenomicsSearchOrchestrator:
             StoragePaginationResponse from S3 search
         """
         from awslabs.aws_healthomics_mcp_server.models import StoragePaginationResponse
+
+        if self.s3_engine is None:
+            logger.warning('S3 search engine not available, skipping S3 paginated search')
+            return StoragePaginationResponse(results=[], has_more_results=False)
 
         try:
             return await asyncio.wait_for(
@@ -851,7 +880,7 @@ class GenomicsSearchOrchestrator:
         """
         systems = []
 
-        if self.config.s3_bucket_paths:
+        if self.config.s3_bucket_paths and self.s3_engine is not None:
             systems.append('s3')
 
         if self.config.enable_healthomics_search:

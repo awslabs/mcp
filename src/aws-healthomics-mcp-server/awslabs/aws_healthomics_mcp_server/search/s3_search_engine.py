@@ -41,12 +41,23 @@ from typing import Any, Dict, List, Optional, Tuple
 class S3SearchEngine:
     """Search engine for genomics files in S3 buckets."""
 
-    def __init__(self, config: SearchConfig):
+    def __init__(self, config: SearchConfig, _internal: bool = False):
         """Initialize the S3 search engine.
 
         Args:
             config: Search configuration containing S3 bucket paths and other settings
+            _internal: Internal flag to prevent direct instantiation. Use from_environment() instead.
+
+        Raises:
+            RuntimeError: If called directly without _internal=True
         """
+        if not _internal:
+            raise RuntimeError(
+                'S3SearchEngine should not be instantiated directly. '
+                'Use S3SearchEngine.from_environment() to ensure proper bucket access validation, '
+                'or S3SearchEngine._create_for_testing() for tests.'
+            )
+
         self.config = config
         self.session = get_aws_session()
         self.s3_client = self.session.client('s3')
@@ -94,7 +105,21 @@ class S3SearchEngine:
             logger.error(f'S3 bucket access validation failed: {e}')
             raise ValueError(f'Cannot create S3SearchEngine: {e}') from e
 
-        return cls(config)
+        return cls(config, _internal=True)
+
+    @classmethod
+    def _create_for_testing(cls, config: SearchConfig) -> 'S3SearchEngine':
+        """Create an S3SearchEngine for testing purposes without bucket validation.
+
+        This method bypasses bucket access validation and should only be used in tests.
+
+        Args:
+            config: Search configuration containing S3 bucket paths and other settings
+
+        Returns:
+            S3SearchEngine instance configured for testing
+        """
+        return cls(config, _internal=True)
 
     async def search_buckets(
         self, bucket_paths: List[str], file_type: Optional[str], search_terms: List[str]

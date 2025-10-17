@@ -83,7 +83,7 @@ class TestS3SearchEngine:
             'awslabs.aws_healthomics_mcp_server.search.s3_search_engine.get_aws_session'
         ) as mock_session:
             mock_session.return_value.client.return_value = mock_s3_client
-            engine = S3SearchEngine(search_config)
+            engine = S3SearchEngine._create_for_testing(search_config)
             return engine
 
     def test_init(self, search_config):
@@ -94,7 +94,7 @@ class TestS3SearchEngine:
             mock_s3_client = MagicMock()
             mock_session.return_value.client.return_value = mock_s3_client
 
-            engine = S3SearchEngine(search_config)
+            engine = S3SearchEngine._create_for_testing(search_config)
 
             assert engine.config == search_config
             assert engine.s3_client == mock_s3_client
@@ -102,6 +102,13 @@ class TestS3SearchEngine:
             assert engine.pattern_matcher is not None
             assert engine._tag_cache == {}
             assert engine._result_cache == {}
+
+    def test_direct_constructor_prevented(self, search_config):
+        """Test that direct constructor is prevented."""
+        with pytest.raises(
+            RuntimeError, match='S3SearchEngine should not be instantiated directly'
+        ):
+            S3SearchEngine(search_config)
 
     @patch('awslabs.aws_healthomics_mcp_server.search.s3_search_engine.get_genomics_search_config')
     @patch(

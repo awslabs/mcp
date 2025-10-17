@@ -93,25 +93,21 @@ class TestGenomicsSearchOrchestrator:
     @pytest.fixture
     def orchestrator(self, mock_config):
         """Create a GenomicsSearchOrchestrator instance for testing."""
-        # Mock only the expensive initialization parts, not the engines themselves
-        with (
-            patch(
-                'awslabs.aws_healthomics_mcp_server.search.s3_search_engine.S3SearchEngine.__init__',
-                return_value=None,
-            ),
-            patch(
-                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
-                return_value=None,
-            ),
-        ):
-            orchestrator = GenomicsSearchOrchestrator(mock_config)
+        # Create a mock S3 engine
+        mock_s3_engine = MagicMock()
+        mock_s3_engine.search_buckets = AsyncMock()
+        mock_s3_engine.search_buckets_paginated = AsyncMock()
+        mock_s3_engine.cleanup_expired_cache_entries = MagicMock()
 
-            # The engines are real objects, but their __init__ was mocked to avoid expensive setup
-            # We need to ensure they have the methods our tests expect
-            if not hasattr(orchestrator.s3_engine, 'search_buckets'):
-                orchestrator.s3_engine.search_buckets = AsyncMock()
-            if not hasattr(orchestrator.s3_engine, 'search_buckets_paginated'):
-                orchestrator.s3_engine.search_buckets_paginated = AsyncMock()
+        # Mock only the expensive initialization parts for HealthOmics engine
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=mock_s3_engine)
+
+            # The HealthOmics engine is a real object, but its __init__ was mocked to avoid expensive setup
+            # We need to ensure it has the methods our tests expect
             if not hasattr(orchestrator.healthomics_engine, 'search_sequence_stores'):
                 orchestrator.healthomics_engine.search_sequence_stores = AsyncMock()
             if not hasattr(orchestrator.healthomics_engine, 'search_reference_stores'):
@@ -194,7 +190,15 @@ class TestGenomicsSearchOrchestrator:
     def test_get_searched_storage_systems_s3_only(self, mock_config):
         """Test getting searched storage systems with S3 only."""
         mock_config.enable_healthomics_search = False
-        orchestrator = GenomicsSearchOrchestrator(mock_config)
+
+        # Create a mock S3 engine
+        mock_s3_engine = MagicMock()
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=mock_s3_engine)
 
         systems = orchestrator._get_searched_storage_systems()
 
@@ -210,7 +214,13 @@ class TestGenomicsSearchOrchestrator:
     def test_get_searched_storage_systems_no_s3(self, mock_config):
         """Test getting searched storage systems with no S3 buckets configured."""
         mock_config.s3_bucket_paths = []
-        orchestrator = GenomicsSearchOrchestrator(mock_config)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+            return_value=None,
+        ):
+            # No S3 engine provided, so it should be None
+            orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
 
         systems = orchestrator._get_searched_storage_systems()
 
