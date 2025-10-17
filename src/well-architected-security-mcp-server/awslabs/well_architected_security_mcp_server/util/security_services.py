@@ -114,7 +114,8 @@ async def check_access_analyzer(region: str, session: boto3.Session, ctx: Contex
                         analyzer_arn, analyzer_client, ctx
                     )
 
-                except Exception:
+                except Exception as e:
+                    await ctx.warning(f"Error getting findings count for analyzer {analyzer_arn}: {e}")
                     findings_count = "Error"
             else:
                 findings_count = "Unknown (No ARN)"
@@ -191,7 +192,8 @@ async def check_security_hub(region: str, session: boto3.Session, ctx: Context) 
                             }
                         )
                     except Exception:
-                        pass
+                        # Skip processing this standard if there's an error
+                        continue
 
                 return {
                     "enabled": True,

@@ -189,7 +189,7 @@ def create_safe_sql_statement(
     if statement_type.upper() == 'CREATE':
         return f'CREATE TABLE {table_name} ({", ".join(args)})'
     elif statement_type.upper() == 'SELECT':
-        base_sql = f'SELECT {", ".join(args)} FROM {table_name}'
+        base_sql = f'SELECT {", ".join(args)} FROM {table_name}' # nosec B608 - safe: table name, column names are validated, data uses proper parameter binding
         if limit is not None and isinstance(limit, int) and limit > 0:
             base_sql += f' LIMIT {limit}'
         return base_sql

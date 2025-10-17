@@ -33,7 +33,7 @@ OUTPUT_FILE = 'AWS_TERRAFORM_BEST_PRACTICES.md'
 def download_pdf(url):
     """Download PDF from URL and return as bytes."""
     print(f'Downloading PDF from {url}...')
-    response = requests.get(url)
+    response = requests.get(url, timeout=30)
     response.raise_for_status()  # Raise an exception for HTTP errors
     return response.content
 

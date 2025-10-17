@@ -307,7 +307,7 @@ class CognitoAuthProvider(BearerAuthProvider):
                 logger.debug(f'Using scopes: {data["scope"]}')
 
             logger.debug(f'Making token request to: {token_endpoint}')
-            response = requests.post(token_endpoint, headers=headers, data=data)
+            response = requests.post(token_endpoint, headers=headers, data=data, timeout=20)
 
             if response.status_code != 200:
                 logger.error(f'Token request failed: {response.status_code} {response.text}')
