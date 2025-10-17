@@ -229,6 +229,17 @@ class TestSqlAnalyzer:
         """
         assert not SqlAnalyzer.contains_write_operations(query)
 
+    def test_contains_write_operations_empty_and_None(self):
+        """Test that contains_write_operations handles empty and None inputs correctly."""
+        query = ''
+        assert not SqlAnalyzer.contains_write_operations(query)
+        assert not SqlAnalyzer.contains_write_operations(None)
+
+    def test_contains_write_operations_empty_after_cleaned(self):
+        """Test that contains_write_operations handles whitespace-only strings correctly."""
+        query = '    '
+        assert not SqlAnalyzer.contains_write_operations(query)
+
     def test_is_read_only_query_select_statements(self):
         """Test that is_read_only_query correctly identifies SELECT statements."""
         test_cases = [
