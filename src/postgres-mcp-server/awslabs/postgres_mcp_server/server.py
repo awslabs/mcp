@@ -200,6 +200,36 @@ async def get_table_schema(
 
     return await run_query(sql=sql, ctx=ctx, query_parameters=params)
 
+@mcp.tool(
+    name='get_available_tables',
+    description='Fetch tables along with their schemas and comments available in the connected PostgreSQL database',
+)
+async def get_available_tables(ctx: Context) -> list[dict]:
+    """Get a list of tables available in the database.
+
+    Args:
+        ctx: MCP context for logging and state management
+
+    Returns:
+        List of dictionary that contains the schema name, table name
+        and the description of the table
+    """
+    logger.info('get_available_tables')
+
+    sql = """
+        SELECT n.nspname as schema,
+          c.relname as table_name,
+          pg_catalog.obj_description(c.oid, 'pg_class') as description
+        FROM pg_catalog.pg_namespace n
+            LEFT JOIN pg_catalog.pg_class c ON c.relnamespace = n.oid
+        WHERE c.relkind IN ('r','p','')
+              AND n.nspname <> 'pg_catalog'
+              AND n.nspname !~ '^pg_toast'
+              AND n.nspname <> 'information_schema'
+        ORDER BY 1,2
+    """
+
+    return await run_query(sql=sql, ctx=ctx)
 
 def main():
     """Main entry point for the MCP server application."""
