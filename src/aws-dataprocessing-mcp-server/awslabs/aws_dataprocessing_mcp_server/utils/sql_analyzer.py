@@ -59,7 +59,8 @@ class SqlAnalyzer:
         """Get compiled write operation patterns for better performance."""
         if cls._COMPILED_WRITE_PATTERNS is None:
             cls._COMPILED_WRITE_PATTERNS = [
-                re.compile(pattern, re.IGNORECASE) for pattern in cls.WRITE_OPERATION_PATTERNS
+                re.compile(pattern, re.IGNORECASE | re.VERBOSE)
+                for pattern in cls.WRITE_OPERATION_PATTERNS
             ]
         return cls._COMPILED_WRITE_PATTERNS
 
@@ -68,7 +69,8 @@ class SqlAnalyzer:
         """Get compiled read-only operation patterns for better performance."""
         if cls._COMPILED_READ_PATTERNS is None:
             cls._COMPILED_READ_PATTERNS = [
-                re.compile(pattern, re.IGNORECASE) for pattern in cls.READ_ONLY_OPERATION_PATTERNS
+                re.compile(pattern, re.IGNORECASE | re.VERBOSE)
+                for pattern in cls.READ_ONLY_OPERATION_PATTERNS
             ]
         return cls._COMPILED_READ_PATTERNS
 
@@ -204,7 +206,7 @@ class SqlAnalyzer:
 
         # Then check if it starts with a read-only operation
         # We look for the first SQL keyword after preprocessing
-        first_keyword_match = re.match(r'^\s*(\w+)', cleaned_sql, re.IGNORECASE)
+        first_keyword_match = re.match(r'^\s*(\w+)', cleaned_sql, re.IGNORECASE | re.VERBOSE)
         if not first_keyword_match:
             return False
 
