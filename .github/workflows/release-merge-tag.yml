@@ -30,6 +30,22 @@ permissions:
   security-events: none
   statuses: none
 jobs:
+  close_release_branches_if_open:
+    name: Close Open Pending Releases
+    if: ${{github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')}}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Close the Open Release Pull Requests
+        run: |
+          set -euo pipefail
+          gh pr list --state "open" --author "awslabs-mcp" --json "number,headRefName" | \
+              jq '.[] | select(.headRefName | startswith("release/")) | .number' | \
+              xargs -I {} \
+              gh pr close {}
   tag_on_release_merge:
     name: Tag the Merged Release
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
