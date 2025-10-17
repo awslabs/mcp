@@ -427,26 +427,6 @@
     },
     {
       "category": "AI & Machine Learning",
-      "description": "Analyze images using computer vision capabilities",
-      "icon": "\ud83e\udd16",
-      "id": "amazon-rekognition-mcp-server",
-      "name": "Amazon Rekognition MCP Server",
-      "source_path": "src/amazon-rekognition-mcp-server/",
-      "subcategory": "Content Processing & Generation",
-      "tags": [
-        "ai-ml",
-        "computer-vision",
-        "rekognition",
-        "image-analysis",
-        "conversational",
-        "content-processing"
-      ],
-      "workflows": [
-        "conversational"
-      ]
-    },
-    {
-      "category": "AI & Machine Learning",
       "description": "Analyze documents, images, videos, and audio files",
       "icon": "\ud83e\udd16",
       "id": "aws-bedrock-data-automation-mcp-server",

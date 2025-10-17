@@ -101,9 +101,6 @@ When a user presents a query, follow these steps to break it down:
     - generate_image: Generate an image using Amazon Nova Canvas with text prompt
     - generate_image_with_colors: Generate an image using Amazon Nova Canvas with color guidance
 
-- **Amazon Rekognition MCP Server**
-  - Use `awslabs.amazon-rekognition-mcp-server` to analyze images using computer vision capabilities
-
 - **Amazon Bedrock Data Automation MCP Server**
   - Use `awslabs.aws-bedrock-data-automation-mcp-server` to analyze documents, images, videos, and audio files
 
@@ -221,9 +218,6 @@ When a user presents a query, follow these steps to break it down:
 - **Amazon CloudWatch MCP Server**
   - Use `awslabs.cloudwatch-mcp-server` for metrics, alarms, and logs analysis
 
-- **Amazon CloudWatch Logs MCP Server**
-  - Use `awslabs.cloudwatch-logs-mcp-server` for log analysis and operational troubleshooting
-
 - **Amazon CloudWatch Application Signals MCP Server**
   - Use `awslabs.cloudwatch-appsignals-mcp-server` for application monitoring and performance insights
 
@@ -270,7 +264,6 @@ Map user requirements to these AWS categories and their corresponding MCP server
 - Bedrock Knowledge Base (knowledge base) → `awslabs.bedrock-kb-retrieval-mcp-server`
 - SageMaker (custom ML models) → `awslabs.aws-api-mcp-server`
 - Bedrock Data Automation (IDP) → `awslabs.aws-bedrock-data-automation-mcp-server`
-- Rekognition (image and video analysis) → `awslabs.amazon-rekognition-mcp-server`
 - Comprehend (natural language processing) → `awslabs.aws-api-mcp-server`
 - Transcribe (speech-to-text) → `awslabs.aws-api-mcp-server`
 - Polly (text-to-speech) → `awslabs.aws-api-mcp-server`
@@ -331,7 +324,7 @@ Map user requirements to these AWS categories and their corresponding MCP server
 - CodeArtifact (artifact repository) → `awslabs.aws-api-mcp-server`
 - CloudFormation (infrastructure as code) → `awslabs.cfn-mcp-server`
 - CDK (infrastructure as code) → `awslabs.cdk-mcp-server`
-- CloudWatch (monitoring) → `awslabs.cloudwatch-mcp-server`, `awslabs.cloudwatch-logs-mcp-server`, `awslabs.cloudwatch-appsignals-mcp-server`
+- CloudWatch (monitoring) → `awslabs.cloudwatch-mcp-server`, `awslabs.cloudwatch-appsignals-mcp-server`
 - X-Ray (distributed tracing) → `awslabs.aws-api-mcp-server`
 - Terraform → `awslabs.terraform-mcp-server`
 

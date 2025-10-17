@@ -25,7 +25,6 @@ dependencies = [
     "awslabs-cfn-mcp-server>=1.0.6",
     "awslabs-cloudtrail-mcp-server>=0.0.1",
     "awslabs-cloudwatch-appsignals-mcp-server>=0.1.4",
-    "awslabs-cloudwatch-logs-mcp-server>=0.0.4",
     "awslabs-cloudwatch-mcp-server>=0.0.7",
     "awslabs-code-doc-gen-mcp-server>=1.0.2",
     "awslabs-cost-analysis-mcp-server>=1.0.5",
