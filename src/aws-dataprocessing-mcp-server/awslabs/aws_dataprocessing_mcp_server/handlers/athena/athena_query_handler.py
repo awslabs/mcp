@@ -214,7 +214,9 @@ class AthenaQueryHandler:
 
             if operation == 'start-query-execution':
                 if query_string is None:
-                    raise ValueError('query_string is required for start-query-execution operation')
+                    raise ValueError(
+                        'query_string is required for start-query-execution operation'
+                    )
 
                 # Check for write operations when write access is disabled
                 if not self.allow_write and SqlAnalyzer.contains_write_operations(query_string):
@@ -223,7 +225,7 @@ class AthenaQueryHandler:
                         f'Detected query type: {SqlAnalyzer.get_query_type(query_string)}'
                     )
                     log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    
+
                     return StartQueryExecutionResponse(
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],

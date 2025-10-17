@@ -806,7 +806,9 @@ async def test_sql_injection_prevention_insert(read_only_handler):
     """Test that SQL injection with INSERT is prevented when write access is disabled."""
     ctx = Mock()
     response = await read_only_handler.manage_aws_athena_queries(
-        ctx, operation='start-query-execution', query_string='INSERT /* SELECT */ INTO table VALUES (1, 2, 3)'
+        ctx,
+        operation='start-query-execution',
+        query_string='INSERT /* SELECT */ INTO table VALUES (1, 2, 3)',
     )
 
     assert response.isError
@@ -834,7 +836,9 @@ async def test_ctas_detection_in_handler(read_only_handler):
     """Test that CTAS is properly detected and blocked by the handler."""
     ctx = Mock()
     response = await read_only_handler.manage_aws_athena_queries(
-        ctx, operation='start-query-execution', query_string='CREATE TABLE new_table AS SELECT * FROM existing_table'
+        ctx,
+        operation='start-query-execution',
+        query_string='CREATE TABLE new_table AS SELECT * FROM existing_table',
     )
 
     assert response.isError

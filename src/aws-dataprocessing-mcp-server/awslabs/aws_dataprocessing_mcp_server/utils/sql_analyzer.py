@@ -75,82 +75,86 @@ class SqlAnalyzer:
     @classmethod
     def _remove_sql_comments(cls, sql: str) -> str:
         """Remove SQL comments from the query string.
-        
+
         Args:
             sql: The SQL query string
-            
+
         Returns:
             SQL string with comments removed
         """
         # Remove multi-line comments /* ... */
         sql = re.sub(r'/\*.*?\*/', ' ', sql, flags=re.DOTALL)
-        
+
         # Remove single-line comments -- ...
         sql = re.sub(r'--.*$', ' ', sql, flags=re.MULTILINE)
-        
+
         return sql
 
     @classmethod
     def _normalize_whitespace(cls, sql: str) -> str:
         """Normalize whitespace in SQL string.
-        
+
         Args:
             sql: The SQL query string
-            
+
         Returns:
             SQL string with normalized whitespace
         """
         # Replace multiple whitespace characters with single space
         sql = re.sub(r'\s+', ' ', sql)
-        
+
         # Remove leading and trailing whitespace
         sql = sql.strip()
-        
+
         return sql
 
     @classmethod
     def _preprocess_sql(cls, sql: str) -> str:
         """Preprocess SQL by removing comments and normalizing whitespace.
-        
+
         Args:
             sql: The raw SQL query string
-            
+
         Returns:
             Cleaned and normalized SQL string
         """
         if not sql:
             return ''
-        
+
         # Remove comments first
         cleaned_sql = cls._remove_sql_comments(sql)
-        
+
         # Normalize whitespace
         cleaned_sql = cls._normalize_whitespace(cleaned_sql)
-        
+
         return cleaned_sql
 
     @classmethod
     def contains_write_operations(cls, sql: Optional[str]) -> bool:
         """Check if SQL contains write operations that modify data or schema.
-        
+
         This method analyzes SQL queries to detect operations that would modify
         data, schema, or system state. It's designed to prevent SQL injection
         attacks that use comments to bypass simple keyword detection.
-        
+
         Args:
             sql: The SQL query string to analyze
-            
+
         Returns:
             True if the query contains write operations, False otherwise
-            
+
         Examples:
-            >>> SqlAnalyzer.contains_write_operations("SELECT * FROM table")
+            >>> SqlAnalyzer.contains_write_operations('SELECT * FROM table')
             False
-            >>> SqlAnalyzer.contains_write_operations("INSERT INTO table VALUES (1,2,3)")
+            >>> SqlAnalyzer.contains_write_operations('INSERT INTO table VALUES (1,2,3)')
             True
-            >>> SqlAnalyzer.contains_write_operations("INSERT /* SELECT */ INTO table VALUES (1,2,3)")
+            >>> SqlAnalyzer.contains_write_operations(
+            ...     'INSERT /* SELECT */ INTO table VALUES (1,2,3)'
+            ... )
             True
-            >>> SqlAnalyzer.contains_write_operations("WITH cte AS (SELECT * FROM t1) SELECT * FROM cte")
+            >>> SqlAnalyzer.contains_write_operations(
+            ...     'WITH cte AS (SELECT * FROM t1) SELECT * FROM cte'
+            ... )
             False
         """
         if not sql:
@@ -158,13 +162,13 @@ class SqlAnalyzer:
 
         # Preprocess SQL to remove comments and normalize whitespace
         cleaned_sql = cls._preprocess_sql(sql)
-        
+
         if not cleaned_sql:
             return False
 
         # Use compiled patterns for better performance
         compiled_patterns = cls._get_compiled_write_patterns()
-        
+
         # Check for write operation patterns using compiled regex
         for compiled_pattern in compiled_patterns:
             if compiled_pattern.search(cleaned_sql):
@@ -175,13 +179,13 @@ class SqlAnalyzer:
     @classmethod
     def is_read_only_query(cls, sql: Optional[str]) -> bool:
         """Check if SQL is a read-only query.
-        
+
         This method determines if a query is safe to execute in read-only mode.
         It uses a whitelist approach, only allowing explicitly safe operations.
-        
+
         Args:
             sql: The SQL query string to analyze
-            
+
         Returns:
             True if the query is read-only, False otherwise
         """
@@ -190,7 +194,7 @@ class SqlAnalyzer:
 
         # Preprocess SQL to remove comments and normalize whitespace
         cleaned_sql = cls._preprocess_sql(sql)
-        
+
         if not cleaned_sql:
             return False
 
@@ -208,7 +212,7 @@ class SqlAnalyzer:
 
         # Use compiled patterns for better performance
         compiled_read_patterns = cls._get_compiled_read_patterns()
-        
+
         # Check against read-only patterns using compiled regex
         for compiled_pattern in compiled_read_patterns:
             if compiled_pattern.match(first_keyword):
@@ -219,10 +223,10 @@ class SqlAnalyzer:
     @classmethod
     def get_query_type(cls, sql: Optional[str]) -> str:
         """Get the type of SQL query after preprocessing.
-        
+
         Args:
             sql: The SQL query string to analyze
-            
+
         Returns:
             The first SQL keyword found, or 'UNKNOWN' if none found
         """
@@ -231,15 +235,15 @@ class SqlAnalyzer:
 
         # Preprocess SQL to remove comments and normalize whitespace
         cleaned_sql = cls._preprocess_sql(sql)
-        
+
         if not cleaned_sql:
             return 'UNKNOWN'
 
         # Convert to uppercase and extract first keyword
         upper_sql = cleaned_sql.upper()
         first_keyword_match = re.match(r'^\s*(\w+)', upper_sql)
-        
+
         if first_keyword_match:
             return first_keyword_match.group(1)
-        
+
         return 'UNKNOWN'
