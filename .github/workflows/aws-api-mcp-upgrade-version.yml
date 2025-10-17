@@ -191,6 +191,7 @@ jobs:
             --base "$BASE_BRANCH" \
             --head "$UPGRADE_BRANCH" \
             --title "chore(aws-api-mcp-server): upgrade AWS CLI to v${{ steps.upgrade.outputs.latest-version }}" \
+            --label "aws-api-mcp" \
             --body "# AWS CLI Version Upgrade
 
           This PR upgrades the AWS CLI version in the aws-api-mcp-server package.
