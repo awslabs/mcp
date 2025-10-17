@@ -12,7 +12,9 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
 - [AWS MCP Servers](#aws-mcp-servers)
   - [Table of Contents](#table-of-contents)
   - [What is the Model Context Protocol (MCP) and how does it work with AWS MCP Servers?](#what-is-the-model-context-protocol-mcp-and-how-does-it-work-with-aws-mcp-servers)
-  - [Server Sent Events Support Removal](#server-sent-events-support-removal)
+  - [AWS MCP Servers Transport Mechanisms](#aws-mcp-servers-transport-mechanisms)
+    - [Supported transport mechanisms](#supported-transport-mechanisms)
+    - [Server Sent Events Support Removal](#server-sent-events-support-removal)
   - [Why AWS MCP Servers?](#why-aws-mcp-servers)
   - [Available MCP Servers: Quick Installation](#available-mcp-servers-quick-installation)
     - [🚀Getting Started with AWS](#-getting-started-with-aws)
@@ -93,7 +95,19 @@ AWS MCP servers enable enhanced cloud-native development, infrastructure managem
 
 The Model Context Protocol is an open source project run by Anthropic, PBC. and open to contributions from the entire community. For more information on MCP, you can find further documentation [here](https://modelcontextprotocol.io/introduction)
 
-## Server Sent Events Support Removal
+## AWS MCP Servers Transport Mechanisms
+
+### Supported transport mechanisms
+
+The MCP protocol currently defines two standard transport mechanisms for client-server communication:
+- stdio, communication over standard in and standard out
+- streamable HTTP
+
+These AWS MCP Servers are designed to support stdio only.
+
+You are responsible for ensuring that your use of these servers comply with the terms governing them, and any laws, rules, regulations, policies, or standards that apply to you.
+
+### Server Sent Events Support Removal
 
 **Important Notice:** On May 26th, 2025, Server Sent Events (SSE) support was removed from all MCP servers in their latest major versions. This change aligns with the Model Context Protocol specification's [backwards compatibility guidelines](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#backwards-compatibility).
 
