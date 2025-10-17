@@ -201,6 +201,26 @@
     },
     {
       "category": "Infrastructure & Deployment",
+      "description": "SageMaker HyperPod cluster management and application deployment",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "id": "sagemaker-hyperpod-mcp-server",
+      "name": "Amazon SageMaker HyperPod MCP Server",
+      "source_path": "src/sagemaker-hyperpod-mcp-server/",
+      "subcategory": "Container Platforms",
+      "tags": [
+        "sagemaker hyperpod",
+        "eks",
+        "cluster-management",
+        "application-deployment",
+        "vibe-coding",
+        "container-platforms"
+      ],
+      "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Infrastructure & Deployment",
       "description": "Kubernetes cluster management and application deployment",
       "icon": "\ud83c\udfd7\ufe0f",
       "id": "eks-mcp-server",
