@@ -796,3 +796,80 @@ async def test_get_named_query_with_none_id(handler):
     # This should return an error response with empty named_query_id
     assert response.isError
     assert response.named_query_id == ''
+
+
+# Security Integration Tests
+
+
+@pytest.mark.asyncio
+async def test_sql_injection_prevention_insert(read_only_handler):
+    """Test that SQL injection with INSERT is prevented when write access is disabled."""
+    ctx = Mock()
+    response = await read_only_handler.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string='INSERT /* SELECT */ INTO table VALUES (1, 2, 3)',
+    )
+
+    assert response.isError
+    assert response.query_execution_id == ''
+    assert 'contains write operations' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_legitimate_select_query_allowed(read_only_handler, mock_athena_client):
+    """Test that legitimate SELECT queries are allowed when write access is disabled."""
+    read_only_handler.athena_client = mock_athena_client
+    mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
+
+    ctx = Mock()
+    response = await read_only_handler.manage_aws_athena_queries(
+        ctx, operation='start-query-execution', query_string='SELECT * FROM table'
+    )
+
+    assert not response.isError
+    assert response.query_execution_id == 'query1'
+
+
+@pytest.mark.asyncio
+async def test_ctas_detection_in_handler(read_only_handler):
+    """Test that CTAS is properly detected and blocked by the handler."""
+    ctx = Mock()
+    response = await read_only_handler.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string='CREATE TABLE new_table AS SELECT * FROM existing_table',
+    )
+
+    assert response.isError
+    assert response.query_execution_id == ''
+    assert 'contains write operations' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_write_operations_allowed_with_write_access(handler, mock_athena_client):
+    """Test that write operations succeed when write access is enabled."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(
+        ctx, operation='start-query-execution', query_string='INSERT INTO table VALUES (1, 2, 3)'
+    )
+
+    assert not response.isError
+    assert response.query_execution_id == 'query1'
+
+
+@pytest.mark.asyncio
+async def test_error_message_includes_query_type(read_only_handler):
+    """Test that error messages include the detected query type for debugging."""
+    ctx = Mock()
+    response = await read_only_handler.manage_aws_athena_queries(
+        ctx, operation='start-query-execution', query_string='UPDATE table SET col=1'
+    )
+
+    assert response.isError
+    assert response.query_execution_id == ''
+    assert 'contains write operations' in response.content[0].text
+    assert 'Detected query type: UPDATE' in response.content[0].text
