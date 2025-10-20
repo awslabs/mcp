@@ -529,7 +529,7 @@ async def test_call_aws_security_policy_deny(
 
     ctx = DummyCtx()
 
-    result = await call_aws('aws s3 rm s3://bucket/file', ctx)
+    result = await call_aws.fn('aws s3 rm s3://bucket/file', ctx)
 
     assert isinstance(result, AwsApiMcpServerErrorResponse)
     assert result.detail == 'Execution of this operation is denied by security policy.'
@@ -578,7 +578,7 @@ async def test_call_aws_security_policy_elicit(
 
     ctx = DummyCtx()
 
-    result = await call_aws('aws s3api put-object --bucket test --key test', ctx)
+    result = await call_aws.fn('aws s3api put-object --bucket test --key test', ctx)
 
     mock_check_security_policy.assert_called_once()
     mock_request_consent.assert_called_once_with(
