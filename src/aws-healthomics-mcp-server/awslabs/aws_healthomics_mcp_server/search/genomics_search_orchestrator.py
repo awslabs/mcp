@@ -37,7 +37,7 @@ from awslabs.aws_healthomics_mcp_server.search.json_response_builder import Json
 from awslabs.aws_healthomics_mcp_server.search.result_ranker import ResultRanker
 from awslabs.aws_healthomics_mcp_server.search.s3_search_engine import S3SearchEngine
 from awslabs.aws_healthomics_mcp_server.search.scoring_engine import ScoringEngine
-from awslabs.aws_healthomics_mcp_server.utils.config_utils import get_genomics_search_config
+from awslabs.aws_healthomics_mcp_server.utils.search_config import get_genomics_search_config
 from loguru import logger
 
 # Import here to avoid circular imports

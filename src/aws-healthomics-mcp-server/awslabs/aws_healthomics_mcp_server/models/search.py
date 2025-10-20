@@ -12,203 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Defines data models, Pydantic models, and validation logic."""
+"""Search-related models for genomics file search and pagination."""
 
-from awslabs.aws_healthomics_mcp_server.consts import (
-    ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
-)
+from .s3 import S3File
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_validator
 from typing import Any, Dict, List, Optional
-
-
-class WorkflowType(str, Enum):
-    """Enum for workflow languages."""
-
-    WDL = 'WDL'
-    NEXTFLOW = 'NEXTFLOW'
-    CWL = 'CWL'
-
-
-class StorageType(str, Enum):
-    """Enum for storage types."""
-
-    STATIC = 'STATIC'
-    DYNAMIC = 'DYNAMIC'
-
-
-class CacheBehavior(str, Enum):
-    """Enum for cache behaviors."""
-
-    CACHE_ALWAYS = 'CACHE_ALWAYS'
-    CACHE_ON_FAILURE = 'CACHE_ON_FAILURE'
-
-
-class RunStatus(str, Enum):
-    """Enum for run statuses."""
-
-    PENDING = 'PENDING'
-    STARTING = 'STARTING'
-    RUNNING = 'RUNNING'
-    COMPLETED = 'COMPLETED'
-    FAILED = 'FAILED'
-    CANCELLED = 'CANCELLED'
-
-
-class ExportType(str, Enum):
-    """Enum for export types."""
-
-    DEFINITION = 'DEFINITION'
-    PARAMETER_TEMPLATE = 'PARAMETER_TEMPLATE'
-
-
-class WorkflowSummary(BaseModel):
-    """Summary information about a workflow."""
-
-    id: str
-    arn: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    status: str
-    type: str
-    storageType: Optional[str] = None
-    storageCapacity: Optional[int] = None
-    creationTime: datetime
-
-
-class WorkflowListResponse(BaseModel):
-    """Response model for listing workflows."""
-
-    workflows: List[WorkflowSummary]
-    nextToken: Optional[str] = None
-
-
-class RunSummary(BaseModel):
-    """Summary information about a run."""
-
-    id: str
-    arn: str
-    name: Optional[str] = None
-    parameters: Optional[dict] = None
-    status: str
-    workflowId: str
-    workflowType: str
-    creationTime: datetime
-    startTime: Optional[datetime] = None
-    stopTime: Optional[datetime] = None
-
-
-class RunListResponse(BaseModel):
-    """Response model for listing runs."""
-
-    runs: List[RunSummary]
-    nextToken: Optional[str] = None
-
-
-class TaskSummary(BaseModel):
-    """Summary information about a task."""
-
-    taskId: str
-    status: str
-    name: str
-    cpus: int
-    memory: int
-    startTime: Optional[datetime] = None
-    stopTime: Optional[datetime] = None
-
-
-class TaskListResponse(BaseModel):
-    """Response model for listing tasks."""
-
-    tasks: List[TaskSummary]
-    nextToken: Optional[str] = None
-
-
-class LogEvent(BaseModel):
-    """Log event model."""
-
-    timestamp: datetime
-    message: str
-
-
-class LogResponse(BaseModel):
-    """Response model for retrieving logs."""
-
-    events: List[LogEvent]
-    nextToken: Optional[str] = None
-
-
-class StorageRequest(BaseModel):
-    """Model for storage requests."""
-
-    storageType: StorageType
-    storageCapacity: Optional[int] = None
-
-    @model_validator(mode='after')
-    def validate_storage_capacity(self):
-        """Validate storage capacity."""
-        if self.storageType == StorageType.STATIC and self.storageCapacity is None:
-            raise ValueError(ERROR_STATIC_STORAGE_REQUIRES_CAPACITY)
-        return self
-
-
-class AnalysisResult(BaseModel):
-    """Model for run analysis results."""
-
-    taskName: str
-    count: int
-    meanRunningSeconds: float
-    maximumRunningSeconds: float
-    stdDevRunningSeconds: float
-    maximumCpuUtilizationRatio: float
-    meanCpuUtilizationRatio: float
-    maximumMemoryUtilizationRatio: float
-    meanMemoryUtilizationRatio: float
-    recommendedCpus: int
-    recommendedMemoryGiB: float
-    recommendedInstanceType: str
-    maximumEstimatedUSD: float
-    meanEstimatedUSD: float
-
-
-class AnalysisResponse(BaseModel):
-    """Response model for run analysis."""
-
-    results: List[AnalysisResult]
-
-
-class RegistryMapping(BaseModel):
-    """Model for registry mapping configuration."""
-
-    upstreamRegistryUrl: str
-    ecrRepositoryPrefix: str
-    upstreamRepositoryPrefix: Optional[str]
-    ecrAccountId: Optional[str]
-
-
-class ImageMapping(BaseModel):
-    """Model for image mapping configuration."""
-
-    sourceImage: str
-    destinationImage: str
-
-
-class ContainerRegistryMap(BaseModel):
-    """Model for container registry mapping configuration."""
-
-    registryMappings: List[RegistryMapping] = []
-    imageMappings: List[ImageMapping] = []
-
-    @field_validator('registryMappings', 'imageMappings', mode='before')
-    @classmethod
-    def convert_none_to_empty_list(cls, v: Any) -> List[Any]:
-        """Convert None values to empty lists for consistency."""
-        return [] if v is None else v
-
-
-# Genomics File Search Models
 
 
 class GenomicsFileType(str, Enum):
@@ -253,7 +64,7 @@ class GenomicsFileType(str, Enum):
 class GenomicsFile:
     """Represents a genomics file with metadata."""
 
-    path: str  # S3 path or access point path
+    path: str  # S3 path or access point path (kept for backward compatibility)
     file_type: GenomicsFileType
     size_bytes: int
     storage_class: str
@@ -261,6 +72,93 @@ class GenomicsFile:
     tags: Dict[str, str] = field(default_factory=dict)
     source_system: str = ''  # 's3', 'sequence_store', 'reference_store'
     metadata: Dict[str, Any] = field(default_factory=dict)
+    _s3_file: Optional[S3File] = field(default=None, init=False)
+
+    @property
+    def s3_file(self) -> Optional[S3File]:
+        """Get the S3File representation of this genomics file if it's an S3 path."""
+        if self._s3_file is None and self.path.startswith('s3://'):
+            try:
+                self._s3_file = S3File.from_uri(
+                    self.path,
+                    size_bytes=self.size_bytes,
+                    last_modified=self.last_modified,
+                    storage_class=self.storage_class,
+                    tags=self.tags,
+                )
+            except ValueError:
+                # If URI parsing fails, return None
+                return None
+        return self._s3_file
+
+    @property
+    def uri(self) -> str:
+        """Get the URI for this file (alias for path for consistency)."""
+        return self.path
+
+    @property
+    def filename(self) -> str:
+        """Extract the filename from the path."""
+        if self.s3_file:
+            return self.s3_file.filename
+        # Fallback for non-S3 paths
+        return self.path.split('/')[-1] if '/' in self.path else self.path
+
+    @property
+    def extension(self) -> str:
+        """Extract the file extension."""
+        if self.s3_file:
+            return self.s3_file.extension
+        # Fallback for non-S3 paths
+        filename = self.filename
+        if '.' not in filename:
+            return ''
+        return filename.split('.')[-1].lower()
+
+    @classmethod
+    def from_s3_file(
+        cls,
+        s3_file: S3File,
+        file_type: GenomicsFileType,
+        source_system: str = 's3',
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> 'GenomicsFile':
+        """Create a GenomicsFile from an S3File instance.
+
+        Args:
+            s3_file: S3File instance
+            file_type: Type of genomics file
+            source_system: Source system identifier
+            metadata: Additional metadata
+
+        Returns:
+            GenomicsFile instance
+        """
+        genomics_file = cls(
+            path=s3_file.uri,
+            file_type=file_type,
+            size_bytes=s3_file.size_bytes or 0,
+            storage_class=s3_file.storage_class or '',
+            last_modified=s3_file.last_modified or datetime.now(),
+            tags=s3_file.tags.copy(),
+            source_system=source_system,
+            metadata=metadata or {},
+        )
+        genomics_file._s3_file = s3_file
+        return genomics_file
+
+    def get_presigned_url(self, expiration: int = 3600) -> Optional[str]:
+        """Generate a presigned URL for this file if it's in S3.
+
+        Args:
+            expiration: URL expiration time in seconds
+
+        Returns:
+            Presigned URL or None if not an S3 file
+        """
+        if self.s3_file:
+            return self.s3_file.get_presigned_url(expiration)
+        return None
 
 
 @dataclass
@@ -564,3 +462,33 @@ class CursorBasedPaginationToken:
             )
         except (ValueError, json.JSONDecodeError, KeyError) as e:
             raise ValueError(f'Invalid cursor token format: {e}')
+
+
+# Utility Functions for Search Models
+
+
+def create_genomics_file_from_s3_object(
+    bucket: str,
+    s3_object: Dict[str, Any],
+    file_type: GenomicsFileType,
+    tags: Optional[Dict[str, str]] = None,
+    source_system: str = 's3',
+    metadata: Optional[Dict[str, Any]] = None,
+) -> GenomicsFile:
+    """Create a GenomicsFile instance from an S3 object dictionary.
+
+    Args:
+        bucket: S3 bucket name
+        s3_object: S3 object dictionary from list_objects_v2 or similar
+        file_type: Type of genomics file
+        tags: Optional tags dictionary
+        source_system: Source system identifier
+        metadata: Additional metadata
+
+    Returns:
+        GenomicsFile instance
+    """
+    from .s3 import create_s3_file_from_object
+
+    s3_file = create_s3_file_from_object(bucket, s3_object, tags)
+    return GenomicsFile.from_s3_file(s3_file, file_type, source_system, metadata)

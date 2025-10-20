@@ -19,7 +19,7 @@ from .validation_utils import (
     validate_definition_sources,
     validate_s3_uri,
 )
-from .config_utils import (
+from .search_config import (
     get_genomics_search_config,
     get_s3_bucket_paths,
     validate_bucket_access_permissions,

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Configuration utilities for the HealthOmics MCP server."""
+"""Search configuration utilities for genomics file search."""
 
 import os
 from awslabs.aws_healthomics_mcp_server.consts import (

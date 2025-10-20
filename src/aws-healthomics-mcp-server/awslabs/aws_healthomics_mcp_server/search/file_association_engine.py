@@ -18,6 +18,7 @@ import re
 from awslabs.aws_healthomics_mcp_server.models import (
     FileGroup,
     GenomicsFile,
+    get_s3_file_associations,
 )
 from pathlib import Path
 from typing import Dict, List, Set
@@ -155,9 +156,18 @@ class FileAssociationEngine:
     ) -> List[GenomicsFile]:
         """Find files associated with the given primary file."""
         associated_files = []
-        primary_path = primary_file.path
 
-        # Iterate through original patterns to maintain correct pairing
+        # For S3 files, use the centralized S3File association logic first
+        if primary_file.path.startswith('s3://') and primary_file.s3_file:
+            s3_associations = get_s3_file_associations(primary_file.s3_file)
+            for s3_assoc in s3_associations:
+                assoc_path = s3_assoc.uri
+                if assoc_path in file_map and assoc_path != primary_file.path:
+                    associated_files.append(file_map[assoc_path])
+
+        # Fall back to regex-based pattern matching for additional associations
+        # or for non-S3 files (like HealthOmics access points)
+        primary_path = primary_file.path
         for orig_primary, orig_assoc, group_type in self.ASSOCIATION_PATTERNS:
             try:
                 # Check if the primary pattern matches
@@ -169,7 +179,9 @@ class FileAssociationEngine:
 
                     # Check if the associated file exists in our file map
                     if expected_assoc_path in file_map and expected_assoc_path != primary_path:
-                        associated_files.append(file_map[expected_assoc_path])
+                        # Avoid duplicates from S3File associations
+                        if not any(af.path == expected_assoc_path for af in associated_files):
+                            associated_files.append(file_map[expected_assoc_path])
             except re.error:
                 # Skip if regex substitution fails
                 continue

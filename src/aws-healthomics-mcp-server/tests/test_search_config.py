@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for configuration utilities."""
+"""Tests for search configuration utilities."""
 
 import os
 import pytest
 from awslabs.aws_healthomics_mcp_server.models import SearchConfig
-from awslabs.aws_healthomics_mcp_server.utils.config_utils import (
+from awslabs.aws_healthomics_mcp_server.utils.search_config import (
     get_enable_healthomics_search,
     get_enable_s3_tag_search,
     get_genomics_search_config,
@@ -32,8 +32,8 @@ from awslabs.aws_healthomics_mcp_server.utils.config_utils import (
 from unittest.mock import patch
 
 
-class TestConfigUtils:
-    """Test cases for configuration utilities."""
+class TestSearchConfig:
+    """Test cases for search configuration utilities."""
 
     def setup_method(self):
         """Set up test environment."""
@@ -55,7 +55,7 @@ class TestConfigUtils:
     def test_get_s3_bucket_paths_valid_single_bucket(self):
         """Test getting S3 bucket paths with single valid bucket."""
         with patch(
-            'awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_and_normalize_s3_path'
+            'awslabs.aws_healthomics_mcp_server.utils.search_config.validate_and_normalize_s3_path'
         ) as mock_validate:
             mock_validate.return_value = 's3://test-bucket/'
             os.environ['GENOMICS_SEARCH_S3_BUCKETS'] = 's3://test-bucket'
@@ -68,7 +68,7 @@ class TestConfigUtils:
     def test_get_s3_bucket_paths_valid_multiple_buckets(self):
         """Test getting S3 bucket paths with multiple valid buckets."""
         with patch(
-            'awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_and_normalize_s3_path'
+            'awslabs.aws_healthomics_mcp_server.utils.search_config.validate_and_normalize_s3_path'
         ) as mock_validate:
             mock_validate.side_effect = ['s3://bucket1/', 's3://bucket2/data/']
             os.environ['GENOMICS_SEARCH_S3_BUCKETS'] = 's3://bucket1, s3://bucket2/data'
@@ -101,7 +101,7 @@ class TestConfigUtils:
     def test_get_s3_bucket_paths_invalid_path(self):
         """Test getting S3 bucket paths with invalid path."""
         with patch(
-            'awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_and_normalize_s3_path'
+            'awslabs.aws_healthomics_mcp_server.utils.search_config.validate_and_normalize_s3_path'
         ) as mock_validate:
             mock_validate.side_effect = ValueError('Invalid S3 path')
             os.environ['GENOMICS_SEARCH_S3_BUCKETS'] = 'invalid-path'
@@ -384,7 +384,7 @@ class TestConfigUtils:
 
         assert result == 0  # Zero is valid for cache TTL (disables caching)
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_and_normalize_s3_path')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.validate_and_normalize_s3_path')
     def test_get_genomics_search_config_complete(self, mock_validate):
         """Test getting complete genomics search configuration."""
         mock_validate.return_value = 's3://test-bucket/'
@@ -411,7 +411,7 @@ class TestConfigUtils:
         assert config.result_cache_ttl_seconds == 1200
         assert config.tag_cache_ttl_seconds == 900
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_and_normalize_s3_path')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.validate_and_normalize_s3_path')
     def test_get_genomics_search_config_defaults(self, mock_validate):
         """Test getting genomics search configuration with default values."""
         mock_validate.return_value = 's3://test-bucket/'
@@ -435,8 +435,8 @@ class TestConfigUtils:
         with pytest.raises(ValueError, match='No S3 bucket paths configured'):
             get_genomics_search_config()
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.config_utils.get_genomics_search_config')
-    @patch('awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_bucket_access')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.get_genomics_search_config')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.validate_bucket_access')
     def test_validate_bucket_access_permissions_success(
         self, mock_validate_access, mock_get_config
     ):
@@ -460,7 +460,7 @@ class TestConfigUtils:
         assert result == ['s3://bucket1/', 's3://bucket2/']
         mock_validate_access.assert_called_once_with(['s3://bucket1/', 's3://bucket2/'])
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.config_utils.get_genomics_search_config')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.get_genomics_search_config')
     def test_validate_bucket_access_permissions_config_error(self, mock_get_config):
         """Test bucket access validation with configuration error."""
         mock_get_config.side_effect = ValueError('Configuration error')
@@ -468,8 +468,8 @@ class TestConfigUtils:
         with pytest.raises(ValueError, match='Configuration error'):
             validate_bucket_access_permissions()
 
-    @patch('awslabs.aws_healthomics_mcp_server.utils.config_utils.get_genomics_search_config')
-    @patch('awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_bucket_access')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.get_genomics_search_config')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.search_config.validate_bucket_access')
     def test_validate_bucket_access_permissions_access_error(
         self, mock_validate_access, mock_get_config
     ):
@@ -494,10 +494,10 @@ class TestConfigUtils:
     def test_integration_workflow(self):
         """Test complete integration workflow with realistic configuration."""
         with patch(
-            'awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_and_normalize_s3_path'
+            'awslabs.aws_healthomics_mcp_server.utils.search_config.validate_and_normalize_s3_path'
         ) as mock_validate:
             with patch(
-                'awslabs.aws_healthomics_mcp_server.utils.config_utils.validate_bucket_access'
+                'awslabs.aws_healthomics_mcp_server.utils.search_config.validate_bucket_access'
             ) as mock_access:
                 # Setup mocks
                 mock_validate.side_effect = [

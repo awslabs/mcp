@@ -23,17 +23,18 @@ from awslabs.aws_healthomics_mcp_server.models import (
     SearchConfig,
     StoragePaginationRequest,
     StoragePaginationResponse,
+    build_s3_uri,
+    create_genomics_file_from_s3_object,
 )
 from awslabs.aws_healthomics_mcp_server.search.file_type_detector import FileTypeDetector
 from awslabs.aws_healthomics_mcp_server.search.pattern_matcher import PatternMatcher
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
-from awslabs.aws_healthomics_mcp_server.utils.config_utils import (
+from awslabs.aws_healthomics_mcp_server.utils.s3_utils import parse_s3_path
+from awslabs.aws_healthomics_mcp_server.utils.search_config import (
     get_genomics_search_config,
     validate_bucket_access_permissions,
 )
-from awslabs.aws_healthomics_mcp_server.utils.s3_utils import parse_s3_path
 from botocore.exceptions import ClientError
-from datetime import datetime
 from loguru import logger
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -342,7 +343,6 @@ class S3SearchEngine:
 
             for obj in objects:
                 key = obj['Key']
-                s3_path = f's3://{bucket_name}/{key}'
 
                 # File type filtering
                 detected_file_type = self.file_type_detector.detect_file_type(key)
@@ -354,6 +354,8 @@ class S3SearchEngine:
 
                 # Path-based search term matching
                 if search_terms:
+                    # Use centralized URI construction for pattern matching
+                    s3_path = build_s3_uri(bucket_name, key)
                     path_score, _ = self.pattern_matcher.match_file_path(s3_path, search_terms)
                     if path_score > 0:
                         # Path matched, no need for tags
@@ -454,7 +456,6 @@ class S3SearchEngine:
 
             for obj in objects:
                 key = obj['Key']
-                s3_path = f's3://{bucket_name}/{key}'
 
                 # File type filtering
                 detected_file_type = self.file_type_detector.detect_file_type(key)
@@ -466,6 +467,8 @@ class S3SearchEngine:
 
                 # Path-based search term matching
                 if search_terms:
+                    # Use centralized URI construction for pattern matching
+                    s3_path = build_s3_uri(bucket_name, key)
                     path_score, _ = self.pattern_matcher.match_file_path(s3_path, search_terms)
                     if path_score > 0:
                         # Path matched, no need for tags
@@ -709,20 +712,14 @@ class S3SearchEngine:
         Returns:
             GenomicsFile object
         """
-        key = s3_object['Key']
-        s3_path = f's3://{bucket_name}/{key}'
-
-        return GenomicsFile(
-            path=s3_path,
+        # Use centralized utility function - no manual URI construction needed
+        return create_genomics_file_from_s3_object(
+            bucket=bucket_name,
+            s3_object=s3_object,
             file_type=detected_file_type,
-            size_bytes=s3_object.get('Size', 0),
-            storage_class=s3_object.get('StorageClass', 'STANDARD'),
-            last_modified=s3_object.get('LastModified', datetime.now()),
             tags=tags,
             source_system='s3',
             metadata={
-                'bucket_name': bucket_name,
-                'key': key,
                 'etag': s3_object.get('ETag', '').strip('"'),
             },
         )

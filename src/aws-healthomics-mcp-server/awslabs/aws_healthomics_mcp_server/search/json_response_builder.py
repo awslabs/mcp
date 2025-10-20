@@ -148,16 +148,38 @@ class JsonResponseBuilder:
             'metadata': file.metadata,
         }
 
+        # Use S3File model for enhanced file information if available
+        if file.s3_file:
+            s3_file = file.s3_file
+            file_info = {
+                'extension': self._extract_file_extension(
+                    file.path
+                ),  # Use genomics-aware extension logic
+                'basename': s3_file.filename,
+                'directory': s3_file.directory,
+                'is_compressed': self._is_compressed_file(file.path),
+                'storage_tier': self._categorize_storage_tier(file.storage_class),
+                's3_info': {
+                    'bucket': s3_file.bucket,
+                    'key': s3_file.key,
+                    'console_url': s3_file.console_url,
+                    'arn': s3_file.arn,
+                },
+            }
+        else:
+            # Fallback to manual extraction for non-S3 files
+            file_info = {
+                'extension': self._extract_file_extension(file.path),
+                'basename': self._extract_basename(file.path),
+                'is_compressed': self._is_compressed_file(file.path),
+                'storage_tier': self._categorize_storage_tier(file.storage_class),
+            }
+
         # Add computed/enhanced fields
         base_dict.update(
             {
                 'size_human_readable': self._format_file_size(file.size_bytes),
-                'file_info': {
-                    'extension': self._extract_file_extension(file.path),
-                    'basename': self._extract_basename(file.path),
-                    'is_compressed': self._is_compressed_file(file.path),
-                    'storage_tier': self._categorize_storage_tier(file.storage_class),
-                },
+                'file_info': file_info,
             }
         )
 
