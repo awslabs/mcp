@@ -392,6 +392,14 @@ Step-by-step guidance for setting up industrial data ingestion with best practic
 
 Comprehensive guidance for exploring IoT data using the executeQuery API with SQL-like analytics capabilities.
 
+### 
+
+```example
+/prompts get grafana_workspace_migration <portal_id>
+```
+
+Helps migrate SiteWise Monitor portals, projects, and dashboards to AWS Managed Grafana workspaces.
+
 ## Usage Examples
 
 ### Creating an Asset Model and Asset
