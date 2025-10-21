@@ -25,6 +25,9 @@ from awslabs.aws_iot_sitewise_mcp_server.prompts.data_exploration import (
 from awslabs.aws_iot_sitewise_mcp_server.prompts.data_ingestion import (
     data_ingestion_helper_prompt,
 )
+from awslabs.aws_iot_sitewise_mcp_server.prompts.grafana_migration import (
+    grafana_workspace_migration_prompt,
+)
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import is_readonly_tool
 from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_access import (
     describe_default_encryption_configuration_tool,
@@ -77,6 +80,20 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways import (
     list_time_series_tool,
     update_gateway_capability_configuration_tool,
     update_gateway_tool,
+)
+from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_monitor import (
+    convert_dashboard_by_id_tool,
+    convert_monitor_dashboard_to_grafana_tool,
+    describe_access_policy_tool,
+    describe_dashboard_tool,
+    describe_portal_tool,
+    describe_project_tool,
+    get_conversion_rules_tool,
+    list_access_policies_tool,
+    list_dashboards_tool,
+    list_portals_tool,
+    list_projects_tool,
+    validate_dashboard_definition_tool,
 )
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools import Tool
@@ -145,6 +162,18 @@ all_tools = [
     put_logging_options_tool,
     describe_storage_configuration_tool,
     put_storage_configuration_tool,
+    convert_dashboard_by_id_tool,
+    convert_monitor_dashboard_to_grafana_tool,
+    describe_access_policy_tool,
+    describe_dashboard_tool,
+    describe_portal_tool,
+    describe_project_tool,
+    get_conversion_rules_tool,
+    list_access_policies_tool,
+    list_dashboards_tool,
+    list_portals_tool,
+    list_projects_tool,
+    validate_dashboard_definition_tool,
 ]
 
 
@@ -275,6 +304,7 @@ async def run_server():
     readonly_prompts = [
         asset_hierarchy_visualization_prompt,
         data_exploration_helper_prompt,
+        grafana_workspace_migration_prompt,
     ]
 
     # Always add read-only prompts
