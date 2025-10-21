@@ -184,8 +184,10 @@ jobs:
           set -euo pipefail
           echo "${{ toJson(needs.look-for-changes.outputs.changed-directories) }}" | \
             jq -r '.[]' | \
-            xargs -I{} \
-            bash -c 'uv run --script .github/workflows/release.py bump-package --directory="$SRC_DIRECTORY/{}" && if [ -f "$SRC_DIRECTORY/{}/pyproject.toml" ]; then uv sync --directory="$SRC_DIRECTORY/{}";fi;' bash
+            xargs -I{} -L 1 -S 1024 \
+            bash -c '(uv run --script .github/workflows/release.py bump-package --directory="$SRC_DIRECTORY/{}" && if [ -f "$SRC_DIRECTORY/{}/pyproject.toml" ]; then uv sync --directory="$SRC_DIRECTORY/{}";fi;) || echo "
+            NOTE: skipped $SRC_DIRECTORY/{}; either deleted or not a Python project...
+            "' bash
           echo "::debug::Version bumps completed"
       - name: Configure Git and GPG securely
         env:
