@@ -70,12 +70,12 @@ class TestServer:
         assert mock_mcp_instance._mcp_server.version == '1.0.0'
 
         # Verify tools were added - we should have a significant number of tools
-        # Asset tools: 8, Asset model tools: 7, Data tools: 9, Gateway tools: 12, Access tools: 6, plus get_sitewise_server_mode
-        # Total expected: 43 tools (22 read-only + 21 write)
-        assert mock_mcp_instance.add_tool.call_count == 43
+        # Asset tools: 8, Asset model tools: 7, Data tools: 14, Gateway tools: 12, Access tools: 6, plus get_sitewise_server_mode
+        # Total expected: 48 tools (25 read-only + 23 write)
+        assert mock_mcp_instance.add_tool.call_count == 48
 
-        # Verify prompts were added (3 prompts)
-        assert mock_mcp_instance.add_prompt.call_count == 3
+        # Verify prompts were added (4 prompts)
+        assert mock_mcp_instance.add_prompt.call_count == 4
 
         # Verify signal handler was started
         mock_tg.start_soon.assert_called_once()
@@ -140,13 +140,13 @@ class TestServer:
 
         await run_server()
 
-        # Verify all 3 prompts were added
-        assert mock_mcp_instance.add_prompt.call_count == 3
+        # Verify all 4 prompts were added
+        assert mock_mcp_instance.add_prompt.call_count == 4
 
         # Verify the prompts are from the expected modules
         prompt_calls = mock_mcp_instance.add_prompt.call_args_list
         # Each call should be a Mock call with one argument (the prompt)
-        assert len(prompt_calls) == 3
+        assert len(prompt_calls) == 4
 
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.run')
     def test_main_function(self, mock_run):
@@ -207,8 +207,8 @@ class TestServer:
 
         # Verify setup still happened before the error
         mock_fastmcp.assert_called_once()
-        assert mock_mcp_instance.add_tool.call_count == 43
-        assert mock_mcp_instance.add_prompt.call_count == 3
+        assert mock_mcp_instance.add_tool.call_count == 48
+        assert mock_mcp_instance.add_prompt.call_count == 4
 
 
 if __name__ == '__main__':
