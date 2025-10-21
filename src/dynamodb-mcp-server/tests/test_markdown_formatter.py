@@ -288,7 +288,7 @@ def test_generate_all_files_with_skipped_queries(tmp_path, sample_results):
         'analysis_period': '30 days',
         'max_query_results': 500,
         'performance_enabled': False,
-        'skipped_queries': ['all_queries_stats', 'stored_procedures_stats', 'triggers_stats'],
+        'skipped_queries': ['all_queries_stats', 'triggers_stats'],
     }
     
     formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path))

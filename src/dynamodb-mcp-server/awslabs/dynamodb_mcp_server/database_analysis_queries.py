@@ -32,7 +32,6 @@ mysql_analysis_queries = {
         'category': 'performance_schema',
         'sql': """SELECT
   t.TABLE_NAME as `table_name`,
-  t.ENGINE as `engine`,
   t.TABLE_ROWS as `row_count`,
   t.AVG_ROW_LENGTH as `avg_row_length_bytes`,
   t.DATA_LENGTH as `data_size_bytes`,
@@ -257,39 +256,6 @@ FROM performance_schema.events_statements_summary_by_program
 WHERE OBJECT_SCHEMA = '{target_database}'
 AND OBJECT_TYPE = 'PROCEDURE'
 ORDER BY total_time_ms DESC;""",
-        'parameters': ['target_database'],
-    },
-    'stored_procedures_stats': {
-        'name': 'Stored Procedures Statistics',
-        'description': 'Stored procedure execution statistics with timing and lock analysis',
-        'category': 'performance_schema',
-        'sql': """SELECT 
-  OBJECT_SCHEMA as schema_name,
-  OBJECT_NAME as procedure_name,
-  COUNT_STAR as executions,
-  ROUND(SUM_TIMER_WAIT/1000000000, 2) as total_time_ms,
-  ROUND(MIN_TIMER_WAIT/1000000000, 2) as min_time_ms,
-  ROUND(AVG_TIMER_WAIT/1000000000, 2) as avg_time_ms,
-  ROUND(MAX_TIMER_WAIT/1000000000, 2) as max_time_ms,
-  COUNT_STATEMENTS as statements_executed,
-  ROUND(SUM_STATEMENTS_WAIT/1000000000, 2) as statements_wait_ms,
-  ROUND(SUM_LOCK_TIME/1000000000, 2) as lock_time_ms,
-  ROUND((SUM_LOCK_TIME/NULLIF(SUM_TIMER_WAIT,0))*100, 2) as lock_time_pct,
-  SUM_ERRORS as errors,
-  SUM_WARNINGS as warnings,
-  SUM_ROWS_AFFECTED as rows_affected,
-  SUM_ROWS_SENT as rows_sent,
-  SUM_ROWS_EXAMINED as rows_examined,
-  SUM_CREATED_TMP_TABLES as temp_tables_created,
-  SUM_SELECT_FULL_JOIN as full_joins,
-  SUM_SELECT_SCAN as full_table_scans,
-  SUM_SORT_ROWS as rows_sorted,
-  SUM_NO_INDEX_USED as queries_without_index,
-  ROUND(COUNT_STAR / 60, 2) as estimated_rps
-FROM performance_schema.events_statements_summary_by_program
-WHERE OBJECT_SCHEMA = '{target_database}'
-AND OBJECT_TYPE = 'PROCEDURE'
-ORDER BY SUM_TIMER_WAIT DESC;""",
         'parameters': ['target_database'],
     },
     'triggers_stats': {

@@ -364,10 +364,8 @@ class MarkdownFormatter:
             if 'all_queries_stats' in self.results:
                 query_data = self.results['all_queries_stats'].get('data', [])
                 total_queries = len(query_data) if query_data else 0
-
-            if 'stored_procedures_stats' in self.results:
-                proc_data = self.results['stored_procedures_stats'].get('data', [])
-                total_procedures = len(proc_data) if proc_data else 0
+                # Count stored procedures from all_queries_stats (source_type = 'PROCEDURE')
+                total_procedures = sum(1 for row in query_data if row.get('source_type') == 'PROCEDURE') if query_data else 0
 
             if 'triggers_stats' in self.results:
                 trigger_data = self.results['triggers_stats'].get('data', [])
