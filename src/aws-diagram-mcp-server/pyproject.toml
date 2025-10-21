@@ -3,33 +3,30 @@ name = "awslabs.aws-diagram-mcp-server"
 version = "1.0.10"
 description = "An MCP server that seamlessly creates diagrams using the Python diagrams package DSL"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
+    "bandit>=1.8.6",
+    "boto3>=1.40.53",
     "diagrams>=0.24.4",
-    "boto3>=1.37.27",
-    "mcp[cli]>=1.11.0",
-    "pydantic>=2.10.6",
-    "bandit>=1.7.5",
-    "sarif-om>=1.0.0",     # Fixes GitHub issue #1041: No module named 'sarif_om'
-    # Security fixes for CVEs
-    "setuptools>=78.1.1",  # Fixes CVE-2025-47273
-    "starlette>=0.47.2",   # Fixes CVE-2025-54121
-    "urllib3>=2.5.0",      # Fixes CVE-2025-50181, CVE-2025-50182
+    "mcp[cli]>=1.17.0",
+    "pydantic>=2.12.2",
+    "sarif-om>=1.0.4",
+    "setuptools>=80.9.0",
+    "starlette>=0.48.0",
+    "urllib3>=2.5.0",
 ]
-license = {text = "Apache-2.0"}
-license-files = ["LICENSE", "NOTICE" ]
+license = { text = "Apache-2.0" }
+license-files = ["LICENSE", "NOTICE"]
 
 authors = [
-    {name = "Amazon Web Services"},
-    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    { name = "Amazon Web Services" },
+    { name = "AWSLabs MCP", email = "203918161+awslabs-mcp@users.noreply.github.com" },
 ]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
@@ -46,13 +43,13 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-diagram-mcp-server
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
-    "ruff>=0.9.7",
-    "pyright>=1.1.398",
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.26.0",
+    "commitizen>=4.9.1",
+    "pre-commit>=4.2.0",
+    "pyright>=1.1.406",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.1",
 ]
 
 [build-system]
@@ -74,7 +71,7 @@ exclude = [
     "**/env",
     "**/.ruff_cache",
     "**/.venv",
-    "**/.ipynb_checkpoints"
+    "**/.ipynb_checkpoints",
 ]
 force-exclude = true
 
@@ -102,7 +99,13 @@ docstring-code-format = true
 
 [tool.pyright]
 include = ["awslabs", "tests"]
-exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+exclude = [
+    "**/__pycache__",
+    "**/.venv",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+]
 typeCheckingMode = "basic"
 reportMissingImports = false
 reportUnusedExpression = false
@@ -120,7 +123,7 @@ version = "0.0.0"
 tag_format = "v$version"
 version_files = [
     "pyproject.toml:version",
-    "awslabs/aws_diagram_mcp_server/__init__.py:__version__"
+    "awslabs/aws_diagram_mcp_server/__init__.py:__version__",
 ]
 update_changelog_on_bump = true
 
@@ -130,7 +133,7 @@ packages = ["awslabs"]
 [tool.bandit]
 # Skip specific issues
 skips = ["B102"]
-exclude_dirs = ["venv","tests"]
+exclude_dirs = ["venv", "tests"]
 
 # Per-file skips
 per_file_skips = { "awslabs/aws_diagram_mcp_server/diagrams.py" = ["B102"] }
@@ -139,9 +142,7 @@ per_file_skips = { "awslabs/aws_diagram_mcp_server/diagrams.py" = ["B102"] }
 testpaths = "tests"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-markers = [
-    "asyncio: mark a test as an asyncio coroutine",
-]
+markers = ["asyncio: mark a test as an asyncio coroutine"]
 filterwarnings = [
     "ignore::DeprecationWarning:ast",
     "ignore:ast.Str is deprecated:DeprecationWarning",
