@@ -44,8 +44,8 @@ from .canary_utils import (
     get_canary_code,
     get_canary_metrics_and_service_insights,
 )
-from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .enablement_tools import enable_application_signals
+from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
     get_service_detail,
     list_monitored_services,

@@ -18,7 +18,6 @@ import pytest
 from awslabs.cloudwatch_appsignals_mcp_server.enablement_tools import (
     enable_application_signals,
 )
-from pathlib import Path
 from unittest.mock import mock_open, patch
 
 
@@ -206,13 +205,13 @@ class TestEnableApplicationSignals:
             result = await enable_application_signals(
                 platform='ec2',
                 language=language,
-                iac_directory=f'infrastructure/ec2/cdk',
+                iac_directory='infrastructure/ec2/cdk',
                 app_directory=f'sample-apps/{language}/app',
             )
 
-            assert (
-                'Error' not in result
-            ), f'Expected {language} to work for EC2, but got error: {result}'
+            assert 'Error' not in result, (
+                f'Expected {language} to work for EC2, but got error: {result}'
+            )
             assert f'**Language:** {language}' in result
             assert len(result) > 200
 

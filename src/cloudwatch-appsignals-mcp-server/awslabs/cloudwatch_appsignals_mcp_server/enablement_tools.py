@@ -14,8 +14,8 @@
 
 """Application Signals enablement tools for MCP server."""
 
-from pathlib import Path
 from loguru import logger
+from pathlib import Path
 
 
 async def enable_application_signals(
