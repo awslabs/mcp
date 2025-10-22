@@ -124,7 +124,9 @@ def test_initialize_aws_clients_with_profile():
         ):
             with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.Config'):
                 # Call the initialization function
-                logs, appsignals, cloudwatch, xray = _initialize_aws_clients()
+                logs, appsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts = (
+                    _initialize_aws_clients()
+                )
 
                 # Verify Session was called with the profile
                 mock_session.assert_called_once()
@@ -133,7 +135,7 @@ def test_initialize_aws_clients_with_profile():
                 assert call_kwargs['region_name'] == 'us-east-1'
 
                 # Verify all clients were created
-                assert mock_session_instance.client.call_count == 4
+                assert mock_session_instance.client.call_count == 9
                 client_calls = [call[0][0] for call in mock_session_instance.client.call_args_list]
                 assert 'logs' in client_calls
                 assert 'application-signals' in client_calls

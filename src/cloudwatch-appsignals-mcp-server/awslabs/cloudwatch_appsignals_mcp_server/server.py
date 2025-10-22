@@ -16,6 +16,7 @@
 
 import json
 import os
+import re
 import sys
 import tempfile
 from .audit_utils import (
@@ -25,7 +26,24 @@ from .audit_utils import (
     expand_slo_wildcard_patterns,
     parse_auditors,
 )
-from .aws_clients import AWS_REGION, appsignals_client
+from .aws_clients import (
+    AWS_REGION,
+    appsignals_client,
+    iam_client,
+    s3_client,
+    synthetics_client,
+)
+from .canary_utils import (
+    analyze_canary_logs_with_time_window,
+    analyze_har_file,
+    analyze_iam_role_and_policies,
+    analyze_log_files,
+    analyze_screenshots,
+    check_resource_arns_correct,
+    extract_disk_memory_usage_metrics,
+    get_canary_code,
+    get_canary_metrics_and_service_insights,
+)
 from .service_audit_utils import normalize_service_targets, validate_and_enrich_service_targets
 from .service_tools import (
     get_service_detail,
@@ -46,6 +64,8 @@ from typing import Optional
 
 # Constants
 BATCH_SIZE_THRESHOLD = 5
+
+RUN_STATES = {'RUNNING': 'RUNNING', 'PASSED': 'PASSED', 'FAILED': 'FAILED'}
 
 # Initialize FastMCP server
 mcp = FastMCP('cloudwatch-appsignals')
@@ -798,6 +818,514 @@ async def audit_service_operations(
         return f'Error: {str(e)}'
 
 
+@mcp.tool()
+async def analyze_canary_failures(canary_name: str, region: str = AWS_REGION) -> str:
+    """Comprehensive canary failure analysis with deep dive into issues.
+
+    Use this tool to:
+    - Deep dive into canary failures with root cause identification
+    - Analyze historical patterns and specific incident details
+    - Get comprehensive artifact analysis including logs, screenshots, and HAR files
+    - Receive actionable recommendations based on AWS debugging methodology
+    - Correlate canary failures with Application Signals telemetry data
+    - Identify performance degradation and availability issues across service dependencies
+
+    Key Features:
+    - **Failure Pattern Analysis**: Identifies recurring failure modes and temporal patterns
+    - **Artifact Deep Dive**: Analyzes canary logs, screenshots, and network traces for root causes
+    - **Service Correlation**: Links canary failures to upstream/downstream service issues using Application Signals
+    - **Performance Insights**: Detects latency spikes, fault rates, and connection issues
+    - **Actionable Remediation**: Provides specific steps based on AWS operational best practices
+
+    Common Use Cases:
+    1. **Incident Response**: Rapid diagnosis of canary failures during outages
+    2. **Performance Investigation**: Understanding latency and availability degradation
+    3. **Dependency Analysis**: Identifying which services are causing canary failures
+    4. **Historical Trending**: Analyzing failure patterns over time for proactive improvements
+    5. **Root Cause Analysis**: Deep dive into specific failure scenarios with full context
+
+    Output Includes:
+    - Severity-ranked findings with immediate action items
+    - Service-level telemetry insights with trace analysis
+    - Exception details and stack traces from canary artifacts
+    - Network connectivity and performance metrics
+    - Correlation with Application Signals audit findings
+    - Historical failure patterns and recovery recommendations
+
+    Args:
+        canary_name (str): Name of the CloudWatch Synthetics canary to analyze
+        region (str, optional): AWS region where the canary is deployed.
+
+    Returns:
+        dict: Comprehensive failure analysis containing:
+            - Failure severity assessment and immediate recommendations
+            - Detailed artifact analysis (logs, screenshots, HAR files)
+            - Service dependency health and performance metrics
+            - Root cause identification with specific remediation steps
+            - Historical pattern analysis and trend insights
+    """
+    try:
+        # Get recent canary runs
+        response = synthetics_client.get_canary_runs(Name=canary_name, MaxResults=5)
+        runs = response.get('CanaryRuns', [])
+
+        # Get canary details
+        canary_response = synthetics_client.get_canary(Name=canary_name)
+        canary = canary_response['Canary']
+
+        # Get telemetry and service insights
+        try:
+            telemetry_insights = await get_canary_metrics_and_service_insights(canary_name, region)
+        except Exception as e:
+            telemetry_insights = f'Telemetry API unavailable: {str(e)}'
+
+        if not runs:
+            return f'No run history found for {canary_name}'
+
+        # Build analysis header
+        result = f'🔍 Comprehensive Failure Analysis for {canary_name}\n'
+
+        # Add telemetry insights if available
+        if telemetry_insights and not telemetry_insights.startswith('Telemetry API unavailable'):
+            result += f'\n📊 **Service and Canary Telemetry Insights**\n{telemetry_insights}\n\n'
+        elif telemetry_insights:
+            result += f'\n⚠️ {telemetry_insights}\n\n'
+
+        # Get consecutive failures since last success
+        consecutive_failures = []
+        last_success_run = None
+
+        for run in runs:
+            if run.get('Status', {}).get('State') == RUN_STATES['FAILED']:
+                consecutive_failures.append(run)
+            elif run.get('Status', {}).get('State') == RUN_STATES['PASSED']:
+                last_success_run = run
+                break
+
+        if not consecutive_failures:
+            result += '✅ Canary is healthy - no failures since last success\n'
+            if last_success_run:
+                result += f'Last success: {last_success_run.get("Timeline", {}).get("Started")}\n'
+            result += '\n🔍 Performing health check analysis ...\n\n'
+
+        # Group failures by StateReason
+        failure_causes = {}
+        result += f'🔍 Found {len(consecutive_failures)} consecutive failures since last success\n'
+        if last_success_run:
+            result += f'Last success: {last_success_run.get("Timeline", {}).get("Started")}\n\n'
+        else:
+            result += 'No recent success run found in history\n\n'
+
+        for failed_run in consecutive_failures:
+            state_reason = failed_run.get('Status', {}).get('StateReason', 'Unknown')
+
+            if state_reason not in failure_causes:
+                failure_causes[state_reason] = []
+            failure_causes[state_reason].append(failed_run)
+
+        # Analysis section
+        unique_reasons = list(failure_causes.keys())
+
+        if not unique_reasons:
+            result += '✅ No consecutive failures to analyze\n'
+            result += '💡 Canary appears to be recovering or healthy\n'
+            return result
+
+        if len(unique_reasons) == 1:
+            result += f'🎯 All failures have same cause: {unique_reasons[0]}\n'
+            selected_reason = unique_reasons[0]
+        else:
+            result += f'🎯 Multiple failure causes ({len(unique_reasons)} different issues):\n\n'
+            for i, reason in enumerate(unique_reasons, 1):
+                count = len(failure_causes[reason])
+                result += f'{i}. **{reason}** ({count} occurrences)\n'
+            result += '\n'
+            selected_reason = unique_reasons[0]
+
+        selected_failure = failure_causes[selected_reason][0]
+        result += f'Analyzing most recent failure: {selected_failure.get("Id", "")[:8]}...\n\n'
+
+        # Initialize artifact variables
+        har_files = []
+        screenshots = []
+        logs = []
+        bucket_name = ''
+
+        # Direct S3 artifact analysis integration
+        artifact_location = canary.get('ArtifactS3Location', '')
+        artifacts_available = False
+
+        if artifact_location:
+            # Handle S3 location format
+            if not artifact_location.startswith('s3://'):
+                artifact_location = f's3://{artifact_location}' if artifact_location else ''
+
+            if artifact_location.startswith('s3://'):
+                bucket_and_path = artifact_location[5:]
+                bucket_name = bucket_and_path.split('/')[0]
+                base_path = (
+                    '/'.join(bucket_and_path.split('/')[1:]) if '/' in bucket_and_path else ''
+                )
+
+                # If base_path is empty, construct canary path
+                if not base_path:
+                    base_path = f'canary/{region}/{canary_name}'
+
+                # Check for failure artifacts using date-based path
+                from datetime import datetime
+
+                failure_time = selected_failure.get('Timeline', {}).get('Started')
+                if failure_time:
+                    # Handle both datetime objects and string timestamps
+                    if isinstance(failure_time, str):
+                        dt = parse_timestamp(failure_time)
+                    else:
+                        dt = failure_time  # Already a datetime object
+                    date_path = dt.strftime('%Y/%m/%d')
+                    failure_run_path = (
+                        f'{base_path}/{date_path}/' if base_path else f'{date_path}/'
+                    )
+                else:
+                    # Fallback to today
+                    today = datetime.now().strftime('%Y/%m/%d')
+                    failure_run_path = f'{base_path}/{today}/' if base_path else f'{today}/'
+
+                try:
+                    artifacts_response = s3_client.list_objects_v2(
+                        Bucket=bucket_name, Prefix=failure_run_path, MaxKeys=50
+                    )
+                    failure_artifacts = artifacts_response.get('Contents', [])
+
+                    if failure_artifacts:
+                        artifacts_available = True
+
+                        # Categorize artifacts
+                        har_files = [
+                            a
+                            for a in failure_artifacts
+                            if a['Key'].lower().endswith(('.har', '.har.gz', '.har.html'))
+                        ]
+                        screenshots = [
+                            a
+                            for a in failure_artifacts
+                            if any(ext in a['Key'].lower() for ext in ['.png', '.jpg', '.jpeg'])
+                        ]
+                        logs = [
+                            a
+                            for a in failure_artifacts
+                            if any(ext in a['Key'].lower() for ext in ['.log', '.txt'])
+                            or 'log' in a['Key'].lower()
+                        ]
+
+                        if last_success_run:
+                            result += '🔄 HAR COMPARISON: Failure vs Success\n'
+                            result += f'Failure: {selected_failure.get("Id", "")[:8]}... ({selected_failure.get("Timeline", {}).get("Started")})\n'
+                            result += f'Success: {last_success_run.get("Id", "")[:8]}... ({last_success_run.get("Timeline", {}).get("Started")})\n\n'
+
+                            # Get success artifacts for comparison
+                            success_time = last_success_run.get('Timeline', {}).get('Started')
+                            if success_time:
+                                if isinstance(success_time, str):
+                                    success_dt = parse_timestamp(success_time)
+                                else:
+                                    success_dt = success_time
+                                success_date_path = success_dt.strftime('%Y/%m/%d')
+                                success_run_path = (
+                                    f'{base_path}/{success_date_path}/'
+                                    if base_path
+                                    else f'{success_date_path}/'
+                                )
+                            else:
+                                success_run_path = failure_run_path  # Use same path as fallback
+                            try:
+                                success_artifacts_response = s3_client.list_objects_v2(
+                                    Bucket=bucket_name, Prefix=success_run_path, MaxKeys=50
+                                )
+                                success_artifacts = success_artifacts_response.get('Contents', [])
+                                success_har_files = [
+                                    a
+                                    for a in success_artifacts
+                                    if a['Key'].lower().endswith(('.har', '.har.gz', '.har.html'))
+                                ]
+
+                                if har_files and success_har_files:
+                                    failure_har = await analyze_har_file(
+                                        s3_client, bucket_name, har_files, is_failed_run=True
+                                    )
+                                    success_har = await analyze_har_file(
+                                        s3_client,
+                                        bucket_name,
+                                        success_har_files,
+                                        is_failed_run=False,
+                                    )
+
+                                    result += f'• Failed requests: {failure_har.get("failed_requests", 0)} vs {success_har.get("failed_requests", 0)}\n'
+                                    result += f'• Total requests: {failure_har.get("total_requests", 0)} vs {success_har.get("total_requests", 0)}\n\n'
+
+                                    if failure_har.get('request_details'):
+                                        result += '🚨 FAILED REQUESTS:\n'
+                                        for req in failure_har['request_details'][:3]:
+                                            result += f'• {req.get("url", "Unknown")}: {req.get("status", "Unknown")} ({req.get("time", 0):.1f}ms)\n'
+                            except Exception as e:
+                                logger.warning(
+                                    f'Failed to analyze success artifacts for HAR comparison: {str(e)}'
+                                )
+                        else:
+                            result += (
+                                '🔍 FAILURE ANALYSIS (no success run available for comparison):\n'
+                            )
+                            result += f'Analyzing failure artifacts for: {selected_failure.get("Id", "")[:8]}...\n\n'
+
+                            if har_files:
+                                failure_har = await analyze_har_file(
+                                    s3_client, bucket_name, har_files, is_failed_run=True
+                                )
+                                result += '🌐 HAR ANALYSIS:\n'
+                                result += (
+                                    f'• Failed requests: {failure_har.get("failed_requests", 0)}\n'
+                                )
+                                result += (
+                                    f'• Total requests: {failure_har.get("total_requests", 0)}\n\n'
+                                )
+
+                        # Screenshot analysis
+                        if screenshots:
+                            screenshot_analysis = await analyze_screenshots(
+                                s3_client, bucket_name, screenshots, is_failed_run=True
+                            )
+                            if screenshot_analysis.get('insights'):
+                                result += '📸 SCREENSHOT ANALYSIS:\n'
+                                for insight in screenshot_analysis['insights'][:3]:
+                                    result += f'• {insight}\n'
+                                result += '\n'
+
+                        # Log analysis
+                        if logs:
+                            log_analysis = await analyze_log_files(
+                                s3_client, bucket_name, logs, is_failed_run=True
+                            )
+                            if log_analysis.get('insights'):
+                                result += '📋 LOG ANALYSIS:\n'
+                                for insight in log_analysis['insights'][:3]:
+                                    result += f'• {insight}\n'
+                                result += '\n'
+
+                except Exception:
+                    artifacts_available = False
+
+        if not artifacts_available:
+            # Fallback: CloudWatch Logs analysis
+            result += '⚠️ Artifacts not available - Checking CloudWatch Logs for root cause\n'
+            result += f'🎯 StateReason: {selected_reason}\n\n'
+
+            failure_time = selected_failure.get('Timeline', {}).get('Started')
+            if failure_time:
+                log_analysis = await analyze_canary_logs_with_time_window(
+                    canary_name, failure_time, canary, window_minutes=5, region=region
+                )
+
+                if log_analysis.get('status') == 'success':
+                    result += '📋 CLOUDWATCH LOGS ANALYSIS (±5 min around failure):\n'
+                    result += f'Time window: {log_analysis["time_window"]}\n'
+                    result += f'Log events found: {log_analysis["total_events"]}\n\n'
+
+                    error_logs = log_analysis.get('error_events', [])
+                    if error_logs:
+                        result += '📋 ERROR LOGS AROUND FAILURE:\n'
+                        for error in error_logs:
+                            result += f'• {error["timestamp"].strftime("%H:%M:%S")}: {error["message"]}\n'
+                else:
+                    result += f'📋 {log_analysis.get("insights", ["Log analysis failed"])[0]}\n'
+            else:
+                result += '📋 No failure timestamp available for targeted log analysis\n'
+
+        # Add critical IAM checking guidance for systematic issues
+        if (
+            'no test result' in str(selected_reason).lower()
+            or 'permission' in str(selected_reason).lower()
+            or 'access denied' in str(selected_reason).lower()
+        ):
+            try:
+                result += f"\n🔍 RUNNING COMPREHENSIVE IAM ANALYSIS (common cause of '{selected_reason}'):\n"
+
+                # 1. Check IAM role and policies
+                iam_analysis = await analyze_iam_role_and_policies(canary, iam_client, region)
+
+                # Display IAM analysis results
+                result += f'IAM Role Analysis Status: {iam_analysis["status"]}\n'
+                for check_name, check_result in iam_analysis.get('checks', {}).items():
+                    result += f'• {check_name}: {check_result}\n'
+
+                # 2. ENHANCED: Check resource ARN correctness with detailed validation
+                result += '\n🔍 CHECKING RESOURCE ARN CORRECTNESS:\n'
+                arn_check = check_resource_arns_correct(canary, iam_client)
+
+                if arn_check.get('correct'):
+                    result += '✅ Resource ARNs: Correct\n'
+                else:
+                    result += f'❌ Resource ARNs: {arn_check.get("error", "Issues found")}\n'
+
+                # Combine all IAM issues with enhanced categorization
+                all_iam_issues = []
+                if iam_analysis.get('issues_found'):
+                    all_iam_issues.extend(
+                        [f'IAM Policy: {issue}' for issue in iam_analysis['issues_found']]
+                    )
+                if not arn_check.get('correct') and arn_check.get('issues'):
+                    all_iam_issues.extend(
+                        [f'Resource ARN: {issue}' for issue in arn_check['issues']]
+                    )
+
+                if all_iam_issues:
+                    result += f'\n🚨 ALL IAM ISSUES FOUND ({len(all_iam_issues)} total):\n'
+                    for issue in all_iam_issues:
+                        result += f'• {issue}\n'
+
+                # Enhanced IAM recommendations with priority
+                all_iam_recommendations = []
+                if iam_analysis.get('recommendations'):
+                    all_iam_recommendations.extend(
+                        [f'Policy Fix: {rec}' for rec in iam_analysis['recommendations']]
+                    )
+                if not arn_check.get('correct'):
+                    all_iam_recommendations.extend(
+                        [
+                            'PRIORITY: Review and correct S3 bucket ARN patterns in IAM policies',
+                            'PRIORITY: Ensure bucket names match expected patterns (e.g., cw-syn-* for CloudWatch Synthetics)',
+                            'Verify canary has access to the correct S3 bucket for artifacts storage',
+                            'Check if bucket exists and is in the same region as the canary',
+                        ]
+                    )
+
+                if all_iam_recommendations:
+                    result += (
+                        f'\n💡 ALL IAM RECOMMENDATIONS ({len(all_iam_recommendations)} total):\n'
+                    )
+                    for rec in all_iam_recommendations:
+                        result += f'• {rec}\n'
+
+            except Exception as iam_error:
+                result += f'⚠️ IAM analysis failed: {str(iam_error)[:200]}\n\n'
+
+        # History-based diagnosis for specific error patterns
+        error_recommendations = []
+
+        # 1. ENOSPC: no space left on device
+        if any(
+            re.search(pattern, selected_reason, re.IGNORECASE)
+            for pattern in ['enospc', 'no space left on device']
+        ):
+            try:
+                telemetry_data = await extract_disk_memory_usage_metrics(canary_name, region)
+                if 'error' not in telemetry_data:
+                    result += '\n🔍 DISK USAGE ROOT CAUSE ANALYSIS:\n'
+                    result += f'• Storage: {telemetry_data.get("maxEphemeralStorageUsageInMb", 0):.1f} MB peak\n'
+                    result += f'• Usage: {telemetry_data.get("maxEphemeralStorageUsagePercent", 0):.1f}% peak\n'
+                else:
+                    result += f'\n🔍 DISK USAGE ROOT CAUSE ANALYSIS:\n{telemetry_data["error"]}\n'
+            except Exception as debug_error:
+                result += f'\n⚠️ Could not generate disk usage debugging code: {str(debug_error)}\n'
+
+        # 2. Protocol error (Target.activateTarget): Session closed / detached Frame
+        elif any(
+            re.search(pattern, selected_reason, re.IGNORECASE)
+            for pattern in [
+                'protocol error',
+                'target.activatetarget',
+                'session closed',
+                'detached frame',
+                'session already detached',
+            ]
+        ):
+            try:
+                telemetry_data = await extract_disk_memory_usage_metrics(canary_name, region)
+                if 'error' not in telemetry_data:
+                    result += '\n🔍 MEMORY USAGE ROOT CAUSE ANALYSIS:\n'
+                    result += f'• Memory: {telemetry_data.get("maxSyntheticsMemoryUsageInMB", 0):.1f} MB peak\n'
+                else:
+                    result += (
+                        f'\n🔍 MEMORY USAGE ROOT CAUSE ANALYSIS:\n{telemetry_data["error"]}\n'
+                    )
+            except Exception as debug_error:
+                result += f'\n⚠️ Could not collect memory usage metrics: {str(debug_error)}\n'
+
+        # 3. Navigation timed out / Page.captureScreenshot timed out
+        elif any(
+            re.search(pattern, selected_reason, re.IGNORECASE)
+            for pattern in [
+                'navigation timeout',
+                'navigation timed out',
+                'ms exceeded',
+                'page.capturescreenshot timed out',
+                'protocoltimeout',
+                'connection timed out',
+            ]
+        ):
+            # Navigation timeout specific analysis using existing HAR data
+            if har_files and bucket_name:
+                try:
+                    har_timeout_analysis = await analyze_har_file(
+                        s3_client, bucket_name, har_files, is_failed_run=True
+                    )
+
+                    result += '\n🔍 HAR FILE ANALYSIS FOR NAVIGATION TIMEOUT:\n'
+                    if har_timeout_analysis.get('failed_requests', 0) > 0:
+                        result += (
+                            f'• Failed HTTP requests: {har_timeout_analysis["failed_requests"]}\n'
+                        )
+
+                    if har_timeout_analysis.get('insights'):
+                        for insight in har_timeout_analysis['insights'][:5]:
+                            result += f'• {insight}\n'
+
+                    # Additional timeout-specific analysis
+                    result += f'• Total requests analyzed: {har_timeout_analysis.get("total_requests", 0)}\n'
+                    result += (
+                        f'• Analysis status: {har_timeout_analysis.get("status", "unknown")}\n'
+                    )
+                    result += '\n'
+                except Exception as har_error:
+                    result += f'\n⚠️ HAR analysis failed: {str(har_error)[:100]}\n'
+            else:
+                result += '\n🔍 NAVIGATION TIMEOUT DETECTED:\n'
+                result += '• No HAR files available for detailed analysis\n'
+                result += '• Timeout suggests page loading issues or UI changes\n'
+                result += '• Check if target elements exist and page loads completely\n\n'
+
+        # 4. Visual variation
+        elif re.search('visual variation', selected_reason, re.IGNORECASE):
+            error_recommendations.extend(
+                [
+                    '🔧 VISUAL MONITORING ISSUE DETECTED:',
+                    '• Website UI changed - not a technical failure',
+                    '• Check if website legitimately updated (ads, banners, content)',
+                    '• Update visual baseline with new reference screenshots',
+                    '• Adjust visual difference threshold (increase from default)',
+                    '• Consider excluding dynamic content areas from comparison',
+                ]
+            )
+
+        if error_recommendations:
+            result += '\n💡 PATTERN-BASED RECOMMENDATIONS:\n'
+            for rec in error_recommendations:
+                result += f'{rec}\n'
+            result += '\n'
+
+        # Add canary code if available
+        try:
+            code_analysis = await get_canary_code(canary, region)
+            if 'error' not in code_analysis and code_analysis.get('code_content'):
+                result += f'\ncanary code:\n{code_analysis["code_content"]}\n'
+        except Exception as e:
+            result += f'Note: Could not retrieve canary code: {str(e)}\n'
+
+        result += '\n'
+        return result
+
+    except Exception as e:
+        return f'❌ Error in comprehensive failure analysis: {str(e)}'
+
+
 # Register all imported tools with the MCP server
 mcp.tool()(list_monitored_services)
 mcp.tool()(get_service_detail)
@@ -808,6 +1336,7 @@ mcp.tool()(list_slos)
 mcp.tool()(search_transaction_spans)
 mcp.tool()(query_sampled_traces)
 mcp.tool()(list_slis)
+mcp.tool()(analyze_canary_failures)
 
 
 def main():
