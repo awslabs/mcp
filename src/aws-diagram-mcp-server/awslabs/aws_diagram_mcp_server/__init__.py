@@ -17,4 +17,4 @@
 This package provides an MCP server that creates diagrams using the Python diagrams package DSL.
 """
 
-__version__ = '1.0.10'
+__version__ = '1.0.11'
