@@ -61,6 +61,30 @@ print(factorial(5))
         assert valid is True
         assert error is None
 
+    @pytest.mark.asyncio
+    async def test_import_rejected(self):
+        """Test that import statements are rejected."""
+        code = """
+import os
+print("Hello")
+"""
+        valid, error = await validate_syntax(code)
+        assert valid is False
+        assert error is not None
+        assert 'Import statements are not allowed' in error
+
+    @pytest.mark.asyncio
+    async def test_import_from_rejected(self):
+        """Test that from...import statements are rejected."""
+        code = """
+from typing import List
+print("Hello")
+"""
+        valid, error = await validate_syntax(code)
+        assert valid is False
+        assert error is not None
+        assert 'Import statements are not allowed' in error
+
 
 class TestSecurityChecking:
     """Tests for the security checking functionality."""
@@ -248,8 +272,8 @@ print(add(2, 3)
     async def test_security_issue(self):
         """Test scanning code with security issues."""
         code = """
-import os
-os.system("rm -rf /")  # This is dangerous
+exec("malicious_code")
+eval("dangerous_expression")
 """
         result = await scan_python_code(code)
         assert result.has_errors is True

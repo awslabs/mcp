@@ -37,10 +37,10 @@ from ..security.policy import PolicyDecision, SecurityPolicy
 from .driver import interpret_command as _interpret_command
 from awslabs.aws_api_mcp_server.core.common.command import IRCommand
 from awslabs.aws_api_mcp_server.core.common.helpers import operation_timer
+from fastmcp import Context
+from fastmcp.server.elicitation import AcceptedElicitation
 from io import StringIO
 from loguru import logger
-from mcp.server.elicitation import AcceptedElicitation
-from mcp.server.fastmcp import Context
 from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from typing import Any
@@ -51,7 +51,7 @@ async def request_consent(cli_command: str, ctx: Context):
     try:
         elicitation_result = await ctx.elicit(
             message=f"The CLI command '{cli_command}' requires explicit consent. Do you approve the execution of this command?",
-            schema=Consent,
+            response_type=Consent,
         )
 
         if (
