@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "tomli>=2.3.0"
+# ]
+# ///
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,13 +38,10 @@ from typing import List, Tuple
 
 
 try:
-    import tomllib
+    import tomli as tomllib
 except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        print('Error: tomllib (Python 3.11+) or tomli package is required', file=sys.stderr)
-        sys.exit(1)
+    print('Error: tomllib (Python 3.11+) or tomli package is required', file=sys.stderr)
+    sys.exit(1)
 
 
 def extract_package_name(pyproject_path: Path) -> str:
