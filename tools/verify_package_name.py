@@ -1,10 +1,4 @@
-#!/usr/bin/env uv run --script
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#     "tomli>=2.3.0"
-# ]
-# ///
+#!/usr/bin/env python3
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,10 +32,14 @@ from typing import List, Tuple
 
 
 try:
-    import tomli as tomllib
+    import tomllib
 except ImportError:
-    print('Error: tomllib (Python 3.11+) or tomli package is required', file=sys.stderr)
-    sys.exit(1)
+    try:
+        import tomli as tomllib
+    except ImportError:
+        print('Error: tomllib (Python 3.11+) or tomli package is required', file=sys.stderr)
+        print('Please install tomli: pip install tomli', file=sys.stderr)
+        sys.exit(1)
 
 
 def extract_package_name(pyproject_path: Path) -> str:
@@ -66,7 +64,7 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
         # First, try to URL decode in case it's URL-encoded
         try:
             config_b64 = urllib.parse.unquote(config_b64)
-        except Exception:
+        except (ValueError, UnicodeDecodeError):
             pass  # If URL decoding fails, use original string
 
         # Try to parse as JSON directly first (for URL-encoded JSON)
@@ -88,7 +86,7 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
                         package_names.append(arg)
 
         return package_names
-    except Exception:
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError, base64.binascii.Error):
         # If we can't decode, return empty list
         return []
 

@@ -48,6 +48,8 @@ This script is automatically run as part of the GitHub Actions workflow for each
 - Python 3.10+
 - `tomli` package (for Python < 3.11) or built-in `tomllib` (for Python 3.11+)
 
+The script will automatically try to use the built-in `tomllib` (Python 3.11+) first, then fall back to `tomli` if needed.
+
 Install tomli if needed:
 ```bash
 pip install tomli
