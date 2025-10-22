@@ -45,7 +45,7 @@ This script is automatically run as part of the GitHub Actions workflow for each
 
 ### Dependencies
 
-- Python 3.6+
+- Python 3.10+
 - `tomli` package (for Python < 3.11) or built-in `tomllib` (for Python 3.11+)
 
 Install tomli if needed:
