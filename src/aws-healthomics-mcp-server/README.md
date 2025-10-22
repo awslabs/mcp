@@ -401,6 +401,8 @@ uv run -m awslabs.aws_healthomics_mcp_server.server
 - `GENOMICS_SEARCH_TIMEOUT_SECONDS` - Search timeout in seconds (default: 300)
 - `GENOMICS_SEARCH_ENABLE_HEALTHOMICS` - Enable/disable HealthOmics sequence/reference store searches (default: true)
 
+> **Note for Large S3 Buckets**: When searching very large S3 buckets (millions of objects), the genomics file search may take longer than the default MCP client timeout. If you encounter timeout errors, increase the MCP server timeout by adding a `"timeout"` property to your MCP server configuration (e.g., `"timeout": 300000` for five minutes, specified in milliseconds). This is particularly important when using the search tool with extensive S3 bucket configurations or when `GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH=true` is used with large datasets. The value of `"timeout"` should always be greater than the value of `GENOMICS_SEARCH_TIMEOUT_SECONDS` if you want to prevent the MCP timeout from preempting the genomics search timeout
+
 #### Testing Configuration Variables
 
 The following environment variables are primarily intended for testing scenarios, such as integration testing against mock service endpoints:
@@ -516,6 +518,7 @@ Add to your Claude Desktop configuration:
     "aws-healthomics": {
       "command": "uvx",
       "args": ["awslabs.aws-healthomics-mcp-server"],
+      "timeout": 300000,
       "env": {
         "AWS_REGION": "us-east-1",
         "AWS_PROFILE": "your-profile",
@@ -541,6 +544,7 @@ For integration testing against mock services:
     "aws-healthomics-test": {
       "command": "uvx",
       "args": ["awslabs.aws-healthomics-mcp-server"],
+      "timeout": 300000,
       "env": {
         "AWS_REGION": "us-east-1",
         "AWS_PROFILE": "test-profile",
@@ -572,7 +576,7 @@ For Windows users, the MCP server configuration format is slightly different:
   "mcpServers": {
     "awslabs.aws-healthomics-mcp-server": {
       "disabled": false,
-      "timeout": 60,
+      "timeout": 300000,
       "type": "stdio",
       "command": "uv",
       "args": [
@@ -606,7 +610,7 @@ For testing scenarios on Windows:
   "mcpServers": {
     "awslabs.aws-healthomics-mcp-server-test": {
       "disabled": false,
-      "timeout": 60,
+      "timeout": 300000,
       "type": "stdio",
       "command": "uv",
       "args": [

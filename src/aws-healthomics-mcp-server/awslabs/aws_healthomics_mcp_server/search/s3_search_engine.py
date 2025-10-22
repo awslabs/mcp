@@ -17,6 +17,7 @@
 import asyncio
 import hashlib
 import time
+from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_S3_PAGE_SIZE
 from awslabs.aws_healthomics_mcp_server.models import (
     GenomicsFile,
     GenomicsFileType,
@@ -315,7 +316,7 @@ class S3SearchEngine:
         """Search a single S3 bucket path for genomics files using optimized strategy.
 
         This method implements smart filtering to minimize S3 API calls:
-        1. List all objects (single API call per 1000 objects)
+        1. List all objects (single API call per page of objects)
         2. Filter by file type and path patterns (no additional S3 calls)
         3. Only retrieve tags for objects that need tag-based matching (batch calls)
 
@@ -417,7 +418,7 @@ class S3SearchEngine:
         file_type: Optional[str],
         search_terms: List[str],
         continuation_token: Optional[str] = None,
-        max_results: int = 1000,
+        max_results: int = DEFAULT_S3_PAGE_SIZE,
     ) -> Tuple[List[GenomicsFile], Optional[str], int]:
         """Search a single S3 bucket path with pagination support.
 
@@ -585,7 +586,7 @@ class S3SearchEngine:
                 params = {
                     'Bucket': bucket_name,
                     'Prefix': prefix,
-                    'MaxKeys': 1000,  # AWS maximum
+                    'MaxKeys': DEFAULT_S3_PAGE_SIZE,
                 }
 
                 if continuation_token:
@@ -621,7 +622,7 @@ class S3SearchEngine:
         bucket_name: str,
         prefix: str,
         continuation_token: Optional[str] = None,
-        max_results: int = 1000,
+        max_results: int = DEFAULT_S3_PAGE_SIZE,
     ) -> Tuple[List[Dict[str, Any]], Optional[str], int]:
         """List objects in an S3 bucket with pagination support.
 
@@ -642,7 +643,7 @@ class S3SearchEngine:
             while len(objects) < max_results:
                 # Calculate how many more objects we need
                 remaining_needed = max_results - len(objects)
-                page_size = min(1000, remaining_needed)  # AWS maximum is 1000
+                page_size = min(DEFAULT_S3_PAGE_SIZE, remaining_needed)
 
                 # Prepare list_objects_v2 parameters
                 params = {
@@ -747,6 +748,15 @@ class S3SearchEngine:
 
         # Retrieve from S3 and cache
         tags = await self._get_object_tags(bucket_name, key)
+
+        # Check if we need to clean up before adding
+        if len(self._tag_cache) >= self.config.max_tag_cache_size:
+            self._cleanup_cache_by_size(
+                self._tag_cache,
+                self.config.max_tag_cache_size,
+                self.config.cache_cleanup_keep_ratio,
+            )
+
         self._tag_cache[cache_key] = {'tags': tags, 'timestamp': time.time()}
 
         return tags
@@ -927,6 +937,14 @@ class S3SearchEngine:
             results: Search results to cache
         """
         if self.config.result_cache_ttl_seconds > 0:  # Only cache if TTL > 0
+            # Check if we need to clean up before adding
+            if len(self._result_cache) >= self.config.max_result_cache_size:
+                self._cleanup_cache_by_size(
+                    self._result_cache,
+                    self.config.max_result_cache_size,
+                    self.config.cache_cleanup_keep_ratio,
+                )
+
             self._result_cache[cache_key] = {'results': results, 'timestamp': time.time()}
             logger.debug(f'Cached {len(results)} results for search key: {cache_key}')
 
@@ -994,6 +1012,70 @@ class S3SearchEngine:
         related_indexes = index_relationships.get(requested_file_type, [])
         return detected_file_type in related_indexes
 
+    def _cleanup_cache_by_size(self, cache_dict: Dict, max_size: int, keep_ratio: float) -> None:
+        """Clean up cache when it exceeds max size, prioritizing expired entries first.
+
+        Strategy:
+        1. First: Remove all expired entries (regardless of age)
+        2. Then: If still over size limit, remove oldest non-expired entries
+
+        Args:
+            cache_dict: Cache dictionary to clean up
+            max_size: Maximum allowed cache size
+            keep_ratio: Ratio of entries to keep (e.g., 0.8 = keep 80%)
+        """
+        if len(cache_dict) < max_size:
+            return
+
+        current_time = time.time()
+        target_size = int(max_size * keep_ratio)
+
+        # Determine TTL based on cache type (check if it's tag cache or result cache)
+        # We can identify this by checking if entries have 'tags' key (tag cache) or 'results' key (result cache)
+        sample_entry = next(iter(cache_dict.values())) if cache_dict else None
+        if sample_entry and 'tags' in sample_entry:
+            ttl_seconds = self.config.tag_cache_ttl_seconds
+            cache_type = 'tag'
+        else:
+            ttl_seconds = self.config.result_cache_ttl_seconds
+            cache_type = 'result'
+
+        # Separate expired and valid entries
+        expired_items = []
+        valid_items = []
+
+        for key, entry in cache_dict.items():
+            if current_time - entry['timestamp'] >= ttl_seconds:
+                expired_items.append((key, entry))
+            else:
+                valid_items.append((key, entry))
+
+        # Phase 1: Remove all expired items first
+        expired_count = len(expired_items)
+        for key, _ in expired_items:
+            del cache_dict[key]
+
+        # Phase 2: If still over target size, remove oldest valid items
+        remaining_count = len(cache_dict)
+        additional_removals = 0
+
+        if remaining_count > target_size:
+            # Sort valid items by timestamp (oldest first)
+            valid_items.sort(key=lambda x: x[1]['timestamp'])
+            additional_to_remove = remaining_count - target_size
+
+            for i in range(min(additional_to_remove, len(valid_items))):
+                key, _ = valid_items[i]
+                if key in cache_dict:  # Double-check key still exists
+                    del cache_dict[key]
+                    additional_removals += 1
+
+        total_removed = expired_count + additional_removals
+        if total_removed > 0:
+            logger.debug(
+                f'Smart {cache_type} cache cleanup: removed {expired_count} expired + {additional_removals} oldest valid = {total_removed} total entries, {len(cache_dict)} remaining'
+            )
+
     def cleanup_expired_cache_entries(self) -> None:
         """Clean up expired cache entries to prevent memory leaks."""
         current_time = time.time()
@@ -1048,14 +1130,19 @@ class S3SearchEngine:
                 'total_entries': len(self._tag_cache),
                 'valid_entries': valid_tag_entries,
                 'ttl_seconds': self.config.tag_cache_ttl_seconds,
+                'max_cache_size': self.config.max_tag_cache_size,
+                'cache_utilization': len(self._tag_cache) / self.config.max_tag_cache_size,
             },
             'result_cache': {
                 'total_entries': len(self._result_cache),
                 'valid_entries': valid_result_entries,
                 'ttl_seconds': self.config.result_cache_ttl_seconds,
+                'max_cache_size': self.config.max_result_cache_size,
+                'cache_utilization': len(self._result_cache) / self.config.max_result_cache_size,
             },
             'config': {
                 'enable_s3_tag_search': self.config.enable_s3_tag_search,
                 'max_tag_batch_size': self.config.max_tag_retrieval_batch_size,
+                'cache_cleanup_keep_ratio': self.config.cache_cleanup_keep_ratio,
             },
         }

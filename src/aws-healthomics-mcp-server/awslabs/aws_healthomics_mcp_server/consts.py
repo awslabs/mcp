@@ -92,6 +92,86 @@ DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE = 100
 DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL = 600
 DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL = 300
 
+# Cache size limits - Maximum number of entries in the cache
+DEFAULT_GENOMICS_SEARCH_MAX_FILE_CACHE_SIZE = 10000
+DEFAULT_GENOMICS_SEARCH_MAX_TAG_CACHE_SIZE = 1000
+DEFAULT_GENOMICS_SEARCH_MAX_RESULT_CACHE_SIZE = 100
+DEFAULT_GENOMICS_SEARCH_MAX_PAGINATION_CACHE_SIZE = 50
+
+# Cache cleanup behavior
+DEFAULT_CACHE_CLEANUP_KEEP_RATIO = 0.8  # Keep at most 80% of entries when cleaning up by size
+
+# Search limits and pagination
+MAX_SEARCH_RESULTS_LIMIT = 10000  # Maximum allowed results per search
+DEFAULT_HEALTHOMICS_PAGE_SIZE = 100  # Default pagination size for HealthOmics APIs
+DEFAULT_S3_PAGE_SIZE = 1000  # Default pagination size for S3 operations
+DEFAULT_RESULT_RANKER_FALLBACK_SIZE = 100  # Fallback size when max_results is invalid
+
+# Rate limiting and performance
+HEALTHOMICS_RATE_LIMIT_DELAY = 0.1  # Sleep delay between HealthOmics Storage API calls (10 TPS)
+
+# Cache cleanup sweep probabilities for entries with expired TTLs (as percentages for clarity)
+PAGINATION_CACHE_CLEANUP_PROBABILITY = 1  # 1% chance (1 in 100)
+S3_CACHE_CLEANUP_PROBABILITY = 2  # 2% chance (1 in 50)
+
+# Buffer size optimization thresholds
+CURSOR_PAGINATION_BUFFER_THRESHOLD = 5000  # Use cursor pagination above this buffer size
+CURSOR_PAGINATION_PAGE_THRESHOLD = 10  # Use cursor pagination above this page number
+BUFFER_EFFICIENCY_LOW_THRESHOLD = 0.1  # 10% efficiency threshold
+BUFFER_EFFICIENCY_HIGH_THRESHOLD = 0.5  # 50% efficiency threshold
+
+# Buffer size complexity multipliers
+COMPLEXITY_MULTIPLIER_FILE_TYPE_FILTER = 0.8  # Reduce complexity when file type is filtered
+COMPLEXITY_MULTIPLIER_ASSOCIATED_FILES = 1.2  # Increase complexity for associated files
+COMPLEXITY_MULTIPLIER_BUFFER_OVERFLOW = 1.5  # Increase when buffer overflows occur
+COMPLEXITY_MULTIPLIER_LOW_EFFICIENCY = 2.0  # Increase when efficiency is low
+COMPLEXITY_MULTIPLIER_HIGH_EFFICIENCY = 0.8  # Decrease when efficiency is high
+
+# Pattern matching thresholds and multipliers
+FUZZY_MATCH_THRESHOLD = 0.6  # Minimum similarity for fuzzy matches
+MULTIPLE_MATCH_BONUS_MULTIPLIER = 1.2  # 20% bonus for multiple pattern matches
+TAG_MATCH_PENALTY_MULTIPLIER = 0.9  # 10% penalty for tag matches vs path matches
+SUBSTRING_MATCH_MAX_MULTIPLIER = 0.8  # Maximum score multiplier for substring matches
+FUZZY_MATCH_MAX_MULTIPLIER = 0.6  # Maximum score multiplier for fuzzy matches
+
+# Match quality score thresholds
+MATCH_QUALITY_EXCELLENT_THRESHOLD = 0.8
+MATCH_QUALITY_GOOD_THRESHOLD = 0.6
+MATCH_QUALITY_FAIR_THRESHOLD = 0.4
+
+# Match quality labels
+MATCH_QUALITY_EXCELLENT = 'excellent'
+MATCH_QUALITY_GOOD = 'good'
+MATCH_QUALITY_FAIR = 'fair'
+MATCH_QUALITY_POOR = 'poor'
+
+# Unit conversion constants
+BYTES_PER_KILOBYTE = 1024
+MILLISECONDS_PER_SECOND = 1000.0
+
+# HealthOmics status constants
+HEALTHOMICS_STATUS_ACTIVE = 'ACTIVE'
+
+# HealthOmics storage class constants
+HEALTHOMICS_STORAGE_CLASS_MANAGED = 'MANAGED'
+
+# Storage tier constants
+STORAGE_TIER_HOT = 'hot'
+STORAGE_TIER_WARM = 'warm'
+STORAGE_TIER_COLD = 'cold'
+STORAGE_TIER_UNKNOWN = 'unknown'
+
+# S3 storage class constants
+S3_STORAGE_CLASS_STANDARD = 'STANDARD'
+S3_STORAGE_CLASS_REDUCED_REDUNDANCY = 'REDUCED_REDUNDANCY'
+S3_STORAGE_CLASS_STANDARD_IA = 'STANDARD_IA'
+S3_STORAGE_CLASS_ONEZONE_IA = 'ONEZONE_IA'
+S3_STORAGE_CLASS_INTELLIGENT_TIERING = 'INTELLIGENT_TIERING'
+S3_STORAGE_CLASS_GLACIER = 'GLACIER'
+S3_STORAGE_CLASS_DEEP_ARCHIVE = 'DEEP_ARCHIVE'
+S3_STORAGE_CLASS_OUTPOSTS = 'OUTPOSTS'
+S3_STORAGE_CLASS_GLACIER_IR = 'GLACIER_IR'
+
 # Error messages
 
 ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'

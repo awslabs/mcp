@@ -471,7 +471,7 @@ class GenomicsTestDataFixtures:
                         'id': 'ref-grch38-001',
                         'name': 'GRCh38-primary-assembly',
                         'description': 'Human reference genome GRCh38 primary assembly',
-                        'md5': 'a1b2c3d4e5f6789012345678901234567890abcd',  # pragma: allowlist secret
+                        'md5': 'md5HashValue789',
                         'status': 'ACTIVE',
                         'files': [
                             {
@@ -488,7 +488,7 @@ class GenomicsTestDataFixtures:
                         'id': 'ref-grch37-001',
                         'name': 'GRCh37-primary-assembly',
                         'description': 'Human reference genome GRCh37 primary assembly',
-                        'md5': 'b2c3d4e5f6789012345678901234567890abcde',  # pragma: allowlist secret
+                        'md5': 'md5HashValueABC',
                         'status': 'ACTIVE',
                         'files': [
                             {
@@ -515,7 +515,7 @@ class GenomicsTestDataFixtures:
                         'id': 'ref-mouse-001',
                         'name': 'GRCm39-mouse-reference',
                         'description': 'Mouse reference genome GRCm39',
-                        'md5': 'c3d4e5f6789012345678901234567890abcdef',  # pragma: allowlist secret
+                        'md5': 'md5HashValueDEF',
                         'status': 'ACTIVE',
                         'files': [
                             {

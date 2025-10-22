@@ -16,6 +16,7 @@
 
 import asyncio
 import pytest
+import time
 from awslabs.aws_healthomics_mcp_server.models import (
     GenomicsFile,
     GenomicsFileResult,
@@ -433,6 +434,169 @@ class TestGenomicsSearchOrchestrator:
         assert 'expired_key' not in orchestrator._pagination_cache
         # Note: valid_entry might also be considered expired depending on TTL settings
 
+    def test_cleanup_pagination_cache_by_size(self, orchestrator):
+        """Test size-based cleanup of pagination cache."""
+        # Set small cache size for testing
+        orchestrator.config.max_pagination_cache_size = 3
+        orchestrator.config.cache_cleanup_keep_ratio = 0.6  # Keep 60%
+
+        # Create cache with more entries than the limit
+        orchestrator._pagination_cache = {}
+
+        for i in range(5):
+            entry = PaginationCacheEntry(
+                search_key=f'key{i}',
+                page_number=i,
+                score_threshold=0.8,
+                storage_tokens={},
+                metrics=None,
+            )
+            entry.timestamp = time.time() + i  # Different timestamps for ordering
+            orchestrator._pagination_cache[f'key{i}'] = entry
+
+        assert len(orchestrator._pagination_cache) == 5
+
+        # Trigger size-based cleanup
+        orchestrator._cleanup_pagination_cache_by_size()
+
+        # Should keep 60% of max_size = 1.8 -> 1 entry (most recent)
+        expected_size = int(
+            orchestrator.config.max_pagination_cache_size
+            * orchestrator.config.cache_cleanup_keep_ratio
+        )
+        assert len(orchestrator._pagination_cache) == expected_size
+
+        # Should keep the most recent entries (highest timestamps)
+        remaining_keys = list(orchestrator._pagination_cache.keys())
+        assert 'key4' in remaining_keys  # Most recent entry
+
+    def test_cleanup_pagination_cache_by_size_no_cleanup_needed(self, orchestrator):
+        """Test that size-based cleanup does nothing when cache is under limit."""
+        # Set cache size larger than current entries
+        orchestrator.config.max_pagination_cache_size = 10
+
+        # Create cache with fewer entries than the limit
+        orchestrator._pagination_cache = {}
+
+        for i in range(3):
+            entry = PaginationCacheEntry(
+                search_key=f'key{i}',
+                page_number=i,
+                score_threshold=0.8,
+                storage_tokens={},
+                metrics=None,
+            )
+            orchestrator._pagination_cache[f'key{i}'] = entry
+
+        initial_size = len(orchestrator._pagination_cache)
+
+        # Trigger size-based cleanup
+        orchestrator._cleanup_pagination_cache_by_size()
+
+        # Should not remove any entries
+        assert len(orchestrator._pagination_cache) == initial_size
+
+    def test_cleanup_pagination_cache_by_size_no_cache(self, orchestrator):
+        """Test that size-based cleanup handles missing cache gracefully."""
+        # Don't create _pagination_cache attribute
+
+        # Should not raise any exception
+        orchestrator._cleanup_pagination_cache_by_size()
+
+    def test_automatic_pagination_cache_size_cleanup(self, orchestrator):
+        """Test that pagination cache automatically cleans up when size limit is reached."""
+        # Set small cache size for testing
+        orchestrator.config.max_pagination_cache_size = 2
+        orchestrator.config.cache_cleanup_keep_ratio = 0.5  # Keep 50%
+        orchestrator.config.pagination_cache_ttl_seconds = 3600  # Long TTL to avoid TTL cleanup
+
+        # Add entries that will trigger automatic cleanup
+        for i in range(4):
+            entry = PaginationCacheEntry(
+                search_key=f'key{i}',
+                page_number=i,
+                score_threshold=0.8,
+                storage_tokens={},
+                metrics=None,
+            )
+            orchestrator._cache_pagination_state(f'key{i}', entry)
+
+            # Cache should never exceed the maximum size
+            cache_size = (
+                len(orchestrator._pagination_cache)
+                if hasattr(orchestrator, '_pagination_cache')
+                else 0
+            )
+            assert cache_size <= orchestrator.config.max_pagination_cache_size
+
+    def test_smart_pagination_cache_cleanup_prioritizes_expired_entries(self, orchestrator):
+        """Test that smart pagination cache cleanup removes expired entries first."""
+        # Set small cache size and short TTL for testing
+        orchestrator.config.max_pagination_cache_size = 3
+        orchestrator.config.cache_cleanup_keep_ratio = 0.6  # Keep 60% = 1 entry
+        orchestrator.config.pagination_cache_ttl_seconds = 10  # 10 second TTL
+
+        # Create cache manually
+        orchestrator._pagination_cache = {}
+
+        current_time = time.time()
+
+        # Add mix of expired and valid entries
+        expired1 = PaginationCacheEntry(
+            search_key='expired1',
+            page_number=1,
+            score_threshold=0.8,
+            storage_tokens={},
+            metrics=None,
+        )
+        expired1.timestamp = current_time - 20  # Expired
+
+        expired2 = PaginationCacheEntry(
+            search_key='expired2',
+            page_number=2,
+            score_threshold=0.7,
+            storage_tokens={},
+            metrics=None,
+        )
+        expired2.timestamp = current_time - 15  # Expired
+
+        valid1 = PaginationCacheEntry(
+            search_key='valid1',
+            page_number=3,
+            score_threshold=0.6,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid1.timestamp = current_time - 5  # Valid
+
+        valid2 = PaginationCacheEntry(
+            search_key='valid2',
+            page_number=4,
+            score_threshold=0.5,
+            storage_tokens={},
+            metrics=None,
+        )
+        valid2.timestamp = current_time - 2  # Valid (newest)
+
+        orchestrator._pagination_cache['expired1'] = expired1
+        orchestrator._pagination_cache['expired2'] = expired2
+        orchestrator._pagination_cache['valid1'] = valid1
+        orchestrator._pagination_cache['valid2'] = valid2
+
+        assert len(orchestrator._pagination_cache) == 4
+
+        # Trigger smart cleanup
+        orchestrator._cleanup_pagination_cache_by_size()
+
+        # Should keep only 1 entry (60% of 3 = 1.8 -> 1)
+        # Should prioritize removing expired entries first, then oldest valid
+        # Expected: expired1, expired2, and valid1 removed; valid2 kept (newest valid)
+        assert len(orchestrator._pagination_cache) == 1
+        assert 'valid2' in orchestrator._pagination_cache  # Newest valid entry should remain
+        assert 'expired1' not in orchestrator._pagination_cache
+        assert 'expired2' not in orchestrator._pagination_cache
+        assert 'valid1' not in orchestrator._pagination_cache
+
     def test_get_pagination_cache_stats_no_cache(self, orchestrator):
         """Test getting pagination cache stats when no cache exists."""
         stats = orchestrator.get_pagination_cache_stats()
@@ -471,6 +635,19 @@ class TestGenomicsSearchOrchestrator:
         # Valid entries might be 0 if TTL is very short, so just check it's a number
         assert isinstance(stats['valid_entries'], int)
         assert stats['valid_entries'] >= 0
+
+        # Check new size-related fields
+        assert 'max_cache_size' in stats
+        assert 'cache_utilization' in stats
+        assert isinstance(stats['max_cache_size'], int)
+        assert isinstance(stats['cache_utilization'], float)
+        assert 'cache_cleanup_keep_ratio' in stats['config']
+
+        # Test utilization calculation
+        expected_utilization = (
+            len(orchestrator._pagination_cache) / orchestrator.config.max_pagination_cache_size
+        )
+        assert stats['cache_utilization'] == expected_utilization
 
     @pytest.mark.asyncio
     async def test_search_s3_with_timeout_success(self, orchestrator, sample_search_request):
@@ -2258,7 +2435,7 @@ class TestGenomicsSearchOrchestrator:
     async def test_search_healthomics_references_with_timeout_exception(
         self, orchestrator, sample_search_request
     ):
-        """Test HealthOmics reference search with general exception (lines 675-682)."""
+        """Test HealthOmics reference search with general exception."""
         orchestrator.healthomics_engine.search_reference_stores = AsyncMock(
             side_effect=Exception('General error')
         )
@@ -2273,7 +2450,7 @@ class TestGenomicsSearchOrchestrator:
     async def test_search_healthomics_sequences_with_timeout_exception(
         self, orchestrator, sample_search_request
     ):
-        """Test HealthOmics sequence search with general exception (lines 653-655)."""
+        """Test HealthOmics sequence search with general exception."""
         orchestrator.healthomics_engine.search_sequence_stores = AsyncMock(
             side_effect=Exception('General error')
         )
@@ -2288,7 +2465,7 @@ class TestGenomicsSearchOrchestrator:
     async def test_search_healthomics_sequences_paginated_with_timeout_exception(
         self, orchestrator, sample_search_request
     ):
-        """Test HealthOmics sequence paginated search with general exception (lines 779-781)."""
+        """Test HealthOmics sequence paginated search with general exception."""
         orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
             side_effect=Exception('General error')
         )
@@ -2301,3 +2478,162 @@ class TestGenomicsSearchOrchestrator:
         assert hasattr(result, 'results')
         assert result.results == []
         assert result.has_more_results is False
+
+    @pytest.mark.asyncio
+    async def test_search_healthomics_references_paginated_with_timeout_exception(
+        self, orchestrator, sample_search_request
+    ):
+        """Test HealthOmics reference paginated search with general exception."""
+        orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock(
+            side_effect=Exception('General error')
+        )
+
+        result = await orchestrator._search_healthomics_references_paginated_with_timeout(
+            sample_search_request, StoragePaginationRequest(max_results=10)
+        )
+
+        assert result.results == []
+        assert not result.has_more_results
+
+    @pytest.mark.asyncio
+    async def test_pagination_cache_cleanup_exception_handling(
+        self, orchestrator, sample_search_request
+    ):
+        """Test pagination cache cleanup exception handling."""
+        # Mock the random function to always trigger cache cleanup
+        with patch('secrets.randbelow', return_value=0):  # Always return 0 to trigger cleanup
+            # Mock cleanup_expired_pagination_cache to raise an exception
+            orchestrator.cleanup_expired_pagination_cache = MagicMock(
+                side_effect=Exception('Pagination cache cleanup failed')
+            )
+
+            # Mock the search engines
+            orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+                return_value=StoragePaginationResponse(
+                    results=[], has_more_results=False, next_continuation_token=None
+                )
+            )
+            orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
+                return_value=StoragePaginationResponse(
+                    results=[], has_more_results=False, next_continuation_token=None
+                )
+            )
+            orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock(
+                return_value=StoragePaginationResponse(
+                    results=[], has_more_results=False, next_continuation_token=None
+                )
+            )
+
+            sample_search_request.enable_storage_pagination = True
+
+            # Should not raise exception even if pagination cache cleanup fails
+            result = await orchestrator.search_paginated(sample_search_request)
+
+            assert result is not None
+            assert hasattr(result, 'enhanced_response')
+            # Verify cache cleanup was attempted
+            orchestrator.cleanup_expired_pagination_cache.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_paginated_exception_handling(self, orchestrator, sample_search_request):
+        """Test search_paginated exception handling."""
+        sample_search_request.enable_storage_pagination = True
+
+        # Mock _execute_parallel_paginated_searches to raise an exception
+        with patch.object(
+            orchestrator,
+            '_execute_parallel_paginated_searches',
+            side_effect=Exception('Paginated search execution failed'),
+        ):
+            with pytest.raises(Exception) as exc_info:
+                await orchestrator.search_paginated(sample_search_request)
+
+            assert 'Paginated search execution failed' in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_search_s3_with_timeout_exception_handling(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 search with timeout exception handling."""
+        orchestrator.s3_engine.search_buckets = AsyncMock(
+            side_effect=Exception('S3 search failed')
+        )
+
+        result = await orchestrator._search_s3_with_timeout(sample_search_request)
+
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_search_s3_paginated_with_timeout_exception_handling(
+        self, orchestrator, sample_search_request
+    ):
+        """Test S3 paginated search with timeout exception handling."""
+        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+            side_effect=Exception('S3 paginated search failed')
+        )
+
+        result = await orchestrator._search_s3_paginated_with_timeout(
+            sample_search_request, StoragePaginationRequest(max_results=10)
+        )
+
+        assert result.results == []
+        assert not result.has_more_results
+
+    @pytest.mark.asyncio
+    async def test_complex_search_coordination_logic(self, orchestrator, sample_search_request):
+        """Test complex search coordination logic."""
+        # Test the complex coordination paths in the orchestrator
+        sample_search_request.enable_storage_pagination = True
+
+        # Mock the engines to return complex results that trigger coordination logic
+        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[
+                    GenomicsFile(
+                        path='s3://test/file1.fastq',
+                        file_type=GenomicsFileType.FASTQ,
+                        size_bytes=1000,
+                        storage_class='STANDARD',
+                        last_modified=datetime.now(),
+                        tags={},
+                        source_system='s3',
+                        metadata={},
+                    )
+                ],
+                has_more_results=True,
+                next_continuation_token='s3_token',
+            )
+        )
+
+        # Mock HealthOmics engines to return results that need coordination
+        orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[
+                    GenomicsFile(
+                        path='omics://seq-store/readset1',
+                        file_type=GenomicsFileType.BAM,
+                        size_bytes=2000,
+                        storage_class='STANDARD',
+                        last_modified=datetime.now(),
+                        tags={},
+                        source_system='sequence_store',
+                        metadata={},
+                    )
+                ],
+                has_more_results=True,
+                next_continuation_token='seq_token',
+            )
+        )
+
+        orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock(
+            return_value=StoragePaginationResponse(
+                results=[], has_more_results=False, next_continuation_token=None
+            )
+        )
+
+        result = await orchestrator.search_paginated(sample_search_request)
+
+        assert result is not None
+        assert hasattr(result, 'enhanced_response')
+        # Verify that coordination logic was executed
+        assert 'results' in result.enhanced_response

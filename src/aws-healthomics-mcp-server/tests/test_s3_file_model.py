@@ -26,6 +26,7 @@ from awslabs.aws_healthomics_mcp_server.models import (
     parse_s3_uri,
 )
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 
 class TestS3File:
@@ -69,6 +70,137 @@ class TestS3File:
         # Test invalid URI
         with pytest.raises(ValueError, match='Invalid S3 URI format'):
             S3File.from_uri('http://example.com/file.txt')
+
+    def test_s3_file_bucket_validation_edge_cases(self):
+        """Test S3File bucket validation edge cases."""
+        # Test empty bucket name
+        with pytest.raises(ValueError, match='Bucket name cannot be empty'):
+            S3File(bucket='', key='test.txt')
+
+        # Test bucket name too long (over 63 characters)
+        long_bucket = 'a' * 64
+        with pytest.raises(ValueError, match='Bucket name must be between 3 and 63 characters'):
+            S3File(bucket=long_bucket, key='test.txt')
+
+        # Test bucket name not starting with alphanumeric
+        with pytest.raises(
+            ValueError, match='Bucket name must start and end with alphanumeric character'
+        ):
+            S3File(bucket='-invalid-bucket', key='test.txt')
+
+        # Test bucket name not ending with alphanumeric
+        with pytest.raises(
+            ValueError, match='Bucket name must start and end with alphanumeric character'
+        ):
+            S3File(bucket='invalid-bucket-', key='test.txt')
+
+        # Test bucket name with invalid characters (! is not alphanumeric so it fails the start/end check first)
+        with pytest.raises(
+            ValueError, match='Bucket name must start and end with alphanumeric character'
+        ):
+            S3File(bucket='invalid_bucket!', key='test.txt')
+
+        # Test bucket name with invalid characters in middle
+        with pytest.raises(ValueError, match='Bucket name contains invalid characters'):
+            S3File(bucket='invalid@bucket', key='test.txt')
+
+    def test_s3_file_key_validation_edge_cases(self):
+        """Test S3File key validation edge cases."""
+        # Test key too long (over 1024 characters)
+        long_key = 'a' * 1025
+        with pytest.raises(ValueError, match='Object key cannot exceed 1024 characters'):
+            S3File(bucket='test-bucket', key=long_key)
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_presigned_url(self, mock_get_session):
+        """Test get_presigned_url method."""
+        # Arrange
+        mock_session = MagicMock()
+        mock_s3_client = MagicMock()
+        mock_session.client.return_value = mock_s3_client
+        mock_get_session.return_value = mock_session
+
+        mock_s3_client.generate_presigned_url.return_value = 'https://presigned-url.example.com'
+
+        s3_file = S3File(bucket='test-bucket', key='path/to/file.txt')
+
+        # Act
+        result = s3_file.get_presigned_url()
+
+        # Assert
+        assert result == 'https://presigned-url.example.com'
+        mock_session.client.assert_called_once_with('s3')
+        mock_s3_client.generate_presigned_url.assert_called_once_with(
+            'get_object',
+            Params={'Bucket': 'test-bucket', 'Key': 'path/to/file.txt'},
+            ExpiresIn=3600,
+        )
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_presigned_url_with_version_id(self, mock_get_session):
+        """Test get_presigned_url method with version ID."""
+        # Arrange
+        mock_session = MagicMock()
+        mock_s3_client = MagicMock()
+        mock_session.client.return_value = mock_s3_client
+        mock_get_session.return_value = mock_session
+
+        mock_s3_client.generate_presigned_url.return_value = (
+            'https://presigned-url-versioned.example.com'
+        )
+
+        s3_file = S3File(bucket='test-bucket', key='path/to/file.txt', version_id='abc123')
+
+        # Act
+        result = s3_file.get_presigned_url(expiration=7200, client_method='get_object')
+
+        # Assert
+        assert result == 'https://presigned-url-versioned.example.com'
+        mock_s3_client.generate_presigned_url.assert_called_once_with(
+            'get_object',
+            Params={'Bucket': 'test-bucket', 'Key': 'path/to/file.txt', 'VersionId': 'abc123'},
+            ExpiresIn=7200,
+        )
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_aws_session')
+    def test_get_presigned_url_put_object(self, mock_get_session):
+        """Test get_presigned_url method with put_object method."""
+        # Arrange
+        mock_session = MagicMock()
+        mock_s3_client = MagicMock()
+        mock_session.client.return_value = mock_s3_client
+        mock_get_session.return_value = mock_session
+
+        mock_s3_client.generate_presigned_url.return_value = (
+            'https://presigned-put-url.example.com'
+        )
+
+        s3_file = S3File(bucket='test-bucket', key='path/to/file.txt', version_id='abc123')
+
+        # Act - version_id should not be included for put_object
+        result = s3_file.get_presigned_url(client_method='put_object')
+
+        # Assert
+        assert result == 'https://presigned-put-url.example.com'
+        mock_s3_client.generate_presigned_url.assert_called_once_with(
+            'put_object',
+            Params={'Bucket': 'test-bucket', 'Key': 'path/to/file.txt'},
+            ExpiresIn=3600,
+        )
+
+    def test_s3_file_from_uri_edge_cases(self):
+        """Test S3File.from_uri edge cases."""
+        # Test missing bucket
+        with pytest.raises(ValueError, match='Missing bucket name'):
+            S3File.from_uri('s3:///')
+
+        # Test missing key
+        with pytest.raises(ValueError, match='Missing object key'):
+            S3File.from_uri('s3://bucket-only')
+
+        # Test missing key with trailing slash
+        with pytest.raises(ValueError, match='Missing object key'):
+            S3File.from_uri('s3://bucket-only/')
 
     def test_s3_file_properties(self):
         """Test S3File properties and methods."""
@@ -169,7 +301,7 @@ class TestS3Utilities:
             'Size': 2048,
             'LastModified': datetime.now(),
             'StorageClass': 'STANDARD',
-            'ETag': '"abc123def456"',  # pragma: allowlist secret
+            'ETag': '"etagValue123"',
         }
 
         s3_file = create_s3_file_from_object(
@@ -180,7 +312,7 @@ class TestS3Utilities:
         assert s3_file.key == 'data/sample.vcf'
         assert s3_file.size_bytes == 2048
         assert s3_file.storage_class == 'STANDARD'
-        assert s3_file.etag == 'abc123def456'  # ETag quotes removed  # pragma: allowlist secret
+        assert s3_file.etag == 'etagValue123'  # ETag quotes removed
         assert s3_file.tags['project'] == 'cancer_study'
 
     def test_create_genomics_file_from_s3_object(self):
@@ -250,3 +382,41 @@ class TestS3Utilities:
         fai_keys = [assoc.key for assoc in associations]
         assert 'reference/genome.fasta.fai' in fai_keys
         assert 'reference/genome.fai' in fai_keys
+
+    def test_get_s3_file_associations_fastq_patterns(self):
+        """Test FASTQ file association patterns comprehensively."""
+        # Test R2 to R1 association
+        r2_file = S3File(bucket='test-bucket', key='reads/sample_R2_001.fastq.gz')
+        associations = get_s3_file_associations(r2_file)
+        r1_keys = [assoc.key for assoc in associations]
+        assert 'reads/sample_R1_001.fastq.gz' in r1_keys
+
+        # Test R1 with dot pattern
+        r1_dot_file = S3File(bucket='test-bucket', key='reads/sample_R1.fastq')
+        associations = get_s3_file_associations(r1_dot_file)
+        r2_keys = [assoc.key for assoc in associations]
+        assert 'reads/sample_R2.fastq' in r2_keys
+
+        # Test R2 with dot pattern
+        r2_dot_file = S3File(bucket='test-bucket', key='reads/sample_R2.fastq')
+        associations = get_s3_file_associations(r2_dot_file)
+        r1_keys = [assoc.key for assoc in associations]
+        assert 'reads/sample_R1.fastq' in r1_keys
+
+        # Test _1/_2 patterns
+        file_1 = S3File(bucket='test-bucket', key='reads/sample_1.fq.gz')
+        associations = get_s3_file_associations(file_1)
+        file_2_keys = [assoc.key for assoc in associations]
+        assert 'reads/sample_2.fq.gz' in file_2_keys
+
+        # Test _2/_1 patterns
+        file_2 = S3File(bucket='test-bucket', key='reads/sample_2.fq')
+        associations = get_s3_file_associations(file_2)
+        file_1_keys = [assoc.key for assoc in associations]
+        assert 'reads/sample_1.fq' in file_1_keys
+
+        # Test file without pair patterns (should not find FASTQ pairs)
+        single_file = S3File(bucket='test-bucket', key='reads/single_sample.fastq.gz')
+        associations = get_s3_file_associations(single_file)
+        # Should be empty since no R1/R2 or _1/_2 patterns
+        assert len(associations) == 0

@@ -14,6 +14,27 @@
 
 """JSON response builder for genomics file search results."""
 
+from awslabs.aws_healthomics_mcp_server.consts import (
+    MATCH_QUALITY_EXCELLENT,
+    MATCH_QUALITY_EXCELLENT_THRESHOLD,
+    MATCH_QUALITY_FAIR,
+    MATCH_QUALITY_FAIR_THRESHOLD,
+    MATCH_QUALITY_GOOD,
+    MATCH_QUALITY_GOOD_THRESHOLD,
+    MATCH_QUALITY_POOR,
+    S3_STORAGE_CLASS_DEEP_ARCHIVE,
+    S3_STORAGE_CLASS_GLACIER,
+    S3_STORAGE_CLASS_GLACIER_IR,
+    S3_STORAGE_CLASS_INTELLIGENT_TIERING,
+    S3_STORAGE_CLASS_ONEZONE_IA,
+    S3_STORAGE_CLASS_REDUCED_REDUNDANCY,
+    S3_STORAGE_CLASS_STANDARD,
+    S3_STORAGE_CLASS_STANDARD_IA,
+    STORAGE_TIER_COLD,
+    STORAGE_TIER_HOT,
+    STORAGE_TIER_UNKNOWN,
+    STORAGE_TIER_WARM,
+)
 from awslabs.aws_healthomics_mcp_server.models import GenomicsFile, GenomicsFileResult
 from loguru import logger
 from typing import Any, Dict, List, Optional
@@ -320,14 +341,14 @@ class JsonResponseBuilder:
         Returns:
             String describing match quality
         """
-        if score >= 0.8:
-            return 'excellent'
-        elif score >= 0.6:
-            return 'good'
-        elif score >= 0.4:
-            return 'fair'
+        if score >= MATCH_QUALITY_EXCELLENT_THRESHOLD:
+            return MATCH_QUALITY_EXCELLENT
+        elif score >= MATCH_QUALITY_GOOD_THRESHOLD:
+            return MATCH_QUALITY_GOOD
+        elif score >= MATCH_QUALITY_FAIR_THRESHOLD:
+            return MATCH_QUALITY_FAIR
         else:
-            return 'poor'
+            return MATCH_QUALITY_POOR
 
     def _format_file_size(self, size_bytes: int) -> str:
         """Format file size in human-readable format.
@@ -341,7 +362,7 @@ class JsonResponseBuilder:
         if size_bytes == 0:
             return '0 B'
 
-        units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+        units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
         unit_index = 0
         size = float(size_bytes)
 
@@ -413,13 +434,25 @@ class JsonResponseBuilder:
         Returns:
             Storage tier category
         """
-        storage_class_lower = storage_class.lower()
+        # Use constants for storage class comparison (case-insensitive)
+        storage_class_upper = storage_class.upper()
 
-        if storage_class_lower in ['standard', 'reduced_redundancy']:
-            return 'hot'
-        elif storage_class_lower in ['standard_ia', 'onezone_ia']:
-            return 'warm'
-        elif storage_class_lower in ['glacier', 'deep_archive']:
-            return 'cold'
+        # Hot tier: Frequently accessed data
+        if storage_class_upper in [S3_STORAGE_CLASS_STANDARD, S3_STORAGE_CLASS_REDUCED_REDUNDANCY]:
+            return STORAGE_TIER_HOT
+        # Warm tier: Infrequently accessed data with quick retrieval
+        elif storage_class_upper in [
+            S3_STORAGE_CLASS_STANDARD_IA,
+            S3_STORAGE_CLASS_ONEZONE_IA,
+            S3_STORAGE_CLASS_INTELLIGENT_TIERING,
+        ]:
+            return STORAGE_TIER_WARM
+        # Cold tier: Archive data with longer retrieval times
+        elif storage_class_upper in [
+            S3_STORAGE_CLASS_GLACIER,
+            S3_STORAGE_CLASS_GLACIER_IR,
+            S3_STORAGE_CLASS_DEEP_ARCHIVE,
+        ]:
+            return STORAGE_TIER_COLD
         else:
-            return 'unknown'
+            return STORAGE_TIER_UNKNOWN

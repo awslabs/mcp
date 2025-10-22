@@ -49,20 +49,97 @@ class TestHealthOmicsSearchEngine:
         )
 
     @pytest.fixture
+    def search_engine(self, search_config):
+        """Create a test HealthOmics search engine."""
+        engine = HealthOmicsSearchEngine(search_config)
+        engine.omics_client = MagicMock()
+        return engine
+
+    @pytest.mark.asyncio
+    async def test_list_read_sets_client_error(self, search_engine):
+        """Test listing read sets with ClientError (covers lines 607-609)."""
+        search_engine.omics_client.list_read_sets.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListReadSets'
+        )
+
+        with pytest.raises(ClientError):
+            await search_engine._list_read_sets('test-sequence-store-id')
+
+    @pytest.mark.asyncio
+    async def test_search_references_fallback_to_client_filtering(self, search_engine):
+        """Test reference search fallback to client-side filtering."""
+        # Test the fallback logic by directly calling _list_references_with_filter
+        # First call returns empty (server-side filtering fails)
+        search_engine.omics_client.list_references.side_effect = [
+            {'references': []},  # Empty server-side result
+            {'references': [{'id': 'ref1', 'name': 'reference1'}]},  # Client-side fallback
+        ]
+
+        # First call with search terms (server-side)
+        result1 = await search_engine._list_references_with_filter('test-store', ['nonexistent'])
+        assert result1 == []
+
+        # Second call without search terms (client-side fallback)
+        result2 = await search_engine._list_references_with_filter('test-store', None)
+        assert len(result2) == 1
+
+    @pytest.mark.asyncio
+    async def test_search_references_server_side_success(self, search_engine):
+        """Test reference search with successful server-side filtering."""
+        # Mock successful server-side filtering
+        search_engine.omics_client.list_references.return_value = {
+            'references': [{'id': 'ref1', 'name': 'reference1'}]
+        }
+
+        results = await search_engine._list_references_with_filter('test-store', ['reference1'])
+
+        # Should return the server-side results
+        assert len(results) == 1
+        assert results[0]['id'] == 'ref1'
+
+    @pytest.mark.asyncio
+    async def test_list_references_with_filter_error_handling(self, search_engine):
+        """Test error handling in reference listing (covers lines 852-856)."""
+        search_engine.omics_client.list_references.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'Invalid filter'}},
+            'ListReferences',
+        )
+
+        with pytest.raises(ClientError):
+            await search_engine._list_references_with_filter('test-store', ['invalid'])
+
+    @pytest.mark.asyncio
+    async def test_complex_workflow_analysis_error_handling(self, search_engine):
+        """Test error handling in complex workflow analysis."""
+        # Test error handling in list_references_with_filter which contains complex logic
+        search_engine.omics_client.list_references.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'Invalid parameters'}},
+            'ListReferences',
+        )
+
+        # This should handle the error gracefully
+        with pytest.raises(ClientError):
+            await search_engine._list_references_with_filter('test-store', ['invalid'])
+
+    @pytest.mark.asyncio
+    async def test_edge_case_handling_in_search(self, search_engine):
+        """Test edge case handling in search operations."""
+        # Test edge case handling in list_references_with_filter
+        search_engine.omics_client.list_references.return_value = {'references': []}
+
+        # Test with empty search terms
+        results = await search_engine._list_references_with_filter('test-store', [])
+        assert results == []
+
+        # Test with None search terms
+        results = await search_engine._list_references_with_filter('test-store', None)
+        assert results == []
+
+    @pytest.fixture
     def mock_omics_client(self):
         """Create a mock HealthOmics client."""
         client = MagicMock()
         return client
-
-    @pytest.fixture
-    def search_engine(self, search_config):
-        """Create a HealthOmics search engine instance."""
-        with patch(
-            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.get_omics_client'
-        ) as mock_get_client:
-            mock_get_client.return_value = MagicMock()
-            engine = HealthOmicsSearchEngine(search_config)
-            return engine
 
     @pytest.fixture
     def sample_sequence_stores(self):
@@ -133,7 +210,7 @@ class TestHealthOmicsSearchEngine:
                 'id': 'ref-001',
                 'name': 'test-reference',
                 'description': 'Test reference',
-                'md5': 'a1b2c3d4e5f6789012345678901234567890abcd',  # pragma: allowlist secret
+                'md5': 'md5HashValue123',
                 'status': 'ACTIVE',
                 'files': [
                     {
@@ -468,7 +545,7 @@ class TestHealthOmicsSearchEngine:
             'id': 'ref-001',
             'name': 'test-reference',
             'description': 'Test reference',
-            'md5': 'a1b2c3d4e5f6789012345678901234567890abcd',  # pragma: allowlist secret
+            'md5': 'md5HashValue456',
             'status': 'ACTIVE',
             'files': [
                 {

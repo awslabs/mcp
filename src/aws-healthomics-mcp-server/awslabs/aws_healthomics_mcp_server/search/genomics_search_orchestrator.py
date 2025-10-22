@@ -17,6 +17,19 @@
 import asyncio
 import secrets
 import time
+from awslabs.aws_healthomics_mcp_server.consts import (
+    BUFFER_EFFICIENCY_HIGH_THRESHOLD,
+    BUFFER_EFFICIENCY_LOW_THRESHOLD,
+    COMPLEXITY_MULTIPLIER_ASSOCIATED_FILES,
+    COMPLEXITY_MULTIPLIER_BUFFER_OVERFLOW,
+    COMPLEXITY_MULTIPLIER_FILE_TYPE_FILTER,
+    COMPLEXITY_MULTIPLIER_HIGH_EFFICIENCY,
+    COMPLEXITY_MULTIPLIER_LOW_EFFICIENCY,
+    CURSOR_PAGINATION_BUFFER_THRESHOLD,
+    CURSOR_PAGINATION_PAGE_THRESHOLD,
+    MAX_SEARCH_RESULTS_LIMIT,
+    S3_CACHE_CLEANUP_PROBABILITY,
+)
 from awslabs.aws_healthomics_mcp_server.models import (
     GenomicsFile,
     GenomicsFileResult,
@@ -356,8 +369,10 @@ class GenomicsSearchOrchestrator:
                 )
                 self._cache_pagination_state(cache_key, cache_entry)
 
-            # Clean up expired cache entries periodically
-            if secrets.randbelow(20) == 0:  # 5% chance to clean up cache
+            # Clean up expired cache entries periodically (reduced frequency due to size-based cleanup)
+            if (
+                secrets.randbelow(100) == 0
+            ):  # Probability defined by PAGINATION_CACHE_CLEANUP_PROBABILITY
                 try:
                     self.cleanup_expired_pagination_cache()
                 except Exception as e:
@@ -424,8 +439,8 @@ class GenomicsSearchOrchestrator:
         if request.max_results <= 0:
             raise ValueError('max_results must be greater than 0')
 
-        if request.max_results > 10000:
-            raise ValueError('max_results cannot exceed 10000')
+        if request.max_results > MAX_SEARCH_RESULTS_LIMIT:
+            raise ValueError(f'max_results cannot exceed {MAX_SEARCH_RESULTS_LIMIT}')
 
         # Validate file_type if provided
         if request.file_type:
@@ -489,10 +504,11 @@ class GenomicsSearchOrchestrator:
             else:
                 logger.warning(f'Unexpected result type from {storage_system}: {type(result)}')
 
-        # Periodically clean up expired cache entries (approximately every 10th search)
+        # Periodically clean up expired cache entries (reduced frequency due to size-based cleanup)
         if (
-            secrets.randbelow(10) == 0 and self.s3_engine is not None
-        ):  # 10% chance to clean up cache
+            secrets.randbelow(100 // S3_CACHE_CLEANUP_PROBABILITY) == 0
+            and self.s3_engine is not None
+        ):  # Probability defined by S3_CACHE_CLEANUP_PROBABILITY
             try:
                 self.s3_engine.cleanup_expired_cache_entries()
             except Exception as e:
@@ -1003,6 +1019,10 @@ class GenomicsSearchOrchestrator:
             if not hasattr(self, '_pagination_cache'):
                 self._pagination_cache = {}
 
+            # Check if we need to clean up before adding
+            if len(self._pagination_cache) >= self.config.max_pagination_cache_size:
+                self._cleanup_pagination_cache_by_size()
+
             entry.update_timestamp()
             self._pagination_cache[cache_key] = entry
             logger.debug(f'Cached pagination state for key: {cache_key}')
@@ -1030,26 +1050,26 @@ class GenomicsSearchOrchestrator:
 
         # File type filtering reduces complexity
         if request.file_type:
-            complexity_multiplier *= 0.8
+            complexity_multiplier *= COMPLEXITY_MULTIPLIER_FILE_TYPE_FILTER
 
         # Associated files increase complexity
         if request.include_associated_files:
-            complexity_multiplier *= 1.2
+            complexity_multiplier *= COMPLEXITY_MULTIPLIER_ASSOCIATED_FILES
 
         # Adjust based on historical metrics
         if metrics:
             # If we had buffer overflows, increase buffer size
             if metrics.buffer_overflows > 0:
-                complexity_multiplier *= 1.5
+                complexity_multiplier *= COMPLEXITY_MULTIPLIER_BUFFER_OVERFLOW
 
             # If efficiency was low, increase buffer size
             efficiency_ratio = metrics.total_results_fetched / max(
                 metrics.total_objects_scanned, 1
             )
-            if efficiency_ratio < 0.1:  # Less than 10% efficiency
-                complexity_multiplier *= 2.0
-            elif efficiency_ratio > 0.5:  # More than 50% efficiency
-                complexity_multiplier *= 0.8
+            if efficiency_ratio < BUFFER_EFFICIENCY_LOW_THRESHOLD:
+                complexity_multiplier *= COMPLEXITY_MULTIPLIER_LOW_EFFICIENCY
+            elif efficiency_ratio > BUFFER_EFFICIENCY_HIGH_THRESHOLD:
+                complexity_multiplier *= COMPLEXITY_MULTIPLIER_HIGH_EFFICIENCY
 
         optimized_size = int(base_buffer_size * complexity_multiplier)
 
@@ -1098,8 +1118,62 @@ class GenomicsSearchOrchestrator:
         """
         # Use cursor pagination for large buffer sizes or high page numbers
         return self.config.enable_cursor_based_pagination and (
-            request.pagination_buffer_size > 5000 or global_token.page_number > 10
+            request.pagination_buffer_size > CURSOR_PAGINATION_BUFFER_THRESHOLD
+            or global_token.page_number > CURSOR_PAGINATION_PAGE_THRESHOLD
         )
+
+    def _cleanup_pagination_cache_by_size(self) -> None:
+        """Clean up pagination cache when it exceeds max size, prioritizing expired entries first.
+
+        Strategy:
+        1. First: Remove all expired entries (regardless of age)
+        2. Then: If still over size limit, remove oldest non-expired entries
+        """
+        if not hasattr(self, '_pagination_cache'):
+            return
+
+        if len(self._pagination_cache) < self.config.max_pagination_cache_size:
+            return
+
+        target_size = int(
+            self.config.max_pagination_cache_size * self.config.cache_cleanup_keep_ratio
+        )
+
+        # Separate expired and valid entries
+        expired_items = []
+        valid_items = []
+
+        for key, entry in self._pagination_cache.items():
+            if entry.is_expired(self.config.pagination_cache_ttl_seconds):
+                expired_items.append((key, entry))
+            else:
+                valid_items.append((key, entry))
+
+        # Phase 1: Remove all expired items first
+        expired_count = len(expired_items)
+        for key, _ in expired_items:
+            del self._pagination_cache[key]
+
+        # Phase 2: If still over target size, remove oldest valid items
+        remaining_count = len(self._pagination_cache)
+        additional_removals = 0
+
+        if remaining_count > target_size:
+            # Sort valid items by timestamp (oldest first)
+            valid_items.sort(key=lambda x: x[1].timestamp)
+            additional_to_remove = remaining_count - target_size
+
+            for i in range(min(additional_to_remove, len(valid_items))):
+                key, _ = valid_items[i]
+                if key in self._pagination_cache:  # Double-check key still exists
+                    del self._pagination_cache[key]
+                    additional_removals += 1
+
+        total_removed = expired_count + additional_removals
+        if total_removed > 0:
+            logger.debug(
+                f'Smart pagination cache cleanup: removed {expired_count} expired + {additional_removals} oldest valid = {total_removed} total entries, {len(self._pagination_cache)} remaining'
+            )
 
     def cleanup_expired_pagination_cache(self) -> None:
         """Clean up expired pagination cache entries to prevent memory leaks."""
@@ -1136,10 +1210,14 @@ class GenomicsSearchOrchestrator:
             'total_entries': len(self._pagination_cache),
             'valid_entries': valid_entries,
             'ttl_seconds': self.config.pagination_cache_ttl_seconds,
+            'max_cache_size': self.config.max_pagination_cache_size,
+            'cache_utilization': len(self._pagination_cache)
+            / self.config.max_pagination_cache_size,
             'config': {
                 'enable_cursor_pagination': self.config.enable_cursor_based_pagination,
                 'max_buffer_size': self.config.max_pagination_buffer_size,
                 'min_buffer_size': self.config.min_pagination_buffer_size,
                 'enable_metrics': self.config.enable_pagination_metrics,
+                'cache_cleanup_keep_ratio': self.config.cache_cleanup_keep_ratio,
             },
         }

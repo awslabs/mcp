@@ -16,10 +16,14 @@
 
 import os
 from awslabs.aws_healthomics_mcp_server.consts import (
+    DEFAULT_CACHE_CLEANUP_KEEP_RATIO,
     DEFAULT_GENOMICS_SEARCH_ENABLE_HEALTHOMICS,
     DEFAULT_GENOMICS_SEARCH_ENABLE_S3_TAG_SEARCH,
     DEFAULT_GENOMICS_SEARCH_MAX_CONCURRENT,
+    DEFAULT_GENOMICS_SEARCH_MAX_PAGINATION_CACHE_SIZE,
+    DEFAULT_GENOMICS_SEARCH_MAX_RESULT_CACHE_SIZE,
     DEFAULT_GENOMICS_SEARCH_MAX_TAG_BATCH_SIZE,
+    DEFAULT_GENOMICS_SEARCH_MAX_TAG_CACHE_SIZE,
     DEFAULT_GENOMICS_SEARCH_RESULT_CACHE_TTL,
     DEFAULT_GENOMICS_SEARCH_TAG_CACHE_TTL,
     DEFAULT_GENOMICS_SEARCH_TIMEOUT,
@@ -83,6 +87,10 @@ def get_genomics_search_config() -> SearchConfig:
         max_tag_retrieval_batch_size=max_tag_batch_size,
         result_cache_ttl_seconds=result_cache_ttl,
         tag_cache_ttl_seconds=tag_cache_ttl,
+        max_tag_cache_size=DEFAULT_GENOMICS_SEARCH_MAX_TAG_CACHE_SIZE,
+        max_result_cache_size=DEFAULT_GENOMICS_SEARCH_MAX_RESULT_CACHE_SIZE,
+        max_pagination_cache_size=DEFAULT_GENOMICS_SEARCH_MAX_PAGINATION_CACHE_SIZE,
+        cache_cleanup_keep_ratio=DEFAULT_CACHE_CLEANUP_KEEP_RATIO,
     )
 
 

@@ -194,6 +194,12 @@ class SearchConfig:
     result_cache_ttl_seconds: int = 600  # Result cache TTL (10 minutes)
     tag_cache_ttl_seconds: int = 300  # Tag cache TTL (5 minutes)
 
+    # Cache size limits
+    max_tag_cache_size: int = 1000  # Maximum number of tag cache entries
+    max_result_cache_size: int = 100  # Maximum number of result cache entries
+    max_pagination_cache_size: int = 50  # Maximum number of pagination cache entries
+    cache_cleanup_keep_ratio: float = 0.8  # Ratio of entries to keep during size-based cleanup
+
     # Pagination performance optimization settings
     enable_cursor_based_pagination: bool = (
         True  # Enable cursor-based pagination for large datasets

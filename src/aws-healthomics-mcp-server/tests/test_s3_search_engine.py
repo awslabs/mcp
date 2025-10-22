@@ -234,6 +234,111 @@ class TestS3SearchEngine:
         assert not result.has_more_results
 
     @pytest.mark.asyncio
+    async def test_search_buckets_paginated_invalid_continuation_token(self, search_engine):
+        """Test paginated search with invalid continuation token."""
+        # Create an invalid continuation token
+        pagination_request = StoragePaginationRequest(
+            max_results=10, continuation_token='invalid_token_data'
+        )
+
+        # Mock the internal paginated search method
+        search_engine._search_single_bucket_path_paginated = AsyncMock(return_value=([], None, 0))
+
+        # This should handle the invalid token gracefully and start fresh
+        result = await search_engine.search_buckets_paginated(
+            bucket_paths=['s3://test-bucket/'],
+            file_type='fastq',
+            search_terms=['sample'],
+            pagination_request=pagination_request,
+        )
+
+        assert hasattr(result, 'results')
+        assert hasattr(result, 'has_more_results')
+
+    @pytest.mark.asyncio
+    async def test_search_buckets_paginated_buffer_overflow(self, search_engine):
+        """Test paginated search with buffer overflow."""
+        pagination_request = StoragePaginationRequest(
+            max_results=10,
+            buffer_size=5,  # Small buffer to trigger overflow
+        )
+
+        # Mock the internal method to return more results than buffer size
+        from datetime import datetime
+
+        mock_files = [
+            GenomicsFile(
+                path=f's3://test-bucket/file{i}.fastq',
+                file_type=GenomicsFileType.FASTQ,
+                size_bytes=1000,
+                storage_class='STANDARD',
+                last_modified=datetime.now(),
+                tags={},
+                source_system='s3',
+                metadata={},
+            )
+            for i in range(10)  # 10 files > buffer_size of 5
+        ]
+
+        search_engine._search_single_bucket_path_paginated = AsyncMock(
+            return_value=(mock_files, None, 10)
+        )
+
+        result = await search_engine.search_buckets_paginated(
+            bucket_paths=['s3://test-bucket/'],
+            file_type='fastq',
+            search_terms=['sample'],
+            pagination_request=pagination_request,
+        )
+
+        # Should still return results despite buffer overflow
+        assert len(result.results) == 10
+
+    @pytest.mark.asyncio
+    async def test_search_buckets_paginated_exception_handling(self, search_engine):
+        """Test paginated search with exceptions in bucket search."""
+        pagination_request = StoragePaginationRequest(max_results=10)
+
+        # Mock the internal method to raise an exception
+        search_engine._search_single_bucket_path_paginated = AsyncMock(
+            side_effect=Exception('Bucket access denied')
+        )
+
+        result = await search_engine.search_buckets_paginated(
+            bucket_paths=['s3://test-bucket/'],
+            file_type='fastq',
+            search_terms=['sample'],
+            pagination_request=pagination_request,
+        )
+
+        # Should handle exception gracefully and return empty results
+        assert result.results == []
+        assert not result.has_more_results
+
+    @pytest.mark.asyncio
+    async def test_search_buckets_paginated_unexpected_result_type(self, search_engine):
+        """Test paginated search with unexpected result type."""
+        pagination_request = StoragePaginationRequest(max_results=10)
+
+        # Mock the internal method to return unexpected result types
+        search_engine._search_single_bucket_path_paginated = AsyncMock(
+            side_effect=[
+                Exception('Unexpected error'),  # This should trigger exception handling
+                ([], None, 0),  # Valid result for second bucket
+            ]
+        )
+
+        result = await search_engine.search_buckets_paginated(
+            bucket_paths=['s3://test-bucket/', 's3://test-bucket-2/'],
+            file_type='fastq',
+            search_terms=['sample'],
+            pagination_request=pagination_request,
+        )
+
+        # Should handle unexpected result gracefully
+        assert result.results == []
+
+    @pytest.mark.asyncio
     async def test_validate_bucket_access_success(self, search_engine):
         """Test successful bucket access validation."""
         search_engine.s3_client.head_bucket.return_value = {}
@@ -286,6 +391,16 @@ class TestS3SearchEngine:
         objects = await search_engine._list_s3_objects('test-bucket', 'data/')
 
         assert objects == []
+
+    @pytest.mark.asyncio
+    async def test_list_s3_objects_client_error(self, search_engine):
+        """Test listing S3 objects with ClientError."""
+        search_engine.s3_client.list_objects_v2.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'ListObjectsV2'
+        )
+
+        with pytest.raises(ClientError):
+            await search_engine._list_s3_objects('test-bucket', 'data/')
 
     @pytest.mark.asyncio
     async def test_list_s3_objects_paginated(self, search_engine):
@@ -465,6 +580,10 @@ class TestS3SearchEngine:
 
     def test_get_cache_stats(self, search_engine):
         """Test cache statistics."""
+        # Add some entries to cache to test utilization calculation
+        search_engine._tag_cache['key1'] = {'tags': {}, 'timestamp': time.time()}
+        search_engine._result_cache['key2'] = {'results': [], 'timestamp': time.time()}
+
         stats = search_engine.get_cache_stats()
 
         assert 'tag_cache' in stats
@@ -473,8 +592,25 @@ class TestS3SearchEngine:
         assert 'total_entries' in stats['tag_cache']
         assert 'valid_entries' in stats['tag_cache']
         assert 'ttl_seconds' in stats['tag_cache']
+        assert 'max_cache_size' in stats['tag_cache']
+        assert 'cache_utilization' in stats['tag_cache']
+        assert 'max_cache_size' in stats['result_cache']
+        assert 'cache_utilization' in stats['result_cache']
+        assert 'cache_cleanup_keep_ratio' in stats['config']
         assert isinstance(stats['tag_cache']['total_entries'], int)
         assert isinstance(stats['result_cache']['total_entries'], int)
+        assert isinstance(stats['tag_cache']['cache_utilization'], float)
+        assert isinstance(stats['result_cache']['cache_utilization'], float)
+
+        # Test utilization calculation
+        expected_tag_utilization = (
+            len(search_engine._tag_cache) / search_engine.config.max_tag_cache_size
+        )
+        expected_result_utilization = (
+            len(search_engine._result_cache) / search_engine.config.max_result_cache_size
+        )
+        assert stats['tag_cache']['cache_utilization'] == expected_tag_utilization
+        assert stats['result_cache']['cache_utilization'] == expected_result_utilization
 
     def test_cleanup_expired_cache_entries(self, search_engine):
         """Test cache cleanup."""
@@ -490,6 +626,221 @@ class TestS3SearchEngine:
         # Cache should be cleaned up (expired entries removed)
         assert len(search_engine._tag_cache) <= initial_tag_size
         assert len(search_engine._result_cache) <= initial_result_size
+
+    def test_cleanup_cache_by_size_tag_cache(self, search_engine):
+        """Test size-based cache cleanup for tag cache."""
+        # Set small cache size for testing
+        search_engine.config.max_tag_cache_size = 3
+        search_engine.config.cache_cleanup_keep_ratio = 0.6  # Keep 60%
+
+        # Add more entries than the limit
+        for i in range(5):
+            search_engine._tag_cache[f'key{i}'] = {
+                'tags': {'test': f'value{i}'},
+                'timestamp': time.time() + i,
+            }
+
+        assert len(search_engine._tag_cache) == 5
+
+        # Trigger size-based cleanup
+        search_engine._cleanup_cache_by_size(
+            search_engine._tag_cache,
+            search_engine.config.max_tag_cache_size,
+            search_engine.config.cache_cleanup_keep_ratio,
+        )
+
+        # Should keep 60% of max_size = 1.8 -> 1 entry (most recent)
+        expected_size = int(
+            search_engine.config.max_tag_cache_size * search_engine.config.cache_cleanup_keep_ratio
+        )
+        assert len(search_engine._tag_cache) == expected_size
+
+        # Should keep the most recent entries (highest timestamps)
+        remaining_keys = list(search_engine._tag_cache.keys())
+        assert 'key4' in remaining_keys  # Most recent entry
+
+    def test_cleanup_cache_by_size_result_cache(self, search_engine):
+        """Test size-based cache cleanup for result cache."""
+        # Set small cache size for testing
+        search_engine.config.max_result_cache_size = 4
+        search_engine.config.cache_cleanup_keep_ratio = 0.5  # Keep 50%
+
+        # Add more entries than the limit
+        for i in range(6):
+            search_engine._result_cache[f'search_key_{i}'] = {
+                'results': [],
+                'timestamp': time.time() + i,
+            }
+
+        assert len(search_engine._result_cache) == 6
+
+        # Trigger size-based cleanup
+        search_engine._cleanup_cache_by_size(
+            search_engine._result_cache,
+            search_engine.config.max_result_cache_size,
+            search_engine.config.cache_cleanup_keep_ratio,
+        )
+
+        # Should keep 50% of max_size = 2 entries (most recent)
+        expected_size = int(
+            search_engine.config.max_result_cache_size
+            * search_engine.config.cache_cleanup_keep_ratio
+        )
+        assert len(search_engine._result_cache) == expected_size
+
+        # Should keep the most recent entries
+        remaining_keys = list(search_engine._result_cache.keys())
+        assert 'search_key_5' in remaining_keys  # Most recent entry
+        assert 'search_key_4' in remaining_keys  # Second most recent entry
+
+    def test_cleanup_cache_by_size_no_cleanup_needed(self, search_engine):
+        """Test that size-based cleanup does nothing when cache is under limit."""
+        # Set cache size larger than current entries
+        search_engine.config.max_tag_cache_size = 10
+
+        # Add fewer entries than the limit
+        for i in range(3):
+            search_engine._tag_cache[f'key{i}'] = {
+                'tags': {'test': f'value{i}'},
+                'timestamp': time.time(),
+            }
+
+        initial_size = len(search_engine._tag_cache)
+
+        # Trigger size-based cleanup
+        search_engine._cleanup_cache_by_size(
+            search_engine._tag_cache,
+            search_engine.config.max_tag_cache_size,
+            search_engine.config.cache_cleanup_keep_ratio,
+        )
+
+        # Should not remove any entries
+        assert len(search_engine._tag_cache) == initial_size
+
+    @pytest.mark.asyncio
+    async def test_automatic_tag_cache_size_cleanup(self, search_engine):
+        """Test that tag cache automatically cleans up when size limit is reached."""
+        # Set small cache size for testing
+        search_engine.config.max_tag_cache_size = 2
+        search_engine.config.cache_cleanup_keep_ratio = 0.5  # Keep 50%
+
+        # Mock S3 client
+        search_engine.s3_client.get_object_tagging.return_value = {
+            'TagSet': [{'Key': 'test', 'Value': 'value'}]
+        }
+
+        # Add entries that will trigger automatic cleanup
+        for i in range(4):
+            await search_engine._get_object_tags_cached('test-bucket', f'key{i}')
+
+            # Cache should never exceed the maximum size
+            assert len(search_engine._tag_cache) <= search_engine.config.max_tag_cache_size
+
+    def test_automatic_result_cache_size_cleanup(self, search_engine):
+        """Test that result cache automatically cleans up when size limit is reached."""
+        # Set small cache size for testing
+        search_engine.config.max_result_cache_size = 2
+        search_engine.config.cache_cleanup_keep_ratio = 0.5  # Keep 50%
+
+        # Add entries that will trigger automatic cleanup
+        for i in range(4):
+            search_engine._cache_search_result(f'search_key_{i}', [])
+
+            # Cache should never exceed the maximum size
+            assert len(search_engine._result_cache) <= search_engine.config.max_result_cache_size
+
+    def test_smart_cache_cleanup_prioritizes_expired_entries(self, search_engine):
+        """Test that smart cache cleanup removes expired entries first."""
+        # Set small cache size and short TTL for testing
+        search_engine.config.max_tag_cache_size = 3
+        search_engine.config.cache_cleanup_keep_ratio = 0.6  # Keep 60% = 1 entry
+        search_engine.config.tag_cache_ttl_seconds = 10  # 10 second TTL
+
+        current_time = time.time()
+
+        # Add mix of expired and valid entries
+        search_engine._tag_cache['expired1'] = {
+            'tags': {'test': 'expired1'},
+            'timestamp': current_time - 20,
+        }  # Expired
+        search_engine._tag_cache['expired2'] = {
+            'tags': {'test': 'expired2'},
+            'timestamp': current_time - 15,
+        }  # Expired
+        search_engine._tag_cache['valid1'] = {
+            'tags': {'test': 'valid1'},
+            'timestamp': current_time - 5,
+        }  # Valid
+        search_engine._tag_cache['valid2'] = {
+            'tags': {'test': 'valid2'},
+            'timestamp': current_time - 2,
+        }  # Valid (newest)
+
+        assert len(search_engine._tag_cache) == 4
+
+        # Trigger smart cleanup
+        search_engine._cleanup_cache_by_size(
+            search_engine._tag_cache,
+            search_engine.config.max_tag_cache_size,
+            search_engine.config.cache_cleanup_keep_ratio,
+        )
+
+        # Should keep only 1 entry (60% of 3 = 1.8 -> 1)
+        # Should prioritize removing expired entries first, then oldest valid
+        # Expected: expired1, expired2, and valid1 removed; valid2 kept (newest valid)
+        assert len(search_engine._tag_cache) == 1
+        assert 'valid2' in search_engine._tag_cache  # Newest valid entry should remain
+        assert 'expired1' not in search_engine._tag_cache
+        assert 'expired2' not in search_engine._tag_cache
+        assert 'valid1' not in search_engine._tag_cache
+
+    def test_smart_cache_cleanup_only_expired_entries(self, search_engine):
+        """Test smart cleanup when only expired entries need to be removed."""
+        # Set cache size larger than valid entries
+        search_engine.config.max_tag_cache_size = 5
+        search_engine.config.cache_cleanup_keep_ratio = 0.8  # Keep 80% = 4 entries
+        search_engine.config.tag_cache_ttl_seconds = 10
+
+        current_time = time.time()
+
+        # Add mix where removing expired entries is sufficient
+        search_engine._tag_cache['expired1'] = {
+            'tags': {'test': 'expired1'},
+            'timestamp': current_time - 20,
+        }  # Expired
+        search_engine._tag_cache['expired2'] = {
+            'tags': {'test': 'expired2'},
+            'timestamp': current_time - 15,
+        }  # Expired
+        search_engine._tag_cache['valid1'] = {
+            'tags': {'test': 'valid1'},
+            'timestamp': current_time - 5,
+        }  # Valid
+        search_engine._tag_cache['valid2'] = {
+            'tags': {'test': 'valid2'},
+            'timestamp': current_time - 2,
+        }  # Valid
+        search_engine._tag_cache['valid3'] = {
+            'tags': {'test': 'valid3'},
+            'timestamp': current_time - 1,
+        }  # Valid
+
+        assert len(search_engine._tag_cache) == 5
+
+        # Trigger smart cleanup
+        search_engine._cleanup_cache_by_size(
+            search_engine._tag_cache,
+            search_engine.config.max_tag_cache_size,
+            search_engine.config.cache_cleanup_keep_ratio,
+        )
+
+        # Should remove only expired entries (2), leaving 3 valid entries (under target of 4)
+        assert len(search_engine._tag_cache) == 3
+        assert 'expired1' not in search_engine._tag_cache
+        assert 'expired2' not in search_engine._tag_cache
+        assert 'valid1' in search_engine._tag_cache
+        assert 'valid2' in search_engine._tag_cache
+        assert 'valid3' in search_engine._tag_cache
 
     @pytest.mark.asyncio
     async def test_search_single_bucket_path_optimized_success(self, search_engine):

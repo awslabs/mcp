@@ -14,6 +14,13 @@
 
 """Pattern matching algorithms for genomics file search."""
 
+from awslabs.aws_healthomics_mcp_server.consts import (
+    FUZZY_MATCH_MAX_MULTIPLIER,
+    FUZZY_MATCH_THRESHOLD,
+    MULTIPLE_MATCH_BONUS_MULTIPLIER,
+    SUBSTRING_MATCH_MAX_MULTIPLIER,
+    TAG_MATCH_PENALTY_MULTIPLIER,
+)
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Tuple
 
@@ -23,7 +30,7 @@ class PatternMatcher:
 
     def __init__(self):
         """Initialize the pattern matcher."""
-        self.fuzzy_threshold = 0.6  # Minimum similarity for fuzzy matches
+        self.fuzzy_threshold = FUZZY_MATCH_THRESHOLD
 
     def calculate_match_score(self, text: str, patterns: List[str]) -> Tuple[float, List[str]]:
         """Calculate match score for text against multiple patterns.
@@ -66,7 +73,9 @@ class PatternMatcher:
 
         # Apply bonus for multiple pattern matches
         if len([r for r in match_reasons if 'match' in r]) > 1:
-            max_score = min(1.0, max_score * 1.2)  # 20% bonus, capped at 1.0
+            max_score = min(
+                1.0, max_score * MULTIPLE_MATCH_BONUS_MULTIPLIER
+            )  # Bonus, capped at 1.0
 
         return max_score, match_reasons
 
@@ -129,7 +138,7 @@ class PatternMatcher:
                 match_reasons = [f'Tag {reason}' for reason in reasons]
 
         # Tag matches get a slight penalty compared to path matches
-        return max_score * 0.9, match_reasons
+        return max_score * TAG_MATCH_PENALTY_MULTIPLIER, match_reasons
 
     def _exact_match_score(self, text: str, pattern: str) -> float:
         """Calculate score for exact matches (case-insensitive)."""
@@ -145,7 +154,7 @@ class PatternMatcher:
         if pattern_lower in text_lower:
             # Score based on how much of the text the pattern covers
             coverage = len(pattern_lower) / len(text_lower)
-            return 0.8 * coverage  # Max 0.8 for substring matches
+            return SUBSTRING_MATCH_MAX_MULTIPLIER * coverage  # Max score for substring matches
         return 0.0
 
     def _fuzzy_match_score(self, text: str, pattern: str) -> float:
@@ -157,7 +166,7 @@ class PatternMatcher:
         similarity = SequenceMatcher(None, text_lower, pattern_lower).ratio()
 
         if similarity >= self.fuzzy_threshold:
-            return 0.6 * similarity  # Max 0.6 for fuzzy matches
+            return FUZZY_MATCH_MAX_MULTIPLIER * similarity  # Max score for fuzzy matches
         return 0.0
 
     def extract_filename_components(self, file_path: str) -> Dict[str, Optional[str]]:

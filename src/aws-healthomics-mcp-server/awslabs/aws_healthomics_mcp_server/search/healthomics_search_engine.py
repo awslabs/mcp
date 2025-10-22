@@ -15,6 +15,11 @@
 """HealthOmics search engine for genomics files in sequence and reference stores."""
 
 import asyncio
+from awslabs.aws_healthomics_mcp_server.consts import (
+    HEALTHOMICS_RATE_LIMIT_DELAY,
+    HEALTHOMICS_STATUS_ACTIVE,
+    HEALTHOMICS_STORAGE_CLASS_MANAGED,
+)
 from awslabs.aws_healthomics_mcp_server.models import (
     GenomicsFile,
     GenomicsFileType,
@@ -640,7 +645,9 @@ class HealthOmicsSearchEngine:
                     params['nextToken'] = current_token
 
                 # Execute the list operation asynchronously with rate limiting
-                await asyncio.sleep(0.1)  # Rate limiting: 10 requests per second
+                await asyncio.sleep(
+                    HEALTHOMICS_RATE_LIMIT_DELAY
+                )  # Rate limiting: 10 requests per second
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
                     None, lambda: self.omics_client.list_read_sets(**params)
@@ -895,7 +902,9 @@ class HealthOmicsSearchEngine:
                     logger.debug(f'Applying server-side name filter: {name_filter}')
 
                 # Execute the list operation asynchronously with rate limiting
-                await asyncio.sleep(0.1)  # Rate limiting: 10 requests per second
+                await asyncio.sleep(
+                    HEALTHOMICS_RATE_LIMIT_DELAY
+                )  # Rate limiting: 10 requests per second
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
                     None, lambda: self.omics_client.list_references(**params)
@@ -1150,14 +1159,14 @@ class HealthOmicsSearchEngine:
 
             # Filter out read sets that are not in ACTIVE status
             read_set_status = enhanced_metadata.get('status', read_set.get('status', ''))
-            if read_set_status != 'ACTIVE':
+            if read_set_status != HEALTHOMICS_STATUS_ACTIVE:
                 logger.debug(f'Skipping read set {read_set_id} with status: {read_set_status}')
                 return None
 
             # Get tags for the read set
             read_set_arn = enhanced_metadata.get(
                 'arn',
-                f'arn:aws:omics:{self._get_region()}:{self._get_account_id()}:sequenceStore/{store_id}/readSet/{read_set_id}',
+                f'arn:{self._get_partition()}:omics:{self._get_region()}:{self._get_account_id()}:sequenceStore/{store_id}/readSet/{read_set_id}',
             )
             tags = await self._get_read_set_tags(read_set_arn)
 
@@ -1202,7 +1211,7 @@ class HealthOmicsSearchEngine:
                 path=omics_uri,
                 file_type=detected_file_type,
                 size_bytes=actual_size,  # Use actual file size from enhanced metadata
-                storage_class='STANDARD',  # HealthOmics manages storage internally
+                storage_class=HEALTHOMICS_STORAGE_CLASS_MANAGED,  # HealthOmics manages storage internally
                 last_modified=enhanced_metadata.get(
                     'creationTime', read_set.get('creationTime', datetime.now())
                 ),
@@ -1335,14 +1344,14 @@ class HealthOmicsSearchEngine:
 
             # Filter out references that are not in ACTIVE status
             reference_status = reference.get('status', '')
-            if reference_status != 'ACTIVE':
+            if reference_status != HEALTHOMICS_STATUS_ACTIVE:
                 logger.debug(f'Skipping reference {reference_id} with status: {reference_status}')
                 return None
 
             # Get tags for the reference
             reference_arn = reference.get(
                 'arn',
-                f'arn:aws:omics:{self._get_region()}:{self._get_account_id()}:referenceStore/{store_id}/reference/{reference_id}',
+                f'arn:{self._get_partition()}:omics:{self._get_region()}:{self._get_account_id()}:referenceStore/{store_id}/reference/{reference_id}',
             )
             tags = await self._get_reference_tags(reference_arn)
 
@@ -1526,3 +1535,14 @@ class HealthOmicsSearchEngine:
         from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_account_id
 
         return get_account_id()
+
+    def _get_partition(self) -> str:
+        """Get the current AWS partition.
+
+        Returns:
+            AWS partition string (e.g., 'aws', 'aws-cn', 'aws-us-gov')
+        """
+        # Import here to avoid circular imports
+        from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_partition
+
+        return get_partition()

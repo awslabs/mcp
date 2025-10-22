@@ -22,6 +22,7 @@ import os
 import zipfile
 from awslabs.aws_healthomics_mcp_server import __version__
 from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_OMICS_SERVICE_NAME, DEFAULT_REGION
+from functools import lru_cache
 from loguru import logger
 from typing import Any, Dict
 
@@ -87,7 +88,7 @@ def get_omics_endpoint_url() -> str | None:
     return endpoint_url
 
 
-def get_aws_session():
+def get_aws_session() -> boto3.Session:
     """Get an AWS session with the centralized region configuration.
 
     Returns:
@@ -227,4 +228,28 @@ def get_account_id() -> str:
         return response['Account']
     except Exception as e:
         logger.error(f'Failed to get AWS account ID: {str(e)}')
+        raise
+
+
+@lru_cache(maxsize=1)
+def get_partition() -> str:
+    """Get the current AWS partition (memoized).
+
+    Returns:
+        str: AWS partition (e.g., 'aws', 'aws-cn', 'aws-us-gov')
+
+    Raises:
+        Exception: If unable to retrieve partition
+    """
+    try:
+        session = get_aws_session()
+        sts_client = session.client('sts')
+        response = sts_client.get_caller_identity()
+        # Extract partition from the ARN: arn:partition:sts::account-id:assumed-role/...
+        arn = response['Arn']
+        partition = arn.split(':')[1]
+        logger.debug(f'Detected AWS partition: {partition}')
+        return partition
+    except Exception as e:
+        logger.error(f'Failed to get AWS partition: {str(e)}')
         raise

@@ -14,6 +14,7 @@
 
 """Result ranking system for genomics file search results."""
 
+from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_RESULT_RANKER_FALLBACK_SIZE
 from awslabs.aws_healthomics_mcp_server.models import GenomicsFileResult
 from loguru import logger
 from typing import List
@@ -86,8 +87,10 @@ class ResultRanker:
             offset = 0
 
         if max_results <= 0:
-            logger.warning(f'Invalid max_results {max_results}, setting to 100')
-            max_results = 100
+            logger.warning(
+                f'Invalid max_results {max_results}, setting to {DEFAULT_RESULT_RANKER_FALLBACK_SIZE}'
+            )
+            max_results = DEFAULT_RESULT_RANKER_FALLBACK_SIZE
 
         # Apply offset and limit
         start_index = offset
