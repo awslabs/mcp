@@ -14,14 +14,14 @@
 
 import argparse
 import botocore.serialize
+import ipaddress
 import jmespath
 import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
-    driver,
+    get_awscli_driver,
     get_operation_filters,
-    session,
 )
 from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
@@ -70,6 +70,7 @@ from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
 from pathlib import Path
 from typing import Any, NamedTuple, cast
+from urllib.parse import urlparse
 
 
 ARN_PATTERN = re.compile(
@@ -334,6 +335,8 @@ def is_denied_custom_operation(service, operation):
     )
 
 
+driver = get_awscli_driver()
+session = driver.session
 command_table = driver._get_command_table()
 cli_data = driver._get_cli_data()
 parser = GlobalArgParser.get_parser()
@@ -621,8 +624,6 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
     denied_args = []
     if global_args.debug:
         denied_args.append('--debug')
-    if global_args.endpoint_url:
-        denied_args.append('--endpoint-url')
     if not global_args.verify_ssl:
         denied_args.append('--no-verify-ssl')
     if not global_args.sign_request:
@@ -649,7 +650,7 @@ def _validate_parameters(
     errors = []
 
     input_shape = operation_model.input_shape
-    boto3_members = getattr(input_shape, 'members')
+    boto3_members = getattr(input_shape, 'members', {})
 
     for key, value in parameters.items():
         boto3_shape = boto3_members.get(key)
@@ -792,6 +793,31 @@ def _validate_file_path(file_path: str, service: str, operation: str):
         )
 
 
+def _validate_endpoint(endpoint: str | None):
+    if not endpoint:
+        return
+
+    try:
+        url = urlparse(endpoint if '://' in endpoint else f'http://{endpoint}')
+        url.port  # will throw an exception if the port is not a number
+    except Exception as e:
+        raise ValueError(f'Invalid endpoint or port: {endpoint}') from e
+
+    hostname = url.hostname
+    if not hostname:
+        raise ValueError(f'Could not find hostname {endpoint}')
+
+    if hostname == 'localhost':
+        hostname = '127.0.0.1'
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if not ip_obj.is_loopback:
+            raise ValueError(f'Local endpoint was not a loopback address: {hostname}')
+    except ValueError as e:
+        raise ValueError(f'Could not resolve endpoint: {e}')
+
+
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
     for param_value in parameters.values():
         if isinstance(param_value, str):
@@ -810,6 +836,8 @@ def _construct_command(
     operation_model: OperationModel | None = None,
 ) -> IRCommand:
     _validate_file_paths(command_metadata, parsed_args, parameters)
+    endpoint_url = getattr(global_args, 'endpoint_url', None)
+    _validate_endpoint(endpoint_url)
 
     profile = getattr(global_args, 'profile', None)
     region = (
@@ -846,6 +874,7 @@ def _construct_command(
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
         output_file=output_file,
+        endpoint_url=global_args.endpoint_url,
     )
 
 

@@ -33,6 +33,7 @@ from .core.common.config import (
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
     REQUIRE_MUTATION_CONSENT,
+    STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
 )
@@ -41,13 +42,14 @@ from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
+    Credentials,
     ProgramInterpretationResponse,
 )
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
 from botocore.exceptions import NoCredentialsError
+from fastmcp import Context, FastMCP
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pathlib import Path
 from pydantic import Field
@@ -62,7 +64,13 @@ log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
-server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL, host=HOST, port=PORT)
+server = FastMCP(
+    name='AWS-API-MCP',
+    log_level=FASTMCP_LOG_LEVEL,
+    host=HOST,
+    port=PORT,
+    stateless_http=STATELESS_HTTP,
+)
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 
@@ -212,6 +220,26 @@ async def call_aws(
     ] = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
+    return await call_aws_helper(
+        cli_command=cli_command,
+        ctx=ctx,
+        max_results=max_results,
+        credentials=None,
+    )
+
+
+async def call_aws_helper(
+    cli_command: Annotated[
+        str, Field(description='The complete AWS CLI command to execute. MUST start with "aws"')
+    ],
+    ctx: Context,
+    max_results: Annotated[
+        int | None,
+        Field(description='Optional limit for number of results (useful for pagination)'),
+    ] = None,
+    credentials: Credentials | None = None,
+) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
+    """Helper function that actually calls aws."""
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
@@ -269,7 +297,11 @@ async def call_aws(
 
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
-                execute_awscli_customization(cli_command, ir.command)
+                execute_awscli_customization(
+                    cli_command,
+                    ir.command,
+                    credentials=credentials,
+                )
             )
             if isinstance(response, AwsApiMcpServerErrorResponse):
                 await ctx.error(response.detail)
@@ -278,6 +310,7 @@ async def call_aws(
         return interpret_command(
             cli_command=cli_command,
             max_results=max_results,
+            credentials=credentials,
         )
     except NoCredentialsError:
         error_message = (
