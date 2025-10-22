@@ -830,11 +830,9 @@ async def test_call_aws_helper_with_credentials(mock_translate, mock_validate, m
     mock_response = MagicMock()
     mock_interpret.return_value = mock_response
 
-    ctx = DummyCtx()
-
     result = await call_aws_helper(
         'aws s3api list-buckets',
-        ctx,
+        AsyncMock(),
         credentials=test_credentials,
     )
 
@@ -868,9 +866,11 @@ async def test_call_aws_helper_without_credentials(mock_translate, mock_validate
     mock_response = MagicMock()
     mock_interpret.return_value = mock_response
 
-    ctx = DummyCtx()
-
-    result = await call_aws_helper('aws s3api list-buckets', ctx, credentials=None)
+    result = await call_aws_helper(
+        'aws s3api list-buckets',
+        AsyncMock(),
+        credentials=None,
+    )
 
     mock_interpret.assert_called_once_with(
         cli_command='aws s3api list-buckets', max_results=None, credentials=None
