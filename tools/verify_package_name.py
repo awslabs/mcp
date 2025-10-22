@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
-"""
-Script to verify that README files correctly reference package names from pyproject.toml files.
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
+"""Script to verify that README files correctly reference package names from pyproject.toml files.
 
 This script extracts the package name from a pyproject.toml file and checks if the README.md
 file in the same directory correctly references this package name in installation instructions.
@@ -15,13 +30,14 @@ import urllib.parse
 from pathlib import Path
 from typing import List, Tuple
 
+
 try:
     import tomllib
 except ImportError:
     try:
         import tomli as tomllib
     except ImportError:
-        print("Error: tomllib (Python 3.11+) or tomli package is required", file=sys.stderr)
+        print('Error: tomllib (Python 3.11+) or tomli package is required', file=sys.stderr)
         sys.exit(1)
 
 
@@ -32,13 +48,13 @@ def extract_package_name(pyproject_path: Path) -> str:
             data = tomllib.load(f)
         return data['project']['name']
     except (FileNotFoundError, KeyError) as e:
-        raise ValueError(f"Failed to extract package name from {pyproject_path}: {e}")
+        raise ValueError(f'Failed to extract package name from {pyproject_path}: {e}')
     except Exception as e:
         # Handle both tomllib.TOMLDecodeError and tomli.TOMLDecodeError
-        if "TOML" in str(type(e).__name__):
-            raise ValueError(f"Failed to parse TOML file {pyproject_path}: {e}")
+        if 'TOML' in str(type(e).__name__):
+            raise ValueError(f'Failed to parse TOML file {pyproject_path}: {e}')
         else:
-            raise ValueError(f"Failed to extract package name from {pyproject_path}: {e}")
+            raise ValueError(f'Failed to extract package name from {pyproject_path}: {e}')
 
 
 def extract_package_from_base64_config(config_b64: str) -> List[str]:
@@ -49,7 +65,7 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
             config_b64 = urllib.parse.unquote(config_b64)
         except Exception:
             pass  # If URL decoding fails, use original string
-        
+
         # Try to parse as JSON directly first (for URL-encoded JSON)
         try:
             config = json.loads(config_b64)
@@ -57,24 +73,26 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
             # If not JSON, try Base64 decoding
             config_json = base64.b64decode(config_b64).decode('utf-8')
             config = json.loads(config_json)
-        
+
         # Look for package names in the config
         package_names = []
-        
+
         # Check command field
         if 'command' in config and config['command'] in ['uvx', 'uv']:
             if 'args' in config and config['args']:
                 for arg in config['args']:
                     if '@' in arg and '.' in arg:
                         package_names.append(arg)
-        
+
         return package_names
     except Exception:
         # If we can't decode, return empty list
         return []
 
 
-def find_package_references_in_readme(readme_path: Path, verbose: bool = False) -> List[Tuple[str, int]]:
+def find_package_references_in_readme(
+    readme_path: Path, verbose: bool = False
+) -> List[Tuple[str, int]]:
     """Find all package name references in the README file with line numbers."""
     try:
         with open(readme_path, 'r', encoding='utf-8') as f:
@@ -82,7 +100,7 @@ def find_package_references_in_readme(readme_path: Path, verbose: bool = False) 
             content = ''.join(lines)
     except FileNotFoundError:
         return []
-    
+
     # More specific patterns for package references in installation instructions
     patterns = [
         # uvx/uv tool run patterns with @version
@@ -101,22 +119,22 @@ def find_package_references_in_readme(readme_path: Path, verbose: bool = False) 
         # Base64 encoded config in URLs (contains package names) - handled separately
         # r'config=([^&\s]+)',  # Moved to separate handling
     ]
-    
+
     references = []
     for pattern in patterns:
         for match in re.finditer(pattern, content, re.IGNORECASE | re.MULTILINE):
             # Calculate line number
-            line_num = content[:match.start()].count('\n') + 1
+            line_num = content[: match.start()].count('\n') + 1
             references.append((match.group(1), line_num))
-    
+
     # Handle Base64/URL-encoded configs specially
     for match in re.finditer(r'config=([^&\s)]+)', content, re.IGNORECASE):
         config_str = match.group(1)
-        line_num = content[:match.start()].count('\n') + 1
+        line_num = content[: match.start()].count('\n') + 1
         config_packages = extract_package_from_base64_config(config_str)
         for package in config_packages:
             references.append((package, line_num))
-    
+
     # Filter out common false positives
     filtered_references = []
     for ref, line_num in references:
@@ -124,7 +142,20 @@ def find_package_references_in_readme(readme_path: Path, verbose: bool = False) 
         if len(ref) < 3:
             continue
         # Skip common non-package words
-        if ref.lower() in ['-e', '--', 'pip', 'uv', 'uvx', 'docker', 'run', 'install', 'mcpservers', 'command', 'args', 'env']:
+        if ref.lower() in [
+            '-e',
+            '--',
+            'pip',
+            'uv',
+            'uvx',
+            'docker',
+            'run',
+            'install',
+            'mcpservers',
+            'command',
+            'args',
+            'env',
+        ]:
             continue
         # Skip AWS service references (e.g., aws.s3@ObjectCreated)
         if ref.startswith('aws.') and '@' in ref:
@@ -142,99 +173,100 @@ def find_package_references_in_readme(readme_path: Path, verbose: bool = False) 
         if '.' not in ref and '@' not in ref:
             continue
         # Skip common false positives in code examples (word@something where word is not a package name)
-        if '@' in ref and not '.' in ref:
+        if '@' in ref and '.' not in ref:
             # Extract the part before @
             prefix = ref.split('@')[0].lower()
             if prefix in ['asset', 'model', 'property', 'hierarchy']:
                 continue
         filtered_references.append((ref, line_num))
-    
+
     return filtered_references
 
 
-def verify_package_name_consistency(package_name: str, references: List[Tuple[str, int]]) -> Tuple[bool, List[str]]:
+def verify_package_name_consistency(
+    package_name: str, references: List[Tuple[str, int]]
+) -> Tuple[bool, List[str]]:
     """Verify that package references match the actual package name."""
     # Extract just the package name part (without version)
     base_package_name = package_name.split('@')[0] if '@' in package_name else package_name
-    
+
     issues = []
-    
+
     for ref, line_num in references:
         # Extract package name from reference (remove version if present)
         ref_package = ref.split('@')[0] if '@' in ref else ref
-        
+
         if ref_package != base_package_name:
-            issues.append(f"Package name mismatch: found '{ref_package}' but expected '{base_package_name}' (line {line_num})")
-    
+            issues.append(
+                f"Package name mismatch: found '{ref_package}' but expected '{base_package_name}' (line {line_num})"
+            )
+
     return len(issues) == 0, issues
 
 
 def main():
     """Main function to verify package name consistency."""
     parser = argparse.ArgumentParser(
-        description="Verify that README files correctly reference package names from pyproject.toml"
+        description='Verify that README files correctly reference package names from pyproject.toml'
     )
     parser.add_argument(
-        "package_dir",
-        help="Path to the package directory (e.g., src/amazon-neptune-mcp-server)"
+        'package_dir', help='Path to the package directory (e.g., src/amazon-neptune-mcp-server)'
     )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
-    
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose output')
+
     args = parser.parse_args()
-    
+
     package_dir = Path(args.package_dir)
-    pyproject_path = package_dir / "pyproject.toml"
-    readme_path = package_dir / "README.md"
-    
+    pyproject_path = package_dir / 'pyproject.toml'
+    readme_path = package_dir / 'README.md'
+
     if not package_dir.exists():
         print(f"Error: Package directory '{package_dir}' does not exist", file=sys.stderr)
         sys.exit(1)
-    
+
     if not pyproject_path.exists():
         print(f"Error: pyproject.toml not found in '{package_dir}'", file=sys.stderr)
         sys.exit(1)
-    
+
     if not readme_path.exists():
         print(f"Warning: README.md not found in '{package_dir}'", file=sys.stderr)
         sys.exit(0)
-    
+
     try:
         # Extract package name from pyproject.toml
         package_name = extract_package_name(pyproject_path)
         if args.verbose:
-            print(f"Package name from pyproject.toml: {package_name}")
-        
+            print(f'Package name from pyproject.toml: {package_name}')
+
         # Find package references in README
         references = find_package_references_in_readme(readme_path, args.verbose)
         if args.verbose:
-            print(f"Found {len(references)} package references in README")
+            print(f'Found {len(references)} package references in README')
             for ref, line_num in references:
-                print(f"  - {ref} (line {line_num})")
-        
+                print(f'  - {ref} (line {line_num})')
+
         # Verify consistency
         is_consistent, issues = verify_package_name_consistency(package_name, references)
-        
+
         if is_consistent:
-            print(f"✅ Package name verification passed for {package_name}")
+            print(f'✅ Package name verification passed for {package_name}')
             if args.verbose:
-                print("All package references in README match the package name from pyproject.toml")
+                print(
+                    'All package references in README match the package name from pyproject.toml'
+                )
         else:
-            print(f"❌ Package name verification failed for {package_name}")
+            print(f'❌ Package name verification failed for {package_name}')
             for issue in issues:
-                print(f"  - {issue}")
+                print(f'  - {issue}')
             sys.exit(1)
-            
+
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f'Error: {e}', file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"Unexpected error: {e}", file=sys.stderr)
+        print(f'Unexpected error: {e}', file=sys.stderr)
         sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
