@@ -69,7 +69,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 # Install runtime dependencies and create application user
 RUN apk update && \
-    apk add --no-cache ca-certificates && \
+    apk add --no-cache ca-certificates curl && \
     update-ca-certificates && \
     addgroup -S app && \
     adduser -S app -G app -h /app
@@ -79,10 +79,19 @@ COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
 # Get healthcheck script
 COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
+RUN chmod +x /usr/local/bin/docker-healthcheck.sh
 
 # Run as non-root
 USER app
 
-# When running the container, add --db-path and a bind mount to the host's db file
-HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
+# Expose default HTTP port
+EXPOSE 8080
+
+# Healthcheck for HTTP mode
+HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["docker-healthcheck.sh"]
+
+# Default to HTTP transport mode
+# Can be overridden by passing arguments to docker run
 ENTRYPOINT ["awslabs.eks-mcp-server"]
+CMD ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8088"]

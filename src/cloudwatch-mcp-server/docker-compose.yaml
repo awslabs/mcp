@@ -1,0 +1,31 @@
+services:
+  cloudwatch-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cloudwatch-mcp-server
+    ports:
+      - "8080:8080"
+    environment:
+      # MCP Server Configuration
+      - MCP_TRANSPORT=streamable-http
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8080
+      
+      # AWS Configuration (pass through from host)
+     #  AWS_PROFILE=${AWS_PROFILE:-default}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -67,6 +67,11 @@ FROM public.ecr.aws/docker/library/python:3.13-alpine@sha256:070342a0cc1011532c0
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
+# Default environment variables for streamable HTTP mode
+ENV MCP_TRANSPORT=streamable-http \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=8080
+
 # Install runtime dependencies and create application user
 RUN apk update && \
     apk add --no-cache ca-certificates && \
@@ -80,9 +85,15 @@ COPY --from=uv --chown=app:app /app/.venv /app/.venv
 # Get healthcheck script
 COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 
+# Expose port for HTTP transport
+EXPOSE 8080
+
 # Run as non-root
 USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
+
+# Run with command-line arguments to support both stdio and streamable-http modes
 ENTRYPOINT ["awslabs.cloudwatch-mcp-server"]
+CMD ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8080"]

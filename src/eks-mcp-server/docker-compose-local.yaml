@@ -1,0 +1,39 @@
+services:
+  eks-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: eks-mcp-server
+    ports:
+      - "8088:8088"
+    environment:
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8088
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+#      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - FASTMCP_LOG_LEVEL=INFO
+
+    # NO volume mounts needed when using env vars
+    volumes:
+      - eks-data:/app/data
+
+    command: >
+      --transport streamable-http
+      --host 0.0.0.0
+      --port 8088
+      --allow-write
+      --allow-sensitive-data-access
+
+    restart: unless-stopped
+    networks:
+      - eks-network
+
+volumes:
+  eks-data:
+    driver: local
+
+networks:
+  eks-network:
+    driver: bridge

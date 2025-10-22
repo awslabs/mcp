@@ -1,17 +1,3 @@
-# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """awslabs EKS MCP Server implementation.
 
 This module implements the EKS MCP Server, which provides tools for managing Amazon EKS clusters
@@ -21,9 +7,12 @@ Environment Variables:
     AWS_REGION: AWS region to use for AWS API calls
     AWS_PROFILE: AWS profile to use for credentials
     FASTMCP_LOG_LEVEL: Log level (default: WARNING)
+    MCP_HOST: Host to bind to for HTTP transport (default: 0.0.0.0)
+    MCP_PORT: Port to bind to for HTTP transport (default: 8080)
 """
 
 import argparse
+import os
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatchMetricsHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
@@ -34,7 +23,6 @@ from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-
 
 # Define server instructions and dependencies
 SERVER_INSTRUCTIONS = """
@@ -97,12 +85,22 @@ SERVER_DEPENDENCIES = [
 mcp = None
 
 
-def create_server():
-    """Create and configure the MCP server instance."""
+def create_server(host: str = "0.0.0.0", port: int = 8080):
+    """Create and configure the MCP server instance.
+
+    Args:
+        host: Host to bind to (for HTTP transport)
+        port: Port to bind to (for HTTP transport)
+
+    Returns:
+        Configured FastMCP instance
+    """
     return FastMCP(
         'awslabs.eks-mcp-server',
         instructions=SERVER_INSTRUCTIONS,
         dependencies=SERVER_DEPENDENCIES,
+        host=host,
+        port=port
     )
 
 
@@ -125,11 +123,32 @@ def main():
         default=False,
         help='Enable sensitive data access (required for reading logs, events, and Kubernetes Secrets)',
     )
+    parser.add_argument(
+        '--transport',
+        choices=['stdio', 'streamable-http'],
+        default='streamable-http',
+        help='Transport mode (default: streamable-http)'
+    )
+    parser.add_argument(
+        '--host',
+        default=None,
+        help='Host to bind to for HTTP transport (default: from MCP_HOST env or 0.0.0.0)'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=None,
+        help='Port to bind to for HTTP transport (default: from MCP_PORT env or 8080)'
+    )
 
     args = parser.parse_args()
 
     allow_write = args.allow_write
     allow_sensitive_data_access = args.allow_sensitive_data_access
+
+    # Get host and port from args or environment variables
+    host = args.host or os.getenv('MCP_HOST', '0.0.0.0')
+    port = args.port or int(os.getenv('MCP_PORT', '8080'))
 
     # Log startup mode
     mode_info = []
@@ -139,10 +158,22 @@ def main():
         mode_info.append('restricted sensitive data access mode')
 
     mode_str = ' in ' + ', '.join(mode_info) if mode_info else ''
-    logger.info(f'Starting EKS MCP Server{mode_str}')
+
+    if args.transport == 'streamable-http':
+        logger.info(f'Starting EKS MCP Server{mode_str} on {host}:{port}')
+    else:
+        logger.info(f'Starting EKS MCP Server{mode_str} with stdio transport')
 
     # Create the MCP server instance
-    mcp = create_server()
+    if args.transport == 'streamable-http':
+        mcp = create_server(host=host, port=port)
+    else:
+        # For stdio transport, don't pass host/port
+        mcp = FastMCP(
+            'awslabs.eks-mcp-server',
+            instructions=SERVER_INSTRUCTIONS,
+            dependencies=SERVER_DEPENDENCIES,
+        )
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     CloudWatchHandler(mcp, allow_sensitive_data_access)
@@ -154,8 +185,9 @@ def main():
     VpcConfigHandler(mcp, allow_sensitive_data_access)
     InsightsHandler(mcp, allow_sensitive_data_access)
 
-    # Run server
-    mcp.run()
+    # Run server with appropriate transport
+    logger.info(f"Starting MCP server with {args.transport} transport")
+    mcp.run(transport=args.transport)
 
     return mcp
 
