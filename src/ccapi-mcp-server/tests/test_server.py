@@ -884,6 +884,32 @@ class TestTools:
                     mock_run.assert_called_once()
         finally:
             sys.argv = original_argv
+        
+        # Test main function with streamable-http transport
+        with patch('awslabs.ccapi_mcp_server.server.config') as mock_config:
+            with patch('awslabs.ccapi_mcp_server.server.mcp.run') as mock_run:
+                with patch(
+                    'awslabs.ccapi_mcp_server.impl.tools.session_management.get_aws_profile_info'
+                ) as mock_profile:
+                    mock_config.TRANSPORT = 'streamable-http'
+                    mock_config.HOST = '127.0.0.1'
+                    mock_config.PORT = 8080
+                    mock_profile.return_value = {
+                        'profile': 'default',
+                        'using_env_vars': False,
+                        'account_id': '123456789012',
+                        'region': 'us-east-1',
+                    }
+
+                    import sys
+                    original_argv = sys.argv
+                    try:
+                        sys.argv = ['server.py', '--readonly']
+                        from awslabs.ccapi_mcp_server.server import main
+                        main()
+                        mock_run.assert_called_once_with(transport='streamable-http')
+                    finally:
+                        sys.argv = original_argv
 
     @pytest.mark.asyncio
     async def test_final_coverage_push(self):
