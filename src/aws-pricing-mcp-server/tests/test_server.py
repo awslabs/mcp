@@ -233,7 +233,7 @@ class TestGetPricing:
 
     @pytest.mark.asyncio
     async def test_single_region_backward_compatibility(self, mock_boto3, mock_context):
-        """Test that single region strings still work with TERM_MATCH for backward compatibility."""
+        """Test that single region strings still work with EQUALS for backward compatibility."""
         with patch('boto3.Session', return_value=mock_boto3.Session()):
             result = await get_pricing(mock_context, 'AmazonEC2', 'us-east-1')
 
@@ -241,7 +241,7 @@ class TestGetPricing:
         assert result['status'] == 'success'
         assert result['service_name'] == 'AmazonEC2'
 
-        # Verify that the mocked pricing client was called with TERM_MATCH for single region
+        # Verify that the mocked pricing client was called with EQUALS for single region
         pricing_client = mock_boto3.Session().client('pricing')
         pricing_client.get_products.assert_called_once()
         call_args = pricing_client.get_products.call_args[1]
@@ -251,9 +251,9 @@ class TestGetPricing:
         region_filters = [f for f in call_args['Filters'] if f['Field'] == 'regionCode']
         assert len(region_filters) == 1
 
-        # The region filter should use TERM_MATCH for backward compatibility
+        # The region filter should use EQUALS for backward compatibility
         region_filter = region_filters[0]
-        assert region_filter['Type'] == 'TERM_MATCH'
+        assert region_filter['Type'] == 'EQUALS'
         assert region_filter['Value'] == 'us-east-1'
 
     @pytest.mark.asyncio
@@ -427,6 +427,68 @@ class TestGetPricing:
         assert len(result['data']) == 100  # All results should be returned
         assert 'Retrieved pricing for AmazonEC2' in result['message']
         mock_context.info.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_without_region(self, mock_boto3, mock_context):
+        """Test get_pricing works without region parameter for global services."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_products.return_value = {
+            'PriceList': ['{"sku":"ABC123","product":{"productFamily":"Data Transfer"}}']
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing(mock_context, 'AWSDataTransfer', region=None)
+
+        assert result['status'] == 'success'
+        assert result['service_name'] == 'AWSDataTransfer'
+
+        # Verify no region filter was added
+        pricing_client.get_products.assert_called_once()
+        call_kwargs = pricing_client.get_products.call_args[1]
+        assert 'Filters' in call_kwargs
+        # Should have no filters since region is None and no other filters provided
+        assert len(call_kwargs['Filters']) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_region_none_explicit(self, mock_boto3, mock_context):
+        """Test get_pricing with explicit region=None."""
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_products.return_value = {
+            'PriceList': ['{"sku":"DEF456","product":{"productFamily":"CloudFront"}}']
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing(mock_context, 'AmazonCloudFront', None)
+
+        assert result['status'] == 'success'
+        assert result['service_name'] == 'AmazonCloudFront'
+
+        # Verify API was called without region filter
+        pricing_client.get_products.assert_called_once()
+        call_kwargs = pricing_client.get_products.call_args[1]
+        region_filters = [f for f in call_kwargs['Filters'] if f['Field'] == 'regionCode']
+        assert len(region_filters) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_pricing_with_filters_no_region(self, mock_boto3, mock_context):
+        """Test get_pricing with filters but no region."""
+        filters = [PricingFilter(Field='operation', Value='DataTransfer-Out-Bytes')]
+
+        pricing_client = mock_boto3.Session().client('pricing')
+        pricing_client.get_products.return_value = {
+            'PriceList': ['{"sku":"GHI789","product":{"productFamily":"Data Transfer"}}']
+        }
+
+        with patch('boto3.Session', return_value=mock_boto3.Session()):
+            result = await get_pricing(mock_context, 'AWSDataTransfer', None, filters)
+
+        assert result['status'] == 'success'
+
+        # Verify only custom filters were added, no region filter
+        pricing_client.get_products.assert_called_once()
+        call_kwargs = pricing_client.get_products.call_args[1]
+        assert len(call_kwargs['Filters']) == 1
+        assert call_kwargs['Filters'][0]['Field'] == 'operation'
 
     @pytest.mark.asyncio
     async def test_get_pricing_custom_threshold(self, mock_context, mock_boto3):
