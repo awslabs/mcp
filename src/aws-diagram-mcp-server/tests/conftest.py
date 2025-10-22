@@ -16,8 +16,27 @@
 
 import pytest
 import tempfile
+import warnings
 from awslabs.aws_diagram_mcp_server.models import DiagramType
 from typing import Dict, Generator
+
+
+# Suppress AST deprecation warnings from bandit and other libraries
+warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*ast\.Bytes.*')
+warnings.filterwarnings(
+    'ignore', category=DeprecationWarning, message='.*Attribute n is deprecated.*'
+)
+
+
+@pytest.fixture(autouse=True)
+def suppress_deprecation_warnings():
+    """Suppress deprecation warnings for all tests."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*ast\.Bytes.*')
+        warnings.filterwarnings(
+            'ignore', category=DeprecationWarning, message='.*Attribute n is deprecated.*'
+        )
+        yield
 
 
 @pytest.fixture

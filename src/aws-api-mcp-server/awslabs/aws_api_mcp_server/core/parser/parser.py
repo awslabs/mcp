@@ -20,9 +20,8 @@ import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
-    driver,
+    get_awscli_driver,
     get_operation_filters,
-    session,
 )
 from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
@@ -336,6 +335,8 @@ def is_denied_custom_operation(service, operation):
     )
 
 
+driver = get_awscli_driver()
+session = driver.session
 command_table = driver._get_command_table()
 cli_data = driver._get_cli_data()
 parser = GlobalArgParser.get_parser()

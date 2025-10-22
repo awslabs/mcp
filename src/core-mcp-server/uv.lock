@@ -559,21 +559,6 @@ wheels = [
 ]
 
 [[package]]
-name = "awslabs-cloudwatch-logs-mcp-server"
-version = "0.0.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "boto3" },
-    { name = "loguru" },
-    { name = "mcp", extra = ["cli"] },
-    { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/73/4e/b788209425a7f1fd3451e35ce1a0f4459103091947bee374fe4aa30360c8/awslabs_cloudwatch_logs_mcp_server-0.0.4.tar.gz", hash = "sha256:32d64bf733a16b3201423444033d825bc7b5c89b05a8b7654af172319475c217", size = 90827, upload-time = "2025-07-18T00:20:11.232Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/cc/c464604dfba65ee8cbd4b7acec88792a05005b24c5f3d86955b74cbedad9/awslabs_cloudwatch_logs_mcp_server-0.0.4-py3-none-any.whl", hash = "sha256:6ee08053ae23543f4cc051c475923e13d15ee36fc16df129774167a9aa4ba4a5", size = 19400, upload-time = "2025-07-18T00:20:09.89Z" },
-]
-
-[[package]]
 name = "awslabs-cloudwatch-mcp-server"
 version = "0.0.7"
 source = { registry = "https://pypi.org/simple" }
@@ -629,7 +614,6 @@ dependencies = [
     { name = "awslabs-cfn-mcp-server" },
     { name = "awslabs-cloudtrail-mcp-server" },
     { name = "awslabs-cloudwatch-appsignals-mcp-server" },
-    { name = "awslabs-cloudwatch-logs-mcp-server" },
     { name = "awslabs-cloudwatch-mcp-server" },
     { name = "awslabs-code-doc-gen-mcp-server" },
     { name = "awslabs-cost-analysis-mcp-server" },
@@ -697,7 +681,6 @@ requires-dist = [
     { name = "awslabs-cfn-mcp-server", specifier = ">=1.0.6" },
     { name = "awslabs-cloudtrail-mcp-server", specifier = ">=0.0.1" },
     { name = "awslabs-cloudwatch-appsignals-mcp-server", specifier = ">=0.1.4" },
-    { name = "awslabs-cloudwatch-logs-mcp-server", specifier = ">=0.0.4" },
     { name = "awslabs-cloudwatch-mcp-server", specifier = ">=0.0.7" },
     { name = "awslabs-code-doc-gen-mcp-server", specifier = ">=1.0.2" },
     { name = "awslabs-cost-analysis-mcp-server", specifier = ">=1.0.5" },
