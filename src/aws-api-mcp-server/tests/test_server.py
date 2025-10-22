@@ -5,13 +5,14 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
     Consent,
+    Credentials,
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
-from awslabs.aws_api_mcp_server.server import call_aws, main, suggest_aws_commands
+from awslabs.aws_api_mcp_server.server import call_aws, call_aws_helper, main, suggest_aws_commands
 from botocore.exceptions import NoCredentialsError
 from fastmcp.server.elicitation import AcceptedElicitation
-from tests.fixtures import DummyCtx
+from tests.fixtures import TEST_CREDENTIALS, DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -627,7 +628,9 @@ async def test_call_aws_awscli_customization_success(
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
     mock_validate.assert_called_once_with(mock_ir)
     mock_execute_awscli_customization.assert_called_once_with(
-        'aws configure list', mock_ir.command
+        'aws configure list',
+        mock_ir.command,
+        credentials=None,
     )
 
 
@@ -667,7 +670,9 @@ async def test_call_aws_awscli_customization_error(
     mock_translate_cli_to_ir.assert_called_once_with('aws configure list')
     mock_validate.assert_called_once_with(mock_ir)
     mock_execute_awscli_customization.assert_called_once_with(
-        'aws configure list', mock_ir.command
+        'aws configure list',
+        mock_ir.command,
+        credentials=None,
     )
     mock_ctx.error.assert_called_once_with(error_response.detail)
 
@@ -800,3 +805,90 @@ async def test_get_execution_plan_exception_handling():
         mock_ctx.error.assert_called_once_with(
             'Error while retrieving execution plan: Test exception'
         )
+
+
+# Tests for call_aws_helper function
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+async def test_call_aws_helper_with_credentials(mock_translate, mock_validate, mock_interpret):
+    """Test call_aws_helper passes credentials to interpret_command."""
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    # Mock IR with command metadata
+    mock_ir = MagicMock()
+    mock_ir.command_metadata = MagicMock()
+    mock_ir.command_metadata.service_sdk_name = 's3api'
+    mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
+    mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_translate.return_value = mock_ir
+
+    mock_validation = MagicMock()
+    mock_validation.validation_failed = False
+    mock_validate.return_value = mock_validation
+
+    mock_response = MagicMock()
+    mock_interpret.return_value = mock_response
+
+    result = await call_aws_helper(
+        'aws s3api list-buckets',
+        AsyncMock(),
+        credentials=test_credentials,
+    )
+
+    print(result)
+
+    mock_interpret.assert_called_once_with(
+        cli_command='aws s3api list-buckets',
+        max_results=None,
+        credentials=test_credentials,
+    )
+    assert result == mock_response
+
+
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+async def test_call_aws_helper_without_credentials(mock_translate, mock_validate, mock_interpret):
+    """Test call_aws_helper works without credentials."""
+    # Mock IR with command metadata
+    mock_ir = MagicMock()
+    mock_ir.command_metadata = MagicMock()
+    mock_ir.command_metadata.service_sdk_name = 's3api'
+    mock_ir.command_metadata.operation_sdk_name = 'list-buckets'
+    mock_ir.command.is_awscli_customization = False  # Ensure interpret_command is called
+    mock_translate.return_value = mock_ir
+
+    mock_validation = MagicMock()
+    mock_validation.validation_failed = False
+    mock_validate.return_value = mock_validation
+
+    mock_response = MagicMock()
+    mock_interpret.return_value = mock_response
+
+    result = await call_aws_helper(
+        'aws s3api list-buckets',
+        AsyncMock(),
+        credentials=None,
+    )
+
+    mock_interpret.assert_called_once_with(
+        cli_command='aws s3api list-buckets', max_results=None, credentials=None
+    )
+    assert result == mock_response
+
+
+@patch('awslabs.aws_api_mcp_server.server.call_aws_helper')
+async def test_call_aws_delegates_to_helper(mock_call_aws_helper):
+    """Test call_aws delegates to call_aws_helper with None credentials."""
+    mock_response = MagicMock()
+    mock_call_aws_helper.return_value = mock_response
+
+    ctx = DummyCtx()
+
+    result = await call_aws.fn('aws s3api list-buckets', ctx)
+
+    mock_call_aws_helper.assert_called_once_with(
+        cli_command='aws s3api list-buckets', ctx=ctx, max_results=None, credentials=None
+    )
+    assert result == mock_response
