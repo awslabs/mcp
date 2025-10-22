@@ -74,11 +74,12 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
         return []
 
 
-def find_package_references_in_readme(readme_path: Path, verbose: bool = False) -> List[str]:
-    """Find all package name references in the README file."""
+def find_package_references_in_readme(readme_path: Path, verbose: bool = False) -> List[Tuple[str, int]]:
+    """Find all package name references in the README file with line numbers."""
     try:
         with open(readme_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+            lines = f.readlines()
+            content = ''.join(lines)
     except FileNotFoundError:
         return []
     
@@ -103,26 +104,33 @@ def find_package_references_in_readme(readme_path: Path, verbose: bool = False) 
     
     references = []
     for pattern in patterns:
-        matches = re.findall(pattern, content, re.IGNORECASE | re.MULTILINE)
-        references.extend(matches)
+        for match in re.finditer(pattern, content, re.IGNORECASE | re.MULTILINE):
+            # Calculate line number
+            line_num = content[:match.start()].count('\n') + 1
+            references.append((match.group(1), line_num))
     
     # Handle Base64/URL-encoded configs specially
-    config_patterns = re.findall(r'config=([^&\s)]+)', content, re.IGNORECASE)
-    for config_str in config_patterns:
+    for match in re.finditer(r'config=([^&\s)]+)', content, re.IGNORECASE):
+        config_str = match.group(1)
+        line_num = content[:match.start()].count('\n') + 1
         config_packages = extract_package_from_base64_config(config_str)
-        references.extend(config_packages)
-        # Remove the original config string from references if it was added by regex
-        if config_str in references:
-            references.remove(config_str)
+        for package in config_packages:
+            references.append((package, line_num))
     
     # Filter out common false positives
     filtered_references = []
-    for ref in references:
+    for ref, line_num in references:
         # Skip very short references (likely false positives)
         if len(ref) < 3:
             continue
         # Skip common non-package words
         if ref.lower() in ['-e', '--', 'pip', 'uv', 'uvx', 'docker', 'run', 'install', 'mcpservers', 'command', 'args', 'env']:
+            continue
+        # Skip AWS service references (e.g., aws.s3@ObjectCreated)
+        if ref.startswith('aws.') and '@' in ref:
+            continue
+        # Skip AWS service names without version (e.g., aws.s3)
+        if ref.startswith('aws.') and '.' in ref and '@' not in ref:
             continue
         # Skip if it looks like a command line flag
         if ref.startswith('-'):
@@ -133,24 +141,30 @@ def find_package_references_in_readme(readme_path: Path, verbose: bool = False) 
         # Skip if it doesn't contain dots (package names usually have dots)
         if '.' not in ref and '@' not in ref:
             continue
-        filtered_references.append(ref)
+        # Skip common false positives in code examples (word@something where word is not a package name)
+        if '@' in ref and not '.' in ref:
+            # Extract the part before @
+            prefix = ref.split('@')[0].lower()
+            if prefix in ['asset', 'model', 'property', 'hierarchy']:
+                continue
+        filtered_references.append((ref, line_num))
     
     return filtered_references
 
 
-def verify_package_name_consistency(package_name: str, references: List[str]) -> Tuple[bool, List[str]]:
+def verify_package_name_consistency(package_name: str, references: List[Tuple[str, int]]) -> Tuple[bool, List[str]]:
     """Verify that package references match the actual package name."""
     # Extract just the package name part (without version)
     base_package_name = package_name.split('@')[0] if '@' in package_name else package_name
     
     issues = []
     
-    for ref in references:
+    for ref, line_num in references:
         # Extract package name from reference (remove version if present)
         ref_package = ref.split('@')[0] if '@' in ref else ref
         
         if ref_package != base_package_name:
-            issues.append(f"Package name mismatch: found '{ref_package}' but expected '{base_package_name}'")
+            issues.append(f"Package name mismatch: found '{ref_package}' but expected '{base_package_name}' (line {line_num})")
     
     return len(issues) == 0, issues
 
@@ -198,8 +212,8 @@ def main():
         references = find_package_references_in_readme(readme_path, args.verbose)
         if args.verbose:
             print(f"Found {len(references)} package references in README")
-            for ref in references:
-                print(f"  - {ref}")
+            for ref, line_num in references:
+                print(f"  - {ref} (line {line_num})")
         
         # Verify consistency
         is_consistent, issues = verify_package_name_consistency(package_name, references)

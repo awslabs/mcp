@@ -31,8 +31,13 @@ python3 tools/verify_package_name.py src/amazon-neptune-mcp-server --verbose
    - Cursor installation links (with Base64-encoded config)
    - VS Code installation links (with URL-encoded JSON config)
    - Docker run commands
-3. Verifies that all package references match the actual package name from `pyproject.toml`
-4. Reports any mismatches that could lead to installation errors
+3. Intelligently filters out false positives like:
+   - AWS service references (e.g., `aws.s3@ObjectCreated`)
+   - JSON configuration keys
+   - Command-line flags
+   - Common non-package words
+4. Verifies that all package references match the actual package name from `pyproject.toml`
+5. Reports any mismatches that could lead to installation errors, including line numbers for easy debugging
 
 ### Integration
 
