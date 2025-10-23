@@ -427,26 +427,6 @@
     },
     {
       "category": "AI & Machine Learning",
-      "description": "Analyze images using computer vision capabilities",
-      "icon": "\ud83e\udd16",
-      "id": "amazon-rekognition-mcp-server",
-      "name": "Amazon Rekognition MCP Server",
-      "source_path": "src/amazon-rekognition-mcp-server/",
-      "subcategory": "Content Processing & Generation",
-      "tags": [
-        "ai-ml",
-        "computer-vision",
-        "rekognition",
-        "image-analysis",
-        "conversational",
-        "content-processing"
-      ],
-      "workflows": [
-        "conversational"
-      ]
-    },
-    {
-      "category": "AI & Machine Learning",
       "description": "Analyze documents, images, videos, and audio files",
       "icon": "\ud83e\udd16",
       "id": "aws-bedrock-data-automation-mcp-server",
@@ -996,9 +976,9 @@
       "category": "Cost & Operations",
       "description": "AWS Billing and Cost Management",
       "icon": "\ud83d\udcb0",
-      "id": "billing_cost_management_mcp_server",
+      "id": "billing-cost-management-mcp-server",
       "name": "AWS Billing and Cost Management MCP Server",
-      "source_path": "src/billing_cost_management_mcp_server/",
+      "source_path": "src/billing-cost-management-mcp-server/",
       "subcategory": "Cost Management",
       "tags": [
         "billing",
@@ -1294,6 +1274,30 @@
       ],
       "workflows": [
         "autonomous"
+      ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Allows you to build, deploy, and manage intelligent agents with advanced capabilities like memory, OAuth authentication, and gateway integrations",
+      "icon": "\ud83e\udd16",
+      "id": "amazon-bedrock-agentcore-mcp-server",
+      "name": "Amazon Bedrock AgentCore MCP Server",
+      "source_path": "src/amazon-bedrock-agentcore-mcp-server/",
+      "subcategory": "Knowledge & Search",
+      "tags": [
+        "ai-ml",
+        "bedrock",
+        "conversational",
+        "knowledge-search",
+        "agentcore",
+        "agents",
+        "ai-agents",
+        "agentic",
+        "runtime",
+        "mcp"
+      ],
+      "workflows": [
+        "conversational"
       ]
     },
     {

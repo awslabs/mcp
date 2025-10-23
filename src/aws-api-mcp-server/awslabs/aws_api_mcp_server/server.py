@@ -26,28 +26,30 @@ from .core.aws.service import (
 from .core.common.config import (
     DEFAULT_REGION,
     ENABLE_AGENT_SCRIPTS,
+    ENDPOINT_SUGGEST_AWS_COMMANDS,
     FASTMCP_LOG_LEVEL,
     HOST,
     PORT,
     READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
     REQUIRE_MUTATION_CONSENT,
+    STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
 )
 from .core.common.errors import AwsApiMcpError
-from .core.common.helpers import validate_aws_region
+from .core.common.helpers import get_requests_session, validate_aws_region
 from .core.common.models import (
     AwsApiMcpServerErrorResponse,
     AwsCliAliasResponse,
+    Credentials,
     ProgramInterpretationResponse,
 )
-from .core.kb import knowledge_base
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
 from botocore.exceptions import NoCredentialsError
+from fastmcp import Context, FastMCP
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pathlib import Path
 from pydantic import Field
@@ -62,7 +64,13 @@ log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
-server = FastMCP(name='AWS-API-MCP', log_level=FASTMCP_LOG_LEVEL, host=HOST, port=PORT)
+server = FastMCP(
+    name='AWS-API-MCP',
+    log_level=FASTMCP_LOG_LEVEL,
+    host=HOST,
+    port=PORT,
+    stateless_http=STATELESS_HTTP,
+)
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 
 
@@ -127,7 +135,8 @@ async def suggest_aws_commands(
     query: Annotated[
         str,
         Field(
-            description="A natural language description of what you want to do in AWS. Should be detailed enough to capture the user's intent and any relevant context."
+            description="A natural language description of what you want to do in AWS. Should be detailed enough to capture the user's intent and any relevant context.",
+            max_length=2000,
         ),
     ],
     ctx: Context,
@@ -139,14 +148,22 @@ async def suggest_aws_commands(
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
     try:
-        suggestions = knowledge_base.get_suggestions(query)
-        logger.info(
-            'Suggested commands: {}',
-            [suggestion.get('command') for suggestion in suggestions.get('suggestions', {})],
-        )
-        return suggestions
+        with get_requests_session() as session:
+            response = session.post(
+                ENDPOINT_SUGGEST_AWS_COMMANDS,
+                json={'query': query},
+                timeout=30,
+            )
+            response.raise_for_status()
+            suggestions = response.json().get('suggestions')
+            logger.info(
+                'Suggested commands: {}',
+                [suggestion.get('command') for suggestion in suggestions],
+            )
+            return response.json()
     except Exception as e:
-        error_message = f'Error while suggesting commands: {str(e)}'
+        logger.error('Error while suggesting commands: {}', str(e))
+        error_message = 'Failed to execute tool due to internal error. Use your best judgement and existing knowledge to pick a command or point to relevant AWS Documentation.'
         await ctx.error(error_message)
         return AwsApiMcpServerErrorResponse(detail=error_message)
 
@@ -203,6 +220,26 @@ async def call_aws(
     ] = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Call AWS with the given CLI command and return the result as a dictionary."""
+    return await call_aws_helper(
+        cli_command=cli_command,
+        ctx=ctx,
+        max_results=max_results,
+        credentials=None,
+    )
+
+
+async def call_aws_helper(
+    cli_command: Annotated[
+        str, Field(description='The complete AWS CLI command to execute. MUST start with "aws"')
+    ],
+    ctx: Context,
+    max_results: Annotated[
+        int | None,
+        Field(description='Optional limit for number of results (useful for pagination)'),
+    ] = None,
+    credentials: Credentials | None = None,
+) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
+    """Helper function that actually calls aws."""
     try:
         ir = translate_cli_to_ir(cli_command)
         ir_validation = validate(ir)
@@ -260,7 +297,11 @@ async def call_aws(
 
         if ir.command and ir.command.is_awscli_customization:
             response: AwsCliAliasResponse | AwsApiMcpServerErrorResponse = (
-                execute_awscli_customization(cli_command, ir.command)
+                execute_awscli_customization(
+                    cli_command,
+                    ir.command,
+                    credentials=credentials,
+                )
             )
             if isinstance(response, AwsApiMcpServerErrorResponse):
                 await ctx.error(response.detail)
@@ -269,6 +310,7 @@ async def call_aws(
         return interpret_command(
             cli_command=cli_command,
             max_results=max_results,
+            credentials=credentials,
         )
     except NoCredentialsError:
         error_message = (
@@ -362,13 +404,6 @@ def main():
 
     validate_aws_region(DEFAULT_REGION)
     logger.info('AWS_REGION: {}', DEFAULT_REGION)
-
-    try:
-        knowledge_base.setup()
-    except Exception as e:
-        error_message = f'Error while setting up the knowledge base: {str(e)}'
-        logger.error(error_message)
-        raise RuntimeError(error_message)
 
     # Always load read operations index for security policy checking
     try:

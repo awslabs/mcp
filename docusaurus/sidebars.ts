@@ -60,11 +60,11 @@ const sidebars: SidebarsConfig = {
           label: 'AI & Machine Learning',
           items: [
             'servers/bedrock-kb-retrieval-mcp-server',
-            'servers/amazon-rekognition-mcp-server',
             'servers/amazon-qindex-mcp-server',
             'servers/amazon-qbusiness-anonymous-mcp-server',
             'servers/nova-canvas-mcp-server',
-            'servers/aws-bedrock-custom-model-import-mcp-server'
+            'servers/aws-bedrock-custom-model-import-mcp-server',
+            'servers/amazon-bedrock-agentcore-mcp-server'
           ],
         },
         {
