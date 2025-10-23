@@ -31,6 +31,7 @@ from awslabs.ecs_mcp_server.modules import (
     deployment_status,
     infrastructure,
     resource_management,
+    security_analysis,
     troubleshooting,
 )
 from awslabs.ecs_mcp_server.utils.config import get_config
@@ -133,6 +134,7 @@ IMPORTANT:
     deployment_status.register_module(mcp)
     resource_management.register_module(mcp)
     troubleshooting.register_module(mcp)
+    security_analysis.register_module(mcp)
     delete.register_module(mcp)
 
     # Register all proxies
