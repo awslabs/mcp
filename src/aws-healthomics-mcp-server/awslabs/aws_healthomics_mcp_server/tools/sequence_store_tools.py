@@ -25,7 +25,15 @@ from datetime import datetime
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
+
+
+def _get_value(param):
+    """Extract actual value from parameter, handling FieldInfo objects in tests."""
+    if isinstance(param, FieldInfo):
+        return param.default
+    return param
 
 
 async def list_aho_sequence_stores(
@@ -57,9 +65,12 @@ async def list_aho_sequence_stores(
     try:
         client = get_omics_client()
 
+        # Extract actual values (handles FieldInfo objects in tests)
+        next_token = _get_value(next_token)
+
         params = {'maxResults': max_results}
 
-        if next_token:
+        if next_token is not None:
             params['nextToken'] = next_token
 
         response = client.list_sequence_stores(**params)
@@ -131,23 +142,29 @@ async def list_aho_read_sets(
     try:
         client = get_omics_client()
 
+        # Extract actual values (handles FieldInfo objects in tests)
+        next_token = _get_value(next_token)
+        species = _get_value(species)
+        chromosome = _get_value(chromosome)
+        uploaded_after = _get_value(uploaded_after)
+
         params = {'sequenceStoreId': sequence_store_id, 'maxResults': max_results}
 
-        if next_token:
+        if next_token is not None:
             params['nextToken'] = next_token
 
         # Apply filters
         filters = {}
 
-        if species:
+        if species is not None:
             # Note: This would need to be mapped to actual read set metadata fields
             # The exact filtering depends on how metadata is stored
             logger.info(f'Filtering by species: {species}')
 
-        if chromosome:
+        if chromosome is not None:
             logger.info(f'Filtering by chromosome: {chromosome}')
 
-        if uploaded_after:
+        if uploaded_after is not None:
             try:
                 upload_time = datetime.fromisoformat(uploaded_after.replace('Z', '+00:00'))
                 filters['createdAfter'] = upload_time
@@ -162,19 +179,19 @@ async def list_aho_read_sets(
         # Post-process for additional filtering if needed
         read_sets = response.get('readSets', [])
 
-        if species or chromosome:
+        if species is not None or chromosome is not None:
             filtered_read_sets = []
             for read_set in read_sets:
                 include = True
 
                 # Filter by species in metadata
-                if species:
+                if species is not None:
                     read_set_species = read_set.get('subjectId', '').lower()
                     if species.lower() not in read_set_species:
                         include = False
 
                 # Filter by chromosome would require examining file references
-                if chromosome and include:
+                if chromosome is not None and include:
                     # This would need implementation based on HealthOmics data structure
                     pass
 
