@@ -645,3 +645,48 @@ class TestExpandServiceOperationWildcardPatterns:
 
         assert len(result) == 1
         assert result[0]['Type'] == 'service'
+
+    def test_expand_service_operation_fault_to_availability_conversion(
+        self, mock_appsignals_client
+    ):
+        """Test that operations with Fault metrics match when looking for Availability."""
+        # Mock an operation that only has Fault metric but we're looking for Availability
+        mock_appsignals_client.list_service_operations.return_value = {
+            'Operations': [
+                {
+                    'Name': 'GET /payments',
+                    'MetricReferences': [
+                        {'MetricType': 'Fault'},  # Only has Fault, not Availability
+                        {'MetricType': 'Latency'},
+                    ],
+                },
+                {
+                    'Name': 'POST /payments',
+                    'MetricReferences': [
+                        {'MetricType': 'Latency'},  # No Fault or Availability
+                    ],
+                },
+            ]
+        }
+
+        targets = [
+            {
+                'Type': 'service_operation',
+                'Data': {
+                    'ServiceOperation': {
+                        'Service': {'Name': 'payment-service'},
+                        'Operation': '*',
+                        'MetricType': 'Availability',  # Looking for Availability
+                    }
+                },
+            }
+        ]
+
+        result = expand_service_operation_wildcard_patterns(
+            targets, 1640995200, 1641081600, mock_appsignals_client
+        )
+
+        # Should find the GET operation because it has Fault metric which matches Availability
+        assert len(result) == 1
+        assert result[0]['Data']['ServiceOperation']['Operation'] == 'GET /payments'
+        assert result[0]['Data']['ServiceOperation']['MetricType'] == 'Availability'
