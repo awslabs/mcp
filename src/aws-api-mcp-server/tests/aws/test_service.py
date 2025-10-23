@@ -15,8 +15,10 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     AwsCliAliasResponse,
     CommandMetadata,
     Context,
+    Credentials,
     InterpretationMetadata,
     InterpretationResponse,
+    InterpretedProgram,
     IRTranslation,
     ProgramInterpretationResponse,
     ValidationFailure,
@@ -36,11 +38,12 @@ from tests.fixtures import (
     S3_GET_OBJECT_PAYLOAD,
     SSM_LIST_NODES_PAYLOAD,
     T2_EC2_DESCRIBE_INSTANCES_FILTERED,
+    TEST_CREDENTIALS,
     create_file_open_mock,
     patch_boto3,
 )
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 
 @pytest.mark.parametrize(
@@ -448,10 +451,12 @@ def test_is_operation_read_only_raises_error_for_missing_operation_name():
         is_operation_read_only(ir, read_only_operations)
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver')
-def test_execute_awscli_customization_success(mock_driver):
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_success(mock_get_driver):
     """Test execute_awscli_customization returns AwsCliAliasResponse on successful execution."""
+    mock_driver = Mock()
     mock_driver.main.return_value = None
+    mock_get_driver.return_value = mock_driver
 
     with patch('awslabs.aws_api_mcp_server.core.aws.service.StringIO') as mock_stringio:
         mock_stdout = MagicMock()
@@ -472,10 +477,12 @@ def test_execute_awscli_customization_success(mock_driver):
         mock_driver.main.assert_called_once_with(['s3', 'ls'])
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver')
-def test_execute_awscli_customization_error(mock_driver):
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_error(mock_get_driver):
     """Test execute_awscli_customization returns AwsApiMcpServerErrorResponse on exception."""
+    mock_driver = Mock()
     mock_driver.main.side_effect = Exception('Invalid command')
+    mock_get_driver.return_value = mock_driver
 
     result = execute_awscli_customization(
         'aws invalid command',
@@ -494,10 +501,13 @@ def test_execute_awscli_customization_error(mock_driver):
     mock_driver.main.assert_called_once_with(['invalid', 'command'])
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 @patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', None)
-def test_profile_not_added_when_env_var_none(mock_main):
+def test_profile_not_added_when_env_var_none(mock_get_driver):
     """Test that profile is not added when AWS_API_MCP_PROFILE_NAME is None."""
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
+
     cli_command = 'aws s3 ls'
     ir_command = translate_cli_to_ir(cli_command).command
     assert ir_command is not None
@@ -505,40 +515,44 @@ def test_profile_not_added_when_env_var_none(mock_main):
     execute_awscli_customization(cli_command, ir_command)
 
     # Verify profile was not added to args
-    args = mock_main.call_args[0][0]
+    args = mock_driver.main.call_args[0][0]
     assert '--profile' not in args
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 @patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', 'test-profile')
-def test_profile_added_when_env_var_set(mock_main):
+def test_profile_added_when_env_var_set(mock_get_driver):
     """Test that profile is added when AWS_API_MCP_PROFILE_NAME is set."""
     cli_command = 'aws s3 ls'
     ir_command = translate_cli_to_ir(cli_command).command
     assert ir_command is not None
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
 
     execute_awscli_customization(cli_command, ir_command)
 
     # Verify profile was added to args
-    args = mock_main.call_args[0][0]
+    args = mock_driver.main.call_args[0][0]
     assert '--profile' in args
     profile_index = args.index('--profile')
     assert args[profile_index + 1] == 'test-profile'
 
 
-@patch('awslabs.aws_api_mcp_server.core.aws.service.driver.main')
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
 @patch('awslabs.aws_api_mcp_server.core.aws.service.AWS_API_MCP_PROFILE_NAME', 'test-profile')
 @patch('awslabs.aws_api_mcp_server.core.parser.parser.get_region', return_value='us-east-1')
-def test_profile_not_added_if_present_for_customizations(mock_get_region, mock_main):
+def test_profile_not_added_if_present_for_customizations(mock_get_region, mock_get_driver):
     """Test that profile is not added when one is already present."""
     cli_command = 'aws s3 ls --profile different'
     ir_command = translate_cli_to_ir(cli_command).command
     assert ir_command is not None
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
 
     execute_awscli_customization(cli_command, ir_command)
 
     # Verify profile was added to args
-    args = mock_main.call_args[0][0]
+    args = mock_driver.main.call_args[0][0]
     assert '--profile' in args
     profile_index = args.index('--profile')
     assert args[profile_index + 1] == 'different'
@@ -586,3 +600,94 @@ def test_interpret_command_creates_output_file_for_streaming_operations(
 
             assert 'Body' not in response_data
             assert 'Payload' not in response_data
+
+
+# Tests for credentials integration changes
+def test_interpret_command_with_credentials_parameter():
+    """Test that interpret_command passes credentials parameter through to driver."""
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service._interpret_command') as mock_interpret:
+        mock_interpret.return_value = InterpretedProgram(translation=IRTranslation())
+
+        interpret_command('aws s3api list-buckets', credentials=test_credentials)
+
+        mock_interpret.assert_called_once_with(
+            'aws s3api list-buckets', max_results=None, credentials=test_credentials
+        )
+
+
+def test_interpret_command_without_credentials_parameter():
+    """Test that interpret_command works without credentials parameter."""
+    with patch('awslabs.aws_api_mcp_server.core.aws.service._interpret_command') as mock_interpret:
+        mock_interpret.return_value = InterpretedProgram(translation=IRTranslation())
+
+        interpret_command('aws s3api list-buckets')
+
+        mock_interpret.assert_called_once_with(
+            'aws s3api list-buckets', max_results=None, credentials=None
+        )
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_with_credentials(mock_get_driver):
+    """Test that execute_awscli_customization uses provided credentials."""
+    test_credentials = Credentials(**TEST_CREDENTIALS)
+
+    mock_driver = MagicMock()
+    mock_get_driver.return_value = mock_driver
+
+    ir_command = IRCommand(
+        command_metadata=CommandMetadata(
+            service_sdk_name='s3',
+            service_full_sdk_name='Amazon S3',
+            operation_sdk_name='list_objects_v2',
+        ),
+        parameters={},
+        region='us-east-1',
+        is_awscli_customization=True,
+    )
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service.split_cli_command') as mock_split:
+        mock_split.return_value = ['aws', 's3', 'ls']
+
+        with patch(
+            'awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only'
+        ) as mock_is_read_only:
+            mock_is_read_only.return_value = True
+
+            with patch('sys.stdout'), patch('sys.stderr'):
+                execute_awscli_customization('aws s3 ls', ir_command, credentials=test_credentials)
+
+    mock_get_driver.assert_called_once_with(test_credentials)
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_without_credentials(mock_get_driver):
+    """Test that execute_awscli_customization works without credentials."""
+    mock_driver = MagicMock()
+    mock_get_driver.return_value = mock_driver
+
+    ir_command = IRCommand(
+        command_metadata=CommandMetadata(
+            service_sdk_name='s3',
+            service_full_sdk_name='Amazon S3',
+            operation_sdk_name='list_objects_v2',
+        ),
+        parameters={},
+        region='us-east-1',
+        is_awscli_customization=True,
+    )
+
+    with patch('awslabs.aws_api_mcp_server.core.aws.service.split_cli_command') as mock_split:
+        mock_split.return_value = ['aws', 's3', 'ls']
+
+        with patch(
+            'awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only'
+        ) as mock_is_read_only:
+            mock_is_read_only.return_value = True
+
+            with patch('sys.stdout'), patch('sys.stderr'):
+                execute_awscli_customization('aws s3 ls', ir_command, credentials=None)
+
+    mock_get_driver.assert_called_once_with(None)

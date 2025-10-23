@@ -258,17 +258,24 @@ def create_file_open_mock(*target_files):
 @contextlib.contextmanager
 def patch_boto3():
     """Context manager to patch boto3 for non-paginated API calls."""
-
-    def mock_can_paginate(self, operation_name):
-        return False
-
     with patch(
         'awslabs.aws_api_mcp_server.core.aws.driver.get_local_credentials',
         return_value=Credentials(**TEST_CREDENTIALS),
     ):
-        with patch('botocore.client.BaseClient._make_api_call', new=mock_make_api_call):
-            with patch('botocore.client.BaseClient.can_paginate', new=mock_can_paginate):
-                yield
+        with patch_botocore():
+            yield
+
+
+@contextlib.contextmanager
+def patch_botocore():
+    """Patch botocore."""
+
+    def mock_can_paginate(self, operation_name):
+        return False
+
+    with patch('botocore.client.BaseClient._make_api_call', new=mock_make_api_call):
+        with patch('botocore.client.BaseClient.can_paginate', new=mock_can_paginate):
+            yield
 
 
 class DummyCtx:

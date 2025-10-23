@@ -16,6 +16,7 @@ import awscli.clidriver
 import re
 from ..common.config import get_user_agent_extra
 from ..common.file_system_controls import get_file_validated
+from ..common.models import Credentials
 from awscli.paramfile import URIArgumentHandler
 from botocore.model import OperationModel
 from collections.abc import Set
@@ -50,12 +51,22 @@ class ConfigResult(NamedTuple):
 
 filter_query = re.compile(r'^\s+([-a-z0-9_.]+|tag:<key>)\s+')
 
-driver = awscli.clidriver.create_clidriver()
-session = driver.session
-session.register('load-cli-arg', RESTRICTED_URI_HANDLER)
 
-# append user agent to session for aws cli customizations
-session.user_agent_extra += ' ' + get_user_agent_extra() + ' cli-customizations'
+def get_awscli_driver(credentials: Credentials | None = None) -> awscli.clidriver.CLIDriver:
+    """Create a AWS CLI driver to execute aws commands."""
+    driver = awscli.clidriver.create_clidriver()
+    session = driver.session
+    session.register('load-cli-arg', RESTRICTED_URI_HANDLER)
+
+    # append user agent to session for aws cli customizations
+    session.user_agent_extra += ' ' + get_user_agent_extra() + ' cli-customizations'
+    if credentials:
+        session.set_credentials(
+            access_key=credentials.access_key_id,
+            secret_key=credentials.secret_access_key,
+            token=credentials.session_token,
+        )
+    return driver
 
 
 class OperationFilters:
@@ -192,23 +203,3 @@ def extract_pagination_config(
 
     pagination_config['MaxItems'] = max_items
     return ConfigResult(parameters, pagination_config)
-
-
-endpoint_resolver = session._internal_components.get_component('endpoint_resolver')
-partitions = endpoint_resolver._endpoint_data['partitions']
-
-
-def check_service_has_default_region(service: str, region: str):
-    """Check if the service has a default region configured."""
-    for partition in partitions:
-        endpoint_config = endpoint_resolver._endpoint_for_partition(
-            partition, service, region, use_dualstack_endpoint=False, use_fips_endpoint=False
-        )
-        if not endpoint_config:
-            continue
-
-        credentials_scope = endpoint_config.get('credentialScope')
-        if credentials_scope and credentials_scope['region'] != region:
-            return True
-
-    return False

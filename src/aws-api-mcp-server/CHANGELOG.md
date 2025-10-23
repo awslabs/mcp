@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Log errors thrown by the agent scripts manager (#1533)
+
 ### Changed
 
 - Converted MCP server to use FastMCP framework instead of python mcp sdk (#1513)
