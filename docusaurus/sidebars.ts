@@ -149,6 +149,14 @@ const sidebars: SidebarsConfig = {
         'samples/stepfunctions-tool-mcp-server',
       ],
     },
+    {
+      type: 'category',
+      label: 'Security',
+      collapsed: false,
+      items: [
+        'samples/security-hub-mcp-server',
+      ],
+    },
   ],
 };
 
