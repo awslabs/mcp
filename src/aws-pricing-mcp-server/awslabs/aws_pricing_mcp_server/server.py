@@ -103,7 +103,7 @@ mcp = FastMCP(
        instance_types = get_pricing_attribute_values('AmazonEC2', 'instanceType')
 
        # Get pricing for specific instance types in a region
-       filters = [{"Field": "instanceType", "Value": "t3.medium", "Type": "TERM_MATCH"}]
+       filters = [{"Field": "instanceType", "Value": "t3.medium", "Type": "EQUALS"}]
        pricing = get_pricing('AmazonEC2', 'us-east-1', filters)
 
        # Get bulk pricing data files for historical analysis
@@ -231,7 +231,7 @@ async def analyze_terraform_project_wrapper(
 
     **PARAMETERS:**
     - service_code (required): AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES')
-    - region (required): AWS region string (e.g., 'us-east-1') OR list for multi-region comparison (e.g., ['us-east-1', 'eu-west-1'])
+    - region (optional): AWS region string (e.g., 'us-east-1') OR list for multi-region comparison (e.g., ['us-east-1', 'eu-west-1']). Omit for global services like DataTransfer or CloudFront that don't have region-specific pricing.
     - filters (optional): List of filter dictionaries in format {'Field': str, 'Type': str, 'Value': str}
     - max_allowed_characters (optional): Response size limit in characters (default: 100,000, use -1 for unlimited)
     - output_options (optional): OutputOptions object for response transformation and size reduction
@@ -376,7 +376,7 @@ async def analyze_terraform_project_wrapper(
 async def get_pricing(
     ctx: Context,
     service_code: str = SERVICE_CODE_FIELD,
-    region: Union[str, List[str]] = REGION_FIELD,
+    region: Optional[Union[str, List[str]]] = REGION_FIELD,
     filters: Optional[List[PricingFilter]] = FILTERS_FIELD,
     max_allowed_characters: int = GET_PRICING_MAX_ALLOWED_CHARACTERS_FIELD,
     output_options: Optional[OutputOptions] = OUTPUT_OPTIONS_FIELD,
@@ -387,7 +387,7 @@ async def get_pricing(
 
     Args:
         service_code: The service code (e.g., 'AmazonES' for OpenSearch, 'AmazonS3' for S3)
-        region: AWS region(s) - single region string (e.g., 'us-west-2') or list for multi-region comparison (e.g., ['us-east-1', 'us-west-2'])
+        region: Optional AWS region(s) - single region string (e.g., 'us-west-2') or list for multi-region comparison (e.g., ['us-east-1', 'us-west-2']). Omit for global services like DataTransfer or CloudFront.
         filters: Optional list of filter dictionaries in format {'Field': str, 'Type': str, 'Value': str}
         max_allowed_characters: Optional character limit for response (default: 100,000, use -1 for unlimited)
         output_options: Optional output filtering options to reduce response size
@@ -427,14 +427,16 @@ async def get_pricing(
 
     # Build filters
     try:
-        # Build region filter based on parameter type
-        api_filters = [
-            {
-                'Field': 'regionCode',
-                'Type': 'ANY_OF' if isinstance(region, list) else 'TERM_MATCH',
-                'Value': ','.join(region) if isinstance(region, list) else region,
-            }
-        ]
+        # Build region filter based on parameter type (only if region is provided)
+        api_filters = []
+        if region is not None:
+            api_filters.append(
+                {
+                    'Field': 'regionCode',
+                    'Type': 'ANY_OF' if isinstance(region, list) else 'EQUALS',
+                    'Value': ','.join(region) if isinstance(region, list) else region,
+                }
+            )
 
         # Add any additional filters if provided
         if filters:
@@ -1332,7 +1334,7 @@ async def get_pricing_attribute_values(
 async def get_price_list_urls(
     ctx: Context,
     service_code: str = SERVICE_CODE_FIELD,
-    region: str = REGION_FIELD,
+    region: str = Field(..., description='AWS region (e.g., "us-east-1", "eu-west-1")'),
     effective_date: Optional[str] = EFFECTIVE_DATE_FIELD,
 ) -> Dict[str, Any]:
     """Get URLs to download bulk pricing data from AWS Price List API for all available formats.
