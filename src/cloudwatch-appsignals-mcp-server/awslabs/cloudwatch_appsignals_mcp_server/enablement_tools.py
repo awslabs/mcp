@@ -1,8 +1,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from pathlib import Path
 from loguru import logger
+from pathlib import Path
 
 
 async def get_enablement_guide(

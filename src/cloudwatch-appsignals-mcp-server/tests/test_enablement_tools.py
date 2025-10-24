@@ -5,8 +5,8 @@
 
 import pytest
 import tempfile
-from pathlib import Path
 from awslabs.cloudwatch_appsignals_mcp_server.enablement_tools import get_enablement_guide
+from pathlib import Path
 
 
 class TestGetEnablementGuide:
