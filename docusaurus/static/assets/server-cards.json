@@ -1102,6 +1102,28 @@
       ]
     },
     {
+      "category": "Data & Analytics",
+      "description": "Manage database migration workflows and table-level operations with AWS DMS",
+      "icon": "\ud83d\udcca",
+      "id": "dms-mcp-server",
+      "name": "AWS Database Migration Service MCP Server",
+      "source_path": "src/dms-mcp-server/",
+      "subcategory": "Data Operations & ETL",
+      "tags": [
+        "data-analytics",
+        "database-migration",
+        "dms",
+        "data-migration",
+        "replication",
+        "etl",
+        "autonomous",
+        "data-operations"
+      ],
+      "workflows": [
+        "autonomous"
+      ]
+    },
+    {
       "category": "Healthcare & Lifesciences",
       "description": "Generate, run, debug and optimize lifescience workflows on AWS HealthOmics",
       "icon": "\ud83e\uddc0",
