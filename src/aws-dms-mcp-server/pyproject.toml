@@ -1,0 +1,143 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "awslabs.aws-dms-mcp-server"
+version = "0.0.3"
+description = "AWS Database Migration Service MCP Server - Natural language access to AWS DMS operations"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+    {name = "Wei Chen", email="wchemz@amazon.com"},
+]
+keywords = ["aws", "dms", "database-migration", "mcp", "model-context-protocol"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "mcp[cli]>=1.11.0",
+    "fastmcp>=2.11.1",
+    "boto3>=1.35.0",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.0.0",
+    "loguru>=0.7.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+"awslabs.aws-dms-mcp-server" = "awslabs.aws_dms_mcp_server.server:main"
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/aws-dms-mcp-server/"
+Repository = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-dms-mcp-server/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.2.2",
+    "pre-commit>=4.1.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-mock>=3.14.0",
+    "moto>=5.0.0",
+    "ruff>=0.9.7",
+    "pyright>=1.1.398",
+    "boto3-stubs[dms]>=1.35.0",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=awslabs.aws-dms-mcp-server --cov-report=term-missing"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 99
+extend-include = ["*.ipynb"]
+exclude = [
+    ".venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "**/env",
+    "**/.ruff_cache",
+    "**/.venv",
+    "**/.ipynb_checkpoints"
+]
+force-exclude = true
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/*.ipynb" = ["F704"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pyright]
+include = ["awslabs", "tests"]
+exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.0.3"
+tag_format = "v$version"
+version_files = [
+    "pyproject.toml:version",
+    "awslabs/aws_dms_mcp_server/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "tests"]
+
+[tool.coverage.run]
+source = ["awslabs"]
+omit = ["*/tests/*", "*/conftest.py"]
+
+[tool.coverage.report]
+exclude_also = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:\n    main()',
+]
