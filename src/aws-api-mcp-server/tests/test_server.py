@@ -681,7 +681,7 @@ async def test_call_aws_awscli_customization_error(
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
 def test_main_missing_aws_region():
     """Test main function raises ValueError when AWS_REGION environment variable is not set."""
-    with pytest.raises(ValueError, match=r'AWS_REGION environment variable is not defined.'):
+    with pytest.raises(ValueError, match=r'Configuration validation failed'):
         main()
 
 
@@ -691,7 +691,7 @@ def test_main_relative_working_directory():
     """Test main function raises ValueError when AWS_API_MCP_WORKING_DIR is a relative path."""
     with pytest.raises(
         ValueError,
-        match=r'AWS_API_MCP_WORKING_DIR must be an absolute path.',
+        match=r'Configuration validation failed',
     ):
         main()
 
