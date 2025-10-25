@@ -1,5 +1,6 @@
 import pytest
 import tempfile
+import re
 from awslabs.aws_api_mcp_server.core.agent_scripts.manager import AgentScriptsManager
 from awslabs.aws_api_mcp_server.core.agent_scripts.models import Script
 from pathlib import Path
@@ -48,7 +49,7 @@ def test_initialization_with_non_existent_directory():
     """Test initialization with non-existent scripts directory."""
     non_existent_dir = Path(__file__).parent / 'non_existent_registry'
 
-    with pytest.raises(RuntimeError, match=f'Scripts directory {non_existent_dir} does not exist'):
+    with pytest.raises(RuntimeError, match=rf'Scripts directory {re.escape(str(non_existent_dir))} does not exist'):
         AgentScriptsManager(scripts_dir=non_existent_dir)
 
 
@@ -278,7 +279,7 @@ def test_custom_scripts_dir_nonexistent():
         scripts_dir.mkdir()
 
         with pytest.raises(
-            RuntimeError, match=f'User scripts directory {custom_dir} does not exist'
+            RuntimeError, match=rf'User scripts directory {re.escape(str(custom_dir))} does not exist'
         ):
             AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
 
@@ -293,7 +294,7 @@ def test_custom_scripts_dir_no_read_permission():
 
         with patch('os.access', return_value=False):
             with pytest.raises(
-                RuntimeError, match=f'No read permission for user scripts directory {custom_dir}'
+                RuntimeError, match=rf'No read permission for user scripts directory {re.escape(str(custom_dir))}'
             ):
                 AgentScriptsManager(scripts_dir=scripts_dir, custom_scripts_dir=custom_dir)
 
