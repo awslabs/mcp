@@ -49,7 +49,7 @@ class AgentScriptsManager:
 
             for script_directory in self.scripts_dirs:
                 for file_path in script_directory.glob('*.script.md'):
-                    with open(file_path, 'r') as f:
+                    with open(file_path, 'r', encoding='utf-8') as f:
                         metadata, script = frontmatter.parse(f.read())
                         script_name = file_path.stem.removesuffix('.script')
                         description = metadata.get('description')
@@ -79,7 +79,16 @@ class AgentScriptsManager:
         )
 
 
-custom_scripts_dir = (
-    Path(CUSTOM_SCRIPTS_DIR) if CUSTOM_SCRIPTS_DIR and CUSTOM_SCRIPTS_DIR.strip() else None
-)
-AGENT_SCRIPTS_MANAGER = AgentScriptsManager(custom_scripts_dir=custom_scripts_dir)
+def _create_agent_scripts_manager():
+    """Create the agent scripts manager with proper error handling."""
+    try:
+        custom_scripts_dir = (
+            Path(CUSTOM_SCRIPTS_DIR) if CUSTOM_SCRIPTS_DIR and CUSTOM_SCRIPTS_DIR.strip() else None
+        )
+        return AgentScriptsManager(custom_scripts_dir=custom_scripts_dir)
+    except Exception as e:
+        logger.warning(f'Failed to initialize agent scripts manager: {e}')
+        logger.warning('Agent scripts functionality will be disabled')
+        return None
+
+AGENT_SCRIPTS_MANAGER = _create_agent_scripts_manager()

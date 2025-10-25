@@ -336,8 +336,8 @@ async def call_aws_helper(
         )
 
 
-# EXPERIMENTAL: Agent scripts tool - only registered if ENABLE_AGENT_SCRIPTS is True
-if ENABLE_AGENT_SCRIPTS:
+# EXPERIMENTAL: Agent scripts tool - only registered if ENABLE_AGENT_SCRIPTS is True and manager is available
+if ENABLE_AGENT_SCRIPTS and AGENT_SCRIPTS_MANAGER is not None:
 
     @server.tool(
         name='get_execution_plan',
@@ -384,35 +384,87 @@ if ENABLE_AGENT_SCRIPTS:
             return AwsApiMcpServerErrorResponse(detail=error_message)
 
 
+def validate_configuration():
+    """Validate server configuration and provide helpful error messages."""
+    errors = []
+    warnings = []
+
+    # Check AWS region
+    if DEFAULT_REGION is None:
+        errors.append("AWS_REGION environment variable is not defined")
+    else:
+        try:
+            validate_aws_region(DEFAULT_REGION)
+        except Exception as e:
+            errors.append(f"Invalid AWS region '{DEFAULT_REGION}': {e}")
+
+    # Check working directory
+    if not os.path.isabs(WORKING_DIRECTORY):
+        errors.append("AWS_API_MCP_WORKING_DIR must be an absolute path")
+
+    # Check agent scripts configuration
+    if ENABLE_AGENT_SCRIPTS and AGENT_SCRIPTS_MANAGER is None:
+        warnings.append("Agent scripts are enabled but manager failed to initialize")
+
+    # Check transport configuration
+    if TRANSPORT == 'streamable-http':
+        auth_type = os.getenv('AUTH_TYPE')
+        if auth_type != 'no-auth':
+            errors.append("streamable-http transport requires AUTH_TYPE=no-auth")
+
+    return errors, warnings
+
+
 def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
 
-    if not os.path.isabs(WORKING_DIRECTORY):
-        error_message = 'AWS_API_MCP_WORKING_DIR must be an absolute path.'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
-    os.makedirs(WORKING_DIRECTORY, exist_ok=True)
-    os.chdir(WORKING_DIRECTORY)
-    logger.info(f'CWD: {os.getcwd()}')
-
-    if DEFAULT_REGION is None:
-        error_message = 'AWS_REGION environment variable is not defined.'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
-    validate_aws_region(DEFAULT_REGION)
-    logger.info('AWS_REGION: {}', DEFAULT_REGION)
-
-    # Always load read operations index for security policy checking
     try:
-        READ_OPERATIONS_INDEX = get_read_only_operations()
-    except Exception as e:
-        logger.warning('Failed to load read operations index: {}', e)
-        READ_OPERATIONS_INDEX = None
+        # Validate configuration
+        errors, warnings = validate_configuration()
+        
+        # Log warnings
+        for warning in warnings:
+            logger.warning(warning)
+        
+        # Check for critical errors
+        if errors:
+            logger.error('Configuration validation failed:')
+            for error in errors:
+                logger.error(f'  - {error}')
+            logger.error('Please fix the configuration issues and try again')
+            raise ValueError('Configuration validation failed')
 
-    server.run(transport=TRANSPORT)
+        # Create and change to working directory
+        os.makedirs(WORKING_DIRECTORY, exist_ok=True)
+        os.chdir(WORKING_DIRECTORY)
+        logger.info(f'CWD: {os.getcwd()}')
+        logger.info('AWS_REGION: {}', DEFAULT_REGION)
+
+        # Load read operations index for security policy checking
+        try:
+            READ_OPERATIONS_INDEX = get_read_only_operations()
+            logger.info('Read operations index loaded successfully')
+        except Exception as e:
+            logger.warning('Failed to load read operations index: {}', e)
+            logger.warning('Security policy checking will be disabled')
+            READ_OPERATIONS_INDEX = None
+
+        # Log configuration summary
+        logger.info('Server configuration:')
+        logger.info('  - Transport: {}', TRANSPORT)
+        logger.info('  - Read-only mode: {}', READ_OPERATIONS_ONLY_MODE)
+        logger.info('  - Agent scripts enabled: {}', ENABLE_AGENT_SCRIPTS and AGENT_SCRIPTS_MANAGER is not None)
+        logger.info('  - Mutation consent required: {}', REQUIRE_MUTATION_CONSENT)
+
+        # Start the server
+        logger.info('Starting AWS API MCP server...')
+        server.run(transport=TRANSPORT)
+
+    except Exception as e:
+        logger.error('Failed to start AWS API MCP server: {}', str(e))
+        logger.error('Please check your configuration and try again')
+        raise
 
 
 if __name__ == '__main__':
