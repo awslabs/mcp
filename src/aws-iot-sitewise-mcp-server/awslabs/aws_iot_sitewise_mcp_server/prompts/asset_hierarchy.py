@@ -38,7 +38,8 @@ def asset_hierarchy_visualization(asset_id: str) -> str:
     """
     # Validate asset ID
     validate_asset_id(asset_id)
-    return f"""
+    query = ( # nosec B608 - safe: asset_id is validated, length limit, no direct execution
+        f"""
 You are an AWS IoT SiteWise expert helping to analyze and visualize asset hierarchies.
 
 Please analyze the asset hierarchy starting from asset ID: {asset_id}
@@ -88,7 +89,8 @@ Include specific asset IDs, property names, and current values where available.
 
 If you encounter any errors, explain what information is missing and \
     suggest alternative approaches.
-"""
+""")
+    return query
 
 
 # Create the prompt using from_function

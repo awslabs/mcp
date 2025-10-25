@@ -228,7 +228,7 @@ async def get_module_details(
 
         logger.debug(f'Making API request to: {details_url}')
 
-        response = requests.get(details_url)
+        response = requests.get(details_url, timeout=30)
         response.raise_for_status()
 
         details = response.json()
@@ -303,7 +303,7 @@ async def get_module_details(
                             raw_readme_url = f'https://raw.githubusercontent.com/{owner}/{repo}/{branch}/README.md'
                             logger.debug(f'Trying to fetch README from: {raw_readme_url}')
 
-                            readme_response = requests.get(raw_readme_url)
+                            readme_response = requests.get(raw_readme_url, timeout=30)
                             if readme_response.status_code == 200:
                                 readme_content = readme_response.text
                                 logger.info(

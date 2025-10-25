@@ -196,7 +196,7 @@ async def get_reservation_coverage(
             request_params['MaxResults'] = max_results
 
         # Use the paginate_aws_response utility for consistent pagination
-        all_coverages, pagination_metadata = await paginate_aws_response(
+        all_coverages, pagination_metadata = await paginate_aws_response(  # nosec B105: paginate_aws_response is used for pagination
             ctx=ctx,
             operation_name='GetReservationCoverage',
             api_function=ce_client.get_reservation_coverage,
@@ -314,7 +314,7 @@ async def get_reservation_utilization(
             request_params['MaxResults'] = max_results
 
         # Use the paginate_aws_response utility for consistent pagination
-        all_utilizations, pagination_metadata = await paginate_aws_response(
+        all_utilizations, pagination_metadata = await paginate_aws_response(  # nosec B105: paginate_aws_response is used for pagination
             ctx=ctx,
             operation_name='GetReservationUtilization',
             api_function=ce_client.get_reservation_utilization,

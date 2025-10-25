@@ -44,7 +44,8 @@ def data_exploration_helper(exploration_goal: str, time_range: str = 'last 7 day
     # Validate input strings for injections
     validate_string_for_injection(exploration_goal)
     validate_string_for_injection(time_range)
-    return f"""
+    query = ( # nosec B608 - safe: exploration_goal, time_range are validated
+        f"""
 You are an AWS IoT SiteWise data analytics expert helping to explore \
     industrial IoT data using the executeQuery API with correct view schemas \
         and
@@ -528,7 +529,8 @@ LIMIT 10000;
 Use the `execute_query` tool with these correct view names and \
     column names to perform sophisticated data exploration and \
     analytics on your IoT SiteWise data.
-"""
+""")
+    return query
 
 
 # Create the prompt using from_function

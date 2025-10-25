@@ -17,7 +17,7 @@
 import datetime
 import json
 import os
-import subprocess
+import subprocess  # nosec B404: subprocess is used for security scanning
 import tempfile
 import uuid
 from awslabs.ccapi_mcp_server.errors import ClientError
@@ -40,7 +40,7 @@ def _check_checkov_installed() -> dict:
     """
     try:
         # Check if Checkov is available
-        subprocess.run(
+        subprocess.run(  # nosec B603: uses shell=False, inputs are validated, safe file operations, only subprocess calls
             ['checkov', '--version'],
             capture_output=True,
             text=True,
@@ -136,7 +136,7 @@ async def run_checkov_impl(request: RunCheckovRequest, workflow_store: dict) -> 
                 }
 
         # Run checkov with shell=False for security
-        process = subprocess.run(cmd, capture_output=True, text=True, shell=False)
+        process = subprocess.run(cmd, capture_output=True, text=True, shell=False)  # nosec B603: uses shell=False, inputs are validated, safe file operations, only subprocess calls
 
         # Parse the output
         if process.returncode == 0:
