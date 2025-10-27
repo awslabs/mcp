@@ -30,6 +30,9 @@ if __name__ == '__main__':
         sys.path.insert(0, parent_dir)
 
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import aws_pricing_server
+from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
+    bcm_pricing_calculator_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
     compute_optimizer_server,
@@ -86,6 +89,7 @@ TOOLS:
 - storage-lens: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
 - pricing: Access AWS service pricing information
+- bcm-pricing-calc: Work with workload estimates from AWS Billing and Cost Management Pricing Calculator
 - budget: Retrieve AWS budget information
 - cost-anomaly: Identify cost anomalies in AWS accounts
 - cost-comparison: Compare costs between time periods
@@ -137,6 +141,7 @@ async def setup():
     await mcp.import_server(cost_optimization_hub_server)
     await mcp.import_server(storage_lens_server)
     await mcp.import_server(aws_pricing_server)
+    await mcp.import_server(bcm_pricing_calculator_server)
     await mcp.import_server(budget_server)
     await mcp.import_server(cost_anomaly_server)
     await mcp.import_server(cost_comparison_server)
@@ -157,6 +162,7 @@ async def setup():
         'cost-optimization',
         'storage-lens',
         'pricing',
+        'bcm-pricing-calc',
         'budget',
         'cost-anomaly',
         'cost-comparison',
