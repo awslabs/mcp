@@ -32,20 +32,24 @@ permissions:
 jobs:
   close_release_branches_if_open:
     name: Close Open Pending Releases
-    if: ${{github.event.pull_request.merged == true && ! startsWith(github.event.pull_request.head.ref, 'release/')}}
+    if: ${{ github.event.pull_request.merged == true && ! startsWith(github.event.pull_request.head.ref, 'release/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Close the Open Release Pull Requests
+        env:
+          GH_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           gh pr list --state "open" --author "awslabs-mcp" --json "number,headRefName" | \
               jq '.[] | select(.headRefName | startswith("release/")) | .number' | \
               xargs -I {} \
-              gh pr close {}
+              gh pr close {} --comment "Closing outdated release. #${{ github.event.pull_request.number }} merged from ${{ github.event.pull_request.head.ref }}"
   tag_on_release_merge:
     name: Tag the Merged Release
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
