@@ -178,7 +178,7 @@ jobs:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           ref: ${{ needs.create-branch.outputs.release-branch }}
       - name: Install uv
-        uses: astral-sh/setup-uv@3259c6206f993105e3a61b142c2d97bf4b9ef83d # v7.1.0
+        uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # v7.1.2
       - name: Bump package version
         run: |
           set -euo pipefail
