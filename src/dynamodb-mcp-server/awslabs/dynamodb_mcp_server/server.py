@@ -14,103 +14,42 @@
 
 #!/usr/bin/env python3
 
-import boto3
-import json
-import os
-from awslabs.dynamodb_mcp_server.common import (
-    AttributeDefinition,
-    AttributeValue,
-    CreateTableInput,
-    DeleteItemInput,
-    GetItemInput,
-    GetResourcePolicyInput,
-    GlobalSecondaryIndex,
-    GlobalSecondaryIndexUpdate,
-    KeyAttributeValue,
-    KeySchemaElement,
-    OnDemandThroughput,
-    ProvisionedThroughput,
-    PutItemInput,
-    PutResourcePolicyInput,
-    QueryInput,
-    ReplicationGroupUpdate,
-    ScanInput,
-    Select,
-    SSESpecification,
-    StreamSpecification,
-    Tag,
-    TimeToLiveSpecification,
-    UpdateItemInput,
-    UpdateTableInput,
-    WarmThroughput,
-    handle_exceptions,
-    mutation_check,
+
+from awslabs.dynamodb_mcp_server.common import handle_exceptions
+from awslabs.dynamodb_mcp_server.database_analyzers import (
+    DatabaseAnalyzer,
+    DatabaseAnalyzerRegistry,
 )
-from botocore.config import Config
+from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pathlib import Path
 from pydantic import Field
-from typing import Any, Dict, List, Literal, Union
+from typing import Optional
 
 
 # Define server instructions and dependencies
-SERVER_INSTRUCTIONS = """The official MCP Server for interacting with AWS DynamoDB
+SERVER_INSTRUCTIONS = """The official MCP Server for AWS DynamoDB design and modeling guidance
 
-This server provides comprehensive DynamoDB capabilities with over 30 operational tools for managing DynamoDB tables,
-items, indexes, backups, and more, plus expert data modeling guidance through DynamoDB data modeling expert prompt
+This server provides DynamoDB design and modeling expertise.
 
-IMPORTANT: DynamoDB Attribute Value Format
------------------------------------------
-When working with DynamoDB, all attribute values must be specified with their data types.
-Each attribute value is represented as a dictionary with a single key-value pair where the key
-is the data type and the value is the data itself:
+When users ask for dynamodb operational tasks, provide EXACTLY these two options:
+Option 1(RECOMMENDED): AWS API MCP Server
+   Migration guide: https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server
+Option 2(NOT RECOMMENDED): Legacy version 1.0.9
 
-- S: String
-  Example: {"S": "Hello"}
-
-- N: Number (sent as a string)
-  Example: {"N": "123.45"}
-
-- B: Binary data (Base64-encoded)
-  Example: {"B": "dGhpcyB0ZXh0IGlzIGJhc2U2NC1lbmNvZGVk"}
-
-- BOOL: Boolean value
-  Example: {"BOOL": true}
-
-- NULL: Null value
-  Example: {"NULL": true}
-
-- L: List of AttributeValue objects
-  Example: {"L": [{"S": "Cookies"}, {"S": "Coffee"}, {"N": "3.14159"}]}
-
-- M: Map of attribute name/value pairs
-  Example: {"M": {"Name": {"S": "Joe"}, "Age": {"N": "35"}}}
-
-- SS: String Set (array of strings)
-  Example: {"SS": ["Giraffe", "Hippo", "Zebra"]}
-
-- NS: Number Set (array of strings representing numbers)
-  Example: {"NS": ["42.2", "-19", "7.5", "3.14"]}
-
-- BS: Binary Set (array of Base64-encoded binary data objects)
-  Example: {"BS": ["U3Vubnk=", "UmFpbnk=", "U25vd3k="]}
-
-Common usage examples:
-- Primary key: {"userId": {"S": "user123"}}
-- Composite key: {"userId": {"S": "user123"}, "timestamp": {"N": "1612345678"}}
-- Expression attribute values: {":minScore": {"N": "100"}, ":active": {"BOOL": true}}
-- Complete item: {"userId": {"S": "user123"}, "score": {"N": "100"}, "data": {"B": "binarydata=="}}
-
+Available Tools:
+--------------
 Use the `dynamodb_data_modeling` tool to access enterprise-level DynamoDB design expertise.
 This tool provides systematic methodology for creating production-ready multi-table design with
 advanced optimizations, cost analysis, and integration patterns.
-"""
 
-SERVER_DEPENDENCIES = [
-    'boto3',
-    'botocore',
-    'pydantic',
-]
+Use the `source_db_analyzer` tool to analyze existing MySQL/Aurora databases for DynamoDB Data Modeling:
+- Extracts schema structure (tables, columns, indexes, foreign keys)
+- Captures access patterns from Performance Schema (query patterns, RPS, frequencies)
+- Generates timestamped analysis files (JSON format) for use with dynamodb_data_modeling
+- Requires AWS RDS Data API and credentials in Secrets Manager
+- Safe for production use (read-only analysis)
+"""
 
 
 def create_server():
@@ -118,68 +57,10 @@ def create_server():
     return FastMCP(
         'awslabs.dynamodb-mcp-server',
         instructions=SERVER_INSTRUCTIONS,
-        dependencies=SERVER_DEPENDENCIES,
     )
 
 
 app = create_server()
-
-
-def get_dynamodb_client(region_name: str | None):
-    """Create a boto3 DynamoDB client using credentials from environment variables. Falls back to 'us-west-2' if no region is specified or found in environment."""
-    # Use provided region, or get from env, or fall back to us-west-2
-    region = region_name or os.getenv('AWS_REGION') or 'us-west-2'
-
-    # Configure custom user agent to identify requests from LLM/MCP
-    config = Config(user_agent_extra='MCP/DynamoDBServer')
-
-    # Create a new session to force credentials to reload
-    # so that if user changes credential, it will be reflected immediately in the next call
-    session = boto3.Session()
-
-    # boto3 will automatically load credentials from environment variables:
-    # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
-    return session.client('dynamodb', region_name=region, config=config)
-
-
-table_name = Field(description='Table Name or Amazon Resource Name (ARN)')
-index_name = Field(
-    default=None,
-    description='The name of a GSI',
-)
-key: Dict[str, KeyAttributeValue] = Field(
-    description='The primary key of an item. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
-)
-filter_expression: str = Field(
-    default=None,
-    description='Filter conditions expression that DynamoDB applies to filter out data',
-)
-projection_expression: str = Field(
-    default=None,
-    description='Attributes to retrieve, can include scalars, sets, or elements of a JSON document.',
-)
-expression_attribute_names: Dict[str, str] = Field(
-    default=None, description='Substitution tokens for attribute names in an expression.'
-)
-expression_attribute_values: Dict[str, AttributeValue] = Field(
-    default=None,
-    description='Values that can be substituted in an expression. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
-)
-select: Select = Field(
-    default=None,
-    description='The attributes to be returned. Valid values: ALL_ATTRIBUTES, ALL_PROJECTED_ATTRIBUTES, SPECIFIC_ATTRIBUTES, COUNT',
-)
-limit: int = Field(default=None, description='The maximum number of items to evaluate', ge=1)
-exclusive_start_key: Dict[str, KeyAttributeValue] = Field(
-    default=None,
-    description='Use the LastEvaluatedKey from the previous call. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).',
-)
-
-billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = Field(
-    default=None,
-    description='Specifies if billing is PAY_PER_REQUEST or by provisioned throughput',
-)
-resource_arn: str = Field(description='The Amazon Resource Name (ARN) of the DynamoDB resource')
 
 
 @app.tool()
@@ -208,738 +89,152 @@ async def dynamodb_data_modeling() -> str:
 
 @app.tool()
 @handle_exceptions
-@mutation_check
-async def put_resource_policy(
-    resource_arn: str = resource_arn,
-    policy: Union[str, Dict[str, Any]] = Field(
-        description='An AWS resource-based policy document in JSON format or dictionary.'
+async def source_db_analyzer(
+    source_db_type: str = Field(description="Supported Source Database type: 'mysql'"),
+    database_name: Optional[str] = Field(
+        default=None, description='Database name to analyze (overrides MYSQL_DATABASE env var)'
     ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Attaches a resource-based policy document (max 20 KB) to a DynamoDB table or stream. You can control permissions for both tables and their indexes through the policy."""
-    client = get_dynamodb_client(region_name)
-    # Convert policy to string if it's a dictionary
-    policy_str = json.dumps(policy) if isinstance(policy, dict) else policy
-
-    params: PutResourcePolicyInput = {'ResourceArn': resource_arn, 'Policy': policy_str}
-
-    response = client.put_resource_policy(**params)
-    return {'RevisionId': response.get('RevisionId')}
-
-
-@app.tool()
-@handle_exceptions
-async def get_resource_policy(
-    resource_arn: str = resource_arn,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns the resource-based policy document attached to a DynamoDB table or stream in JSON format."""
-    client = get_dynamodb_client(region_name)
-    params: GetResourcePolicyInput = {'ResourceArn': resource_arn}
-
-    response = client.get_resource_policy(**params)
-    return {'Policy': response.get('Policy'), 'RevisionId': response.get('RevisionId')}
-
-
-@app.tool()
-@handle_exceptions
-async def scan(
-    table_name: str = table_name,
-    index_name: str = index_name,
-    filter_expression: str = filter_expression,
-    projection_expression: str = projection_expression,
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    select: Select = select,
-    limit: int = limit,
-    exclusive_start_key: Dict[str, KeyAttributeValue] = exclusive_start_key,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns items and attributes by scanning a table or secondary index. Reads up to Limit items or 1 MB of data, with optional FilterExpression to reduce results."""
-    client = get_dynamodb_client(region_name)
-    params: ScanInput = {'TableName': table_name}
-
-    if index_name:
-        params['IndexName'] = index_name
-    if filter_expression:
-        params['FilterExpression'] = filter_expression
-    if projection_expression:
-        params['ProjectionExpression'] = projection_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    if select:
-        params['Select'] = select
-    if limit:
-        params['Limit'] = limit
-    if exclusive_start_key:
-        params['ExclusiveStartKey'] = exclusive_start_key
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-
-    response = client.scan(**params)
-    return {
-        'Items': response.get('Items', []),
-        'Count': response.get('Count'),
-        'ScannedCount': response.get('ScannedCount'),
-        'LastEvaluatedKey': response.get('LastEvaluatedKey'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-async def query(
-    table_name: str = table_name,
-    key_condition_expression: str = Field(
-        description='Key condition expression. Must perform an equality test on partition key value.'
+    pattern_analysis_days: Optional[int] = Field(
+        default=30,
+        description='Number of days to analyze the logs for pattern analysis query',
+        ge=1,
     ),
-    index_name: str = index_name,
-    filter_expression: str = filter_expression,
-    projection_expression: str = projection_expression,
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    select: Select = select,
-    limit: int = limit,
-    scan_index_forward: bool = Field(
-        default=None, description='Ascending (true) or descending (false).'
-    ),
-    exclusive_start_key: Dict[str, KeyAttributeValue] = exclusive_start_key,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns items from a table or index matching a partition key value, with optional sort key filtering."""
-    client = get_dynamodb_client(region_name)
-    params: QueryInput = {
-        'TableName': table_name,
-        'KeyConditionExpression': key_condition_expression,
-    }
-
-    if index_name:
-        params['IndexName'] = index_name
-    if filter_expression:
-        params['FilterExpression'] = filter_expression
-    if projection_expression:
-        params['ProjectionExpression'] = projection_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    if select:
-        params['Select'] = select
-    if limit:
-        params['Limit'] = limit
-    if scan_index_forward is not None:
-        params['ScanIndexForward'] = scan_index_forward
-    if exclusive_start_key:
-        params['ExclusiveStartKey'] = exclusive_start_key
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-
-    response = client.query(**params)
-    return {
-        'Items': response.get('Items', []),
-        'Count': response.get('Count'),
-        'ScannedCount': response.get('ScannedCount'),
-        'LastEvaluatedKey': response.get('LastEvaluatedKey'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def update_item(
-    table_name: str = table_name,
-    key: Dict[str, KeyAttributeValue] = key,
-    update_expression: str = Field(
+    max_query_results: Optional[int] = Field(
         default=None,
-        description="""Defines the attributes to be updated, the action to be performed on them, and new value(s) for them. The following actions are available:
-    * SET - Adds one or more attributes and values to an item. If any of these attributes already exist, they are replaced by the new values.
-    * REMOVE - Removes one or more attributes from an item.
-    * ADD - Only supports Number and Set data types. Adds a value to a number attribute or adds elements to a set.
-    * DELETE - Only supports Set data type. Removes elements from a set.
-    For example: 'SET a=:value1, b=:value2 DELETE :value3, :value4, :value5'""",
+        description='Maximum number of rows to include in analysis output files for schema and query log data (overrides MYSQL_MAX_QUERY_RESULTS env var)',
+        ge=1,
     ),
-    condition_expression: str = Field(
-        default=None,
-        description='A condition that must be satisfied in order for a conditional update to succeed.',
+    aws_cluster_arn: Optional[str] = Field(
+        default=None, description='AWS cluster ARN (overrides MYSQL_CLUSTER_ARN env var)'
     ),
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Edits an existing item's attributes, or adds a new item to the table if it does not already exist."""
-    client = get_dynamodb_client(region_name)
-    params: UpdateItemInput = {'TableName': table_name, 'Key': key}
-
-    if update_expression:
-        params['UpdateExpression'] = update_expression
-    if condition_expression:
-        params['ConditionExpression'] = condition_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-    params['ReturnValuesOnConditionCheckFailure'] = 'ALL_OLD'
-
-    response = client.update_item(**params)
-    return {
-        'Attributes': response.get('Attributes'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-async def get_item(
-    table_name: str = table_name,
-    key: Dict[str, KeyAttributeValue] = key,
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    projection_expression: str = projection_expression,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns attributes for an item with the given primary key. Uses eventually consistent reads by default, or set ConsistentRead=true for strongly consistent reads."""
-    client = get_dynamodb_client(region_name)
-    params: GetItemInput = {'TableName': table_name, 'Key': key}
-
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if projection_expression:
-        params['ProjectionExpression'] = projection_expression
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-
-    response = client.get_item(**params)
-    return {'Item': response.get('Item'), 'ConsumedCapacity': response.get('ConsumedCapacity')}
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def put_item(
-    table_name: str = table_name,
-    item: Dict[str, AttributeValue] = Field(
-        description='A map of attribute name/value pairs, one for each attribute. Must use DynamoDB attribute value format (see IMPORTANT note about DynamoDB Attribute Value Format).'
+    aws_secret_arn: Optional[str] = Field(
+        default=None, description='AWS secret ARN (overrides MYSQL_SECRET_ARN env var)'
     ),
-    condition_expression: str = Field(
-        default=None,
-        description='A condition that must be satisfied in order for a conditional put operation to succeed.',
+    aws_region: Optional[str] = Field(
+        default=None, description='AWS region (overrides AWS_REGION env var)'
     ),
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, Any] = expression_attribute_values,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a new item or replaces an existing item in a table. Use condition expressions to control whether to create new items or update existing ones."""
-    client = get_dynamodb_client(region_name)
-    params: PutItemInput = {'TableName': table_name, 'Item': item}
-
-    if condition_expression:
-        params['ConditionExpression'] = condition_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    params['ReturnConsumedCapacity'] = 'TOTAL'
-
-    response = client.put_item(**params)
-    return {
-        'Attributes': response.get('Attributes'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def delete_item(
-    table_name: str = table_name,
-    key: Dict[str, KeyAttributeValue] = key,
-    condition_expression: str = Field(
-        default=None,
-        description='The condition that must be satisfied in order for delete to succeed.',
+    output_dir: str = Field(
+        description='Absolute directory path where the timestamped output analysis folder will be created.'
     ),
-    expression_attribute_names: Dict[str, str] = expression_attribute_names,
-    expression_attribute_values: Dict[str, AttributeValue] = expression_attribute_values,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Deletes a single item in a table by primary key. You can perform a conditional delete operation that deletes the item if it exists, or if it has an expected attribute value."""
-    client = get_dynamodb_client(region_name)
-    params: DeleteItemInput = {'TableName': table_name, 'Key': key}
+) -> str:
+    """Analyzes your source database to extract schema and access patterns for DynamoDB Data Modeling.
 
-    if condition_expression:
-        params['ConditionExpression'] = condition_expression
-    if expression_attribute_names:
-        params['ExpressionAttributeNames'] = expression_attribute_names
-    if expression_attribute_values:
-        params['ExpressionAttributeValues'] = expression_attribute_values
-    params['ReturnConsumedCapacity'] = 'TOTAL'
+    This tool connects to your existing relational database, examines your current database structure and query
+    patterns to help you design an optimal DynamoDB data model.
 
-    response = client.delete_item(**params)
-    return {
-        'Attributes': response.get('Attributes'),
-        'ConsumedCapacity': response.get('ConsumedCapacity'),
-        'ItemCollectionMetrics': response.get('ItemCollectionMetrics'),
-    }
+    Output & Next Steps:
+    - Creates timestamped folder (database_analysis_YYYYMMDD_HHMMSS) with 4-5 JSON files:
+      * table_analysis_results.json - Table-level statistics
+      * column_analysis_results.json - Column definitions for all tables
+      * index_analysis_results.json - Index structures and compositions
+      * foreign_key_analysis_results.json - Relationship mappings
+      * query_pattern_analysis_results.json - Query patterns (only if Performance Schema enabled)
+    - Each file contains query results with metadata (database name, analysis period, descriptions)
+    - Use these files with the dynamodb_data_modeling tool to design your DynamoDB schema
+    - Analysis is read-only
 
+    Connection Requirements (MySQL/Aurora):
+    - AWS RDS Data API enabled on your Aurora MySQL cluster
+    - Database credentials stored in AWS Secrets Manager
+    - Appropriate IAM permissions to access RDS Data API and Secrets Manager
+    - For complete analysis: MySQL Performance Schema must be enabled (set performance_schema=ON)
+    - Without Performance Schema: Schema-only analysis is performed (no query pattern data)
 
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def update_time_to_live(
-    table_name: str = table_name,
-    time_to_live_specification: TimeToLiveSpecification = Field(
-        description='The new TTL settings'
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Enables or disables Time to Live (TTL) for the specified table. Note: The epoch time format is the number of seconds elapsed since 12:00:00 AM January 1, 1970 UTC."""
-    client = get_dynamodb_client(region_name)
-    response = client.update_time_to_live(
-        TableName=table_name, TimeToLiveSpecification=time_to_live_specification
+    Environment Variables (Optional):
+    You can set these instead of passing parameters:
+    - MYSQL_DATABASE: Database name to analyze
+    - MYSQL_CLUSTER_ARN: Aurora cluster ARN
+    - MYSQL_SECRET_ARN: Secrets Manager secret ARN containing DB credentials
+    - AWS_REGION: AWS region where your database is located
+    - MYSQL_MAX_QUERY_RESULTS: Maximum rows per query (default: 500)
+
+    Typical Usage:
+    1. Run this tool against your source database
+    2. Review the generated analysis files to understand your current schema and patterns
+    3. Use dynamodb_data_modeling tool with these files to design your DynamoDB tables
+    4. The analysis helps identify entity relationships, access patterns, and optimization opportunities
+
+    Returns: Analysis summary with saved file locations, query statistics, and next steps.
+    """
+    try:
+        analyzer_class = DatabaseAnalyzerRegistry.get_analyzer(source_db_type)
+    except ValueError as e:
+        supported_types = DatabaseAnalyzerRegistry.get_supported_types()
+        return f'{str(e)}. Supported types: {supported_types}'
+
+    # Build connection parameters based on database type
+    connection_params = DatabaseAnalyzer.build_connection_params(
+        source_db_type,
+        database_name=database_name,
+        pattern_analysis_days=pattern_analysis_days,
+        max_query_results=max_query_results,
+        aws_cluster_arn=aws_cluster_arn,
+        aws_secret_arn=aws_secret_arn,
+        aws_region=aws_region,
+        output_dir=output_dir,
     )
-    return response['TimeToLiveSpecification']
 
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def update_table(
-    table_name: str = table_name,
-    attribute_definitions: List[AttributeDefinition] = Field(
-        default=None,
-        description='Describe the key schema for the table and indexes. Required when adding a new GSI.',
-    ),
-    billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = billing_mode,
-    deletion_protection_enabled: bool = Field(
-        default=None, description='Indicates whether deletion protection is to be enabled'
-    ),
-    global_secondary_index_updates: List[GlobalSecondaryIndexUpdate] = Field(
-        default=None, description='List of GSIs to be added, updated or deleted.'
-    ),
-    on_demand_throughput: OnDemandThroughput = Field(
-        default=None, description='Set the max number of read and write units.'
-    ),
-    provisioned_throughput: ProvisionedThroughput = Field(
-        default=None, description='The new provisioned throughput settings.'
-    ),
-    replica_updates: List[ReplicationGroupUpdate] = Field(
-        default=None, description='A list of replica update actions (create, delete, or update).'
-    ),
-    sse_specification: SSESpecification = Field(
-        default=None, description='The new server-side encryption settings.'
-    ),
-    stream_specification: StreamSpecification = Field(
-        default=None, description='DynamoDB Streams configuration.'
-    ),
-    table_class: Literal['STANDARD', 'STANDARD_INFREQUENT_ACCESS'] = Field(
-        default=None, description='The new table class.'
-    ),
-    warm_throughput: WarmThroughput = Field(
-        default=None, description='The new warm throughput settings.'
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Modifies table settings including provisioned throughput, global secondary indexes, and DynamoDB Streams configuration. This is an asynchronous operation."""
-    client = get_dynamodb_client(region_name)
-    params: UpdateTableInput = {'TableName': table_name}
-
-    if attribute_definitions:
-        params['AttributeDefinitions'] = attribute_definitions
-    if billing_mode:
-        params['BillingMode'] = billing_mode
-    if deletion_protection_enabled is not None:
-        params['DeletionProtectionEnabled'] = deletion_protection_enabled
-    if global_secondary_index_updates:
-        params['GlobalSecondaryIndexUpdates'] = global_secondary_index_updates
-    if on_demand_throughput:
-        params['OnDemandThroughput'] = on_demand_throughput
-    if provisioned_throughput:
-        params['ProvisionedThroughput'] = provisioned_throughput
-    if replica_updates:
-        params['ReplicaUpdates'] = replica_updates
-    if sse_specification:
-        params['SSESpecification'] = sse_specification
-    if stream_specification:
-        params['StreamSpecification'] = stream_specification
-    if table_class:
-        params['TableClass'] = table_class
-    if warm_throughput:
-        params['WarmThroughput'] = warm_throughput
-
-    response = client.update_table(**params)
-    return response['TableDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def list_tables(
-    exclusive_start_table_name: str = Field(
-        default=None,
-        description='The LastEvaluatedTableName value from the previous paginated call',
-    ),
-    limit: int = Field(
-        default=None,
-        description='Max number of table names to return',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns a paginated list of table names in your account."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if exclusive_start_table_name:
-        params['ExclusiveStartTableName'] = exclusive_start_table_name
-    if limit:
-        params['Limit'] = limit
-    response = client.list_tables(**params)
-    return {
-        'TableNames': response['TableNames'],
-        'LastEvaluatedTableName': response.get('LastEvaluatedTableName'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def create_table(
-    table_name: str = Field(
-        description='The name of the table to create.',
-    ),
-    attribute_definitions: List[AttributeDefinition] = Field(
-        description='Describe the key schema for the table and indexes.'
-    ),
-    key_schema: List[KeySchemaElement] = Field(
-        description='Specifies primary key attributes of the table.'
-    ),
-    billing_mode: Literal['PROVISIONED', 'PAY_PER_REQUEST'] = billing_mode,
-    global_secondary_indexes: List[GlobalSecondaryIndex] = Field(
-        default=None, description='GSIs to be created on the table.'
-    ),
-    provisioned_throughput: ProvisionedThroughput = Field(
-        default=None,
-        description='Provisioned throughput settings. Required if BillingMode is PROVISIONED.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a new DynamoDB table with optional secondary indexes. This is an asynchronous operation."""
-    client = get_dynamodb_client(region_name)
-    params: CreateTableInput = {
-        'TableName': table_name,
-        'AttributeDefinitions': attribute_definitions,
-        'KeySchema': key_schema,
-    }
-
-    if billing_mode:
-        params['BillingMode'] = billing_mode
-    if global_secondary_indexes:
-        params['GlobalSecondaryIndexes'] = global_secondary_indexes
-    if provisioned_throughput:
-        params['ProvisionedThroughput'] = provisioned_throughput
-
-    response = client.create_table(**params)
-    return response['TableDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def describe_table(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns table information including status, creation time, key schema and indexes."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_table(TableName=table_name)
-    return response['Table']
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def create_backup(
-    table_name: str = table_name,
-    backup_name: str = Field(
-        description='Specified name for the backup.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a backup of a DynamoDB table."""
-    client = get_dynamodb_client(region_name)
-    response = client.create_backup(TableName=table_name, BackupName=backup_name)
-    return response['BackupDetails']
-
-
-@app.tool()
-@handle_exceptions
-async def describe_backup(
-    backup_arn: str = Field(
-        description='The Amazon Resource Name (ARN) associated with the backup.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Describes an existing backup of a table."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_backup(BackupArn=backup_arn)
-    return response['BackupDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def list_backups(
-    table_name: str = table_name,
-    backup_type: str = Field(
-        default=None,
-        description='Filter by backup type: USER (on-demand backup created by you), SYSTEM (automatically created by DynamoDB), AWS_BACKUP (created by AWS Backup), or ALL (all types).',
-        pattern='^(USER|SYSTEM|AWS_BACKUP|ALL)$',
-    ),
-    exclusive_start_backup_arn: str = Field(
-        default=None,
-        description='LastEvaluatedBackupArn from a previous paginated call.',
-    ),
-    limit: int = Field(
-        default=None, description='Maximum number of backups to return.', ge=1, le=100
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns a list of table backups."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if backup_type:
-        params['BackupType'] = backup_type
-    if exclusive_start_backup_arn:
-        params['ExclusiveStartBackupArn'] = exclusive_start_backup_arn
-    if limit:
-        params['Limit'] = limit
-    if table_name:
-        params['TableName'] = table_name
-
-    response = client.list_backups(**params)
-    return {
-        'BackupSummaries': response.get('BackupSummaries', []),
-        'LastEvaluatedBackupArn': response.get('LastEvaluatedBackupArn'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def restore_table_from_backup(
-    backup_arn: str = Field(
-        description='The Amazon Resource Name (ARN) associated with the backup.',
-    ),
-    target_table_name: str = Field(
-        description='The name of the new table.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Creates a new table from a backup."""
-    client = get_dynamodb_client(region_name)
-    params = {'BackupArn': backup_arn, 'TargetTableName': target_table_name}
-
-    response = client.restore_table_from_backup(**params)
-    return response['TableDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def describe_limits(
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns the current provisioned-capacity quotas for your AWS account and tables in a Region."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_limits()
-    return {
-        'AccountMaxReadCapacityUnits': response['AccountMaxReadCapacityUnits'],
-        'AccountMaxWriteCapacityUnits': response['AccountMaxWriteCapacityUnits'],
-        'TableMaxReadCapacityUnits': response['TableMaxReadCapacityUnits'],
-        'TableMaxWriteCapacityUnits': response['TableMaxWriteCapacityUnits'],
-    }
-
-
-@app.tool()
-@handle_exceptions
-async def describe_time_to_live(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns the Time to Live (TTL) settings for a table."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_time_to_live(TableName=table_name)
-    return response['TimeToLiveDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def describe_endpoints(
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns DynamoDB endpoints for the current region."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_endpoints()
-    return {'Endpoints': response['Endpoints']}
-
-
-@app.tool()
-@handle_exceptions
-async def describe_export(
-    export_arn: str = Field(
-        description='The Amazon Resource Name (ARN) associated with the export.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns information about a table export."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_export(ExportArn=export_arn)
-    return response['ExportDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def list_exports(
-    max_results: int = Field(
-        default=None,
-        description='Maximum number of results to return per page.',
-    ),
-    next_token: str = Field(default=None, description='Token to fetch the next page of results.'),
-    table_arn: str = Field(
-        default=None,
-        description='The Amazon Resource Name (ARN) associated with the exported table.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns a list of table exports."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if max_results:
-        params['MaxResults'] = max_results
-    if next_token:
-        params['NextToken'] = next_token
-    if table_arn:
-        params['TableArn'] = table_arn
-
-    response = client.list_exports(**params)
-    return {
-        'ExportSummaries': response.get('ExportSummaries', []),
-        'NextToken': response.get('NextToken'),
-    }
-
-
-@app.tool()
-@handle_exceptions
-async def describe_continuous_backups(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns continuous backup and point in time recovery status for a table."""
-    client = get_dynamodb_client(region_name)
-    response = client.describe_continuous_backups(TableName=table_name)
-    return response['ContinuousBackupsDescription']
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def untag_resource(
-    resource_arn: str = resource_arn,
-    tag_keys: List[str] = Field(description='List of tags to remove.', min_length=1),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Removes tags from a DynamoDB resource."""
-    client = get_dynamodb_client(region_name)
-    response = client.untag_resource(ResourceArn=resource_arn, TagKeys=tag_keys)
-    return response
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def tag_resource(
-    resource_arn: str = resource_arn,
-    tags: List[Tag] = Field(description='Tags to be assigned.'),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Adds tags to a DynamoDB resource."""
-    client = get_dynamodb_client(region_name)
-    response = client.tag_resource(ResourceArn=resource_arn, Tags=tags)
-    return response
-
-
-@app.tool()
-@handle_exceptions
-async def list_tags_of_resource(
-    resource_arn: str = resource_arn,
-    next_token: str = Field(
-        default=None, description='The NextToken from the previous paginated call'
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Returns tags for a DynamoDB resource."""
-    client = get_dynamodb_client(region_name)
-    params = {'ResourceArn': resource_arn}
-    if next_token:
-        params['NextToken'] = next_token
-
-    response = client.list_tags_of_resource(**params)
-    return {'Tags': response.get('Tags', []), 'NextToken': response.get('NextToken')}
-
-
-@app.tool()
-@handle_exceptions
-@mutation_check
-async def delete_table(
-    table_name: str = table_name,
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """The DeleteTable operation deletes a table and all of its items. This is an asynchronous operation that puts the table into DELETING state until DynamoDB completes the deletion."""
-    client = get_dynamodb_client(region_name)
-    response = client.delete_table(TableName=table_name)
-    return response['TableDescription']
-
-
-@app.tool()
-@handle_exceptions
-async def update_continuous_backups(
-    table_name: str = table_name,
-    point_in_time_recovery_enabled: bool = Field(
-        description='Enable or disable point in time recovery.'
-    ),
-    recovery_period_in_days: int = Field(
-        default=None,
-        description='Number of days to retain point in time recovery backups.',
-    ),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Enables or disables point in time recovery for the specified table."""
-    client = get_dynamodb_client(region_name)
-    params = {
-        'TableName': table_name,
-        'PointInTimeRecoverySpecification': {
-            'PointInTimeRecoveryEnabled': point_in_time_recovery_enabled
-        },
-    }
-    if recovery_period_in_days:
-        params['PointInTimeRecoverySpecification']['RecoveryPeriodInDays'] = (
-            recovery_period_in_days
+    # Validate parameters based on database type
+    missing_params, param_descriptions = DatabaseAnalyzer.validate_connection_params(
+        source_db_type, connection_params
+    )
+    if missing_params:
+        missing_descriptions = [param_descriptions[param] for param in missing_params]
+        return (
+            f'To analyze your {source_db_type} database, I need: {", ".join(missing_descriptions)}'
         )
 
-    response = client.update_continuous_backups(**params)
-    return response['ContinuousBackupsDescription']
+    logger.info(
+        f'Starting database analysis for {source_db_type} database: {connection_params.get("database")}'
+    )
 
+    try:
+        analysis_result = await analyzer_class.analyze(connection_params)
 
-@app.tool()
-@handle_exceptions
-async def list_imports(
-    next_token: str = Field(default=None, description='Token to fetch the next page of results.'),
-    region_name: str = Field(default=None, description='The aws region to run the tool'),
-) -> dict:
-    """Lists imports completed within the past 90 days."""
-    client = get_dynamodb_client(region_name)
-    params = {}
-    if next_token:
-        params['NextToken'] = next_token
-    params['PageSize'] = 25
-    response = client.list_imports(**params)
-    return {
-        'ImportSummaryList': response.get('ImportSummaryList', []),
-        'NextToken': response.get('NextToken'),
-    }
+        # Save results to files
+        saved_files, save_errors = DatabaseAnalyzer.save_analysis_files(
+            analysis_result['results'],
+            source_db_type,
+            connection_params.get('database'),
+            connection_params.get('pattern_analysis_days'),
+            connection_params.get('max_results'),
+            connection_params.get('output_dir'),
+        )
+
+        # Generate report
+        logger.info('Generating analysis report')
+        if analysis_result['results']:
+            report = f"""Database Analysis Complete
+
+Summary:
+- Database: {connection_params.get('database')}
+- Analysis Period: {connection_params.get('pattern_analysis_days')} days
+- {analysis_result['performance_feature']}: {'Enabled' if analysis_result['performance_enabled'] else 'Disabled'}"""
+
+            if saved_files:
+                report += f'\n\nSaved Files:\n{chr(10).join(f"- {f}" for f in saved_files)}'
+
+            if save_errors:
+                report += f'\n\nFile Save Errors:\n{chr(10).join(f"- {e}" for e in save_errors)}'
+
+            if analysis_result['errors']:
+                report += f'\n\nQuery Errors ({len(analysis_result["errors"])}):\n' + '\n'.join(
+                    f'{i}. {error}' for i, error in enumerate(analysis_result['errors'], 1)
+                )
+
+        else:
+            report = (
+                f'Database Analysis Failed\n\nAll {len(analysis_result["errors"])} queries failed:\n'
+                + '\n'.join(
+                    f'{i}. {error}' for i, error in enumerate(analysis_result['errors'], 1)
+                )
+            )
+
+        return report
+
+    except Exception as e:
+        logger.error(f'Analysis failed with exception: {str(e)}')
+        return f'Analysis failed: {str(e)}'
 
 
 def main():
