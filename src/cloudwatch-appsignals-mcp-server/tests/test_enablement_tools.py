@@ -87,3 +87,87 @@ class TestGetEnablementGuide:
         assert 'Placeholder content just to verify the tool can fetch the file.' in result
         assert temp_directories['iac'] in result
         assert temp_directories['app'] in result
+
+    @pytest.mark.asyncio
+    async def test_case_normalization(self, temp_directories):
+        """Test that platform and language are normalized to lowercase."""
+        result = await get_enablement_guide(
+            platform='EC2',
+            language='PYTHON',
+            iac_directory=temp_directories['iac'],
+            app_directory=temp_directories['app'],
+        )
+
+        assert '# Application Signals Enablement Guide' in result
+
+    @pytest.mark.asyncio
+    async def test_whitespace_trimming(self, temp_directories):
+        """Test that whitespace is trimmed from inputs."""
+        result = await get_enablement_guide(
+            platform='   ec2   ',
+            language='   python    ',
+            iac_directory=temp_directories['iac'],
+            app_directory=temp_directories['app'],
+        )
+
+        assert '# Application Signals Enablement Guide' in result
+
+    @pytest.mark.asyncio
+    async def test_all_valid_platforms(self, temp_directories):
+        """Test that all valid platforms are accepted."""
+        valid_platforms = ['ec2', 'ecs', 'lambda', 'eks']
+
+        for platform in valid_platforms:
+            result = await get_enablement_guide(
+                platform=platform,
+                language='python',
+                iac_directory=temp_directories['iac'],
+                app_directory=temp_directories['app'],
+            )
+
+            assert 'Error: Invalid platform' not in result
+
+    @pytest.mark.asyncio
+    async def test_all_valid_languages(self, temp_directories):
+        """Test that all valid languages are accepted."""
+        valid_languages = ['python', 'nodejs', 'java', 'dotnet']
+
+        for language in valid_languages:
+            result = await get_enablement_guide(
+                platform='ec2',
+                language=language,
+                iac_directory=temp_directories['iac'],
+                app_directory=temp_directories['app'],
+            )
+
+            assert 'Error: Invalid language' not in result
+
+    @pytest.mark.asyncio
+    async def test_relative_path_resolution(self, temp_directories, monkeypatch):
+        """Test that relative paths are resolved correctly."""
+        base_dir = Path(temp_directories['iac']).parent.parent
+        monkeypatch.chdir(base_dir)
+
+        result = await get_enablement_guide(
+            platform='ec2',
+            language='python',
+            iac_directory='infrastructure/cdk',
+            app_directory='app/src',
+        )
+
+        assert '# Application Signals Enablement Guide' in result
+        assert str(base_dir) in result
+
+    @pytest.mark.asyncio
+    async def test_absolute_path_handling(self, temp_directories):
+        """Test that absolute paths are handled correctly."""
+        result = await get_enablement_guide(
+            platform='ec2',
+            language='python',
+            iac_directory=temp_directories['iac'],
+            app_directory=temp_directories['app'],
+        )
+
+        assert '# Application Signals Enablement Guide' in result
+        assert temp_directories['iac'] in result
+        assert temp_directories['app'] in result
