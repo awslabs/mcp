@@ -331,6 +331,11 @@ Configure in your workspace or global settings:
 | `batch_get_asset_property_value` | Bulk current value retrieval |
 | `batch_get_asset_property_value_hist` | Bulk historical data |
 | `batch_get_asset_property_aggregates` | Bulk aggregations |
+| `create_bulk_import_job` | Create bulk import jobs for bulk data ingestion |
+| `create_buffered_ingestion_job` | Create buffered ingestion jobs |
+| `create_bulk_import_iam_role` | Create IAM roles for bulk import operations |
+| `list_bulk_import_jobs` | List bulk import jobs |
+| `describe_bulk_import_job` | Retrieve bulk import job information |
 | `execute_query` | Execute SQL-like queries for advanced analytics |
 
 ### Gateway & Time Series Tools
@@ -391,6 +396,14 @@ Step-by-step guidance for setting up industrial data ingestion with best practic
 ```
 
 Comprehensive guidance for exploring IoT data using the executeQuery API with SQL-like analytics capabilities.
+
+### Bulk Import Workflow
+
+```example
+/prompts get bulk_import_workflow_helper_prompt
+```
+
+Step-by-step guidance for setting up bulk data import from S3, including CSV validation, IAM role creation, job configuration, and monitoring.
 
 ## Usage Examples
 

@@ -14,14 +14,16 @@
 
 """AWS IoT SiteWise Data Ingestion and Retrieval Tools."""
 
+import json
 from ..validation import (
     ValidationError,
+    check_storage_configuration_requirements,
     validate_asset_id,
     validate_max_results,
     validate_property_alias,
     validate_region,
 )
-from awslabs.aws_iot_sitewise_mcp_server.client import create_sitewise_client
+from awslabs.aws_iot_sitewise_mcp_server.client import create_iam_client, create_sitewise_client
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
 from botocore.exceptions import ClientError
 from datetime import datetime
@@ -29,6 +31,310 @@ from mcp.server.fastmcp.tools import Tool
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
+
+
+@tool_metadata(readonly=False)
+def create_bulk_import_job(
+    job_name: str = Field(
+        ..., description='The unique name that identifies the job request (1-256 characters)'
+    ),
+    job_role_arn: Optional[str] = Field(
+        None,
+        description='The ARN of the IAM role that allows IoT SiteWise to read Amazon S3 data. If not provided, ask the user if you can use create_bulk_import_iam_role helper function to create one.',
+    ),
+    files: List[Dict[str, Any]] = Field(
+        ...,
+        description='List of files in Amazon S3 that contain your data. Each file should have "bucket", "key", and optionally "versionId" fields',
+    ),
+    error_report_location: Dict[str, str] = Field(
+        ..., description='Amazon S3 destination for errors. Must have "bucket" and "prefix" fields'
+    ),
+    job_configuration: Dict[str, Any] = Field(
+        ...,
+        description='Job configuration including file format. For CSV: {"fileFormat": {"csv": {"columnNames": ["ALIAS", "ASSET_ID", ...]}}}',
+    ),
+    adaptive_ingestion: bool = Field(
+        False,
+        description='Set to true for buffered ingestion (triggers computations and notifications for data within 7 days). Set to false for historical data ingestion only',
+    ),
+    delete_files_after_import: bool = Field(
+        False, description='Set to true to delete data files from S3 after successful ingestion'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
+) -> Dict[str, Any]:
+    """Create a bulk import job to ingest data from Amazon S3 to AWS IoT SiteWise.
+
+    This function creates a bulk import job with automatic validation of storage configuration
+    requirements based on the adaptive_ingestion setting.
+
+    When adaptive_ingestion is True, the job ingests new data and calculates metrics, transforms,
+    and supports notifications for data with timestamps within seven days. No additional storage
+    configuration is required.
+
+    When adaptive_ingestion is False, the job performs historical data ingestion only and requires
+    multilayer storage or warm tier to be enabled. The function automatically validates that the
+    current storage configuration supports historical data ingestion.
+
+    If job_role_arn is not provided, use the create_bulk_import_iam_role helper function to create
+    an IAM role with the necessary S3 permissions for the data and error buckets.
+
+    Args:
+        job_name: Unique name for the job (1-256 characters, no control characters)
+        job_role_arn: IAM role ARN that allows IoT SiteWise to read S3 data (optional - ask the user if you can use create_bulk_import_iam_role helper function to create one.)
+        files: List of S3 file objects with bucket, key, and optional versionId. Ask the user to provide this if not included.
+        error_report_location: S3 location for error reports (bucket and prefix). Ask the user to provide this if not included.
+        job_configuration: Configuration including file format (CSV or Parquet). Ask the user to provide the column headers if it is a CSV file.
+        adaptive_ingestion: Enable buffered ingestion mode. When False, requires multilayer storage or warm tier to be configured. Ask the user to provide this if not included.
+        delete_files_after_import: Delete S3 files after ingestion (default: False)
+        region: AWS region (default: us-east-1)
+
+    Returns:
+        Dictionary containing job creation response with jobId, jobName, and jobStatus
+
+    Example:
+        files = [{"bucket": "my-data-bucket", "key": "data/timeseries.csv"}]
+        error_location = {"bucket": "my-error-bucket", "prefix": "errors/"}
+        job_config = {
+            "fileFormat": {
+                "csv": {
+                    "columnNames": ["ALIAS", "TIMESTAMP_SECONDS", "VALUE", "QUALITY"]
+                }
+            }
+        }
+
+        result = create_bulk_import_job(
+            job_name="my-buffered-ingestion-job",
+            job_role_arn="arn:aws:iam::123456789012:role/IoTSiteWiseRole",
+            files=files,
+            error_report_location=error_location,
+            job_configuration=job_config,
+            adaptive_ingestion=True
+        )
+    """
+    try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+
+        # Validate job name
+        if not job_name or len(job_name) < 1 or len(job_name) > 256:
+            raise ValidationError('Job name must be between 1 and 256 characters')
+
+        # Basic validation for control characters in job name
+        if any(ord(c) < 32 or ord(c) == 127 for c in job_name):
+            raise ValidationError('Job name cannot contain control characters')
+
+        # Validate job role ARN format
+        if not job_role_arn:
+            raise ValidationError(
+                'Job role ARN is required. I can help you create one - please ask me to create an IAM role with the necessary S3 permissions for your data and error buckets.'
+            )
+
+        if len(job_role_arn) < 1 or len(job_role_arn) > 1600:
+            raise ValidationError('Job role ARN must be between 1 and 1600 characters')
+
+        if not job_role_arn.startswith('arn:aws'):
+            raise ValidationError('Job role ARN must be a valid AWS ARN')
+
+        # Validate files list
+        if not files or not isinstance(files, list):
+            raise ValidationError('Files must be a non-empty list')
+
+        for file_obj in files:
+            if not isinstance(file_obj, dict):
+                raise ValidationError('Each file must be a dictionary')
+            if 'bucket' not in file_obj or 'key' not in file_obj:
+                raise ValidationError('Each file must have "bucket" and "key" fields')
+            if len(file_obj['bucket']) < 3 or len(file_obj['bucket']) > 63:
+                raise ValidationError('S3 bucket name must be between 3 and 63 characters')
+
+        # Validate error report location
+        if not isinstance(error_report_location, dict):
+            raise ValidationError('Error report location must be a dictionary')
+        if 'bucket' not in error_report_location or 'prefix' not in error_report_location:
+            raise ValidationError('Error report location must have "bucket" and "prefix" fields')
+        if len(error_report_location['bucket']) < 3 or len(error_report_location['bucket']) > 63:
+            raise ValidationError('Error report bucket name must be between 3 and 63 characters')
+        if not error_report_location['prefix'].endswith('/'):
+            raise ValidationError('Error report prefix must end with a forward slash (/)')
+
+        # Validate job configuration
+        if not isinstance(job_configuration, dict):
+            raise ValidationError('Job configuration must be a dictionary')
+        if 'fileFormat' not in job_configuration:
+            raise ValidationError('Job configuration must have "fileFormat" field')
+
+        file_format = job_configuration['fileFormat']
+        if not isinstance(file_format, dict):
+            raise ValidationError('File format must be a dictionary')
+
+        # Validate CSV or Parquet format
+        if 'csv' in file_format:
+            csv_config = file_format['csv']
+            if not isinstance(csv_config, dict) or 'columnNames' not in csv_config:
+                raise ValidationError('CSV configuration must have "columnNames" field')
+            if not isinstance(csv_config['columnNames'], list) or not csv_config['columnNames']:
+                raise ValidationError('CSV columnNames must be a non-empty list')
+
+            # Validate column names are from allowed set
+            valid_columns = {
+                'ASSET_ID',
+                'ALIAS',
+                'PROPERTY_ID',
+                'DATA_TYPE',
+                'TIMESTAMP_SECONDS',
+                'TIMESTAMP_NANO_OFFSET',
+                'QUALITY',
+                'VALUE',
+            }
+            for col in csv_config['columnNames']:
+                if col not in valid_columns:
+                    raise ValidationError(
+                        f'Invalid column name: {col}. Must be one of: {", ".join(valid_columns)}'
+                    )
+
+            # Validate required columns are present
+            required_columns = {'TIMESTAMP_SECONDS', 'VALUE', 'DATA_TYPE'}
+            has_asset_id = 'ASSET_ID' in csv_config['columnNames']
+            has_property_id = 'PROPERTY_ID' in csv_config['columnNames']
+            has_alias = 'ALIAS' in csv_config['columnNames']
+
+            # Must have either (ASSET_ID + PROPERTY_ID) OR ALIAS, but not all three
+            if has_asset_id and has_property_id and has_alias:
+                raise ValidationError(
+                    'CSV cannot include ASSET_ID, PROPERTY_ID, and ALIAS together'
+                )
+            elif has_asset_id and not has_property_id:
+                raise ValidationError('CSV with ASSET_ID must also include PROPERTY_ID')
+            elif has_property_id and not has_asset_id:
+                raise ValidationError('CSV with PROPERTY_ID must also include ASSET_ID')
+            elif not (has_alias or (has_asset_id and has_property_id)):
+                raise ValidationError(
+                    'CSV must include either ALIAS or both ASSET_ID and PROPERTY_ID'
+                )
+
+            missing_required = required_columns - set(csv_config['columnNames'])
+            if missing_required:
+                raise ValidationError(
+                    f'CSV missing required columns: {", ".join(missing_required)}'
+                )
+        elif 'parquet' not in file_format:
+            raise ValidationError('File format must specify either "csv" or "parquet"')
+
+        client = create_sitewise_client(region)
+
+        # Validate adaptive_ingestion is provided
+        if not isinstance(adaptive_ingestion, bool):
+            raise ValidationError('Please provide a boolean value for adaptive_ingestion')
+
+        # Validate storage configuration requirements based on adaptive_ingestion setting
+        check_storage_configuration_requirements(client, adaptive_ingestion)
+
+        # Build the API parameters
+        params = {
+            'jobName': job_name,
+            'jobRoleArn': job_role_arn,
+            'files': files,
+            'errorReportLocation': error_report_location,
+            'jobConfiguration': job_configuration,
+            'adaptiveIngestion': adaptive_ingestion,
+            'deleteFilesAfterImport': delete_files_after_import,
+        }
+
+        response = client.create_bulk_import_job(**params)
+
+        return {
+            'success': True,
+            'job_id': response['jobId'],
+            'job_name': response['jobName'],
+            'job_status': response['jobStatus'],
+        }
+
+    except ValidationError as e:
+        return {
+            'success': False,
+            'error': f'Validation error: {str(e)}',
+            'error_code': 'ValidationException',
+        }
+    except ClientError as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
+        }
+
+
+@tool_metadata(readonly=False)
+def create_buffered_ingestion_job(
+    job_name: str = Field(
+        ..., description='The unique name that identifies the job request (1-256 characters)'
+    ),
+    job_role_arn: str = Field(
+        ..., description='The ARN of the IAM role that allows IoT SiteWise to read Amazon S3 data'
+    ),
+    files: List[Dict[str, Any]] = Field(
+        ...,
+        description='List of files in Amazon S3 that contain your data. Each file should have "bucket", "key", and optionally "versionId" fields',
+    ),
+    error_report_location: Dict[str, str] = Field(
+        ..., description='Amazon S3 destination for errors. Must have "bucket" and "prefix" fields'
+    ),
+    job_configuration: Dict[str, Any] = Field(
+        ...,
+        description='Job configuration including file format. For CSV: {"fileFormat": {"csv": {"columnNames": ["ALIAS", "ASSET_ID", ...]}}}',
+    ),
+    delete_files_after_import: bool = Field(
+        False, description='Set to true to delete data files from S3 after successful ingestion'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
+) -> Dict[str, Any]:
+    """Create a buffered ingestion job to ingest data from Amazon S3 to AWS IoT SiteWise.
+
+    This is a convenience function that calls create_bulk_import_job with adaptive_ingestion=True
+    to enable buffered ingestion mode for real-time processing of recent data (within 30 days).
+
+    Args:
+        job_name: Unique name for the job (1-256 characters, no control characters)
+        job_role_arn: IAM role ARN that allows IoT SiteWise to read S3 data (optional - ask the user if you can use create_bulk_import_iam_role helper function to create one.)
+        files: List of S3 file objects with bucket, key, and optional versionId
+        error_report_location: S3 location for error reports (bucket and prefix)
+        job_configuration: Configuration including file format (CSV or Parquet)
+        delete_files_after_import: Delete S3 files after ingestion (default: False)
+        region: AWS region (default: us-east-1)
+
+    Returns:
+        Dictionary containing job creation response with jobId, jobName, and jobStatus
+
+    Example:
+        files = [{"bucket": "my-data-bucket", "key": "data/timeseries.csv"}]
+        error_location = {"bucket": "my-error-bucket", "prefix": "errors/"}
+        job_config = {
+            "fileFormat": {
+                "csv": {
+                    "columnNames": ["ALIAS", "TIMESTAMP_SECONDS", "VALUE", "QUALITY"]
+                }
+            }
+        }
+
+        result = create_buffered_ingestion_job(
+            job_name="my-buffered-ingestion-job",
+            job_role_arn="arn:aws:iam::123456789012:role/IoTSiteWiseRole",
+            files=files,
+            error_report_location=error_location,
+            job_configuration=job_config
+        )
+    """
+    # Call the general create_bulk_import_job function with adaptive_ingestion=True
+    return create_bulk_import_job(
+        job_name=job_name,
+        job_role_arn=job_role_arn,
+        files=files,
+        error_report_location=error_report_location,
+        job_configuration=job_configuration,
+        adaptive_ingestion=True,  # Always set to True for buffered ingestion
+        delete_files_after_import=delete_files_after_import,
+        region=region,
+    )
 
 
 @tool_metadata(readonly=False)
@@ -562,6 +868,201 @@ def batch_get_asset_property_aggregates(
 
 
 @tool_metadata(readonly=True)
+def list_bulk_import_jobs(
+    filter: Optional[str] = Field(
+        None,
+        description='Filter to apply to the list of bulk import jobs. Valid values: ALL, PENDING, RUNNING, CANCELLED, FAILED, COMPLETED_WITH_FAILURES, COMPLETED',
+    ),
+    next_token: Optional[str] = Field(
+        None, description='The token to be used for the next set of paginated results'
+    ),
+    max_results: int = Field(50, description='The maximum number of results to return (1-250)'),
+    region: str = Field('us-east-1', description='AWS region'),
+) -> Dict[str, Any]:
+    """List bulk import jobs in AWS IoT SiteWise.
+
+    This function retrieves a paginated list of bulk import job summaries with optional filtering
+    by job status. Each job summary includes basic information like job ID, name, status, and timestamps.
+
+    Args:
+        filter: Optional filter to apply to the list. Valid values:
+            - ALL: List all jobs (default)
+            - PENDING: Jobs waiting to start
+            - RUNNING: Jobs currently executing
+            - CANCELLED: Jobs that were cancelled
+            - FAILED: Jobs that failed
+            - COMPLETED_WITH_FAILURES: Jobs completed but with some failures
+            - COMPLETED: Jobs that completed successfully
+        next_token: Token for paginated results
+        max_results: Maximum number of results to return (1-250, default: 25)
+        region: AWS region (default: us-east-1)
+
+    Returns:
+        Dictionary containing:
+        - success: Boolean indicating operation success
+        - job_summaries: List of job summary objects
+        - next_token: Token for next page (if applicable)
+
+    Example:
+        # List all bulk import jobs
+        result = list_bulk_import_jobs()
+
+        # List only running jobs
+        result = list_bulk_import_jobs(filter="RUNNING")
+
+        # List with pagination
+        result = list_bulk_import_jobs(max_results=10, next_token="...")
+    """
+    try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+        if not isinstance(max_results, FieldInfo):
+            validate_max_results(max_results, min_val=1, max_val=250)
+
+        # Validate filter parameter
+        valid_filters = {
+            'ALL',
+            'PENDING',
+            'RUNNING',
+            'CANCELLED',
+            'FAILED',
+            'COMPLETED_WITH_FAILURES',
+            'COMPLETED',
+        }
+        if not isinstance(filter, FieldInfo) and filter and filter not in valid_filters:
+            raise ValidationError(
+                f'Invalid filter: {filter}. Must be one of: {", ".join(valid_filters)}'
+            )
+
+        client = create_sitewise_client(region)
+
+        params: Dict[str, Any] = {
+            'maxResults': max_results,
+        }
+
+        if filter:
+            params['filter'] = filter
+        if next_token:
+            params['nextToken'] = next_token
+
+        response = client.list_bulk_import_jobs(**params)
+
+        return {
+            'success': True,
+            'job_summaries': response.get('jobSummaries', []),
+            'next_token': response.get('nextToken', ''),
+        }
+
+    except ValidationError as e:
+        return {
+            'success': False,
+            'error': f'Validation error: {str(e)}',
+            'error_code': 'ValidationException',
+        }
+    except ClientError as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
+        }
+
+
+@tool_metadata(readonly=True)
+def describe_bulk_import_job(
+    job_id: str = Field(
+        ..., description='The ID of the bulk import job to describe (UUID format)'
+    ),
+    region: str = Field('us-east-1', description='AWS region'),
+) -> Dict[str, Any]:
+    """Get detailed information about a specific bulk import job in AWS IoT SiteWise.
+
+    This function retrieves comprehensive details about a bulk import job including its configuration,
+    status, progress, error information, and execution statistics.
+
+    Args:
+        job_id: The unique identifier of the bulk import job (UUID format)
+        region: AWS region (default: us-east-1)
+
+    Returns:
+        Dictionary containing:
+        - success: Boolean indicating operation success
+        - job_id: The job identifier
+        - job_name: The job name
+        - job_status: Current status of the job
+        - job_role_arn: IAM role ARN used by the job
+        - files: List of input files
+        - error_report_location: S3 location for error reports
+        - job_configuration: Job configuration details
+        - job_creation_date: When the job was created
+        - job_last_update_date: When the job was last updated
+        - adaptive_ingestion: Whether adaptive ingestion is enabled
+        - delete_files_after_import: Whether files are deleted after import
+        - Additional fields based on job status and execution
+
+    Example:
+        # Get details for a specific job
+        result = describe_bulk_import_job(
+            job_id="12345678-1234-1234-1234-123456789012"
+        )
+
+        if result['success']:
+            print(f"Job Status: {result['job_status']}")
+            print(f"Job Name: {result['job_name']}")
+    """
+    try:
+        # Validate parameters
+        if not isinstance(region, FieldInfo):
+            validate_region(region)
+
+        # Validate job_id format (should be UUID)
+        if not job_id or not isinstance(job_id, str):
+            raise ValidationError('Job ID must be a non-empty string')
+
+        # Basic UUID format validation (36 characters with hyphens)
+        if len(job_id) != 36 or job_id.count('-') != 4:
+            raise ValidationError(
+                'Job ID must be in UUID format (e.g., 12345678-1234-1234-1234-123456789012)'
+            )
+
+        client = create_sitewise_client(region)
+
+        params: Dict[str, Any] = {
+            'jobId': job_id,
+        }
+
+        response = client.describe_bulk_import_job(**params)
+
+        return {
+            'success': True,
+            'job_id': response.get('jobId'),
+            'job_name': response.get('jobName'),
+            'job_status': response.get('jobStatus'),
+            'job_role_arn': response.get('jobRoleArn'),
+            'files': response.get('files', []),
+            'error_report_location': response.get('errorReportLocation', {}),
+            'job_configuration': response.get('jobConfiguration', {}),
+            'job_creation_date': response.get('jobCreationDate'),
+            'job_last_update_date': response.get('jobLastUpdateDate'),
+            'adaptive_ingestion': response.get('adaptiveIngestion'),
+            'delete_files_after_import': response.get('deleteFilesAfterImport'),
+        }
+
+    except ValidationError as e:
+        return {
+            'success': False,
+            'error': f'Validation error: {str(e)}',
+            'error_code': 'ValidationException',
+        }
+    except ClientError as e:
+        return {
+            'success': False,
+            'error': str(e),
+            'error_code': e.response['Error']['Code'],
+        }
+
+
+@tool_metadata(readonly=True)
 def execute_query(
     query_statement: str = Field(
         ..., description='SQL query statement to execute against AWS IoT SiteWise data'
@@ -856,12 +1357,111 @@ def execute_query(
         }
 
 
+@tool_metadata(readonly=False)
+def create_bulk_import_iam_role(
+    role_name: str = Field(
+        'IoTSiteWiseBulkImportAssumableRole',
+        description='Name of bulk import permissions IAM role',
+    ),
+    data_bucket_names: List[str] = Field(..., description='S3 bucket names containing data files'),
+    error_bucket_name: str = Field(..., description='S3 bucket name for error reports'),
+    region: str = Field('us-east-1', description='AWS region'),
+) -> Dict[str, Any]:
+    """Create an IAM role for AWS IoT SiteWise bulk import jobs."""
+    try:
+        # Create IAM client
+        iam_client = create_iam_client(region)
+
+        # Trust policy allowing IoT SiteWise to assume the role
+        trust_policy = {
+            'Version': '2012-10-17',
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'iotsitewise.amazonaws.com'},
+                    'Action': 'sts:AssumeRole',
+                }
+            ],
+        }
+
+        # Create the IAM role
+        create_role_response = iam_client.create_role(
+            RoleName=role_name,
+            AssumeRolePolicyDocument=json.dumps(trust_policy),
+            Description='IAM role for IoT SiteWise bulk import jobs',
+        )
+
+        # Create policy for S3 permissions following AWS documentation
+        data_bucket_resources = []
+        for bucket in data_bucket_names:
+            data_bucket_resources.extend([f'arn:aws:s3:::{bucket}', f'arn:aws:s3:::{bucket}/*'])
+
+        policy_document = {
+            'Version': '2012-10-17',
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Action': ['s3:GetObject', 's3:GetBucketLocation'],
+                    'Resource': data_bucket_resources,
+                },
+                {
+                    'Effect': 'Allow',
+                    'Action': ['s3:PutObject', 's3:GetObject', 's3:GetBucketLocation'],
+                    'Resource': [
+                        f'arn:aws:s3:::{error_bucket_name}',
+                        f'arn:aws:s3:::{error_bucket_name}/*',
+                    ],
+                },
+            ],
+        }
+
+        # Attach inline policy to the role
+        iam_client.put_role_policy(
+            RoleName=role_name,
+            PolicyName=f'{role_name}Policy',
+            PolicyDocument=json.dumps(policy_document),
+        )
+
+        return {
+            'success': True,
+            'role_arn': create_role_response['Role']['Arn'],
+            'role_name': role_name,
+        }
+
+    except (ValidationError, ClientError) as e:
+        return {
+            'success': False,
+            'error': str(e),
+        }
+
+
+create_bulk_import_job_tool = Tool.from_function(
+    fn=create_bulk_import_job,
+    name='create_bulk_import_job',
+    description=(
+        'Create a bulk import job to ingest data from Amazon S3 to AWS IoT SiteWise. '
+        'Supports both historical data ingestion (adaptive_ingestion=False) and buffered '
+        'ingestion (adaptive_ingestion=True) for real-time processing of recent data. '
+        'Supports CSV and Parquet file formats with comprehensive validation and error handling.'
+    ),
+)
+
+create_buffered_ingestion_job_tool = Tool.from_function(
+    fn=create_buffered_ingestion_job,
+    name='create_buffered_ingestion_job',
+    description=(
+        'Create a buffered ingestion job to ingest data from Amazon S3 to AWS IoT SiteWise '
+        'with adaptive ingestion enabled for real-time processing of recent data (within 30 days). '
+        'This is a convenience function that automatically sets adaptive_ingestion=True. '
+        'Supports CSV and Parquet file formats with comprehensive validation and error handling.'
+    ),
+)
+
 batch_put_asset_property_value_tool = Tool.from_function(
     fn=batch_put_asset_property_value,
     name='batch_put_asset_property_value',
     description=('Send a list of asset property values to AWS IoT SiteWise for data ingestion.'),
 )
-
 
 get_asset_property_value_tool = Tool.from_function(
     fn=get_asset_property_value,
@@ -907,6 +1507,36 @@ batch_get_asset_property_aggregates_tool = Tool.from_function(
     fn=batch_get_asset_property_aggregates,
     name='batch_get_asset_property_aggregates',
     description=('Get aggregated values for multiple asset properties in AWS IoT SiteWise.'),
+)
+
+list_bulk_import_jobs_tool = Tool.from_function(
+    fn=list_bulk_import_jobs,
+    name='list_bulk_import_jobs',
+    description=(
+        'List bulk import jobs in AWS IoT SiteWise with optional filtering by status '
+        '(ALL, PENDING, RUNNING, CANCELLED, FAILED, COMPLETED_WITH_FAILURES, COMPLETED). '
+        'Returns paginated job summaries with basic information like job ID, name, status, and timestamps.'
+    ),
+)
+
+describe_bulk_import_job_tool = Tool.from_function(
+    fn=describe_bulk_import_job,
+    name='describe_bulk_import_job',
+    description=(
+        'Get detailed information about a specific bulk import job in AWS IoT SiteWise '
+        'including configuration, status, progress, error information, and execution statistics. '
+        'Requires the job ID in UUID format.'
+    ),
+)
+
+create_bulk_import_iam_role_tool = Tool.from_function(
+    fn=create_bulk_import_iam_role,
+    name='create_bulk_import_iam_role',
+    description=(
+        'Create an IAM role for AWS IoT SiteWise bulk import jobs with the necessary '
+        'S3 permissions and trust policy. Automatically configures read access to data '
+        'buckets and write access to error bucket for IoT SiteWise service.'
+    ),
 )
 
 execute_query_tool = Tool.from_function(

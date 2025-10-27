@@ -19,6 +19,7 @@ import pytest
 import sys
 from awslabs.aws_iot_sitewise_mcp_server.validation import (
     ValidationError,
+    check_storage_configuration_requirements,
     sanitize_string,
     validate_access_policy_permission,
     validate_aggregate_types,
@@ -43,6 +44,7 @@ from awslabs.aws_iot_sitewise_mcp_server.validation import (
     validate_timestamp,
 )
 from datetime import datetime
+from unittest.mock import Mock
 
 
 # Add the project root directory and its parent to Python path
@@ -469,6 +471,122 @@ class TestValidation:
 
         with pytest.raises(ValidationError, match='SQL injection'):
             validate_asset_model_properties(malicious_properties)
+
+    def test_check_storage_configuration_adaptive_ingestion_enabled(self):
+        """Test that validation passes when adaptive ingestion is enabled."""
+        mock_client = Mock()
+        # Should not call describe_storage_configuration when adaptive_ingestion=True
+        check_storage_configuration_requirements(mock_client, adaptive_ingestion=True)
+        mock_client.describe_storage_configuration.assert_not_called()
+
+    def test_check_storage_configuration_default_storage_with_warm_tier(self):
+        """Test validation passes with default storage and warm tier enabled."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.return_value = {
+            'storageType': 'SITEWISE_DEFAULT_STORAGE',
+            'warmTier': {'state': 'ENABLED'},
+        }
+
+        check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+        mock_client.describe_storage_configuration.assert_called_once()
+
+    def test_check_storage_configuration_default_storage_without_warm_tier(self):
+        """Test validation fails with default storage and no warm tier."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.return_value = {
+            'storageType': 'SITEWISE_DEFAULT_STORAGE',
+            'warmTier': {'state': 'DISABLED'},
+        }
+
+        with pytest.raises(
+            ValidationError,
+            match='either multi-layer storage must be configured or warm tier must be enabled',
+        ):
+            check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+
+    def test_check_storage_configuration_default_storage_no_warm_tier_key(self):
+        """Test validation fails with default storage and missing warm tier key."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.return_value = {
+            'storageType': 'SITEWISE_DEFAULT_STORAGE'
+        }
+
+        with pytest.raises(
+            ValidationError,
+            match='either multi-layer storage must be configured or warm tier must be enabled',
+        ):
+            check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+
+    def test_check_storage_configuration_multilayer_storage_valid(self):
+        """Test validation passes with properly configured multi-layer storage."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.return_value = {
+            'storageType': 'MULTI_LAYER_STORAGE',
+            'multiLayerStorage': {
+                'customerManagedS3Storage': {
+                    's3ResourceArn': 'arn:aws:s3:::my-bucket',
+                    'roleArn': 'arn:aws:iam::123456789012:role/MyRole',
+                }
+            },
+        }
+
+        check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+        mock_client.describe_storage_configuration.assert_called_once()
+
+    def test_check_storage_configuration_multilayer_storage_missing_s3(self):
+        """Test validation fails with multi-layer storage missing S3 config."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.return_value = {
+            'storageType': 'MULTI_LAYER_STORAGE',
+            'multiLayerStorage': {},
+        }
+
+        with pytest.raises(
+            ValidationError, match='customer managed S3 storage is not properly set up'
+        ):
+            check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+
+    def test_check_storage_configuration_multilayer_storage_no_multilayer_key(self):
+        """Test validation fails with multi-layer storage type but missing config."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.return_value = {
+            'storageType': 'MULTI_LAYER_STORAGE'
+        }
+
+        with pytest.raises(
+            ValidationError, match='customer managed S3 storage is not properly set up'
+        ):
+            check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+
+    def test_check_storage_configuration_unknown_storage_type(self):
+        """Test validation fails with unknown storage type."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.return_value = {
+            'storageType': 'UNKNOWN_STORAGE_TYPE'
+        }
+
+        with pytest.raises(ValidationError, match='Unknown storage type: UNKNOWN_STORAGE_TYPE'):
+            check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+
+    def test_check_storage_configuration_api_exception(self):
+        """Test validation handles API exceptions properly."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.side_effect = Exception('API Error')
+
+        with pytest.raises(
+            ValidationError, match='Failed to validate storage configuration: API Error'
+        ):
+            check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
+
+    def test_check_storage_configuration_validation_error_passthrough(self):
+        """Test that ValidationError exceptions are passed through unchanged."""
+        mock_client = Mock()
+        mock_client.describe_storage_configuration.side_effect = ValidationError(
+            'Custom validation error'
+        )
+
+        with pytest.raises(ValidationError, match='Custom validation error'):
+            check_storage_configuration_requirements(mock_client, adaptive_ingestion=False)
 
 
 if __name__ == '__main__':
