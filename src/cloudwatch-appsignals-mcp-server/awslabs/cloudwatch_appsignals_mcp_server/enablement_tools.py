@@ -35,8 +35,8 @@ async def get_enablement_guide(
     Args:
         platform: The deployment platform (ec2, ecs, lambda, eks)
         language: The programming language (python, nodejs, java, dotnet)
-        iac_directory: Path to the IaC directory (relative or absolute)
-        app_directory: Path to the application code directory (relative or absolute)
+        iac_directory: ABSOLUTE path to the IaC directory (e.g., /home/user/project/infrastructure)
+        app_directory: ABSOLUTE path to the application code directory (e.g., /home/user/project/app)
 
     Returns:
         Enablement guide with step-by-step instructions
@@ -57,31 +57,42 @@ async def get_enablement_guide(
     if language not in valid_languages:
         return f"Error: Invalid language '{language}'. Valid languages are: {', '.join(valid_languages)}"
 
-    def resolve_path(path_str: str) -> str:
-        """Resolve path to absolute, handling both relative and absolute paths."""
-        path = Path(path_str)
-        if path.is_absolute():
-            return str(path)
-        else:
-            return str(Path.cwd() / path)
+    # Validate that paths are absolute
+    iac_path = Path(iac_directory)
+    app_path = Path(app_directory)
 
-    iac_full_path = resolve_path(iac_directory)
-    app_full_path = resolve_path(app_directory)
-
-    logger.debug(f'Resolved IaC path: {iac_full_path}')
-    logger.debug(f'Resolved app path: {app_full_path}')
-
-    if not Path(iac_full_path).exists():
+    if not iac_path.is_absolute():
         error_msg = (
-            f'Error: IaC directory does not exist: {iac_full_path}\n\n'
+            f'Error: iac_directory must be an absolute path.\n\n'
+            f'Received: {iac_directory}\n'
+            f'Please provide an absolute path (e.g., /home/user/project/infrastructure)'
+        )
+        logger.error(error_msg)
+        return error_msg
+
+    if not app_path.is_absolute():
+        error_msg = (
+            f'Error: app_directory must be an absolute path.\n\n'
+            f'Received: {app_directory}\n'
+            f'Please provide an absolute path (e.g., /home/user/project/app)'
+        )
+        logger.error(error_msg)
+        return error_msg
+
+    logger.debug(f'IaC path: {iac_path}')
+    logger.debug(f'App path: {app_path}')
+
+    if not iac_path.exists():
+        error_msg = (
+            f'Error: IaC directory does not exist: {iac_path}\n\n'
             f'Please provide a valid path to your infrastructure code directory.'
         )
         logger.error(error_msg)
         return error_msg
 
-    if not Path(app_full_path).exists():
+    if not app_path.exists():
         error_msg = (
-            f'Error: Application directory does not exist: {app_full_path}\n\n'
+            f'Error: Application directory does not exist: {app_path}\n\n'
             f'Please provide a valid path to your application code directory.'
         )
         logger.error(error_msg)
@@ -112,8 +123,8 @@ async def get_enablement_guide(
 
         **Platform:** {platform}
         **Language:** {language}
-        **IaC Directory (absolute path):** `{iac_full_path}`
-        **Application Directory (absolute path):** `{app_full_path}`
+        **IaC Directory (absolute path):** `{iac_path}`
+        **Application Directory (absolute path):** `{app_path}`
 
         ## Instructions
 

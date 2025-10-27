@@ -143,20 +143,30 @@ class TestGetEnablementGuide:
             assert 'Error: Invalid language' not in result
 
     @pytest.mark.asyncio
-    async def test_relative_path_resolution(self, temp_directories, monkeypatch):
-        """Test that relative paths are resolved correctly."""
-        base_dir = Path(temp_directories['iac']).parent.parent
-        monkeypatch.chdir(base_dir)
-
+    async def test_relative_path_rejected(self, temp_directories):
+        """Test that relative paths are rejected with clear error message."""
         result = await get_enablement_guide(
             platform='ec2',
             language='python',
             iac_directory='infrastructure/cdk',
+            app_directory=temp_directories['app'],
+        )
+
+        assert 'Error: iac_directory must be an absolute path' in result
+        assert 'infrastructure/cdk' in result
+
+    @pytest.mark.asyncio
+    async def test_relative_app_directory_rejected(self, temp_directories):
+        """Test that relative app directory is rejected with clear error message."""
+        result = await get_enablement_guide(
+            platform='ec2',
+            language='python',
+            iac_directory=temp_directories['iac'],
             app_directory='app/src',
         )
 
-        assert '# Application Signals Enablement Guide' in result
-        assert str(base_dir) in result
+        assert 'Error: app_directory must be an absolute path' in result
+        assert 'app/src' in result
 
     @pytest.mark.asyncio
     async def test_absolute_path_handling(self, temp_directories):
