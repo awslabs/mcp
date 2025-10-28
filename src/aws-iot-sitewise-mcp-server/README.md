@@ -30,6 +30,15 @@ A comprehensive MCP (Model Context Protocol) server that provides full AWS IoT S
 - **Time Series Management**: Associate and manage time series data streams
 - **Edge Computing**: Support for local data processing and intermittent connectivity
 
+#### 📦 Bulk Operations & Metadata Transfer
+
+- **Bulk Export**: Export ALL IoT SiteWise resources (asset models, assets, etc.) in one operation using metadata transfer jobs
+- **Bulk Import Schema**: Create and validate structured schemas for bulk asset/model imports
+- **Metadata Transfer Jobs**: Manage large-scale data migration between S3 and IoT SiteWise
+- **Job Monitoring**: Track progress and status of bulk operations
+- **Multi-Source Support**: Transfer data between S3 buckets and IoT SiteWise
+- **Schema Validation**: Ensure data integrity with comprehensive validation before import
+
 #### 🔒 Security & Configuration
 
 - **Access Policies**: Fine-grained access control for users and resources
@@ -72,17 +81,19 @@ Step-by-step guidance for setting up data ingestion:
 
 ```bash
 # Install UV if you don't have it yet
-curl -sSf https://astral.sh/uv/install | sh
+curl -sSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
 git clone https://github.com/awslabs/mcp.git
-cd src/aws-iot-sitewise-mcp-server
+cd mcp/src/aws-iot-sitewise-mcp-server
 
 # Install as a uv tool (this makes it available globally via uvx)
 uv tool install .
 
 # The server is now available globally via uvx
 uvx awslabs.aws-iot-sitewise-mcp-server
+# use @latest flag for automatically pull updates on server
+uvx awslabs.aws-iot-sitewise-mcp-server@latest
 
 # Note: The server runs silently, waiting for MCP client connections.
 # You'll need to configure an MCP client to connect to it.
@@ -96,7 +107,7 @@ pip install aws-iot-sitewise-mcp
 
 # Or install from source
 git clone https://github.com/awslabs/mcp.git
-cd src/aws-iot-sitewise-mcp-server
+cd mcp/src/aws-iot-sitewise-mcp-server
 pip install .
 
 # Run the server
@@ -105,7 +116,10 @@ python -m awslabs.aws_iot_sitewise_mcp_server.server
 
 ### AWS Configuration
 
-Configure AWS credentials using any of these methods:
+Configure AWS credentials with permissions for:
+- AWS IoT SiteWise (full access for write operations)
+- AWS IoT TwinMaker (for metadata transfer operations)
+- Amazon S3 (for bulk import/export operations)
 
 ```bash
 # AWS CLI (recommended)
@@ -133,7 +147,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server@latest"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -152,7 +166,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server@latest"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -215,7 +229,7 @@ Configure in your workspace or global settings:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server@latest"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -234,7 +248,7 @@ Configure in your workspace or global settings:
   "mcpServers": {
     "aws-iot-sitewise": {
       "command": "uvx",
-      "args": ["awslabs.aws-iot-sitewise-mcp-server"],
+      "args": ["awslabs.aws-iot-sitewise-mcp-server@latest"],
       "env": {
         "AWS_REGION": "us-west-2",
         "AWS_PROFILE": "your-profile-name",
@@ -331,6 +345,11 @@ Configure in your workspace or global settings:
 | `batch_get_asset_property_value` | Bulk current value retrieval |
 | `batch_get_asset_property_value_hist` | Bulk historical data |
 | `batch_get_asset_property_aggregates` | Bulk aggregations |
+| `create_bulk_import_job` | Create bulk import jobs for bulk data ingestion |
+| `create_buffered_ingestion_job` | Create buffered ingestion jobs |
+| `create_bulk_import_iam_role` | Create IAM roles for bulk import operations |
+| `list_bulk_import_jobs` | List bulk import jobs |
+| `describe_bulk_import_job` | Retrieve bulk import job information |
 | `execute_query` | Execute SQL-like queries for advanced analytics |
 
 ### Gateway & Time Series Tools
@@ -349,6 +368,16 @@ Configure in your workspace or global settings:
 | `link_time_series_asset_property` | Link data streams |
 | `unlink_time_series_asset_property` | Unlink streams |
 | `delete_time_series` | Remove time series |
+
+### Metadata Transfer & Bulk Import Tools
+
+| Tool Name | Description |
+|-----------|-------------|
+| `create_bulk_import_schema` | Construct and validate bulk import schemas for asset models and assets |
+| `create_metadata_transfer_job` | **🚀 PRIMARY TOOL for bulk export/import operations** - Use this for exporting all resources |
+| `cancel_metadata_transfer_job` | Cancel running metadata transfer jobs |
+| `get_metadata_transfer_job` | Get detailed information about metadata transfer jobs |
+| `list_metadata_transfer_jobs` | List metadata transfer jobs with filtering options |
 
 ### Access Control & Configuration Tools
 
@@ -391,6 +420,14 @@ Step-by-step guidance for setting up industrial data ingestion with best practic
 ```
 
 Comprehensive guidance for exploring IoT data using the executeQuery API with SQL-like analytics capabilities.
+
+### Bulk Import Workflow
+
+```example
+/prompts get bulk_import_workflow_helper_prompt
+```
+
+Step-by-step guidance for setting up bulk data import from S3, including CSV validation, IAM role creation, job configuration, and monitoring.
 
 ## Usage Examples
 
@@ -623,6 +660,18 @@ The implementation is validated against:
    - Verify property aliases and IDs
    - Check timestamp formats
    - Validate data types and ranges
+
+4. **Metadata Transfer Issues**
+   - Verify IoT TwinMaker service permissions
+   - Check S3 bucket access for source/destination operations
+   - Validate bulk import schema format
+   - Monitor job status for detailed error messages
+
+5. **Bulk Import Schema Errors**
+   - Ensure asset model external IDs are unique
+   - Verify property data types match requirements
+   - Check hierarchy references are valid
+   - Use create_bulk_import_schema tool for validation
 
 ### Getting Help
 
