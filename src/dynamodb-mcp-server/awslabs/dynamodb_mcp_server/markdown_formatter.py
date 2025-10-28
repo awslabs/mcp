@@ -186,13 +186,8 @@ class MarkdownFormatter:
                     f.write(content)
                 logger.info(f'Successfully generated file: {file_path}')
                 return file_path
-            except IOError as e:
-                error_msg = f'Failed to write file {file_path}: {str(e)}'
-                logger.error(error_msg)
-                self.errors.append((query_name, error_msg))
-                return ''
             except OSError as e:
-                error_msg = f'OS error writing file {file_path}: {str(e)}'
+                error_msg = f'Failed to write file {file_path}: {str(e)}'
                 logger.error(error_msg)
                 self.errors.append((query_name, error_msg))
                 return ''
@@ -251,13 +246,8 @@ class MarkdownFormatter:
                     f.write(content)
                 logger.info(f'Successfully generated skipped query file: {file_path}')
                 return file_path
-            except IOError as e:
-                error_msg = f'Failed to write skipped query file {file_path}: {str(e)}'
-                logger.error(error_msg)
-                self.errors.append((query_name, error_msg))
-                return ''
             except OSError as e:
-                error_msg = f'OS error writing skipped query file {file_path}: {str(e)}'
+                error_msg = f'Failed to write skipped query file {file_path}: {str(e)}'
                 logger.error(error_msg)
                 self.errors.append((query_name, error_msg))
                 return ''
@@ -418,12 +408,8 @@ class MarkdownFormatter:
                 with open(manifest_path, 'w', encoding='utf-8') as f:
                     f.write(content)
                 logger.info(f'Successfully generated manifest file: {manifest_path}')
-            except IOError as e:
-                error_msg = f'Failed to write manifest file {manifest_path}: {str(e)}'
-                logger.error(error_msg)
-                self.errors.append(('manifest', error_msg))
             except OSError as e:
-                error_msg = f'OS error writing manifest file {manifest_path}: {str(e)}'
+                error_msg = f'Failed to write manifest file {manifest_path}: {str(e)}'
                 logger.error(error_msg)
                 self.errors.append(('manifest', error_msg))
 

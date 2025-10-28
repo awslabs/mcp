@@ -210,6 +210,70 @@ def test_format_as_markdown_table_empty_data(tmp_path, sample_metadata):
     assert table == 'No data returned'
 
 
+def test_format_as_markdown_table_none_data(tmp_path, sample_metadata):
+    """Test markdown table formatting with None data."""
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(None)
+
+    # None is caught by the "if not data:" check first
+    assert table == 'No data returned'
+
+
+def test_format_as_markdown_table_invalid_type(tmp_path, sample_metadata):
+    """Test markdown table formatting with invalid data type."""
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table('not a list')
+
+    assert 'Error: Invalid data format' in table
+
+
+def test_format_as_markdown_table_non_dict_row(tmp_path, sample_metadata):
+    """Test markdown table formatting with non-dict row."""
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(['not a dict'])
+
+    assert 'Error: Invalid data structure' in table
+
+
+def test_format_as_markdown_table_empty_dict_row(tmp_path, sample_metadata):
+    """Test markdown table formatting with empty dict as first row."""
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table([{}])
+
+    assert 'No columns available' in table
+
+
+def test_format_as_markdown_table_mixed_row_types(tmp_path, sample_metadata):
+    """Test markdown table formatting with mixed row types (skips invalid rows)."""
+    data = [
+        {'col1': 'value1', 'col2': 'value2'},
+        'invalid row',  # This should be skipped
+        {'col1': 'value3', 'col2': 'value4'},
+    ]
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(data)
+
+    # Should still generate table with valid rows
+    assert '| col1 | col2 |' in table
+    assert '| value1 | value2 |' in table
+    assert '| value3 | value4 |' in table
+
+
+def test_format_as_markdown_table_all_invalid_rows(tmp_path, sample_metadata):
+    """Test markdown table formatting when all rows are invalid after first."""
+    data = [
+        {'col1': 'value1'},
+        'invalid',
+        'also invalid',
+    ]
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(data)
+
+    # Should still generate table with the one valid row
+    assert '| col1 |' in table
+    assert '| value1 |' in table
+
+
 def test_format_as_markdown_table_escapes_pipes(tmp_path, sample_metadata):
     """Test markdown table formatting escapes pipe characters."""
     data = [
@@ -387,3 +451,140 @@ def test_file_registry_tracking(tmp_path, sample_results, sample_metadata):
     # File registry should match generated files
     assert len(formatter.file_registry) == len(generated_files)
     assert all(os.path.exists(f) for f in formatter.file_registry)
+
+
+
+def test_generate_query_file_write_error(tmp_path, sample_metadata, monkeypatch):
+    """Test handling of file write errors."""
+    import builtins
+
+    original_open = builtins.open
+
+    def mock_open_error(*args, **kwargs):
+        if 'test_query.md' in str(args[0]) and 'w' in args[1]:
+            raise OSError('Permission denied')
+        return original_open(*args, **kwargs)
+
+    monkeypatch.setattr('builtins.open', mock_open_error)
+
+    query_result = {
+        'description': 'Test query',
+        'data': [{'col1': 'value1'}],
+    }
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    file_path = formatter._generate_query_file('test_query', query_result)
+
+    # Should return empty string on error
+    assert file_path == ''
+    # Should track error
+    assert len(formatter.errors) == 1
+    assert formatter.errors[0][0] == 'test_query'
+
+
+def test_generate_skipped_query_file_write_error(tmp_path, sample_metadata, monkeypatch):
+    """Test handling of file write errors for skipped queries."""
+    import builtins
+
+    original_open = builtins.open
+
+    def mock_open_error(*args, **kwargs):
+        if 'skipped_query.md' in str(args[0]) and 'w' in args[1]:
+            raise OSError('Disk full')
+        return original_open(*args, **kwargs)
+
+    monkeypatch.setattr('builtins.open', mock_open_error)
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    file_path = formatter._generate_skipped_query_file('skipped_query', 'Test reason')
+
+    # Should return empty string on error
+    assert file_path == ''
+    # Should track error
+    assert len(formatter.errors) == 1
+    assert formatter.errors[0][0] == 'skipped_query'
+
+
+def test_generate_manifest_write_error(tmp_path, sample_results, sample_metadata, monkeypatch):
+    """Test handling of manifest file write errors."""
+    import builtins
+
+    original_open = builtins.open
+
+    def mock_open_error(*args, **kwargs):
+        if 'manifest.md' in str(args[0]) and 'w' in args[1]:
+            raise OSError('Cannot write manifest')
+        return original_open(*args, **kwargs)
+
+    monkeypatch.setattr('builtins.open', mock_open_error)
+
+    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+    generated_files, errors = formatter.generate_all_files()
+
+    # Should track manifest error
+    manifest_errors = [e for e in formatter.errors if e[0] == 'manifest']
+    assert len(manifest_errors) == 1
+
+
+def test_generate_all_files_directory_creation_error(sample_results, sample_metadata, monkeypatch):
+    """Test handling of directory creation errors."""
+    import os as os_module
+
+    def mock_makedirs_error(*args, **kwargs):
+        raise OSError('Cannot create directory')
+
+    monkeypatch.setattr(os_module, 'makedirs', mock_makedirs_error)
+
+    formatter = MarkdownFormatter(sample_results, sample_metadata, '/invalid/path')
+    generated_files, errors = formatter.generate_all_files()
+
+    # Should return empty list and track error
+    assert len(generated_files) == 0
+    assert len(errors) > 0
+    assert any('directory_creation' in str(e[0]) for e in errors)
+
+
+def test_format_as_markdown_table_row_formatting_error(tmp_path, sample_metadata):
+    """Test handling of row formatting errors."""
+
+    class BadValue:
+        """A class that raises an error when converted to string."""
+
+        def __str__(self):
+            raise ValueError('Cannot convert to string')
+
+    data = [
+        {'col1': 'good_value', 'col2': BadValue()},
+        {'col1': 'another_good', 'col2': 'also_good'},
+    ]
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(data)
+
+    # Should skip the bad row and continue with good rows
+    assert '| col1 | col2 |' in table
+    assert '| another_good | also_good |' in table
+
+
+def test_generate_query_file_invalid_result_structure(tmp_path, sample_metadata):
+    """Test handling of invalid query result structure."""
+    # Missing 'data' key
+    query_result = {
+        'description': 'Test query',
+        # 'data' key is missing
+    }
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    file_path = formatter._generate_query_file('test_query', query_result)
+
+    # Should still generate file with empty data
+    assert file_path != ''
+    assert os.path.exists(file_path)
+
+    with open(file_path, 'r') as f:
+        content = f.read()
+        assert 'No data returned' in content or '**Total Rows**: 0' in content
+
+
+
+
