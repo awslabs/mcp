@@ -10,10 +10,16 @@ while true; do
     echo "[$(date '+%H:%M:%S')] Generating traffic..."
 
     # Health check
-    curl -s "${BASE_URL}/health" > /dev/null
+    curl -sf "${BASE_URL}/health" > /dev/null
+    if [ $? -ne 0 ]; then
+        echo "[$(date '+%H:%M:%S')] ERROR: Health check failed!"
+    fi
 
     # API call (S3 buckets)
-    curl -s "${BASE_URL}/api/buckets" > /dev/null
+    curl -sf "${BASE_URL}/api/buckets" > /dev/null
+    if [ $? -ne 0 ]; then
+        echo "[$(date '+%H:%M:%S')] ERROR: API call to /api/buckets failed!"
+    fi
 
     # Sleep between requests
     sleep 2
