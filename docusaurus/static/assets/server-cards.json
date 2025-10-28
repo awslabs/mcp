@@ -976,9 +976,9 @@
       "category": "Cost & Operations",
       "description": "AWS Billing and Cost Management",
       "icon": "\ud83d\udcb0",
-      "id": "billing_cost_management_mcp_server",
+      "id": "billing-cost-management-mcp-server",
       "name": "AWS Billing and Cost Management MCP Server",
-      "source_path": "src/billing_cost_management_mcp_server/",
+      "source_path": "src/billing-cost-management-mcp-server/",
       "subcategory": "Cost Management",
       "tags": [
         "billing",
