@@ -18,6 +18,11 @@ const configFiles = fs.readdirSync(configDir).filter(f => f.endsWith('.json'));
 
 // Create a stack for each config
 configFiles.forEach(configFile => {
+  // Validate config file name to prevent path traversal
+  if (configFile.includes('..') || configFile.includes('/') || configFile.includes('\\')) {
+    throw new Error(`Invalid config file name: ${configFile}`);
+  }
+
   const configPath = path.join(configDir, configFile);
   const config: AppConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 

@@ -1,9 +1,9 @@
 {
+  "appDirectory": "../../../sample-apps/java/springboot",
   "appName": "java-springboot-cdk",
+  "healthCheckPath": "/health",
   "imageName": "java-springboot",
   "language": "java",
   "port": 8080,
-  "appDirectory": "../../../sample-apps/java/springboot",
-  "healthCheckPath": "/health",
   "serviceName": "java-springboot-cdk"
 }
