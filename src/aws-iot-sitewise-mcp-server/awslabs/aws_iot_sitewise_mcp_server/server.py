@@ -86,6 +86,13 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways import (
     update_gateway_capability_configuration_tool,
     update_gateway_tool,
 )
+from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_metadata_transfer import (
+    cancel_metadata_transfer_job_tool,
+    create_bulk_import_schema_tool,
+    create_metadata_transfer_job_tool,
+    get_metadata_transfer_job_tool,
+    list_metadata_transfer_jobs_tool,
+)
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools import Tool
 from typing import Any, Dict
@@ -158,6 +165,11 @@ all_tools = [
     put_logging_options_tool,
     describe_storage_configuration_tool,
     put_storage_configuration_tool,
+    create_bulk_import_schema_tool,
+    create_metadata_transfer_job_tool,
+    cancel_metadata_transfer_job_tool,
+    get_metadata_transfer_job_tool,
+    list_metadata_transfer_jobs_tool,
 ]
 
 

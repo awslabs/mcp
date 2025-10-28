@@ -15,7 +15,11 @@
 """Unit tests for client.py module."""
 
 import unittest
-from awslabs.aws_iot_sitewise_mcp_server.client import create_iam_client, create_sitewise_client
+from awslabs.aws_iot_sitewise_mcp_server.client import (
+    create_iam_client,
+    create_sitewise_client,
+    create_twinmaker_client,
+)
 from unittest.mock import Mock, patch
 
 
@@ -80,6 +84,36 @@ class TestClient(unittest.TestCase):
         args, kwargs = mock_boto_client.call_args
         self.assertEqual(args[0], 'iam')
         self.assertEqual(kwargs['region_name'], 'eu-west-1')
+        self.assertEqual(result, mock_client)
+
+    @patch('awslabs.aws_iot_sitewise_mcp_server.client.boto3.client')
+    def test_create_twinmaker_client_default_region(self, mock_boto_client):
+        """Test creating TwinMaker client with default region."""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+
+        result = create_twinmaker_client()
+
+        mock_boto_client.assert_called_once()
+        args, kwargs = mock_boto_client.call_args
+        self.assertEqual(args[0], 'iottwinmaker')
+        self.assertEqual(kwargs['region_name'], 'us-east-1')
+        self.assertIn('config', kwargs)
+        self.assertIn('awslabs/mcp/aws-iot-sitewise-mcp-server', kwargs['config'].user_agent_extra)
+        self.assertEqual(result, mock_client)
+
+    @patch('awslabs.aws_iot_sitewise_mcp_server.client.boto3.client')
+    def test_create_twinmaker_client_custom_region(self, mock_boto_client):
+        """Test creating TwinMaker client with custom region."""
+        mock_client = Mock()
+        mock_boto_client.return_value = mock_client
+
+        result = create_twinmaker_client('ap-southeast-1')
+
+        mock_boto_client.assert_called_once()
+        args, kwargs = mock_boto_client.call_args
+        self.assertEqual(args[0], 'iottwinmaker')
+        self.assertEqual(kwargs['region_name'], 'ap-southeast-1')
         self.assertEqual(result, mock_client)
 
 
