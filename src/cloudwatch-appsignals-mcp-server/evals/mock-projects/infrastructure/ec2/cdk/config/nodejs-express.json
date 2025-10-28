@@ -1,0 +1,9 @@
+{
+  "appName": "nodejs-express-cdk",
+  "imageName": "nodejs-express",
+  "language": "nodejs",
+  "port": 3000,
+  "appDirectory": "../../../sample-apps/nodejs/express",
+  "healthCheckPath": "/health",
+  "serviceName": "nodejs-express-cdk"
+}
