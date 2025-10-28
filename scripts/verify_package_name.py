@@ -219,6 +219,7 @@ def find_package_references_in_readme(
         if '@' in ref and '.' not in ref:
             # Extract the part before @
             prefix = ref.split('@')[0].lower()
+            # Different scenarios where the prefix is not a package name
             if prefix in ['asset', 'model', 'property', 'hierarchy']:
                 continue
         filtered_references.append((ref, line_num))
