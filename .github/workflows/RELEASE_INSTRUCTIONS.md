@@ -98,7 +98,7 @@ flowchart TD
 
     G --> H{👤 PR merged<br/>to main?}
     H -->|No| I(("⏳ Wait for PR review<br />or PR <b>Closed</b>"))
-
+    H -->|Other PR Merged| V((❌ Close the release))
 
     H -->|Yes| J["🏷️ <a href="https://github.com/awslabs/mcp/actions/workflows/release-merge-tag.yml">Release Merged</a><br/>Create & push signed tag<br/><i>YYYY.MM.YYYYMMDDHHIISS</i>"]
 
