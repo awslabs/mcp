@@ -453,7 +453,6 @@ def test_file_registry_tracking(tmp_path, sample_results, sample_metadata):
     assert all(os.path.exists(f) for f in formatter.file_registry)
 
 
-
 def test_generate_query_file_write_error(tmp_path, sample_metadata, monkeypatch):
     """Test handling of file write errors."""
     import builtins
@@ -586,5 +585,77 @@ def test_generate_query_file_invalid_result_structure(tmp_path, sample_metadata)
         assert 'No data returned' in content or '**Total Rows**: 0' in content
 
 
+def test_generate_query_file_unexpected_exception(tmp_path, sample_metadata, monkeypatch):
+    """Test handling of unexpected exceptions in _generate_query_file."""
+
+    # Mock datetime to raise an exception
+    def mock_now_error():
+        raise RuntimeError('Datetime error')
+
+    import awslabs.dynamodb_mcp_server.markdown_formatter as mf_module
+
+    class MockDateTime:
+        @staticmethod
+        def now():
+            raise RuntimeError('Datetime error')
+
+    monkeypatch.setattr(mf_module, 'datetime', MockDateTime)
+
+    query_result = {
+        'description': 'Test query',
+        'data': [{'col1': 'value1'}],
+    }
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    file_path = formatter._generate_query_file('test_query', query_result)
+
+    # Should return empty string and track error
+    assert file_path == ''
+    assert len(formatter.errors) == 1
+    assert 'test_query' in formatter.errors[0][0]
+    assert 'Unexpected error' in formatter.errors[0][1]
 
 
+def test_generate_skipped_query_file_unexpected_exception(tmp_path, sample_metadata, monkeypatch):
+    """Test handling of unexpected exceptions in _generate_skipped_query_file."""
+    import awslabs.dynamodb_mcp_server.markdown_formatter as mf_module
+
+    class MockDateTime:
+        @staticmethod
+        def now():
+            raise RuntimeError('Datetime error in skipped file')
+
+    monkeypatch.setattr(mf_module, 'datetime', MockDateTime)
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    file_path = formatter._generate_skipped_query_file('skipped_query', 'Test reason')
+
+    # Should return empty string and track error
+    assert file_path == ''
+    assert len(formatter.errors) == 1
+    assert 'skipped_query' in formatter.errors[0][0]
+    assert 'Unexpected error' in formatter.errors[0][1]
+
+
+def test_generate_manifest_unexpected_exception(
+    tmp_path, sample_results, sample_metadata, monkeypatch
+):
+    """Test handling of unexpected exceptions in _generate_manifest."""
+    import awslabs.dynamodb_mcp_server.markdown_formatter as mf_module
+
+    class MockDateTime:
+        @staticmethod
+        def now():
+            raise RuntimeError('Datetime error in manifest')
+
+    monkeypatch.setattr(mf_module, 'datetime', MockDateTime)
+
+    formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
+
+    # Call _generate_manifest directly
+    formatter._generate_manifest()
+
+    # Should track error
+    manifest_errors = [e for e in formatter.errors if e[0] == 'manifest']
+    assert len(manifest_errors) == 1
+    assert 'Unexpected error' in manifest_errors[0][1]

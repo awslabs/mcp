@@ -489,3 +489,116 @@ async def test_analyze_performance_enabled():
     ):
         result = await MySQLAnalyzer.analyze(connection_params)
         assert result['performance_enabled']
+
+
+def test_build_connection_params_unsupported_database():
+    """Test build_connection_params with unsupported database type."""
+    with pytest.raises(ValueError, match='Unsupported database type: postgresql'):
+        DatabaseAnalyzer.build_connection_params(
+            'postgresql',
+            database_name='test_db',
+            output_dir='/tmp',
+        )
+
+
+def test_validate_connection_params_all_valid():
+    """Test validate_connection_params when all params are valid."""
+    connection_params = {
+        'cluster_arn': 'test-cluster',
+        'secret_arn': 'test-secret',
+        'database': 'test-db',
+        'region': 'us-east-1',
+        'output_dir': '/tmp',
+    }
+
+    missing_params, param_descriptions = DatabaseAnalyzer.validate_connection_params(
+        'mysql', connection_params
+    )
+
+    # Should return empty list when all params are valid
+    assert missing_params == []
+    # param_descriptions is always returned with all possible params
+    assert isinstance(param_descriptions, dict)
+    assert len(param_descriptions) > 0
+
+
+def test_save_analysis_files_with_generation_errors(tmp_path, monkeypatch):
+    """Test save_analysis_files when there are generation errors."""
+
+    # Mock datetime to control timestamp
+    class MockDateTime:
+        @staticmethod
+        def now():
+            class MockNow:
+                def strftime(self, fmt):
+                    return '20231009_120000'
+
+            return MockNow()
+
+    monkeypatch.setattr('awslabs.dynamodb_mcp_server.database_analyzers.datetime', MockDateTime)
+
+    # Mock MarkdownFormatter to return errors
+    class MockFormatter:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def generate_all_files(self):
+            # Return files and errors
+            return ['/tmp/file1.md'], [
+                ('query1', 'Error message 1'),
+                ('query2', 'Error message 2'),
+            ]
+
+    monkeypatch.setattr(
+        'awslabs.dynamodb_mcp_server.database_analyzers.MarkdownFormatter', MockFormatter
+    )
+
+    results = {
+        'comprehensive_table_analysis': {
+            'data': [{'table': 'users', 'rows': 100}],
+            'description': 'Table analysis',
+        },
+    }
+
+    saved_files, save_errors = DatabaseAnalyzer.save_analysis_files(
+        results, 'mysql', 'test_db', 30, 500, str(tmp_path), True, []
+    )
+
+    # Should have files and formatted error messages
+    assert len(saved_files) == 1
+    assert len(save_errors) == 2
+    assert 'query1: Error message 1' in save_errors
+    assert 'query2: Error message 2' in save_errors
+
+
+def test_filter_pattern_data_with_ddl_statements():
+    """Test filter_pattern_data filters out DDL statements."""
+    data = [
+        {'DIGEST_TEXT': 'SELECT * FROM users', 'COUNT_STAR': 100},
+        {'DIGEST_TEXT': 'CREATE TABLE test', 'COUNT_STAR': 1},  # Should be filtered
+        {'DIGEST_TEXT': 'DROP TABLE old', 'COUNT_STAR': 1},  # Should be filtered
+        {'DIGEST_TEXT': 'ALTER TABLE users', 'COUNT_STAR': 1},  # Should be filtered
+        {'DIGEST_TEXT': 'INSERT INTO users', 'COUNT_STAR': 50},
+    ]
+
+    filtered = DatabaseAnalyzer.filter_pattern_data(data, 30)
+
+    # Should only have SELECT and INSERT
+    assert len(filtered) == 2
+    assert filtered[0]['DIGEST_TEXT'] == 'SELECT * FROM users'
+    assert filtered[1]['DIGEST_TEXT'] == 'INSERT INTO users'
+
+
+def test_validate_connection_params_unsupported_type():
+    """Test validate_connection_params with unsupported database type."""
+    connection_params = {
+        'some_param': 'value',
+    }
+
+    missing_params, param_descriptions = DatabaseAnalyzer.validate_connection_params(
+        'postgresql', connection_params
+    )
+
+    # Should return empty lists for unsupported type
+    assert missing_params == []
+    assert param_descriptions == {}
