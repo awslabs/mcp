@@ -483,6 +483,69 @@ Retrieve the schema definition for the specified schema version.
 - `schema_name` (required): Name of schema to retrieve (e.g., "aws.s3@ObjectCreated" for S3 events)
 - `schema_version`: Version number of schema (latest by default)
 
+### ESM Guidance Tools
+
+#### esm_guidance
+Provides step-by-step guidance for setting up Event Source Mappings.
+
+**Parameters:**
+- `event_source` (required): Event source type ("dynamodb", "kinesis", "kafka", "unspecified") - default: "unspecified"
+
+#### esm_msk_policy
+Generates IAM policy template for MSK cluster access.
+
+**Parameters:**
+- `region` (required): AWS region (e.g., "us-east-1")
+- `account` (required): AWS account ID
+- `cluster_name` (required): MSK cluster name
+- `cluster_uuid`: MSK cluster UUID - default: "*"
+- `partition`: AWS partition - default: "aws"
+
+#### esm_msk_security_group
+Generates SAM template with security group rules for MSK.
+
+**Parameters:**
+- `security_group_id` (required): Security group ID for MSK cluster
+
+#### esm_deployment_precheck
+Confirms ESM deployment when deploy intent is detected in prompt and validates SAM template existence.
+
+**Parameters:**
+- prompt (required): User prompt to check for deploy intent
+- project_directory (required): Path to SAM project directory
+
+### ESM Diagnosis Tools
+
+#### esm_kafka_diagnosis
+Diagnoses timeout issues in Kafka Event Source Mappings.
+
+**Parameters:**
+- None (provides comprehensive diagnostic indicators)
+
+#### esm_kafka_resolution
+Provides targeted resolutions for Kafka ESM timeout issues.
+
+**Parameters:**
+- `issue_type`: Type of timeout issue ("pre-broker-timeout", "post-broker-timeout", "lambda-unreachable", "on-failure-destination-unreachable", "sts-unreachable", "others") - default: "others"
+
+### ESM Configuration Optimization Tools
+
+#### esm_get_config_tradeoff
+Analyze configuration trade-offs for optimization targets.
+
+**Parameters:**
+- `optimization_targets` (required): List of optimization goals (failure_rate, latency, throughput, cost)
+
+#### esm_validate_configs
+Validate ESM configurations against AWS limits and best practices.
+
+**Parameters:**
+- `uuid`: ESM UUID to validate - default: None
+- `event_source_arn`: Event source ARN - default: None
+- `function_name`: Lambda function name - default: None
+- `proposed_configs`: Configuration parameters to validate - default: None
+
+
 ## Example usage
 
 ### Creating a Lambda Function with SAM
@@ -522,6 +585,46 @@ This prompt would trigger the AI assistant to:
 2. Retrieve complete schema definition using describe_schema
 3. Generate type-safe handler code based on schema structure
 4. Implement validation for required fields
+
+### 🏗️ Initial ESM Setup
+
+Example user prompt:
+
+```
+I have a VPC named <your-vpc-name> in <your-aws-region>. Refer to ESM guidance for Kafka and use aws-serverless-mcp-server. Create a script to build a new cluster in the VPC's private subnet by a SAM template. Then, create a lambda function to consumer the stream from the cluster. Prefix created resources with <your prefix>.
+```
+
+This prompt triggers LLM to initial ESM setup:
+1. Use `esm_guidance` to get step-by-step deployment instructions
+2. Generate required IAM policies and security group configurations
+3. Deploy infrastructure using generated SAM templates
+4. Validate configuration with `esm_validate_configs`
+
+### 🔍 Troubleshooting ESM Issues
+
+Example user prompt:
+
+```
+I have a cluster called <your-cluster-name> and a consumer lambda function named <your-lambda-function-name> in <your-aws-region>. Look for ESM diagnosis tool to investigate on why I cannot get my ESM trigger working and create a SAM template to update the configurations.
+```
+
+This prompt triggers LLM to troubleshoot ESM issues:
+1. Use `esm_kafka_diagnosis` to identify timeout scenarios
+2. Get targeted resolution steps with `esm_kafka_resolution`
+3. Apply fixes to network, security, or authentication configurations
+
+### Optimizing ESM Configurations:
+
+Example user prompt:
+
+```
+I have an ESM with UUID <your-esm-uuid> in <your-aws-region>. My target throughput is around 10 MB/s to 100 MB/s, create a script to update the ESM configuration using a SAM template such that the cost from the event pollers is optimized.
+```
+
+This prompt triggers LLM to optimize ESM:
+1. Analyze current configuration trade-offs with `esm_get_config_tradeoff`
+2. Identify optimization opportunities based on your goals
+3. Validate proposed changes before deployment by `esm_validate_configs`
 
 ## Security features
 1. **AWS Authentication**: Uses AWS credentials from the environment for secure authentication
