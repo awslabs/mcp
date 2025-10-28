@@ -18,6 +18,7 @@ import html
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Union
+from .validation_utils import validate_uuid_format, validate_asset_or_model_id
 
 
 class ValidationError(Exception):
@@ -27,24 +28,19 @@ class ValidationError(Exception):
 
 
 def validate_asset_id(asset_id: str) -> None:
-    """Validate asset ID format."""
-    if not asset_id:
-        raise ValidationError('Asset ID cannot be empty')
-    if len(asset_id) > 36:
-        raise ValidationError('Asset ID cannot exceed 36 characters')
-    # Asset IDs are typically UUIDs or custom identifiers
-    if not re.match(r'^[a-zA-Z0-9_-]+$', asset_id):
-        raise ValidationError('Asset ID contains invalid characters')
+    """Validate asset ID format - accepts UUID or external ID format."""
+    try:
+        validate_asset_or_model_id(asset_id, 'assetId')
+    except ValueError as e:
+        raise ValidationError(str(e))
 
 
 def validate_asset_model_id(asset_model_id: str) -> None:
-    """Validate asset model ID format."""
-    if not asset_model_id:
-        raise ValidationError('Asset model ID cannot be empty')
-    if len(asset_model_id) > 36:
-        raise ValidationError('Asset model ID cannot exceed 36 characters')
-    if not re.match(r'^[a-zA-Z0-9_-]+$', asset_model_id):
-        raise ValidationError('Asset model ID contains invalid characters')
+    """Validate asset model ID format - accepts UUID or external ID format."""
+    try:
+        validate_asset_or_model_id(asset_model_id, 'assetModelId')
+    except ValueError as e:
+        raise ValidationError(str(e))
 
 
 def validate_asset_name(asset_name: str) -> None:

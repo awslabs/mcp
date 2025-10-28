@@ -22,6 +22,9 @@ from awslabs.aws_iot_sitewise_mcp_server.prompts.asset_hierarchy import (
 from awslabs.aws_iot_sitewise_mcp_server.prompts.bulk_import_workflow import (
     bulk_import_workflow_helper_prompt,
 )
+from awslabs.aws_iot_sitewise_mcp_server.prompts.anomaly_detection_workflow import (
+    anomaly_detection_workflow_helper_prompt,
+)
 from awslabs.aws_iot_sitewise_mcp_server.prompts.data_exploration import (
     data_exploration_helper_prompt,
 )
@@ -92,6 +95,32 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_metadata_transfer import
     create_metadata_transfer_job_tool,
     get_metadata_transfer_job_tool,
     list_metadata_transfer_jobs_tool,
+)
+from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_computation_models import (
+    create_computation_model_tool,
+    create_anomaly_detection_model_tool,
+    delete_computation_model_tool,
+    update_computation_model_tool,
+    list_computation_models_tool,
+    describe_computation_model_tool,
+    describe_computation_model_execution_summary_tool,
+    list_computation_model_data_binding_usages_tool,
+    list_computation_model_resolve_to_resources_tool,
+)
+from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_executions import (
+    execute_action_tool,
+    list_actions_tool,
+    describe_action_tool,
+    execute_training_action_tool,
+    execute_inference_action_tool,
+    list_executions_tool,
+    describe_execution_tool,
+)
+from awslabs.aws_iot_sitewise_mcp_server.tools.timestamp_tools import (
+    convert_unix_timestamp_tool,
+    convert_multiple_timestamps_tool,
+    create_timestamp_range_tool,
+    get_current_timestamp_tool,
 )
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools import Tool
@@ -170,6 +199,26 @@ all_tools = [
     cancel_metadata_transfer_job_tool,
     get_metadata_transfer_job_tool,
     list_metadata_transfer_jobs_tool,
+    create_computation_model_tool,
+    create_anomaly_detection_model_tool,
+    delete_computation_model_tool,
+    update_computation_model_tool,
+    list_computation_models_tool,
+    describe_computation_model_tool,
+    describe_computation_model_execution_summary_tool,
+    list_computation_model_data_binding_usages_tool,
+    list_computation_model_resolve_to_resources_tool,
+    execute_action_tool,
+    list_actions_tool,
+    describe_action_tool,
+    execute_training_action_tool,
+    execute_inference_action_tool,
+    list_executions_tool,
+    describe_execution_tool,
+    convert_unix_timestamp_tool,
+    convert_multiple_timestamps_tool,
+    create_timestamp_range_tool,
+    get_current_timestamp_tool,
 ]
 
 
@@ -310,6 +359,7 @@ async def run_server():
     if allow_writes:
         mcp.add_prompt(data_ingestion_helper_prompt)
         mcp.add_prompt(bulk_import_workflow_helper_prompt)
+        mcp.add_prompt(anomaly_detection_workflow_helper_prompt)
 
     async with create_task_group() as tg:
         tg.start_soon(signal_handler, tg.cancel_scope)
