@@ -101,9 +101,6 @@ When a user presents a query, follow these steps to break it down:
     - generate_image: Generate an image using Amazon Nova Canvas with text prompt
     - generate_image_with_colors: Generate an image using Amazon Nova Canvas with color guidance
 
-- **Amazon Rekognition MCP Server**
-  - Use `awslabs.amazon-rekognition-mcp-server` to analyze images using computer vision capabilities
-
 - **Amazon Bedrock Data Automation MCP Server**
   - Use `awslabs.aws-bedrock-data-automation-mcp-server` to analyze documents, images, videos, and audio files
 
@@ -221,9 +218,6 @@ When a user presents a query, follow these steps to break it down:
 - **Amazon CloudWatch MCP Server**
   - Use `awslabs.cloudwatch-mcp-server` for metrics, alarms, and logs analysis
 
-- **Amazon CloudWatch Logs MCP Server**
-  - Use `awslabs.cloudwatch-logs-mcp-server` for log analysis and operational troubleshooting
-
 - **Amazon CloudWatch Application Signals MCP Server**
   - Use `awslabs.cloudwatch-appsignals-mcp-server` for application monitoring and performance insights
 
@@ -270,7 +264,6 @@ Map user requirements to these AWS categories and their corresponding MCP server
 - Bedrock Knowledge Base (knowledge base) → `awslabs.bedrock-kb-retrieval-mcp-server`
 - SageMaker (custom ML models) → `awslabs.aws-api-mcp-server`
 - Bedrock Data Automation (IDP) → `awslabs.aws-bedrock-data-automation-mcp-server`
-- Rekognition (image and video analysis) → `awslabs.amazon-rekognition-mcp-server`
 - Comprehend (natural language processing) → `awslabs.aws-api-mcp-server`
 - Transcribe (speech-to-text) → `awslabs.aws-api-mcp-server`
 - Polly (text-to-speech) → `awslabs.aws-api-mcp-server`
@@ -331,7 +324,7 @@ Map user requirements to these AWS categories and their corresponding MCP server
 - CodeArtifact (artifact repository) → `awslabs.aws-api-mcp-server`
 - CloudFormation (infrastructure as code) → `awslabs.cfn-mcp-server`
 - CDK (infrastructure as code) → `awslabs.cdk-mcp-server`
-- CloudWatch (monitoring) → `awslabs.cloudwatch-mcp-server`, `awslabs.cloudwatch-logs-mcp-server`, `awslabs.cloudwatch-appsignals-mcp-server`
+- CloudWatch (monitoring) → `awslabs.cloudwatch-mcp-server`, `awslabs.cloudwatch-appsignals-mcp-server`
 - X-Ray (distributed tracing) → `awslabs.aws-api-mcp-server`
 - Terraform → `awslabs.terraform-mcp-server`
 
@@ -383,7 +376,30 @@ Analysis:
 - Note security best practices
 - Document compliance considerations
 
-## 5. Tool Usage Strategy
+## 5. Core MCP Server Configuration
+
+The Core MCP Server can dynamically import other MCP servers based on role-based environment variables. This allows for tailored server configurations based on specific use cases or roles:
+
+- **aws-foundation**: AWS knowledge and API servers
+- **dev-tools**: Git repo research and code documentation tools
+- **ci-cd-devops**: CDK and CloudFormation servers
+- **container-orchestration**: EKS, ECS, and Finch servers
+- **serverless-architecture**: Serverless, Lambda, Step Functions, and SNS/SQS servers
+- **analytics-warehouse**: Redshift, Timestream, and data processing servers
+- **data-platform-eng**: DynamoDB, S3 Tables, and data processing servers
+- **frontend-dev**: Frontend and Nova Canvas servers
+- **solutions-architect**: Diagram, pricing, cost explorer, and AWS knowledge servers
+- **finops**: Cost explorer, pricing, CloudWatch, and billing cost management servers
+- **monitoring-observability**: CloudWatch, CloudTrail, AppSignals, and Prometheus servers
+- **caching-performance**: ElastiCache, Valkey, and Memcached servers
+- **security-identity**: IAM, support, and well architected security servers
+- **sql-db-specialist**: PostgreSQL, MySQL, Aurora DSQL, and Redshift servers
+- **nosql-db-specialist**: DynamoDB, DocumentDB, Keyspaces, and Neptune servers
+- **timeseries-db-specialist**: Timestream, Prometheus, and CloudWatch servers
+- **messaging-events**: SNS/SQS and MQ servers
+- **healthcare-lifesci**: HealthOmics server
+
+## 6. Tool Usage Strategy
 
 1. Initial Analysis:
 ```md
@@ -425,9 +441,9 @@ Analysis:
 </use_mcp_tool>
 ```
 
-## 6. Additional MCP Server Tools Examples
+## 7. Additional MCP Server Tools Examples
 
-### 6.1 Nova Canvas MCP Server
+### 7.1 Nova Canvas MCP Server
 
 Generate images for UI or solution architecture diagrams:
 
@@ -449,7 +465,7 @@ Generate images for UI or solution architecture diagrams:
 </use_mcp_tool>
 ```
 
-### 6.2 AWS Pricing MCP Server
+### 7.2 AWS Pricing MCP Server
 
 Get pricing information for AWS services:
 
@@ -466,7 +482,7 @@ Get pricing information for AWS services:
 </use_mcp_tool>
 ```
 
-### 6.3 AWS Documentation MCP Server
+### 7.3 AWS Documentation MCP Server
 
 Search for AWS documentation:
 
@@ -484,7 +500,7 @@ Search for AWS documentation:
 </use_mcp_tool>
 ```
 
-### 6.4 Terraform MCP Server
+### 7.4 Terraform MCP Server
 
 Execute Terraform commands and search for infrastructure documentation:
 
@@ -552,7 +568,7 @@ Key Research Areas:
 
 Remember: The goal is to translate general application requirements into specific, modern AWS services and patterns while considering scalability, security, and cost-effectiveness. if any MCP server referenced here is not avalaible, ask the user if they would like to install it
 
-### 6.5 AWS API MCP Server
+### 7.5 AWS API MCP Server
 
 Find all running EC2 servers in us-west-2 in the user's AWS account using AWS CLI commands.
 

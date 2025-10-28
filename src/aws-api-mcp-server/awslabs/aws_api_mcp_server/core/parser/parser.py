@@ -14,15 +14,16 @@
 
 import argparse
 import botocore.serialize
+import ipaddress
 import jmespath
+import os
 import re
 from ..aws.regions import GLOBAL_SERVICE_REGIONS
 from ..aws.services import (
-    driver,
+    get_awscli_driver,
     get_operation_filters,
-    session,
 )
-from ..common.command import IRCommand
+from ..common.command import IRCommand, OutputFile
 from ..common.command_metadata import CommandMetadata
 from ..common.config import AWS_API_MCP_PROFILE_NAME, get_region
 from ..common.errors import (
@@ -31,6 +32,7 @@ from ..common.errors import (
     CommandValidationError,
     DeniedGlobalArgumentsError,
     ExpectedArgumentError,
+    FileParameterError,
     InvalidChoiceForParameterError,
     InvalidParametersReceivedError,
     InvalidServiceError,
@@ -50,6 +52,7 @@ from ..common.errors import (
     UnknownFiltersError,
     UnsupportedFilterError,
 )
+from ..common.file_system_controls import validate_file_path
 from ..common.helpers import expand_user_home_directory
 from .custom_validators.botocore_param_validator import BotoCoreParamValidator
 from .custom_validators.ec2_validator import validate_ec2_parameter_values
@@ -65,7 +68,9 @@ from botocore.model import OperationModel, ServiceModel
 from collections.abc import Generator
 from difflib import SequenceMatcher
 from jmespath.exceptions import ParseError
+from pathlib import Path
 from typing import Any, NamedTuple, cast
+from urllib.parse import urlparse
 
 
 ARN_PATTERN = re.compile(
@@ -81,7 +86,7 @@ DENIED_CUSTOM_SERVICES = frozenset({'configure', 'history'})
 # to not do any subprocess calls and are therefore allowed.
 ALLOWED_CUSTOM_OPERATIONS = {
     # blanket allow these custom operation regardless of service
-    '*': ['wait'],
+    '*': [],
     's3': ['ls', 'website', 'sync', 'cp', 'mv', 'rm', 'mb', 'rb', 'presign'],
     'cloudformation': ['package', 'deploy'],
     'cloudfront': ['sign'],
@@ -110,7 +115,6 @@ ALLOWED_CUSTOM_OPERATIONS = {
     ],
     'emr-containers': ['update-role-trust-policy'],
     'gamelift': ['upload-build', 'get-game-session-log'],
-    'logs': ['start-live-tail'],
     'rds': ['generate-db-auth-token'],
     'servicecatalog': ['generate'],
     'deploy': ['push', 'register', 'deregister'],
@@ -271,7 +275,7 @@ class GlobalArgParser(MainArgParser):
     # Overwrite _build's parent method as it automatically injects a `version` action in the
     # parser. Version actions print the current version and then exit the program, which is
     # not what we want.
-    def _build(self, command_table, version_string, argument_table):
+    def _build(self, command_table, version_string, argument_table):  # noqa: ARG002
         for argument_name in argument_table:
             argument = argument_table[argument_name]
             argument.add_to_parser(self)
@@ -331,6 +335,8 @@ def is_denied_custom_operation(service, operation):
     )
 
 
+driver = get_awscli_driver()
+session = driver.session
 command_table = driver._get_command_table()
 cli_data = driver._get_cli_data()
 parser = GlobalArgParser.get_parser()
@@ -388,14 +394,6 @@ def _handle_service_command(
     parsed_args = operation_parser.parse_operation_args(command_metadata, service_remaining)
     _handle_invalid_parameters(command_metadata, service, operation, parsed_args)
 
-    outfile = getattr(parsed_args.operation_args, 'outfile', None)
-    if outfile is not None and outfile != '-':
-        # Output file parameters are currently ignored by the interpreter
-        # Raising a validation error to make it explicit
-        raise CommandValidationError(
-            'Output file parameters are not supported yet. Use - as the output file to get the requested data in the response.'
-        )
-
     try:
         parameters = operation_command._build_call_parameters(
             parsed_args.operation_args, operation_command.arg_table
@@ -412,7 +410,9 @@ def _handle_service_command(
         parameters,
     )
 
-    _validate_parameters(parameters, operation_command.arg_table)
+    _validate_parameters(
+        parameters, operation_command.arg_table, operation_command._operation_model
+    )
 
     arn_region = _fetch_region_from_arn(parameters)
     global_args.region = region or arn_region
@@ -421,6 +421,8 @@ def _handle_service_command(
         and global_args.region != GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
     ):
         global_args.region = GLOBAL_SERVICE_REGIONS[command_metadata.service_sdk_name]
+
+    _validate_file_paths(command_metadata, parsed_args, parameters)
 
     _validate_request_serialization(
         operation,
@@ -434,10 +436,13 @@ def _handle_service_command(
         operation,
         parameters,
     )
+
     return _construct_command(
         command_metadata=command_metadata,
         global_args=global_args,
         parameters=parameters,
+        parsed_args=parsed_args,
+        operation_model=operation_command._operation_model,
     )
 
 
@@ -570,6 +575,10 @@ def _validate_customization_arguments(
             operation_command, command_metadata, operation_args, service, operation
         )
 
+        # Run custom validations for S3 customizations
+        if service == 's3':
+            _validate_s3_file_paths(service, operation, parameters)
+
         return _construct_command(
             command_metadata=command_metadata,
             global_args=global_args,
@@ -615,8 +624,6 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
     denied_args = []
     if global_args.debug:
         denied_args.append('--debug')
-    if global_args.endpoint_url:
-        denied_args.append('--endpoint-url')
     if not global_args.verify_ssl:
         denied_args.append('--no-verify-ssl')
     if not global_args.sign_request:
@@ -628,21 +635,30 @@ def _validate_global_args(service: str, global_args: argparse.Namespace):
 def _validate_parameters(
     parameters: dict[str, Any],
     arg_table: dict[str, BaseCLIArgument],
+    operation_model: OperationModel,
 ) -> None:
     validator = BotoCoreParamValidator()
-    param_name_to_arg = {
-        arg._serialized_name: arg for arg in arg_table.values() if isinstance(arg, CLIArgument)
+
+    serialized_to_cli = {
+        arg._serialized_name: arg.cli_name
+        for arg in arg_table.values()
+        if isinstance(arg, CLIArgument)
+        and hasattr(arg, '_serialized_name')
+        and hasattr(arg, 'cli_name')
     }
+
     errors = []
+
+    input_shape = operation_model.input_shape
+    boto3_members = getattr(input_shape, 'members', {})
+
     for key, value in parameters.items():
-        cli_argument = param_name_to_arg.get(key)
-        if not cli_argument or not cli_argument.argument_model:
-            continue
-        report = validator.validate(value, cli_argument.argument_model)
-        if report.has_errors():
-            errors.append(
-                ParameterValidationErrorRecord(cli_argument.cli_name, report.generate_report())
-            )
+        boto3_shape = boto3_members.get(key)
+        if boto3_shape is not None:
+            report = validator.validate(value, boto3_shape)
+            if report.has_errors():
+                cli_name = serialized_to_cli.get(key, key)
+                errors.append(ParameterValidationErrorRecord(cli_name, report.generate_report()))
     if errors:
         raise ParameterSchemaValidationError(errors)
 
@@ -687,6 +703,28 @@ def _run_custom_validations(service: str, operation: str, parameters: dict[str, 
         validate_ec2_parameter_values(parameters)
 
 
+def _validate_s3_file_paths(service: str, operation: str, parameters: dict[str, Any]):
+    if operation != 'cp':
+        return
+
+    paths = parameters.get('--paths')
+    if not paths or not isinstance(paths, list) or len(paths) < 2:
+        return
+
+    source_path, dest_path = paths
+
+    if source_path == '-' or dest_path == '-':
+        file_path = source_path if source_path == '-' else dest_path
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason="streaming file ('-') is not allowed",
+        )
+    _validate_file_path(source_path, service, operation)
+    _validate_file_path(dest_path, service, operation)
+
+
 def _validate_request_serialization(
     operation: str,
     service_model: ServiceModel,
@@ -708,6 +746,78 @@ def _validate_request_serialization(
         ) from err
 
 
+def _validate_file_paths(
+    command_metadata: CommandMetadata,
+    parsed_args: ParsedOperationArgs | None,
+    parameters: dict[str, Any],
+):
+    """Validate all file paths in the command."""
+    from ..common.file_operations import extract_file_paths_from_parameters
+
+    # Validate --outfile parameter for streaming operations
+    if command_metadata.has_streaming_output and parsed_args:
+        output_file_path = parsed_args.operation_args.outfile
+        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
+            raise ValueError(f'{output_file_path} should be an absolute path')
+
+        if output_file_path != '-':
+            validate_file_path(output_file_path)
+
+    # Extract and validate all file paths using comprehensive detection
+    file_paths = extract_file_paths_from_parameters(command_metadata, parameters)
+    for file_path in file_paths:
+        validate_file_path(file_path)
+
+
+def _validate_output_file(command_metadata: CommandMetadata, parsed_args: ParsedOperationArgs):
+    if command_metadata.has_streaming_output:
+        output_file_path = parsed_args.operation_args.outfile
+        if output_file_path != '-' and not os.path.isabs(Path(output_file_path)):
+            raise ValueError(f'{output_file_path} should be an absolute path')
+
+        # Validate file path is within working directory
+        if output_file_path != '-':
+            validate_file_path(output_file_path)
+
+
+def _validate_file_path(file_path: str, service: str, operation: str):
+    if file_path == '-' or file_path.startswith('s3://'):
+        return
+
+    if not os.path.isabs(Path(file_path)):
+        raise FileParameterError(
+            service=service,
+            operation=operation,
+            file_path=file_path,
+            reason='should be an absolute path',
+        )
+
+
+def _validate_endpoint(endpoint: str | None):
+    if not endpoint:
+        return
+
+    try:
+        url = urlparse(endpoint if '://' in endpoint else f'http://{endpoint}')
+        url.port  # will throw an exception if the port is not a number
+    except Exception as e:
+        raise ValueError(f'Invalid endpoint or port: {endpoint}') from e
+
+    hostname = url.hostname
+    if not hostname:
+        raise ValueError(f'Could not find hostname {endpoint}')
+
+    if hostname == 'localhost':
+        hostname = '127.0.0.1'
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if not ip_obj.is_loopback:
+            raise ValueError(f'Local endpoint was not a loopback address: {hostname}')
+    except ValueError as e:
+        raise ValueError(f'Could not resolve endpoint: {e}')
+
+
 def _fetch_region_from_arn(parameters: dict[str, Any]) -> str | None:
     for param_value in parameters.values():
         if isinstance(param_value, str):
@@ -722,7 +832,13 @@ def _construct_command(
     global_args: argparse.Namespace,
     parameters: dict[str, Any],
     is_awscli_customization: bool = False,
+    parsed_args: ParsedOperationArgs | None = None,
+    operation_model: OperationModel | None = None,
 ) -> IRCommand:
+    _validate_file_paths(command_metadata, parsed_args, parameters)
+    endpoint_url = getattr(global_args, 'endpoint_url', None)
+    _validate_endpoint(endpoint_url)
+
     profile = getattr(global_args, 'profile', None)
     region = (
         getattr(global_args, 'region', None)
@@ -744,6 +860,12 @@ def _construct_command(
                 msg=str(error),
             )
 
+    output_file = (
+        OutputFile.from_operation(parsed_args.operation_args.outfile, operation_model)
+        if command_metadata.has_streaming_output and parsed_args and operation_model
+        else None
+    )
+
     return IRCommand(
         command_metadata=command_metadata,
         parameters=parameters,
@@ -751,6 +873,8 @@ def _construct_command(
         profile=profile,
         client_side_filter=client_side_filter,
         is_awscli_customization=is_awscli_customization,
+        output_file=output_file,
+        endpoint_url=global_args.endpoint_url,
     )
 
 

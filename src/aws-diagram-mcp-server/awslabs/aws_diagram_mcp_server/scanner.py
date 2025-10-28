@@ -14,9 +14,19 @@
 
 import ast
 import os
+import warnings
 from pydantic import BaseModel, Field
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# Suppress AST deprecation warnings for Python 3.14 compatibility
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='ast')
+# Suppress deprecation warnings from bandit and other libraries using deprecated AST features
+warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'.*ast\.Bytes.*')
+warnings.filterwarnings(
+    'ignore', category=DeprecationWarning, message='.*Attribute n is deprecated.*'
+)
 
 
 class SecurityIssue(BaseModel):
@@ -52,7 +62,15 @@ class CodeScanResult(BaseModel):
 async def validate_syntax(code: str) -> Tuple[bool, Optional[str]]:
     """Validate Python code syntax using ast."""
     try:
-        ast.parse(code)
+        tree = ast.parse(code)
+
+        # Check for import statements
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                return False, f'Import statements are not allowed (line {node.lineno})'
+            elif isinstance(node, ast.ImportFrom):
+                return False, f'Import statements are not allowed (line {node.lineno})'
+
         return True, None
     except SyntaxError as e:
         error_msg = f'Syntax error at line {e.lineno}: {e.msg}'
@@ -220,6 +238,7 @@ def check_dangerous_functions(code: str) -> List[Dict[str, Any]]:
         'os.popen',
         '__import__',
         'pickle.loads',
+        'spawn(',
     ]
 
     results = []

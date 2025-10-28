@@ -60,10 +60,11 @@ const sidebars: SidebarsConfig = {
           label: 'AI & Machine Learning',
           items: [
             'servers/bedrock-kb-retrieval-mcp-server',
-            'servers/amazon-rekognition-mcp-server',
             'servers/amazon-qindex-mcp-server',
             'servers/amazon-qbusiness-anonymous-mcp-server',
             'servers/nova-canvas-mcp-server',
+            'servers/aws-bedrock-custom-model-import-mcp-server',
+            'servers/amazon-bedrock-agentcore-mcp-server'
           ],
         },
         {
@@ -84,6 +85,8 @@ const sidebars: SidebarsConfig = {
             'servers/aws-dataprocessing-mcp-server',
             'servers/redshift-mcp-server',
             'servers/s3-tables-mcp-server',
+            'servers/aws-appsync-mcp-server',
+            'servers/aws-iot-sitewise-mcp-server'
           ],
         },
         {
@@ -121,12 +124,18 @@ const sidebars: SidebarsConfig = {
             'servers/cost-explorer-mcp-server',
             'servers/cloudwatch-mcp-server',
             'servers/cloudwatch-appsignals-mcp-server',
+            'servers/well-architected-security-mcp-server',
+            'servers/cloudtrail-mcp-server',
+            'servers/billing-cost-management-mcp-server',
           ],
         },
         {
           type: 'category',
           label: 'Healthcare & Lifesciences',
-          items: ['servers/aws-healthomics-mcp-server'],
+          items: [
+            'servers/aws-healthomics-mcp-server',
+            'servers/healthlake-mcp-server',
+          ],
         },
       ],
     },
