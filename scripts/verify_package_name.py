@@ -58,6 +58,27 @@ def extract_package_name(pyproject_path: Path) -> str:
             raise ValueError(f'Failed to extract package name from {pyproject_path}: {e}')
 
 
+def extract_dependencies(pyproject_path: Path) -> List[str]:
+    """Extract dependency names from pyproject.toml file."""
+    try:
+        with open(pyproject_path, 'rb') as f:
+            data = tomllib.load(f)
+        dependencies = data.get('project', {}).get('dependencies', [])
+        # Extract just the package names (remove version constraints)
+        dep_names = []
+        for dep in dependencies:
+            # Remove version constraints (>=, ==, etc.) and extract just the package name
+            dep_name = re.split(r'[>=<!=]', dep)[0].strip()
+            dep_names.append(dep_name)
+        return dep_names
+    except (FileNotFoundError, KeyError) as e:
+        # If we can't extract dependencies, return empty list
+        return []
+    except Exception as e:
+        # If we can't parse dependencies, return empty list
+        return []
+
+
 def extract_package_from_base64_config(config_b64: str) -> List[str]:
     """Extract package names from Base64 encoded or URL-encoded JSON config."""
     try:
@@ -106,7 +127,7 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
 
 
 def find_package_references_in_readme(
-    readme_path: Path, verbose: bool = False
+    readme_path: Path, dependencies: List[str] = None, verbose: bool = False
 ) -> List[Tuple[str, int]]:
     """Find all package name references in the README file with line numbers."""
     try:
@@ -152,6 +173,8 @@ def find_package_references_in_readme(
 
     # Filter out common false positives
     filtered_references = []
+    dependencies = dependencies or []
+    
     for ref, line_num in references:
         # Skip very short references (likely false positives)
         if len(ref) < 3:
@@ -171,6 +194,9 @@ def find_package_references_in_readme(
             'args',
             'env',
         ]:
+            continue
+        # Skip dependencies from pyproject.toml
+        if ref in dependencies:
             continue
         # Skip AWS service references (e.g., aws.s3@ObjectCreated)
         if ref.startswith('aws.') and '@' in ref:
@@ -251,8 +277,13 @@ def main():
         if args.verbose:
             print(f'Package name from pyproject.toml: {package_name}')
 
+        # Extract dependencies from pyproject.toml
+        dependencies = extract_dependencies(pyproject_path)
+        if args.verbose:
+            print(f'Dependencies from pyproject.toml: {dependencies}')
+
         # Find package references in README
-        references = find_package_references_in_readme(readme_path, args.verbose)
+        references = find_package_references_in_readme(readme_path, dependencies, args.verbose)
         if args.verbose:
             print(f'Found {len(references)} package references in README')
             for ref, line_num in references:
