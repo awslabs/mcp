@@ -71,10 +71,10 @@ def extract_dependencies(pyproject_path: Path) -> List[str]:
             dep_name = re.split(r'[>=<!=]', dep)[0].strip()
             dep_names.append(dep_name)
         return dep_names
-    except (FileNotFoundError, KeyError) as e:
+    except (FileNotFoundError, KeyError):
         # If we can't extract dependencies, return empty list
         return []
-    except Exception as e:
+    except Exception:
         # If we can't parse dependencies, return empty list
         return []
 
@@ -109,7 +109,9 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
                 if 'args' in config and config['args']:
                     for arg in config['args']:
                         # Only consider it a package if it has @ and doesn't look like a URL or connection string
-                        if '@' in arg and not arg.startswith(('http://', 'https://', 'postgresql://', 'mysql://', 'mongodb://')):
+                        if '@' in arg and not arg.startswith(
+                            ('http://', 'https://', 'postgresql://', 'mysql://', 'mongodb://')
+                        ):
                             package_names.append(arg)
             elif command.startswith(('uvx ', 'uv ')):
                 # Format 2: extract package from command string
@@ -117,7 +119,9 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
                 if len(parts) >= 2:
                     package_arg = parts[1]
                     # Only consider it a package if it has @ and doesn't look like a URL or connection string
-                    if '@' in package_arg and not package_arg.startswith(('http://', 'https://', 'postgresql://', 'mysql://', 'mongodb://')):
+                    if '@' in package_arg and not package_arg.startswith(
+                        ('http://', 'https://', 'postgresql://', 'mysql://', 'mongodb://')
+                    ):
                         package_names.append(package_arg)
 
         return package_names
@@ -174,7 +178,7 @@ def find_package_references_in_readme(
     # Filter out common false positives
     filtered_references = []
     dependencies = dependencies or []
-    
+
     for ref, line_num in references:
         # Skip very short references (likely false positives)
         if len(ref) < 3:
