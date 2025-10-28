@@ -40,7 +40,7 @@ jobs:
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
       - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # v7.1.2
       - name: Check and upgrade AWS CLI version
         id: upgrade
         working-directory: src/aws-api-mcp-server
@@ -90,26 +90,30 @@ jobs:
           LATEST_VERSION="${{ steps.upgrade.outputs.latest-version }}"
           UPGRADE_BRANCH="upgrade/aws-api-mcp-awscli-v$LATEST_VERSION"
 
-          echo "::debug::Creating upgrade branch: $UPGRADE_BRANCH"
+          echo "::debug::Checking if upgrade branch exists: $UPGRADE_BRANCH"
 
-          # Configure git user
-          git config --local user.email "${{ env.BOT_USER_EMAIL }}"
-          git config --local user.name "${{ env.BOT_USER_NAME }}"
+          # Check if branch already exists
+          if git ls-remote --heads origin "$UPGRADE_BRANCH" | grep -q "$UPGRADE_BRANCH"; then
+            echo "branch-created=false" >> $GITHUB_OUTPUT
+            echo "::notice::Branch $UPGRADE_BRANCH already exists, skipping creation"
+          else
+            echo "branch-created=true" >> $GITHUB_OUTPUT
+            echo "::debug::Creating upgrade branch: $UPGRADE_BRANCH"
 
-          # Create and push branch
-          git checkout -b "$UPGRADE_BRANCH"
-          git push --set-upstream origin "$UPGRADE_BRANCH"
+            # Configure git user
+            git config --local user.email "${{ env.BOT_USER_EMAIL }}"
+            git config --local user.name "${{ env.BOT_USER_NAME }}"
 
-          # Verify branch was created
-          if ! git ls-remote --heads origin "$UPGRADE_BRANCH" | grep -q "$UPGRADE_BRANCH"; then
-            echo "::error::Failed to verify branch creation: $UPGRADE_BRANCH" >&2
-            exit 1
+            # Create and push branch
+            git checkout -b "$UPGRADE_BRANCH"
+            git push --set-upstream origin "$UPGRADE_BRANCH"
+
+            echo "::debug::Successfully created upgrade branch: $UPGRADE_BRANCH"
           fi
 
           echo "upgrade-branch=$UPGRADE_BRANCH" >> $GITHUB_OUTPUT
-          echo "::debug::Successfully created upgrade branch: $UPGRADE_BRANCH"
       - name: Configure Git and GPG securely
-        if: steps.upgrade.outputs.has-changes == 'true'
+        if: steps.create-branch.outputs.branch-created == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -143,7 +147,7 @@ jobs:
 
           echo "::debug::GPG configuration completed successfully"
       - name: Commit and push changes
-        if: steps.upgrade.outputs.has-changes == 'true'
+        if: steps.create-branch.outputs.branch-created == 'true'
         env:
           GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -169,7 +173,7 @@ jobs:
 
           echo "::debug::Successfully committed and pushed changes"
       - name: Create pull request
-        if: steps.upgrade.outputs.has-changes == 'true'
+        if: steps.create-branch.outputs.branch-created == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.BOT_GITHUB_TOKEN }}
         run: |
