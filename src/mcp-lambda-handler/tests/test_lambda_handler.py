@@ -357,7 +357,7 @@ def test_lambda_handler_success():
         'jsonrpc': '2.0',
         'id': 2,
         'method': 'tools/call',
-        'params': {'_meta': {'progressToken': 2}, 'name': 'sayHelloWorld', 'arguments': {}},
+        'params': {'_meta': {'progressToken': 2}, 'name': 'say_hello_world', 'arguments': {}},
     }
     event = make_lambda_event(req)
     context = None  # Context is not used in this handler
@@ -494,7 +494,7 @@ def test_handle_request_tool_exception():
         'jsonrpc': '2.0',
         'id': 1,
         'method': 'tools/call',
-        'params': {'name': 'failTool', 'arguments': {}},
+        'params': {'name': 'fail_tool', 'arguments': {}},
     }
     event = make_lambda_event(req)
     resp = handler.handle_request(event, None)
@@ -612,7 +612,7 @@ def test_tool_decorator_dictionary_type_hints():
         """
         return {k: v > 0 for k, v in simple_dict.items()}
 
-    schema = handler.tools['dictTool']
+    schema = handler.tools['dict_tool']
     assert schema['inputSchema']['properties']['simple_dict']['type'] == 'object'
     assert schema['inputSchema']['properties']['no_arg_dict']['type'] == 'object'
     assert (
@@ -636,7 +636,7 @@ def test_tool_decorator_list_type_hints():
         """
         return [n > 0 for n in numbers]
 
-    schema = handler.tools['listTool']
+    schema = handler.tools['list_tool']
     assert schema['inputSchema']['properties']['numbers']['type'] == 'array'
     assert schema['inputSchema']['properties']['no_arg_numbers']['type'] == 'array'
     assert schema['inputSchema']['properties']['numbers']['items']['type'] == 'integer'
@@ -659,7 +659,7 @@ def test_tool_decorator_recursive_dictionary_type_hints():
             result[k] = {inner_k: inner_v > 0 for inner_k, inner_v in v.items()}
         return result
 
-    schema = handler.tools['nestedDictTool']
+    schema = handler.tools['nested_dict_tool']
     assert schema['inputSchema']['properties']['nested_dict']['type'] == 'object'
     value_schema = schema['inputSchema']['properties']['nested_dict']['additionalProperties']
     assert value_schema['type'] == 'object'
@@ -816,7 +816,7 @@ def test_handle_image_byte_streams():
             'jsonrpc': '2.0',
             'id': 3,
             'method': 'tools/call',
-            'params': {'name': 'getImage', 'arguments': {}},
+            'params': {'name': 'get_image', 'arguments': {}},
         }
         event = make_lambda_event(req)
         context = None
@@ -1377,6 +1377,64 @@ def test_initialize_includes_resources_capability():
     assert 'resources' in capabilities
     assert capabilities['resources']['list'] is True
     assert capabilities['resources']['read'] is True
+
+
+def test_tool_names_preserve_snake_case():
+    """Test that tool names preserve snake_case format and don't get converted to camelCase."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def search_products(query: str) -> str:
+        """Search for products.
+
+        Args:
+            query: The search query
+        """
+        return f'Searching for: {query}'
+
+    @handler.tool()
+    def get_user_data() -> str:
+        """Get user data."""
+        return 'user data'
+
+    @handler.tool()
+    def calculate_total_price(items: int) -> float:
+        """Calculate total price.
+
+        Args:
+            items: Number of items
+        """
+        return items * 10.0
+
+    # Verify that tool names are preserved in snake_case
+    assert 'search_products' in handler.tools
+    assert 'get_user_data' in handler.tools
+    assert 'calculate_total_price' in handler.tools
+
+    # Verify that camelCase versions are NOT registered
+    assert 'searchProducts' not in handler.tools
+    assert 'getUserData' not in handler.tools
+    assert 'calculateTotalPrice' not in handler.tools
+
+    # Verify the tool schemas have the correct names
+    assert handler.tools['search_products']['name'] == 'search_products'
+    assert handler.tools['get_user_data']['name'] == 'get_user_data'
+    assert handler.tools['calculate_total_price']['name'] == 'calculate_total_price'
+
+    # Test that tools can be called with their snake_case names
+    req = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {'name': 'search_products', 'arguments': {'query': 'laptop'}},
+    }
+    event = make_lambda_event(req)
+    resp = handler.handle_request(event, None)
+
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert 'result' in body
+    assert body['result']['content'][0]['text'] == 'Searching for: laptop'
 
 
 def test_multiple_resources_same_handler():
