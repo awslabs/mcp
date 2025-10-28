@@ -72,8 +72,7 @@ exclude = [
     "**/env",
     "**/.ruff_cache",
     "**/.venv",
-    "**/.ipynb_checkpoints",
-    "evals/mock-projects/**"
+    "**/.ipynb_checkpoints"
 ]
 force-exclude = true
 
@@ -113,7 +112,7 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.bandit]
-exclude_dirs = ["venv","tests","evals/mock-projects"]
+exclude_dirs = ["venv","tests"]
 
 
 [tool.pytest.ini_options]
@@ -133,5 +132,4 @@ exclude = [
     "**/venv",
     "**/node_modules",
     "**/__pycache__",
-    "evals/mock-projects/**",
 ]
