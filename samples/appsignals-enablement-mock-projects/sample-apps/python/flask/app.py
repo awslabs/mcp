@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from flask import Flask, jsonify
 import boto3
 import os
 from botocore.exceptions import ClientError
+from flask import Flask, jsonify
+
 
 app = Flask(__name__)
 
@@ -26,10 +27,12 @@ s3_client = boto3.client('s3', region_name=AWS_REGION)
 
 @app.route('/health')
 def health():
+    """Health check endpoint that returns the service status."""
     return jsonify({'status': 'healthy', 'service': SERVICE_NAME})
 
 @app.route('/api/buckets')
 def list_buckets():
+    """List all S3 buckets accessible by the application."""
     try:
         response = s3_client.list_buckets()
         buckets = [bucket['Name'] for bucket in response.get('Buckets', [])]
