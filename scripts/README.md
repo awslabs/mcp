@@ -1,4 +1,4 @@
-# Tools
+# Scripts
 
 This directory contains utility scripts for the MCP project.
 
@@ -9,17 +9,17 @@ A Python script that verifies package name consistency between `pyproject.toml` 
 ### Usage
 
 ```bash
-python3 tools/verify_package_name.py <package_directory> [--verbose]
+python3 scripts/verify_package_name.py <package_directory> [--verbose]
 ```
 
 ### Examples
 
 ```bash
 # Basic usage
-python3 tools/verify_package_name.py src/amazon-neptune-mcp-server
+python3 scripts/verify_package_name.py src/amazon-neptune-mcp-server
 
 # Verbose output
-python3 tools/verify_package_name.py src/amazon-neptune-mcp-server --verbose
+python3 scripts/verify_package_name.py src/amazon-neptune-mcp-server --verbose
 ```
 
 ### What it does

@@ -117,8 +117,6 @@ def find_package_references_in_readme(
         r'cursor\.com/en/install-mcp\?name=([a-zA-Z0-9._-]+)',
         # VS Code installation links (name parameter in URL)
         r'vscode\.dev/redirect/mcp/install\?name=([^&]+)',
-        # Base64 encoded config in URLs (contains package names) - handled separately
-        # r'config=([^&\s]+)',  # Moved to separate handling
     ]
 
     references = []
@@ -166,9 +164,6 @@ def find_package_references_in_readme(
             continue
         # Skip if it looks like a command line flag
         if ref.startswith('-'):
-            continue
-        # Skip if it's clearly a JSON key (camelCase)
-        if ref.islower() and len(ref) > 5 and any(c.isupper() for c in ref):
             continue
         # Skip if it doesn't contain dots (package names usually have dots)
         if '.' not in ref and '@' not in ref:
