@@ -78,12 +78,26 @@ def extract_package_from_base64_config(config_b64: str) -> List[str]:
         # Look for package names in the config
         package_names = []
 
-        # Check command field
-        if 'command' in config and config['command'] in ['uvx', 'uv']:
-            if 'args' in config and config['args']:
-                for arg in config['args']:
-                    if '@' in arg and '.' in arg:
-                        package_names.append(arg)
+        # Check command field - handle both formats:
+        # Format 1: {"command": "uvx", "args": ["package@version"]}
+        # Format 2: {"command": "uvx package@version"}
+        if 'command' in config:
+            command = config['command']
+            if command in ['uvx', 'uv']:
+                # Format 1: check args array
+                if 'args' in config and config['args']:
+                    for arg in config['args']:
+                        # Only consider it a package if it has @ and doesn't look like a URL or connection string
+                        if '@' in arg and not arg.startswith(('http://', 'https://', 'postgresql://', 'mysql://', 'mongodb://')):
+                            package_names.append(arg)
+            elif command.startswith(('uvx ', 'uv ')):
+                # Format 2: extract package from command string
+                parts = command.split()
+                if len(parts) >= 2:
+                    package_arg = parts[1]
+                    # Only consider it a package if it has @ and doesn't look like a URL or connection string
+                    if '@' in package_arg and not package_arg.startswith(('http://', 'https://', 'postgresql://', 'mysql://', 'mongodb://')):
+                        package_names.append(package_arg)
 
         return package_names
     except (ValueError, UnicodeDecodeError, json.JSONDecodeError, base64.binascii.Error):
@@ -113,12 +127,12 @@ def find_package_references_in_readme(
         r'"([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+)"',
         # Package names in JSON config (without version)
         r'"([a-zA-Z0-9._-]+)"\s*:\s*{[^}]*"command"\s*:\s*"uvx"',
-        # Docker image patterns
-        r'docker\s+run[^"]*"([a-zA-Z0-9._/-]+)"',
-        # Cursor installation links (name parameter in URL)
-        r'cursor\.com/en/install-mcp\?name=([a-zA-Z0-9._-]+)',
-        # VS Code installation links (name parameter in URL)
-        r'vscode\.dev/redirect/mcp/install\?name=([^&]+)',
+        # Docker image patterns (only match actual image names, not command args)
+        r'docker\s+run[^"]*"([a-zA-Z0-9._/-]+)"\s*:',
+        # Cursor installation links - handled via Base64 config extraction
+        # r'cursor\.com/en/install-mcp\?name=([a-zA-Z0-9._-]+)',  # Removed: name often contains display names
+        # VS Code installation links (name parameter in URL) - only match package-like names
+        r'vscode\.dev/redirect/mcp/install\?name=([a-zA-Z0-9._-]+)',
     ]
 
     references = []
