@@ -42,7 +42,7 @@ def sample_results():
                     'fk_count': 1,
                     'created': '2025-10-01 09:20:41',
                     'last_updated': '2025-10-01 09:45:18',
-                    'collation': 'utf8mb4_0900_ai_ci'
+                    'collation': 'utf8mb4_0900_ai_ci',
                 },
                 {
                     'table_name': 'Booking',
@@ -60,7 +60,7 @@ def sample_results():
                     'fk_count': 2,
                     'created': '2025-10-01 09:20:41',
                     'last_updated': '2025-10-01 09:46:19',
-                    'collation': 'utf8mb4_0900_ai_ci'
+                    'collation': 'utf8mb4_0900_ai_ci',
                 },
                 {
                     'table_name': 'Flight',
@@ -78,8 +78,8 @@ def sample_results():
                     'fk_count': 2,
                     'created': '2025-10-01 09:20:41',
                     'last_updated': '2025-10-01 09:45:16',
-                    'collation': 'utf8mb4_0900_ai_ci'
-                }
+                    'collation': 'utf8mb4_0900_ai_ci',
+                },
             ],
         },
         'column_analysis': {
@@ -98,7 +98,7 @@ def sample_results():
                     'column_type': 'varchar(20)',
                     'key_type': 'PRI',
                     'extra': '',
-                    'comment': ''
+                    'comment': '',
                 },
                 {
                     'table_name': 'Aircraft',
@@ -113,7 +113,7 @@ def sample_results():
                     'column_type': 'varchar(50)',
                     'key_type': '',
                     'extra': '',
-                    'comment': ''
+                    'comment': '',
                 },
                 {
                     'table_name': 'Passenger',
@@ -128,8 +128,8 @@ def sample_results():
                     'column_type': 'varchar(100)',
                     'key_type': 'UNI',
                     'extra': '',
-                    'comment': ''
-                }
+                    'comment': '',
+                },
             ],
         },
     }
@@ -151,7 +151,7 @@ def sample_metadata():
 def test_markdown_formatter_initialization(tmp_path, sample_results, sample_metadata):
     """Test MarkdownFormatter initialization."""
     formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
-    
+
     assert formatter.results == sample_results
     assert formatter.metadata == sample_metadata
     assert formatter.output_dir == str(tmp_path)
@@ -166,10 +166,10 @@ def test_format_as_markdown_table_basic(tmp_path, sample_metadata):
         {'name': 'Alice', 'age': 30, 'city': 'Seattle'},
         {'name': 'Bob', 'age': 25, 'city': 'Portland'},
     ]
-    
+
     formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
     table = formatter._format_as_markdown_table(data)
-    
+
     assert '| name | age | city |' in table
     assert '| --- | --- | --- |' in table
     assert '| Alice | 30 | Seattle |' in table
@@ -182,10 +182,10 @@ def test_format_as_markdown_table_with_nulls(tmp_path, sample_metadata):
         {'name': 'Alice', 'value': None},
         {'name': 'Bob', 'value': 42},
     ]
-    
+
     formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
     table = formatter._format_as_markdown_table(data)
-    
+
     assert '| NULL |' in table
     assert '| 42 |' in table
 
@@ -195,10 +195,10 @@ def test_format_as_markdown_table_with_floats(tmp_path, sample_metadata):
     data = [
         {'name': 'test', 'value': 3.14159},
     ]
-    
+
     formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
     table = formatter._format_as_markdown_table(data)
-    
+
     assert '| 3.14 |' in table  # Should be rounded to 2 decimal places
 
 
@@ -206,8 +206,8 @@ def test_format_as_markdown_table_empty_data(tmp_path, sample_metadata):
     """Test markdown table formatting with empty data."""
     formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
     table = formatter._format_as_markdown_table([])
-    
-    assert table == "No data returned"
+
+    assert table == 'No data returned'
 
 
 def test_format_as_markdown_table_escapes_pipes(tmp_path, sample_metadata):
@@ -215,10 +215,10 @@ def test_format_as_markdown_table_escapes_pipes(tmp_path, sample_metadata):
     data = [
         {'name': 'test|value', 'description': 'has|pipes'},
     ]
-    
+
     formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
     table = formatter._format_as_markdown_table(data)
-    
+
     assert '| test\\|value |' in table
     assert '| has\\|pipes |' in table
 
@@ -229,13 +229,13 @@ def test_generate_query_file(tmp_path, sample_metadata):
         'description': 'Test query',
         'data': [{'col1': 'value1', 'col2': 'value2'}],
     }
-    
+
     formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
     file_path = formatter._generate_query_file('test_query', query_result)
-    
+
     assert file_path == os.path.join(str(tmp_path), 'test_query.md')
     assert os.path.exists(file_path)
-    
+
     with open(file_path, 'r') as f:
         content = f.read()
         assert '# Test Query' in content
@@ -251,10 +251,10 @@ def test_generate_skipped_query_file(tmp_path, sample_metadata):
     file_path = formatter._generate_skipped_query_file(
         'skipped_query', 'Performance Schema disabled'
     )
-    
+
     assert file_path == os.path.join(str(tmp_path), 'skipped_query.md')
     assert os.path.exists(file_path)
-    
+
     with open(file_path, 'r') as f:
         content = f.read()
         assert '# Skipped Query' in content
@@ -266,15 +266,15 @@ def test_generate_all_files(tmp_path, sample_results, sample_metadata):
     """Test generating all markdown files."""
     formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
     generated_files, errors = formatter.generate_all_files()
-    
+
     # Should generate files for all expected queries (7 total: 4 schema + 3 performance)
     assert len(generated_files) == 7
     assert len(errors) == 0
-    
+
     # Check that manifest was created
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
     assert os.path.exists(manifest_path)
-    
+
     # Check that query files were created (using actual query names)
     assert os.path.exists(os.path.join(str(tmp_path), 'comprehensive_table_analysis.md'))
     assert os.path.exists(os.path.join(str(tmp_path), 'column_analysis.md'))
@@ -290,16 +290,16 @@ def test_generate_all_files_with_skipped_queries(tmp_path, sample_results):
         'performance_enabled': False,
         'skipped_queries': ['all_queries_stats', 'triggers_stats'],
     }
-    
+
     formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path))
     generated_files, errors = formatter.generate_all_files()
-    
+
     # Should still generate 7 files (including skipped ones: 4 schema + 3 performance)
     assert len(generated_files) == 7
-    
+
     # Check that skipped query files exist (using actual query name)
     assert os.path.exists(os.path.join(str(tmp_path), 'all_queries_stats.md'))
-    
+
     # Verify skipped file content
     with open(os.path.join(str(tmp_path), 'all_queries_stats.md'), 'r') as f:
         content = f.read()
@@ -311,10 +311,10 @@ def test_manifest_generation(tmp_path, sample_results, sample_metadata):
     """Test manifest file generation."""
     formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
     formatter.generate_all_files()
-    
+
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
     assert os.path.exists(manifest_path)
-    
+
     with open(manifest_path, 'r') as f:
         content = f.read()
         assert '# Database Analysis Manifest' in content
@@ -337,10 +337,10 @@ def test_manifest_with_skipped_queries(tmp_path, sample_results):
         'performance_enabled': False,
         'skipped_queries': ['all_queries_stats'],
     }
-    
+
     formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path))
     formatter.generate_all_files()
-    
+
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
     with open(manifest_path, 'r') as f:
         content = f.read()
@@ -356,10 +356,10 @@ def test_error_handling_invalid_data(tmp_path, sample_metadata):
             'data': None,  # Invalid data
         }
     }
-    
+
     formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
     generated_files, errors = formatter.generate_all_files()
-    
+
     # Should handle error gracefully
     assert len(generated_files) >= 0
     # Errors may or may not be captured depending on implementation
@@ -369,19 +369,21 @@ def test_summary_statistics_calculation(tmp_path, sample_results, sample_metadat
     """Test that summary statistics are calculated correctly."""
     formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
     formatter.generate_all_files()
-    
+
     manifest_path = os.path.join(str(tmp_path), 'manifest.md')
     with open(manifest_path, 'r') as f:
         content = f.read()
         assert '- **Total Tables**:' in content
-        assert '- **Total Columns**: 3' in content  # 3 columns in sample data (Aircraft: aircraft_id, aircraft_type; Passenger: email)
+        assert (
+            '- **Total Columns**: 3' in content
+        )  # 3 columns in sample data (Aircraft: aircraft_id, aircraft_type; Passenger: email)
 
 
 def test_file_registry_tracking(tmp_path, sample_results, sample_metadata):
     """Test that file registry tracks generated files."""
     formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
     generated_files, errors = formatter.generate_all_files()
-    
+
     # File registry should match generated files
     assert len(formatter.file_registry) == len(generated_files)
     assert all(os.path.exists(f) for f in formatter.file_registry)

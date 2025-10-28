@@ -96,7 +96,7 @@ ORDER BY t.TABLE_ROWS DESC;""",
   COALESCE(iu.COUNT_DELETE, 0) as `deletes`
 FROM information_schema.STATISTICS s
 LEFT JOIN performance_schema.table_io_waits_summary_by_index_usage iu
-  ON iu.OBJECT_SCHEMA = s.TABLE_SCHEMA 
+  ON iu.OBJECT_SCHEMA = s.TABLE_SCHEMA
   AND iu.OBJECT_NAME = s.TABLE_NAME
   AND iu.INDEX_NAME = s.INDEX_NAME
 WHERE s.TABLE_SCHEMA = '{target_database}'
@@ -164,7 +164,7 @@ ORDER BY kcu.TABLE_NAME, kcu.COLUMN_NAME;""",
         'name': 'All Queries and Stored Procedures Statistics',
         'description': 'Unified view of all query execution including stored procedures with full metrics',
         'category': 'performance_schema',
-        'sql': """SELECT 
+        'sql': """SELECT
   'QUERY' as source_type,
   DIGEST_TEXT as query_pattern,
   -- NULL placeholder needed for UNION ALL column matching (queries don't have procedure names)
@@ -226,7 +226,7 @@ AND DIGEST_TEXT NOT LIKE '%SHA%'
 AND DIGEST_TEXT NOT LIKE '%CONCAT_WS%'
 AND DIGEST_TEXT NOT LIKE '%`DIGEST_TEXT`%'
 UNION ALL
-SELECT 
+SELECT
   'PROCEDURE' as source_type,
   CONCAT('PROCEDURE: ', OBJECT_NAME) as query_pattern,
   OBJECT_NAME as procedure_name,
@@ -263,7 +263,7 @@ ORDER BY total_time_ms DESC;""",
         'name': 'Triggers Statistics',
         'description': 'Trigger execution statistics',
         'category': 'performance_schema',
-        'sql': """SELECT 
+        'sql': """SELECT
   OBJECT_NAME as trigger_name,
   COUNT_STAR as executions,
   ROUND(SUM_TIMER_WAIT/1000000000, 2) as total_time_ms,
@@ -277,7 +277,6 @@ AND OBJECT_TYPE = 'TRIGGER'
 ORDER BY SUM_TIMER_WAIT DESC;""",
         'parameters': ['target_database'],
     },
-
 }
 
 
@@ -300,26 +299,24 @@ def get_query_resource(query_name: str, max_query_results: int, **params) -> Dic
 
 
 def get_queries_by_category(category: str) -> list[str]:
-    """
-    Get list of query names for a specific category.
-    
+    """Get list of query names for a specific category.
+
     Args:
         category: Query category ('information_schema', 'performance_schema', 'internal')
-    
+
     Returns:
         List of query names in the specified category
     """
     return [
-        query_name 
+        query_name
         for query_name, query_info in mysql_analysis_queries.items()
         if query_info.get('category') == category
     ]
 
 
 def get_schema_queries() -> list[str]:
-    """
-    Get list of schema-related query names.
-    
+    """Get list of schema-related query names.
+
     Returns:
         List of query names that analyze database schema
     """
@@ -327,9 +324,8 @@ def get_schema_queries() -> list[str]:
 
 
 def get_performance_queries() -> list[str]:
-    """
-    Get list of performance-related query names.
-    
+    """Get list of performance-related query names.
+
     Returns:
         List of query names that analyze database performance
     """
@@ -337,9 +333,8 @@ def get_performance_queries() -> list[str]:
 
 
 def get_query_descriptions() -> Dict[str, str]:
-    """
-    Get mapping of query names to their descriptions.
-    
+    """Get mapping of query names to their descriptions.
+
     Returns:
         Dictionary mapping query names to human-readable descriptions
     """

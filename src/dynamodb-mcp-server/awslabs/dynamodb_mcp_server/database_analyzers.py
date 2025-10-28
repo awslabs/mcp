@@ -14,13 +14,11 @@
 
 """Database analyzer classes for source database analysis."""
 
-import csv
-import json
 import os
 from awslabs.dynamodb_mcp_server.database_analysis_queries import (
+    get_performance_queries,
     get_query_resource,
     get_schema_queries,
-    get_performance_queries,
 )
 from awslabs.dynamodb_mcp_server.markdown_formatter import MarkdownFormatter
 from awslabs.mysql_mcp_server.server import DBConnection, DummyCtx
@@ -175,13 +173,15 @@ class DatabaseAnalyzer:
             formatter = MarkdownFormatter(results, metadata, analysis_folder)
             generated_files, generation_errors = formatter.generate_all_files()
             saved_files = generated_files
-            
+
             # Convert error tuples to error strings
             if generation_errors:
                 for query_name, error_msg in generation_errors:
                     save_errors.append(f'{query_name}: {error_msg}')
-            
-            logger.info(f'Successfully generated {len(saved_files)} Markdown files with {len(save_errors)} errors')
+
+            logger.info(
+                f'Successfully generated {len(saved_files)} Markdown files with {len(save_errors)} errors'
+            )
         except Exception as e:
             logger.error(f'Failed to generate Markdown files: {str(e)}')
             save_errors.append(f'Failed to generate Markdown files: {str(e)}')

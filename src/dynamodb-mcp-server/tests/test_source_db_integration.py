@@ -1,4 +1,3 @@
-import json
 import os
 import pytest
 from awslabs.dynamodb_mcp_server.database_analysis_queries import get_query_resource
@@ -209,12 +208,15 @@ def test_save_analysis_files_with_data(tmp_path, monkeypatch):
             # Verify it's markdown content with expected structure
             assert content.startswith('#')
             # Check for any of the expected markdown patterns
-            assert any(pattern in content for pattern in [
-                '**Query Description**',
-                '**Database**',
-                '**Query Skipped**',
-                '**Generated**'
-            ])
+            assert any(
+                pattern in content
+                for pattern in [
+                    '**Query Description**',
+                    '**Database**',
+                    '**Query Skipped**',
+                    '**Generated**',
+                ]
+            )
 
 
 def test_save_analysis_files_creation_error(tmp_path, monkeypatch):
@@ -408,7 +410,7 @@ def test_save_analysis_files_json_error(tmp_path, monkeypatch):
         'awslabs.dynamodb_mcp_server.database_analyzers.MarkdownFormatter',
         mock_markdown_formatter_init,
     )
-    
+
     saved, errors = DatabaseAnalyzer.save_analysis_files(
         results, 'mysql', 'db', 30, 500, str(tmp_path), []
     )

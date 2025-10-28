@@ -204,52 +204,52 @@ async def source_db_analyzer(
         logger.info('Generating analysis report')
         if analysis_result['results']:
             report_sections = []
-            
+
             # Header section
-            report_sections.append("Database Analysis Complete")
-            report_sections.append("")
-            
+            report_sections.append('Database Analysis Complete')
+            report_sections.append('')
+
             # Summary section
             summary_lines = [
-                "Summary:",
-                f"- Database: {connection_params.get('database')}",
-                f"- Analysis Period: {connection_params.get('pattern_analysis_days')} days",
-                "**CRITICAL: Read ALL Analysis Files**",
-                "",
-                "Follow these steps IN ORDER:",
-                "",
+                'Summary:',
+                f'- Database: {connection_params.get("database")}',
+                f'- Analysis Period: {connection_params.get("pattern_analysis_days")} days',
+                '**CRITICAL: Read ALL Analysis Files**',
+                '',
+                'Follow these steps IN ORDER:',
+                '',
             ]
             report_sections.extend(summary_lines)
-            
+
             # Add workflow section
             workflow_lines = [
-                "1. Read manifest.md from the timestamped analysis directory",
-                "   - Lists all generated analysis files by category",
-                "   - Shows which queries succeeded/skipped and why",
-                "",
-                "2. Read EVERY file listed in the manifest (both schema and performance sections)",
-                "   - You MUST read all files, even those marked as SKIPPED",
-                "   - Skipped files explain why queries failed (e.g., Performance Schema disabled)",
-                "   - Each file contains critical information for data modeling",
-                "",
-                "3. After reading all files, use dynamodb_data_modeling tool",
-                "   - Extract entities and relationships from schema files",
-                "   - Identify access patterns from performance files",
-                "   - Document findings in dynamodb_requirement.md",
+                '1. Read manifest.md from the timestamped analysis directory',
+                '   - Lists all generated analysis files by category',
+                '   - Shows which queries succeeded/skipped and why',
+                '',
+                '2. Read EVERY file listed in the manifest (both schema and performance sections)',
+                '   - You MUST read all files, even those marked as SKIPPED',
+                '   - Skipped files explain why queries failed (e.g., Performance Schema disabled)',
+                '   - Each file contains critical information for data modeling',
+                '',
+                '3. After reading all files, use dynamodb_data_modeling tool',
+                '   - Extract entities and relationships from schema files',
+                '   - Identify access patterns from performance files',
+                '   - Document findings in dynamodb_requirement.md',
             ]
             report_sections.extend(workflow_lines)
-            
+
             if saved_files:
-                report_sections.append("")
-                report_sections.append("Generated Analysis Files (Read All):")
-                report_sections.extend(f"- {f}" for f in saved_files)
-            
+                report_sections.append('')
+                report_sections.append('Generated Analysis Files (Read All):')
+                report_sections.extend(f'- {f}' for f in saved_files)
+
             if save_errors:
-                report_sections.append("")
-                report_sections.append("File Save Errors:")
-                report_sections.extend(f"- {e}" for e in save_errors)
-            
-            report = "\n".join(report_sections)
+                report_sections.append('')
+                report_sections.append('File Save Errors:')
+                report_sections.extend(f'- {e}' for e in save_errors)
+
+            report = '\n'.join(report_sections)
 
         else:
             report = (
