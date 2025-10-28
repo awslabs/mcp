@@ -107,6 +107,8 @@ def find_package_references_in_readme(
         # uvx/uv tool run patterns with @version
         r'uvx\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+)',
         r'uv\s+tool\s+run\s+--from\s+([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+)',
+        # pip install patterns
+        r'pip\s+install\s+([a-zA-Z0-9._-]+)',
         # JSON configuration patterns with @version
         r'"([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+)"',
         # Package names in JSON config (without version)
@@ -166,7 +168,8 @@ def find_package_references_in_readme(
         if ref.startswith('-'):
             continue
         # Skip if it doesn't contain dots (package names usually have dots)
-        if '.' not in ref and '@' not in ref:
+        # But allow package names that look like they could be valid (contain hyphens)
+        if '.' not in ref and '@' not in ref and '-' not in ref:
             continue
         # Skip common false positives in code examples (word@something where word is not a package name)
         if '@' in ref and '.' not in ref:

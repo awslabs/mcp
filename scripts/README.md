@@ -27,7 +27,7 @@ python3 scripts/verify_package_name.py src/amazon-neptune-mcp-server --verbose
 1. Extracts the package name from the `pyproject.toml` file in the specified directory
 2. Searches the `README.md` file for package name references in installation instructions, including:
    - JSON configuration blocks
-   - Command-line examples (`uvx`, `uv tool run`)
+   - Command-line examples (`uvx`, `uv tool run`, `pip install`)
    - Cursor installation links (with Base64-encoded config)
    - VS Code installation links (with URL-encoded JSON config)
    - Docker run commands
