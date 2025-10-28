@@ -31,3 +31,31 @@ def create_sitewise_client(region: str = 'us-east-1'):
     config = Config(user_agent_extra=f'awslabs/mcp/aws-iot-sitewise-mcp-server/{__version__}')
 
     return boto3.client('iotsitewise', region_name=region, config=config)
+
+
+def create_iam_client(region: str = 'us-east-1'):
+    """Create a standardized AWS IAM client with proper user agent.
+
+    Args:
+        region: AWS region name (default: us-east-1)
+
+    Returns:
+        boto3 IAM client instance
+    """
+    config = Config(user_agent_extra=f'awslabs/mcp/aws-iot-sitewise-mcp-server/{__version__}')
+
+    return boto3.client('iam', region_name=region, config=config)
+
+
+def create_twinmaker_client(region: str = 'us-east-1'):
+    """Create a standardized AWS IoT TwinMaker client with proper user agent.
+
+    Args:
+        region: AWS region name (default: us-east-1)
+
+    Returns:
+        boto3 IoT TwinMaker client instance
+    """
+    config = Config(user_agent_extra=f'awslabs/mcp/aws-iot-sitewise-mcp-server/{__version__}')
+
+    return boto3.client('iottwinmaker', region_name=region, config=config)
