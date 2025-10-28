@@ -9,4 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+[0.0.4] - 2025-10-27
+- Added Billing and Cost Management Pricing Calculator workload estimate features (#1486)
+  
+[0.0.1] - 2025-08-25
 - Initial project setup
