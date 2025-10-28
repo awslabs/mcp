@@ -29,7 +29,7 @@ mysql_analysis_queries = {
     'comprehensive_table_analysis': {
         'name': 'Comprehensive Table Analysis',
         'description': 'Complete table statistics including structure, size, I/O, and locks',
-        'category': 'performance_schema',
+        'category': 'information_schema',
         'sql': """SELECT
   t.TABLE_NAME as `table_name`,
   t.TABLE_ROWS as `row_count`,

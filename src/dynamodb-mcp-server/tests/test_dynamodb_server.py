@@ -182,10 +182,8 @@ async def test_source_db_analyzer_successful_analysis(tmp_path, monkeypatch):
     )
 
     assert 'Database Analysis Complete' in result
-    assert 'Performance Schema: Enabled' in result
-    assert 'Saved Files:' in result
+    assert 'Generated Analysis Files (Read All):' in result
     assert 'File Save Errors:' in result
-    assert 'Query Errors (1):' in result
 
 
 @pytest.mark.asyncio

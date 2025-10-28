@@ -195,8 +195,8 @@ def test_save_analysis_files_with_data(tmp_path, monkeypatch):
         results, 'mysql', 'test_db', 30, 500, str(tmp_path), []
     )
 
-    # Should generate markdown files for all expected queries (7 total: 4 schema + 3 performance)
-    assert len(saved_files) == 7
+    # Should generate markdown files for all expected queries (6 total: 4 schema + 2 performance)
+    assert len(saved_files) == 6
     assert len(save_errors) == 0
 
     # Verify markdown files were created

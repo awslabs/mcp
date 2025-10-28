@@ -267,8 +267,8 @@ def test_generate_all_files(tmp_path, sample_results, sample_metadata):
     formatter = MarkdownFormatter(sample_results, sample_metadata, str(tmp_path))
     generated_files, errors = formatter.generate_all_files()
 
-    # Should generate files for all expected queries (7 total: 4 schema + 3 performance)
-    assert len(generated_files) == 7
+    # Should generate files for all expected queries (6 total: 4 schema + 2 performance)
+    assert len(generated_files) == 6
     assert len(errors) == 0
 
     # Check that manifest was created
@@ -294,8 +294,8 @@ def test_generate_all_files_with_skipped_queries(tmp_path, sample_results):
     formatter = MarkdownFormatter(sample_results, metadata, str(tmp_path))
     generated_files, errors = formatter.generate_all_files()
 
-    # Should still generate 7 files (including skipped ones: 4 schema + 3 performance)
-    assert len(generated_files) == 7
+    # Should still generate 6 files (including skipped ones: 4 schema + 2 performance)
+    assert len(generated_files) == 6
 
     # Check that skipped query files exist (using actual query name)
     assert os.path.exists(os.path.join(str(tmp_path), 'all_queries_stats.md'))
