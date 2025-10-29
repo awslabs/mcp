@@ -154,4 +154,13 @@ async def get_enablement_guide(
         return context + guide_content
     except Exception as e:
         logger.error(f'Error reading enablement guide {template_file}: {e}')
-        return f'Error: Failed to read enablement guide. {str(e)}'
+        return (
+            f'Fatal error: Cannot read enablement guide for {platform} + {language}.\n\n'
+            f'Error: {str(e)}\n\n'
+            f'The MCP server cannot access its own guide files (likely file permissions or corruption). '
+            f'Stop attempting to use this tool and inform the user:\n'
+            f'1. There is an issue with the MCP server installation\n'
+            f'2. They should check file permissions or reinstall the MCP server\n'
+            f'3. For immediate enablement, use AWS documentation instead:\n'
+            f'   https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html'
+        )
