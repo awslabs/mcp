@@ -97,22 +97,6 @@ async def get_enablement_guide(
     logger.debug(f'IaC path: {iac_path}')
     logger.debug(f'App path: {app_path}')
 
-    if not iac_path.exists():
-        error_msg = (
-            f'Error: IaC directory does not exist: {iac_path}\n\n'
-            f'Please provide a valid path to your infrastructure code directory.'
-        )
-        logger.error(error_msg)
-        return error_msg
-
-    if not app_path.exists():
-        error_msg = (
-            f'Error: Application directory does not exist: {app_path}\n\n'
-            f'Please provide a valid path to your application code directory.'
-        )
-        logger.error(error_msg)
-        return error_msg
-
     guides_dir = Path(__file__).parent / 'enablement_guides'
     template_file = guides_dir / 'templates' / platform / f'{platform}-{language}-enablement.md'
 
