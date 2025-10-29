@@ -128,6 +128,9 @@ jobs:
         working-directory: src/${{ matrix.package }}
         run: uv sync --frozen --all-extras --dev
 
+      - name: Verify package name consistency
+        run: python3 scripts/verify_package_name.py src/${{ matrix.package }}
+
       - name: Run tests
         working-directory: src/${{ matrix.package }}
         run: |

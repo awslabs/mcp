@@ -31,6 +31,11 @@ from awslabs.aws_serverless_mcp_server.tools.guidance import (
     GetLambdaGuidanceTool,
     GetServerlessTemplatesTool,
 )
+from awslabs.aws_serverless_mcp_server.tools.poller import (
+    EsmDiagnosisTool,
+    EsmGuidanceTool,
+    EsmRecommendTool,
+)
 from awslabs.aws_serverless_mcp_server.tools.sam import (
     SamBuildTool,
     SamDeployTool,
@@ -208,6 +213,10 @@ def main() -> int:
     ConfigureDomainTool(mcp, args.allow_write)
     DeployWebAppTool(mcp, args.allow_write)
     UpdateFrontendTool(mcp, args.allow_write)
+
+    EsmGuidanceTool(mcp)
+    EsmDiagnosisTool(mcp)
+    EsmRecommendTool(mcp)
 
     # Set AWS_EXECUTION_ENV to configure user agent of boto3. Setting it through an environment variable
     # because SAM CLI does not support setting user agents directly

@@ -103,7 +103,7 @@ uvx awslabs.aws-iot-sitewise-mcp-server@latest
 
 ```bash
 # Install from PyPI (when published)
-pip install aws-iot-sitewise-mcp
+pip install awslabs.aws-iot-sitewise-mcp-server
 
 # Or install from source
 git clone https://github.com/awslabs/mcp.git
