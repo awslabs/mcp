@@ -128,8 +128,9 @@ async def get_enablement_guide(
         ## Instructions
 
         1. Use the ABSOLUTE PATHS above when reading and writing files
-        2. **IMPORTANT:** Only modify the IaC code or Dockerfiles. Actual application code should not be modified.
-        Read application files if needed to understand the setup, but do not modify them.
+        2. **IMPORTANT:** Modify IaC code, Dockerfiles, and dependency files (requirements.txt, pyproject.toml, package.json, pom.xml, build.gradle, *.csproj, etc.) as needed.
+        Do not modify actual application logic files (.py, .js, .java source code).
+        Read application files if needed to understand the setup.
         3. Follow the step-by-step enablement guide below to enable Application Signals
 
         ---
