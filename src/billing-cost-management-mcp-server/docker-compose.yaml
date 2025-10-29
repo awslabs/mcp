@@ -1,0 +1,41 @@
+services:
+  billing-cost-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: billing-cost-management-mcp-server:latest
+    container_name: billing-cost-mcp-server
+    ports:
+      - "8080:8080"
+    environment:
+      # MCP Server Configuration
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8080
+      FASTMCP_LOG_LEVEL: ${FASTMCP_LOG_LEVEL:-INFO}
+
+      # AWS Configuration
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+
+      # Storage Lens Configuration (Optional)
+#      STORAGE_LENS_MANIFEST_LOCATION: ${STORAGE_LENS_MANIFEST_LOCATION}
+#      STORAGE_LENS_OUTPUT_LOCATION: ${STORAGE_LENS_OUTPUT_LOCATION}
+
+      # SQL Configuration (Optional)
+#      MCP_SQL_THRESHOLD: ${MCP_SQL_THRESHOLD:-25600}
+#      MCP_FORCE_SQL: ${MCP_FORCE_SQL:-false}
+
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge

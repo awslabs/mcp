@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# dependabot should continue to update this to the latest hash.
 FROM public.ecr.aws/docker/library/python:3.13-alpine@sha256:070342a0cc1011532c0e69972cce2bbc6cc633eba294bae1d12abea8bd05303b AS uv
 
 # Install the project into `/app`
@@ -65,7 +64,9 @@ FROM public.ecr.aws/docker/library/python:3.13-alpine@sha256:070342a0cc1011532c0
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=8080
 
 # Install runtime dependencies and create application user
 RUN apk update && \
@@ -83,6 +84,12 @@ COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 # Run as non-root
 USER app
 
-# When running the container, add --db-path and a bind mount to the host's db file
+# Expose HTTP port
+EXPOSE 8080
+
+# Health check for HTTP mode
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
+
+# Run with command-line arguments to support both stdio and streamable-http modes
 ENTRYPOINT ["awslabs.billing-cost-management-mcp-server"]
+CMD ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8080"]

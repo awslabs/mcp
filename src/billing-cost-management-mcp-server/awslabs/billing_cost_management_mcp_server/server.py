@@ -18,10 +18,10 @@ A Model Context Protocol (MCP) server that provides tools for Billing and Cost M
 by wrapping boto3 SDK functions for AWS Billing and Cost Management services.
 """
 
+import argparse
 import asyncio
 import os
 import sys
-
 
 if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -61,15 +61,26 @@ from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import u
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
 
-
 # Configure logger for server
 logger = get_logger(__name__)
 
 
-# Main MCP server instance
-mcp = FastMCP(
-    name='billing-cost-management-mcp',
-    instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
+def create_mcp_server(host: str = "0.0.0.0", port: int = 8080) -> FastMCP:
+    """Create and configure the FastMCP server instance.
+
+    Args:
+        host: Host to bind to (for HTTP transport)
+        port: Port to bind to (for HTTP transport)
+
+    Returns:
+        Configured FastMCP instance
+    """
+    # Main MCP server instance
+    mcp = FastMCP(
+        name='billing-cost-management-mcp',
+        host=host,
+        port=port,
+        instructions="""AWS Billing and Cost Management MCP Server - Provides AWS cost optimization tools and prompts through MCP.
 
 When using these tools, always:
 1. Use UnblendedCost metric by default
@@ -116,10 +127,12 @@ For multi-account environments:
 - Include the LINKED_ACCOUNT dimension in cost_explorer queries
 - Specify accountIds parameter for compute-optimizer and cost-optimization tools
 """,
-)
+    )
+
+    return mcp
 
 
-async def register_prompts():
+async def register_prompts(mcp: FastMCP):
     """Register all prompts with the MCP server."""
     try:
         from awslabs.billing_cost_management_mcp_server.prompts import register_all_prompts
@@ -130,7 +143,7 @@ async def register_prompts():
         logger.error(f'Error registering prompts: {e}')
 
 
-async def setup():
+async def setup(mcp: FastMCP):
     """Initialize the MCP server by importing all tool servers."""
     await mcp.import_server(cost_explorer_server)
     await mcp.import_server(compute_optimizer_server)
@@ -146,7 +159,7 @@ async def setup():
     await mcp.import_server(sp_performance_server)
     await mcp.import_server(unified_sql_server)
 
-    await register_prompts()
+    await register_prompts(mcp)
 
     logger.info('AWS Billing and Cost Management MCP Server initialized successfully')
 
@@ -177,11 +190,58 @@ async def setup():
 
 def main():
     """Main entry point for the server."""
-    # Run the setup function to initialize the server
-    asyncio.run(setup())
+    parser = argparse.ArgumentParser(
+        description="AWS Billing and Cost Management MCP Server"
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="streamable-http",
+        help="Transport mode (default: streamable-http)"
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="Host to bind to for HTTP transport (default: 0.0.0.0)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="Port to bind to for HTTP transport (default: 8080)"
+    )
 
-    # Start the MCP server
-    mcp.run()
+    args = parser.parse_args()
+
+    # Use defaults if not specified
+    host = args.host or os.getenv("MCP_HOST", "0.0.0.0")
+    port = args.port or int(os.getenv("MCP_PORT", "8080"))
+
+    logger.info(
+        "Starting AWS Billing and Cost Management MCP Server",
+        extra={
+            "transport": args.transport,
+            "host": host if args.transport == "streamable-http" else None,
+            "port": port if args.transport == "streamable-http" else None,
+            "version": "0.0.3"
+        }
+    )
+
+    # Create MCP server
+    if args.transport == "streamable-http":
+        logger.info(
+            f"Starting HTTP server on {host}:{port}",
+            extra={"host": host, "port": port}
+        )
+        mcp = create_mcp_server(host=host, port=port)
+        asyncio.run(setup(mcp))
+        mcp.run(transport="streamable-http")
+    else:
+        # For stdio transport (local testing)
+        logger.info("Starting stdio transport for local testing")
+        mcp = create_mcp_server()
+        asyncio.run(setup(mcp))
+        mcp.run(transport="stdio")
 
 
 if __name__ == '__main__':
