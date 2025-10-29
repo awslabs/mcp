@@ -27,10 +27,11 @@ async def get_enablement_guide(
     modifying your infrastructure and application code to enable Application Signals.
 
     After calling this tool, you should:
-    1. Read the existing IaC files from iac_directory
-    2. Read the existing application files from app_directory
-    3. Apply the changes specified in the enablement guide to those files
-    4. Verify the changes are correct and complete
+    1. Review the enablement guide and create a work list of required changes
+    2. For each step in the work list:
+       - Identify the specific files in iac_directory or app_directory that need modification
+       - Apply the changes as specified in the guide
+       - Verify the changes are correct before moving to the next step
 
     Args:
         platform: The deployment platform (ec2, ecs, lambda, eks)
