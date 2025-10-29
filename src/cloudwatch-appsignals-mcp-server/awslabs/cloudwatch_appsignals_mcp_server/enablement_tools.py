@@ -109,14 +109,15 @@ async def get_application_signals_enablement_guide(
     logger.debug(f'Looking for enablement guide: {template_file}')
 
     if not template_file.exists():
-        logger.warning(f'Enablement guide not found: {template_file}')
-        return (
+        error_msg = (
             f"Error: Enablement guide for platform '{platform_str}' and language '{language_str}' "
-            f' is not yet available.\n\n'
+            f'is not yet available.\n\n'
             f'Currently supported combinations:\n'
             f'- EC2 + Python\n\n'
             f'Requested: {platform_str} + {language_str}'
         )
+        logger.error(error_msg)
+        return error_msg
 
     try:
         with open(template_file, 'r') as f:
@@ -135,8 +136,7 @@ async def get_application_signals_enablement_guide(
         logger.info(f'Successfully loaded enablement guide: {template_file.name}')
         return context + guide_content
     except Exception as e:
-        logger.error(f'Error reading enablement guide {template_file}: {e}')
-        return (
+        error_msg = (
             f'Fatal error: Cannot read enablement guide for {platform_str} + {language_str}.\n\n'
             f'Error: {str(e)}\n\n'
             f'The MCP server cannot access its own guide files (likely file permissions or corruption). '
@@ -146,3 +146,5 @@ async def get_application_signals_enablement_guide(
             f'3. For immediate enablement, use AWS documentation instead:\n'
             f'   https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html'
         )
+        logger.error(error_msg)
+        return error_msg
