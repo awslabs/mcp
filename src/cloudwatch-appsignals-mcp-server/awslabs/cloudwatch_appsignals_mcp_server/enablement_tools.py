@@ -34,8 +34,10 @@ async def get_enablement_guide(
        - Verify the changes are correct before moving to the next step
 
     Args:
-        platform: The deployment platform (ec2, ecs, lambda, eks)
-        language: The programming language (python, nodejs, java, dotnet)
+        platform: The AWS platform where the service runs (ec2, ecs, lambda, eks).
+            To help user determine: check their IaC for ECS services, Lambda functions, EKS deployments, or EC2 instances.
+        language: The application's programming language (python, nodejs, java, dotnet).
+            To help user determine: check for package.json (nodejs), requirements.txt (python), pom.xml (java), or .csproj (dotnet).
         iac_directory: ABSOLUTE path to the IaC directory (e.g., /home/user/project/infrastructure)
         app_directory: ABSOLUTE path to the application code directory (e.g., /home/user/project/app)
 
