@@ -14,12 +14,29 @@
 
 """CloudWatch Application Signals MCP Server - Enablement Tools."""
 
+from enum import Enum
 from loguru import logger
 from pathlib import Path
 
 
+class Platform(str, Enum):
+    """Supported deployment platforms."""
+    EC2 = "ec2"
+    ECS = "ecs"
+    LAMBDA = "lambda"
+    EKS = "eks"
+
+
+class ServiceLanguage(str, Enum):
+    """Supported service programming languages."""
+    PYTHON = "python"
+    NODEJS = "nodejs"
+    JAVA = "java"
+    DOTNET = "dotnet"
+
+
 async def get_enablement_guide(
-    platform: str, language: str, iac_directory: str, app_directory: str
+    platform: Platform, service_language: ServiceLanguage, iac_directory: str, app_directory: str
 ) -> str:
     """Get enablement guide for AWS Application Signals.
 
@@ -43,7 +60,7 @@ async def get_enablement_guide(
     Args:
         platform: The AWS platform where the service runs (ec2, ecs, lambda, eks).
             To help user determine: check their IaC for ECS services, Lambda functions, EKS deployments, or EC2 instances.
-        language: The application's programming language (python, nodejs, java, dotnet).
+        service_language: The service's programming language (python, nodejs, java, dotnet).
             To help user determine: check for package.json (nodejs), requirements.txt (python), pom.xml (java), or .csproj (dotnet).
         iac_directory: ABSOLUTE path to the IaC directory (e.g., /home/user/project/infrastructure)
         app_directory: ABSOLUTE path to the application code directory (e.g., /home/user/project/app)
@@ -52,32 +69,13 @@ async def get_enablement_guide(
         Markdown-formatted enablement guide with step-by-step instructions
     """
     logger.debug(
-        f'get_enablement_guide called: platform={platform}, language={language}, '
+        f'get_enablement_guide called: platform={platform}, service_language={service_language}, '
         f'iac_directory={iac_directory}, app_directory={app_directory}'
     )
 
-    platform = platform.lower().strip()
-    language = language.lower().strip()
-
-    valid_platforms = ['ec2', 'ecs', 'lambda', 'eks']
-    if platform not in valid_platforms:
-        return (
-            f"Error: Invalid platform '{platform}'.\n\n"
-            f"Valid platforms are: {', '.join(valid_platforms)}\n\n"
-            f"This configuration is not currently supported by the MCP enablement tool. "
-            f"Please refer to the public docs for guidance on manual setup:\n"
-            f"https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-supportmatrix.html"
-        )
-
-    valid_languages = ['python', 'nodejs', 'java', 'dotnet']
-    if language not in valid_languages:
-        return (
-            f"Error: Invalid language '{language}'.\n\n"
-            f"Valid languages are: {', '.join(valid_languages)}\n\n"
-            f"This configuration is not currently supported by the MCP enablement tool. "
-            f"Please refer to the public docs for guidance on manual setup:\n"
-            f"https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-supportmatrix.html"
-        )
+    # Convert enums to string values
+    platform_str = platform.value
+    language_str = service_language.value
 
     # Validate that paths are absolute
     iac_path = Path(iac_directory)
@@ -105,18 +103,18 @@ async def get_enablement_guide(
     logger.debug(f'App path: {app_path}')
 
     guides_dir = Path(__file__).parent / 'enablement_guides'
-    template_file = guides_dir / 'templates' / platform / f'{platform}-{language}-enablement.md'
+    template_file = guides_dir / 'templates' / platform_str / f'{platform_str}-{language_str}-enablement.md'
 
     logger.debug(f'Looking for enablement guide: {template_file}')
 
     if not template_file.exists():
         logger.warning(f'Enablement guide not found: {template_file}')
         return (
-            f"Error: Enablement guide for platform '{platform}' and language '{language}' "
+            f"Error: Enablement guide for platform '{platform_str}' and language '{language_str}' "
             f' is not yet available.\n\n'
             f'Currently supported combinations:\n'
             f'- EC2 + Python\n\n'
-            f'Requested: {platform} + {language}'
+            f'Requested: {platform_str} + {language_str}'
         )
 
     try:
@@ -125,8 +123,8 @@ async def get_enablement_guide(
 
         context = f"""# Application Signals Enablement Guide
 
-**Platform:** {platform}
-**Language:** {language}
+**Platform:** {platform_str}
+**Language:** {language_str}
 **IaC Directory:** `{iac_path}`
 **App Directory:** `{app_path}`
 
@@ -138,7 +136,7 @@ async def get_enablement_guide(
     except Exception as e:
         logger.error(f'Error reading enablement guide {template_file}: {e}')
         return (
-            f'Fatal error: Cannot read enablement guide for {platform} + {language}.\n\n'
+            f'Fatal error: Cannot read enablement guide for {platform_str} + {language_str}.\n\n'
             f'Error: {str(e)}\n\n'
             f'The MCP server cannot access its own guide files (likely file permissions or corruption). '
             f'Stop attempting to use this tool and inform the user:\n'
