@@ -107,11 +107,10 @@ async def get_application_signals_enablement_guide(
 
     if not template_file.exists():
         error_msg = (
-            f"Error: Enablement guide for platform '{platform_str}' and language '{language_str}' "
-            f'is not yet available.\n\n'
-            f'Currently supported combinations:\n'
-            f'- EC2 + Python\n\n'
-            f'Requested: {platform_str} + {language_str}'
+            f"Enablement guide not available for platform '{platform_str}' and language '{language_str}'.\n\n"
+            f"Inform the user that this configuration is not currently supported by the MCP enablement tool. "
+            f"Direct them to AWS documentation for manual setup:\n"
+            f"https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html"
         )
         logger.error(error_msg)
         return error_msg
