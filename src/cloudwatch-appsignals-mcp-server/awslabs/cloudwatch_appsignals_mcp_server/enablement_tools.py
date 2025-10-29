@@ -39,7 +39,7 @@ async def get_enablement_guide(
         app_directory: ABSOLUTE path to the application code directory (e.g., /home/user/project/app)
 
     Returns:
-        Enablement guide with step-by-step instructions
+        Markdown-formatted enablement guide with step-by-step instructions
     """
     logger.debug(
         f'get_enablement_guide called: platform={platform}, language={language}, '
