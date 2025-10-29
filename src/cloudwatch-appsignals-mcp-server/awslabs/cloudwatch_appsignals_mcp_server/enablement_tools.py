@@ -35,13 +35,14 @@ class ServiceLanguage(str, Enum):
     DOTNET = "dotnet"
 
 
-async def get_enablement_guide(
+async def get_application_signals_enablement_guide(
     platform: Platform, service_language: ServiceLanguage, iac_directory: str, app_directory: str
 ) -> str:
     """Get enablement guide for AWS Application Signals.
 
     This tool returns step-by-step enablement instructions that guide you through
-    modifying your infrastructure and application code to enable Application Signals.
+    modifying your infrastructure and application code to enable Application Signals,
+    which is the preferred way to enable automatic instrumentation for services on AWS.
 
     After calling this tool, you should:
     1. Review the enablement guide and create a work list of required changes
@@ -69,7 +70,7 @@ async def get_enablement_guide(
         Markdown-formatted enablement guide with step-by-step instructions
     """
     logger.debug(
-        f'get_enablement_guide called: platform={platform}, service_language={service_language}, '
+        f'get_application_signals_enablement_guide called: platform={platform}, service_language={service_language}, '
         f'iac_directory={iac_directory}, app_directory={app_directory}'
     )
 

@@ -6,7 +6,7 @@
 import pytest
 import tempfile
 from awslabs.cloudwatch_appsignals_mcp_server.enablement_tools import (
-    get_enablement_guide,
+    get_application_signals_enablement_guide,
     Platform,
     ServiceLanguage,
 )
@@ -32,7 +32,7 @@ class TestGetEnablementGuide:
     @pytest.mark.asyncio
     async def test_successful_guide_fetch(self, temp_directories, tmp_path, monkeypatch):
         """Test successful guide fetching when template exists."""
-        result = await get_enablement_guide(
+        result = await get_application_signals_enablement_guide(
             platform=Platform.EC2,
             service_language=ServiceLanguage.PYTHON,
             iac_directory=temp_directories['iac'],
@@ -50,7 +50,7 @@ class TestGetEnablementGuide:
         valid_platforms = [Platform.EC2, Platform.ECS, Platform.LAMBDA, Platform.EKS]
 
         for platform in valid_platforms:
-            result = await get_enablement_guide(
+            result = await get_application_signals_enablement_guide(
                 platform=platform,
                 service_language=ServiceLanguage.PYTHON,
                 iac_directory=temp_directories['iac'],
@@ -66,7 +66,7 @@ class TestGetEnablementGuide:
         valid_languages = [ServiceLanguage.PYTHON, ServiceLanguage.NODEJS, ServiceLanguage.JAVA, ServiceLanguage.DOTNET]
 
         for language in valid_languages:
-            result = await get_enablement_guide(
+            result = await get_application_signals_enablement_guide(
                 platform=Platform.EC2,
                 service_language=language,
                 iac_directory=temp_directories['iac'],
@@ -79,7 +79,7 @@ class TestGetEnablementGuide:
     @pytest.mark.asyncio
     async def test_relative_path_rejected(self, temp_directories):
         """Test that relative paths are rejected with clear error message."""
-        result = await get_enablement_guide(
+        result = await get_application_signals_enablement_guide(
             platform=Platform.EC2,
             service_language=ServiceLanguage.PYTHON,
             iac_directory='infrastructure/cdk',
@@ -92,7 +92,7 @@ class TestGetEnablementGuide:
     @pytest.mark.asyncio
     async def test_relative_app_directory_rejected(self, temp_directories):
         """Test that relative app directory is rejected with clear error message."""
-        result = await get_enablement_guide(
+        result = await get_application_signals_enablement_guide(
             platform=Platform.EC2,
             service_language=ServiceLanguage.PYTHON,
             iac_directory=temp_directories['iac'],
@@ -105,7 +105,7 @@ class TestGetEnablementGuide:
     @pytest.mark.asyncio
     async def test_absolute_path_handling(self, temp_directories):
         """Test that absolute paths are handled correctly."""
-        result = await get_enablement_guide(
+        result = await get_application_signals_enablement_guide(
             platform=Platform.EC2,
             service_language=ServiceLanguage.PYTHON,
             iac_directory=temp_directories['iac'],
