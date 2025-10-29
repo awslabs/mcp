@@ -51,11 +51,23 @@ async def get_enablement_guide(
 
     valid_platforms = ['ec2', 'ecs', 'lambda', 'eks']
     if platform not in valid_platforms:
-        return f"Error: Invalid platform: '{platform}'. Valid platforms are: {', '.join(valid_platforms)}"
+        return (
+            f"Error: Invalid platform '{platform}'.\n\n"
+            f"Valid platforms are: {', '.join(valid_platforms)}\n\n"
+            f"This configuration is not currently supported by the MCP enablement tool. "
+            f"Please refer to the public docs for guidance on manual setup:\n"
+            f"https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-supportmatrix.html"
+        )
 
     valid_languages = ['python', 'nodejs', 'java', 'dotnet']
     if language not in valid_languages:
-        return f"Error: Invalid language '{language}'. Valid languages are: {', '.join(valid_languages)}"
+        return (
+            f"Error: Invalid language '{language}'.\n\n"
+            f"Valid languages are: {', '.join(valid_languages)}\n\n"
+            f"This configuration is not currently supported by the MCP enablement tool. "
+            f"Please refer to the public docs for guidance on manual setup:\n"
+            f"https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-supportmatrix.html"
+        )
 
     # Validate that paths are absolute
     iac_path = Path(iac_directory)
