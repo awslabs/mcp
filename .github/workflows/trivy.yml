@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@c2d7bf853b8e31f22697101601bd4a0438c09f13
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@61ce600d5c7fd6584b22b6eac98f9b097aabce11
 
       - name: Get Checkout Depth
         id: checkout-depth
@@ -93,7 +93,7 @@ jobs:
           docker image save -o "${{ runner.temp }}/image.tar" docker.io/${{ matrix.dockerfile }}:${{ github.sha }}
 
       - name: Upload digest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: image-${{ steps.checkout-depth.outputs.image-name }}
           path: ${{ runner.temp }}/image.tar
@@ -118,7 +118,7 @@ jobs:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload results
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: trivy-results-${{ steps.checkout-depth.outputs.image-name }}
           path: '${{ matrix.dockerfile }}/trivy-results.sarif'

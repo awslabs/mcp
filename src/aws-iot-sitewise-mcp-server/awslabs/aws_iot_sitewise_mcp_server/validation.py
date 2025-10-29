@@ -492,3 +492,53 @@ def validate_safe_identifier(identifier: str, field_name: str = 'identifier') ->
 
     if len(identifier) > 256:
         raise ValidationError(f'{field_name} cannot exceed 256 characters')
+
+
+def check_storage_configuration_requirements(client, adaptive_ingestion: bool) -> None:
+    """Check storage configuration requirements for bulk import jobs.
+
+    For bulk import jobs with adaptive_ingestion=False, either:
+    1. Multi-layer storage must be configured, OR
+    2. Warm tier must be enabled for default storage
+
+    Args:
+        client: IoT SiteWise client
+        adaptive_ingestion: Whether adaptive ingestion is enabled
+
+    Raises:
+        ValidationError: If storage configuration requirements are not met
+    """
+    if adaptive_ingestion:
+        return
+
+    try:
+        response = client.describe_storage_configuration()
+        storage_type = response.get('storageType', 'SITEWISE_DEFAULT_STORAGE')
+
+        if storage_type == 'SITEWISE_DEFAULT_STORAGE':
+            # Check if warm tier is enabled for default storage
+            warm_tier = response.get('warmTier')
+            if not warm_tier or warm_tier.get('state') != 'ENABLED':
+                raise ValidationError(
+                    'For bulk import jobs with adaptive ingestion disabled, either multi-layer storage '
+                    'must be configured or warm tier must be enabled. Current configuration has default '
+                    'storage without warm tier enabled.'
+                    'Ask the user if they can enable adaptive_ingestion if data is within 30 days or they wants to enable cold/warm tier'
+                )
+
+        elif storage_type == 'MULTI_LAYER_STORAGE':
+            # Verify multi-layer storage is properly configured
+            multilayer_storage = response.get('multiLayerStorage', {})
+            customer_managed_s3_storage = multilayer_storage.get('customerManagedS3Storage', {})
+            if not customer_managed_s3_storage:
+                raise ValidationError(
+                    'Multi-layer storage is configured but customer managed S3 storage is not properly set up.'
+                )
+
+        else:
+            raise ValidationError(f'Unknown storage type: {storage_type}')
+
+    except Exception as e:
+        if isinstance(e, ValidationError):
+            raise
+        raise ValidationError(f'Failed to validate storage configuration: {str(e)}')

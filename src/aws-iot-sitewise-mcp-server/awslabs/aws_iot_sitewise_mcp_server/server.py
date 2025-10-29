@@ -19,6 +19,9 @@ from awslabs.aws_iot_sitewise_mcp_server import __version__
 from awslabs.aws_iot_sitewise_mcp_server.prompts.asset_hierarchy import (
     asset_hierarchy_visualization_prompt,
 )
+from awslabs.aws_iot_sitewise_mcp_server.prompts.bulk_import_workflow import (
+    bulk_import_workflow_helper_prompt,
+)
 from awslabs.aws_iot_sitewise_mcp_server.prompts.data_exploration import (
     data_exploration_helper_prompt,
 )
@@ -58,11 +61,16 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_data import (
     batch_get_asset_property_value_history_tool,
     batch_get_asset_property_value_tool,
     batch_put_asset_property_value_tool,
+    create_buffered_ingestion_job_tool,
+    create_bulk_import_iam_role_tool,
+    create_bulk_import_job_tool,
+    describe_bulk_import_job_tool,
     execute_query_tool,
     get_asset_property_aggregates_tool,
     get_asset_property_value_history_tool,
     get_asset_property_value_tool,
     get_interpolated_asset_property_values_tool,
+    list_bulk_import_jobs_tool,
 )
 from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways import (
     associate_time_series_to_asset_property_tool,
@@ -77,6 +85,13 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways import (
     list_time_series_tool,
     update_gateway_capability_configuration_tool,
     update_gateway_tool,
+)
+from awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_metadata_transfer import (
+    cancel_metadata_transfer_job_tool,
+    create_bulk_import_schema_tool,
+    create_metadata_transfer_job_tool,
+    get_metadata_transfer_job_tool,
+    list_metadata_transfer_jobs_tool,
 )
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools import Tool
@@ -126,6 +141,11 @@ all_tools = [
     batch_get_asset_property_value_tool,
     batch_get_asset_property_value_history_tool,
     batch_get_asset_property_aggregates_tool,
+    create_bulk_import_job_tool,
+    create_buffered_ingestion_job_tool,
+    create_bulk_import_iam_role_tool,
+    list_bulk_import_jobs_tool,
+    describe_bulk_import_job_tool,
     execute_query_tool,
     create_gateway_tool,
     describe_gateway_tool,
@@ -145,6 +165,11 @@ all_tools = [
     put_logging_options_tool,
     describe_storage_configuration_tool,
     put_storage_configuration_tool,
+    create_bulk_import_schema_tool,
+    create_metadata_transfer_job_tool,
+    cancel_metadata_transfer_job_tool,
+    get_metadata_transfer_job_tool,
+    list_metadata_transfer_jobs_tool,
 ]
 
 
@@ -284,6 +309,7 @@ async def run_server():
     # Add data ingestion prompt only in write mode
     if allow_writes:
         mcp.add_prompt(data_ingestion_helper_prompt)
+        mcp.add_prompt(bulk_import_workflow_helper_prompt)
 
     async with create_task_group() as tg:
         tg.start_soon(signal_handler, tg.cancel_scope)
