@@ -340,21 +340,181 @@ async def call_aws_helper(
 if ENABLE_AGENT_SCRIPTS:
 
     @server.tool(
+        name='suggest_relevant_scripts',
+        description="""Suggest relevant agentic scripts based on user intent or task description. 
+        
+        IMPORTANT: Use this tool FIRST when you're unsure which script to use for a user's AWS task.
+        This tool analyzes the user's intent and returns matching scripts with their exact names,
+        descriptions, complexity levels, and use cases.
+        
+        After getting suggestions, use the exact script_name returned in the 'get_execution_plan' tool.
+        
+        Examples of user intents:
+        - "set up secure website with CloudFront"
+        - "create static site with CDN"
+        - "deploy S3 website with HTTPS"
+        
+        Returns:
+            List of matching scripts with exact names, descriptions, complexity, and metadata.
+        """,
+        annotations=ToolAnnotations(
+            title='Suggest relevant scripts based on user intent',
+            readOnlyHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def suggest_relevant_scripts(
+        user_intent: Annotated[
+            str, Field(description='Description of what the user wants to accomplish with AWS')
+        ],
+        ctx: Context,
+        aws_services: Annotated[
+            Optional[list[str]],
+            Field(description="Optional list of AWS services involved (e.g., ['cloudfront', 's3'])"),
+        ] = None,
+        complexity: Annotated[
+            Optional[str],
+            Field(description="Optional complexity filter: 'beginner', 'intermediate', or 'advanced'"),
+        ] = None,
+    ) -> list[dict[str, Any]] | AwsApiMcpServerErrorResponse:
+        """Suggest relevant scripts based on user intent and requirements."""
+        logger.info('Suggesting scripts for intent: {}', user_intent)
+
+        try:
+            matching_scripts = AGENT_SCRIPTS_MANAGER.search_scripts(
+                query=user_intent, aws_services=aws_services, complexity=complexity
+            )
+
+            if not matching_scripts:
+                logger.info('No matching scripts found for intent: {}', user_intent)
+                return []
+
+            results = []
+            for script_name in matching_scripts:
+                info = AGENT_SCRIPTS_MANAGER.get_script_info(script_name)
+                if info:
+                    results.append(
+                        {
+                            'script_name': script_name,
+                            'description': info['description'],
+                            'complexity': info['complexity'],
+                            'estimated_time': info['estimated_time'],
+                            'aws_services': info['aws_services'],
+                            'tags': info['tags'],
+                        }
+                    )
+
+            logger.info('Found {} matching scripts', len(results))
+            return results
+
+        except Exception as e:
+            error_message = f'Error while suggesting scripts: {str(e)}'
+            await ctx.error(error_message)
+            return AwsApiMcpServerErrorResponse(detail=error_message)
+
+    @server.tool(
+        name='list_templates',
+        description="""List all available configuration templates.
+        
+        Returns a list of template names that can be used with the get_template tool.
+        Call this tool to discover what templates are available before using get_template.
+        """,
+        annotations=ToolAnnotations(
+            title='List available configuration templates',
+            readOnlyHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def list_templates(
+        ctx: Context,
+    ) -> list[str] | AwsApiMcpServerErrorResponse:
+        """List all available templates."""
+        try:
+            templates = AGENT_SCRIPTS_MANAGER.list_templates()
+            logger.info(f'Listed {len(templates)} templates')
+            return templates
+        except Exception as e:
+            error_message = f'Error listing templates: {str(e)}'
+            await ctx.error(error_message)
+            return AwsApiMcpServerErrorResponse(detail=error_message)
+
+    @server.tool(
+        name='get_template',
+        description="""Get configuration templates for AWS resources with optional parameter substitution.
+        
+        This tool provides access to pre-configured JSON templates for AWS resources like CloudFront distributions,
+        S3 bucket policies, etc. Templates can be retrieved with or without parameter substitution.
+        
+        To see available templates, use the list_templates tool.
+        
+        Usage:
+        1. Get raw template: get_template("template-name")
+        2. Get template with parameters: get_template("template-name", {{"param1": "value1", "param2": "value2"}})
+        
+        The tool automatically handles parameter substitution by replacing placeholders like {{param1}} with provided values.
+        Templates are returned as properly formatted JSON strings ready for use with call_aws tool.
+        
+        Returns:
+            Template content as JSON string, with parameters substituted if provided
+        """,
+        annotations=ToolAnnotations(
+            title='Get AWS configuration templates',
+            readOnlyHint=True,
+            openWorldHint=False,
+        ),
+    )
+    async def get_template(
+        template_name: Annotated[str, Field(description='Name of the template to retrieve')],
+        ctx: Context,
+        parameters: Annotated[
+            Optional[dict[str, str]],
+            Field(
+                description='Optional parameters for template substitution (e.g., {"bucket_name": "my-bucket", "distribution_id": "E123"})'
+            ),
+        ] = None,
+    ) -> str | AwsApiMcpServerErrorResponse:
+        """Get template content with optional parameter substitution."""
+        logger.info('Retrieving template: {} with parameters: {}', template_name, parameters)
+
+        try:
+            # Manager returns JSON string directly - no conversion needed
+            if parameters:
+                result = AGENT_SCRIPTS_MANAGER.get_template_with_parameters(template_name, parameters)
+            else:
+                result = AGENT_SCRIPTS_MANAGER.get_template_content(template_name)
+
+            if result is None:
+                available = ', '.join(AGENT_SCRIPTS_MANAGER.list_templates())
+                error_message = f'Template {template_name} not found. Available templates: {available}'
+                await ctx.error(error_message)
+                return AwsApiMcpServerErrorResponse(detail=error_message)
+
+            logger.info(f'Successfully retrieved template: {template_name}')
+            return result
+
+        except Exception as e:
+            error_message = f'Error retrieving template {template_name}: {str(e)}'
+            await ctx.error(error_message)
+            return AwsApiMcpServerErrorResponse(detail=error_message)
+
+    @server.tool(
         name='get_execution_plan',
-        description=f"""Get the execution plan for a compiled AWS workflow. This tool provides structured, step-by-step guidance for accomplishing a complex task with AWS.
+        description="""Get the execution plan for a compiled AWS workflow. This tool provides structured, step-by-step guidance for accomplishing a complex task with AWS.
+        
         When a user request matches a plan intent, you MUST always call this tool to get an execution plan instead of attempting to come up with you own, since the procedures returned by this tool are more robust, and properly tested.
 
-        Below you can find the list of available scripts in the format <script_name> : <description>
-        {AGENT_SCRIPTS_MANAGER.pretty_print_scripts()}
+        To discover available scripts, use the suggest_relevant_scripts tool first.
+        
         INSTRUCTIONS:
-        - Call this tool with the specific script_name when user requests match the above patterns
+        - Use suggest_relevant_scripts to find the right script for the task
+        - Call this tool with the specific script_name from the suggestion
         - The returned plan contains detailed, tested procedures that you MUST follow exactly
         - Do NOT attempt to create your own procedures for these tasks - use the provided plans
         - Execute ALL steps in the plan without skipping any
         - If plan instructions contradict each other, ask the user for guidance
 
         Returns:
-            - Detailed script plan with step-by-step instructions for the requested task.
+            Detailed script plan with step-by-step instructions for the requested task.
         """,
         annotations=ToolAnnotations(
             title='Get structured execution plans for complex tasks',
