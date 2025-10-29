@@ -100,9 +100,6 @@ async def get_application_signals_enablement_guide(
         logger.error(error_msg)
         return error_msg
 
-    logger.debug(f'IaC path: {iac_path}')
-    logger.debug(f'App path: {app_path}')
-
     guides_dir = Path(__file__).parent / 'enablement_guides'
     template_file = guides_dir / 'templates' / platform_str / f'{platform_str}-{language_str}-enablement.md'
 
