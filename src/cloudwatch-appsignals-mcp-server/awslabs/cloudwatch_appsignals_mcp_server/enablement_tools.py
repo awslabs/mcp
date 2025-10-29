@@ -33,6 +33,13 @@ async def get_enablement_guide(
        - Apply the changes as specified in the guide
        - Verify the changes are correct before moving to the next step
 
+    Important guidelines:
+    - Use ABSOLUTE PATHS (iac_directory and app_directory) when reading and writing files
+    - Modify IaC code, Dockerfiles, and dependency files (requirements.txt, pyproject.toml,
+      package.json, pom.xml, build.gradle, *.csproj, etc.) as needed
+    - Do NOT modify actual application logic files (.py, .js, .java source code)
+    - Read application files if needed to understand the setup, but avoid modifying them
+
     Args:
         platform: The AWS platform where the service runs (ec2, ecs, lambda, eks).
             To help user determine: check their IaC for ECS services, Lambda functions, EKS deployments, or EC2 instances.
@@ -118,23 +125,14 @@ async def get_enablement_guide(
 
         context = f"""# Application Signals Enablement Guide
 
-        ## Context
+**Platform:** {platform}
+**Language:** {language}
+**IaC Directory:** `{iac_path}`
+**App Directory:** `{app_path}`
 
-        **Platform:** {platform}
-        **Language:** {language}
-        **IaC Directory (absolute path):** `{iac_path}`
-        **Application Directory (absolute path):** `{app_path}`
+---
 
-        ## Instructions
-
-        1. Use the ABSOLUTE PATHS above when reading and writing files
-        2. **IMPORTANT:** Modify IaC code, Dockerfiles, and dependency files (requirements.txt, pyproject.toml, package.json, pom.xml, build.gradle, *.csproj, etc.) as needed.
-        Do not modify actual application logic files (.py, .js, .java source code).
-        Read application files if needed to understand the setup.
-        3. Follow the step-by-step enablement guide below to enable Application Signals
-
-        ---
-        """
+"""
         logger.info(f'Successfully loaded enablement guide: {template_file.name}')
         return context + guide_content
     except Exception as e:
