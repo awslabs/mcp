@@ -15,7 +15,7 @@
 
 import os
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 
 def pytest_addoption(parser):
@@ -45,7 +45,13 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture
 def mock_context():
     """Create a mock MCP context."""
-    return MagicMock()
+    mock = MagicMock()
+    # Make info, debug, error methods async-compatible
+    mock.info = AsyncMock()
+    mock.debug = AsyncMock()
+    mock.error = AsyncMock()
+    mock.warning = AsyncMock()
+    return mock
 
 
 @pytest.fixture

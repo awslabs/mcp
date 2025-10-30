@@ -251,3 +251,181 @@ class TestServer:
                 mock_main.assert_called_once()
                 # Verify sys.exit was called with the return value from main
                 mock_exit.assert_called_once_with(42)
+
+    def test_streaming_infrastructure_setup_resource(self):
+        """Test the streaming_infrastructure_setup resource function."""
+        from awslabs.aws_serverless_mcp_server.server import streaming_infrastructure_setup
+
+        result = streaming_infrastructure_setup()
+
+        # Verify the structure of the returned data
+        assert isinstance(result, dict)
+        assert 'auto_detection_keywords' in result
+        assert 'automatic_tool_selection' in result
+        assert 'generates' in result
+
+        # Verify keywords are present
+        keywords = result['auto_detection_keywords']
+        assert 'create kafka cluster' in keywords
+        assert 'create kinesis stream' in keywords
+        assert 'MSK cluster' in keywords
+        assert 'lambda consumer' in keywords
+
+        # Verify tool selection
+        tool_selection = result['automatic_tool_selection']
+        assert tool_selection['primary_tool'] == 'esm_guidance'
+        assert tool_selection['optimization_tool'] == 'esm_optimize'
+        assert tool_selection['troubleshooting_tool'] == 'esm_kafka_troubleshoot'
+
+        # Verify generates list
+        generates = result['generates']
+        assert 'Complete SAM templates' in generates
+        assert 'VPC and networking infrastructure' in generates
+
+    def test_natural_language_detection_resource(self):
+        """Test the natural_language_detection resource function."""
+        from awslabs.aws_serverless_mcp_server.server import natural_language_detection
+
+        result = natural_language_detection()
+
+        # Verify the structure of the returned data
+        assert isinstance(result, dict)
+        assert 'natural_language_patterns' in result
+        assert 'automatic_workflow' in result
+        assert 'no_keywords_required' in result
+
+        # Verify patterns are present
+        patterns = result['natural_language_patterns']
+        assert 'create a kafka cluster' in patterns
+        assert 'set up kafka with lambda' in patterns
+        assert 'build real-time data processing' in patterns
+
+        # Verify workflow steps
+        workflow = result['automatic_workflow']
+        assert len(workflow) == 5
+        assert '1. Detect streaming intent → Auto-select esm_guidance tool' in workflow
+
+        # Verify no keywords required message
+        assert 'Tools automatically selected' in result['no_keywords_required']
+
+    def test_template_list_resource(self):
+        """Test the template_list resource function."""
+        from awslabs.aws_serverless_mcp_server.server import template_list
+
+        with patch('awslabs.aws_serverless_mcp_server.server.handle_template_list') as mock_handle:
+            mock_handle.return_value = {'templates': ['template1', 'template2']}
+
+            result = template_list()
+
+            # Verify the function calls the handler
+            mock_handle.assert_called_once()
+            assert result == {'templates': ['template1', 'template2']}
+
+    def test_template_details_resource(self):
+        """Test the template_details resource function."""
+        from awslabs.aws_serverless_mcp_server.server import template_details
+
+        with patch(
+            'awslabs.aws_serverless_mcp_server.server.handle_template_details'
+        ) as mock_handle:
+            mock_handle.return_value = {'name': 'test-template', 'description': 'Test template'}
+
+            result = template_details('test-template')
+
+            # Verify the function calls the handler with correct argument
+            mock_handle.assert_called_once_with('test-template')
+            assert result == {'name': 'test-template', 'description': 'Test template'}
+
+    @patch('awslabs.aws_serverless_mcp_server.server.handle_deployments_list')
+    async def test_deployment_list_resource(self, mock_handle):
+        """Test the deployment_list resource function."""
+        from awslabs.aws_serverless_mcp_server.server import deployment_list
+
+        mock_handle.return_value = {'deployments': ['deployment1', 'deployment2']}
+
+        result = await deployment_list()
+
+        # Verify the function calls the handler
+        mock_handle.assert_called_once()
+        assert result == {'deployments': ['deployment1', 'deployment2']}
+
+    @patch('awslabs.aws_serverless_mcp_server.server.handle_deployment_details')
+    async def test_deployment_details_resource(self, mock_handle):
+        """Test the deployment_details resource function."""
+        from awslabs.aws_serverless_mcp_server.server import deployment_details
+
+        mock_handle.return_value = {'name': 'test-project', 'status': 'deployed'}
+
+        result = await deployment_details('test-project')
+
+        # Verify the function calls the handler with correct argument
+        mock_handle.assert_called_once_with('test-project')
+        assert result == {'name': 'test-project', 'status': 'deployed'}
+
+    @patch('awslabs.aws_serverless_mcp_server.server.os.makedirs')
+    @patch('awslabs.aws_serverless_mcp_server.server.logger')
+    @patch('awslabs.aws_serverless_mcp_server.server.argparse.ArgumentParser')
+    @patch('awslabs.aws_serverless_mcp_server.server.EsmGuidanceTool')
+    @patch('awslabs.aws_serverless_mcp_server.server.EsmDiagnosisTool')
+    @patch('awslabs.aws_serverless_mcp_server.server.EsmRecommendTool')
+    @patch('awslabs.aws_serverless_mcp_server.server.SecureEsmGuidanceTool')
+    @patch('awslabs.aws_serverless_mcp_server.server.mcp')
+    def test_esm_tools_initialization(
+        self,
+        mock_mcp,
+        mock_secure_esm_guidance,
+        mock_esm_recommend,
+        mock_esm_diagnosis,
+        mock_esm_guidance,
+        mock_arg_parser,
+        mock_logger,
+        mock_makedirs,
+    ):
+        """Test that ESM tools are properly initialized."""
+        # Setup mock argument parser
+        mock_parser = MagicMock()
+        mock_arg_parser.return_value = mock_parser
+        mock_args = MagicMock()
+        mock_args.allow_write = True
+        mock_args.allow_sensitive_data_access = True
+        mock_parser.parse_args.return_value = mock_args
+
+        # Setup mock MCP run
+        mock_mcp.run.return_value = None
+
+        # Call the main function
+        result = main()
+
+        # Verify the result
+        assert result == 0
+
+        # Verify ESM tools are initialized with correct parameters
+        mock_esm_guidance.assert_called_once_with(mock_mcp, allow_write=True)
+        mock_esm_diagnosis.assert_called_once_with(mock_mcp, allow_write=True)
+        mock_esm_recommend.assert_called_once_with(mock_mcp, allow_write=True)
+        mock_secure_esm_guidance.assert_called_once_with(mock_mcp, allow_write=True)
+
+    def test_aws_execution_env_setting(self):
+        """Test that AWS_EXECUTION_ENV is properly set."""
+        from awslabs.aws_serverless_mcp_server import __version__
+
+        # Store original value
+        original_env = os.environ.get('AWS_EXECUTION_ENV')
+
+        try:
+            with patch('awslabs.aws_serverless_mcp_server.server.argparse.ArgumentParser'):
+                with patch('awslabs.aws_serverless_mcp_server.server.mcp') as mock_mcp:
+                    mock_mcp.run.return_value = None
+
+                    # Call main to trigger environment variable setting
+                    main()
+
+                    # Verify AWS_EXECUTION_ENV is set correctly
+                    expected_value = f'awslabs/mcp/aws-serverless-mcp-server/{__version__}'
+                    assert os.environ.get('AWS_EXECUTION_ENV') == expected_value
+        finally:
+            # Restore original value
+            if original_env is not None:
+                os.environ['AWS_EXECUTION_ENV'] = original_env
+            elif 'AWS_EXECUTION_ENV' in os.environ:
+                del os.environ['AWS_EXECUTION_ENV']
