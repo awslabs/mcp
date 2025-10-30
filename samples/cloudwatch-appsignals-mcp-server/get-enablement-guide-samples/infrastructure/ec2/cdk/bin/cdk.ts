@@ -26,11 +26,7 @@ configFiles.forEach(configFile => {
   const configPath = path.join(configDir, configFile);
   const config: AppConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-  // Convert appName to PascalCase for stack ID (e.g., python-flask -> PythonFlask)
-  const stackId = config.appName
-    .split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('') + 'Stack';
+  const stackId = `${config.appName}Stack`;
 
   new EC2AppStack(app, stackId, config, { env });
 });

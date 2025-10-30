@@ -1,5 +1,5 @@
 {
-  "appName": "python-flask-cdk",
+  "appName": "PythonFlaskCdk",
   "healthCheckPath": "/health",
   "imageName": "python-flask",
   "language": "python",
