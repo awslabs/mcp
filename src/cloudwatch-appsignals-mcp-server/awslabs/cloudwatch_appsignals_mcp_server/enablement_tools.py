@@ -21,18 +21,20 @@ from pathlib import Path
 
 class Platform(str, Enum):
     """Supported deployment platforms."""
-    EC2 = "ec2"
-    ECS = "ecs"
-    LAMBDA = "lambda"
-    EKS = "eks"
+
+    EC2 = 'ec2'
+    ECS = 'ecs'
+    LAMBDA = 'lambda'
+    EKS = 'eks'
 
 
 class ServiceLanguage(str, Enum):
     """Supported service programming languages."""
-    PYTHON = "python"
-    NODEJS = "nodejs"
-    JAVA = "java"
-    DOTNET = "dotnet"
+
+    PYTHON = 'python'
+    NODEJS = 'nodejs'
+    JAVA = 'java'
+    DOTNET = 'dotnet'
 
 
 async def get_application_signals_enablement_guide(
@@ -79,7 +81,9 @@ async def get_application_signals_enablement_guide(
     language_str = service_language.value
 
     guides_dir = Path(__file__).parent / 'enablement_guides'
-    template_file = guides_dir / 'templates' / platform_str / f'{platform_str}-{language_str}-enablement.md'
+    template_file = (
+        guides_dir / 'templates' / platform_str / f'{platform_str}-{language_str}-enablement.md'
+    )
 
     logger.debug(f'Looking for enablement guide: {template_file}')
 
@@ -108,9 +112,9 @@ async def get_application_signals_enablement_guide(
     if not template_file.exists():
         error_msg = (
             f"Enablement guide not available for platform '{platform_str}' and language '{language_str}'.\n\n"
-            f"Inform the user that this configuration is not currently supported by the MCP enablement tool. "
-            f"Direct them to AWS documentation for manual setup:\n"
-            f"https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html"
+            f'Inform the user that this configuration is not currently supported by the MCP enablement tool. '
+            f'Direct them to AWS documentation for manual setup:\n'
+            f'https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html'
         )
         logger.error(error_msg)
         return error_msg

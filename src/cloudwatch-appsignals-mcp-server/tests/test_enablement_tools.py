@@ -6,9 +6,9 @@
 import pytest
 import tempfile
 from awslabs.cloudwatch_appsignals_mcp_server.enablement_tools import (
-    get_application_signals_enablement_guide,
     Platform,
     ServiceLanguage,
+    get_application_signals_enablement_guide,
 )
 from pathlib import Path
 
@@ -63,7 +63,12 @@ class TestGetEnablementGuide:
     @pytest.mark.asyncio
     async def test_all_valid_languages(self, temp_directories):
         """Test that all valid languages are accepted."""
-        valid_languages = [ServiceLanguage.PYTHON, ServiceLanguage.NODEJS, ServiceLanguage.JAVA, ServiceLanguage.DOTNET]
+        valid_languages = [
+            ServiceLanguage.PYTHON,
+            ServiceLanguage.NODEJS,
+            ServiceLanguage.JAVA,
+            ServiceLanguage.DOTNET,
+        ]
 
         for language in valid_languages:
             result = await get_application_signals_enablement_guide(
