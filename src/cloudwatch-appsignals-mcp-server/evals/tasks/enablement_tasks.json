@@ -1,19 +1,21 @@
 [
   {
-    "id": "ec2_python_flask",
-    "description": "Enable Application Signals for Python Flask application on EC2",
-    "platform": "ec2",
-    "language": "python",
-    "framework": "flask",
-    "iac_directory": "infrastructure/ec2/cdk",
     "app_directory": "sample-apps/python/flask",
-    "expected_tools": ["get_enablement_guide"],
-    "modifies_code": true,
     "build_config": {
       "command": "npm run build",
-      "working_dir": "infrastructure/ec2/cdk",
-      "install_command": "npm install"
+      "install_command": "npm install",
+      "working_dir": "infrastructure/ec2/cdk"
     },
+    "description": "Enable Application Signals for Python Flask application on EC2",
+    "expected_tools": [
+      "get_enablement_guide"
+    ],
+    "framework": "flask",
+    "iac_directory": "infrastructure/ec2/cdk",
+    "id": "ec2_python_flask",
+    "language": "python",
+    "modifies_code": true,
+    "platform": "ec2",
     "validation_rubric": [
       "IAM: CloudWatchAgentServerPolicy is attached to EC2 instance role",
       "Prerequisites: System dependencies installed (wget, docker, python3-pip)",
