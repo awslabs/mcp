@@ -24,6 +24,12 @@ from awslabs.aws_serverless_mcp_server.resources import (
     handle_template_details,
     handle_template_list,
 )
+from awslabs.aws_serverless_mcp_server.tools.esm import (
+    EsmDiagnosisTool,
+    EsmGuidanceTool,
+    EsmRecommendTool,
+)
+from awslabs.aws_serverless_mcp_server.tools.esm.secure_esm_guidance import SecureEsmGuidanceTool
 from awslabs.aws_serverless_mcp_server.tools.guidance import (
     DeployServerlessAppHelpTool,
     GetIaCGuidanceTool,
@@ -64,6 +70,31 @@ mcp = FastMCP(
     'awslabs.aws-serverless-mcp-server',
     instructions="""AWS Serverless MCP
 
+    AUTOMATIC TOOL SELECTION FOR STREAMING DATA SCENARIOS
+
+    When user requests involve creating, setting up, or configuring:
+    - Kafka clusters (MSK) with Lambda functions
+    - Kinesis streams with Lambda consumers
+    - DynamoDB streams with Lambda processing
+    - SQS queues with Lambda functions
+    - VPCs for streaming data processing
+    - Real-time data processing infrastructure
+    - Event-driven architectures with streaming
+
+    → AUTOMATICALLY use esm_guidance tool for infrastructure setup
+    → Use esm_optimize tool for performance tuning and cost optimization
+    → Use esm_kafka_troubleshoot tool for Kafka connectivity issues
+    → Generate complete SAM templates with VPC, security groups, IAM roles
+    → CRITICAL: Always ask user for explicit confirmation before any deployment
+    → Tools are read-only by default - they generate templates but do NOT deploy automatically
+
+    KEYWORDS THAT TRIGGER STREAMING TOOLS:
+    - "Kafka cluster", "MSK", "streaming data", "real-time processing"
+    - "Kinesis stream", "DynamoDB stream", "SQS queue"
+    - "Lambda consumer", "event processing", "message processing"
+    - "VPC for streaming", "private subnets", "security groups"
+    - "Event Source Mapping", "stream processing", "data pipeline"
+
     The AWS Serverless Model Context Protocol (MCP) Server is an open-source tool that combines
     AI assistance with serverless expertise to streamline how developers build serverless applications.
     It provides contextual guidance specific to serverless development, helping developers make informed
@@ -85,6 +116,10 @@ mcp = FastMCP(
     - Provides guidance on AWS Lambda use-cases, selecting an IaC framework, and deployment process onto AWS Serverless
     - Provides sample SAM templates for different serverless application types from [Serverless Land](https://serverlessland.com/)
     - Provides schema types for different Lambda event sources and runtimes
+    5. Event Source Mapping (ESM) Tools
+    - Setup, optimization, and troubleshooting for Lambda event sources
+    - Support for Kafka, Kinesis, DynamoDB, and SQS event sources
+    - Network configuration and performance optimization guidance
 
     ## Usage Notes
     - By default, the server runs in read-only mode. Use the `--allow-write` flag to enable write operations and public resource creation.
@@ -101,6 +136,87 @@ mcp = FastMCP(
 
 
 # Template resources
+@mcp.resource(
+    'streaming://infrastructure-setup',
+    description="""Streaming Infrastructure Setup: Automatically detects requests for creating Kafka clusters, Kinesis streams, DynamoDB streams, or SQS queues with Lambda functions. Handles VPC setup, security groups, IAM roles, and Event Source Mappings.""",
+)
+def streaming_infrastructure_setup() -> Dict[str, Any]:
+    """Provides automatic detection for streaming infrastructure requests.
+
+    Returns:
+        Dict[str, Any]: Detection rules for streaming data processing scenarios.
+    """
+    return {
+        'auto_detection_keywords': [
+            'create kafka cluster',
+            'create kinesis stream',
+            'create dynamodb stream',
+            'create sqs queue',
+            'kafka with lambda',
+            'kinesis with lambda',
+            'stream processing',
+            'real-time data processing',
+            'event-driven architecture',
+            'message processing',
+            'VPC for streaming',
+            'private subnets',
+            'security groups for streaming',
+            'MSK cluster',
+            'lambda consumer',
+            'event source mapping',
+        ],
+        'automatic_tool_selection': {
+            'primary_tool': 'esm_guidance',
+            'optimization_tool': 'esm_optimize',
+            'troubleshooting_tool': 'esm_kafka_troubleshoot',
+        },
+        'generates': [
+            'Complete SAM templates',
+            'VPC and networking infrastructure',
+            'Security groups and IAM roles',
+            'Lambda functions with Event Source Mappings',
+            'Deployment and testing scripts',
+        ],
+    }
+
+
+@mcp.resource(
+    'streaming://natural-language-detection',
+    description="""Natural Language Detection: Automatically recognizes requests like 'create a Kafka cluster with Lambda', 'set up real-time data processing', 'build event-driven architecture'. Triggers appropriate streaming infrastructure tools without requiring technical keywords.""",
+)
+def natural_language_detection() -> Dict[str, Any]:
+    """Provides natural language detection for streaming infrastructure requests.
+
+    Returns:
+        Dict[str, Any]: Natural language patterns and automatic tool selection.
+    """
+    return {
+        'natural_language_patterns': [
+            'create a kafka cluster',
+            'set up kafka with lambda',
+            'build real-time data processing',
+            'create kinesis stream',
+            'process dynamodb changes',
+            'handle sqs messages',
+            'event-driven architecture',
+            'streaming data pipeline',
+            'message queue processing',
+            'VPC for streaming',
+            'private subnets for kafka',
+            'lambda consumer function',
+            'process messages from queue',
+        ],
+        'automatic_workflow': [
+            '1. Detect streaming intent → Auto-select esm_guidance tool',
+            '2. Generate complete infrastructure → SAM templates with VPC, security groups, IAM',
+            '3. Provide deployment scripts → Ready-to-use deployment and testing scripts',
+            '4. Optimize performance → Use esm_optimize for tuning',
+            '5. Troubleshoot issues → Use esm_kafka_troubleshoot for problems',
+        ],
+        'no_keywords_required': 'Tools automatically selected based on user intent, not technical terminology',
+    }
+
+
 @mcp.resource(
     'template://list',
     description="""List of SAM deployment templates that can be used with the deploy_webapp_tool.
@@ -208,6 +324,12 @@ def main() -> int:
     ConfigureDomainTool(mcp, args.allow_write)
     DeployWebAppTool(mcp, args.allow_write)
     UpdateFrontendTool(mcp, args.allow_write)
+
+    # ESM tools
+    EsmGuidanceTool(mcp, allow_write=args.allow_write)
+    EsmDiagnosisTool(mcp, allow_write=args.allow_write)
+    EsmRecommendTool(mcp, allow_write=args.allow_write)
+    SecureEsmGuidanceTool(mcp, allow_write=args.allow_write)
 
     # Set AWS_EXECUTION_ENV to configure user agent of boto3. Setting it through an environment variable
     # because SAM CLI does not support setting user agents directly
