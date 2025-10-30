@@ -41,12 +41,6 @@ export class EC2AppStack extends cdk.Stack {
       allowAllOutbound: true,
     });
 
-    securityGroup.addIngressRule(
-      ec2.Peer.anyIpv4(),
-      ec2.Port.tcp(config.port),
-      `Allow access to ${config.appName} on port ${config.port}`
-    );
-
     // User data to pull Docker image and run container
     const userData = ec2.UserData.forLinux();
     userData.addCommands(
