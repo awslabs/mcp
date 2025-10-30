@@ -1,9 +1,0 @@
-{
-  "appDirectory": "../../../sample-apps/dotnet/aspnetcore",
-  "appName": "dotnet-aspnetcore-cdk",
-  "healthCheckPath": "/health",
-  "imageName": "dotnet-aspnetcore",
-  "language": "dotnet",
-  "port": 5000,
-  "serviceName": "dotnet-aspnetcore-cdk"
-}
