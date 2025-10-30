@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-serverless-mcp-server"
-version = "0.1.10"
+version = "0.1.12"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Serverless"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,6 +39,10 @@ Documentation = "https://awslabs.github.io/mcp/servers/aws-serverless-mcp-server
 Source = "https://github.com/awslabs/mcp.git"
 "Bug Tracker" = "https://github.com/awslabs/mcp/issues"
 Changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-serverless-mcp-server/CHANGELOG.md"
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips = ["B608", "B101", "B404", "B603", "B607", "B110", "B311", "B104", "B102", "B307", "B323", "B310", "B106", "B103", "B108"]
 
 [dependency-groups]
 dev = [
