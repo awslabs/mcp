@@ -79,8 +79,8 @@ SERVICE_CODE_FIELD = Field(
 )
 
 REGION_FIELD = Field(
-    ...,
-    description='AWS region(s) - single region string (e.g., "us-east-1") or list for multi-region comparison (e.g., ["us-east-1", "us-west-2", "eu-west-1"])',
+    None,
+    description='AWS region(s) - single region string (e.g., "us-east-1") or list for multi-region comparison (e.g., ["us-east-1", "us-west-2", "eu-west-1"]). Optional: omit for global services like DataTransfer or CloudFront that don\'t have region-specific pricing.',
 )
 
 ATTRIBUTE_NAMES_FIELD = Field(
