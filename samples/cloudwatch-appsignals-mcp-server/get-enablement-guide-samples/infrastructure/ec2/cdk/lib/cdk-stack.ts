@@ -9,7 +9,6 @@ export interface AppConfig {
   language: string;
   port: number;
   healthCheckPath: string;
-  serviceName: string;
 }
 
 export class EC2AppStack extends cdk.Stack {
@@ -66,7 +65,6 @@ export class EC2AppStack extends cdk.Stack {
       `docker run -d --name ${config.appName} \\`,
       `  -p ${config.port}:${config.port} \\`,
       `  -e PORT=${config.port} \\`,
-      `  -e SERVICE_NAME=${config.serviceName} \\`,
       `  -e AWS_REGION=${this.region} \\`,
       `  ${ecrImageUri}`,
       '',
