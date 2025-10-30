@@ -78,6 +78,11 @@ async def get_application_signals_enablement_guide(
     platform_str = platform.value
     language_str = service_language.value
 
+    guides_dir = Path(__file__).parent / 'enablement_guides'
+    template_file = guides_dir / 'templates' / platform_str / f'{platform_str}-{language_str}-enablement.md'
+
+    logger.debug(f'Looking for enablement guide: {template_file}')
+
     # Validate that paths are absolute
     iac_path = Path(iac_directory)
     app_path = Path(app_directory)
@@ -99,11 +104,6 @@ async def get_application_signals_enablement_guide(
         )
         logger.error(error_msg)
         return error_msg
-
-    guides_dir = Path(__file__).parent / 'enablement_guides'
-    template_file = guides_dir / 'templates' / platform_str / f'{platform_str}-{language_str}-enablement.md'
-
-    logger.debug(f'Looking for enablement guide: {template_file}')
 
     if not template_file.exists():
         error_msg = (
