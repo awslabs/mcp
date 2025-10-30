@@ -1,5 +1,4 @@
 {
-  "appDirectory": "../../../sample-apps/python/flask",
   "appName": "python-flask-cdk",
   "healthCheckPath": "/health",
   "imageName": "python-flask",
