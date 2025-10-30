@@ -1,0 +1,34 @@
+[
+  {
+    "id": "ec2_python_flask",
+    "description": "Enable Application Signals for Python Flask application on EC2",
+    "platform": "ec2",
+    "language": "python",
+    "framework": "flask",
+    "iac_directory": "infrastructure/ec2/cdk",
+    "app_directory": "sample-apps/python/flask",
+    "expected_tools": ["get_enablement_guide"],
+    "modifies_code": true,
+    "build_config": {
+      "command": "npm run build",
+      "working_dir": "infrastructure/ec2/cdk",
+      "install_command": "npm install"
+    },
+    "validation_rubric": [
+      "IAM: CloudWatchAgentServerPolicy is attached to EC2 instance role",
+      "Prerequisites: System dependencies installed (wget, docker, python3-pip)",
+      "CloudWatch Agent: Downloaded, installed, and configured with application_signals",
+      "CloudWatch Agent: Started successfully using amazon-cloudwatch-agent-ctl",
+      "ADOT: aws-opentelemetry-distro installed via pip3 in UserData",
+      "Dockerfile (if Docker): Installs aws-opentelemetry-distro AND uses opentelemetry-instrument wrapper in CMD",
+      "OTel Config: Basic exporters set (OTEL_METRICS_EXPORTER=none, OTEL_LOGS_EXPORTER=none, OTEL_AWS_APPLICATION_SIGNALS_ENABLED=true)",
+      "OTel Config: Python-specific settings (OTEL_PYTHON_DISTRO=aws_distro, OTEL_PYTHON_CONFIGURATOR=aws_configurator)",
+      "OTel Config: Protocol and sampling (OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf, OTEL_TRACES_SAMPLER=xray)",
+      "OTel Config: Endpoints (OTEL_TRACES_SAMPLER_ARG with localhost:2000, OTEL_AWS_APPLICATION_SIGNALS_EXPORTER_ENDPOINT with localhost:4316/v1/metrics, OTEL_EXPORTER_OTLP_TRACES_ENDPOINT with localhost:4316/v1/traces)",
+      "OTel Config: Service name resource attribute set",
+      "Application Startup: If Docker, uses docker run with -e flags and --network host. If non-Docker, uses opentelemetry-instrument wrapper with export env vars.",
+      "Build: IaC compiles successfully (npm run build passes)",
+      "Code Integrity: Only IaC/Dockerfile modified, application code unchanged"
+    ]
+  }
+]
