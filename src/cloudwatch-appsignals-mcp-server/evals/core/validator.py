@@ -1,0 +1,292 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Validators for evaluating agent outputs."""
+
+import asyncio
+import time
+from .llm_provider import LLMProvider
+from abc import ABC, abstractmethod
+from loguru import logger
+from pathlib import Path
+from typing import Any, Dict, List
+
+
+class Validator(ABC):
+    """Base class for output validation."""
+
+    @abstractmethod
+    def get_name(self) -> str:
+        """Return validator name for display."""
+        pass
+
+    @abstractmethod
+    async def validate(
+        self,
+        captured_data: Dict[str, Any],
+        rubric: List[str],
+    ) -> Dict[str, Any]:
+        """Validate captured data against rubric.
+
+        Returns dict with validator_name, overall_pass, criteria_results.
+        """
+        pass
+
+
+class LLMJudgeValidator(Validator):
+    """LLM-as-judge validator for evaluating captured data against rubric."""
+
+    def __init__(self, validation_prompt_template: str, llm_provider: LLMProvider):
+        """Initialize LLM judge validator.
+
+        Args:
+            validation_prompt_template: Template with {rubric_items}, {captured_data}, {num_criteria}
+            llm_provider: LLMProvider instance for text generation
+        """
+        self.validation_prompt_template = validation_prompt_template
+        self.llm_provider = llm_provider
+
+    def get_name(self) -> str:
+        """Return validator name."""
+        return 'LLM Judge'
+
+    async def validate(
+        self,
+        captured_data: Dict[str, Any],
+        rubric: List[str],
+    ) -> Dict[str, Any]:
+        """Validate using LLM as judge."""
+        logger.info('Running LLM-as-judge validation...')
+
+        rubric_items = '\n'.join([f'{i + 1}. {criterion}' for i, criterion in enumerate(rubric)])
+        captured_str = self._format_captured_data(captured_data)
+
+        prompt = self.validation_prompt_template.format(
+            rubric_items=rubric_items,
+            captured_data=captured_str,
+            num_criteria=len(rubric),
+        )
+
+        try:
+            start = time.time()
+            response_text = await self.llm_provider.generate(prompt)
+            elapsed = time.time() - start
+            logger.debug(f'LLM validation took {elapsed:.2f}s')
+
+            criteria_results = self._parse_llm_response(response_text, rubric)
+            overall_pass = all(r['status'] == 'PASS' for r in criteria_results)
+
+            return {
+                'validator_name': self.get_name(),
+                'overall_pass': overall_pass,
+                'criteria_results': criteria_results,
+                'raw_response': response_text,
+            }
+        except Exception as e:
+            logger.error(f'LLM validation failed: {e}')
+            return {
+                'validator_name': self.get_name(),
+                'overall_pass': False,
+                'error': f'Validation error: {str(e)}',
+                'criteria_results': [],
+            }
+
+    def _format_captured_data(self, captured_data: Dict[str, Any]) -> str:
+        """Format captured data for LLM prompt."""
+        sections = []
+
+        if 'git_diff' in captured_data and captured_data['git_diff']:
+            sections.append(f'**Git Diff:**\n```\n{captured_data["git_diff"]}\n```')
+
+        if 'build_result' in captured_data:
+            build = captured_data['build_result']
+            if build.get('success'):
+                sections.append('**Build Validation:**\n✓ Build succeeded (exit code 0)')
+            else:
+                stderr_preview = build.get('stderr', '')[:500]
+                exit_code = build.get('exit_code', 'unknown')
+                sections.append(
+                    f'**Build Validation:**\n✗ Build FAILED (exit code {exit_code})\n\nBuild errors:\n{stderr_preview}'
+                )
+
+        if 'final_response' in captured_data:
+            sections.append(f'**Agent Response:**\n{captured_data["final_response"]}')
+
+        if 'tool_calls' in captured_data:
+            tool_names = [t['name'] for t in captured_data['tool_calls']]
+            sections.append(f'**Tools Called:** {", ".join(tool_names)}')
+
+        return '\n\n'.join(sections)
+
+    def _parse_llm_response(self, response_text: str, rubric: List[str]) -> List[Dict[str, Any]]:
+        """Parse LLM response into structured criteria results.
+
+        Expected format: "1. [PASS] Reasoning" or "1. [FAIL] Reasoning"
+        """
+        criteria_results = []
+        lines = response_text.strip().split('\n')
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            line_upper = line.upper()
+            if '[PASS]' in line_upper:
+                status = 'PASS'
+                pass_idx = line_upper.find('[PASS]')
+                reasoning = line[pass_idx + 6 :].strip()
+            elif '[FAIL]' in line_upper:
+                status = 'FAIL'
+                fail_idx = line_upper.find('[FAIL]')
+                reasoning = line[fail_idx + 6 :].strip()
+            else:
+                continue
+
+            if len(criteria_results) < len(rubric):
+                criteria_results.append(
+                    {
+                        'criterion': rubric[len(criteria_results)],
+                        'status': status,
+                        'reasoning': reasoning if reasoning else line,
+                    }
+                )
+
+        if len(criteria_results) != len(rubric):
+            logger.warning(
+                f'LLM validation format mismatch: expected {len(rubric)} criteria, '
+                f'parsed {len(criteria_results)} from response. '
+                f'Some criteria may not have been evaluated.'
+            )
+            logger.debug(f'Raw LLM response:\n{response_text}')
+
+            # Fill missing criteria with FAIL
+            while len(criteria_results) < len(rubric):
+                criteria_results.append(
+                    {
+                        'criterion': rubric[len(criteria_results)],
+                        'status': 'FAIL',
+                        'reasoning': 'LLM did not provide evaluation for this criterion',
+                    }
+                )
+
+        return criteria_results
+
+
+class BuildValidator(Validator):
+    """Validator that runs build commands and checks exit code."""
+
+    def __init__(
+        self,
+        command: str,
+        working_dir: Path,
+        timeout: int = 120,
+    ):
+        """Initialize build validator.
+
+        Args:
+            command: Build command to execute
+            working_dir: Directory to run command in
+            timeout: Command timeout in seconds
+        """
+        self.command = command
+        self.working_dir = working_dir
+        self.timeout = timeout
+
+    def get_name(self) -> str:
+        """Return validator name."""
+        return 'Build'
+
+    async def validate(
+        self,
+        captured_data: Dict[str, Any],
+        rubric: List[str],
+    ) -> Dict[str, Any]:
+        """Validate by running build command."""
+        logger.info(f'Running build command: {self.command}')
+        try:
+            process = await asyncio.create_subprocess_shell(
+                self.command,
+                cwd=self.working_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    process.communicate(), timeout=self.timeout
+                )
+                stdout = stdout_bytes.decode('utf-8', errors='replace')
+                stderr = stderr_bytes.decode('utf-8', errors='replace')
+                exit_code = process.returncode
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                raise TimeoutError(f'Build command timed out after {self.timeout} seconds')
+
+            result = {
+                'exit_code': exit_code,
+                'stdout': stdout,
+                'stderr': stderr,
+                'success': exit_code == 0,
+            }
+
+            if result['success']:
+                logger.info('✓ Build succeeded')
+                return {
+                    'validator_name': self.get_name(),
+                    'overall_pass': True,
+                    'criteria_results': [
+                        {
+                            'criterion': 'Build succeeds',
+                            'status': 'PASS',
+                            'reasoning': 'Build completed with exit code 0',
+                        }
+                    ],
+                    'build_result': result,
+                }
+            else:
+                logger.error(f'✗ Build failed with exit code {exit_code}')
+                return {
+                    'validator_name': self.get_name(),
+                    'overall_pass': False,
+                    'criteria_results': [
+                        {
+                            'criterion': 'Build succeeds',
+                            'status': 'FAIL',
+                            'reasoning': f'Build failed with exit code {exit_code}',
+                        }
+                    ],
+                    'build_result': result,
+                }
+        except Exception as e:
+            logger.error(f'Build validation error: {e}')
+            return {
+                'validator_name': self.get_name(),
+                'overall_pass': False,
+                'error': str(e),
+                'criteria_results': [
+                    {
+                        'criterion': 'Build succeeds',
+                        'status': 'FAIL',
+                        'reasoning': f'Build error: {str(e)}',
+                    }
+                ],
+                'build_result': {
+                    'exit_code': -1,
+                    'stdout': '',
+                    'stderr': str(e),
+                    'success': False,
+                },
+            }

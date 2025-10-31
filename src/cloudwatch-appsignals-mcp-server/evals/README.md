@@ -2,19 +2,30 @@
 
 Generic evaluation framework for testing AI agents using Model Context Protocol (MCP) tools. Provides reusable components for metrics tracking, agent orchestration, and validation.
 
-Currently used for evaluating the `get_enablement_guide` tool. Will be expanded to other MCP tools in the future.
+Currently used for evaluating CloudWatch Application Signals MCP tools. Designed to be easily extended to other MCP tools.
 
 ## Quick Start
 
-### Running Existing Evals
+### Prerequisites
+
+- Python 3.10+
+- AWS credentials configured
+
+### Running Evals
 
 ```bash
-# Run enablement evaluation (all tasks)
-python evals/eval_enablement.py
+# List all available tasks
+python -m evals applicationsignals --list
+
+# Run specific task by ID
+python -m evals applicationsignals --task-id <task_id>
+
+# Run all tasks from a task file
+python -m evals applicationsignals --task <task_file>
 
 # Run with verbose logging
-python evals/eval_enablement.py -v
+python -m evals applicationsignals --task-id <task_id> -v
 
-# Run specific task without cleanup
-python evals/eval_enablement.py --task ec2_python_flask --no-cleanup
+# Skip cleanup (useful for inspecting changes)
+python -m evals applicationsignals --task-id <task_id> --no-cleanup
 ```

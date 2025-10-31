@@ -54,17 +54,56 @@ async def execute_tool(
     try:
         if tool_name == 'list_files':
             dir_path = project_root / tool_input['path']
-            files = [f.name for f in dir_path.iterdir()]
-            result = {'content': [{'text': '\n'.join(files)}]}
+
+            if not dir_path.exists():
+                raise FileNotFoundError(f'Directory not found: {tool_input["path"]}')
+            if not dir_path.is_dir():
+                raise NotADirectoryError(f'Path is not a directory: {tool_input["path"]}')
+
+            try:
+                files = [f.name for f in dir_path.iterdir()]
+                result = {'content': [{'text': '\n'.join(files)}]}
+            except PermissionError:
+                raise PermissionError(
+                    f'Permission denied accessing directory: {tool_input["path"]}'
+                )
+
         elif tool_name == 'read_file':
             file_path = project_root / tool_input['path']
-            content = file_path.read_text()
-            result = {'content': [{'text': content}]}
+
+            if not file_path.exists():
+                raise FileNotFoundError(f'File not found: {tool_input["path"]}')
+            if not file_path.is_file():
+                raise IsADirectoryError(f'Path is a directory, not a file: {tool_input["path"]}')
+
+            try:
+                content = file_path.read_text(encoding='utf-8', errors='replace')
+                result = {'content': [{'text': content}]}
+            except PermissionError:
+                raise PermissionError(f'Permission denied reading file: {tool_input["path"]}')
+            except UnicodeDecodeError:
+                logger.warning(f'File appears to be binary: {tool_input["path"]}')
+                raise ValueError(f'Cannot read binary file: {tool_input["path"]}')
+
         elif tool_name == 'write_file':
             file_path = project_root / tool_input['path']
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(tool_input['content'])
-            result = {'content': [{'text': f'Successfully wrote to {tool_input["path"]}'}]}
+
+            try:
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+            except PermissionError:
+                raise PermissionError(f'Permission denied creating directory: {file_path.parent}')
+
+            if not file_path.parent.is_dir():
+                raise IOError(f'Failed to create parent directory: {file_path.parent}')
+
+            try:
+                file_path.write_text(tool_input['content'], encoding='utf-8')
+                result = {'content': [{'text': f'Successfully wrote to {tool_input["path"]}'}]}
+            except PermissionError:
+                raise PermissionError(f'Permission denied writing to file: {tool_input["path"]}')
+            except OSError as e:
+                raise IOError(f'Failed to write file {tool_input["path"]}: {str(e)}')
+
         else:
             mcp_result = await session.call_tool(tool_name, tool_input)
             result = {'content': [{'text': str(mcp_result.content)}]}
@@ -181,6 +220,7 @@ async def run_agent_loop(
     if turn >= max_turns:
         logger.warning(f'Reached max turns ({max_turns})')
 
+    metrics_tracker.record_turn_count(turn)
     metrics_tracker.end_task()
 
     return messages

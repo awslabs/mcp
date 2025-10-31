@@ -29,6 +29,7 @@ class MetricsTracker:
         self.tool_calls: List[Dict[str, Any]] = []
         self.task_start_time: Optional[float] = None
         self.task_end_time: Optional[float] = None
+        self.turn_count: int = 0
 
     def start_task(self):
         """Mark task start time."""
@@ -37,6 +38,14 @@ class MetricsTracker:
     def end_task(self):
         """Mark task end time."""
         self.task_end_time = time.time()
+
+    def record_turn_count(self, turn_count: int):
+        """Record the number of agent loop turns.
+
+        Args:
+            turn_count: Number of turns used in agent loop
+        """
+        self.turn_count = turn_count
 
     def record_tool_call(
         self,
@@ -64,6 +73,19 @@ class MetricsTracker:
         Args:
             expected_tools: List of MCP tools expected to be used
         """
+        tool_breakdown = {}
+        unique_tools = set()
+        for call in self.tool_calls:
+            tool_name = call['tool_name']
+            unique_tools.add(tool_name)
+            if tool_name not in tool_breakdown:
+                tool_breakdown[tool_name] = {'count': 0, 'success': 0, 'failed': 0}
+            tool_breakdown[tool_name]['count'] += 1
+            if call['success']:
+                tool_breakdown[tool_name]['success'] += 1
+            else:
+                tool_breakdown[tool_name]['failed'] += 1
+
         metrics = {
             'success_rate': (
                 sum(1 for c in self.tool_calls if c['success']) / len(self.tool_calls)
@@ -71,6 +93,9 @@ class MetricsTracker:
                 else 0.0
             ),
             'tool_call_count': len(self.tool_calls),
+            'unique_tools_count': len(unique_tools),
+            'turn_count': self.turn_count,
+            'tool_breakdown': tool_breakdown,
             'task_duration': (
                 self.task_end_time - self.task_start_time
                 if self.task_start_time and self.task_end_time
