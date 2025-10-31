@@ -8,14 +8,14 @@ description = "An AWS Labs Model Context Protocol (MCP) server for awslabs.s3-ta
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "loguru>=0.7.0",
-    "mcp[cli]>=1.11.0",
-    "pydantic<2.10.0",
-    "boto3>=1.40.8",
+    "loguru==0.7.3",
+    "mcp[cli]==1.11.0",
+    "pydantic==2.9.2",
+    "boto3==1.40.8",
     "pyiceberg==0.9.1",
-    "pyarrow>=20.0.0",
-    "sqlparse>=0.4.0",
-    "daft>=0.5.8",
+    "pyarrow==20.0.0",
+    "sqlparse==0.5.3",
+    "daft==0.5.8",
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
@@ -47,14 +47,14 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/s3-tables-mcp-server/C
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.2.2",
-    "pre-commit>=4.1.0",
-    "ruff>=0.9.7",
-    "pyright>=1.1.398",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.26.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
+    "commitizen==4.8.3",
+    "pre-commit==4.2.0",
+    "ruff==0.11.13",
+    "pyright==1.1.402",
+    "pytest==8.4.0",
+    "pytest-asyncio==1.0.0",
+    "pytest-cov==6.2.1",
+    "pytest-mock==3.14.1",
 ]
 
 [build-system]
