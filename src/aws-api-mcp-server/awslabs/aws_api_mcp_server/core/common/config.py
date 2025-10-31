@@ -100,12 +100,15 @@ READ_OPERATIONS_ONLY_MODE = get_env_bool(READ_ONLY_KEY, False)
 OPT_IN_TELEMETRY = get_env_bool(TELEMETRY_KEY, True)
 WORKING_DIRECTORY = os.getenv('AWS_API_MCP_WORKING_DIR', get_server_directory() / 'workdir')
 REQUIRE_MUTATION_CONSENT = get_env_bool(REQUIRE_MUTATION_CONSENT_KEY, False)
-EMBEDDING_MODEL_DIR = os.getenv('EMBEDDING_MODEL_DIR', get_server_directory() / 'embedding_models')
 ENABLE_AGENT_SCRIPTS = get_env_bool('EXPERIMENTAL_AGENT_SCRIPTS', False)
 TRANSPORT = get_transport_from_env()
 HOST = os.getenv('AWS_API_MCP_HOST', '127.0.0.1')
 PORT = int(os.getenv('AWS_API_MCP_PORT', 8000))
+STATELESS_HTTP = get_env_bool('AWS_API_MCP_STATELESS_HTTP', False)
 CUSTOM_SCRIPTS_DIR = os.getenv('AWS_API_MCP_AGENT_SCRIPTS_DIR')
 ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS = get_env_bool(
     ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS_KEY, False
+)
+ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(
+    'ENDPOINT_SUGGEST_AWS_COMMANDS', 'https://api-mcp.global.api.aws/suggest-aws-commands'
 )

@@ -80,6 +80,7 @@ def translate_cli_to_ir(cli_command: str) -> IRTranslation:
 def interpret_command(
     cli_command: str,
     max_results: int | None = None,
+    credentials: Credentials | None = None,
 ) -> InterpretedProgram:
     """Interpret the CLI command.
 
@@ -101,7 +102,7 @@ def interpret_command(
     ):
         region = GLOBAL_SERVICE_REGIONS[translation.command.command_metadata.service_sdk_name]
 
-    credentials = get_local_credentials(
+    credentials = credentials or get_local_credentials(
         profile=translation.command.profile or AWS_API_MCP_PROFILE_NAME
     )
 
@@ -114,6 +115,7 @@ def interpret_command(
             region=region,
             client_side_filter=translation.command.client_side_filter,
             max_results=max_results,
+            endpoint_url=translation.command.endpoint_url,
         )
     except botocore.exceptions.ClientError as error:
         service_error = str(error)

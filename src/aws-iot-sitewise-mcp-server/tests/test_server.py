@@ -70,12 +70,13 @@ class TestServer:
         assert mock_mcp_instance._mcp_server.version == '1.0.0'
 
         # Verify tools were added - we should have a significant number of tools
-        # Asset tools: 8, Asset model tools: 7, Data tools: 9, Gateway tools: 12, Access tools: 6, plus get_sitewise_server_mode
-        # Total expected: 43 tools (22 read-only + 21 write)
-        assert mock_mcp_instance.add_tool.call_count == 43
+        # Asset tools: 8, Asset model tools: 7, Data tools: 14, Gateway tools: 12, Access tools: 6, plus get_sitewise_server_mode
+        # Asset tools: 8, Asset model tools: 7, Data tools: 9, Gateway tools: 12, Access tools: 6, Metadata transfer tools: 5, plus get_sitewise_server_mode
+        # Total expected: 53 tools (27 read-only + 26 write)
+        assert mock_mcp_instance.add_tool.call_count == 53
 
-        # Verify prompts were added (3 prompts)
-        assert mock_mcp_instance.add_prompt.call_count == 3
+        # Verify prompts were added (4 prompts)
+        assert mock_mcp_instance.add_prompt.call_count == 4
 
         # Verify signal handler was started
         mock_tg.start_soon.assert_called_once()
@@ -116,6 +117,7 @@ class TestServer:
         assert 'batch_put_asset_property_value' in tool_names
         assert 'create_gateway' in tool_names
         assert 'put_logging_options' in tool_names
+        assert 'create_metadata_transfer_job' in tool_names
 
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
@@ -140,13 +142,13 @@ class TestServer:
 
         await run_server()
 
-        # Verify all 3 prompts were added
-        assert mock_mcp_instance.add_prompt.call_count == 3
+        # Verify all 4 prompts were added
+        assert mock_mcp_instance.add_prompt.call_count == 4
 
         # Verify the prompts are from the expected modules
         prompt_calls = mock_mcp_instance.add_prompt.call_args_list
         # Each call should be a Mock call with one argument (the prompt)
-        assert len(prompt_calls) == 3
+        assert len(prompt_calls) == 4
 
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.run')
     def test_main_function(self, mock_run):
@@ -207,8 +209,8 @@ class TestServer:
 
         # Verify setup still happened before the error
         mock_fastmcp.assert_called_once()
-        assert mock_mcp_instance.add_tool.call_count == 43
-        assert mock_mcp_instance.add_prompt.call_count == 3
+        assert mock_mcp_instance.add_tool.call_count == 53
+        assert mock_mcp_instance.add_prompt.call_count == 4
 
 
 if __name__ == '__main__':

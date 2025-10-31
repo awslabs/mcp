@@ -1,72 +1,120 @@
 # AWS DynamoDB MCP Server
 
-The official MCP Server for interacting with AWS DynamoDB
-
-This comprehensive server provides both operational DynamoDB management and expert design guidance, featuring 30+ operational tools for managing DynamoDB tables, items, indexes, backups, and more, expert data modeling guidance.
+The official developer experience MCP Server for Amazon DynamoDB. This server provides DynamoDB expert design guidance and data modeling assistance.
 
 ## Available MCP Tools
 
+Right now the DynamoDB MCP server contains two tools that support data modeling tasks. You can design a data model in natural language by using only the `dynamodb_data_modeling` tool or you can analyze your MySQL database and convert the analysis into a DynamoDB data model by using the `source_db_analyzer` tool.
+
 ### Design & Modeling
-- `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt
 
-### Table Operations
-- `create_table` - Creates a new DynamoDB table with optional secondary indexes
-- `delete_table` - Deletes a table and all of its items
-- `describe_table` - Returns table information including status, creation time, key schema and indexes
-- `list_tables` - Returns a paginated list of table names in your account
-- `update_table` - Modifies table settings including provisioned throughput, global secondary indexes, and DynamoDB Streams configuration
+* `dynamodb_data_modeling` - Retrieves the complete DynamoDB Data Modeling Expert prompt
+* `source_db_analyzer` - Executes predefined SQL queries against source databases to analyze schema and access patterns
 
-### Item Operations
-- `get_item` - Returns attributes for an item with the given primary key
-- `put_item` - Creates a new item or replaces an existing item in a table
-- `update_item` - Edits an existing item's attributes, or adds a new item if it does not already exist
-- `delete_item` - Deletes a single item in a table by primary key
+## Migration Notice
 
-### Query and Scan Operations
-- `query` - Returns items from a table or index matching a partition key value, with optional sort key filtering
-- `scan` - Returns items and attributes by scanning a table or secondary index
+Starting with version 2.0.0, this server focuses exclusively on DynamoDB design and modeling guidance. All operational DynamoDB management tools (table operations, item operations, queries, backups, etc.) have been removed in favor of the [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) which provides the same capability and more.
 
-### Backup and Recovery
-- `create_backup` - Creates a backup of a DynamoDB table
-- `describe_backup` - Describes an existing backup of a table
-- `list_backups` - Returns a list of table backups
-- `restore_table_from_backup` - Creates a new table from a backup
-- `describe_continuous_backups` - Returns continuous backup and point in time recovery status
-- `update_continuous_backups` - Enables or disables point in time recovery
+**This server does not do:**
 
-### Time to Live (TTL)
-- `update_time_to_live` - Enables or disables Time to Live (TTL) for the specified table
-- `describe_time_to_live` - Returns the Time to Live (TTL) settings for a table
+- ❌ Operational DynamoDB management (CRUD operations)
+- ❌ Table creation or data migration
+- ❌ Direct data queries or transformations
 
-### Export Operations
-- `describe_export` - Returns information about a table export
-- `list_exports` - Returns a list of table exports
+### Recommended: AWS API MCP Server
 
-### Tags and Resource Policies
-- `put_resource_policy` - Attaches a resource-based policy document to a table or stream
-- `get_resource_policy` - Returns the resource-based policy document attached to a table or stream
-- `tag_resource` - Adds tags to a DynamoDB resource
-- `untag_resource` - Removes tags from a DynamoDB resource
-- `list_tags_of_resource` - Returns tags for a DynamoDB resource
+For operational DynamoDB management (retrieving data, managing tables, etc.), use the [AWS API MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server) which provides comprehensive DynamoDB operations. [Migration guide available here](https://github.com/awslabs/mcp/tree/main/src/aws-api-mcp-server).
 
-### Misc
-- `describe_limits` - Returns the current provisioned-capacity quotas for your AWS account
-- `describe_endpoints` - Returns DynamoDB endpoints for the current region
+### Not Recommended: Legacy Version
+
+If you must use the previous operational tools, you can pin to version 1.0.9, though this is not recommended:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.dynamodb-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.dynamodb-mcp-server@1.0.9"],
+      "env": {
+        "DDB-MCP-READONLY": "true",
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
 ## Instructions
 
-The official MCP Server for interacting with AWS DynamoDB provides a comprehensive set of tools for both designing and managing DynamoDB resources.
+To design a data model in natural language you can simply ask your AI agent to “use my DynamoDB MCP to help me design a DynamoDB data model,” or something similar. If you want to analyze your MySQL query patterns then you can follow these additional steps below to setup connectivity and then say something like “analyze my MySQL database and then help me design a DynamoDB data model.”
 
-To use these tools, ensure you have proper AWS credentials configured with appropriate permissions for DynamoDB operations. The server will automatically use credentials from environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) or other standard AWS credential sources.
+## Source Database Integration
 
-All tools support an optional `region_name` parameter to specify which AWS region to operate in. If not provided, it will use the AWS_REGION environment variable or default to 'us-west-2'.
+The DynamoDB MCP server includes source database integration for database analysis and the tool `source_db_analyzer` is useful to get the actual source database schema and access patterns which helps to design the model in DynamoDB. We recommend running this tool against a non-production database instance and it currently supports Aurora MySQL with additional database support planned for future releases.
+
+### Prerequisites for MySQL Integration
+
+1. Aurora MySQL Cluster with MySQL username and password stored in AWS Secrets Manager
+2. Enable RDS Data API for your Aurora MySQL Cluster
+3. Enable Performance Schema for access pattern analysis (optional):
+
+    * Go to the parameter group for your DB instance and set performance_schema value to 1. Make sure to reboot the DB instance after the changes whenever you turn the Performance Schema on or off. Follow the [Instructions](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/USER_WorkingWithParamGroups.Modifying.html) to modify DB parameter group in Amazon Aurora.
+    * After the parameter values are modified, you can run the "SHOW GLOBAL VARIABLES LIKE'%performance_schema'"; command to view the value of the performance_schema parameter of the database instance, also consider tunning the below parameters if required.
+    * `performance_schema_digests_size` [parameter](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-system-variables.html#sysvar_performance_schema_digests_size) - Sets the maximum number of rows stored in the events_statements_summary_by_digest table for querying access pattern. (When you hit this limit, some logs will be lost, potentially missing important access patterns)
+    * `performance_schema_max_digest_length` [parameter](https://dev.mysql.com/doc/refman/8.0/en/performance-schema-system-variables.html#sysvar_performance_schema_max_digest_length) - Sets the maximum byte length for each individual statement digest (access pattern) that the Performance Schema stores. (Default is 1024 bytes, Complex queries might not be fully captured when you hit this limit)
+    * Without these Performance Schema query access patterns, DynamoDB Data Modeler tool recommends access patterns based on the information schema from the source Database.
+
+1. Set up AWS credentials with access to AWS services:
+
+    * Configure AWS credentials with `aws configure` or environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN) . The server will automatically use credentials from environment variables or other standard AWS credential sources.
+    * AWS profile with permissions to access RDS Data API and AWS Secrets Manager
+
+### MySQL Environment Variables
+
+Add these environment variables to DynamoDB MCP Server configuration to enable MySQL integration:
+
+* `MYSQL_CLUSTER_ARN`: The Resource ARN of the Aurora MySQL cluster
+* `MYSQL_SECRET_ARN`: The ARN of the secret containing database credentials
+* `MYSQL_DATABASE`: The name of the database to connect to
+* `AWS_REGION`: AWS region of the Aurora MySQL cluster
+* `MYSQL_MAX_QUERY_RESULTS`: Maximum number of rows to include in analysis output files for schema and access_pattern logs (optional, default: "500")
+
+### MCP configuration with MySQL Environment Variables
+
+```json
+{
+  "mcpServers": {
+    "awslabs.dynamodb-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.dynamodb-mcp-server@latest"],
+      "env": {
+        "DDB-MCP-READONLY": "true",
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "us-west-2",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "MYSQL_CLUSTER_ARN":"arn:aws:rds:$REGION:$ACCOUNT_ID:cluster:$CLUSTER_NAME",
+        "MYSQL_SECRET_ARN":"arn:aws:secretsmanager:$REGION:$ACCOUNT_ID:secret:$SECRET_NAME",
+        "MYSQL_DATABASE":"<DATABASE_NAME>",
+        "MYSQL_MAX_QUERY_RESULTS": 500
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
 
 ## Prerequisites
 
 1. Install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/) or the [GitHub README](https://github.com/astral-sh/uv#installation)
 2. Install Python using `uv python install 3.10`
 3. Set up AWS credentials with access to AWS services
-   - Consider setting up Read-only permission if you don't want the LLM to modify any resources
+
+    * Consider setting up Read-only permission if you don't want the LLM to modify any resources
 
 ## Installation
 
@@ -94,6 +142,7 @@ Add the MCP to your favorite agentic tools. (e.g. for Amazon Q Developer CLI MCP
   }
 }
 ```
+
 ### Windows Installation
 
 For Windows users, the MCP server configuration format is slightly different:
@@ -116,7 +165,7 @@ For Windows users, the MCP server configuration format is slightly different:
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
-        "AWS_REGION": "us-east-1"
+        "AWS_REGION": "us-west-2"
       }
     }
   }
@@ -146,3 +195,29 @@ or docker after a successful `docker build -t awslabs/dynamodb-mcp-server .`:
     }
   }
 ```
+
+## Limitations & Considerations
+
+### **Application-Level Patterns:**
+
+* Queries generated dynamically in application code
+* Caching layer behavior (Redis, Memcached)
+* Real-time vs. analytics query differentiation
+* Background job access patterns
+
+### Business Context:
+
+* Data consistency requirements
+* Compliance and audit requirements
+* Geographic distribution requirements
+
+### Recommendation:
+
+Supplement analysis with documentation or natural language descriptions based on:
+
+* Application code review
+* Architecture documentation review
+* Stakeholder interviews with development team
+* Load testing results analysis
+
+There are also more complex patterns that result from stored procedures, triggers, aggregations, that the tool does not currently handle consistently but we plan to improve in future iterations.

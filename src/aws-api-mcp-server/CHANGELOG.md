@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Log errors thrown by the agent scripts manager (#1533)
+
+### Changed
+
+- Converted MCP server to use FastMCP framework instead of python mcp sdk (#1513)
+
+## [1.0.2] - 2025-10-13
+
+### Fixed
+
+- CLI commands that don't expect any parameters (#1494)
+
+### Added
+
+- Support for `--endpoint-url` flag for localhost endpoints (#1452)
+- Change max retries to 3 when interpreting CLI command (#1485)
+
+## [1.0.1] - 2025-10-06
+
+### Added
+
+- Agent Script for creating Aurora DB with instances (#1401)
+- AWS_API_MCP_STATELESS_HTTP configuration option (#1349)
+
+## [1.0.0] - 2025-10-01
+
+### Changed
+
+- Replace local knowledge base with a remote endpoint for `suggest_aws_commands` (#1282)
+
+### Removed
+
+- `wait` and other polling AWS CLI commands(#1402)
+
+## [0.3.4] - 2025-09-30
+
+### Removed
+
+- Command output logging (#1388)
+
+### Fixed
+
+- Mark more operations as mutating (#1387)
+
+## [0.3.3] - 2025-09-30
+
+### Fixed
+
 - Mark sts:AssumeRole as mutating (#1364)
 
 ## [0.3.1] - 2025-09-23
