@@ -79,6 +79,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/timestream-for-influxdb-mcp-server          @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws
 /src/valkey-mcp-server                           @awslabs/mcp-admins @awslabs/mcp-maintainers  @seaofawareness
 /src/well-architected-security-mcp-server        @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh
+/src/sagemaker-hyperpod-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @dparkar @githuboston @jade710 @JunqiYe
 
 ## Secure the CODEOWNERS file
 
