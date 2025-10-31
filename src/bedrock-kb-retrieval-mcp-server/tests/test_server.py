@@ -76,7 +76,9 @@ class TestListKnowledgeBasesTool:
         assert 'kb-12345' in kb_mapping
         assert 'kb-67890' in kb_mapping
         assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
-        assert kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        assert (
+            kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        )
         assert kb_mapping['kb-67890']['name'] == 'Another Knowledge Base'
         assert kb_mapping['kb-67890']['description'] == 'Another knowledge base for testing'
         assert len(kb_mapping['kb-12345']['data_sources']) == 2
@@ -186,7 +188,9 @@ class TestServerIntegration:
         assert len(kb_mapping) == 1
         assert 'kb-12345' in kb_mapping
         assert kb_mapping['kb-12345']['name'] == 'Test Knowledge Base'
-        assert kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        assert (
+            kb_mapping['kb-12345']['description'] == 'A test knowledge base for testing purposes'
+        )
         assert len(kb_mapping['kb-12345']['data_sources']) == 1
         assert kb_mapping['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
         assert kb_mapping['kb-12345']['data_sources'][0]['name'] == 'Test Data Source'

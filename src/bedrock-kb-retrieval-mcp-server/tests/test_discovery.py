@@ -154,8 +154,16 @@ class TestDiscoverKnowledgeBases:
         kb_paginator.paginate.return_value = [
             {
                 'knowledgeBaseSummaries': [
-                    {'knowledgeBaseId': 'kb-12345', 'name': 'Test Knowledge Base', 'description': 'A test knowledge base for testing purposes'},
-                    {'knowledgeBaseId': 'kb-67890', 'name': 'Another Knowledge Base', 'description': 'Another knowledge base for testing'},
+                    {
+                        'knowledgeBaseId': 'kb-12345',
+                        'name': 'Test Knowledge Base',
+                        'description': 'A test knowledge base for testing purposes',
+                    },
+                    {
+                        'knowledgeBaseId': 'kb-67890',
+                        'name': 'Another Knowledge Base',
+                        'description': 'Another knowledge base for testing',
+                    },
                 ]
             }
         ]
