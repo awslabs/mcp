@@ -176,7 +176,7 @@ def interpret_command(
         cli_command,
         max_results=max_results,
         credentials=credentials,
-        regionOverride=region,
+        region_override=region,
     )
 
     validation_failures = (

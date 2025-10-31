@@ -616,7 +616,7 @@ def test_interpret_command_with_credentials_parameter():
             'aws s3api list-buckets',
             max_results=None,
             credentials=test_credentials,
-            regionOverride=None,
+            region_override=None,
         )
 
 
@@ -628,7 +628,7 @@ def test_interpret_command_without_credentials_parameter():
         interpret_command('aws s3api list-buckets')
 
         mock_interpret.assert_called_once_with(
-            'aws s3api list-buckets', max_results=None, credentials=None, regionOverride=None
+            'aws s3api list-buckets', max_results=None, credentials=None, region_override=None
         )
 
 
