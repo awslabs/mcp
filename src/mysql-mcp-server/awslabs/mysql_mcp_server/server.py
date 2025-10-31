@@ -16,13 +16,13 @@
 
 import argparse
 import asyncio
-import boto3
 import sys
+from awslabs.mysql_mcp_server.connection import DBConnectionSingleton
 from awslabs.mysql_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
 )
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import ClientError
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -46,104 +46,6 @@ class DummyCtx:
         """
         # Do nothing
         pass
-
-
-class DBConnection:
-    """Class that wraps DB connection client by RDS API."""
-
-    def __init__(self, cluster_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize a new DB connection.
-
-        Args:
-            cluster_arn: The ARN of the RDS cluster
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        self.cluster_arn = cluster_arn
-        self.secret_arn = secret_arn
-        self.database = database
-        self.readonly = readonly
-        if not is_test:
-            self.data_client = boto3.client('rds-data', region_name=region)
-
-    @property
-    def readonly_query(self):
-        """Get whether this connection is read-only.
-
-        Returns:
-            bool: True if the connection is read-only, False otherwise
-        """
-        return self.readonly
-
-
-class DBConnectionSingleton:
-    """Manages a single DBConnection instance across the application.
-
-    This singleton ensures that only one DBConnection is created and reused.
-    """
-
-    _instance = None
-
-    def __init__(self, resource_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize a new DB connection singleton.
-
-        Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        if not all([resource_arn, secret_arn, database, region]):
-            raise ValueError(
-                'Missing required connection parameters. '
-                'Please provide resource_arn, secret_arn, database, and region.'
-            )
-        self._db_connection = DBConnection(
-            resource_arn, secret_arn, database, region, readonly, is_test
-        )
-
-    @classmethod
-    def initialize(cls, resource_arn, secret_arn, database, region, readonly, is_test=False):
-        """Initialize the singleton instance if it doesn't exist.
-
-        Args:
-            resource_arn: The ARN of the RDS resource
-            secret_arn: The ARN of the secret containing credentials
-            database: The name of the database to connect to
-            region: The AWS region where the RDS instance is located
-            readonly: Whether the connection should be read-only
-            is_test: Whether this is a test connection
-        """
-        if cls._instance is None:
-            cls._instance = cls(resource_arn, secret_arn, database, region, readonly, is_test)
-
-    @classmethod
-    def get(cls):
-        """Get the singleton instance.
-
-        Returns:
-            DBConnectionSingleton: The singleton instance
-
-        Raises:
-            RuntimeError: If the singleton has not been initialized
-        """
-        if cls._instance is None:
-            raise RuntimeError('DBConnectionSingleton is not initialized.')
-        return cls._instance
-
-    @property
-    def db_connection(self):
-        """Get the database connection.
-
-        Returns:
-            DBConnection: The database connection instance
-        """
-        return self._db_connection
 
 
 def extract_cell(cell: dict):
@@ -209,6 +111,9 @@ async def run_query(
     if db_connection is None:
         db_connection = DBConnectionSingleton.get().db_connection
 
+    if db_connection is None:
+        raise AssertionError('db_connection should never be None')
+
     if db_connection.readonly_query:
         matches = detect_mutating_keywords(sql)
         if (bool)(matches):
@@ -232,20 +137,8 @@ async def run_query(
     try:
         logger.info(f'run_query: readonly:{db_connection.readonly_query}, SQL:{sql}')
 
-        execute_params = {
-            'resourceArn': db_connection.cluster_arn,
-            'secretArn': db_connection.secret_arn,
-            'database': db_connection.database,
-            'sql': sql,
-            'includeResultMetadata': True,
-        }
-
-        if query_parameters:
-            execute_params['parameters'] = query_parameters
-
-        response = await asyncio.to_thread(
-            db_connection.data_client.execute_statement, **execute_params
-        )
+        # Execute the query using the abstract connection interface
+        response = await db_connection.execute_query(sql, query_parameters)
 
         logger.success('run_query successfully executed query:{}', sql)
         return parse_execute_response(response)
@@ -316,51 +209,87 @@ def main():
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for MySQL'
     )
-    parser.add_argument('--resource_arn', required=True, help='ARN of the RDS cluster')
+
+    # Connection method 1: RDS Data API for Aurora MySQL
+    parser.add_argument('--resource_arn', help='ARN of the Aurora MySQL cluster')
+
+    # Connection method 2: asyncmy for RDS MySQL and RDS MariaDB
+    parser.add_argument('--hostname', help='RDS MySQL Database hostname')
+    parser.add_argument('--port', type=int, default=3306, help='Database port (default: 3306)')
+
     parser.add_argument(
         '--secret_arn',
         required=True,
         help='ARN of the Secrets Manager secret for database credentials',
     )
     parser.add_argument('--database', required=True, help='Database name')
-    parser.add_argument(
-        '--region', required=True, help='AWS region for RDS Data API (default: us-west-2)'
-    )
+    parser.add_argument('--region', required=True, help='AWS region')
     parser.add_argument(
         '--readonly', required=True, help='Enforce NL to SQL to only allow readonly sql statement'
     )
     args = parser.parse_args()
 
-    logger.info(
-        'MySQL MCP init with CLUSTER_ARN:{}, SECRET_ARN:{}, REGION:{}, DATABASE:{}, READONLY:{}',
-        args.resource_arn,
-        args.secret_arn,
-        args.region,
-        args.database,
-        args.readonly,
-    )
+    # Validate connection parameters
+    if not args.resource_arn and not args.hostname:
+        parser.error('Either --resource_arn or --hostname must be provided')
 
-    try:
-        DBConnectionSingleton.initialize(
-            args.resource_arn, args.secret_arn, args.database, args.region, args.readonly
+    if args.resource_arn and args.hostname:
+        parser.error(
+            'Cannot specify both --resource_arn and --hostname. Choose one connection method.'
         )
-    except BotoCoreError:
-        logger.exception('Failed to RDS API client object for MySQL. Exit the MCP server')
-        sys.exit(1)
 
-    # Test RDS API connection
-    ctx = DummyCtx()
-    response = asyncio.run(run_query('SELECT 1', ctx))
-    if (
-        isinstance(response, list)
-        and len(response) == 1
-        and isinstance(response[0], dict)
-        and 'error' in response[0]
-    ):
-        logger.error('Failed to validate RDS API db connection to MySQL. Exit the MCP server')
-        sys.exit(1)
+    if args.resource_arn:
+        logger.info(
+            f'MySQL MCP init with RDS Data API: CONNECTION_TARGET:{args.resource_arn}, SECRET_ARN:{args.secret_arn}, REGION:{args.region}, DATABASE:{args.database}, READONLY:{args.readonly}'
+        )
+    else:
+        logger.info(
+            f'MySQL/MariaDB MCP init with asyncmy: CONNECTION_TARGET:{args.hostname}, PORT:{args.port}, DATABASE:{args.database}, READONLY:{args.readonly}'
+        )
 
-    logger.success('Successfully validated RDS API db connection to MySQL')
+    # Create the appropriate database connection based on the provided parameters
+    try:
+        if args.resource_arn:
+            # Use RDS Data API with singleton pattern
+            DBConnectionSingleton.initialize(
+                resource_arn=args.resource_arn,
+                secret_arn=args.secret_arn,
+                database=args.database,
+                region=args.region,
+                readonly=args.readonly.lower(),
+            )
+
+            # Test database connection
+            db_connection = DBConnectionSingleton.get().db_connection
+            ctx = DummyCtx()
+            response = asyncio.run(run_query('SELECT 1', ctx, db_connection))
+
+            if (
+                isinstance(response, list)
+                and len(response) == 1
+                and isinstance(response[0], dict)
+                and 'error' in response[0]
+            ):
+                logger.error(
+                    'Failed to validate database connection to MySQL. Exit the MCP server'
+                )
+                sys.exit(1)
+
+            logger.success('Successfully validated database connection to MySQL')
+        else:
+            # Use direct MySQL connection singleton with asyncmy
+            # note: asyncmy pools are tied to their event loop, so testing DB connection must run inside MCP's loop.
+            DBConnectionSingleton.initialize(
+                secret_arn=args.secret_arn,
+                database=args.database,
+                region=args.region,
+                readonly=args.readonly.lower(),
+                hostname=args.hostname,
+                port=args.port,
+            )
+    except Exception as e:
+        logger.exception(f'Failed to create MySQL connection: {str(e)}')
+        sys.exit(1)
 
     # Run server with appropriate transport
     logger.info('Starting MySQL MCP server')
