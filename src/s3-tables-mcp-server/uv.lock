@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -77,26 +77,26 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "boto3", specifier = ">=1.40.8" },
-    { name = "daft", specifier = ">=0.5.8" },
-    { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.11.0" },
-    { name = "pyarrow", specifier = ">=20.0.0" },
-    { name = "pydantic", specifier = "<2.10.0" },
+    { name = "boto3", specifier = "==1.40.8" },
+    { name = "daft", specifier = "==0.5.8" },
+    { name = "loguru", specifier = "==0.7.3" },
+    { name = "mcp", extras = ["cli"], specifier = "==1.11.0" },
+    { name = "pyarrow", specifier = "==20.0.0" },
+    { name = "pydantic", specifier = "==2.9.2" },
     { name = "pyiceberg", specifier = "==0.9.1" },
-    { name = "sqlparse", specifier = ">=0.4.0" },
+    { name = "sqlparse", specifier = "==0.5.3" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "commitizen", specifier = ">=4.2.2" },
-    { name = "pre-commit", specifier = ">=4.1.0" },
-    { name = "pyright", specifier = ">=1.1.398" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.26.0" },
-    { name = "pytest-cov", specifier = ">=4.1.0" },
-    { name = "pytest-mock", specifier = ">=3.12.0" },
-    { name = "ruff", specifier = ">=0.9.7" },
+    { name = "commitizen", specifier = "==4.8.3" },
+    { name = "pre-commit", specifier = "==4.2.0" },
+    { name = "pyright", specifier = "==1.1.402" },
+    { name = "pytest", specifier = "==8.4.0" },
+    { name = "pytest-asyncio", specifier = "==1.0.0" },
+    { name = "pytest-cov", specifier = "==6.2.1" },
+    { name = "pytest-mock", specifier = "==3.14.1" },
+    { name = "ruff", specifier = "==0.11.13" },
 ]
 
 [[package]]
