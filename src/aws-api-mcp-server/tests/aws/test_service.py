@@ -43,7 +43,7 @@ from tests.fixtures import (
     patch_boto3,
 )
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 
 @pytest.mark.parametrize(
@@ -613,7 +613,10 @@ def test_interpret_command_with_credentials_parameter():
         interpret_command('aws s3api list-buckets', credentials=test_credentials)
 
         mock_interpret.assert_called_once_with(
-            'aws s3api list-buckets', max_results=None, credentials=test_credentials
+            'aws s3api list-buckets',
+            max_results=None,
+            credentials=test_credentials,
+            region_override=None,
         )
 
 
@@ -625,8 +628,66 @@ def test_interpret_command_without_credentials_parameter():
         interpret_command('aws s3api list-buckets')
 
         mock_interpret.assert_called_once_with(
-            'aws s3api list-buckets', max_results=None, credentials=None
+            'aws s3api list-buckets', max_results=None, credentials=None, region_override=None
         )
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.driver.interpret')
+def test_interpret_command_with_region_parameter(mock_interpret):
+    """Test that interpret_command forwards region to driver.interpret."""
+    mock_interpret.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200}}
+    mock_credentials = Credentials(access_key_id='a', secret_access_key='b', session_token='c')
+
+    interpret_command('aws s3api list-buckets', region='eu-west-1', credentials=mock_credentials)
+
+    mock_interpret.assert_called_once_with(
+        ANY,
+        access_key_id=mock_credentials.access_key_id,
+        secret_access_key=mock_credentials.secret_access_key,
+        session_token=mock_credentials.session_token,
+        region='eu-west-1',
+        client_side_filter=None,
+        max_results=None,
+        endpoint_url=None,
+    )
+
+
+@patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
+def test_execute_awscli_customization_uses_explicit_region_overrides_ir(mock_get_driver):
+    """Test that execute_awscli_customization uses explicit region over IR region and default."""
+    mock_driver = Mock()
+    mock_get_driver.return_value = mock_driver
+
+    ir_command = IRCommand(
+        command_metadata=CommandMetadata(
+            service_sdk_name='s3',
+            service_full_sdk_name='Amazon S3',
+            operation_sdk_name='list_objects_v2',
+        ),
+        parameters={},
+        region='us-east-1',
+        is_awscli_customization=True,
+    )
+
+    with (
+        patch('awslabs.aws_api_mcp_server.core.aws.service.split_cli_command') as mock_split,
+        patch('awslabs.aws_api_mcp_server.core.aws.service.operation_timer') as mock_timer,
+    ):
+        mock_split.return_value = ['aws', 's3', 'ls']
+
+        # Context manager mock
+        mock_cm = MagicMock()
+        mock_timer.return_value = mock_cm
+
+        with patch('sys.stdout'), patch('sys.stderr'):
+            execute_awscli_customization(
+                'aws s3 ls', ir_command, credentials=None, region='eu-west-2'
+            )
+
+    # Verify region precedence used in timer
+    assert mock_timer.call_args[0][0] == 's3'
+    assert mock_timer.call_args[0][1] == 'list_objects_v2'
+    assert mock_timer.call_args[0][2] == 'eu-west-2'
 
 
 @patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')

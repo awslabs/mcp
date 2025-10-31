@@ -642,9 +642,10 @@ def test_profile(mock_boto3_session):
     mock_session_instance = mock_boto3_session.return_value
     mock_session_instance.region_name = 'us-east-1'
 
-    result = parse(cli_command='aws s3api list-buckets --profile test-profile')
-    assert result.profile == 'test-profile'
-    mock_boto3_session.assert_called_with(profile_name='test-profile')
+    with patch('awslabs.aws_api_mcp_server.core.common.config.AWS_REGION', None):
+        result = parse(cli_command='aws s3api list-buckets --profile test-profile')
+        assert result.profile == 'test-profile'
+        mock_boto3_session.assert_called_with(profile_name='test-profile')
 
 
 @pytest.mark.parametrize(

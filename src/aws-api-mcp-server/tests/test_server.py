@@ -149,6 +149,96 @@ async def test_suggest_aws_commands_exception(mock_get_session):
     mock_session.post.assert_called_once()
 
 
+@patch('awslabs.aws_api_mcp_server.server.execute_awscli_customization')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+async def test_call_aws_helper_passes_region_to_customization(
+    mock_translate_cli_to_ir,
+    mock_validate,
+    mock_execute,
+):
+    """Ensure region is forwarded to execute_awscli_customization when using customizations."""
+    # Arrange IR with customization flag
+    mock_command = MagicMock()
+    mock_command.is_awscli_customization = True
+    mock_command.service_name = 's3'
+    mock_command.operation_cli_name = 'ls'
+    mock_ir = MagicMock()
+    mock_ir.command = mock_command
+    mock_translate_cli_to_ir.return_value = mock_ir
+
+    mock_validate.return_value = MagicMock(validation_failed=False)
+    mock_execute.return_value = AwsCliAliasResponse(response='', error='')
+
+    # Avoid policy gating
+    with (
+        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_INDEX', None),
+        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', False),
+        patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False),
+    ):
+        # Act
+        result = await call_aws_helper(
+            cli_command='aws s3 ls',
+            ctx=DummyCtx(),  # type: ignore[arg-type]
+            max_results=None,
+            credentials=None,
+            region='eu-west-1',
+        )
+
+    # Assert
+    assert isinstance(result, AwsCliAliasResponse)
+    _, kwargs = mock_execute.call_args
+    assert kwargs.get('region') == 'eu-west-1'
+
+
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+async def test_call_aws_helper_passes_region_to_interpret(
+    mock_translate_cli_to_ir,
+    mock_validate,
+    mock_interpret,
+):
+    """Ensure region is forwarded to interpret_command for normal operations."""
+    # Arrange IR without customization
+    mock_command = MagicMock()
+    mock_command.is_awscli_customization = False
+    mock_command.service_name = 's3api'
+    mock_command.operation_cli_name = 'list-buckets'
+    mock_ir = MagicMock()
+    mock_ir.command = mock_command
+    mock_translate_cli_to_ir.return_value = mock_ir
+
+    mock_validate.return_value = MagicMock(validation_failed=False)
+    mock_interpret.return_value = ProgramInterpretationResponse(
+        response=InterpretationResponse(error=None, json='{}', status_code=200),
+        metadata=None,
+        validation_failures=None,
+        missing_context_failures=None,
+        failed_constraints=None,
+    )
+
+    # Avoid policy gating
+    with (
+        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_INDEX', None),
+        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', False),
+        patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False),
+    ):
+        # Act
+        result = await call_aws_helper(
+            cli_command='aws s3api list-buckets',
+            ctx=DummyCtx(),  # type: ignore[arg-type]
+            max_results=None,
+            credentials=None,
+            region='eu-west-2',
+        )
+
+    # Assert
+    assert isinstance(result, ProgramInterpretationResponse)
+    _, kwargs = mock_interpret.call_args
+    assert kwargs.get('region') == 'eu-west-2'
+
+
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
 @patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
@@ -631,6 +721,7 @@ async def test_call_aws_awscli_customization_success(
         'aws configure list',
         mock_ir.command,
         credentials=None,
+        region=None,
     )
 
 
@@ -673,6 +764,7 @@ async def test_call_aws_awscli_customization_error(
         'aws configure list',
         mock_ir.command,
         credentials=None,
+        region=None,
     )
     mock_ctx.error.assert_called_once_with(error_response.detail)
 
@@ -842,6 +934,7 @@ async def test_call_aws_helper_with_credentials(mock_translate, mock_validate, m
         cli_command='aws s3api list-buckets',
         max_results=None,
         credentials=test_credentials,
+        region=None,
     )
     assert result == mock_response
 
@@ -873,7 +966,7 @@ async def test_call_aws_helper_without_credentials(mock_translate, mock_validate
     )
 
     mock_interpret.assert_called_once_with(
-        cli_command='aws s3api list-buckets', max_results=None, credentials=None
+        cli_command='aws s3api list-buckets', max_results=None, credentials=None, region=None
     )
     assert result == mock_response
 
