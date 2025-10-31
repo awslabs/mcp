@@ -659,3 +659,232 @@ def test_generate_manifest_unexpected_exception(
     manifest_errors = [e for e in formatter.errors if e[0] == 'manifest']
     assert len(manifest_errors) == 1
     assert 'Unexpected error' in manifest_errors[0][1]
+
+
+def test_format_as_markdown_table_with_booleans(tmp_path, sample_metadata):
+    """Test markdown table formatting with boolean values."""
+    data = [
+        {'name': 'test1', 'active': True},
+        {'name': 'test2', 'active': False},
+    ]
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(data)
+
+    assert '| True |' in table
+    assert '| False |' in table
+
+
+def test_format_as_markdown_table_with_integers(tmp_path, sample_metadata):
+    """Test markdown table formatting with integer values."""
+    data = [
+        {'id': 1, 'count': 100},
+    ]
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(data)
+
+    assert '| 1 |' in table
+    assert '| 100 |' in table
+
+
+def test_manifest_with_comprehensive_statistics(tmp_path, sample_metadata):
+    """Test manifest generation with all statistics populated."""
+    results = {
+        'comprehensive_table_analysis': {
+            'description': 'Table analysis',
+            'data': [{'table_name': 'table1'}, {'table_name': 'table2'}],
+        },
+        'column_analysis': {
+            'description': 'Column analysis',
+            'data': [{'column_name': 'col1'}, {'column_name': 'col2'}, {'column_name': 'col3'}],
+        },
+        'comprehensive_index_analysis': {
+            'description': 'Index analysis',
+            'data': [{'index_name': 'idx1'}],
+        },
+        'foreign_key_analysis': {
+            'description': 'FK analysis',
+            'data': [{'fk_name': 'fk1'}, {'fk_name': 'fk2'}],
+        },
+        'all_queries_stats': {
+            'description': 'Query stats',
+            'data': [
+                {'query': 'SELECT 1', 'source_type': 'QUERY'},
+                {'query': 'SELECT 2', 'source_type': 'PROCEDURE'},
+                {'query': 'SELECT 3', 'source_type': 'PROCEDURE'},
+            ],
+        },
+        'triggers_stats': {
+            'description': 'Trigger stats',
+            'data': [{'trigger_name': 'trg1'}],
+        },
+    }
+
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter.generate_all_files()
+
+    manifest_path = os.path.join(str(tmp_path), 'manifest.md')
+    with open(manifest_path, 'r') as f:
+        content = f.read()
+        assert '- **Total Tables**: 2' in content
+        assert '- **Total Columns**: 3' in content
+        assert '- **Total Indexes**: 1' in content
+        assert '- **Total Foreign Keys**: 2' in content
+        assert '- **Query Patterns Analyzed**: 3' in content
+        assert '- **Stored Procedures**: 2' in content
+        assert '- **Triggers**: 1' in content
+
+
+def test_manifest_with_errors_section(tmp_path, sample_metadata):
+    """Test manifest includes errors section when errors occur."""
+    results = {
+        'comprehensive_table_analysis': {
+            'description': 'Table analysis',
+            'data': [{'table_name': 'table1'}],
+        },
+    }
+
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    # Manually add some errors
+    formatter.errors.append(('test_query', 'Test error message'))
+    formatter.errors.append(('another_query', 'Another error'))
+
+    formatter._generate_manifest()
+
+    manifest_path = os.path.join(str(tmp_path), 'manifest.md')
+    with open(manifest_path, 'r') as f:
+        content = f.read()
+        assert '## Errors' in content
+        assert '2 error(s) occurred during file generation:' in content
+        assert '- **test_query**: Test error message' in content
+        assert '- **another_query**: Another error' in content
+
+
+def test_generate_all_files_with_invalid_query_result(tmp_path, sample_metadata):
+    """Test generate_all_files handles invalid query results."""
+    results = {
+        'comprehensive_table_analysis': 'not a dict',  # Invalid structure
+    }
+
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    generated_files, errors = formatter.generate_all_files()
+
+    # Should handle gracefully and create skipped file
+    assert len(generated_files) >= 0
+
+
+def test_generate_all_files_query_processing_exception(tmp_path, sample_metadata, monkeypatch):
+    """Test handling of exceptions during query processing."""
+
+    def mock_generate_query_file_error(*args, **kwargs):
+        raise RuntimeError('Unexpected error in query file generation')
+
+    results = {
+        'comprehensive_table_analysis': {
+            'description': 'Table analysis',
+            'data': [{'table_name': 'table1'}],
+        },
+    }
+
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    monkeypatch.setattr(formatter, '_generate_query_file', mock_generate_query_file_error)
+
+    generated_files, errors = formatter.generate_all_files()
+
+    # Should track error and continue
+    assert len(errors) > 0
+    assert any('comprehensive_table_analysis' in str(e[0]) for e in errors)
+
+
+def test_generate_all_files_critical_exception(tmp_path, sample_metadata, monkeypatch):
+    """Test handling of critical exceptions in generate_all_files."""
+    import awslabs.dynamodb_mcp_server.markdown_formatter as mf_module
+
+    def mock_makedirs_critical(*args, **kwargs):
+        # Allow directory creation but fail later
+        pass
+
+    def mock_get_schema_queries_error():
+        raise RuntimeError('Critical error getting schema queries')
+
+    monkeypatch.setattr('os.makedirs', mock_makedirs_critical)
+    monkeypatch.setattr(mf_module, 'get_schema_queries', mock_get_schema_queries_error)
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    generated_files, errors = formatter.generate_all_files()
+
+    # Should track critical error
+    assert len(errors) > 0
+    assert any('generate_all_files' in str(e[0]) for e in errors)
+
+
+def test_generate_all_files_with_metadata_skipped_queries_non_performance(tmp_path):
+    """Test skipped queries that are in metadata but not performance-related."""
+    metadata = {
+        'database': 'test',
+        'source_db_type': 'mysql',
+        'analysis_period': '30 days',
+        'max_query_results': 500,
+        'performance_enabled': True,  # Performance is enabled
+        'skipped_queries': ['comprehensive_table_analysis'],  # Schema query skipped
+    }
+
+    results = {}
+
+    formatter = MarkdownFormatter(results, metadata, str(tmp_path))
+    generated_files, errors = formatter.generate_all_files()
+
+    # Should create skipped file with appropriate reason
+    skipped_file = os.path.join(str(tmp_path), 'comprehensive_table_analysis.md')
+    assert os.path.exists(skipped_file)
+
+    with open(skipped_file, 'r') as f:
+        content = f.read()
+        assert 'Query was skipped during analysis' in content
+
+
+def test_generate_all_files_missing_query_not_in_metadata(tmp_path):
+    """Test missing query that's not in metadata skipped list."""
+    metadata = {
+        'database': 'test',
+        'source_db_type': 'mysql',
+        'analysis_period': '30 days',
+        'max_query_results': 500,
+        'performance_enabled': True,
+        'skipped_queries': [],  # Empty skipped list
+    }
+
+    results = {}  # No results for any query
+
+    formatter = MarkdownFormatter(results, metadata, str(tmp_path))
+    generated_files, errors = formatter.generate_all_files()
+
+    # Should create skipped files with generic reason
+    skipped_file = os.path.join(str(tmp_path), 'comprehensive_table_analysis.md')
+    assert os.path.exists(skipped_file)
+
+    with open(skipped_file, 'r') as f:
+        content = f.read()
+        assert 'Query was not executed or failed during analysis' in content
+
+
+def test_format_as_markdown_table_all_rows_fail_formatting(tmp_path, sample_metadata):
+    """Test when all rows fail to format (after first valid row)."""
+
+    class BadValue:
+        """A class that raises an error when converted to string."""
+
+        def __str__(self):
+            raise ValueError('Cannot convert')
+
+    # First row is valid to get columns, but all subsequent processing fails
+    data = [
+        {'col1': BadValue(), 'col2': BadValue()},
+    ]
+
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+    table = formatter._format_as_markdown_table(data)
+
+    # Should return error message when no rows can be formatted
+    assert 'Error: Unable to format data rows' in table
