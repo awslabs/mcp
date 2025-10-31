@@ -10,31 +10,35 @@ def mock_lambda_client():
     """Create a mock boto3 Lambda client."""
     mock_client = MagicMock()
 
-    # Mock list_functions response
-    mock_client.list_functions.return_value = {
-        'Functions': [
-            {
-                'FunctionName': 'test-function-1',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
-                'Description': 'Test function 1 description',
-            },
-            {
-                'FunctionName': 'test-function-2',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-2',
-                'Description': 'Test function 2 description',
-            },
-            {
-                'FunctionName': 'prefix-test-function-3',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:prefix-test-function-3',
-                'Description': 'Test function 3 with prefix',
-            },
-            {
-                'FunctionName': 'other-function',
-                'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:other-function',
-                'Description': '',  # Empty description
-            },
-        ]
-    }
+    # Mock list_functions paginator response
+    paginator_mock = MagicMock()
+    paginator_mock.paginate.return_value = [
+        {
+            'Functions': [
+                {
+                    'FunctionName': 'test-function-1',
+                    'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-1',
+                    'Description': 'Test function 1 description',
+                },
+                {
+                    'FunctionName': 'test-function-2',
+                    'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function-2',
+                    'Description': 'Test function 2 description',
+                },
+                {
+                    'FunctionName': 'prefix-test-function-3',
+                    'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:prefix-test-function-3',
+                    'Description': 'Test function 3 with prefix',
+                },
+                {
+                    'FunctionName': 'other-function',
+                    'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:other-function',
+                    'Description': '',  # Empty description
+                },
+            ]
+        }
+    ]
+    mock_client.get_paginator.return_value = paginator_mock
 
     # Mock list_tags response
     def mock_list_tags(Resource):

@@ -34,15 +34,17 @@ with pytest.MonkeyPatch().context() as CTX:
         def test_tool_registration(self, mock_lambda_client, mock_create_lambda_tool):
             """Test that Lambda functions are registered as tools."""
             # Set up the mock
-            mock_lambda_client.list_functions.return_value = {
-                'Functions': [
-                    {
-                        'FunctionName': 'test-function',
-                        'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function',
-                        'Description': 'Test function description',
-                    },
-                ]
-            }
+            mock_lambda_client.get_paginator.return_value.paginate.return_value = [
+                {
+                    'Functions': [
+                        {
+                            'FunctionName': 'test-function',
+                            'FunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function',
+                            'Description': 'Test function description',
+                        },
+                    ]
+                }
+            ]
 
             # Call the function
             register_lambda_functions()
