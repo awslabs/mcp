@@ -40,6 +40,9 @@ from awslabs.ecs_mcp_server.utils.security import (
 )
 
 
+# To reference for the core-mcp-server
+mcp = None
+
 def _setup_logging() -> logging.Logger:
     """Configure logging for the server."""
     log_level = os.environ.get("FASTMCP_LOG_LEVEL", "INFO")
