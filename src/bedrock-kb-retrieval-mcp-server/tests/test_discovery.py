@@ -35,7 +35,9 @@ class TestDiscoverKnowledgeBases:
         assert 'kb-12345' in result
         assert 'kb-67890' in result
         assert result['kb-12345']['name'] == 'Test Knowledge Base'
+        assert result['kb-12345']['description'] == 'A test knowledge base for testing purposes'
         assert result['kb-67890']['name'] == 'Another Knowledge Base'
+        assert result['kb-67890']['description'] == 'Another knowledge base for testing'
         assert len(result['kb-12345']['data_sources']) == 2
         assert len(result['kb-67890']['data_sources']) == 2
         assert result['kb-12345']['data_sources'][0]['id'] == 'ds-12345'
@@ -68,6 +70,7 @@ class TestDiscoverKnowledgeBases:
         assert len(result) == 1
         assert 'kb-95008' in result
         assert result['kb-95008']['name'] == 'Yet another Knowledge Base'
+        assert result['kb-95008']['description'] == 'Yet another test knowledge base'
         assert len(result['kb-95008']['data_sources']) == 2
         assert result['kb-95008']['data_sources'][0]['id'] == 'ds-12345'
         assert result['kb-95008']['data_sources'][0]['name'] == 'Test Data Source'
@@ -151,8 +154,16 @@ class TestDiscoverKnowledgeBases:
         kb_paginator.paginate.return_value = [
             {
                 'knowledgeBaseSummaries': [
-                    {'knowledgeBaseId': 'kb-12345', 'name': 'Test Knowledge Base'},
-                    {'knowledgeBaseId': 'kb-67890', 'name': 'Another Knowledge Base'},
+                    {
+                        'knowledgeBaseId': 'kb-12345',
+                        'name': 'Test Knowledge Base',
+                        'description': 'A test knowledge base for testing purposes',
+                    },
+                    {
+                        'knowledgeBaseId': 'kb-67890',
+                        'name': 'Another Knowledge Base',
+                        'description': 'Another knowledge base for testing',
+                    },
                 ]
             }
         ]
@@ -181,7 +192,9 @@ class TestDiscoverKnowledgeBases:
         assert 'kb-12345' in result
         assert 'kb-67890' in result
         assert result['kb-12345']['name'] == 'Test Knowledge Base'
+        assert result['kb-12345']['description'] == 'A test knowledge base for testing purposes'
         assert result['kb-67890']['name'] == 'Another Knowledge Base'
+        assert result['kb-67890']['description'] == 'Another knowledge base for testing'
         assert len(result['kb-12345']['data_sources']) == 0
         assert len(result['kb-67890']['data_sources']) == 0
 

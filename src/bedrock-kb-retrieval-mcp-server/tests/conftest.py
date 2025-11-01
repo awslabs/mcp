@@ -54,9 +54,21 @@ def mock_bedrock_agent_client():
     kb_paginator.paginate.return_value = [
         {
             'knowledgeBaseSummaries': [
-                {'knowledgeBaseId': 'kb-12345', 'name': 'Test Knowledge Base'},
-                {'knowledgeBaseId': 'kb-67890', 'name': 'Another Knowledge Base'},
-                {'knowledgeBaseId': 'kb-95008', 'name': 'Yet another Knowledge Base'},
+                {
+                    'knowledgeBaseId': 'kb-12345',
+                    'name': 'Test Knowledge Base',
+                    'description': 'A test knowledge base for testing purposes',
+                },
+                {
+                    'knowledgeBaseId': 'kb-67890',
+                    'name': 'Another Knowledge Base',
+                    'description': 'Another knowledge base for testing',
+                },
+                {
+                    'knowledgeBaseId': 'kb-95008',
+                    'name': 'Yet another Knowledge Base',
+                    'description': 'Yet another test knowledge base',
+                },
             ]
         }
     ]
