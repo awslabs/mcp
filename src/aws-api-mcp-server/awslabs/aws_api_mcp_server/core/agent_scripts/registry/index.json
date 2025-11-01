@@ -1,0 +1,52 @@
+{
+  "version": "2.0",
+  "metadata": {
+    "description": "AWS API MCP Server Agentic Scripts Registry - Scripts with template support",
+    "total_scripts": 1,
+    "total_templates": 3,
+    "structure_version": "minimal"
+  },
+  "scripts": {
+    "secure-websites": {
+      "main": "secure-websites/main.script.md",
+      "templates": [
+        "s3-bucket-policy-oac",
+        "s3-public-access-block",
+        "cloudfront-distribution-basic"
+      ],
+      "estimated_time": "15 minutes",
+      "complexity": "beginner",
+      "version": "1.0",
+      "tags": ["s3", "cloudfront", "static-site", "security", "oac"],
+      "aws_services": ["s3", "cloudfront"],
+      "prerequisites": [
+        "aws_credentials",
+        "s3_permissions",
+        "cloudfront_permissions"
+      ],
+      "outputs": [
+        "cloudfront_url",
+        "distribution_id",
+        "bucket_name",
+        "oac_id"
+      ]
+    }
+  },
+  "templates": {
+    "s3-bucket-policy-oac": {
+      "file": "templates/s3-bucket-policy-oac.json",
+      "description": "S3 bucket policy for Origin Access Control",
+      "parameters": ["bucket_name", "account_id", "distribution_id"]
+    },
+    "s3-public-access-block": {
+      "file": "templates/s3-public-access-block.json",
+      "description": "S3 Public Access Block configuration",
+      "parameters": []
+    },
+    "cloudfront-distribution-basic": {
+      "file": "templates/cloudfront-distribution-basic.json",
+      "description": "Basic CloudFront distribution for S3 origin with OAC",
+      "parameters": ["bucket_name", "oac_id", "region", "caller_reference"]
+    }
+  }
+}

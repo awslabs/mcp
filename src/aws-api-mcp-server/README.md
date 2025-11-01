@@ -240,6 +240,27 @@ The tool names are subject to change, please refer to CHANGELOG.md for any chang
 - `suggest_aws_commands`: Suggests AWS CLI commands based on a natural language query. This tool helps the model generate CLI commands by providing a description and the complete set of parameters for the 5 most likely CLI commands for the given query, including the most recent AWS CLI commands - some of which may be otherwise unknown to the model (released after the model's knowledge cut-off date).
 - `get_execution_plan` *(Experimental)*: Provides structured, step-by-step guidance for accomplishing complex AWS tasks through agent scripts. This tool is only available when the `EXPERIMENTAL_AGENT_SCRIPTS` environment variable is set to "true". Agent scripts are reusable workflows that automate complex processes and provide detailed guidance for accomplishing specific tasks.
 
+### Agent Scripts Workflow (Experimental)
+
+When `EXPERIMENTAL_AGENT_SCRIPTS` is enabled, three tools work together for structured AWS workflows:
+
+**Workflow:**
+```
+suggest_relevant_scripts("intent") → get_execution_plan("script-name") → execute steps
+```
+
+**Example:**
+```
+1. suggest_relevant_scripts("secure website CloudFront")
+   → Returns: secure-websites script
+   
+2. get_execution_plan("secure-websites")
+   → Returns: Step-by-step instructions
+   
+3. Execute: call_aws + get_template (following the plan)
+   → Creates S3 bucket, CloudFront distribution with OAC
+```
+
 
 ## Security Considerations
 Before using this MCP Server, you should consider conducting your own independent assessment to ensure that your use would comply with your own specific security and quality control practices and standards, as well as the laws, rules, and regulations that govern you and your content.
