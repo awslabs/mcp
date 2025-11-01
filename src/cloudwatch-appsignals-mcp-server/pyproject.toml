@@ -124,3 +124,12 @@ asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["awslabs"]
+
+[tool.pyright]
+exclude = [
+    ".venv",
+    "**/.venv",
+    "**/venv",
+    "**/node_modules",
+    "**/__pycache__",
+]
