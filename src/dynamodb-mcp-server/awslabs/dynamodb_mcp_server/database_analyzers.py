@@ -14,9 +14,13 @@
 
 """Database analyzer classes for source database analysis."""
 
-import json
 import os
-from awslabs.dynamodb_mcp_server.database_analysis_queries import get_query_resource
+from awslabs.dynamodb_mcp_server.database_analysis_queries import (
+    get_performance_queries,
+    get_query_resource,
+    get_schema_queries,
+)
+from awslabs.dynamodb_mcp_server.markdown_formatter import MarkdownFormatter
 from awslabs.mysql_mcp_server.server import DBConnection, DummyCtx
 from awslabs.mysql_mcp_server.server import run_query as mysql_query
 from datetime import datetime
@@ -115,8 +119,10 @@ class DatabaseAnalyzer:
         pattern_analysis_days: int,
         max_results: int,
         output_dir: str,
+        performance_enabled: bool = True,
+        skipped_queries: List[str] = None,
     ) -> Tuple[List[str], List[str]]:
-        """Save analysis results to JSON files.
+        """Save analysis results to Markdown files using MarkdownFormatter.
 
         Args:
             results: Dictionary of query results
@@ -125,6 +131,8 @@ class DatabaseAnalyzer:
             pattern_analysis_days: Number of days to analyze the logs for pattern analysis query
             max_results: Maximum results per query
             output_dir: Absolute directory path where the timestamped output analysis folder will be created
+            performance_enabled: Whether performance schema is enabled
+            skipped_queries: List of query names that were skipped during analysis
 
         Returns:
             Tuple of (saved_files, save_errors)
@@ -150,36 +158,33 @@ class DatabaseAnalyzer:
             save_errors.append(f'Failed to create folder {analysis_folder}: {str(e)}')
             return saved_files, save_errors
 
-        for query_name, query_result in results.items():
-            filename = os.path.join(analysis_folder, f'{query_name}_results.json')
+        # Prepare metadata for MarkdownFormatter
+        metadata = {
+            'database': database,
+            'source_db_type': source_db_type,
+            'analysis_period': f'{pattern_analysis_days} days',
+            'max_query_results': max_results,
+            'performance_enabled': performance_enabled,
+            'skipped_queries': skipped_queries or [],
+        }
 
-            analysis_data = query_result['data']
-            if query_name == 'query_pattern_analysis':
-                analysis_data = DatabaseAnalyzer.filter_pattern_data(
-                    analysis_data, pattern_analysis_days
-                )
+        # Use MarkdownFormatter to generate files
+        try:
+            formatter = MarkdownFormatter(results, metadata, analysis_folder)
+            generated_files, generation_errors = formatter.generate_all_files()
+            saved_files = generated_files
 
-            try:
-                with open(filename, 'w') as f:
-                    json.dump(
-                        {
-                            'query_name': query_name,
-                            'description': query_result['description'],
-                            'source_db_type': source_db_type,
-                            'database': database,
-                            'pattern_analysis_days': pattern_analysis_days,
-                            'max_query_results': max_results,
-                            'data': analysis_data,
-                        },
-                        f,
-                        indent=2,
-                        default=str,
-                    )
-                saved_files.append(filename)
-                logger.info(f'Saved {query_name} results to {filename}')
-            except Exception as e:
-                logger.error(f'Failed to save {query_name}: {str(e)}')
-                save_errors.append(f'Failed to save {query_name}: {str(e)}')
+            # Convert error tuples to error strings
+            if generation_errors:
+                for query_name, error_msg in generation_errors:
+                    save_errors.append(f'{query_name}: {error_msg}')
+
+            logger.info(
+                f'Successfully generated {len(saved_files)} Markdown files with {len(save_errors)} errors'
+            )
+        except Exception as e:
+            logger.error(f'Failed to generate Markdown files: {str(e)}')
+            save_errors.append(f'Failed to generate Markdown files: {str(e)}')
 
         return saved_files, save_errors
 
@@ -219,13 +224,9 @@ class DatabaseAnalyzer:
 class MySQLAnalyzer(DatabaseAnalyzer):
     """MySQL-specific database analyzer."""
 
-    SCHEMA_QUERIES = [
-        'table_analysis',
-        'column_analysis',
-        'foreign_key_analysis',
-        'index_analysis',
-    ]
-    ACCESS_PATTERN_QUERIES = ['performance_schema_check', 'query_pattern_analysis']
+    # Use centralized query definitions from database_analysis_queries
+    SCHEMA_QUERIES = get_schema_queries()
+    PERFORMANCE_QUERIES = get_performance_queries()
 
     @staticmethod
     def is_performance_schema_enabled(result):
@@ -278,19 +279,11 @@ class MySQLAnalyzer(DatabaseAnalyzer):
         for query_name in query_names:
             try:
                 # Get query with appropriate parameters
-                if query_name == 'query_pattern_analysis' and pattern_analysis_days:
-                    query = get_query_resource(
-                        query_name,
-                        max_query_results=self.max_results,
-                        target_database=self.database,
-                        pattern_analysis_days=pattern_analysis_days,
-                    )
-                else:
-                    query = get_query_resource(
-                        query_name,
-                        max_query_results=self.max_results,
-                        target_database=self.database,
-                    )
+                query = get_query_resource(
+                    query_name,
+                    max_query_results=self.max_results,
+                    target_database=self.database,
+                )
 
                 result = await self._run_query(query['sql'])
 
@@ -322,7 +315,7 @@ class MySQLAnalyzer(DatabaseAnalyzer):
             connection_params: Dictionary of connection parameters
 
         Returns:
-            Dictionary containing results, errors, and performance schema status
+            Dictionary containing results, errors, performance schema status, and skipped queries
         """
         analyzer = cls(connection_params)
 
@@ -338,6 +331,7 @@ class MySQLAnalyzer(DatabaseAnalyzer):
         performance_enabled = False
         all_results = {**schema_results}
         all_errors = schema_errors + performance_schema_check_errors
+        skipped_queries = []
 
         # Check performance schema status and run pattern analysis if enabled
         if 'performance_schema_check' in performance_schema_check_results:
@@ -346,19 +340,23 @@ class MySQLAnalyzer(DatabaseAnalyzer):
             )
 
             if performance_enabled:
-                pattern_results, pattern_errors = await analyzer.execute_query_batch(
-                    ['query_pattern_analysis'], analyzer.pattern_analysis_days
+                # Run performance queries
+                perf_results, perf_errors = await analyzer.execute_query_batch(
+                    cls.PERFORMANCE_QUERIES
                 )
-                all_results.update(pattern_results)
-                all_errors.extend(pattern_errors)
-            if not performance_enabled:
-                all_errors.append('Performance Schema disabled - skipping query_pattern_analysis')
+                all_results.update(perf_results)
+                all_errors.extend(perf_errors)
+            else:
+                # Track skipped performance queries
+                skipped_queries.extend(cls.PERFORMANCE_QUERIES)
+                all_errors.append('Performance Schema disabled - skipping performance queries')
 
         return {
             'results': all_results,
             'errors': all_errors,
             'performance_enabled': performance_enabled,
             'performance_feature': 'Performance Schema',
+            'skipped_queries': skipped_queries,
         }
 
 

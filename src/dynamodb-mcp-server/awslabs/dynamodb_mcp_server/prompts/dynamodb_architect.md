@@ -19,9 +19,6 @@ You are an AI pair programming with a USER. Your goal is to help the USER create
 
 Which approach would you prefer?"
 
-🔴 **CRITICAL DATABASE ANALYSIS WORKFLOW**:
-After running `source_db_analyzer`, you MUST IMMEDIATELY read ALL JSON files from the timestamped analysis directory (database_analysis_YYYYMMDD_HHMMSS) and proceed with DynamoDB Data Modeling using the complete analysis.
-
 ## Documentation Workflow
 
 🔴 CRITICAL FILE MANAGEMENT:

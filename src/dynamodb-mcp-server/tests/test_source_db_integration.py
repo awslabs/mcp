@@ -1,4 +1,3 @@
-import json
 import os
 import pytest
 from awslabs.dynamodb_mcp_server.database_analysis_queries import get_query_resource
@@ -55,13 +54,11 @@ def test_query_resource_functions():
 
     # Test parameter substitution
     query = get_query_resource(
-        'query_pattern_analysis',
+        'all_queries_stats',
         max_query_results=1000,
         target_database='employees',
-        pattern_analysis_days=30,
     )
     assert 'employees' in query['sql']
-    assert '30' in query['sql']
 
     # Test invalid query name
     with pytest.raises(ValueError, match="Query 'invalid_query' not found"):
@@ -73,19 +70,17 @@ def test_query_limit_parameter_override(monkeypatch):
     # Test parameter override (takes precedence over env var)
     monkeypatch.setenv('MYSQL_MAX_QUERY_RESULTS', '100')
     query = get_query_resource(
-        'query_pattern_analysis',
+        'all_queries_stats',
         max_query_results=200,
         target_database='test',
-        pattern_analysis_days=30,
     )
     assert 'LIMIT 200' in query['sql']  # Parameter takes precedence
 
     # Test environment variable fallback
     query = get_query_resource(
-        'query_pattern_analysis',
+        'all_queries_stats',
         max_query_results=100,
         target_database='test',
-        pattern_analysis_days=30,
     )
     assert 'LIMIT 100' in query['sql']  # Falls back to env var
 
@@ -186,31 +181,42 @@ def test_save_analysis_files_with_data(tmp_path, monkeypatch):
     monkeypatch.setattr('awslabs.dynamodb_mcp_server.database_analyzers.datetime', MockDateTime)
 
     results = {
-        'table_analysis': {
+        'comprehensive_table_analysis': {
             'data': [{'table': 'users', 'rows': 100}],
             'description': 'Table analysis',
         },
-        'query_pattern_analysis': {
+        'all_queries_stats': {
             'data': [{'pattern': 'SELECT * FROM users', 'frequency': 10}],
             'description': 'Query patterns',
         },
     }
 
     saved_files, save_errors = DatabaseAnalyzer.save_analysis_files(
-        results, 'mysql', 'test_db', 30, 500, str(tmp_path)
+        results, 'mysql', 'test_db', 30, 500, str(tmp_path), []
     )
 
-    assert len(saved_files) == 2
+    # Should generate markdown files for all expected queries (6 total: 4 schema + 2 performance)
+    assert len(saved_files) == 6
     assert len(save_errors) == 0
 
-    # Verify files were created
+    # Verify markdown files were created
     for filename in saved_files:
         assert os.path.exists(filename)
+        assert filename.endswith('.md')
         with open(filename, 'r') as f:
-            data = json.load(f)
-            assert 'query_name' in data
-            assert 'database' in data
-            assert data['database'] == 'test_db'
+            content = f.read()
+            # Verify it's markdown content with expected structure
+            assert content.startswith('#')
+            # Check for any of the expected markdown patterns
+            assert any(
+                pattern in content
+                for pattern in [
+                    '**Query Description**',
+                    '**Database**',
+                    '**Query Skipped**',
+                    '**Generated**',
+                ]
+            )
 
 
 def test_save_analysis_files_creation_error(tmp_path, monkeypatch):
@@ -319,8 +325,8 @@ async def test_execute_query_batch_handles_empty_result_sets():
     )
 
     with patch.object(analyzer, '_run_query', return_value=[]):
-        results, errors = await analyzer.execute_query_batch(['table_analysis'])
-        assert results['table_analysis']['data'] == []
+        results, errors = await analyzer.execute_query_batch(['comprehensive_table_analysis'])
+        assert results['comprehensive_table_analysis']['data'] == []
 
 
 @pytest.mark.asyncio
@@ -342,7 +348,7 @@ async def test_execute_query_batch_handles_query_failures(monkeypatch):
         raise Exception('Query failed')
 
     monkeypatch.setattr(analyzer, '_run_query', mock_run_query)
-    results, errors = await analyzer.execute_query_batch(['table_analysis'])
+    results, errors = await analyzer.execute_query_batch(['comprehensive_table_analysis'])
     assert len(errors) > 0
     assert 'Query failed' in errors[0]
 
@@ -363,7 +369,7 @@ async def test_execute_query_batch_handles_error_results():
     )
 
     with patch.object(analyzer, '_run_query', return_value=[{'error': 'SQL syntax error'}]):
-        results, errors = await analyzer.execute_query_batch(['table_analysis'])
+        results, errors = await analyzer.execute_query_batch(['comprehensive_table_analysis'])
         assert len(errors) > 0
         assert 'SQL syntax error' in errors[0]
 
@@ -397,14 +403,19 @@ def test_save_analysis_files_json_error(tmp_path, monkeypatch):
     """Test save_analysis_files with JSON serialization error."""
     results = {'test': {'description': 'Test', 'data': []}}
 
+    def mock_markdown_formatter_init(*args, **kwargs):
+        raise Exception('Markdown generation failed')
+
     monkeypatch.setattr(
-        'json.dump', lambda *args, **kwargs: (_ for _ in ()).throw(TypeError('Not serializable'))
+        'awslabs.dynamodb_mcp_server.database_analyzers.MarkdownFormatter',
+        mock_markdown_formatter_init,
     )
+
     saved, errors = DatabaseAnalyzer.save_analysis_files(
-        results, 'mysql', 'db', 30, 500, str(tmp_path)
+        results, 'mysql', 'db', 30, 500, str(tmp_path), []
     )
     assert len(errors) == 1
-    assert 'Failed to save test' in errors[0]
+    assert 'Markdown generation failed' in errors[0]
 
 
 @pytest.mark.asyncio
@@ -423,8 +434,8 @@ async def test_execute_query_batch_pattern_analysis():
     )
 
     with patch.object(analyzer, '_run_query', return_value=[{'result': 'data'}]):
-        results, errors = await analyzer.execute_query_batch(['query_pattern_analysis'], 30)
-        assert 'query_pattern_analysis' in results
+        results, errors = await analyzer.execute_query_batch(['all_queries_stats'])
+        assert 'all_queries_stats' in results
 
 
 @pytest.mark.asyncio
@@ -440,18 +451,18 @@ async def test_analyze_performance_disabled():
         'output_dir': '/tmp',
     }
 
-    def mock_execute_query_batch(query_names, pattern_analysis_days=None):
+    def mock_execute_query_batch(query_names):
         if 'performance_schema_check' in query_names:
             return (
                 {'performance_schema_check': {'description': 'Check', 'data': [{'': '0'}]}},
                 [],
             )
-        return ({'table_analysis': {'description': 'Tables', 'data': []}}, [])
+        return ({'comprehensive_table_analysis': {'description': 'Tables', 'data': []}}, [])
 
     with patch.object(MySQLAnalyzer, 'execute_query_batch', side_effect=mock_execute_query_batch):
         result = await MySQLAnalyzer.analyze(connection_params)
         assert not result['performance_enabled']
-        assert 'Performance Schema disabled - skipping query_pattern_analysis' in result['errors']
+        assert 'all_queries_stats' in result['skipped_queries']
 
 
 @pytest.mark.asyncio
@@ -471,10 +482,123 @@ async def test_analyze_performance_enabled():
         MySQLAnalyzer,
         'execute_query_batch',
         side_effect=[
-            ({'table_analysis': {'description': 'Tables', 'data': []}}, []),
+            ({'comprehensive_table_analysis': {'description': 'Tables', 'data': []}}, []),
             ({'performance_schema_check': {'description': 'Check', 'data': [{'': '1'}]}}, []),
-            ({'query_pattern_analysis': {'description': 'Patterns', 'data': []}}, []),
+            ({'all_queries_stats': {'description': 'Patterns', 'data': []}}, []),
         ],
     ):
         result = await MySQLAnalyzer.analyze(connection_params)
         assert result['performance_enabled']
+
+
+def test_build_connection_params_unsupported_database():
+    """Test build_connection_params with unsupported database type."""
+    with pytest.raises(ValueError, match='Unsupported database type: postgresql'):
+        DatabaseAnalyzer.build_connection_params(
+            'postgresql',
+            database_name='test_db',
+            output_dir='/tmp',
+        )
+
+
+def test_validate_connection_params_all_valid():
+    """Test validate_connection_params when all params are valid."""
+    connection_params = {
+        'cluster_arn': 'test-cluster',
+        'secret_arn': 'test-secret',
+        'database': 'test-db',
+        'region': 'us-east-1',
+        'output_dir': '/tmp',
+    }
+
+    missing_params, param_descriptions = DatabaseAnalyzer.validate_connection_params(
+        'mysql', connection_params
+    )
+
+    # Should return empty list when all params are valid
+    assert missing_params == []
+    # param_descriptions is always returned with all possible params
+    assert isinstance(param_descriptions, dict)
+    assert len(param_descriptions) > 0
+
+
+def test_save_analysis_files_with_generation_errors(tmp_path, monkeypatch):
+    """Test save_analysis_files when there are generation errors."""
+
+    # Mock datetime to control timestamp
+    class MockDateTime:
+        @staticmethod
+        def now():
+            class MockNow:
+                def strftime(self, fmt):
+                    return '20231009_120000'
+
+            return MockNow()
+
+    monkeypatch.setattr('awslabs.dynamodb_mcp_server.database_analyzers.datetime', MockDateTime)
+
+    # Mock MarkdownFormatter to return errors
+    class MockFormatter:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def generate_all_files(self):
+            # Return files and errors
+            return ['/tmp/file1.md'], [
+                ('query1', 'Error message 1'),
+                ('query2', 'Error message 2'),
+            ]
+
+    monkeypatch.setattr(
+        'awslabs.dynamodb_mcp_server.database_analyzers.MarkdownFormatter', MockFormatter
+    )
+
+    results = {
+        'comprehensive_table_analysis': {
+            'data': [{'table': 'users', 'rows': 100}],
+            'description': 'Table analysis',
+        },
+    }
+
+    saved_files, save_errors = DatabaseAnalyzer.save_analysis_files(
+        results, 'mysql', 'test_db', 30, 500, str(tmp_path), True, []
+    )
+
+    # Should have files and formatted error messages
+    assert len(saved_files) == 1
+    assert len(save_errors) == 2
+    assert 'query1: Error message 1' in save_errors
+    assert 'query2: Error message 2' in save_errors
+
+
+def test_filter_pattern_data_with_ddl_statements():
+    """Test filter_pattern_data filters out DDL statements."""
+    data = [
+        {'DIGEST_TEXT': 'SELECT * FROM users', 'COUNT_STAR': 100},
+        {'DIGEST_TEXT': 'CREATE TABLE test', 'COUNT_STAR': 1},  # Should be filtered
+        {'DIGEST_TEXT': 'DROP TABLE old', 'COUNT_STAR': 1},  # Should be filtered
+        {'DIGEST_TEXT': 'ALTER TABLE users', 'COUNT_STAR': 1},  # Should be filtered
+        {'DIGEST_TEXT': 'INSERT INTO users', 'COUNT_STAR': 50},
+    ]
+
+    filtered = DatabaseAnalyzer.filter_pattern_data(data, 30)
+
+    # Should only have SELECT and INSERT
+    assert len(filtered) == 2
+    assert filtered[0]['DIGEST_TEXT'] == 'SELECT * FROM users'
+    assert filtered[1]['DIGEST_TEXT'] == 'INSERT INTO users'
+
+
+def test_validate_connection_params_unsupported_type():
+    """Test validate_connection_params with unsupported database type."""
+    connection_params = {
+        'some_param': 'value',
+    }
+
+    missing_params, param_descriptions = DatabaseAnalyzer.validate_connection_params(
+        'postgresql', connection_params
+    )
+
+    # Should return empty lists for unsupported type
+    assert missing_params == []
+    assert param_descriptions == {}

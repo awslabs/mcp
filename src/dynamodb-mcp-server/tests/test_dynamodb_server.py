@@ -182,10 +182,8 @@ async def test_source_db_analyzer_successful_analysis(tmp_path, monkeypatch):
     )
 
     assert 'Database Analysis Complete' in result
-    assert 'Performance Schema: Enabled' in result
-    assert 'Saved Files:' in result
+    assert 'Generated Analysis Files (Read All):' in result
     assert 'File Save Errors:' in result
-    assert 'Query Errors (1):' in result
 
 
 @pytest.mark.asyncio
@@ -209,3 +207,109 @@ async def test_source_db_analyzer_exception_handling(tmp_path, monkeypatch):
     )
 
     assert 'Analysis failed: Test exception' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_all_queries_failed(tmp_path, monkeypatch):
+    """Test source_db_analyzer when all queries fail."""
+
+    # Mock analysis that returns empty results with errors
+    async def mock_analyze_all_failed(connection_params):
+        return {
+            'results': {},  # Empty results
+            'performance_enabled': True,
+            'errors': ['Query 1 failed', 'Query 2 failed', 'Query 3 failed'],
+        }
+
+    def mock_save_files(*args):
+        return [], []
+
+    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_all_failed)
+    monkeypatch.setattr(DatabaseAnalyzer, 'save_analysis_files', mock_save_files)
+
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        aws_cluster_arn='test-cluster',
+        aws_secret_arn='test-secret',
+        aws_region='us-east-1',
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+
+    assert 'Database Analysis Failed' in result
+    assert 'All 3 queries failed:' in result
+    assert '1. Query 1 failed' in result
+    assert '2. Query 2 failed' in result
+    assert '3. Query 3 failed' in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_no_files_saved(tmp_path, monkeypatch):
+    """Test source_db_analyzer when no files are saved."""
+
+    # Mock successful analysis but no files saved
+    async def mock_analyze_success(connection_params):
+        return {
+            'results': {'table_analysis': [{'table': 'users', 'rows': 100}]},
+            'performance_enabled': True,
+            'errors': [],
+        }
+
+    def mock_save_files_empty(*args):
+        return [], []  # No files saved, no errors
+
+    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_success)
+    monkeypatch.setattr(DatabaseAnalyzer, 'save_analysis_files', mock_save_files_empty)
+
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        aws_cluster_arn='test-cluster',
+        aws_secret_arn='test-secret',
+        aws_region='us-east-1',
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+
+    assert 'Database Analysis Complete' in result
+    # Should not have "Generated Analysis Files" section when no files
+    assert 'Generated Analysis Files (Read All):' not in result
+    # Should not have "File Save Errors" section when no errors
+    assert 'File Save Errors:' not in result
+
+
+@pytest.mark.asyncio
+async def test_source_db_analyzer_only_saved_files_no_errors(tmp_path, monkeypatch):
+    """Test source_db_analyzer with saved files but no errors."""
+
+    # Mock successful analysis
+    async def mock_analyze_success(connection_params):
+        return {
+            'results': {'table_analysis': [{'table': 'users', 'rows': 100}]},
+            'performance_enabled': True,
+            'errors': [],
+        }
+
+    def mock_save_files_success(*args):
+        return ['/tmp/file1.json', '/tmp/file2.json'], []  # Files saved, no errors
+
+    monkeypatch.setattr(MySQLAnalyzer, 'analyze', mock_analyze_success)
+    monkeypatch.setattr(DatabaseAnalyzer, 'save_analysis_files', mock_save_files_success)
+
+    result = await source_db_analyzer(
+        source_db_type='mysql',
+        database_name='test_db',
+        aws_cluster_arn='test-cluster',
+        aws_secret_arn='test-secret',
+        aws_region='us-east-1',
+        pattern_analysis_days=30,
+        output_dir=str(tmp_path),
+    )
+
+    assert 'Database Analysis Complete' in result
+    assert 'Generated Analysis Files (Read All):' in result
+    assert '/tmp/file1.json' in result
+    assert '/tmp/file2.json' in result
+    # Should not have "File Save Errors" section when no errors
+    assert 'File Save Errors:' not in result
