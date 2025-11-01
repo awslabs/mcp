@@ -46,7 +46,6 @@ const sidebars: SidebarsConfig = {
             'servers/cdk-mcp-server',
             'servers/cfn-mcp-server',
             'servers/terraform-mcp-server',
-            'servers/sagemaker-hyperpod-mcp-server',
             'servers/eks-mcp-server',
             'servers/ecs-mcp-server',
             'servers/finch-mcp-server',
