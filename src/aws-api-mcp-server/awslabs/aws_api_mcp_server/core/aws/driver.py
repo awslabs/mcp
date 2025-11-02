@@ -81,6 +81,7 @@ def interpret_command(
     cli_command: str,
     max_results: int | None = None,
     credentials: Credentials | None = None,
+    region_override: str | None = None,
 ) -> InterpretedProgram:
     """Interpret the CLI command.
 
@@ -95,7 +96,7 @@ def interpret_command(
     if translation.command is None:
         return InterpretedProgram(translation=translation)
 
-    region = translation.command.region
+    region = region_override or translation.command.region
     if (
         translation.command.command_metadata.service_sdk_name in GLOBAL_SERVICE_REGIONS
         and region != GLOBAL_SERVICE_REGIONS[translation.command.command_metadata.service_sdk_name]
