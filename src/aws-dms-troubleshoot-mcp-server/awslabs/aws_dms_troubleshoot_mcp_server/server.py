@@ -1,0 +1,890 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""AWS DMS Troubleshooting MCP Server implementation."""
+
+import json
+import os
+import sys
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import boto3
+from botocore.config import Config
+from loguru import logger
+from mcp.server.fastmcp import FastMCP
+from pydantic import Field
+
+from awslabs.aws_dms_troubleshoot_mcp_server import __version__
+
+
+# User agent configuration for AWS API calls
+USER_AGENT_CONFIG = Config(
+    user_agent_extra=f'awslabs/mcp/aws-dms-troubleshoot-mcp-server/{__version__}'
+)
+
+# Set up AWS region from environment variables
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
+
+# Remove default logger and add custom configuration
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'INFO'))
+
+# Server instructions
+SERVER_INSTRUCTIONS = """AWS DMS Troubleshooting MCP Server
+
+This server provides Root Cause Analysis (RCA) tools for AWS Database Migration Service (DMS) 
+post-migration troubleshooting. It helps customers diagnose and resolve replication job issues 
+through:
+
+- Querying replication task status and details
+- Retrieving CloudWatch logs for error analysis
+- Analyzing source and target endpoints
+- Providing recommendations based on AWS DMS best practices and documentation
+
+**Primary Use Case: Post-Migration Troubleshooting**
+- Help customers when replication jobs fail or encounter issues
+- Identify root causes of CDC replication problems
+- Analyze error patterns and provide actionable recommendations
+
+**Available Tools:**
+1. `list_replication_tasks` - List all DMS replication tasks with status
+2. `get_replication_task_details` - Get detailed information about a specific task
+3. `get_task_cloudwatch_logs` - Retrieve CloudWatch logs for a replication task
+4. `analyze_endpoint` - Analyze source or target endpoint configuration
+5. `diagnose_replication_issue` - Comprehensive RCA for failed/stopped tasks
+6. `get_troubleshooting_recommendations` - Get recommendations based on error patterns
+
+**AWS Permissions Required:**
+- dms:DescribeReplicationTasks
+- dms:DescribeReplicationInstances
+- dms:DescribeEndpoints
+- logs:DescribeLogStreams
+- logs:GetLogEvents
+- logs:FilterLogEvents
+"""
+
+# Initialize MCP Server
+mcp = FastMCP(
+    'aws-dms-troubleshoot-mcp-server',
+    instructions=SERVER_INSTRUCTIONS,
+    dependencies=['boto3', 'pydantic', 'loguru'],
+)
+
+# Field defaults
+FIELD_AWS_REGION = Field(AWS_REGION, description='AWS region for DMS resources')
+FIELD_AWS_PROFILE = Field(
+    AWS_PROFILE, description='AWS profile to use (defaults to AWS_PROFILE environment variable)'
+)
+
+
+def get_dms_client(region: str, profile: str = 'default'):
+    """Get DMS client with proper configuration."""
+    session = boto3.Session(profile_name=profile, region_name=region)
+    return session.client('dms', config=USER_AGENT_CONFIG)
+
+
+def get_logs_client(region: str, profile: str = 'default'):
+    """Get CloudWatch Logs client with proper configuration."""
+    session = boto3.Session(profile_name=profile, region_name=region)
+    return session.client('logs', config=USER_AGENT_CONFIG)
+
+
+@mcp.tool()
+async def list_replication_tasks(
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+    status_filter: Optional[str] = Field(
+        None,
+        description="Filter by status: 'running', 'stopped', 'failed', 'starting', 'stopping', 'creating', 'deleting', 'modifying'",
+    ),
+) -> Dict:
+    """List all DMS replication tasks with their current status.
+
+    This tool provides an overview of all replication tasks in the specified region,
+    including their current status, progress, and basic configuration.
+
+    Returns:
+        Dictionary containing:
+        - tasks: List of replication tasks with key details
+        - summary: Statistics about task statuses
+        - region: The region queried
+    """
+    try:
+        logger.info(f'Listing replication tasks in region: {region}')
+        dms = get_dms_client(region, aws_profile)
+
+        # Build filters
+        filters = []
+        if status_filter:
+            filters.append({'Name': 'replication-task-status', 'Values': [status_filter]})
+
+        # Get replication tasks
+        response = dms.describe_replication_tasks(
+            Filters=filters if filters else [], MaxRecords=100
+        )
+
+        tasks = []
+        status_counts = {}
+
+        for task in response.get('ReplicationTasks', []):
+            status = task.get('Status', 'unknown')
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+            task_info = {
+                'task_arn': task.get('ReplicationTaskArn'),
+                'task_identifier': task.get('ReplicationTaskIdentifier'),
+                'status': status,
+                'migration_type': task.get('MigrationType'),
+                'source_endpoint_arn': task.get('SourceEndpointArn'),
+                'target_endpoint_arn': task.get('TargetEndpointArn'),
+                'replication_instance_arn': task.get('ReplicationInstanceArn'),
+                'table_mappings_count': len(
+                    json.loads(task.get('TableMappings', '{}'))
+                    .get('rules', [])
+                ),
+            }
+
+            # Add statistics if available
+            if 'ReplicationTaskStats' in task:
+                stats = task['ReplicationTaskStats']
+                task_info['stats'] = {
+                    'full_load_progress': stats.get('FullLoadProgressPercent', 0),
+                    'tables_loaded': stats.get('TablesLoaded', 0),
+                    'tables_loading': stats.get('TablesLoading', 0),
+                    'tables_queued': stats.get('TablesQueued', 0),
+                    'tables_errored': stats.get('TablesErrored', 0),
+                }
+
+            # Add error information if present
+            if task.get('LastFailureMessage'):
+                task_info['last_error'] = task.get('LastFailureMessage')
+
+            if task.get('StopReason'):
+                task_info['stop_reason'] = task.get('StopReason')
+
+            tasks.append(task_info)
+
+        return {
+            'region': region,
+            'total_tasks': len(tasks),
+            'status_summary': status_counts,
+            'tasks': tasks,
+        }
+
+    except Exception as e:
+        logger.error(f'Error listing replication tasks: {str(e)}')
+        return {
+            'region': region,
+            'error': str(e),
+            'message': 'Failed to list replication tasks',
+        }
+
+
+@mcp.tool()
+async def get_replication_task_details(
+    task_identifier: str = Field(description='Replication task identifier or ARN'),
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+) -> Dict:
+    """Get detailed information about a specific replication task.
+
+    This tool provides comprehensive details about a replication task, including
+    its configuration, current status, statistics, and any error messages.
+
+    Returns:
+        Dictionary containing detailed task information including:
+        - Task configuration and settings
+        - Current status and progress
+        - Error messages and stop reasons
+        - Table-level statistics
+        - Endpoint information
+    """
+    try:
+        logger.info(f'Getting details for replication task: {task_identifier}')
+        dms = get_dms_client(region, aws_profile)
+
+        # Get task details
+        response = dms.describe_replication_tasks(
+            Filters=[
+                {'Name': 'replication-task-id', 'Values': [task_identifier]},
+            ]
+        )
+
+        tasks = response.get('ReplicationTasks', [])
+        if not tasks:
+            return {
+                'error': f'Replication task not found: {task_identifier}',
+                'message': 'Task does not exist in the specified region',
+            }
+
+        task = tasks[0]
+
+        # Parse table mappings
+        table_mappings = json.loads(task.get('TableMappings', '{}'))
+
+        # Build detailed response
+        details = {
+            'task_identifier': task.get('ReplicationTaskIdentifier'),
+            'task_arn': task.get('ReplicationTaskArn'),
+            'status': task.get('Status'),
+            'migration_type': task.get('MigrationType'),
+            'created_date': task.get('ReplicationTaskCreationDate').isoformat()
+            if task.get('ReplicationTaskCreationDate')
+            else None,
+            'started_date': task.get('ReplicationTaskStartDate').isoformat()
+            if task.get('ReplicationTaskStartDate')
+            else None,
+            'source_endpoint_arn': task.get('SourceEndpointArn'),
+            'target_endpoint_arn': task.get('TargetEndpointArn'),
+            'replication_instance_arn': task.get('ReplicationInstanceArn'),
+            'task_settings': json.loads(task.get('ReplicationTaskSettings', '{}')),
+            'table_mappings': table_mappings,
+        }
+
+        # Add statistics
+        if 'ReplicationTaskStats' in task:
+            stats = task['ReplicationTaskStats']
+            details['statistics'] = {
+                'full_load_progress_percent': stats.get('FullLoadProgressPercent', 0),
+                'elapsed_time_millis': stats.get('ElapsedTimeMillis', 0),
+                'tables_loaded': stats.get('TablesLoaded', 0),
+                'tables_loading': stats.get('TablesLoading', 0),
+                'tables_queued': stats.get('TablesQueued', 0),
+                'tables_errored': stats.get('TablesErrored', 0),
+                'fresh_start_date': stats.get('FreshStartDate').isoformat()
+                if stats.get('FreshStartDate')
+                else None,
+                'start_date': stats.get('StartDate').isoformat()
+                if stats.get('StartDate')
+                else None,
+                'stop_date': stats.get('StopDate').isoformat() if stats.get('StopDate') else None,
+                'full_load_start_date': stats.get('FullLoadStartDate').isoformat()
+                if stats.get('FullLoadStartDate')
+                else None,
+                'full_load_finish_date': stats.get('FullLoadFinishDate').isoformat()
+                if stats.get('FullLoadFinishDate')
+                else None,
+            }
+
+        # Add error information
+        if task.get('LastFailureMessage'):
+            details['last_error'] = task.get('LastFailureMessage')
+
+        if task.get('StopReason'):
+            details['stop_reason'] = task.get('StopReason')
+
+        if task.get('ReplicationTaskAssessmentResults'):
+            details['assessment_results'] = task.get('ReplicationTaskAssessmentResults')
+
+        return details
+
+    except Exception as e:
+        logger.error(f'Error getting replication task details: {str(e)}')
+        return {
+            'error': str(e),
+            'message': f'Failed to get details for task: {task_identifier}',
+        }
+
+
+@mcp.tool()
+async def get_task_cloudwatch_logs(
+    task_identifier: str = Field(description='Replication task identifier'),
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+    hours_back: int = Field(24, description='How many hours of logs to retrieve (default: 24)'),
+    filter_pattern: Optional[str] = Field(
+        None, description='CloudWatch Logs filter pattern (e.g., "ERROR" or "FATAL")'
+    ),
+    max_events: int = Field(100, description='Maximum number of log events to return'),
+) -> Dict:
+    """Retrieve CloudWatch logs for a replication task.
+
+    This tool fetches CloudWatch logs for a specific replication task, which is crucial
+    for diagnosing errors and understanding task behavior. Logs can be filtered by
+    time range and search patterns.
+
+    Returns:
+        Dictionary containing:
+        - log_events: List of log entries with timestamps and messages
+        - log_group: CloudWatch log group name
+        - time_range: Time period covered by the logs
+        - summary: Count of different log levels if filter_pattern is used
+    """
+    try:
+        logger.info(f'Retrieving CloudWatch logs for task: {task_identifier}')
+        logs_client = get_logs_client(region, aws_profile)
+
+        # DMS log group name format
+        log_group_name = f'dms-tasks-{task_identifier}'
+
+        # Calculate time range
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=hours_back)
+
+        try:
+            # Get log streams
+            streams_response = logs_client.describe_log_streams(
+                logGroupName=log_group_name,
+                orderBy='LastEventTime',
+                descending=True,
+                limit=10,
+            )
+
+            log_streams = streams_response.get('logStreams', [])
+
+            if not log_streams:
+                return {
+                    'log_group': log_group_name,
+                    'message': 'No log streams found for this task',
+                    'log_events': [],
+                }
+
+            # Get log events
+            log_events = []
+
+            for stream in log_streams[:5]:  # Check latest 5 streams
+                stream_name = stream['logStreamName']
+
+                try:
+                    if filter_pattern:
+                        # Use filter with pattern
+                        events_response = logs_client.filter_log_events(
+                            logGroupName=log_group_name,
+                            logStreamNames=[stream_name],
+                            startTime=int(start_time.timestamp() * 1000),
+                            endTime=int(end_time.timestamp() * 1000),
+                            filterPattern=filter_pattern,
+                            limit=max_events,
+                        )
+                        events = events_response.get('events', [])
+                    else:
+                        # Get all events
+                        events_response = logs_client.get_log_events(
+                            logGroupName=log_group_name,
+                            logStreamName=stream_name,
+                            startTime=int(start_time.timestamp() * 1000),
+                            endTime=int(end_time.timestamp() * 1000),
+                            limit=max_events,
+                        )
+                        events = events_response.get('events', [])
+
+                    for event in events:
+                        log_events.append(
+                            {
+                                'timestamp': datetime.fromtimestamp(
+                                    event['timestamp'] / 1000
+                                ).isoformat(),
+                                'message': event['message'],
+                                'stream': stream_name,
+                            }
+                        )
+
+                except Exception as stream_error:
+                    logger.warning(f'Error reading stream {stream_name}: {str(stream_error)}')
+                    continue
+
+            # Sort by timestamp
+            log_events.sort(key=lambda x: x['timestamp'], reverse=True)
+
+            # Limit total events
+            log_events = log_events[:max_events]
+
+            # Analyze log patterns
+            error_count = sum(1 for e in log_events if 'ERROR' in e['message'].upper())
+            warning_count = sum(1 for e in log_events if 'WARNING' in e['message'].upper())
+            fatal_count = sum(1 for e in log_events if 'FATAL' in e['message'].upper())
+
+            return {
+                'log_group': log_group_name,
+                'time_range': {
+                    'start': start_time.isoformat(),
+                    'end': end_time.isoformat(),
+                    'hours': hours_back,
+                },
+                'total_events': len(log_events),
+                'log_summary': {
+                    'errors': error_count,
+                    'warnings': warning_count,
+                    'fatal': fatal_count,
+                },
+                'log_events': log_events,
+            }
+
+        except logs_client.exceptions.ResourceNotFoundException:
+            return {
+                'log_group': log_group_name,
+                'error': 'Log group not found',
+                'message': f'CloudWatch Logs group {log_group_name} does not exist. The task may not have started yet or logging may not be enabled.',
+            }
+
+    except Exception as e:
+        logger.error(f'Error retrieving CloudWatch logs: {str(e)}')
+        return {
+            'error': str(e),
+            'message': f'Failed to retrieve logs for task: {task_identifier}',
+        }
+
+
+@mcp.tool()
+async def analyze_endpoint(
+    endpoint_arn: str = Field(description='Endpoint ARN to analyze'),
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+) -> Dict:
+    """Analyze a DMS endpoint configuration for potential issues.
+
+    This tool examines source or target endpoint configuration and checks for
+    common misconfigurations that can cause replication issues.
+
+    Returns:
+        Dictionary containing:
+        - endpoint_details: Configuration information
+        - connection_status: Current connection status
+        - potential_issues: List of identified configuration issues
+        - recommendations: Suggested fixes and best practices
+    """
+    try:
+        logger.info(f'Analyzing endpoint: {endpoint_arn}')
+        dms = get_dms_client(region, aws_profile)
+
+        # Get endpoint details
+        response = dms.describe_endpoints(
+            Filters=[
+                {'Name': 'endpoint-arn', 'Values': [endpoint_arn]},
+            ]
+        )
+
+        endpoints = response.get('Endpoints', [])
+        if not endpoints:
+            return {
+                'error': f'Endpoint not found: {endpoint_arn}',
+                'message': 'Endpoint does not exist in the specified region',
+            }
+
+        endpoint = endpoints[0]
+
+        # Build endpoint details
+        details = {
+            'endpoint_identifier': endpoint.get('EndpointIdentifier'),
+            'endpoint_type': endpoint.get('EndpointType'),
+            'engine_name': endpoint.get('EngineName'),
+            'server_name': endpoint.get('ServerName'),
+            'port': endpoint.get('Port'),
+            'database_name': endpoint.get('DatabaseName'),
+            'username': endpoint.get('Username'),
+            'ssl_mode': endpoint.get('SslMode'),
+            'status': endpoint.get('Status'),
+        }
+
+        # Add engine-specific settings
+        engine_name = endpoint.get('EngineName', '').lower()
+
+        if 'mysql' in engine_name and endpoint.get('MySqlSettings'):
+            details['mysql_settings'] = endpoint.get('MySqlSettings')
+        elif 'postgres' in engine_name and endpoint.get('PostgreSqlSettings'):
+            details['postgresql_settings'] = endpoint.get('PostgreSqlSettings')
+        elif 'oracle' in engine_name and endpoint.get('OracleSettings'):
+            details['oracle_settings'] = endpoint.get('OracleSettings')
+        elif 's3' in engine_name and endpoint.get('S3Settings'):
+            details['s3_settings'] = endpoint.get('S3Settings')
+
+        # Analyze for potential issues
+        potential_issues = []
+        recommendations = []
+
+        # Check SSL mode
+        if endpoint.get('SslMode') == 'none':
+            potential_issues.append('SSL/TLS is not enabled for this endpoint')
+            recommendations.append(
+                'Enable SSL/TLS encryption for secure data transfer (use ssl-mode verify-ca or verify-full)'
+            )
+
+        # Check connection status
+        if endpoint.get('Status') != 'active':
+            potential_issues.append(f"Endpoint status is '{endpoint.get('Status')}' (not active)")
+            recommendations.append('Test endpoint connection and verify credentials and network access')
+
+        # Engine-specific checks
+        if 'mysql' in engine_name:
+            mysql_settings = endpoint.get('MySqlSettings', {})
+            if not mysql_settings.get('ServerTimezone'):
+                recommendations.append(
+                    'Consider setting ServerTimezone for MySQL endpoints to avoid timestamp issues'
+                )
+
+        if 'postgres' in engine_name:
+            pg_settings = endpoint.get('PostgreSqlSettings', {})
+            if not pg_settings.get('PluginName'):
+                recommendations.append(
+                    'Ensure PostgreSQL logical replication is properly configured (wal_level=logical)'
+                )
+
+        # Test connection if possible
+        try:
+            test_response = dms.test_connection(
+                ReplicationInstanceArn=endpoint.get('ReplicationInstanceArn', ''),
+                EndpointArn=endpoint_arn,
+            )
+            connection_test = {
+                'status': test_response.get('Connection', {}).get('Status'),
+                'message': test_response.get('Connection', {}).get('LastFailureMessage', 'N/A'),
+            }
+        except Exception as test_error:
+            connection_test = {
+                'status': 'unable_to_test',
+                'error': str(test_error),
+            }
+
+        return {
+            'endpoint_details': details,
+            'connection_test': connection_test,
+            'potential_issues': potential_issues,
+            'recommendations': recommendations,
+            'analysis_complete': True,
+        }
+
+    except Exception as e:
+        logger.error(f'Error analyzing endpoint: {str(e)}')
+        return {
+            'error': str(e),
+            'message': f'Failed to analyze endpoint: {endpoint_arn}',
+        }
+
+
+@mcp.tool()
+async def diagnose_replication_issue(
+    task_identifier: str = Field(description='Replication task identifier to diagnose'),
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+) -> Dict:
+    """Perform comprehensive Root Cause Analysis (RCA) for a replication task.
+
+    This tool combines information from multiple sources to diagnose issues with
+    a failed or problematic replication task. It analyzes:
+    - Task status and configuration
+    - Recent error logs
+    - Endpoint configurations
+    - Common failure patterns
+
+    Returns:
+        Dictionary containing:
+        - diagnosis_summary: High-level findings
+        - root_causes: Identified root causes
+        - recommendations: Actionable recommendations
+        - supporting_evidence: Logs and configuration details
+    """
+    try:
+        logger.info(f'Diagnosing replication task: {task_identifier}')
+
+        # Get task details
+        task_details = await get_replication_task_details(task_identifier, region, aws_profile)
+
+        if 'error' in task_details:
+            return task_details
+
+        # Get recent logs with errors
+        logs = await get_task_cloudwatch_logs(
+            task_identifier, region, aws_profile, hours_back=24, filter_pattern='ERROR', max_events=50
+        )
+
+        # Analyze endpoints
+        source_analysis = await analyze_endpoint(
+            task_details['source_endpoint_arn'], region, aws_profile
+        )
+        target_analysis = await analyze_endpoint(
+            task_details['target_endpoint_arn'], region, aws_profile
+        )
+
+        # Build diagnosis
+        root_causes = []
+        recommendations = []
+        severity = 'INFO'
+
+        task_status = task_details.get('status', '').lower()
+
+        # Analyze task status
+        if 'failed' in task_status or 'stopped' in task_status:
+            severity = 'CRITICAL'
+
+            if task_details.get('last_error'):
+                root_causes.append(f"Task error: {task_details['last_error']}")
+
+            if task_details.get('stop_reason'):
+                root_causes.append(f"Stop reason: {task_details['stop_reason']}")
+
+        # Analyze statistics
+        stats = task_details.get('statistics', {})
+        if stats.get('tables_errored', 0) > 0:
+            root_causes.append(
+                f"{stats['tables_errored']} table(s) encountered errors during replication"
+            )
+            recommendations.append(
+                'Review table-level errors in CloudWatch Logs and check for schema differences'
+            )
+
+        # Analyze logs
+        if logs.get('log_summary', {}).get('errors', 0) > 10:
+            root_causes.append(
+                f"High error rate detected: {logs['log_summary']['errors']} errors in last 24 hours"
+            )
+            recommendations.append(
+                'Review error patterns in CloudWatch Logs to identify recurring issues'
+            )
+
+        # Analyze endpoints
+        source_issues = source_analysis.get('potential_issues', [])
+        target_issues = target_analysis.get('potential_issues', [])
+
+        if source_issues:
+            root_causes.extend([f'Source endpoint: {issue}' for issue in source_issues])
+            recommendations.extend(source_analysis.get('recommendations', []))
+
+        if target_issues:
+            root_causes.extend([f'Target endpoint: {issue}' for issue in target_issues])
+            recommendations.extend(target_analysis.get('recommendations', []))
+
+        # Common CDC issues
+        if task_details.get('migration_type') == 'cdc':
+            recommendations.append(
+                'For CDC replication, ensure source database has CDC enabled and proper permissions'
+            )
+            recommendations.append(
+                'Verify network connectivity and security groups allow continuous connection'
+            )
+
+        # Build comprehensive diagnosis
+        diagnosis = {
+            'task_identifier': task_identifier,
+            'status': task_status,
+            'severity': severity,
+            'diagnosis_summary': {
+                'root_causes_found': len(root_causes),
+                'recommendations_count': len(recommendations),
+                'error_logs_analyzed': logs.get('total_events', 0),
+            },
+            'root_causes': root_causes if root_causes else ['No specific issues identified'],
+            'recommendations': recommendations
+            if recommendations
+            else ['Task appears healthy. Monitor for continued stability.'],
+            'supporting_evidence': {
+                'task_status': task_status,
+                'migration_type': task_details.get('migration_type'),
+                'statistics': stats,
+                'recent_errors_count': logs.get('log_summary', {}).get('errors', 0),
+                'source_endpoint_status': source_analysis.get('endpoint_details', {}).get(
+                    'status'
+                ),
+                'target_endpoint_status': target_analysis.get('endpoint_details', {}).get(
+                    'status'
+                ),
+            },
+        }
+
+        return diagnosis
+
+    except Exception as e:
+        logger.error(f'Error diagnosing replication issue: {str(e)}')
+        return {
+            'error': str(e),
+            'message': f'Failed to diagnose task: {task_identifier}',
+        }
+
+
+@mcp.tool()
+async def get_troubleshooting_recommendations(
+    error_pattern: str = Field(
+        description='Error message or pattern from DMS task (e.g., "timeout", "connection refused", "access denied")'
+    ),
+) -> Dict:
+    """Get troubleshooting recommendations based on common DMS error patterns.
+
+    This tool provides recommendations and links to AWS documentation based on
+    common DMS error patterns and issues.
+
+    Returns:
+        Dictionary containing:
+        - matched_patterns: Error patterns that were matched
+        - recommendations: Step-by-step troubleshooting guide
+        - documentation_links: Relevant AWS documentation
+    """
+    try:
+        logger.info(f'Finding recommendations for error pattern: {error_pattern}')
+
+        error_lower = error_pattern.lower()
+        recommendations = []
+        doc_links = []
+        matched_patterns = []
+
+        # Database connection issues
+        if any(
+            keyword in error_lower
+            for keyword in ['connection', 'timeout', 'refused', 'network', 'unreachable']
+        ):
+            matched_patterns.append('Connection/Network Issues')
+            recommendations.extend(
+                [
+                    '1. Verify security group rules allow traffic between replication instance and endpoints',
+                    '2. Check that endpoints are in accessible subnets (consider VPC peering or Transit Gateway)',
+                    '3. Verify database server is running and accepting connections',
+                    '4. Check DNS resolution for endpoint hostnames',
+                    '5. Test connectivity using DMS "Test Connection" feature',
+                ]
+            )
+            doc_links.append(
+                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Troubleshooting.html#CHAP_Troubleshooting.General.Network'
+            )
+
+        # Authentication issues
+        if any(
+            keyword in error_lower
+            for keyword in ['auth', 'denied', 'permission', 'credential', 'password']
+        ):
+            matched_patterns.append('Authentication/Authorization Issues')
+            recommendations.extend(
+                [
+                    '1. Verify database user credentials are correct in endpoint configuration',
+                    '2. Ensure database user has required permissions for DMS operations',
+                    '3. For source: REPLICATION CLIENT, REPLICATION SLAVE, SELECT privileges',
+                    '4. For target: INSERT, UPDATE, DELETE, CREATE, ALTER privileges',
+                    '5. Check if password has expired or account is locked',
+                ]
+            )
+            doc_links.append(
+                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Security.html#CHAP_Security.Database'
+            )
+
+        # CDC-specific issues
+        if any(keyword in error_lower for keyword in ['cdc', 'binlog', 'wal', 'redo', 'archive']):
+            matched_patterns.append('CDC/Replication Issues')
+            recommendations.extend(
+                [
+                    '1. Verify CDC is enabled on source database',
+                    '2. For MySQL: Check binlog_format is set to ROW',
+                    '3. For PostgreSQL: Verify wal_level is set to logical',
+                    '4. For Oracle: Ensure supplemental logging is enabled',
+                    '5. Check that retention period for CDC logs is sufficient',
+                    '6. Verify DMS has permissions to read CDC logs',
+                ]
+            )
+            doc_links.append(
+                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html'
+            )
+
+        # Table-level issues
+        if any(
+            keyword in error_lower
+            for keyword in ['table', 'column', 'schema', 'constraint', 'key']
+        ):
+            matched_patterns.append('Table/Schema Issues')
+            recommendations.extend(
+                [
+                    '1. Verify table mappings are correct in task configuration',
+                    '2. Check for schema differences between source and target',
+                    '3. Ensure primary keys exist on all tables',
+                    '4. Review column data type compatibility',
+                    '5. Check for special characters in table/column names',
+                    '6. Disable foreign key constraints during initial load if needed',
+                ]
+            )
+            doc_links.append(
+                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Tasks.CustomizingTasks.TableMapping.html'
+            )
+
+        # Performance issues
+        if any(keyword in error_lower for keyword in ['slow', 'lag', 'performance', 'memory']):
+            matched_patterns.append('Performance Issues')
+            recommendations.extend(
+                [
+                    '1. Consider upgrading replication instance size',
+                    '2. Review CloudWatch metrics for bottlenecks',
+                    '3. Enable Multi-AZ for high availability',
+                    '4. Optimize table mappings to reduce data volume',
+                    '5. Use LOB settings appropriate for your data',
+                    '6. Consider BatchApply settings for bulk operations',
+                ]
+            )
+            doc_links.append(
+                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_BestPractices.html'
+            )
+
+        # SSL/TLS issues
+        if any(keyword in error_lower for keyword in ['ssl', 'tls', 'certificate', 'encrypt']):
+            matched_patterns.append('SSL/TLS Issues')
+            recommendations.extend(
+                [
+                    '1. Verify SSL certificate is valid and not expired',
+                    '2. Check that endpoint SSL mode is correctly configured',
+                    '3. For verify-ca or verify-full modes, provide certificate bundle',
+                    '4. Ensure CA certificates are up to date',
+                    '5. Test with SSL mode "none" temporarily to isolate the issue',
+                ]
+            )
+            doc_links.append(
+                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Security.html#CHAP_Security.SSL'
+            )
+
+        # Default recommendations
+        if not matched_patterns:
+            matched_patterns.append('General Troubleshooting')
+            recommendations.extend(
+                [
+                    '1. Review CloudWatch Logs for detailed error messages',
+                    '2. Check AWS DMS service health dashboard',
+                    '3. Verify IAM permissions for DMS service role',
+                    '4. Review task settings and table mappings',
+                    '5. Test endpoints independently using "Test Connection"',
+                    '6. Consider opening AWS Support case for complex issues',
+                ]
+            )
+            doc_links.append(
+                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Troubleshooting.html'
+            )
+
+        # Always add general documentation
+        doc_links.append('https://docs.aws.amazon.com/dms/latest/userguide/Welcome.html')
+        doc_links.append(
+            'https://repost.aws/knowledge-center/dms-common-errors'
+        )
+
+        return {
+            'query': error_pattern,
+            'matched_patterns': matched_patterns,
+            'recommendations': recommendations,
+            'documentation_links': doc_links,
+            'next_steps': [
+                'Apply relevant recommendations from above',
+                'Check CloudWatch Logs for detailed error context',
+                'Test changes incrementally',
+                'Document findings for future reference',
+            ],
+        }
+
+    except Exception as e:
+        logger.error(f'Error getting recommendations: {str(e)}')
+        return {
+            'error': str(e),
+            'message': 'Failed to generate recommendations',
+        }
+
+
+def main():
+    """Run the MCP server."""
+    logger.info('Starting AWS DMS Troubleshooting MCP Server')
+    mcp.run()
+
+
+if __name__ == '__main__':
+    main()
