@@ -72,7 +72,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/postgres-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz
 /src/prometheus-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @MohamedSherifAbdelsamiea
 /src/redshift-mcp-server                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @grayhemp
-/src/s3-tables-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @gsoundar @gregorywright @Kurtiscwright @hsingh574 @ananthaksr @okhomin
+/src/s3-tables-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @gsoundar @gregorywright @Kurtiscwright @hsingh574 @ananthaksr @okhomin @Zh111602
 /src/stepfunctions-tool-mcp-server               @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
 /src/syntheticdata-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @pranjbh
 /src/terraform-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @alexa-perlov
