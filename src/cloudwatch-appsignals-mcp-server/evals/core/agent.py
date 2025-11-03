@@ -180,10 +180,7 @@ async def run_agent_loop(
                 {'role': 'assistant', 'content': response['output']['message']['content']}
             )
 
-            if response['stopReason'] == 'end_turn':
-                logger.debug('Claude finished!')
-                break
-            elif response['stopReason'] == 'tool_use':
+            if response['stopReason'] == 'tool_use':
                 tool_results = []
 
                 for content_block in response['output']['message']['content']:
@@ -211,7 +208,7 @@ async def run_agent_loop(
 
                 messages.append({'role': 'user', 'content': tool_results})
             else:
-                logger.warning(f'Unexpected stop reason: {response["stopReason"]}')
+                logger.debug(f'Agent finished: {response["stopReason"]}')
                 break
         except Exception as e:
             logger.error(f'Error in agent loop: {e}')
