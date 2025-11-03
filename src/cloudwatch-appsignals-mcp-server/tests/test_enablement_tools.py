@@ -91,7 +91,7 @@ class TestGetEnablementGuide:
             app_directory=temp_directories['app'],
         )
 
-        assert 'Error: iac_directory must be an absolute path' in result
+        assert 'Error: iac_directory and app_directory must be absolute paths' in result
         assert 'infrastructure/cdk' in result
 
     @pytest.mark.asyncio
@@ -104,7 +104,7 @@ class TestGetEnablementGuide:
             app_directory='app/src',
         )
 
-        assert 'Error: app_directory must be an absolute path' in result
+        assert 'Error: iac_directory and app_directory must be absolute paths' in result
         assert 'app/src' in result
 
     @pytest.mark.asyncio

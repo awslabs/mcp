@@ -60,9 +60,9 @@ async def get_application_signals_enablement_guide(
 
     Important guidelines:
     - Use ABSOLUTE PATHS (iac_directory and app_directory) when reading and writing files
-    - Modify IaC code, Dockerfiles, and dependency files (requirements.txt, pyproject.toml,
-      package.json, pom.xml, build.gradle, *.csproj, etc.) as needed
-    - Do NOT modify actual application logic files (.py, .js, .java source code)
+    - Do NOT modify actual application logic files (.py, .js, .java source code), only
+      modify IaC code, Dockerfiles, and dependency files (requirements.txt, pyproject.toml,
+      package.json, pom.xml, build.gradle, *.csproj, etc.) as instructed by the guide.
     - Read application files if needed to understand the setup, but avoid modifying them
 
     Args:
@@ -70,7 +70,7 @@ async def get_application_signals_enablement_guide(
             To help user determine: check their IaC for ECS services, Lambda functions, EKS deployments, or EC2 instances.
         service_language: The service's programming language (python, nodejs, java, dotnet).
             To help user determine: check for package.json (nodejs), requirements.txt (python), pom.xml (java), or .csproj (dotnet).
-        iac_directory: ABSOLUTE path to the IaC directory (e.g., /home/user/project/infrastructure)
+        iac_directory: ABSOLUTE path to the Infrastructure as Code (IaC) directory (e.g., /home/user/project/infrastructure)
         app_directory: ABSOLUTE path to the application code directory (e.g., /home/user/project/app)
 
     Returns:
@@ -96,20 +96,11 @@ async def get_application_signals_enablement_guide(
     iac_path = Path(iac_directory)
     app_path = Path(app_directory)
 
-    if not iac_path.is_absolute():
+    if not iac_path.is_absolute() or not app_path.is_absolute():
         error_msg = (
-            f'Error: iac_directory must be an absolute path.\n\n'
-            f'Received: {iac_directory}\n'
-            f'Please provide an absolute path (e.g., /home/user/project/infrastructure)'
-        )
-        logger.error(error_msg)
-        return error_msg
-
-    if not app_path.is_absolute():
-        error_msg = (
-            f'Error: app_directory must be an absolute path.\n\n'
-            f'Received: {app_directory}\n'
-            f'Please provide an absolute path (e.g., /home/user/project/app)'
+            f'Error: iac_directory and app_directory must be absolute paths.\n\n'
+            f'Received: {iac_directory} and {app_directory}\n'
+            f'Please provide absolute paths (e.g., /home/user/project/infrastructure)'
         )
         logger.error(error_msg)
         return error_msg
@@ -119,7 +110,7 @@ async def get_application_signals_enablement_guide(
             f"Enablement guide not available for platform '{platform_str}' and language '{language_str}'.\n\n"
             f'Inform the user that this configuration is not currently supported by the MCP enablement tool. '
             f'Direct them to AWS documentation for manual setup:\n'
-            f'https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html'
+            f'https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Monitoring-Sections.html'
         )
         logger.error(error_msg)
         return error_msg
@@ -149,7 +140,7 @@ async def get_application_signals_enablement_guide(
             f'1. There is an issue with the MCP server installation\n'
             f'2. They should check file permissions or reinstall the MCP server\n'
             f'3. For immediate enablement, use AWS documentation instead:\n'
-            f'   https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals-Enable.html'
+            f'   https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Monitoring-Sections.html'
         )
         logger.error(error_msg)
         return error_msg
