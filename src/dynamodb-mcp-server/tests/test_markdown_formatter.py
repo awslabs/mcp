@@ -909,3 +909,66 @@ def test_format_as_markdown_table_exception_handler(tmp_path, sample_metadata, m
     result = formatter._format_as_markdown_table([{'col': 'val'}])
     assert 'Error: Unable to format data' in result
     assert 'Unexpected error' in result
+
+
+def test_generate_all_files_with_file_write_failures(tmp_path, sample_metadata, monkeypatch):
+    """Test generate_all_files when file generation returns empty string."""
+    import builtins
+
+    original_open = builtins.open
+
+    def mock_open_error(*args, **kwargs):
+        # Fail on markdown file writes but allow manifest
+        if '.md' in str(args[0]) and 'w' in args[1] and 'manifest' not in str(args[0]):
+            raise OSError('Write error')
+        return original_open(*args, **kwargs)
+
+    monkeypatch.setattr('builtins.open', mock_open_error)
+
+    # Use actual expected query names from database_analysis_queries
+    results = {
+        'comprehensive_table_analysis': {'description': 'Test', 'data': [{'col': 'val'}]},
+        'column_analysis': None,  # Invalid result to trigger skipped file generation
+    }
+
+    formatter = MarkdownFormatter(results, sample_metadata, str(tmp_path))
+    formatter.generate_all_files()
+
+    # File registry should be empty since all query file writes failed
+    assert len(formatter.file_registry) == 0
+    # Errors should be tracked for both valid and invalid queries
+    assert len(formatter.errors) >= 2
+
+
+def test_generate_all_files_skipped_query_write_failure(tmp_path, monkeypatch):
+    """Test generate_all_files when skipped query file write fails."""
+    import builtins
+
+    original_open = builtins.open
+
+    def mock_open_error(*args, **kwargs):
+        # Fail only on skipped query file writes
+        if '.md' in str(args[0]) and 'w' in args[1] and 'manifest' not in str(args[0]):
+            raise OSError('Write error')
+        return original_open(*args, **kwargs)
+
+    monkeypatch.setattr('builtins.open', mock_open_error)
+
+    # Metadata with performance schema disabled to trigger skipped queries
+    metadata = {
+        'database_name': 'test_db',
+        'analysis_timestamp': '2024-01-01 00:00:00',
+        'performance_enabled': False,
+        'skipped_queries': [],
+    }
+
+    # Empty results - all queries will be skipped
+    results = {}
+
+    formatter = MarkdownFormatter(results, metadata, str(tmp_path))
+    formatter.generate_all_files()
+
+    # File registry should be empty since all writes failed
+    assert len(formatter.file_registry) == 0
+    # Should have errors for failed skipped query file writes
+    assert len(formatter.errors) > 0
