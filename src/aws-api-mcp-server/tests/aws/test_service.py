@@ -616,7 +616,7 @@ def test_interpret_command_with_credentials_parameter():
             'aws s3api list-buckets',
             max_results=None,
             credentials=test_credentials,
-            region_override=None,
+            default_region_override=None,
         )
 
 
@@ -628,7 +628,10 @@ def test_interpret_command_without_credentials_parameter():
         interpret_command('aws s3api list-buckets')
 
         mock_interpret.assert_called_once_with(
-            'aws s3api list-buckets', max_results=None, credentials=None, region_override=None
+            'aws s3api list-buckets',
+            max_results=None,
+            credentials=None,
+            default_region_override=None,
         )
 
 
@@ -638,7 +641,9 @@ def test_interpret_command_with_region_parameter(mock_interpret):
     mock_interpret.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200}}
     mock_credentials = Credentials(access_key_id='a', secret_access_key='b', session_token='c')
 
-    interpret_command('aws s3api list-buckets', region='eu-west-1', credentials=mock_credentials)
+    interpret_command(
+        'aws s3api list-buckets', default_region_override='eu-west-1', credentials=mock_credentials
+    )
 
     mock_interpret.assert_called_once_with(
         ANY,
@@ -681,13 +686,13 @@ def test_execute_awscli_customization_uses_explicit_region_overrides_ir(mock_get
 
         with patch('sys.stdout'), patch('sys.stderr'):
             execute_awscli_customization(
-                'aws s3 ls', ir_command, credentials=None, region='eu-west-2'
+                'aws s3 ls', ir_command, credentials=None, default_region_override='eu-west-2'
             )
 
     # Verify region precedence used in timer
     assert mock_timer.call_args[0][0] == 's3'
     assert mock_timer.call_args[0][1] == 'list_objects_v2'
-    assert mock_timer.call_args[0][2] == 'eu-west-2'
+    assert mock_timer.call_args[0][2] == 'us-east-1'
 
 
 @patch('awslabs.aws_api_mcp_server.core.aws.service.get_awscli_driver')
