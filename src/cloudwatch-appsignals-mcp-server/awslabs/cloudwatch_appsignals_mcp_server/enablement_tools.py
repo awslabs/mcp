@@ -19,7 +19,7 @@ from loguru import logger
 from pathlib import Path
 
 
-class Platform(str, Enum):
+class ServicePlatform(str, Enum):
     """Supported deployment platforms."""
 
     EC2 = 'ec2'
@@ -38,7 +38,10 @@ class ServiceLanguage(str, Enum):
 
 
 async def get_application_signals_enablement_guide(
-    platform: Platform, service_language: ServiceLanguage, iac_directory: str, app_directory: str
+    service_platform: ServicePlatform,
+    service_language: ServiceLanguage,
+    iac_directory: str,
+    app_directory: str,
 ) -> str:
     """Get enablement guide for AWS Application Signals.
 
@@ -66,7 +69,7 @@ async def get_application_signals_enablement_guide(
     - Read application files if needed to understand the setup, but avoid modifying them
 
     Args:
-        platform: The AWS platform where the service runs (ec2, ecs, lambda, eks).
+        service_platform: The AWS platform where the service runs (ec2, ecs, lambda, eks).
             To help user determine: check their IaC for ECS services, Lambda functions, EKS deployments, or EC2 instances.
         service_language: The service's programming language (python, nodejs, java, dotnet).
             To help user determine: check for package.json (nodejs), requirements.txt (python), pom.xml (java), or .csproj (dotnet).
@@ -77,12 +80,12 @@ async def get_application_signals_enablement_guide(
         Markdown-formatted enablement guide with step-by-step instructions
     """
     logger.debug(
-        f'get_application_signals_enablement_guide called: platform={platform}, service_language={service_language}, '
+        f'get_application_signals_enablement_guide called: service_platform={service_platform}, service_language={service_language}, '
         f'iac_directory={iac_directory}, app_directory={app_directory}'
     )
 
     # Convert enums to string values
-    platform_str = platform.value
+    platform_str = service_platform.value
     language_str = service_language.value
 
     guides_dir = Path(__file__).parent / 'enablement_guides'
