@@ -238,7 +238,7 @@ async def call_aws_helper(
         Field(description='Optional limit for number of results (useful for pagination)'),
     ] = None,
     credentials: Credentials | None = None,
-    region: str | None = None,
+    default_region: str | None = None,
 ) -> ProgramInterpretationResponse | AwsApiMcpServerErrorResponse | AwsCliAliasResponse:
     """Helper function that actually calls aws."""
     try:
@@ -302,7 +302,7 @@ async def call_aws_helper(
                     cli_command,
                     ir.command,
                     credentials=credentials,
-                    region=region,
+                    default_region_override=default_region,
                 )
             )
             if isinstance(response, AwsApiMcpServerErrorResponse):
@@ -313,7 +313,7 @@ async def call_aws_helper(
             cli_command=cli_command,
             max_results=max_results,
             credentials=credentials,
-            region=region,
+            default_region_override=default_region,
         )
     except NoCredentialsError:
         error_message = (

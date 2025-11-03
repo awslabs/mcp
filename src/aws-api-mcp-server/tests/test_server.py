@@ -182,13 +182,13 @@ async def test_call_aws_helper_passes_region_to_customization(
             ctx=DummyCtx(),  # type: ignore[arg-type]
             max_results=None,
             credentials=None,
-            region='eu-west-1',
+            default_region='eu-west-1',
         )
 
     # Assert
     assert isinstance(result, AwsCliAliasResponse)
     _, kwargs = mock_execute.call_args
-    assert kwargs.get('region') == 'eu-west-1'
+    assert kwargs.get('default_region_override') == 'eu-west-1'
 
 
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
@@ -230,13 +230,13 @@ async def test_call_aws_helper_passes_region_to_interpret(
             ctx=DummyCtx(),  # type: ignore[arg-type]
             max_results=None,
             credentials=None,
-            region='eu-west-2',
+            default_region='eu-west-2',
         )
 
     # Assert
     assert isinstance(result, ProgramInterpretationResponse)
     _, kwargs = mock_interpret.call_args
-    assert kwargs.get('region') == 'eu-west-2'
+    assert kwargs.get('default_region_override') == 'eu-west-2'
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
@@ -721,7 +721,7 @@ async def test_call_aws_awscli_customization_success(
         'aws configure list',
         mock_ir.command,
         credentials=None,
-        region=None,
+        default_region_override=None,
     )
 
 
@@ -764,7 +764,7 @@ async def test_call_aws_awscli_customization_error(
         'aws configure list',
         mock_ir.command,
         credentials=None,
-        region=None,
+        default_region_override=None,
     )
     mock_ctx.error.assert_called_once_with(error_response.detail)
 
@@ -928,13 +928,11 @@ async def test_call_aws_helper_with_credentials(mock_translate, mock_validate, m
         credentials=test_credentials,
     )
 
-    print(result)
-
     mock_interpret.assert_called_once_with(
         cli_command='aws s3api list-buckets',
         max_results=None,
         credentials=test_credentials,
-        region=None,
+        default_region_override=None,
     )
     assert result == mock_response
 
@@ -966,7 +964,10 @@ async def test_call_aws_helper_without_credentials(mock_translate, mock_validate
     )
 
     mock_interpret.assert_called_once_with(
-        cli_command='aws s3api list-buckets', max_results=None, credentials=None, region=None
+        cli_command='aws s3api list-buckets',
+        max_results=None,
+        credentials=None,
+        default_region_override=None,
     )
     assert result == mock_response
 
