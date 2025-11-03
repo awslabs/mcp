@@ -37,7 +37,7 @@ class ServiceLanguage(str, Enum):
     DOTNET = 'dotnet'
 
 
-async def get_application_signals_enablement_guide(
+async def get_enablement_guide(
     service_platform: ServicePlatform,
     service_language: ServiceLanguage,
     iac_directory: str,
@@ -80,7 +80,7 @@ async def get_application_signals_enablement_guide(
         Markdown-formatted enablement guide with step-by-step instructions
     """
     logger.debug(
-        f'get_application_signals_enablement_guide called: service_platform={service_platform}, service_language={service_language}, '
+        f'get_enablement_guide called: service_platform={service_platform}, service_language={service_language}, '
         f'iac_directory={iac_directory}, app_directory={app_directory}'
     )
 
