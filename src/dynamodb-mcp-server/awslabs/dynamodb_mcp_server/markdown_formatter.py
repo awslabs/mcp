@@ -55,25 +55,15 @@ class MarkdownFormatter:
             Markdown table string
         """
         try:
-            # Handle empty data gracefully
+            # Handle empty data gracefully (catches None, empty list, etc.)
             if not data:
                 logger.warning('No data provided to format as Markdown table')
                 return 'No data returned'
-
-            # Handle missing data (None)
-            if data is None:
-                logger.warning('Data is None, cannot format as Markdown table')
-                return 'No data available'
 
             # Ensure data is a list
             if not isinstance(data, list):
                 logger.error(f'Data is not a list, got type: {type(data)}')
                 return 'Error: Invalid data format'
-
-            # Handle empty list
-            if len(data) == 0:
-                logger.warning('Empty data list provided')
-                return 'No data returned'
 
             # Get column names from first row
             first_row = data[0]

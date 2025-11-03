@@ -888,3 +888,24 @@ def test_format_as_markdown_table_all_rows_fail_formatting(tmp_path, sample_meta
 
     # Should return error message when no rows can be formatted
     assert 'Error: Unable to format data rows' in table
+
+
+def test_format_as_markdown_table_exception_handler(tmp_path, sample_metadata, monkeypatch):
+    """Test exception handler in _format_as_markdown_table."""
+    formatter = MarkdownFormatter({}, sample_metadata, str(tmp_path))
+
+    # Patch isinstance to raise an exception during list check
+    original_isinstance = isinstance
+
+    def mock_isinstance(obj, classinfo):
+        if classinfo is list and obj == [{'col': 'val'}]:
+            raise RuntimeError('Unexpected error')
+        return original_isinstance(obj, classinfo)
+
+    import builtins
+
+    monkeypatch.setattr(builtins, 'isinstance', mock_isinstance)
+
+    result = formatter._format_as_markdown_table([{'col': 'val'}])
+    assert 'Error: Unable to format data' in result
+    assert 'Unexpected error' in result
