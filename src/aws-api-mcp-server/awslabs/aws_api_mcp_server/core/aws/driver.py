@@ -46,7 +46,9 @@ def get_local_credentials(profile: str | None = None) -> Credentials:
     )
 
 
-def translate_cli_to_ir(cli_command: str) -> IRTranslation:
+def translate_cli_to_ir(
+    cli_command: str, default_region_override: str | None = None
+) -> IRTranslation:
     """Translate the given CLI command to a Python program.
 
     The returned payload contains the final Python program
@@ -62,7 +64,7 @@ def translate_cli_to_ir(cli_command: str) -> IRTranslation:
     errors can be used to ask for more clarification from the end-user.
     """
     try:
-        command = parse(cli_command)
+        command = parse(cli_command, default_region_override=default_region_override)
     except (CliParsingError, CommandValidationError) as exc:
         return IRTranslation(validation_failures=[exc.as_failure()])
     except MissingContextError as exc:
@@ -81,7 +83,7 @@ def interpret_command(
     cli_command: str,
     max_results: int | None = None,
     credentials: Credentials | None = None,
-    region_override: str | None = None,
+    default_region_override: str | None = None,
 ) -> InterpretedProgram:
     """Interpret the CLI command.
 
@@ -91,12 +93,12 @@ def interpret_command(
     The response contains any validation errors found during
     validating the command, as well as any errors that occur during interpretation.
     """
-    translation = translate_cli_to_ir(cli_command)
+    translation = translate_cli_to_ir(cli_command, default_region_override)
 
     if translation.command is None:
         return InterpretedProgram(translation=translation)
 
-    region = region_override or translation.command.region
+    region = translation.command.region
     if (
         translation.command.command_metadata.service_sdk_name in GLOBAL_SERVICE_REGIONS
         and region != GLOBAL_SERVICE_REGIONS[translation.command.command_metadata.service_sdk_name]

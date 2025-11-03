@@ -129,7 +129,7 @@ def execute_awscli_customization(
     cli_command: str,
     ir_command: IRCommand,
     credentials: Credentials | None = None,
-    region: str | None = None,
+    default_region_override: str | None = None,
 ) -> AwsCliAliasResponse | AwsApiMcpServerErrorResponse:
     """Execute the given AWS CLI command."""
     args = split_cli_command(cli_command)[1:]
@@ -149,7 +149,7 @@ def execute_awscli_customization(
             with operation_timer(
                 ir_command.service_name,
                 ir_command.operation_name,
-                region or ir_command.region or DEFAULT_REGION,
+                ir_command.region or default_region_override or DEFAULT_REGION,
             ):
                 driver = get_awscli_driver(credentials)
                 driver.main(args)
@@ -169,14 +169,14 @@ def interpret_command(
     cli_command: str,
     max_results: int | None = None,
     credentials: Credentials | None = None,
-    region: str | None = None,
+    default_region_override: str | None = None,
 ) -> ProgramInterpretationResponse:
     """Interpret the given CLI command and return an interpretation response."""
     interpreted_program = _interpret_command(
         cli_command,
         max_results=max_results,
         credentials=credentials,
-        region_override=region,
+        default_region_override=default_region_override,
     )
 
     validation_failures = (
