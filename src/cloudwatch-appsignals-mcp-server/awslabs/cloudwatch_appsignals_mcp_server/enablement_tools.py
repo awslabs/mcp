@@ -14,32 +14,13 @@
 
 """CloudWatch Application Signals MCP Server - Enablement Tools."""
 
-from enum import Enum
 from loguru import logger
 from pathlib import Path
 
 
-class ServicePlatform(str, Enum):
-    """Supported deployment platforms."""
-
-    EC2 = 'ec2'
-    ECS = 'ecs'
-    LAMBDA = 'lambda'
-    EKS = 'eks'
-
-
-class ServiceLanguage(str, Enum):
-    """Supported service programming languages."""
-
-    PYTHON = 'python'
-    NODEJS = 'nodejs'
-    JAVA = 'java'
-    DOTNET = 'dotnet'
-
-
 async def get_enablement_guide(
-    service_platform: ServicePlatform,
-    service_language: ServiceLanguage,
+    service_platform: str,
+    service_language: str,
     iac_directory: str,
     app_directory: str,
 ) -> str:
@@ -69,9 +50,12 @@ async def get_enablement_guide(
     - Read application files if needed to understand the setup, but avoid modifying them
 
     Args:
-        service_platform: The AWS platform where the service runs (ec2, ecs, lambda, eks).
+        service_platform: The AWS platform where the service runs.
+            MUST be one of: 'ec2', 'ecs', 'lambda', 'eks' (lowercase, exact match).
             To help user determine: check their IaC for ECS services, Lambda functions, EKS deployments, or EC2 instances.
-        service_language: The service's programming language (python, nodejs, java, dotnet).
+        service_language: The service's programming language.
+            MUST be one of: 'python', 'nodejs', 'java', 'dotnet' (lowercase, exact match).
+            IMPORTANT: Use 'nodejs' (not 'js', 'node', or 'javascript'), 'dotnet' (not 'csharp' or 'c#').
             To help user determine: check for package.json (nodejs), requirements.txt (python), pom.xml (java), or .csproj (dotnet).
         iac_directory: ABSOLUTE path to the Infrastructure as Code (IaC) directory (e.g., /home/user/project/infrastructure)
         app_directory: ABSOLUTE path to the application code directory (e.g., /home/user/project/app)
@@ -84,9 +68,9 @@ async def get_enablement_guide(
         f'iac_directory={iac_directory}, app_directory={app_directory}'
     )
 
-    # Convert enums to string values
-    platform_str = service_platform.value
-    language_str = service_language.value
+    # Normalize to lowercase
+    platform_str = service_platform.lower().strip()
+    language_str = service_language.lower().strip()
 
     guides_dir = Path(__file__).parent / 'enablement_guides'
     template_file = (
