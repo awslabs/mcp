@@ -16,6 +16,7 @@
 
 import datetime
 import uuid
+from os import environ
 from awslabs.ccapi_mcp_server.errors import ClientError
 from awslabs.ccapi_mcp_server.impl.utils.validation import ensure_string
 from awslabs.ccapi_mcp_server.models.models import ExplainRequest
@@ -37,7 +38,7 @@ def _format_value(value: Any) -> str:
 
 
 def _generate_explanation(
-    content: Any, context: str, operation: str, format: str, user_intent: str
+    content: Any, context: str, operation: str, format: str, user_intent: str, environment_variables: dict = None
 ) -> str:
     """Generate comprehensive explanation for any type of content."""
     content_type = type(content).__name__
@@ -77,7 +78,18 @@ def _generate_explanation(
     if operation in ['create', 'update', 'delete']:
         explanation += '\n\n**Infrastructure Operation Notes:**'
         explanation += '\n• This operation will modify AWS resources'
-        explanation += '\n• Default management tags will be applied for tracking'
+        
+        # Check DEFAULT_TAGS setting
+        if environment_variables:
+            default_tags_setting = environment_variables.get('DEFAULT_TAGS', 'enabled').lower()
+        else:
+            default_tags_setting = environ.get('DEFAULT_TAGS', 'enabled').lower()
+        
+        if default_tags_setting == 'disabled':
+            explanation += '\n• Default management tags are disabled and will not be applied'
+        else:
+            explanation += '\n• Default management tags will be applied for tracking'
+        
         explanation += '\n• Changes will be applied to the specified AWS region'
 
     return explanation
@@ -296,6 +308,11 @@ async def explain_impl(request: ExplainRequest, workflow_store: dict) -> dict:
                 'operation': ensure_string(request.operation),
             }
 
+    # Get environment variables from workflow store if available
+    environment_variables = None
+    if has_generated_code_token and workflow_data:
+        environment_variables = workflow_data.get('data', {}).get('environment_variables')
+    
     # Generate comprehensive explanation based on content type and format
     explanation = _generate_explanation(
         explanation_content,
@@ -303,6 +320,7 @@ async def explain_impl(request: ExplainRequest, workflow_store: dict) -> dict:
         ensure_string(request.operation, 'analyze'),
         ensure_string(request.format, 'detailed'),
         ensure_string(request.user_intent),
+        environment_variables,
     )
 
     # Force the LLM to see the response by making it very explicit
