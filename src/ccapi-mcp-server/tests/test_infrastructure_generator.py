@@ -85,7 +85,7 @@ class TestInfrastructureGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_infrastructure_code_known_taggable_resource(self):
-        """Test generate_infrastructure_code with known taggable resource even if schema doesn't show it."""
+        """Test generate_infrastructure_code with schema-only tagging approach."""
         with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
             mock_schema_manager = MagicMock()
             mock_schema_manager.get_schema = AsyncMock(
@@ -99,8 +99,8 @@ class TestInfrastructureGenerator:
                 region='us-east-1',
             )
 
-            # Should still support tagging for known AWS resources
-            assert result['supports_tagging'] is True
+            # Should not support tagging if schema doesn't show Tags property (schema-only approach)
+            assert result['supports_tagging'] is False
 
     # Additional coverage tests
     @pytest.mark.asyncio

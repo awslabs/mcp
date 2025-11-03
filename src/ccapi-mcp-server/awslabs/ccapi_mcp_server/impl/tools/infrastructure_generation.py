@@ -48,7 +48,7 @@ async def generate_infrastructure_code_impl_wrapper(
         identifier=request.identifier,
         patch_document=request.patch_document,
         region=request.region or aws_session_data.get('region'),
-        environment_variables=environment_variables,
+        environment_variables=environment_variables or {},
     )
 
     # Generate a generated code token that enforces using the exact properties and template

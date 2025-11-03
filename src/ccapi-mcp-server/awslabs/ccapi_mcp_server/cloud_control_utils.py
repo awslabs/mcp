@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from awslabs.ccapi_mcp_server.errors import ClientError
-from typing import Any, Dict
 from os import environ
+from typing import Any, Dict
 
 
 def supports_tagging(resource_type: str, schema: Dict) -> bool:
@@ -24,7 +24,12 @@ def supports_tagging(resource_type: str, schema: Dict) -> bool:
     return 'Tags' in schema.get('properties', {})
 
 
-def add_default_tags(properties: Dict, schema: Dict, resource_type: str = '', environment_variables: Dict = None) -> Dict:
+def add_default_tags(
+    properties: Dict,
+    schema: Dict,
+    resource_type: str = '',
+    environment_variables: Dict | None = None,
+) -> Dict:
     """Add default tags to resource properties if DEFAULT_TAGS is enabled and resource supports tagging."""
     # Return empty dict when properties is None or empty dict {}
     if not properties:
@@ -35,7 +40,7 @@ def add_default_tags(properties: Dict, schema: Dict, resource_type: str = '', en
         default_tags_setting = environment_variables.get('DEFAULT_TAGS', 'enabled').lower()
     else:
         default_tags_setting = environ.get('DEFAULT_TAGS', 'enabled').lower()
-    
+
     if default_tags_setting == 'disabled':
         return properties.copy()
 

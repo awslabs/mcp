@@ -21,7 +21,6 @@ from awslabs.ccapi_mcp_server.context import Context
 from awslabs.ccapi_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.ccapi_mcp_server.impl.utils.validation import (
     cleanup_workflow_tokens,
-    ensure_region_string,
     validate_identifier,
     validate_resource_type,
     validate_workflow_token,

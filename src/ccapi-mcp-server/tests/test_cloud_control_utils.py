@@ -255,7 +255,7 @@ class TestUtils:
         validate_patch([{'op': 'copy', 'path': '/test', 'from': '/source'}])
 
     def test_add_default_tags_no_tags_property(self):
-        """Test add_default_tags without Tags property - adds tags for known taggable resources."""
+        """Test add_default_tags without Tags property - no tags added for schema-only approach."""
         from awslabs.ccapi_mcp_server.cloud_control_utils import add_default_tags
 
         properties = {'BucketName': 'test-bucket'}
@@ -263,14 +263,9 @@ class TestUtils:
 
         result = add_default_tags(properties, schema, 'AWS::S3::Bucket')
 
-        # Should add tags for known taggable resources even if schema doesn't show Tags
-        assert 'Tags' in result
-        assert len(result['Tags']) == 3
-        assert result['BucketName'] == 'test-bucket'
-
-        # Verify default tags are present
-        tag_keys = {tag['Key'] for tag in result['Tags']}
-        assert tag_keys == {'MANAGED_BY', 'MCP_SERVER_SOURCE_CODE', 'MCP_SERVER_VERSION'}
+        # Should not add tags if schema doesn't show Tags property (schema-only approach)
+        assert result == properties
+        assert 'Tags' not in result
 
     def test_add_default_tags_with_tags_property(self):
         """Test add_default_tags with Tags property in schema."""
@@ -433,13 +428,9 @@ class TestUtils:
         schema_with_tags = {'properties': {'Tags': {'type': 'array'}}}
         assert supports_tagging('AWS::Unknown::Resource', schema_with_tags) is True
 
-        # Test known non-taggable resources
+        # Test schema-only approach - no hardcoded lists
         schema_without_tags = {'properties': {'Name': {'type': 'string'}}}
         assert supports_tagging('AWS::Lambda::Url', schema_without_tags) is False
-
-        # Test known taggable resources (fallback)
-        assert supports_tagging('AWS::S3::Bucket', schema_without_tags) is True
-        assert supports_tagging('AWS::Lambda::Function', schema_without_tags) is True
-
-        # Test unknown resource without Tags in schema
+        assert supports_tagging('AWS::S3::Bucket', schema_without_tags) is False
+        assert supports_tagging('AWS::Lambda::Function', schema_without_tags) is False
         assert supports_tagging('AWS::Unknown::Resource', schema_without_tags) is False

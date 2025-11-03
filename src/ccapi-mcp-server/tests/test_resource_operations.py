@@ -107,7 +107,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -202,7 +206,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -255,7 +263,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_delete',
@@ -503,7 +515,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -620,7 +636,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -658,7 +678,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -819,7 +843,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
