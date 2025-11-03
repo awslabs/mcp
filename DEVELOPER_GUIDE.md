@@ -94,10 +94,10 @@ Inspector will run your server on locahost (for instance: http://127.0.0.1:6274)
 
 ![Codecov](https://img.shields.io/codecov/c/github/awslabs/mcp?link=https%3A%2F%2Fapp.codecov.io%2Fgh%2Fawslabs%2Fmcp)
 
-Each MCP server is expected to have:
+Each MCP server is expected to have a `tests` folder containing:
 
-- a `tests` folder containing unit tests that should meet or exceed merged our reported test coverage (see our "coverage" badge above). For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
-- a `integ` folder containing integration tests for the server. For this, you can use the utilities provided in the [testing folder](./testing/).
+- unit tests that should meet or exceed merged our reported test coverage (see our "coverage" badge above). For instance, you can refer to an existing server like [AWS Documentation Server](src/aws-documentation-mcp-server/tests/).
+- `integ` tests in the same folder, containing integration tests for the server. For this, you can use the utilities provided in the [testing folder](./testing/). The expected convention for naming is integ.<test-name>.py. You can look at examples [here](./src/aws-documentation-mcp-server/tests/integ.test_basic.py).
 
 | Action            | Explanation                                |
 | :------------------ | :------------------------------------------- |
