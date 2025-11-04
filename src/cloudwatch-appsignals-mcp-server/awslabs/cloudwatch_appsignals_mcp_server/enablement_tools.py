@@ -54,7 +54,6 @@ async def get_enablement_guide(
        - Identify the specific file(s) that need modification for this step
        - Read only the relevant file(s) (DO NOT load all IaC and app files at once)
        - Apply the changes as specified in the guide
-       - Verify the changes are correct before moving to the next step
     3. Keep context focused: Only load files needed for the current checklist item
 
     Important guidelines:
