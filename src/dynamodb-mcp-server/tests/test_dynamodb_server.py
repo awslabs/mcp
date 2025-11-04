@@ -319,6 +319,8 @@ async def test_source_db_analyzer_only_saved_files_no_errors(tmp_path, monkeypat
     assert '/tmp/file2.json' in result
     # Should not have "File Save Errors" section when no errors
     assert 'File Save Errors:' not in result
+
+
 # Tests for execute_dynamodb_command
 @pytest.mark.asyncio
 async def test_execute_dynamodb_command_valid_command():
