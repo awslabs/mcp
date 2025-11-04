@@ -45,11 +45,17 @@ async def get_enablement_guide(
     4. This tool REQUIRES absolute paths for both iac_directory and app_directory parameters
 
     After calling this tool, you should:
-    1. Review the enablement guide and create a work list of required changes
-    2. For each step in the work list:
-       - Identify the specific files in iac_directory or app_directory that need modification
+    1. Review the enablement guide and create a visible, trackable checklist of required changes
+       - Use your system's task tracking mechanism (todo lists, markdown checklists, etc.)
+       - Each item should be granular enough to complete in one step
+       - Mark items as complete as you finish them to track progress
+       - This allows you to resume work if the context window fills up
+    2. Work through the checklist systematically, one item at a time:
+       - Identify the specific file(s) that need modification for this step
+       - Read only the relevant file(s) (DO NOT load all IaC and app files at once)
        - Apply the changes as specified in the guide
        - Verify the changes are correct before moving to the next step
+    3. Keep context focused: Only load files needed for the current checklist item
 
     Important guidelines:
     - Use ABSOLUTE PATHS when reading and writing files
