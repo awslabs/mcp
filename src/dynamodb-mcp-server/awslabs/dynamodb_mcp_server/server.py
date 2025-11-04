@@ -123,15 +123,12 @@ async def source_db_analyzer(
     patterns to help you design an optimal DynamoDB data model.
 
     Output & Next Steps:
-    - Creates timestamped folder (database_analysis_YYYYMMDD_HHMMSS) with 4-5 JSON files:
-      * table_analysis_results.json - Table-level statistics
-      * column_analysis_results.json - Column definitions for all tables
-      * index_analysis_results.json - Index structures and compositions
-      * foreign_key_analysis_results.json - Relationship mappings
-      * query_pattern_analysis_results.json - Query patterns (only if Performance Schema enabled)
-    - Each file contains query results with metadata (database name, analysis period, descriptions)
-    - Use these files with the dynamodb_data_modeling tool to design your DynamoDB schema
-    - Analysis is read-only
+    - Creates timestamped folder (database_analysis_YYYYMMDD_HHMMSS) with Markdown analysis files
+    - CRITICAL: Immediately read manifest.md from the timestamped folder - it lists all analysis files
+    - The manifest includes summary statistics, links to all analysis files, and skipped queries
+    - Read ALL analysis files listed in the manifest to understand the complete database structure
+    - Files for skipped queries explain why they were skipped (e.g., Performance Schema disabled)
+    - Use these analysis files with the dynamodb_data_modeling tool to design your DynamoDB schema
 
     Connection Requirements (MySQL/Aurora):
     - AWS RDS Data API enabled on your Aurora MySQL cluster
@@ -199,28 +196,60 @@ async def source_db_analyzer(
             connection_params.get('pattern_analysis_days'),
             connection_params.get('max_results'),
             connection_params.get('output_dir'),
+            analysis_result.get('performance_enabled', True),
+            analysis_result.get('skipped_queries', []),
         )
 
         # Generate report
         logger.info('Generating analysis report')
         if analysis_result['results']:
-            report = f"""Database Analysis Complete
+            report_sections = []
 
-Summary:
-- Database: {connection_params.get('database')}
-- Analysis Period: {connection_params.get('pattern_analysis_days')} days
-- {analysis_result['performance_feature']}: {'Enabled' if analysis_result['performance_enabled'] else 'Disabled'}"""
+            # Header section
+            report_sections.append('Database Analysis Complete')
+            report_sections.append('')
+
+            # Summary section
+            summary_lines = [
+                'Summary:',
+                f'- Database: {connection_params.get("database")}',
+                f'- Analysis Period: {connection_params.get("pattern_analysis_days")} days',
+                '**CRITICAL: Read ALL Analysis Files**',
+                '',
+                'Follow these steps IN ORDER:',
+                '',
+            ]
+            report_sections.extend(summary_lines)
+
+            # Add workflow section
+            workflow_lines = [
+                '1. Read manifest.md from the timestamped analysis directory',
+                '   - Lists all generated analysis files by category',
+                '   - Shows which queries succeeded/skipped and why',
+                '',
+                '2. Read EVERY file listed in the manifest (both schema and performance sections)',
+                '   - You MUST read all files, even those marked as SKIPPED',
+                '   - Skipped files explain why queries failed (e.g., Performance Schema disabled)',
+                '   - Each file contains critical information for data modeling',
+                '',
+                '3. After reading all files, use dynamodb_data_modeling tool',
+                '   - Extract entities and relationships from schema files',
+                '   - Identify access patterns from performance files',
+                '   - Document findings in dynamodb_requirement.md',
+            ]
+            report_sections.extend(workflow_lines)
 
             if saved_files:
-                report += f'\n\nSaved Files:\n{chr(10).join(f"- {f}" for f in saved_files)}'
+                report_sections.append('')
+                report_sections.append('Generated Analysis Files (Read All):')
+                report_sections.extend(f'- {f}' for f in saved_files)
 
             if save_errors:
-                report += f'\n\nFile Save Errors:\n{chr(10).join(f"- {e}" for e in save_errors)}'
+                report_sections.append('')
+                report_sections.append('File Save Errors:')
+                report_sections.extend(f'- {e}' for e in save_errors)
 
-            if analysis_result['errors']:
-                report += f'\n\nQuery Errors ({len(analysis_result["errors"])}):\n' + '\n'.join(
-                    f'{i}. {error}' for i, error in enumerate(analysis_result['errors'], 1)
-                )
+            report = '\n'.join(report_sections)
 
         else:
             report = (
