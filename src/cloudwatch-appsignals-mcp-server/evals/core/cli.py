@@ -34,6 +34,7 @@ import sys
 import traceback
 from evals.core import EvalRunner
 from evals.core.constants import DEFAULT_AWS_REGION
+from evals.core.task import Task
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List
@@ -72,9 +73,21 @@ def discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
 
             if hasattr(module, 'TASKS'):
                 tasks = module.TASKS
-                all_tasks.extend(tasks)
-                tasks_by_module[module_name] = tasks
-                logger.debug(f'Loaded {len(tasks)} tasks from {module_name}')
+                # Validate that all items in TASKS are Task instances
+                valid_tasks = []
+                for task in tasks:
+                    if isinstance(task, Task):
+                        valid_tasks.append(task)
+                    else:
+                        logger.warning(
+                            f'Skipping non-Task object in {module_name}.TASKS: {task} '
+                            f'(type: {type(task).__name__})'
+                        )
+
+                if valid_tasks:
+                    all_tasks.extend(valid_tasks)
+                    tasks_by_module[module_name] = valid_tasks
+                    logger.debug(f'Loaded {len(valid_tasks)} tasks from {module_name}')
 
         except Exception as e:
             logger.warning(f'Failed to load tasks from {module_name}: {e}')

@@ -29,3 +29,40 @@ python -m evals applicationsignals --task-id <task_id> -v
 # Skip cleanup (useful for inspecting changes)
 python -m evals applicationsignals --task-id <task_id> --no-cleanup
 ```
+
+### Creating Task Files
+
+Task files follow a specific convention for auto-discovery:
+
+1. **Filename**: Must end with `_tasks.py` (e.g., `investigation_tasks.py`, `enablement_tasks.py`)
+2. **Module attribute**: Must contain a `TASKS` attribute that is a list of `Task` instances
+
+Example task file:
+
+```python
+# investigation_tasks.py
+from evals.core.task import Task
+
+class MyInvestigationTask(Task):
+    id = "my_task_id"
+
+    def get_prompt(self) -> str:
+        return "Your task prompt here"
+
+    @property
+    def rubric(self) -> list:
+        return [
+            {
+                "criteria": "Task completion criteria",
+                "validator": "validator_name"
+            }
+        ]
+
+# Required: TASKS list containing Task instances
+TASKS = [
+    MyInvestigationTask(),
+    # ... more tasks
+]
+```
+
+The framework will automatically discover and load all `*_tasks.py` files in your task directory.
