@@ -5,6 +5,7 @@
 
 import pytest
 from awslabs.cloudwatch_appsignals_mcp_server.enablement_tools import get_enablement_guide
+from unittest.mock import patch
 
 
 # Absolute paths for testing (no need to create real directories)
@@ -134,3 +135,84 @@ class TestGetEnablementGuide:
         assert 'Enablement guide not available' in result
         assert 'k8s' in result.lower()
         assert 'not currently supported' in result
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_platform(self):
+        """Test that uppercase platform names are normalized to lowercase."""
+        result = await get_enablement_guide(
+            service_platform='EC2',
+            service_language='python',
+            iac_directory=ABSOLUTE_PATHS['iac'],
+            app_directory=ABSOLUTE_PATHS['app'],
+        )
+
+        # Should work the same as lowercase
+        assert 'Error: iac_directory and app_directory must be absolute paths' not in result
+        assert (
+            '# Application Signals Enablement Guide' in result
+            or 'Enablement guide not available' in result
+        )
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_language(self):
+        """Test that uppercase language names are normalized to lowercase."""
+        result = await get_enablement_guide(
+            service_platform='ec2',
+            service_language='PYTHON',
+            iac_directory=ABSOLUTE_PATHS['iac'],
+            app_directory=ABSOLUTE_PATHS['app'],
+        )
+
+        # Should work the same as lowercase
+        assert 'Error: iac_directory and app_directory must be absolute paths' not in result
+        assert (
+            '# Application Signals Enablement Guide' in result
+            or 'Enablement guide not available' in result
+        )
+
+    @pytest.mark.asyncio
+    async def test_whitespace_trimming(self):
+        """Test that leading/trailing whitespace is trimmed from inputs."""
+        result = await get_enablement_guide(
+            service_platform='  ec2  ',
+            service_language='  python  ',
+            iac_directory=ABSOLUTE_PATHS['iac'],
+            app_directory=ABSOLUTE_PATHS['app'],
+        )
+
+        # Should work the same as trimmed input
+        assert 'Error: iac_directory and app_directory must be absolute paths' not in result
+        assert (
+            '# Application Signals Enablement Guide' in result
+            or 'Enablement guide not available' in result
+        )
+
+    @pytest.mark.asyncio
+    async def test_both_paths_relative(self):
+        """Test that error message shows both paths when both are relative."""
+        result = await get_enablement_guide(
+            service_platform='ec2',
+            service_language='python',
+            iac_directory='infrastructure/cdk',
+            app_directory='app/src',
+        )
+
+        assert 'Error: iac_directory and app_directory must be absolute paths' in result
+        assert 'infrastructure/cdk' in result
+        assert 'app/src' in result
+
+    @pytest.mark.asyncio
+    async def test_file_read_error(self):
+        """Test that file read errors are handled gracefully with helpful message."""
+        with patch('builtins.open', side_effect=PermissionError('Permission denied')):
+            result = await get_enablement_guide(
+                service_platform='ec2',
+                service_language='python',
+                iac_directory=ABSOLUTE_PATHS['iac'],
+                app_directory=ABSOLUTE_PATHS['app'],
+            )
+
+        assert 'Fatal error: Cannot read enablement guide' in result
+        assert 'Permission denied' in result
+        assert 'file permissions or reinstall' in result
+        assert 'issue with the MCP server installation' in result
