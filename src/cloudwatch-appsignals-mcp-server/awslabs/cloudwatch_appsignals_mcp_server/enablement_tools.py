@@ -35,6 +35,15 @@ async def get_enablement_guide(
     modifying your infrastructure and application code to enable Application Signals,
     which is the preferred way to enable automatic instrumentation for services on AWS.
 
+    Before calling this tool:
+    1. Ensure you know where the application code is located and that you have read/write permissions
+    2. Ensure you know where the IaC code is located and that you have read/write permissions
+    3. If the user provides relative paths or descriptions (e.g., "./infrastructure", "in the root"):
+       - Use the Bash tool to run 'pwd' to get the current working directory
+       - Use file exploration tools to locate the directories
+       - Convert relative paths to absolute paths before calling this tool
+    4. This tool REQUIRES absolute paths for both iac_directory and app_directory parameters
+
     After calling this tool, you should:
     1. Review the enablement guide and create a work list of required changes
     2. For each step in the work list:
@@ -43,7 +52,7 @@ async def get_enablement_guide(
        - Verify the changes are correct before moving to the next step
 
     Important guidelines:
-    - Use ABSOLUTE PATHS (iac_directory and app_directory) when reading and writing files
+    - Use ABSOLUTE PATHS when reading and writing files
     - Do NOT modify actual application logic files (.py, .js, .java source code), only
       modify IaC code, Dockerfiles, and dependency files (requirements.txt, pyproject.toml,
       package.json, pom.xml, build.gradle, *.csproj, etc.) as instructed by the guide.
