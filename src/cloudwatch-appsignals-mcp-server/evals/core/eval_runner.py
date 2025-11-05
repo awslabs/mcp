@@ -104,7 +104,3 @@ class EvalRunner:
             'working_directory': working_directory,
             'bedrock_client': bedrock_client,
         }
-
-    def list_tasks(self) -> List[Dict[str, str]]:
-        """List all configured tasks."""
-        return [{'id': task.id, 'type': type(task).__name__} for task in self.tasks]
