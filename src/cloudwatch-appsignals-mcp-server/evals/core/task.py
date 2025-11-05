@@ -78,19 +78,6 @@ class Task(ABC):
         """
         pass
 
-    @property
-    @abstractmethod
-    def rubric(self) -> List[str]:
-        """Return validation criteria that define task success.
-
-        The rubric is a list of criteria describing what the agent should accomplish.
-        Validators use these to judge whether the task was completed successfully.
-
-        Returns:
-            List of criteria strings (e.g., ["Identified root cause", "Proposed fix"])
-        """
-        pass
-
     def get_captors(self, context: Dict[str, Any]) -> List[Captor]:
         """Return captors to collect data during task execution.
 
@@ -110,10 +97,20 @@ class Task(ABC):
     def get_validators(self, context: Dict[str, Any]) -> List[Validator]:
         """Return validators to evaluate task success.
 
-        Validators use the rubric and captured data to determine if the agent completed
-        the task successfully. Multiple validators can be combined.
+        Validators evaluate captured data to determine if the agent completed the task
+        successfully. Configure validators with their required parameters (e.g., rubric
+        for LLMJudgeValidator, command for BuildValidator). Multiple validators can be
+        combined.
 
-        Common validators: LLMJudgeValidator, BuildValidator
+        Example:
+            return [
+                LLMJudgeValidator(
+                    validation_prompt_template=TEMPLATE,
+                    llm_provider=BedrockLLMProvider(context['bedrock_client']),
+                    rubric=["Criterion 1", "Criterion 2"]
+                ),
+                BuildValidator(command="npm test", working_dir=Path(".")),
+            ]
 
         Args:
             context: Runtime context (working_directory, bedrock_client)

@@ -35,9 +35,8 @@ class Validator(ABC):
     async def validate(
         self,
         captured_data: Dict[str, Any],
-        rubric: List[str],
     ) -> Dict[str, Any]:
-        """Validate captured data against rubric.
+        """Validate captured data.
 
         Returns dict with validator_name, overall_pass, criteria_results.
         """
@@ -47,15 +46,19 @@ class Validator(ABC):
 class LLMJudgeValidator(Validator):
     """LLM-as-judge validator for evaluating captured data against rubric."""
 
-    def __init__(self, validation_prompt_template: str, llm_provider: LLMProvider):
+    def __init__(
+        self, validation_prompt_template: str, llm_provider: LLMProvider, rubric: List[str]
+    ):
         """Initialize LLM judge validator.
 
         Args:
             validation_prompt_template: Template with {rubric_items}, {captured_data}, {num_criteria}
             llm_provider: LLMProvider instance for text generation
+            rubric: List of evaluation criteria
         """
         self.validation_prompt_template = validation_prompt_template
         self.llm_provider = llm_provider
+        self.rubric = rubric
 
     def get_name(self) -> str:
         """Return validator name."""
@@ -64,18 +67,19 @@ class LLMJudgeValidator(Validator):
     async def validate(
         self,
         captured_data: Dict[str, Any],
-        rubric: List[str],
     ) -> Dict[str, Any]:
         """Validate using LLM as judge."""
         logger.info('Running LLM-as-judge validation...')
 
-        rubric_items = '\n'.join([f'{i + 1}. {criterion}' for i, criterion in enumerate(rubric)])
+        rubric_items = '\n'.join(
+            [f'{i + 1}. {criterion}' for i, criterion in enumerate(self.rubric)]
+        )
         captured_str = self._format_captured_data(captured_data)
 
         prompt = self.validation_prompt_template.format(
             rubric_items=rubric_items,
             captured_data=captured_str,
-            num_criteria=len(rubric),
+            num_criteria=len(self.rubric),
         )
 
         try:
@@ -84,7 +88,7 @@ class LLMJudgeValidator(Validator):
             elapsed = time.time() - start
             logger.debug(f'LLM validation took {elapsed:.2f}s')
 
-            criteria_results = self._parse_llm_response(response_text, rubric)
+            criteria_results = self._parse_llm_response(response_text, self.rubric)
             overall_pass = all(r['status'] == 'PASS' for r in criteria_results)
 
             return {
@@ -211,7 +215,6 @@ class BuildValidator(Validator):
     async def validate(
         self,
         captured_data: Dict[str, Any],
-        rubric: List[str],
     ) -> Dict[str, Any]:
         """Validate by running build command."""
         logger.info(f'Running build command: {self.command}')

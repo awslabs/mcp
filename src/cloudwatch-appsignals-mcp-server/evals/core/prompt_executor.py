@@ -112,7 +112,7 @@ class PromptExecutor:
         validators = task.get_validators(context)
 
         for validator in validators:
-            validation_result = await validator.validate(captured_data, task.rubric)
+            validation_result = await validator.validate(captured_data)
             validation_results.append(validation_result)
 
         return validation_results
