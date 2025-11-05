@@ -26,15 +26,29 @@ from typing import Any, Dict, List, Optional
 class Task(ABC):
     """Base class for evaluation tasks.
 
-    Subclasses implement get_prompt() and rubric to define the task prompt and validation criteria.
+    A Task defines an evaluation scenario for MCP tools, including the prompt to send
+    to an agent and validation criteria. Tasks are defined in `*_tasks.py` files with
+    a TASKS list for auto-discovery (see README.md for examples).
+
+    Required Implementations:
+        - get_prompt(context): Return the prompt string for the agent
+        - rubric: Property returning validation criteria
+        - get_server_file(): Return path to MCP server file
+        - get_server_root_directory(): Return server root directory
+
+    Optional Overrides:
+        - get_captors(context): Return captors to collect execution data
+        - get_validators(context): Return validators for custom validation
+        - get_working_directory(): Return task working directory
+        - cleanup(context): Clean up after execution
 
     Attributes:
         id: Unique identifier for the task
-        max_turns: Maximum conversation turns allowed
+        max_turns: Maximum conversation turns allowed (default: 20)
         expected_tools: MCP tool names expected to be called (for hit rate metric)
         mock_config: Mock configuration for AWS APIs (relative paths, resolved via fixtures_dir)
         fixtures_dir: Base directory for resolving fixture paths
-        process_executor: ProcessExecutor for shell commands
+        process_executor: ProcessExecutor for shell commands (default: SubprocessExecutor)
     """
 
     id: str
