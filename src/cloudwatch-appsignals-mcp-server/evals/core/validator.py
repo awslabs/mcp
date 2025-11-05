@@ -175,7 +175,6 @@ class LLMJudgeValidator(Validator):
             )
             logger.debug(f'Raw LLM response:\n{response_text}')
 
-            # Fill missing criteria with FAIL
             while len(criteria_results) < len(rubric):
                 criteria_results.append(
                     {

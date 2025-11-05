@@ -68,7 +68,6 @@ def apply_mocks(mock_config: dict, fixtures_dir: Optional[Path] = None):
     if not mock_config:
         return
 
-    # Import mock system from framework
     from .mocking import get_registry
 
     registry = get_registry()

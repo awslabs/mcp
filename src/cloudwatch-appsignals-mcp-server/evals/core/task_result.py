@@ -108,7 +108,6 @@ class TaskResult:
             )
             return '\n'.join(lines)
 
-        # Metrics
         if self.metrics:
             lines.extend(
                 [
@@ -130,7 +129,6 @@ class TaskResult:
                         f'({stats["success"]} success, {stats["failed"]} failed)'
                     )
 
-        # Validation results
         if self.validation_results:
             lines.extend(['', 'Validation Results:'])
             for validation_result in self.validation_results:
@@ -153,7 +151,6 @@ class TaskResult:
                         status_text = criterion_result['status']
                         lines.append(f'    [{status_text}] {criterion_result["criterion"]}')
 
-        # Overall status
         status = '✅ PASS' if self.success else '❌ FAIL'
         lines.extend(
             [
