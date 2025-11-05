@@ -14,8 +14,10 @@
 
 """Base Task class for MCP evaluations."""
 
+from .captor import Captor
 from .fixture_resolver import FixtureResolver
 from .process_executor import ProcessExecutor, SubprocessExecutor
+from .validator import Validator
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,16 +80,47 @@ class Task(ABC):
 
     @property
     @abstractmethod
-    def rubric(self) -> list[str]:
-        """Return validation criteria for this task."""
+    def rubric(self) -> List[str]:
+        """Return validation criteria that define task success.
+
+        The rubric is a list of criteria describing what the agent should accomplish.
+        Validators use these to judge whether the task was completed successfully.
+
+        Returns:
+            List of criteria strings (e.g., ["Identified root cause", "Proposed fix"])
+        """
         pass
 
-    def get_captors(self, context: Dict[str, Any]) -> List[Any]:
-        """Return captors for this task. Override to specify data to capture."""
+    def get_captors(self, context: Dict[str, Any]) -> List[Captor]:
+        """Return captors to collect data during task execution.
+
+        Captors extract information from the agent's execution (e.g., tool calls,
+        conversation history, git diffs). This data is passed to validators.
+
+        Common captors: GitDiffCaptor, ToolCallsCaptor, ConversationCaptor, FinalResponseCaptor
+
+        Args:
+            context: Runtime context (working_directory, bedrock_client)
+
+        Returns:
+            List of Captor instances (default: empty list)
+        """
         return []
 
-    def get_validators(self, context: Dict[str, Any]) -> List[Any]:
-        """Return validators for this task. Override to specify validation."""
+    def get_validators(self, context: Dict[str, Any]) -> List[Validator]:
+        """Return validators to evaluate task success.
+
+        Validators use the rubric and captured data to determine if the agent completed
+        the task successfully. Multiple validators can be combined.
+
+        Common validators: LLMJudgeValidator, BuildValidator
+
+        Args:
+            context: Runtime context (working_directory, bedrock_client)
+
+        Returns:
+            List of Validator instances (default: empty list)
+        """
         return []
 
     @property
