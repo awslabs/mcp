@@ -15,6 +15,7 @@
 """Executes prompts with agent loop, captors, and validators."""
 
 from .agent import run_agent_loop
+from .eval_runner_result import EvalRunnerResult
 from .metrics_tracker import MetricsTracker
 from .task import Task
 from loguru import logger
@@ -33,7 +34,7 @@ class PromptExecutor:
         session: ClientSession,
         tools_response: Any,
         context: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ) -> EvalRunnerResult:
         """Execute a prompt and gather all results.
 
         Args:
@@ -44,7 +45,7 @@ class PromptExecutor:
             context: Context dictionary with working_directory, bedrock_client
 
         Returns:
-            Result dictionary with success, validation_results, metrics, captured_data
+            EvalRunnerResult with success, validation_results, metrics, captured_data
         """
         logger.debug('Running eval for task')
 
@@ -72,13 +73,14 @@ class PromptExecutor:
 
         overall_pass = all(v.get('overall_pass', False) for v in validation_results)
 
-        return {
-            'prompt': prompt,
-            'success': overall_pass,
-            'validation_results': validation_results,
-            'metrics': metrics,
-            'captured_data': captured_data,
-        }
+        return EvalRunnerResult.from_success(
+            task_id=task.id,
+            prompt=prompt,
+            success=overall_pass,
+            validation_results=validation_results,
+            metrics=metrics,
+            captured_data=captured_data,
+        )
 
     async def _execute_captors(
         self,

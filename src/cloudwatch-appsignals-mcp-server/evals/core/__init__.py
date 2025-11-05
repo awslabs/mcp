@@ -38,6 +38,7 @@ from .llm_provider import LLMProvider, BedrockLLMProvider
 from .process_executor import ProcessExecutor, SubprocessExecutor
 from .fixture_resolver import FixtureResolver
 from .eval_runner import EvalRunner
+from .eval_runner_result import EvalRunnerResult
 
 # Mocking system
 from .mocking import MockHandler, Boto3MockHandler, MockHandlerRegistry, get_registry
@@ -55,6 +56,7 @@ __all__ = [
     'Captor',
     'Validator',
     'EvalRunner',
+    'EvalRunnerResult',
     # Built-in captors
     'GitDiffCaptor',
     'ToolCallsCaptor',

@@ -32,7 +32,7 @@ import boto3
 import importlib
 import sys
 import traceback
-from evals.core import EvalRunner
+from evals.core import EvalRunner, EvalRunnerResult
 from evals.core.constants import DEFAULT_AWS_REGION
 from evals.core.task import Task
 from loguru import logger
@@ -95,24 +95,24 @@ def discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
     return all_tasks, tasks_by_module
 
 
-def report_task_results(task: Any, result: Dict[str, Any]) -> None:
+def report_task_results(task: Any, result: EvalRunnerResult) -> None:
     """Report results for a single task.
 
     Args:
         task: Task instance
-        result: Result dictionary from EvalRunner
+        result: EvalRunnerResult from EvalRunner
     """
     print('\n' + '=' * 60)
     print(f'EVALUATION COMPLETE: {task.id}')
     print('=' * 60)
 
-    if result.get('error'):
+    if result.error:
         print('Status: ❌ ERROR')
-        logger.error(result['error'])
+        logger.error(result.error)
         print('=' * 60 + '\n')
         return
 
-    metrics = result['metrics']
+    metrics = result.metrics
     print(f'Duration: {metrics["task_duration"]:.2f}s')
     print(f'Turns: {metrics["turn_count"]}')
     print(f'Tool Calls: {metrics["tool_call_count"]} ({metrics["unique_tools_count"]} unique)')
@@ -129,7 +129,7 @@ def report_task_results(task: Any, result: Dict[str, Any]) -> None:
             )
 
     print('\nValidation Results:')
-    for validation_result in result['validation_results']:
+    for validation_result in result.validation_results:
         validator_name = validation_result.get('validator_name', 'Unknown')
         if validation_result.get('error'):
             print(f'  {validator_name}: ❌ ERROR')
@@ -145,7 +145,7 @@ def report_task_results(task: Any, result: Dict[str, Any]) -> None:
                 status_text = criterion_result['status']
                 print(f'    [{status_text}] {criterion_result["criterion"]}')
 
-    status = '✅ PASS' if result['success'] else '❌ FAIL'
+    status = '✅ PASS' if result.success else '❌ FAIL'
     print(f'\nOverall Task Status: {status}')
     print('=' * 60 + '\n')
 
