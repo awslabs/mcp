@@ -82,6 +82,7 @@ class FixtureResolver:
                 f"Expected request/response pair dict with 'request' and 'response' keys, got: {pair}"
             )
 
+        # TODO: Add support for file references in request field (currently only response supports files)
         response = pair['response']
         if isinstance(response, str) and (response.endswith('.json') or response.endswith('.txt')):
             response = str(fixtures_dir / response)
