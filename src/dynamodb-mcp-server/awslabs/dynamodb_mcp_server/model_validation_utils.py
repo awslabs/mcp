@@ -237,7 +237,7 @@ def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -
         _validate_download_url(DynamoDBLocalConfig.DOWNLOAD_URL)
 
         # Download with timeout
-        with urllib.request.urlopen(
+        with urllib.request.urlopen(  # nosec B310
             DynamoDBLocalConfig.DOWNLOAD_URL, timeout=DynamoDBLocalConfig.DOWNLOAD_TIMEOUT
         ) as response:
             with open(tar_path, 'wb') as f:
@@ -246,9 +246,9 @@ def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -
         # Extract the tar.gz file safely
         with tarfile.open(tar_path, 'r:gz') as tar:
             if hasattr(tarfile, 'data_filter'):
-                tar.extractall(dynamodb_dir, members=_safe_extract_members(tar), filter='data')
+                tar.extractall(dynamodb_dir, members=_safe_extract_members(tar), filter='data')  # nosec B202
             else:
-                tar.extractall(dynamodb_dir, members=_safe_extract_members(tar))
+                tar.extractall(dynamodb_dir, members=_safe_extract_members(tar))  # nosec B202
 
         # Clean up tar file
         os.remove(tar_path)

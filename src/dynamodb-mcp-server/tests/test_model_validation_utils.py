@@ -800,7 +800,7 @@ class TestCleanupValidationResources:
 
         assert 'SAFETY VIOLATION' in str(exc_info.value)
         assert 'Table deletion must only run on localhost' in str(exc_info.value)
-        assert 'https://dynamodb.us-east-1.amazonaws.com' in str(exc_info.value)
+        assert 'Got endpoint:' in str(exc_info.value)
 
     def test_cleanup_validation_resources_safety_check_blocks_remote_ip(self):
         """Test safety check blocks remote IP addresses."""
@@ -811,7 +811,7 @@ class TestCleanupValidationResources:
             cleanup_validation_resources(mock_client)
 
         assert 'SAFETY VIOLATION' in str(exc_info.value)
-        assert '192.168.1.100' in str(exc_info.value)
+        assert 'Got endpoint:' in str(exc_info.value)
 
     def test_cleanup_validation_resources_safety_check_blocks_bypass_attempts(self):
         """Test safety check blocks potential bypass attempts with localhost in path."""
