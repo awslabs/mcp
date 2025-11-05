@@ -15,7 +15,7 @@
 """Executes prompts with agent loop, captors, and validators."""
 
 from .agent import run_agent_loop
-from .metrics import MetricsTracker
+from .metrics_tracker import MetricsTracker
 from .task import Task
 from loguru import logger
 from mcp import ClientSession

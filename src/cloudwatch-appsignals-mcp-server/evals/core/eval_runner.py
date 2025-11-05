@@ -14,7 +14,7 @@
 
 """Evaluation runner orchestrating task execution."""
 
-from .executor import PromptExecutor
+from .prompt_executor import PromptExecutor
 from .mcp_client import connect_to_mcp_server
 from .task import Task
 from loguru import logger

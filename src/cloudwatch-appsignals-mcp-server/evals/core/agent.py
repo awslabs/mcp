@@ -21,7 +21,7 @@ import time
 from .constants import DEFAULT_MAX_TURNS, DEFAULT_MODEL_ID, DEFAULT_TEMPERATURE
 from .file_tools import get_file_tools
 from .mcp_client import convert_mcp_tools_to_bedrock
-from .metrics import MetricsTracker
+from .metrics_tracker import MetricsTracker
 from loguru import logger
 from mcp import ClientSession
 from pathlib import Path
