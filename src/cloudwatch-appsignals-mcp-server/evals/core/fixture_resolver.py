@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Fixture path resolution for mock configurations."""
+"""Fixture path resolution for mock configurations.
+
+Supported fixture file formats:
+- .json - Loaded and parsed as JSON
+- .txt - Loaded as plain text
+
+Other file extensions are treated as inline values and not loaded from disk.
+"""
 
 from pathlib import Path
 from typing import Any, Dict

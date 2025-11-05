@@ -100,6 +100,11 @@ mock_config = {'boto3': {}}  # Patches boto3, but all operations raise UnmockedM
 
 **Best practice:** Always mock all external libraries your MCP server uses to prevent accidental real API calls during testing.
 
+**Supported fixture formats:**
+- `.json` - Loaded and parsed as JSON
+- `.txt` - Loaded as plain text
+- Other file extensions or inline values are passed through as-is
+
 ## Extending the Framework
 
 ### Adding New Mock Handlers
