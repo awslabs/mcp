@@ -60,13 +60,19 @@ class Task(ABC):
 
     @abstractmethod
     def get_prompt(self, context: Dict[str, Any]) -> str:
-        """Return task prompt to send to the agent.
+        """Return the prompt/instruction to send to the AI agent.
+
+        The prompt is the core instruction that defines what the agent should do. It triggers
+        the agent's reasoning loop where it will use MCP tools to complete the task. The task's
+        success is measured by how well the agent fulfills this prompt according to the rubric.
 
         Args:
-            context: Runtime context (working_directory, bedrock_client)
+            context: Runtime context containing:
+                - working_directory: Path to task working directory
+                - bedrock_client: Boto3 Bedrock client for LLM calls
 
         Returns:
-            Prompt string to send to agent
+            Prompt string describing the task the agent should complete
         """
         pass
 
