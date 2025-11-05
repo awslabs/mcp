@@ -80,9 +80,9 @@ class CloudWatchAlarmsTools:
             Field(description='AWS region to query. Defaults to us-east-1.'),
         ] = 'us-east-1',
     ) -> ActiveAlarmsResponse:
-        """Gets all CloudWatch alarms currently in ALARM state.
+        """Gets all CloudWatch Alarms currently in ALARM state.
 
-        This tool retrieves all CloudWatch alarms that are currently in the ALARM state,
+        This tool retrieves all CloudWatch Alarms that are currently in the ALARM state,
         including both metric alarms and composite alarms. Results are optimized for
         LLM reasoning with summary-level information.
 
