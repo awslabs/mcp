@@ -16,7 +16,7 @@
 
 import asyncio
 import sys
-from evals.core.cli import main
+from evals.core.main import main
 
 
 if __name__ == '__main__':
