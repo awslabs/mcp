@@ -148,6 +148,7 @@ class MockHandler(ABC):
                 if not request_params:
                     return response
 
+                # TODO: Add support for more flexible matching (wildcards, negations, regex, etc.)
                 if all(kwargs.get(key) == value for key, value in request_params.items()):
                     return response
 
