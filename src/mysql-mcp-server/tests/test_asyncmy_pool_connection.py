@@ -97,7 +97,7 @@ async def test_execute_query_returns_results():
         conn.pool = fake_pool
         result = await conn.execute_query('SELECT id, name FROM users')
 
-        assert result['columnMetadata'] == [{'name': 'id'}, {'name': 'name'}]
+        assert result['columnMetadata'] == [{'label': 'id'}, {'label': 'name'}]
         assert result['records'] == [
             [{'longValue': 1}, {'stringValue': 'Alice'}],
             [{'longValue': 2}, {'stringValue': 'Bob'}],
@@ -400,13 +400,13 @@ async def test_execute_query_readonly_and_parameter_types_mapped_boolean_as_long
 
         fake_cursor.execute.assert_any_await('SET TRANSACTION READ ONLY')
         assert result['columnMetadata'] == [
-            {'name': 'n'},
-            {'name': 's'},
-            {'name': 'i'},
-            {'name': 'f'},
-            {'name': 'b'},
-            {'name': 'blob'},
-            {'name': 'odd'},
+            {'label': 'n'},
+            {'label': 's'},
+            {'label': 'i'},
+            {'label': 'f'},
+            {'label': 'b'},
+            {'label': 'blob'},
+            {'label': 'odd'},
         ]
         # Note: bool mapped via int branch -> {'longValue': True}
         assert result['records'] == [

@@ -17,13 +17,13 @@ import pytest
 from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
     AlarmRecommendation,
     AlarmRecommendationDimension,
-    AlarmRecommendationThreshold,
     Dimension,
     GetMetricDataResponse,
     MetricDataPoint,
     MetricDataResult,
     MetricMetadata,
     MetricMetadataIndexKey,
+    StaticAlarmThreshold,
 )
 from datetime import datetime
 from pydantic import ValidationError
@@ -257,19 +257,6 @@ class TestDimensionValidation:
             Dimension()  # type: ignore[call-arg] # Missing name and value
 
 
-class TestAlarmRecommendationThreshold:
-    """Tests for AlarmRecommendationThreshold model."""
-
-    def test_alarm_recommendation_threshold_creation(self):
-        """Test creating an alarm recommendation threshold."""
-        threshold = AlarmRecommendationThreshold(
-            staticValue=80.0, justification='CPU usage should not exceed 80%'
-        )
-
-        assert threshold.staticValue == 80.0
-        assert threshold.justification == 'CPU usage should not exceed 80%'
-
-
 class TestAlarmRecommendationDimension:
     """Tests for TestAlarmRecommendationDimension model."""
 
@@ -292,13 +279,11 @@ class TestAlarmRecommendation:
     """Tests for AlarmRecommendation model."""
 
     def test_alarm_recommendation_creation(self):
-        """Test creating a complete alarm recommendation."""
-        threshold = AlarmRecommendationThreshold(
-            staticValue=80.0, justification='Test justification'
-        )
+        """Test creating an alarm recommendation."""
+        threshold = StaticAlarmThreshold(staticValue=80.0, justification='Test justification')
 
         dimensions = [
-            AlarmRecommendationDimension(name='InstanceId'),
+            AlarmRecommendationDimension(name='InstanceId', value='i-1234567890abcdef0'),
             AlarmRecommendationDimension(name='Role', value='WRITER'),
         ]
 
@@ -313,9 +298,11 @@ class TestAlarmRecommendation:
             treatMissingData='missing',
             dimensions=dimensions,
             intent='Test alarm intent',
+            cloudformation_template={'test': 'template'},
         )
 
         assert alarm.alarmDescription == 'Test alarm description'
+        assert isinstance(alarm.threshold, StaticAlarmThreshold)
         assert alarm.threshold.staticValue == 80.0
         assert alarm.period == 300
         assert alarm.comparisonOperator == 'GreaterThanThreshold'
@@ -325,10 +312,11 @@ class TestAlarmRecommendation:
         assert alarm.treatMissingData == 'missing'
         assert len(alarm.dimensions) == 2
         assert alarm.intent == 'Test alarm intent'
+        assert alarm.cloudformation_template == {'test': 'template'}
 
     def test_alarm_recommendation_with_minimal_fields(self):
-        """Test creating alarm recommendation with minimal required fields."""
-        threshold = AlarmRecommendationThreshold(staticValue=1.0, justification='Test')
+        """Test creating an alarm recommendation with minimal fields."""
+        threshold = StaticAlarmThreshold(staticValue=1.0, justification='Test')
 
         alarm = AlarmRecommendation(
             alarmDescription='Minimal alarm',
@@ -344,3 +332,111 @@ class TestAlarmRecommendation:
 
         assert alarm.alarmDescription == 'Minimal alarm'
         assert len(alarm.dimensions) == 0  # Default empty list
+        assert alarm.cloudformation_template is None  # Default None for non-anomaly alarms
+
+    def test_alarm_recommendation_serialization(self):
+        """Test alarm recommendation serialization."""
+        threshold = StaticAlarmThreshold(staticValue=80.0, justification='Test')
+        alarm = AlarmRecommendation(
+            alarmDescription='Test',
+            threshold=threshold,
+            period=300,
+            comparisonOperator='GreaterThanThreshold',
+            statistic='Average',
+            evaluationPeriods=1,
+            datapointsToAlarm=1,
+            treatMissingData='missing',
+            intent='Test',
+            cloudformation_template={'test': 'value'},
+        )
+
+        serialized = alarm.model_dump()
+        assert 'alarmDescription' in serialized
+        assert 'cloudformation_template' in serialized
+        assert serialized['cloudformation_template'] == {'test': 'value'}
+
+    def test_alarm_recommendation_serialization_without_template(self):
+        """Test alarm recommendation serialization without cloudformation_template."""
+        threshold = StaticAlarmThreshold(staticValue=80.0, justification='Test')
+        alarm = AlarmRecommendation(
+            alarmDescription='Test',
+            threshold=threshold,
+            period=300,
+            comparisonOperator='GreaterThanThreshold',
+            statistic='Average',
+            evaluationPeriods=1,
+            datapointsToAlarm=1,
+            treatMissingData='missing',
+            intent='Test',
+        )
+
+        serialized = alarm.model_dump()
+        assert 'alarmDescription' in serialized
+        assert 'cloudformation_template' not in serialized
+
+
+class TestAnomalyDetectionAlarmThreshold:
+    """Tests for AnomalyDetectionAlarmThreshold model."""
+
+    def test_sensitivity_validation_invalid_zero(self):
+        """Test sensitivity validation rejects zero."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+            AnomalyDetectionAlarmThreshold,
+        )
+
+        with pytest.raises(
+            ValueError, match='Sensitivity must be above 0 and less than or equal to 100'
+        ):
+            AnomalyDetectionAlarmThreshold(sensitivity=0, justification='Test')
+
+    def test_sensitivity_validation_invalid_negative(self):
+        """Test sensitivity validation rejects negative values."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+            AnomalyDetectionAlarmThreshold,
+        )
+
+        with pytest.raises(
+            ValueError, match='Sensitivity must be above 0 and less than or equal to 100'
+        ):
+            AnomalyDetectionAlarmThreshold(sensitivity=-1, justification='Test')
+
+    def test_sensitivity_validation_invalid_over_100(self):
+        """Test sensitivity validation rejects values over 100."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import (
+            AnomalyDetectionAlarmThreshold,
+        )
+
+        with pytest.raises(
+            ValueError, match='Sensitivity must be above 0 and less than or equal to 100'
+        ):
+            AnomalyDetectionAlarmThreshold(sensitivity=101, justification='Test')
+
+
+class TestMetricData:
+    """Tests for the MetricData model."""
+
+    def test_metric_data_valid(self):
+        """Test MetricData with valid data."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
+        data = MetricData(
+            period_seconds=60, timestamps=[1000, 2000, 3000], values=[10.0, 20.0, 30.0]
+        )
+
+        assert data.period_seconds == 60
+        assert len(data.timestamps) == 3
+        assert len(data.values) == 3
+
+    def test_metric_data_mismatched_lengths(self):
+        """Test MetricData with mismatched timestamp/value lengths."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
+        with pytest.raises(ValueError, match='Timestamps and values must have the same length'):
+            MetricData(period_seconds=60, timestamps=[1000, 2000], values=[10.0, 20.0, 30.0])
+
+    def test_metric_data_invalid_period(self):
+        """Test MetricData with invalid period."""
+        from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.models import MetricData
+
+        with pytest.raises(ValueError, match='Timeseries must have a period >= 0'):
+            MetricData(period_seconds=0, timestamps=[1000], values=[10.0])
