@@ -257,12 +257,7 @@ async def main():
     # Create runner and execute tasks
     try:
         runner = EvalRunner(tasks=tasks)
-
-        # Execute each task
-        results = []
-        for task in tasks:
-            result = await runner.run_task(task, bedrock_client, args.verbose)
-            results.append(result)
+        results = await runner.run_all(bedrock_client, args.verbose)
 
         # Report results and cleanup
         for task, result in zip(tasks, results):
