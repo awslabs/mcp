@@ -60,7 +60,7 @@ class DynamoDBClientConfig:
     DEFAULT_REGION = 'us-east-1'
 
 
-def _create_dynamodb_client(endpoint_url: Optional[str] = None) -> boto3.client:
+def _create_dynamodb_client(endpoint_url: Optional[str] = None):
     """Create a DynamoDB client with appropriate configuration.
 
     Args:
@@ -588,6 +588,9 @@ def check_dynamodb_readiness(endpoint: str) -> str:
             )
             time.sleep(DynamoDBLocalConfig.SLEEP_INTERVAL)
 
+    # This should never be reached due to the exception in the loop, but added for type safety
+    raise RuntimeError(f'DynamoDB Local failed to start at {endpoint}')
+
 
 def setup_dynamodb_local() -> str:
     """Setup DynamoDB Local environment.
@@ -645,7 +648,7 @@ def create_validation_resources(
     return {'tables': table_creation_response, 'items': item_insertion_response}
 
 
-def cleanup_validation_resources(dynamodb_client: boto3.client) -> Dict[str, Any]:
+def cleanup_validation_resources(dynamodb_client) -> Dict[str, Any]:
     """Clean up all existing tables in DynamoDB Local from previous DynamoDB data model validation.
 
     This function removes all tables that were created during previous validation runs,
@@ -690,7 +693,7 @@ def cleanup_validation_resources(dynamodb_client: boto3.client) -> Dict[str, Any
     return cleanup_response
 
 
-def list_tables(dynamodb_client: boto3.client) -> list:
+def list_tables(dynamodb_client) -> list:
     """List all DynamoDB tables in the local environment for data model validation.
 
     Retrieves all table names from DynamoDB Local to support cleanup and validation operations.
@@ -708,7 +711,7 @@ def list_tables(dynamodb_client: boto3.client) -> list:
         return []
 
 
-def create_tables(dynamodb_client: boto3.client, tables: list) -> Dict[str, Any]:
+def create_tables(dynamodb_client, tables: list) -> Dict[str, Any]:
     """Create DynamoDB tables.
 
     Args:
@@ -742,7 +745,7 @@ def create_tables(dynamodb_client: boto3.client, tables: list) -> Dict[str, Any]
     return table_creation_response
 
 
-def insert_items(dynamodb_client: boto3.client, items: dict) -> Dict[str, Any]:
+def insert_items(dynamodb_client, items: dict) -> Dict[str, Any]:
     """Insert items into DynamoDB tables using batch_write_item.
 
     Args:
@@ -789,7 +792,7 @@ def get_user_working_directory() -> str:
     Returns:
         str: The user's current working directory path
     """
-    return os.environ.get('PWD') or os.environ.get('CD')
+    return os.environ.get('PWD') or os.environ.get('CD') or os.getcwd()
 
 
 def get_validation_result_transform_prompt() -> str:

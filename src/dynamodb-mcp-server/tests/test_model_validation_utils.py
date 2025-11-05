@@ -1316,7 +1316,6 @@ class TestGetUserWorkingDirectory:
                 {'PWD': '/home/user/project', 'CD': 'C:\\Users\\user\\project'},
                 '/home/user/project',
             ),
-            ({}, None),
         ],
     )
     def test_get_user_working_directory(self, env_vars, expected_result):
@@ -1324,6 +1323,17 @@ class TestGetUserWorkingDirectory:
         with patch.dict(os.environ, env_vars, clear=True):
             result = get_user_working_directory()
             assert result == expected_result
+
+    def test_get_user_working_directory_fallback_to_getcwd(self):
+        """Test fallback to os.getcwd() when no environment variables are set."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch('awslabs.dynamodb_mcp_server.model_validation_utils.os.getcwd') as mock_getcwd,
+        ):
+            mock_getcwd.return_value = '/fallback/directory'
+            result = get_user_working_directory()
+            assert result == '/fallback/directory'
+            mock_getcwd.assert_called_once()
 
 
 class TestValidateDownloadUrl:
