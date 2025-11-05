@@ -1,0 +1,28 @@
+{
+  "name": "lambda-apigateway-cdk-dotnet",
+  "version": "0.1.0",
+  "bin": {
+    "lambda-apigateway-cdk-dotnet": "bin/app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "deploy": "cdk deploy --outputs-file outputs.json --require-approval never",
+    "destroy": "cdk destroy --force"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.4.0",
+    "@types/node": "18.14.6",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "aws-cdk": "2.167.1",
+    "ts-node": "^10.9.1",
+    "typescript": "~4.9.5"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.167.1",
+    "constructs": "^10.0.0"
+  }
+}
