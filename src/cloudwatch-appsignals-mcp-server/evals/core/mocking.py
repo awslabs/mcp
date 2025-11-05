@@ -110,6 +110,19 @@ class MockHandler(ABC):
         Returns:
             List of resolved mock responses
         """
+        if not isinstance(arg_response_pairs, list):
+            raise ValueError(
+                f'Invalid mock configuration. '
+                f'Expected list of request/response pairs, got: {type(arg_response_pairs)}. '
+                f"Use format: [{{'request': {{}}, 'response': 'fixture.json'}}]"
+            )
+
+        if not arg_response_pairs:
+            raise ValueError(
+                'Invalid mock configuration. '
+                "Lists must contain at least one dict with 'request' and 'response' keys."
+            )
+
         return [self.resolve_method_mock_config(pair, fixtures_dir) for pair in arg_response_pairs]
 
 
@@ -178,24 +191,6 @@ class Boto3MockHandler(MockHandler):
             method_mock_configs = self.service_method_mock_configs[service_name]
 
             for operation, response_data in method_mock_configs.items():
-                if not isinstance(response_data, list):
-                    raise ValueError(
-                        f'Invalid mock configuration for {service_name}.{operation}. '
-                        f'Expected list of request/response pairs, got: {type(response_data)}. '
-                        f"Use format: [{{'request': {{}}, 'response': 'fixture.json'}}]"
-                    )
-
-                if (
-                    not response_data
-                    or not isinstance(response_data[0], dict)
-                    or 'request' not in response_data[0]
-                ):
-                    raise ValueError(
-                        f'Invalid mock configuration for {service_name}.{operation}. '
-                        f"Lists must contain dicts with 'request' and 'response' keys. "
-                        f'Got: {response_data}'
-                    )
-
                 mock_method = self._create_parameter_aware_mock(operation, response_data)
                 setattr(mock_client, operation, mock_method)
 
