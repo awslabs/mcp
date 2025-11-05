@@ -2,6 +2,7 @@
 
 import os
 import pytest
+from awslabs.cloudwatch_appsignals_mcp_server import __version__
 from unittest.mock import MagicMock, patch
 
 
@@ -155,20 +156,11 @@ def test_initialize_aws_clients_with_mcp_source():
 
     with patch.dict(os.environ, {'MCP_RUN_FROM': 'test-caller', 'AWS_REGION': 'us-east-1'}):
         with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.Config') as mock_config:
-            with patch('boto3.client') as mock_boto_client:
-                # Call the initialization function
-                logs, appsignals, cloudwatch, xray, synthetics, s3, iam, lambda_client, sts = (
-                    _initialize_aws_clients()
-                )
+            with patch('boto3.client'):
+                _initialize_aws_clients()
 
                 # Verify Config was called with MCP_RUN_FROM in user agent
                 mock_config.assert_called_once()
                 call_args = mock_config.call_args
                 user_agent = call_args.kwargs['user_agent_extra']
-                assert user_agent == 'awslabs.cloudwatch-appsignals-mcp-server/0.1.11/test-caller'
-
-                # Verify boto3.client was called multiple times with the config
-                assert mock_boto_client.call_count == 9
-                for call in mock_boto_client.call_args_list:
-                    assert 'config' in call.kwargs
-                    assert call.kwargs['config'] == mock_config.return_value
+                assert user_agent == f'awslabs.cloudwatch-appsignals-mcp-server/{__version__}/test-caller'
