@@ -125,6 +125,39 @@ class MockHandler(ABC):
 
         return [self.resolve_method_mock_config(pair, fixtures_dir) for pair in arg_response_pairs]
 
+    def _create_parameter_aware_mock(self, operation: str, matchers: list) -> MagicMock:
+        """Create a mock that matches on parameters.
+
+        Matching rules:
+        - Empty request dict {} matches any parameters (wildcard)
+        - Non-empty request dict matches when all specified params are present and equal
+
+        Args:
+            operation: Operation name (for error messages)
+            matchers: List of dicts with 'request' and 'response' keys
+
+        Returns:
+            MagicMock that returns responses based on parameter matching
+        """
+
+        def mock_implementation(**kwargs):
+            for matcher in matchers:
+                request_params = matcher.get('request', {})
+                response = matcher.get('response')
+
+                if not request_params:
+                    return response
+
+                if all(kwargs.get(key) == value for key, value in request_params.items()):
+                    return response
+
+            raise ValueError(
+                f'No mock response found for {operation} with parameters: {kwargs}\n'
+                f'Available request patterns: {[m.get("request") for m in matchers]}'
+            )
+
+        return MagicMock(side_effect=mock_implementation)
+
 
 class Boto3MockHandler(MockHandler):
     """Mock handler for boto3 clients.
@@ -195,39 +228,6 @@ class Boto3MockHandler(MockHandler):
                 setattr(mock_client, operation, mock_method)
 
         return mock_client
-
-    def _create_parameter_aware_mock(self, operation: str, matchers: list) -> MagicMock:
-        """Create a mock that matches on parameters.
-
-        Matching rules:
-        - Empty request dict {} matches any parameters (wildcard)
-        - Non-empty request dict matches when all specified params are present and equal
-
-        Args:
-            operation: Operation name (for error messages)
-            matchers: List of dicts with 'request' and 'response' keys
-
-        Returns:
-            MagicMock that returns responses based on parameter matching
-        """
-
-        def mock_implementation(**kwargs):
-            for matcher in matchers:
-                request_params = matcher.get('request', {})
-                response = matcher.get('response')
-
-                if not request_params:
-                    return response
-
-                if all(kwargs.get(key) == value for key, value in request_params.items()):
-                    return response
-
-            raise ValueError(
-                f'No mock response found for {operation} with parameters: {kwargs}\n'
-                f'Available request patterns: {[m.get("request") for m in matchers]}'
-            )
-
-        return MagicMock(side_effect=mock_implementation)
 
 
 class MockHandlerRegistry:
