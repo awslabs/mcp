@@ -29,6 +29,31 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
 
+class UnmockedMethodError(Exception):
+    """Raised when code attempts to call a method that hasn't been mocked.
+
+    This indicates incomplete mock configuration. The error message clearly indicates
+    what method is missing and how to fix it.
+    """
+
+    def __init__(self, service_name: str, method_name: str, available_methods: List[str]):
+        """Initialize UnmockedMethodError.
+
+        Args:
+            service_name: Name of the service (e.g., 'cloudwatch')
+            method_name: Name of the unmocked method that was called
+            available_methods: List of methods that are mocked
+        """
+        self.service_name = service_name
+        self.method_name = method_name
+        self.available_methods = available_methods
+        super().__init__(
+            f"Unmocked method '{method_name}' called on {service_name} client. "
+            f'Available mocked methods: {available_methods}. '
+            f"Add '{method_name}' to your mock configuration to fix this."
+        )
+
+
 class MockHandler(ABC):
     """Base class for library-specific mock handlers.
 
@@ -110,13 +135,6 @@ class MockHandler(ABC):
         Returns:
             List of resolved mock responses
         """
-        if not isinstance(arg_response_pairs, list):
-            raise ValueError(
-                f'Invalid mock configuration. '
-                f'Expected list of request/response pairs, got: {type(arg_response_pairs)}. '
-                f"Use format: [{{'request': {{}}, 'response': 'fixture.json'}}]"
-            )
-
         if not arg_response_pairs:
             raise ValueError(
                 'Invalid mock configuration. '
@@ -217,16 +235,21 @@ class Boto3MockHandler(MockHandler):
             **kwargs: Additional client parameters (ignored)
 
         Returns:
-            Mocked client with predefined responses
+            Mocked client with predefined responses. Calls to unmocked methods will raise UnmockedMethodError.
         """
-        mock_client = MagicMock()
+        method_mock_configs = self.service_method_mock_configs.get(service_name, {})
 
-        if service_name in self.service_method_mock_configs:
-            method_mock_configs = self.service_method_mock_configs[service_name]
+        class MockClient:
+            """Dynamic mock client that raises UnmockedMethodError for unmocked methods."""
 
-            for operation, response_data in method_mock_configs.items():
-                mock_method = self._create_parameter_aware_mock(operation, response_data)
-                setattr(mock_client, operation, mock_method)
+            def __getattr__(self, name):
+                raise UnmockedMethodError(service_name, name, list(method_mock_configs.keys()))
+
+        mock_client = MockClient()
+
+        for operation, response_data in method_mock_configs.items():
+            mock_method = self._create_parameter_aware_mock(operation, response_data)
+            setattr(mock_client, operation, mock_method)
 
         return mock_client
 
