@@ -51,6 +51,7 @@ def convert_mcp_tools_to_bedrock(mcp_tools) -> List[Dict[str, Any]]:
     return bedrock_tools
 
 
+# TODO: Add path validation to restrict file operations to workspace directory
 async def execute_tool(
     tool_name: str,
     tool_input: Dict[str, Any],
