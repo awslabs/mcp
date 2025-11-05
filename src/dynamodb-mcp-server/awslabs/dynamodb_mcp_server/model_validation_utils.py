@@ -55,8 +55,8 @@ class ContainerTools:
 class DynamoDBClientConfig:
     """Configuration for DynamoDB client setup."""
 
-    DUMMY_ACCESS_KEY = 'test-access-key-id'  # pragma: allowlist secret
-    DUMMY_SECRET_KEY = 'test-secret-access-key'  # pragma: allowlist secret
+    DUMMY_ACCESS_KEY = 'FakeAccessKeyID'  # pragma: allowlist secret
+    DUMMY_SECRET_KEY = 'FakeSecretAccessKey'  # pragma: allowlist secret
     DEFAULT_REGION = 'us-east-1'
 
 
@@ -612,7 +612,7 @@ def setup_dynamodb_local() -> str:
         return endpoint
 
     raise RuntimeError(
-        'No working container tool or Java found. Please install and start a container tool (Docker, Finch, Podman, or nerdctl) or install Java JRE version 8.x or newer and set JAVA_HOME or system PATH to run DynamoDB Local for data model validation.'
+        'No working container tool or Java found. Please install and start a container tool (Docker, Finch, Podman, or nerdctl) or install Java JRE version 17.x or newer and set JAVA_HOME or system PATH to run DynamoDB Local for data model validation.'
     )
 
 

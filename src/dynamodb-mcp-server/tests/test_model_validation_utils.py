@@ -1298,8 +1298,8 @@ class TestCheckDynamodbReadiness:
             mock_boto3.assert_called_once_with(
                 'dynamodb',
                 endpoint_url='http://localhost:8000',
-                aws_access_key_id='test-access-key-id',  # pragma: allowlist secret
-                aws_secret_access_key='test-secret-access-key',  # pragma: allowlist secret
+                aws_access_key_id='FakeAccessKeyID',  # pragma: allowlist secret
+                aws_secret_access_key='FakeSecretAccessKey',  # pragma: allowlist secret
                 region_name='eu-west-1',
             )
 
