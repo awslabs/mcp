@@ -67,6 +67,39 @@ TASKS = [
 
 The framework will automatically discover and load all `*_tasks.py` files in your task directory.
 
+### Mock Configuration
+
+The evaluation framework supports mocking external dependencies (boto3, requests, etc.) to isolate tests from real API calls.
+
+**Important behavior:**
+- Only libraries listed in your mock config get patched
+- Libraries not in the mock config will make **real API calls** during evaluation
+- For patched libraries, unmocked operations raise `UnmockedMethodError` with helpful messages
+
+**Example:**
+```python
+mock_config = {
+    'boto3': {
+        'application-signals': {
+            'list_services': [{'request': {}, 'response': 'fixtures/services.json'}]
+        }
+    }
+}
+```
+
+In this example:
+- `boto3` is patched - all calls go through the mock system
+- `list_services` is mocked - returns fixture data
+- Other boto3 operations (e.g., `get_service_level_objective`) raise `UnmockedMethodError`
+- Other libraries (e.g., `requests`) make real API calls
+
+**Minimal stub configuration:**
+```python
+mock_config = {'boto3': {}}  # Patches boto3, but all operations raise UnmockedMethodError
+```
+
+**Best practice:** Always mock all external libraries your MCP server uses to prevent accidental real API calls during testing.
+
 ## Extending the Framework
 
 ### Adding New Mock Handlers
