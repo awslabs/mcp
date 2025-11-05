@@ -1,0 +1,45 @@
+[project]
+name = "awslabs.{{cookiecutter.project_domain | lower | replace(' ', '-') | replace('_', '-')}}-mcp-server"
+
+version = "0.0.0"
+
+description = "An AWS Model Context Protocol (MCP) server"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE" ]
+authors = [
+    {name = "Amazon Web Services"},
+    {name = "AWSLabs MCP", email="203918161+awslabs-mcp@users.noreply.github.com"},
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+homepage = "https://awslabs.github.io/mcp/"
+docs = "https://awslabs.github.io/mcp/"
+repository = "https://github.com/awslabs/mcp.git"
+
+[dependency-groups]
+dev = [
+    "twine>=6.2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
