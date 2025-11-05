@@ -181,12 +181,48 @@ def _extract_port_from_cmdline(cmdline: list) -> Optional[int]:
     return None
 
 
+def _safe_extract_members(members):
+    """Filter tar members to prevent path traversal attacks.
+
+    Args:
+        members: Iterable of tar members
+
+    Yields:
+        Safe tar members that don't contain path traversal sequences
+    """
+    for member in members:
+        if os.path.isabs(member.name) or '..' in member.name:
+            continue
+        yield member
+
+
 def _get_dynamodb_local_paths() -> tuple[str, str, str]:
     """Get paths for DynamoDB Local artifacts."""
     dynamodb_dir = os.path.join(tempfile.gettempdir(), DynamoDBLocalConfig.TEMP_DIR_NAME)
     jar_path = os.path.join(dynamodb_dir, 'DynamoDBLocal.jar')
     lib_path = os.path.join(dynamodb_dir, 'DynamoDBLocal_lib')
     return dynamodb_dir, jar_path, lib_path
+
+
+def _validate_download_url(url: str) -> None:
+    """Validate download URL to prevent security issues.
+
+    Args:
+        url: URL to validate
+
+    Raises:
+        ValueError: If URL is not safe to use
+    """
+    if not url.startswith('https://'):
+        raise ValueError(f'Only HTTPS URLs are allowed, got: {url}')
+
+    # Only allow AWS CloudFront domains for DynamoDB Local downloads
+    allowed_domains = ['d1ni2b6xgvw0s0.cloudfront.net']
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.hostname not in allowed_domains:
+        raise ValueError(f'URL domain not allowed: {parsed.hostname}')
 
 
 def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -> None:
@@ -196,6 +232,9 @@ def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -
     logger.info('Downloading DynamoDB Local...')
 
     try:
+        # Validate URL before download
+        _validate_download_url(DynamoDBLocalConfig.DOWNLOAD_URL)
+
         # Download with timeout
         with urllib.request.urlopen(
             DynamoDBLocalConfig.DOWNLOAD_URL, timeout=DynamoDBLocalConfig.DOWNLOAD_TIMEOUT
@@ -203,12 +242,12 @@ def _download_and_extract_jar(dynamodb_dir: str, jar_path: str, lib_path: str) -
             with open(tar_path, 'wb') as f:
                 f.write(response.read())
 
-        # Extract the tar.gz file
+        # Extract the tar.gz file safely
         with tarfile.open(tar_path, 'r:gz') as tar:
             if hasattr(tarfile, 'data_filter'):
-                tar.extractall(dynamodb_dir, filter='data')
+                tar.extractall(dynamodb_dir, members=_safe_extract_members(tar), filter='data')
             else:
-                tar.extractall(dynamodb_dir)
+                tar.extractall(dynamodb_dir, members=_safe_extract_members(tar))
 
         # Clean up tar file
         os.remove(tar_path)

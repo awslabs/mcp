@@ -17,6 +17,8 @@ import pytest
 import subprocess
 from awslabs.dynamodb_mcp_server.model_validation_utils import (
     _extract_port_from_cmdline,
+    _safe_extract_members,
+    _validate_download_url,
     check_dynamodb_readiness,
     cleanup_validation_resources,
     create_tables,
@@ -1088,7 +1090,10 @@ class TestDownloadDynamodbLocalJar:
 
             mock_makedirs.assert_called_once()
             mock_urlopen.assert_called_once()
-            mock_tar.extractall.assert_called_once()
+            # Verify safe extraction was used
+            call_args = mock_tar.extractall.call_args
+            assert call_args[0][0] == '/tmp/dynamodb-local-model-validation'
+            assert 'members' in call_args[1]
             mock_remove.assert_called_once()
 
     def test_download_dynamodb_local_jar_download_failure(self):
@@ -1171,10 +1176,11 @@ class TestDownloadDynamodbLocalJar:
             with patch('tarfile.data_filter', create=True), patch('builtins.open', mock_open()):
                 jar_path, lib_path = download_dynamodb_local_jar()
 
-            # Verify data filter was used
-            mock_tar.extractall.assert_called_once_with(
-                '/tmp/dynamodb-local-model-validation', filter='data'
-            )
+            # Verify data filter was used with safe extraction
+            call_args = mock_tar.extractall.call_args
+            assert call_args[0][0] == '/tmp/dynamodb-local-model-validation'
+            assert 'members' in call_args[1]
+            assert call_args[1]['filter'] == 'data'
 
 
 class TestCheckDynamodbReadiness:
@@ -1278,6 +1284,91 @@ class TestGetUserWorkingDirectory:
         with patch.dict(os.environ, env_vars, clear=True):
             result = get_user_working_directory()
             assert result == expected_result
+
+
+class TestValidateDownloadUrl:
+    """Test cases for _validate_download_url function."""
+
+    def test_validate_download_url_valid_https(self):
+        """Test validation passes for valid HTTPS AWS CloudFront URL."""
+        valid_url = 'https://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz'
+        _validate_download_url(valid_url)  # Should not raise
+
+    def test_validate_download_url_rejects_http(self):
+        """Test validation rejects HTTP URLs."""
+        http_url = 'http://d1ni2b6xgvw0s0.cloudfront.net/v2.x/dynamodb_local_latest.tar.gz'
+        with pytest.raises(ValueError, match='Only HTTPS URLs are allowed'):
+            _validate_download_url(http_url)
+
+    def test_validate_download_url_rejects_file_scheme(self):
+        """Test validation rejects file:// URLs."""
+        file_url = 'file:///etc/passwd'
+        with pytest.raises(ValueError, match='Only HTTPS URLs are allowed'):
+            _validate_download_url(file_url)
+
+    def test_validate_download_url_rejects_unknown_domain(self):
+        """Test validation rejects URLs from unknown domains."""
+        malicious_url = 'https://malicious.example.com/malware.tar.gz'
+        with pytest.raises(ValueError, match='URL domain not allowed'):
+            _validate_download_url(malicious_url)
+
+
+class TestSafeExtractMembers:
+    """Test cases for _safe_extract_members function."""
+
+    def test_safe_extract_members_allows_safe_paths(self):
+        """Test safe extraction allows normal file paths."""
+
+        class MockMember:
+            def __init__(self, name):
+                self.name = name
+
+        safe_members = [
+            MockMember('DynamoDBLocal.jar'),
+            MockMember('DynamoDBLocal_lib/file.so'),
+            MockMember('subdir/file.txt'),
+        ]
+
+        result = list(_safe_extract_members(safe_members))
+        assert len(result) == 3
+        assert all(
+            member.name in ['DynamoDBLocal.jar', 'DynamoDBLocal_lib/file.so', 'subdir/file.txt']
+            for member in result
+        )
+
+    def test_safe_extract_members_blocks_absolute_paths(self):
+        """Test safe extraction blocks absolute paths."""
+
+        class MockMember:
+            def __init__(self, name):
+                self.name = name
+
+        dangerous_members = [
+            MockMember('/etc/passwd'),
+            MockMember('/usr/bin/malware'),
+            MockMember('safe_file.txt'),
+        ]
+
+        result = list(_safe_extract_members(dangerous_members))
+        assert len(result) == 1
+        assert result[0].name == 'safe_file.txt'
+
+    def test_safe_extract_members_blocks_directory_traversal(self):
+        """Test safe extraction blocks directory traversal sequences."""
+
+        class MockMember:
+            def __init__(self, name):
+                self.name = name
+
+        dangerous_members = [
+            MockMember('../../../etc/passwd'),
+            MockMember('subdir/../../../malware'),
+            MockMember('safe_file.txt'),
+        ]
+
+        result = list(_safe_extract_members(dangerous_members))
+        assert len(result) == 1
+        assert result[0].name == 'safe_file.txt'
 
 
 class TestGetValidationResultTransformPrompt:
