@@ -77,6 +77,7 @@ class MockHandler(ABC):
                 f'got keys: {list(arg_response_pair.keys())}'
             )
 
+        # TODO: Add support for exception mocking (e.g., {'request': {...}, 'exception': SomeException(...)})
         response = arg_response_pair['response']
 
         if isinstance(response, str) and (response.endswith('.json') or response.endswith('.txt')):
