@@ -1325,10 +1325,14 @@ class TestGetPricingAttributeValues:
             expected = {'instanceType': ['m5.large', 't2.micro', 't2.small', 't3.medium']}
             assert result == expected
             assert pricing_client.get_attribute_values.call_count == 2
-            assert (
-                pricing_client.get_attribute_values.call_args_list[1][1].get('NextToken')
-                == 'token'
-            )
+
+            # Verify MaxResults=5000 is used in both calls
+            first_call_kwargs = pricing_client.get_attribute_values.call_args_list[0][1]
+            assert first_call_kwargs.get('MaxResults') == 5000
+
+            second_call_kwargs = pricing_client.get_attribute_values.call_args_list[1][1]
+            assert second_call_kwargs.get('MaxResults') == 5000
+            assert second_call_kwargs.get('NextToken') == 'token'
 
     @pytest.mark.asyncio
     async def test_get_pricing_attribute_values_empty_attribute_list(
