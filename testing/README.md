@@ -32,11 +32,11 @@ testing/
 
 The test framework uses the official MCP SDK. It will rely on it as a dependency in your server configuration.
 
-Create integration tests for your MCP server in `src/<server-name>/integ/`
+Create integration tests for your MCP server in `src/<server-name>/tests/`
 
 ### Writing Tests
 
-Create a test file following the naming convention `<test_name>.py`:
+Create a test file following the naming convention `test_integ_<test_name>.py`:
 
 ```python
 import pytest
@@ -94,13 +94,13 @@ Run tests using pytest:
 
 ```bash
 # Run all integration tests
-pytest src/*/integ/ -v
+pytest src/*/tests/test_integ_*.py -v -v
 
 # Run tests for a specific server
-pytest src/aws-documentation-mcp-server/integ/ -v
+pytest src/aws-documentation-mcp-server/tests/test_integ_*.py -v
 
 # Run tests in parallel
-pytest src/*/integ/ -n 4
+pytest src/*/tests/test_integ_*.py -v -n 4
 ```
 
 ## Test Configuration
@@ -108,6 +108,7 @@ pytest src/*/integ/ -n 4
 ### Basic Protocol Tests
 
 The framework automatically runs these basic tests:
+
 - Connection establishment
 - Ping test (via tools listing)
 - Capabilities discovery

@@ -111,7 +111,6 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.pytest.ini_options]
-python_files = ["test_*.py", "integ.*.py"]
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
     "asyncio: marks tests that use asyncio"
@@ -120,7 +119,7 @@ asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.bandit]
-exclude_dirs = ["venv","tests","integ"]
+exclude_dirs = ["venv","tests"]
 
 [tool.coverage.run]
 source = ["awslabs"]
