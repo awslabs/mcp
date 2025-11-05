@@ -32,7 +32,7 @@ import boto3
 import importlib
 import sys
 import traceback
-from evals.core import EvalRunner, EvalRunnerResult
+from evals.core import EvalRunner, TaskResult
 from evals.core.constants import DEFAULT_AWS_REGION
 from evals.core.task import Task
 from loguru import logger
@@ -95,12 +95,12 @@ def discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
     return all_tasks, tasks_by_module
 
 
-def report_task_results(task: Any, result: EvalRunnerResult) -> None:
+def report_task_results(task: Any, result: TaskResult) -> None:
     """Report results for a single task.
 
     Args:
         task: Task instance
-        result: EvalRunnerResult from EvalRunner
+        result: TaskResult from EvalRunner
     """
     print('\n' + '=' * 60)
     print(f'EVALUATION COMPLETE: {task.id}')

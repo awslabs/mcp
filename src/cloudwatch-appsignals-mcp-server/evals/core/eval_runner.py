@@ -14,9 +14,9 @@
 
 """Evaluation runner orchestrating task execution."""
 
-from .eval_runner_result import EvalRunnerResult
 from .mcp_client import connect_to_mcp_server
 from .prompt_executor import PromptExecutor
+from .task_result import TaskResult
 from .task import Task
 from loguru import logger
 from mcp import ClientSession
@@ -41,7 +41,7 @@ class EvalRunner:
         self,
         bedrock_client: Any,
         verbose: bool = False,
-    ) -> List[EvalRunnerResult]:
+    ) -> List[TaskResult]:
         """Run all tasks and return results."""
         results = []
 
@@ -53,7 +53,7 @@ class EvalRunner:
                 results.append(result)
             except Exception as e:
                 logger.error(f'Task {task.id} failed: {e}')
-                results.append(EvalRunnerResult.from_error(task.id, str(e)))
+                results.append(TaskResult.from_error(task.id, str(e)))
 
         return results
 
@@ -62,7 +62,7 @@ class EvalRunner:
         task: Task,
         bedrock_client: Any,
         verbose: bool,
-    ) -> EvalRunnerResult:
+    ) -> TaskResult:
         """Run a single task.
 
         Connects to MCP server and executes prompt via PromptExecutor.

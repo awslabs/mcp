@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Result types for evaluation runner."""
+"""Result types for task execution."""
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 
 @dataclass
-class EvalRunnerResult:
+class TaskResult:
     """Result from running a single evaluation task.
 
     Attributes:
@@ -61,7 +61,7 @@ class EvalRunnerResult:
             captured_data: Captured data dictionary
 
         Returns:
-            EvalRunnerResult instance
+            TaskResult instance
         """
         return cls(
             task_id=task_id,
@@ -74,7 +74,7 @@ class EvalRunnerResult:
         )
 
     @classmethod
-    def from_error(cls, task_id: str, error: str) -> 'EvalRunnerResult':
+    def from_error(cls, task_id: str, error: str) -> 'TaskResult':
         """Create an error result instance.
 
         Args:
@@ -82,7 +82,7 @@ class EvalRunnerResult:
             error: Error message
 
         Returns:
-            EvalRunnerResult instance with error
+            TaskResult instance with error
         """
         return cls(
             task_id=task_id,
