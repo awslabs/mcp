@@ -27,6 +27,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 
 class DynamoDBLocalConfig:
@@ -658,11 +659,14 @@ def cleanup_validation_resources(dynamodb_client: boto3.client) -> Dict[str, Any
     """
     # SAFETY CHECK: Ensure we're only deleting from localhost
     endpoint_url = dynamodb_client.meta.endpoint_url
-    if endpoint_url and 'localhost' not in endpoint_url and '127.0.0.1' not in endpoint_url:
-        raise ValueError(
-            f'SAFETY VIOLATION: Table deletion must only run on localhost. '
-            f'Got endpoint: {endpoint_url}. This prevents accidental production table deletion.'
-        )
+    if endpoint_url:
+        parsed = urlparse(endpoint_url)
+        hostname = parsed.hostname
+        if hostname not in ('localhost', '127.0.0.1'):
+            raise ValueError(
+                f'SAFETY VIOLATION: Table deletion must only run on localhost. '
+                f'Got endpoint: {endpoint_url}. This prevents accidental production table deletion.'
+            )
 
     cleanup_response = {}
 

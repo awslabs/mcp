@@ -800,7 +800,7 @@ class TestCleanupValidationResources:
 
         assert 'SAFETY VIOLATION' in str(exc_info.value)
         assert 'Table deletion must only run on localhost' in str(exc_info.value)
-        assert 'dynamodb.us-east-1.amazonaws.com' in str(exc_info.value)
+        assert 'https://dynamodb.us-east-1.amazonaws.com' in str(exc_info.value)
 
     def test_cleanup_validation_resources_safety_check_blocks_remote_ip(self):
         """Test safety check blocks remote IP addresses."""
@@ -812,6 +812,25 @@ class TestCleanupValidationResources:
 
         assert 'SAFETY VIOLATION' in str(exc_info.value)
         assert '192.168.1.100' in str(exc_info.value)
+
+    def test_cleanup_validation_resources_safety_check_blocks_bypass_attempts(self):
+        """Test safety check blocks potential bypass attempts with localhost in path."""
+        mock_client = Mock()
+        # Test potential bypass attempts
+        bypass_urls = [
+            'https://malicious.com/localhost',
+            'https://127.0.0.1.evil.com',
+            'https://evil.com/path/localhost/data',
+            'https://localhost.evil.com',
+        ]
+
+        for url in bypass_urls:
+            mock_client.meta.endpoint_url = url
+            with pytest.raises(ValueError) as exc_info:
+                cleanup_validation_resources(mock_client)
+
+            assert 'SAFETY VIOLATION' in str(exc_info.value)
+            assert url in str(exc_info.value)
 
     def test_cleanup_validation_resources_safety_check_allows_none_endpoint(self):
         """Test safety check allows None endpoint (default AWS)."""
@@ -825,6 +844,27 @@ class TestCleanupValidationResources:
 
             result = cleanup_validation_resources(mock_client)
             assert result['test-table']['status'] == 'deleted'
+
+    def test_cleanup_validation_resources_safety_check_allows_valid_localhost_variants(self):
+        """Test safety check allows valid localhost variants."""
+        valid_urls = [
+            'http://localhost:8000',
+            'https://localhost:8000',
+            'http://127.0.0.1:8000',
+            'https://127.0.0.1:8000',
+        ]
+
+        for url in valid_urls:
+            mock_client = Mock()
+            mock_client.meta.endpoint_url = url
+
+            with patch(
+                'awslabs.dynamodb_mcp_server.model_validation_utils.list_tables'
+            ) as mock_list_tables:
+                mock_list_tables.return_value = ['test-table']
+
+                result = cleanup_validation_resources(mock_client)
+                assert result['test-table']['status'] == 'deleted'
 
     def test_cleanup_validation_resources_resource_not_found(self):
         """Test cleanup when resource is not found."""
