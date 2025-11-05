@@ -16,8 +16,8 @@
 
 from .agent import run_agent_loop
 from .metrics_tracker import MetricsTracker
-from .task_result import TaskResult
 from .task import Task
+from .task_result import TaskResult
 from loguru import logger
 from mcp import ClientSession
 from pathlib import Path

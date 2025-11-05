@@ -49,7 +49,7 @@ class TaskResult:
         validation_results: List[Dict[str, Any]],
         metrics: Dict[str, Any],
         captured_data: Dict[str, Any],
-    ) -> 'EvalRunnerResult':
+    ) -> 'TaskResult':
         """Create a successful result instance.
 
         Args:

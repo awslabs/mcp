@@ -16,8 +16,8 @@
 
 from .mcp_client import connect_to_mcp_server
 from .prompt_executor import PromptExecutor
-from .task_result import TaskResult
 from .task import Task
+from .task_result import TaskResult
 from loguru import logger
 from mcp import ClientSession
 from pathlib import Path
