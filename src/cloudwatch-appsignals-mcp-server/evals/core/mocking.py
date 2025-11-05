@@ -21,7 +21,7 @@ used by MCP servers during evaluation.
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
 
@@ -56,50 +56,56 @@ class MockHandler(ABC):
         """Remove all patches applied by this handler."""
         pass
 
-    def resolve_fixture(self, value: Any, fixtures_dir: Optional[Path] = None) -> Any:
-        """Resolve fixture references to actual data.
+    def resolve_mock_response(
+        self, arg_response_pair: Dict[str, Any], fixtures_dir: Optional[Path] = None
+    ) -> Dict[str, Any]:
+        """Resolve a single mock response configuration.
 
-        Handles lists of request/response pairs. For each pair, loads the response fixture
-        (if it's a file path) and returns loaded JSON data.
+        Takes a dict with 'request' and 'response' keys. If 'response' is a file path,
+        loads the fixture data.
 
         Args:
-            value: Value that may be a fixture reference (list of request/response pairs)
-            fixtures_dir: Directory containing fixture files (should be None as paths are already absolute)
+            arg_response_pair: Dict with 'request' and 'response' keys
+            fixtures_dir: Directory containing fixture files
 
         Returns:
-            Resolved fixture data
+            Resolved mock response with loaded fixture data
         """
-        if isinstance(value, list):
-            return [self.resolve_fixture(item, fixtures_dir) for item in value]
-
-        if isinstance(value, dict):
-            if 'request' in value and 'response' in value:
-                response = value['response']
-                if isinstance(response, str) and (
-                    response.endswith('.json') or response.endswith('.txt')
-                ):
-                    fixture_path = Path(response)
-                    if fixture_path.exists():
-                        if response.endswith('.json'):
-                            with open(fixture_path, 'r') as f:
-                                response = json.load(f)
-                        else:
-                            with open(fixture_path, 'r') as f:
-                                response = f.read()
-                    else:
-                        raise FileNotFoundError(f'Fixture file not found: {response}')
-
-                return {'request': value['request'], 'response': response}
-
+        if 'request' not in arg_response_pair or 'response' not in arg_response_pair:
             raise ValueError(
                 f"Invalid mock config structure. Expected dict with 'request' and 'response' keys, "
-                f"got keys: {list(value.keys())}"
+                f'got keys: {list(arg_response_pair.keys())}'
             )
 
-        raise TypeError(
-            f"Invalid mock config value. Expected list or dict with 'request'/'response' keys, "
-            f"got type: {type(value).__name__}"
-        )
+        response = arg_response_pair['response']
+
+        if isinstance(response, str) and (response.endswith('.json') or response.endswith('.txt')):
+            fixture_path = Path(response)
+            if not fixture_path.exists():
+                raise FileNotFoundError(f'Fixture file not found: {response}')
+
+            if response.endswith('.json'):
+                with open(fixture_path, 'r') as f:
+                    response = json.load(f)
+            else:
+                with open(fixture_path, 'r') as f:
+                    response = f.read()
+
+        return {'request': arg_response_pair['request'], 'response': response}
+
+    def resolve_mock_responses(
+        self, arg_response_pairs: List[Dict[str, Any]], fixtures_dir: Optional[Path] = None
+    ) -> List[Dict[str, Any]]:
+        """Resolve a list of mock response configurations.
+
+        Args:
+            arg_response_pairs: List of dicts with 'request' and 'response' keys
+            fixtures_dir: Directory containing fixture files
+
+        Returns:
+            List of resolved mock responses
+        """
+        return [self.resolve_mock_response(pair, fixtures_dir) for pair in arg_response_pairs]
 
 
 class Boto3MockHandler(MockHandler):
@@ -135,7 +141,9 @@ class Boto3MockHandler(MockHandler):
         for service, operations in mock_config.items():
             resolved_config[service] = {}
             for operation, response in operations.items():
-                resolved_config[service][operation] = self.resolve_fixture(response, fixtures_dir)
+                resolved_config[service][operation] = self.resolve_mock_responses(
+                    response, fixtures_dir
+                )
 
         self.mock_responses = resolved_config
         boto3.client = self._create_mock_client
