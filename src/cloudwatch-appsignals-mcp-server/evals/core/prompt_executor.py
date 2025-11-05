@@ -14,7 +14,7 @@
 
 """Executes prompts with agent loop, captors, and validators."""
 
-from .agent import run_agent_loop
+from .agent_loop import run_agent_loop
 from .metrics_tracker import MetricsTracker
 from .task import Task
 from .task_result import TaskResult

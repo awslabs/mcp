@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Agent orchestration for MCP tool evaluation.
+"""Agent loop for MCP tool evaluation.
 
-Provides multi-turn conversation loop and tool execution.
+Provides multi-turn conversation loop and tool execution utilities.
 """
 
 import time
