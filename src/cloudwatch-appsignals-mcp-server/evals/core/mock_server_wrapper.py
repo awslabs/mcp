@@ -58,12 +58,11 @@ def load_mock_config() -> dict:
         return {}
 
 
-def apply_mocks(mock_config: dict, fixtures_dir: Optional[Path] = None):
+def apply_mocks(mock_config: dict):
     """Apply mocks using the mock handler registry.
 
     Args:
         mock_config: Mock configuration dictionary
-        fixtures_dir: Directory containing fixture files
     """
     if not mock_config:
         return
@@ -73,7 +72,7 @@ def apply_mocks(mock_config: dict, fixtures_dir: Optional[Path] = None):
     registry = get_registry()
 
     try:
-        registry.patch_all(mock_config, fixtures_dir)
+        registry.patch_all(mock_config, fixtures_dir=None)
         print(f'Applied mocks for: {", ".join(mock_config.keys())}', file=sys.stderr)
     except Exception as e:
         print(f'Warning: Failed to apply mocks: {e}', file=sys.stderr)
@@ -141,7 +140,7 @@ def main():
     mock_config = load_mock_config()
 
     if mock_config:
-        apply_mocks(mock_config, fixtures_dir=None)
+        apply_mocks(mock_config)
 
     run_server(args.server_path, args.server_cwd)
 
