@@ -91,9 +91,15 @@ class MockHandler(ABC):
 
                 return {'request': value['request'], 'response': response}
 
-            return value
+            raise ValueError(
+                f"Invalid mock config structure. Expected dict with 'request' and 'response' keys, "
+                f"got keys: {list(value.keys())}"
+            )
 
-        return value
+        raise TypeError(
+            f"Invalid mock config value. Expected list or dict with 'request'/'response' keys, "
+            f"got type: {type(value).__name__}"
+        )
 
 
 class Boto3MockHandler(MockHandler):
