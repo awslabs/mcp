@@ -134,9 +134,6 @@ exclude = [
 ]
 extraPaths = ["../../../"]
 include = ["."]
-pythonPath = "python"
-pythonPlatform = "Linux"
-pythonVersion = "3.13"
 reportMissingImports = "none"
 reportMissingTypeStubs = false
 typeCheckingMode = "basic"
