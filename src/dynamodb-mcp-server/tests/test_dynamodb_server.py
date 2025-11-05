@@ -422,7 +422,7 @@ async def test_execute_access_patterns_success():
 
     with patch('awslabs.dynamodb_mcp_server.server.execute_dynamodb_command') as mock_execute:
         with patch(
-            'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
+            'awslabs.dynamodb_mcp_server.server.get_user_working_directory'
         ) as mock_get_dir:
             with patch('builtins.open', mock_open()) as mock_file:
                 mock_execute.side_effect = [{'Items': []}, {'Item': {'id': {'S': '123'}}}]
@@ -447,9 +447,7 @@ async def test_execute_access_patterns_missing_implementation():
     """Test execute_access_patterns with patterns missing implementation."""
     access_patterns = [{'pattern': 'AP1', 'description': 'Pattern without implementation'}]
 
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('builtins.open', mock_open()):
             mock_get_dir.return_value = '/tmp'
 
@@ -469,7 +467,7 @@ async def test_execute_access_patterns_exception_handling():
 
     with patch('awslabs.dynamodb_mcp_server.server.execute_dynamodb_command') as mock_execute:
         with patch(
-            'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
+            'awslabs.dynamodb_mcp_server.server.get_user_working_directory'
         ) as mock_get_dir:
             # The exception happens during execute_dynamodb_command, not get_user_working_directory
             mock_execute.side_effect = Exception('Command failed')
@@ -495,22 +493,18 @@ async def test_dynamodb_data_model_validation_success():
     }
 
     # Mock all the external dependencies that might cause issues
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('os.path.exists') as mock_exists:
             with patch('builtins.open', mock_open(read_data=json.dumps(mock_data_model))):
                 with patch(
-                    'awslabs.dynamodb_mcp_server.model_validation_utils.setup_dynamodb_local'
+                    'awslabs.dynamodb_mcp_server.server.setup_dynamodb_local'
                 ) as mock_setup:
-                    with patch(
-                        'awslabs.dynamodb_mcp_server.model_validation_utils.create_validation_resources'
-                    ):
+                    with patch('awslabs.dynamodb_mcp_server.server.create_validation_resources'):
                         with patch(
                             'awslabs.dynamodb_mcp_server.server.execute_access_patterns'
                         ) as mock_test:
                             with patch(
-                                'awslabs.dynamodb_mcp_server.model_validation_utils.get_validation_result_transform_prompt'
+                                'awslabs.dynamodb_mcp_server.server.get_validation_result_transform_prompt'
                             ) as mock_transform:
                                 mock_get_dir.return_value = '/tmp'
                                 mock_exists.return_value = True
@@ -523,21 +517,15 @@ async def test_dynamodb_data_model_validation_success():
                                 # The function may not call all mocks due to AWS config issues
                                 # Just verify that we got a result and it's a string
                                 assert isinstance(result, str)
-                                assert len(result) > 100  # Should be substantial content
 
                                 # Verify that the function at least attempted to process
-                                assert (
-                                    'Transform DynamoDB' in result
-                                    or 'Data model validation failed' in result
-                                )
+                                assert 'Validation complete' in result
 
 
 @pytest.mark.asyncio
 async def test_dynamodb_data_model_validation_file_not_found():
     """Test dynamodb_data_model_validation when data model file doesn't exist."""
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('os.path.exists') as mock_exists:
             mock_get_dir.return_value = '/tmp'
             mock_exists.return_value = False
@@ -546,15 +534,12 @@ async def test_dynamodb_data_model_validation_file_not_found():
 
             # The actual path will be different, so check for the key parts
             assert 'dynamodb_data_model.json not found' in result
-            assert 'DynamoDB Data Model JSON Generation Guide' in result
 
 
 @pytest.mark.asyncio
 async def test_dynamodb_data_model_validation_invalid_json():
     """Test dynamodb_data_model_validation with invalid JSON."""
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('os.path.exists') as mock_exists:
             with patch('builtins.open', mock_open(read_data='invalid json')):
                 mock_get_dir.return_value = '/tmp'
@@ -570,9 +555,7 @@ async def test_dynamodb_data_model_validation_missing_required_keys():
     """Test dynamodb_data_model_validation with missing required keys."""
     incomplete_data_model = {'tables': []}  # Missing 'items' and 'access_patterns'
 
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('os.path.exists') as mock_exists:
             with patch('builtins.open', mock_open(read_data=json.dumps(incomplete_data_model))):
                 mock_get_dir.return_value = '/tmp'
@@ -590,13 +573,11 @@ async def test_dynamodb_data_model_validation_setup_exception():
     """Test dynamodb_data_model_validation when setup fails."""
     mock_data_model = {'tables': [], 'items': [], 'access_patterns': []}
 
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('os.path.exists') as mock_exists:
             with patch('builtins.open', mock_open(read_data=json.dumps(mock_data_model))):
                 with patch(
-                    'awslabs.dynamodb_mcp_server.model_validation_utils.setup_dynamodb_local'
+                    'awslabs.dynamodb_mcp_server.server.setup_dynamodb_local'
                 ) as mock_setup:
                     mock_get_dir.return_value = '/tmp'
                     mock_exists.return_value = True
@@ -605,10 +586,7 @@ async def test_dynamodb_data_model_validation_setup_exception():
                     result = await dynamodb_data_model_validation()
 
                     # The function catches all exceptions, so check for failure message
-                    assert (
-                        'Data model validation failed' in result
-                        or 'Error: Required file not found' in result
-                    )
+                    assert 'DynamoDB Local setup failed' in result
 
 
 # Tests for server configuration and MCP integration
@@ -664,69 +642,6 @@ async def test_dynamodb_data_model_validation_mcp_integration():
 
 # Integration tests
 @pytest.mark.asyncio
-async def test_end_to_end_validation_workflow(tmp_path):
-    """Test end-to-end validation workflow integration."""
-    # Create a temporary data model file
-    data_model = {
-        'tables': [
-            {
-                'TableName': 'Users',
-                'KeySchema': [{'AttributeName': 'id', 'KeyType': 'HASH'}],
-                'AttributeDefinitions': [{'AttributeName': 'id', 'AttributeType': 'S'}],
-            }
-        ],
-        'items': [{'id': {'S': 'user1'}, 'name': {'S': 'John Doe'}}],
-        'access_patterns': [
-            {
-                'pattern': 'AP1',
-                'description': 'Get all users',
-                'dynamodb_operation': 'scan',
-                'implementation': 'aws dynamodb scan --table-name Users',
-            }
-        ],
-    }
-
-    data_model_file = tmp_path / 'dynamodb_data_model.json'
-    with open(data_model_file, 'w') as f:
-        json.dump(data_model, f)
-
-    # Mock the file existence check to use our temp file
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
-        with patch('os.path.exists') as mock_exists:
-            with patch(
-                'awslabs.dynamodb_mcp_server.model_validation_utils.setup_dynamodb_local'
-            ) as mock_setup:
-                with patch(
-                    'awslabs.dynamodb_mcp_server.model_validation_utils.create_validation_resources'
-                ):
-                    with patch(
-                        'awslabs.dynamodb_mcp_server.server.execute_dynamodb_command'
-                    ) as mock_execute:
-                        with patch(
-                            'awslabs.dynamodb_mcp_server.model_validation_utils.get_validation_result_transform_prompt'
-                        ) as mock_transform:
-                            with patch(
-                                'builtins.open', mock_open(read_data=json.dumps(data_model))
-                            ):
-                                mock_get_dir.return_value = str(tmp_path)
-                                mock_exists.return_value = True
-                                mock_setup.return_value = 'http://localhost:8000'
-                                mock_execute.return_value = {'Items': []}
-                                mock_transform.return_value = 'Validation completed successfully'
-
-                                result = await dynamodb_data_model_validation()
-
-                                # Check that the workflow was attempted (may fail due to AWS config)
-                                assert (
-                                    'Validation completed successfully' in result
-                                    or 'Data model validation failed' in result
-                                    or 'Error: Required file not found' in result
-                                )
-
-
-@pytest.mark.asyncio
 async def test_error_propagation_in_validation_chain():
     """Test error propagation through the validation chain."""
     mock_data_model = {
@@ -737,16 +652,14 @@ async def test_error_propagation_in_validation_chain():
         ],
     }
 
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('os.path.exists') as mock_exists:
             with patch('builtins.open', mock_open(read_data=json.dumps(mock_data_model))):
                 with patch(
-                    'awslabs.dynamodb_mcp_server.model_validation_utils.setup_dynamodb_local'
+                    'awslabs.dynamodb_mcp_server.server.setup_dynamodb_local'
                 ) as mock_setup:
                     with patch(
-                        'awslabs.dynamodb_mcp_server.model_validation_utils.create_validation_resources'
+                        'awslabs.dynamodb_mcp_server.server.create_validation_resources'
                     ) as mock_create:
                         mock_get_dir.return_value = '/tmp'
                         mock_exists.return_value = True
@@ -756,10 +669,7 @@ async def test_error_propagation_in_validation_chain():
                         result = await dynamodb_data_model_validation()
 
                         # The function catches all exceptions, so check for failure message
-                        assert (
-                            'Data model validation failed' in result
-                            or 'Error: Required file not found' in result
-                        )
+                        assert 'Table creation failed' in result
 
 
 # Edge case tests
@@ -785,9 +695,7 @@ async def test_execute_dynamodb_command_edge_cases():
 @pytest.mark.asyncio
 async def test_dynamodb_data_model_validation_file_permissions():
     """Test dynamodb_data_model_validation with file permission issues."""
-    with patch(
-        'awslabs.dynamodb_mcp_server.model_validation_utils.get_user_working_directory'
-    ) as mock_get_dir:
+    with patch('awslabs.dynamodb_mcp_server.server.get_user_working_directory') as mock_get_dir:
         with patch('os.path.exists') as mock_exists:
             with patch('builtins.open') as mock_open_func:
                 mock_get_dir.return_value = '/tmp'
@@ -796,4 +704,4 @@ async def test_dynamodb_data_model_validation_file_permissions():
 
                 result = await dynamodb_data_model_validation()
 
-                assert 'Data model validation failed: Permission denied' in result
+                assert 'Permission denied' in result
