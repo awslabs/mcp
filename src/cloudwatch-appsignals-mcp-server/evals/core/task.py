@@ -17,7 +17,7 @@
 from .fixture_resolver import FixtureResolver
 from .process_executor import ProcessExecutor, SubprocessExecutor
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -39,17 +39,10 @@ class Task(ABC):
 
     id: str
     max_turns: int = 20
-    expected_tools: Optional[List[str]] = None
+    expected_tools: List[str] = field(default_factory=list)
     mock_config: Optional[Dict[str, Any]] = None
     fixtures_dir: Optional[Path] = None
-    process_executor: Optional[ProcessExecutor] = None
-
-    def __post_init__(self):
-        """Initialize default values."""
-        if self.expected_tools is None:
-            self.expected_tools = []
-        if self.process_executor is None:
-            self.process_executor = SubprocessExecutor()
+    process_executor: ProcessExecutor = field(default_factory=SubprocessExecutor)
 
     @abstractmethod
     def get_prompt(self, context: Dict[str, Any]) -> str:
