@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import sys
 from awslabs.mysql_mcp_server.connection import DBConnectionSingleton
+from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
 from awslabs.mysql_mcp_server.mutable_sql_detector import (
     check_sql_injection_risk,
     detect_mutating_keywords,
@@ -193,9 +194,16 @@ async def get_table_schema(
         ORDER BY
             ORDINAL_POSITION
     """
+    db_connection = DBConnectionSingleton.get().db_connection
+
+    if isinstance(db_connection, AsyncmyPoolConnection):
+        # Convert to positional parameters for asyncmy
+        sql = sql.replace(':database_name', '%s').replace(':table_name', '%s')
+
+    # Use consistent parameter order matching SQL placeholders
     params = [
-        {'name': 'table_name', 'value': {'stringValue': table_name}},
         {'name': 'database_name', 'value': {'stringValue': database_name}},
+        {'name': 'table_name', 'value': {'stringValue': table_name}},
     ]
 
     return await run_query(sql=sql, ctx=ctx, query_parameters=params)
