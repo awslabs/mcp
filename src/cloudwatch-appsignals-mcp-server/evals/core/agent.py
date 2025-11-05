@@ -20,12 +20,35 @@ Provides multi-turn conversation loop and tool execution.
 import time
 from .constants import DEFAULT_MAX_TURNS, DEFAULT_MODEL_ID, DEFAULT_TEMPERATURE
 from .file_tools import get_file_tools
-from .mcp_client import convert_mcp_tools_to_bedrock
 from .metrics_tracker import MetricsTracker
 from loguru import logger
 from mcp import ClientSession
 from pathlib import Path
 from typing import Any, Dict, List
+
+
+def convert_mcp_tools_to_bedrock(mcp_tools) -> List[Dict[str, Any]]:
+    """Convert MCP tool format to Bedrock tool format.
+
+    Args:
+        mcp_tools: List of MCP tool definitions
+
+    Returns:
+        List of Bedrock-formatted tool specifications
+    """
+    bedrock_tools = []
+
+    for tool in mcp_tools:
+        bedrock_tool = {
+            'toolSpec': {
+                'name': tool.name,
+                'description': tool.description or '',
+                'inputSchema': {'json': tool.inputSchema},
+            }
+        }
+        bedrock_tools.append(bedrock_tool)
+
+    return bedrock_tools
 
 
 async def execute_tool(

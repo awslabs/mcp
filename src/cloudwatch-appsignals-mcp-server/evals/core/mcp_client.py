@@ -25,7 +25,7 @@ import tempfile
 from mcp import StdioServerParameters
 from mcp.client.stdio import stdio_client
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 @contextlib.asynccontextmanager
@@ -114,27 +114,3 @@ async def connect_to_mcp_server(
                 os.unlink(mock_file_path)
             except OSError:
                 pass
-
-
-def convert_mcp_tools_to_bedrock(mcp_tools) -> List[Dict[str, Any]]:
-    """Convert MCP tool format to Bedrock tool format.
-
-    Args:
-        mcp_tools: List of MCP tool definitions
-
-    Returns:
-        List of Bedrock-formatted tool specifications
-    """
-    bedrock_tools = []
-
-    for tool in mcp_tools:
-        bedrock_tool = {
-            'toolSpec': {
-                'name': tool.name,
-                'description': tool.description or '',
-                'inputSchema': {'json': tool.inputSchema},
-            }
-        }
-        bedrock_tools.append(bedrock_tool)
-
-    return bedrock_tools

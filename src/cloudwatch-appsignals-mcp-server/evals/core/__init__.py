@@ -44,9 +44,9 @@ from .task_result import TaskResult
 from .mocking import MockHandler, Boto3MockHandler, MockHandlerRegistry, get_registry
 
 # Lower-level utilities
-from .agent import execute_tool, run_agent_loop
+from .agent import execute_tool, run_agent_loop, convert_mcp_tools_to_bedrock
 from .file_tools import get_file_tools
-from .mcp_client import connect_to_mcp_server, convert_mcp_tools_to_bedrock
+from .mcp_client import connect_to_mcp_server
 from .metrics_tracker import MetricsTracker
 
 
