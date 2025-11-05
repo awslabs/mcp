@@ -60,10 +60,10 @@ class MockHandler(ABC):
         """Remove all patches applied by this handler."""
         pass
 
-    def resolve_mock_response(
+    def resolve_method_mock_config(
         self, arg_response_pair: Dict[str, Any], fixtures_dir: Optional[Path] = None
     ) -> Dict[str, Any]:
-        """Resolve a single mock response configuration.
+        """Resolve a single method mock configuration.
 
         Takes a dict with 'request' and 'response' keys. If 'response' is a file path,
         loads the fixture data.
@@ -98,10 +98,10 @@ class MockHandler(ABC):
 
         return {'request': arg_response_pair['request'], 'response': response}
 
-    def resolve_mock_responses(
+    def resolve_method_mock_configs(
         self, arg_response_pairs: List[Dict[str, Any]], fixtures_dir: Optional[Path] = None
     ) -> List[Dict[str, Any]]:
-        """Resolve a list of mock response configurations.
+        """Resolve a list of method mock configurations.
 
         Args:
             arg_response_pairs: List of dicts with 'request' and 'response' keys
@@ -110,7 +110,7 @@ class MockHandler(ABC):
         Returns:
             List of resolved mock responses
         """
-        return [self.resolve_mock_response(pair, fixtures_dir) for pair in arg_response_pairs]
+        return [self.resolve_method_mock_config(pair, fixtures_dir) for pair in arg_response_pairs]
 
 
 class Boto3MockHandler(MockHandler):
@@ -122,7 +122,7 @@ class Boto3MockHandler(MockHandler):
     def __init__(self):
         """Initialize Boto3MockHandler with empty state."""
         self.original_client = None
-        self.mock_responses: Dict[str, Dict[str, Any]] = {}
+        self.service_method_mock_configs: Dict[str, Dict[str, Any]] = {}
         self.fixtures_dir: Optional[Path] = None
 
     def get_library_name(self) -> str:
@@ -146,11 +146,11 @@ class Boto3MockHandler(MockHandler):
         for service, operations in mock_config.items():
             resolved_config[service] = {}
             for operation, response in operations.items():
-                resolved_config[service][operation] = self.resolve_mock_responses(
+                resolved_config[service][operation] = self.resolve_method_mock_configs(
                     response, fixtures_dir
                 )
 
-        self.mock_responses = resolved_config
+        self.service_method_mock_configs = resolved_config
         boto3.client = self._create_mock_client
 
     def unpatch(self) -> None:
@@ -160,7 +160,7 @@ class Boto3MockHandler(MockHandler):
 
             boto3.client = self.original_client
             self.original_client = None
-            self.mock_responses = {}
+            self.service_method_mock_configs = {}
 
     def _create_mock_client(self, service_name: str, **kwargs):
         """Create a mocked boto3 client.
@@ -174,10 +174,10 @@ class Boto3MockHandler(MockHandler):
         """
         mock_client = MagicMock()
 
-        if service_name in self.mock_responses:
-            service_mocks = self.mock_responses[service_name]
+        if service_name in self.service_method_mock_configs:
+            method_mock_configs = self.service_method_mock_configs[service_name]
 
-            for operation, response_data in service_mocks.items():
+            for operation, response_data in method_mock_configs.items():
                 if not isinstance(response_data, list):
                     raise ValueError(
                         f'Invalid mock configuration for {service_name}.{operation}. '
