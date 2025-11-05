@@ -149,11 +149,11 @@ def test_initialize_aws_clients_with_profile():
                 assert xray == mock_client
 
 
-def test_initialize_aws_clients_with_mcp_caller():
-    """Test _initialize_aws_clients function with MCP_CALLER set."""
+def test_initialize_aws_clients_with_mcp_source():
+    """Test _initialize_aws_clients function with MCP_RUN_FROM set."""
     from awslabs.cloudwatch_appsignals_mcp_server.aws_clients import _initialize_aws_clients
 
-    with patch.dict(os.environ, {'MCP_CALLER': 'test-caller', 'AWS_REGION': 'us-east-1'}):
+    with patch.dict(os.environ, {'MCP_RUN_FROM': 'test-caller', 'AWS_REGION': 'us-east-1'}):
         with patch('awslabs.cloudwatch_appsignals_mcp_server.aws_clients.Config') as mock_config:
             with patch('boto3.client') as mock_boto_client:
                 # Call the initialization function
@@ -161,7 +161,7 @@ def test_initialize_aws_clients_with_mcp_caller():
                     _initialize_aws_clients()
                 )
 
-                # Verify Config was called with MCP_CALLER in user agent
+                # Verify Config was called with MCP_RUN_FROM in user agent
                 mock_config.assert_called_once()
                 call_args = mock_config.call_args
                 user_agent = call_args.kwargs['user_agent_extra']
