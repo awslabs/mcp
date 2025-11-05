@@ -16,6 +16,10 @@
 
 Provides extensible mocking for external dependencies (boto3, requests, etc.)
 used by MCP servers during evaluation.
+
+Current limitations:
+- Only supports request -> String/JSON response mapping (no exception mocking)
+- Depends on MagicMock for client method patching
 """
 
 import json
