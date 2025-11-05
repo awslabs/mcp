@@ -14,10 +14,57 @@
 
 """Data models for CloudWatch Metrics MCP tools."""
 
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.constants import (
+    DAYS_PER_WEEK,
+    HOURS_PER_DAY,
+    MINUTES_PER_HOUR,
+    SECONDS_PER_MINUTE,
+)
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List
+from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
+from typing import Any, ClassVar, Dict, List, Optional, Union
+
+
+class Trend(str, Enum):
+    """Trend direction based on statistical significance."""
+
+    POSITIVE = 'positive'
+    NEGATIVE = 'negative'
+    NONE = 'none'
+
+
+# Seasonality rounding threshold constant
+SEASONALITY_ROUNDING_THRESHOLD = 0.1
+
+
+class Seasonality(Enum):
+    """Seasonality detection results with period in seconds."""
+
+    NONE = 0
+    FIFTEEN_MINUTES = 15 * SECONDS_PER_MINUTE
+    ONE_HOUR = MINUTES_PER_HOUR * SECONDS_PER_MINUTE
+    SIX_HOURS = 6 * ONE_HOUR
+    ONE_DAY = HOURS_PER_DAY * ONE_HOUR
+    ONE_WEEK = DAYS_PER_WEEK * ONE_DAY
+
+    @classmethod
+    def from_seconds(cls, seconds: Union[float, int]) -> 'Seasonality':
+        """Convert seconds to closest seasonality enum."""
+        seconds = int(seconds)
+        closest = min(cls, key=lambda x: abs(x.value - seconds))
+        return (
+            closest
+            if abs(closest.value - seconds) < closest.value * SEASONALITY_ROUNDING_THRESHOLD
+            else cls.NONE
+        )
+
+
+class DecompositionResult(BaseModel):
+    """Result of metric data decomposition into seasonal and trend components."""
+
+    seasonality: Seasonality
+    trend: Trend
 
 
 class SortOrder(str, Enum):
@@ -107,8 +154,32 @@ class MetricMetadata(BaseModel):
 class AlarmRecommendationThreshold(BaseModel):
     """Represents an alarm threshold configuration."""
 
+    justification: str = Field(default='', description='Justification for the threshold value')
+
+
+class StaticAlarmThreshold(AlarmRecommendationThreshold):
+    """Represents an alarm static threshold configuration."""
+
     staticValue: float = Field(..., description='The static threshold value')
-    justification: str = Field(..., description='Justification for the threshold value')
+
+
+class AnomalyDetectionAlarmThreshold(AlarmRecommendationThreshold):
+    """Represents an anomaly detection alarm threshold configuration."""
+
+    DEFAULT_SENSITIVITY: ClassVar[float] = 2.0
+
+    sensitivity: float = Field(
+        default=DEFAULT_SENSITIVITY, description='The sensitivity of the Anomaly Detection bands.'
+    )
+
+    @field_validator('sensitivity')
+    @classmethod
+    def validate_sensitivity(cls, v):
+        """Validate sensitivity is within acceptable range."""
+        # Extreme sensitivity values result in reduced Anomaly Detection performance
+        if not 0 < v <= 100:
+            raise ValueError('Sensitivity must be above 0 and less than or equal to 100')
+        return v
 
 
 class AlarmRecommendationDimension(BaseModel):
@@ -148,3 +219,58 @@ class AlarmRecommendation(BaseModel):
         default_factory=list, description='List of dimensions for the alarm'
     )
     intent: str = Field(..., description='The intent or purpose of the alarm')
+    cloudformation_template: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description='CloudFormation template (only for anomaly detection alarms)',
+    )
+
+    @model_serializer
+    def serialize_model(self):
+        """Serialize alarm recommendation to dict format."""
+        data = {
+            'alarmDescription': self.alarmDescription,
+            'threshold': self.threshold,
+            'period': self.period,
+            'comparisonOperator': self.comparisonOperator,
+            'statistic': self.statistic,
+            'evaluationPeriods': self.evaluationPeriods,
+            'datapointsToAlarm': self.datapointsToAlarm,
+            'treatMissingData': self.treatMissingData,
+            'dimensions': self.dimensions,
+            'intent': self.intent,
+        }
+        if self.cloudformation_template is not None:
+            data['cloudformation_template'] = self.cloudformation_template
+        return data
+
+
+class MetricData(BaseModel):
+    """Represents CloudWatch Metric (time series) data."""
+
+    period_seconds: int = Field(
+        ..., description='The aggregation period in seconds of the requested metric data'
+    )
+    timestamps: List[int] = Field(default_factory=list, description='List of metric timestamps')
+    values: List[float] = Field(default_factory=list, description='List of metric values')
+
+    @model_validator(mode='after')
+    def validate_metric_data(self):
+        """Validate MetricData after initialization."""
+        if len(self.timestamps) != len(self.values):
+            raise ValueError('Timestamps and values must have the same length')
+        if self.period_seconds <= 0:
+            raise ValueError('Timeseries must have a period >= 0')
+        return self
+
+
+class AlarmRecommendationResult(BaseModel):
+    """Result wrapper for alarm recommendations with a success/failure message to guide the calling LLM."""
+
+    recommendations: List[AlarmRecommendation] = Field(
+        default_factory=list,
+        description='A list of alarm recommendations that match the provided dimensions.',
+    )
+    message: str = Field(
+        ...,
+        description='Message describing the success/failure of generating alarm recommendation.',
+    )
