@@ -85,6 +85,9 @@ class EvalRunner:
                 logger.debug(f'Connected to MCP server with {len(tools_response.tools)} tools')
 
                 context = self._create_context(working_directory, bedrock_client)
+
+                task.setup(context)
+
                 prompt = task.get_prompt(context)
 
                 logger.debug(f'Running eval for task {task.id}')

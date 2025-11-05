@@ -157,8 +157,34 @@ class Task(ABC):
         """Return root directory of the MCP server (where imports work)."""
         pass
 
+    def setup(self, context: Dict[str, Any]) -> None:
+        """Set up workspace before task execution.
+
+        Override to prepare the workspace before the agent starts (e.g., copy template
+        files, create directories, seed data, set initial state).
+
+        Called before the agent loop starts.
+
+        Args:
+            context: Runtime context containing:
+                - working_directory: Path to task working directory
+                - bedrock_client: Boto3 Bedrock client for LLM calls
+        """
+        pass
+
     def cleanup(self, context: Dict[str, Any]) -> None:
-        """Clean up after task execution. Override to perform cleanup."""
+        """Clean up after task execution.
+
+        Override to clean up changes made during task execution (e.g., reset git state,
+        remove temporary files, restore original state).
+
+        Called after validation completes (or on error if --no-cleanup not specified).
+
+        Args:
+            context: Runtime context containing:
+                - working_directory: Path to task working directory
+                - bedrock_client: Boto3 Bedrock client for LLM calls
+        """
         pass
 
     def __str__(self) -> str:
