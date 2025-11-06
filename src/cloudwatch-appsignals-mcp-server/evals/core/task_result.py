@@ -138,14 +138,14 @@ class TaskResult:
                     lines.extend(
                         [
                             f'  {validator_name}: ❌ ERROR',
-                            f'    {validation_result["error"]}',
+                            f'    {validation_result.get("error", "")}',
                         ]
                     )
                 else:
                     criteria_results = validation_result.get('criteria_results', [])
                     passed = sum(1 for r in criteria_results if r['status'] == 'PASS')
                     total = len(criteria_results)
-                    status = '✅ PASS' if validation_result['overall_pass'] else '❌ FAIL'
+                    status = '✅ PASS' if validation_result.get('overall_pass', False) else '❌ FAIL'
                     lines.append(f'  {validator_name}: {status} ({passed}/{total} criteria met)')
 
                     for criterion_result in criteria_results:
