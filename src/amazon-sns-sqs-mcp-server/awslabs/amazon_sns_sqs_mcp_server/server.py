@@ -25,8 +25,7 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP(
     'awslabs.amazon-sns-sqs-mcp-server',
     instructions="""Manage Amazon SNS topics, subscriptions, and Amazon SQS queues for messaging.""",
-    dependencies=['pydantic', 'boto3'],
-    version=MCP_SERVER_VERSION,
+    dependencies=['pydantic', 'boto3']
 )
 
 
