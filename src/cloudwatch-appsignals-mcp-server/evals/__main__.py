@@ -160,6 +160,7 @@ async def main():
     parser.add_argument(
         '--verbose', '-v', action='store_true', help='Enable verbose/debug logging'
     )
+    # TODO: Support multiple values (--tasks, --task-ids with nargs='+')
     parser.add_argument(
         '--task',
         help='Run all tasks from specific task file (e.g., investigation_tasks). Can be combined with --task-id',
