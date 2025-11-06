@@ -22,7 +22,8 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
 
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
         response.setStatusCode(200);
-        response.setBody(responseBody);
+        response.setHeaders(java.util.Map.of("Content-Type", "text/html"));
+        response.setBody(String.format("<html><body><h1>%s</h1></body></html>", responseBody));
         
         return response;
     }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { LambdaApiGatewayStack } from '../lib/lambda-apigateway-stack';
+import { LambdaAlbStack } from '../lib/lambda-alb-stack';
 
 const app = new cdk.App();
 
@@ -9,12 +9,12 @@ const functionName = `awslabs-sample-java-cdk-${Math.random().toString(36).subst
 const runtime = 'java17';
 const architecture = 'x86_64';
 
-new LambdaApiGatewayStack(app, 'LambdaApiGatewayStack-CDK-java', {
+new LambdaAlbStack(app, 'LambdaAlbStack-CDK-java', {
   functionName,
   runtime,
   architecture,
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION,
+    region: 'us-east-1',
   },
 });
