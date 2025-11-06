@@ -20,7 +20,6 @@ Provides list_files, read_file, and write_file tools in Bedrock format.
 from typing import Any, Dict, List
 
 
-# File operation tool names
 FILE_TOOL_LIST_FILES = 'list_files'
 FILE_TOOL_READ_FILE = 'read_file'
 FILE_TOOL_WRITE_FILE = 'write_file'
