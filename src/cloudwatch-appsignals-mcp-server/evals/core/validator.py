@@ -53,6 +53,7 @@ class LLMJudgeValidator(Validator):
 
         Args:
             validation_prompt_template: Template with {rubric_items}, {captured_data}, {num_criteria}
+                See eval_prompts.py for standard templates (CODE_MODIFICATION_VALIDATION_PROMPT, etc.)
             llm_provider: LLMProvider instance for text generation
             rubric: List of evaluation criteria
         """
