@@ -12,45 +12,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3.12-slim
+# dependabot should continue to update this to the latest hash.
+FROM python:3.12-slim AS uv
 
+# Install the project into `/app`
 WORKDIR /app
 
-# Install system dependencies
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
+
+# Copy from the cache instead of linking since it's a mounted volume
+ENV UV_LINK_MODE=copy
+
+# Prefer the system python
+ENV UV_PYTHON_PREFERENCE=only-system
+
+# Run without updating the uv.lock file like running with `--frozen`
+ENV UV_FROZEN=true
+
+# Copy the required files first
+COPY pyproject.toml uv.lock uv-requirements.txt ./
+
+# Install the project's dependencies using the lockfile and settings
+RUN --mount=type=cache,target=/root/.cache/uv \
+    pip install --require-hashes --requirement uv-requirements.txt && \
+    uv sync --frozen --no-install-project --no-dev --no-editable
+
+# Then, add the rest of the project source code and install it
+# Installing separately from its dependencies allows optimal layer caching
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-editable
+
+# Make the directory just in case it doesn't exist
+RUN mkdir -p /root/.local
+
+FROM python:3.12-slim
+
+# Place executables in the environment at the front of the path and include other binaries
+ENV PATH="/app/.venv/bin:$PATH:/usr/sbin"
+
+# Install lsof for the healthcheck
+# Install other tools as needed for the MCP server
+# Add non-root user and ability to change directory into /root
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y lsof && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --force --system app && \
+    useradd app -g app -d /app && \
+    chmod o+x /root
 
-# Copy project files
-COPY pyproject.toml README.md ./
-COPY awslabs ./awslabs
-COPY docker-healthcheck.sh ./
+# Get the project from the uv layer
+COPY --from=uv --chown=app:app /root/.local /root/.local
+COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
-# Make healthcheck script executable
-RUN chmod +x docker-healthcheck.sh
+# Get healthcheck script
+COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 
-# Install uv for faster dependency management
-RUN pip install --no-cache-dir uv
-
-# Install the package and its dependencies
-RUN uv pip install --system --no-cache .
-
-# Create application user and set ownership
-RUN groupadd -r app && \
-    useradd -r -g app -d /app -s /sbin/nologin app && \
-    chown -R app:app /app
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV FASTMCP_LOG_LEVEL=INFO
-
-# Switch to non-root user
+# Run as non-root
 USER app
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD ["/app/docker-healthcheck.sh"]
-
-# Run the server
-ENTRYPOINT ["python", "-m", "awslabs.aws_dms_troubleshoot_mcp_server.server"]
+# When running the container, add --db-path and a bind mount to the host's db file
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD [ "docker-healthcheck.sh" ]
+ENTRYPOINT ["awslabs.aws-dms-troubleshoot-mcp-server"]
