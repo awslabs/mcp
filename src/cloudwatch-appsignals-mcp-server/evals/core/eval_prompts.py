@@ -14,7 +14,20 @@
 
 """LLM-as-a-Judge validation prompts.
 
-Best practices: https://www.evidentlyai.com/llm-guide/llm-as-a-judge
+PROMPT QUALITY CHECKLIST
+========================
+Use this checklist to evaluate whether prompts follow LLM-as-a-Judge best practices:
+
+1. Binary/low-precision scoring: Use PASS/FAIL or 3-point scales (not 1-100)
+2. Structured output format: Specify exact format for easy parsing
+3. Split by task type: Separate prompts for different evaluation types
+4. Per-criterion evaluation: Each rubric item gets individual judgment
+5. Clear score definitions: Explain what PASS/FAIL means
+6. Request reasoning: Ask for justification with each verdict
+7. Low temperature: Use 0.0 or close for consistency (configured in eval_config.py)
+8. Capable model: Use strong models for better human alignment (configured in eval_config.py)
+
+Ref: https://www.evidentlyai.com/llm-guide/llm-as-a-judge
 """
 
 CODE_MODIFICATION_VALIDATION_PROMPT = """You are evaluating code changes for a software modification task.
