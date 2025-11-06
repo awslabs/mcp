@@ -18,7 +18,7 @@ Provides multi-turn conversation loop and tool execution utilities.
 """
 
 import time
-from .eval_config import DEFAULT_MAX_TURNS
+from .eval_config import MAX_TURNS
 from .file_tools import (
     FILE_TOOL_LIST_FILES,
     FILE_TOOL_READ_FILE,
@@ -156,7 +156,7 @@ async def run_agent_loop(
     project_root: Path,
     mcp_tools,
     metrics_tracker: MetricsTracker,
-    max_turns: int = DEFAULT_MAX_TURNS,
+    max_turns: int = MAX_TURNS,
 ) -> List[Dict[str, Any]]:
     """Run the agent loop for task completion.
 

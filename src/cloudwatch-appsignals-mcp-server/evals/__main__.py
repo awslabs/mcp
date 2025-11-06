@@ -33,7 +33,7 @@ import importlib
 import sys
 import traceback
 from evals.core import EvalRunner, TaskResult
-from evals.core.eval_config import DEFAULT_AWS_REGION
+from evals.core.eval_config import AWS_REGION
 from evals.core.task import Task
 from loguru import logger
 from pathlib import Path
@@ -245,9 +245,7 @@ async def main():
 
     # Initialize Bedrock client
     try:
-        bedrock_client = boto3.client(
-            service_name='bedrock-runtime', region_name=DEFAULT_AWS_REGION
-        )
+        bedrock_client = boto3.client(service_name='bedrock-runtime', region_name=AWS_REGION)
         logger.debug('Bedrock client initialized')
     except Exception as e:
         logger.error(f'Failed to initialize Bedrock client: {e}')

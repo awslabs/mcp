@@ -87,10 +87,10 @@ class BedrockLLMProvider(LLMProvider):
 
     async def generate(self, prompt: str) -> str:
         """Generate text using AWS Bedrock."""
-        from .eval_config import DEFAULT_MODEL_ID, DEFAULT_TEMPERATURE
+        from .eval_config import MODEL_ID, TEMPERATURE
 
-        model_id = self.model_id or DEFAULT_MODEL_ID
-        temperature = self.temperature if self.temperature is not None else DEFAULT_TEMPERATURE
+        model_id = self.model_id or MODEL_ID
+        temperature = self.temperature if self.temperature is not None else TEMPERATURE
 
         response = self.bedrock_client.converse(
             modelId=model_id,
@@ -107,10 +107,10 @@ class BedrockLLMProvider(LLMProvider):
         **kwargs,
     ) -> Dict[str, Any]:
         """Conduct conversation using AWS Bedrock."""
-        from .eval_config import DEFAULT_MODEL_ID, DEFAULT_TEMPERATURE
+        from .eval_config import MODEL_ID, TEMPERATURE
 
-        model_id = self.model_id or DEFAULT_MODEL_ID
-        temperature = self.temperature if self.temperature is not None else DEFAULT_TEMPERATURE
+        model_id = self.model_id or MODEL_ID
+        temperature = self.temperature if self.temperature is not None else TEMPERATURE
 
         converse_params = {
             'modelId': model_id,

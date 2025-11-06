@@ -16,6 +16,8 @@
 
 Centralized location for all configurable values.
 
+These settings apply to both the agent being evaluated and the LLM judge.
+
 Environment variable overrides:
 - MCP_EVAL_MODEL_ID: Override default Bedrock model ID
 - MCP_EVAL_AWS_REGION: Override default AWS region
@@ -26,16 +28,15 @@ Environment variable overrides:
 import os
 
 
-# Fallback values (used when environment variables are not set)
-_FALLBACK_MODEL_ID = 'us.anthropic.claude-sonnet-4-20250514-v1:0'
-_FALLBACK_AWS_REGION = 'us-east-1'
-_FALLBACK_MAX_TURNS = 20
-_FALLBACK_TEMPERATURE = 0.0
+# Default values (used when environment variables are not set)
+_DEFAULT_MODEL_ID = 'us.anthropic.claude-sonnet-4-20250514-v1:0'
+_DEFAULT_AWS_REGION = 'us-east-1'
+_DEFAULT_MAX_TURNS = 20
+_DEFAULT_TEMPERATURE = 0.0
 
-# AWS Bedrock configuration (configurable via environment variables)
-DEFAULT_MODEL_ID = os.environ.get('MCP_EVAL_MODEL_ID', _FALLBACK_MODEL_ID)
-DEFAULT_AWS_REGION = os.environ.get('MCP_EVAL_AWS_REGION', _FALLBACK_AWS_REGION)
-
-# Agent configuration (configurable via environment variables)
-DEFAULT_MAX_TURNS = int(os.environ.get('MCP_EVAL_MAX_TURNS', str(_FALLBACK_MAX_TURNS)))
-DEFAULT_TEMPERATURE = float(os.environ.get('MCP_EVAL_TEMPERATURE', str(_FALLBACK_TEMPERATURE)))
+# Configuration values (can be overridden via environment variables)
+# Used by both the agent being evaluated and the LLM judge
+MODEL_ID = os.environ.get('MCP_EVAL_MODEL_ID', _DEFAULT_MODEL_ID)
+AWS_REGION = os.environ.get('MCP_EVAL_AWS_REGION', _DEFAULT_AWS_REGION)
+MAX_TURNS = int(os.environ.get('MCP_EVAL_MAX_TURNS', str(_DEFAULT_MAX_TURNS)))
+TEMPERATURE = float(os.environ.get('MCP_EVAL_TEMPERATURE', str(_DEFAULT_TEMPERATURE)))
