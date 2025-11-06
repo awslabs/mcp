@@ -33,7 +33,7 @@ from .captor import (
     FinalResponseCaptor,
     ToolResultsCaptor,
 )
-from .validator import Validator, LLMJudgeValidator, BuildValidator
+from .validator import Validator, LLMJudgeValidator, BuildValidator, ValidationPromptType
 from .llm_provider import LLMProvider, BedrockLLMProvider
 from .process_executor import ProcessExecutor, SubprocessExecutor
 from .mock_config_path_normalizer import MockConfigPathNormalizer
@@ -66,6 +66,7 @@ __all__ = [
     # Built-in validators
     'LLMJudgeValidator',
     'BuildValidator',
+    'ValidationPromptType',
     # LLM providers
     'LLMProvider',
     'BedrockLLMProvider',

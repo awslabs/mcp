@@ -110,7 +110,7 @@ class Task(ABC):
         Example:
             return [
                 LLMJudgeValidator(
-                    validation_prompt_template=TEMPLATE,
+                    validation_prompt_type=ValidationPromptType.CODE_MODIFICATION,
                     llm_provider=BedrockLLMProvider(context['bedrock_client']),
                     rubric=["Criterion 1", "Criterion 2"]
                 ),

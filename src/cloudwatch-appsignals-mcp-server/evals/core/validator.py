@@ -16,8 +16,14 @@
 
 import asyncio
 import time
+from .eval_prompts import (
+    CODE_MODIFICATION_VALIDATION_PROMPT,
+    DATA_INTERPRETATION_VALIDATION_PROMPT,
+    WORKFLOW_VALIDATION_PROMPT,
+)
 from .llm_provider import LLMProvider
 from abc import ABC, abstractmethod
+from enum import Enum
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List, Literal, TypedDict
@@ -54,6 +60,20 @@ class ValidationResult(TypedDict, total=False):
     build_result: Dict[str, Any]
 
 
+class ValidationPromptType(Enum):
+    """Well-defined validation prompt templates that produce parseable output.
+
+    All templates produce responses in the format:
+    1. [PASS/FAIL] Brief reasoning
+    2. [PASS/FAIL] Brief reasoning
+    ...
+    """
+
+    CODE_MODIFICATION = CODE_MODIFICATION_VALIDATION_PROMPT
+    DATA_INTERPRETATION = DATA_INTERPRETATION_VALIDATION_PROMPT
+    WORKFLOW = WORKFLOW_VALIDATION_PROMPT
+
+
 class Validator(ABC):
     """Base class for output validation."""
 
@@ -78,17 +98,20 @@ class LLMJudgeValidator(Validator):
     """LLM-as-judge validator for evaluating captured data against rubric."""
 
     def __init__(
-        self, validation_prompt_template: str, llm_provider: LLMProvider, rubric: List[str]
+        self,
+        validation_prompt_type: ValidationPromptType,
+        llm_provider: LLMProvider,
+        rubric: List[str],
     ):
         """Initialize LLM judge validator.
 
         Args:
-            validation_prompt_template: Template with {rubric_items}, {captured_data}, {num_criteria}
-                See eval_prompts.py for standard templates (CODE_MODIFICATION_VALIDATION_PROMPT, etc.)
+            validation_prompt_type: ValidationPromptType enum specifying the template to use
+                (e.g., ValidationPromptType.CODE_MODIFICATION, ValidationPromptType.DATA_INTERPRETATION)
             llm_provider: LLMProvider instance for text generation
             rubric: List of evaluation criteria
         """
-        self.validation_prompt_template = validation_prompt_template
+        self.validation_prompt_template = validation_prompt_type.value
         self.llm_provider = llm_provider
         self.rubric = rubric
         self.rubric_items = '\n'.join(
@@ -164,14 +187,14 @@ class LLMJudgeValidator(Validator):
             tool_calls_formatted = []
             for i, call in enumerate(captured_data['tool_calls'], 1):
                 status = '✓' if call.get('success') else '✗'
-                duration = f"{call.get('duration', 0):.2f}s"
-                tool_str = f"{i}. {status} {call['name']} ({duration})"
+                duration = f'{call.get("duration", 0):.2f}s'
+                tool_str = f'{i}. {status} {call["name"]} ({duration})'
                 if call.get('input'):
-                    tool_str += f"\n   Input: {call['input']}"
+                    tool_str += f'\n   Input: {call["input"]}'
                 if call.get('error'):
-                    tool_str += f"\n   Error: {call['error']}"
+                    tool_str += f'\n   Error: {call["error"]}'
                 tool_calls_formatted.append(tool_str)
-            sections.append(f"**Tools Called:**\n{chr(10).join(tool_calls_formatted)}")
+            sections.append(f'**Tools Called:**\n{chr(10).join(tool_calls_formatted)}')
 
         return '\n\n'.join(sections)
 
