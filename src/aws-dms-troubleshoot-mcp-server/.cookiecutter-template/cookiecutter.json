@@ -1,12 +1,12 @@
 {
-  "project_name": "aws-dms-troubleshoot-mcp-server",
-  "package_name": "awslabs.aws-dms-troubleshoot-mcp-server",
-  "module_path": "awslabs.aws_dms_troubleshoot_mcp_server.server",
-  "python_version": "3.12",
   "description": "AWS DMS Troubleshooting MCP Server - Root Cause Analysis tool for AWS Database Migration Service replication issues",
-  "system_dependencies": "curl",
   "healthcheck_interval": "30s",
-  "healthcheck_timeout": "10s",
+  "healthcheck_retries": "3",
   "healthcheck_start_period": "5s",
-  "healthcheck_retries": "3"
+  "healthcheck_timeout": "10s",
+  "module_path": "awslabs.aws_dms_troubleshoot_mcp_server.server",
+  "package_name": "awslabs.aws-dms-troubleshoot-mcp-server",
+  "project_name": "aws-dms-troubleshoot-mcp-server",
+  "python_version": "3.12",
+  "system_dependencies": "curl"
 }

@@ -1527,9 +1527,7 @@ async def test_get_replication_task_details_with_assessment(sample_replication_t
     mock_dms = MagicMock()
     sample_replication_task['ReplicationTaskCreationDate'] = datetime.now()
     sample_replication_task['ReplicationTaskSettings'] = json.dumps({})
-    sample_replication_task['ReplicationTaskAssessmentResults'] = [
-        {'AssessmentStatus': 'passed'}
-    ]
+    sample_replication_task['ReplicationTaskAssessmentResults'] = [{'AssessmentStatus': 'passed'}]
     sample_replication_task['LastFailureMessage'] = 'Test error'
     sample_replication_task['StopReason'] = 'Test stop'
     mock_dms.describe_replication_tasks.return_value = {
@@ -1620,9 +1618,7 @@ async def test_get_task_cloudwatch_logs_stream_error():
         'awslabs.aws_dms_troubleshoot_mcp_server.server.get_logs_client',
         return_value=mock_logs_client,
     ):
-        result = await get_task_cloudwatch_logs(
-            task_identifier='test-task-1', region='us-east-1'
-        )
+        result = await get_task_cloudwatch_logs(task_identifier='test-task-1', region='us-east-1')
 
         # Should handle the error gracefully
         assert 'log_events' in result
@@ -2038,7 +2034,9 @@ async def test_diagnose_network_connectivity_public_no_igw(sample_replication_ta
                 task_identifier='test-task-1', region='us-east-1'
             )
 
-            assert any('internet gateway' in issue.lower() for issue in result['identified_issues'])
+            assert any(
+                'internet gateway' in issue.lower() for issue in result['identified_issues']
+            )
 
 
 def test_main_function():
