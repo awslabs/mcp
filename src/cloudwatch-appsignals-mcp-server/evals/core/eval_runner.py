@@ -14,6 +14,7 @@
 
 """Evaluation runner orchestrating task execution."""
 
+from .llm_provider import BedrockLLMProvider
 from .mcp_client import connect_to_mcp_server
 from .prompt_executor import PromptExecutor
 from .task import Task
@@ -103,7 +104,9 @@ class EvalRunner:
 
     def _create_context(self, working_directory: Path, bedrock_client: Any) -> Dict[str, Any]:
         """Create context dictionary for task execution."""
+        llm_provider = BedrockLLMProvider(bedrock_client)
         return {
             'working_directory': working_directory,
             'bedrock_client': bedrock_client,
+            'llm_provider': llm_provider,
         }

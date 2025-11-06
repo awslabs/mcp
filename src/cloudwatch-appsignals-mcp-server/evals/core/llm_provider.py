@@ -12,18 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""LLM provider abstraction for pluggable LLM support."""
+"""LLM provider abstraction for unified agent and judge support.
+
+This module provides a unified interface for LLM interactions used by both
+the agent loop (with tool calling) and the LLM judge (simple text generation).
+"""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class LLMProvider(ABC):
-    """Abstract base class for LLM providers."""
+    """Abstract base class for LLM providers.
+
+    Supports both simple text generation (for judge) and conversational
+    interactions with tool calling (for agent).
+    """
 
     @abstractmethod
     async def generate(self, prompt: str) -> str:
-        """Generate text from the LLM."""
+        """Generate text from a simple prompt.
+
+        Used by LLM judge for validation.
+
+        Args:
+            prompt: Text prompt for generation
+
+        Returns:
+            Generated text response
+        """
+        pass
+
+    @abstractmethod
+    def converse(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Conduct a conversation with optional tool calling.
+
+        Used by agent loop for multi-turn conversations with tool support.
+
+        Args:
+            messages: List of conversation messages
+            tools: Optional list of tool definitions
+            **kwargs: Additional provider-specific parameters
+
+        Returns:
+            Response dictionary from the LLM
+        """
         pass
 
 
@@ -61,3 +99,29 @@ class BedrockLLMProvider(LLMProvider):
         )
 
         return response['output']['message']['content'][0]['text']
+
+    def converse(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Conduct conversation using AWS Bedrock."""
+        from .constants import DEFAULT_MODEL_ID, DEFAULT_TEMPERATURE
+
+        model_id = self.model_id or DEFAULT_MODEL_ID
+        temperature = self.temperature if self.temperature is not None else DEFAULT_TEMPERATURE
+
+        converse_params = {
+            'modelId': model_id,
+            'messages': messages,
+            'inferenceConfig': {'temperature': temperature},
+        }
+
+        if tools:
+            converse_params['toolConfig'] = {'tools': tools}
+
+        # Allow overriding with additional kwargs
+        converse_params.update(kwargs)
+
+        return self.bedrock_client.converse(**converse_params)

@@ -42,19 +42,19 @@ class PromptExecutor:
             task: Task instance being evaluated
             session: MCP ClientSession for tool calls
             tools_response: Response from session.list_tools()
-            context: Context dictionary with working_directory, bedrock_client
+            context: Context dictionary with working_directory, llm_provider
 
         Returns:
             TaskResult with success, validation_results, metrics, captured_data
         """
         logger.debug('Running eval for task')
 
-        bedrock_client = context['bedrock_client']
+        llm_provider = context['llm_provider']
         working_directory = context['working_directory']
 
         metrics_tracker = MetricsTracker()
         messages = await run_agent_loop(
-            bedrock_client=bedrock_client,
+            llm_provider=llm_provider,
             session=session,
             prompt=prompt,
             project_root=working_directory,

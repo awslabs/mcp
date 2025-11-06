@@ -18,7 +18,7 @@ Provides multi-turn conversation loop and tool execution utilities.
 """
 
 import time
-from .constants import DEFAULT_MAX_TURNS, DEFAULT_MODEL_ID, DEFAULT_TEMPERATURE
+from .constants import DEFAULT_MAX_TURNS
 from .file_tools import get_file_tools
 from .metrics_tracker import MetricsTracker
 from loguru import logger
@@ -145,7 +145,7 @@ async def execute_tool(
 
 
 async def run_agent_loop(
-    bedrock_client,
+    llm_provider,
     session: ClientSession,
     prompt: str,
     project_root: Path,
@@ -156,7 +156,7 @@ async def run_agent_loop(
     """Run the agent loop for task completion.
 
     Args:
-        bedrock_client: Boto3 Bedrock Runtime client
+        llm_provider: LLMProvider instance for agent interactions
         session: MCP client session
         prompt: Task prompt for the agent
         project_root: Root directory for file operations
@@ -173,7 +173,6 @@ async def run_agent_loop(
     file_tools = get_file_tools()
     all_tools = bedrock_mcp_tools + file_tools
 
-    toolConfig = {'tools': all_tools}
     logger.debug(f'Configured {len(all_tools)} tools')
 
     messages = [{'role': 'user', 'content': [{'text': prompt}]}]
@@ -189,11 +188,9 @@ async def run_agent_loop(
         start = time.time()
 
         try:
-            response = bedrock_client.converse(
-                modelId=DEFAULT_MODEL_ID,
+            response = llm_provider.converse(
                 messages=messages,
-                toolConfig=toolConfig,
-                inferenceConfig={'temperature': DEFAULT_TEMPERATURE},
+                tools=all_tools,
             )
 
             elapsed = time.time() - start
