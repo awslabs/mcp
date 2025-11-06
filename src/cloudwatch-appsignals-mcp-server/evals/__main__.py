@@ -33,7 +33,7 @@ import importlib
 import sys
 import traceback
 from evals.core import EvalRunner, TaskResult
-from evals.core.constants import DEFAULT_AWS_REGION
+from evals.core.eval_config import DEFAULT_AWS_REGION
 from evals.core.task import Task
 from loguru import logger
 from pathlib import Path

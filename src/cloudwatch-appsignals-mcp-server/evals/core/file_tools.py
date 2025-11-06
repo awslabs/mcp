@@ -20,6 +20,12 @@ Provides list_files, read_file, and write_file tools in Bedrock format.
 from typing import Any, Dict, List
 
 
+# File operation tool names
+FILE_TOOL_LIST_FILES = 'list_files'
+FILE_TOOL_READ_FILE = 'read_file'
+FILE_TOOL_WRITE_FILE = 'write_file'
+
+
 def get_file_tools() -> List[Dict[str, Any]]:
     """Define file operation tools in Bedrock format.
 
@@ -29,7 +35,7 @@ def get_file_tools() -> List[Dict[str, Any]]:
     return [
         {
             'toolSpec': {
-                'name': 'list_files',
+                'name': FILE_TOOL_LIST_FILES,
                 'description': 'List files in a directory',
                 'inputSchema': {
                     'json': {
@@ -47,7 +53,7 @@ def get_file_tools() -> List[Dict[str, Any]]:
         },
         {
             'toolSpec': {
-                'name': 'read_file',
+                'name': FILE_TOOL_READ_FILE,
                 'description': 'Read contents of a file',
                 'inputSchema': {
                     'json': {
@@ -65,7 +71,7 @@ def get_file_tools() -> List[Dict[str, Any]]:
         },
         {
             'toolSpec': {
-                'name': 'write_file',
+                'name': FILE_TOOL_WRITE_FILE,
                 'description': 'Write content to a file (overwrites existing content)',
                 'inputSchema': {
                     'json': {

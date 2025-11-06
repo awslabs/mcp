@@ -18,8 +18,13 @@ Provides multi-turn conversation loop and tool execution utilities.
 """
 
 import time
-from .constants import DEFAULT_MAX_TURNS
-from .file_tools import get_file_tools
+from .eval_config import DEFAULT_MAX_TURNS
+from .file_tools import (
+    FILE_TOOL_LIST_FILES,
+    FILE_TOOL_READ_FILE,
+    FILE_TOOL_WRITE_FILE,
+    get_file_tools,
+)
 from .metrics_tracker import MetricsTracker
 from loguru import logger
 from mcp import ClientSession
@@ -76,7 +81,7 @@ async def execute_tool(
     error = None
 
     try:
-        if tool_name == 'list_files':
+        if tool_name == FILE_TOOL_LIST_FILES:
             dir_path = project_root / tool_input['path']
 
             if not dir_path.exists():
@@ -92,7 +97,7 @@ async def execute_tool(
                     f'Permission denied accessing directory: {tool_input["path"]}'
                 )
 
-        elif tool_name == 'read_file':
+        elif tool_name == FILE_TOOL_READ_FILE:
             file_path = project_root / tool_input['path']
 
             if not file_path.exists():
@@ -109,7 +114,7 @@ async def execute_tool(
                 logger.warning(f'File appears to be binary: {tool_input["path"]}')
                 raise ValueError(f'Cannot read binary file: {tool_input["path"]}')
 
-        elif tool_name == 'write_file':
+        elif tool_name == FILE_TOOL_WRITE_FILE:
             file_path = project_root / tool_input['path']
 
             try:

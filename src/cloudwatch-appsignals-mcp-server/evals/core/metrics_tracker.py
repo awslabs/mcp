@@ -18,6 +18,7 @@ Tracks tool calls, success rates, hit rates, and task duration.
 """
 
 import time
+from .file_tools import FILE_TOOL_LIST_FILES, FILE_TOOL_READ_FILE, FILE_TOOL_WRITE_FILE
 from typing import Any, Dict, List, Optional
 
 
@@ -104,17 +105,20 @@ class MetricsTracker:
             'tool_calls_detail': self.tool_calls,
         }
 
-        file_ops = ['read_file', 'write_file', 'list_files']
-        file_op_calls = [c for c in self.tool_calls if c['tool_name'] in file_ops]
+        file_op_calls = [
+            c
+            for c in self.tool_calls
+            if c['tool_name'] in [FILE_TOOL_LIST_FILES, FILE_TOOL_READ_FILE, FILE_TOOL_WRITE_FILE]
+        ]
 
         metrics.update(
             {
                 'file_operation_count': len(file_op_calls),
                 'file_read_count': len(
-                    [c for c in file_op_calls if c['tool_name'] == 'read_file']
+                    [c for c in file_op_calls if c['tool_name'] == FILE_TOOL_READ_FILE]
                 ),
                 'file_write_count': len(
-                    [c for c in file_op_calls if c['tool_name'] == 'write_file']
+                    [c for c in file_op_calls if c['tool_name'] == FILE_TOOL_WRITE_FILE]
                 ),
             }
         )
