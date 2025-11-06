@@ -40,11 +40,16 @@ class Captor(ABC):
 class GitDiffCaptor(Captor):
     """Captures git diff of file changes made by agent."""
 
-    def __init__(self, git_paths: List[str], process_executor: Optional[ProcessExecutor] = None):
+    def __init__(
+        self,
+        git_paths: Optional[List[str]] = None,
+        process_executor: Optional[ProcessExecutor] = None,
+    ):
         """Initialize GitDiffCaptor.
 
         Args:
-            git_paths: Paths relative to project root to capture git diff for
+            git_paths: Paths relative to working_directory to capture git diff for.
+                       If None or empty, captures diff for all changes.
             process_executor: ProcessExecutor instance (default: SubprocessExecutor)
         """
         self.git_paths = git_paths
@@ -60,11 +65,18 @@ class GitDiffCaptor(Captor):
     ) -> Dict[str, Any]:
         """Capture git diff for configured paths."""
         try:
-            full_paths = [str(project_root / path) for path in self.git_paths]
-            result = self.process_executor.run(
-                ['git', 'diff', '--'] + full_paths,
-                timeout=10,
-            )
+            if self.git_paths:
+                full_paths = [str(project_root / path) for path in self.git_paths]
+                result = self.process_executor.run(
+                    ['git', 'diff', '--'] + full_paths,
+                    timeout=10,
+                )
+            else:
+                # Capture all changes if no specific paths provided
+                result = self.process_executor.run(
+                    ['git', 'diff'],
+                    timeout=10,
+                )
             return {'git_diff': result.stdout}
         except Exception as e:
             return {'git_diff': '', 'error': str(e)}
