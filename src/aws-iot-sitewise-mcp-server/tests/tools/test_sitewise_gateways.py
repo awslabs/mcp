@@ -145,8 +145,8 @@ class TestSiteWiseGateways:
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            'assetId': 'asset-123',
-            'propertyId': 'prop-456',
+            'assetId': '12345678-1234-1234-1234-123456789012',
+            'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
             'alias': '/test/alias',
             'timeSeriesId': 'ts-789',
             'dataType': 'DOUBLE',
@@ -182,7 +182,7 @@ class TestSiteWiseGateways:
 
         result = list_time_series(
             region='us-east-1',
-            asset_id='asset-123',
+            asset_id='12345678-1234-1234-1234-123456789012',
             alias_prefix='/test',
             time_series_type='ASSOCIATED',
         )
@@ -198,8 +198,8 @@ class TestSiteWiseGateways:
 
         result = associate_time_series_to_asset_property(
             alias='/test/alias',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-east-1',
         )
 
@@ -214,8 +214,8 @@ class TestSiteWiseGateways:
 
         result = disassociate_time_series_from_asset_property(
             alias='/test/alias',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-east-1',
         )
 
@@ -393,7 +393,7 @@ class TestSiteWiseGateways:
             region='us-west-2',
             next_token='prev-token',
             max_results=200,
-            asset_id='asset-123',
+            asset_id='12345678-1234-1234-1234-123456789012',
             alias_prefix='/company/plant',
             time_series_type='ASSOCIATED',
         )
@@ -402,7 +402,7 @@ class TestSiteWiseGateways:
         mock_client.list_time_series.assert_called_once_with(
             maxResults=200,
             nextToken='prev-token',
-            assetId='asset-123',
+            assetId='12345678-1234-1234-1234-123456789012',
             aliasPrefix='/company/plant',
             timeSeriesType='ASSOCIATED',
         )
@@ -428,8 +428,8 @@ class TestSiteWiseGateways:
         mock_boto_client.return_value = mock_client
 
         mock_response = {
-            'assetId': 'asset-123',
-            'propertyId': 'prop-456',
+            'assetId': '12345678-1234-1234-1234-123456789012',
+            'propertyId': 'abcdef12-3456-7890-abcd-ef1234567890',
             'alias': '/company/plant/temperature',
             'timeSeriesId': 'ts-789',
             'dataType': 'DOUBLE',
@@ -459,30 +459,31 @@ class TestSiteWiseGateways:
         mock_client.reset_mock()
         result = describe_time_series(
             alias=None,
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-east-1',
         )
 
         assert result['success'] is True
         mock_client.describe_time_series.assert_called_once_with(
-            assetId='asset-123', propertyId='prop-456'
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
         )
 
         # Test with all parameters
         mock_client.reset_mock()
         result = describe_time_series(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-west-2',
         )
 
         assert result['success'] is True
         mock_client.describe_time_series.assert_called_once_with(
             alias='/company/plant/temperature',
-            assetId='asset-123',
-            propertyId='prop-456',
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
         )
 
     @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways.create_sitewise_client')
@@ -494,8 +495,8 @@ class TestSiteWiseGateways:
         # Test with client_token
         result = associate_time_series_to_asset_property(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-west-2',
             client_token='association-token',
         )
@@ -503,8 +504,8 @@ class TestSiteWiseGateways:
         assert result['success'] is True
         mock_client.associate_time_series_to_asset_property.assert_called_once_with(
             alias='/company/plant/temperature',
-            assetId='asset-123',
-            propertyId='prop-456',
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
             clientToken='association-token',
         )
 
@@ -512,8 +513,8 @@ class TestSiteWiseGateways:
         mock_client.reset_mock()
         result = associate_time_series_to_asset_property(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-east-1',
             client_token=None,
         )
@@ -521,8 +522,8 @@ class TestSiteWiseGateways:
         assert result['success'] is True
         mock_client.associate_time_series_to_asset_property.assert_called_once_with(
             alias='/company/plant/temperature',
-            assetId='asset-123',
-            propertyId='prop-456',
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
         )
 
     @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways.create_sitewise_client')
@@ -534,8 +535,8 @@ class TestSiteWiseGateways:
         # Test with client_token
         result = disassociate_time_series_from_asset_property(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-west-2',
             client_token='disassociation-token',
         )
@@ -543,8 +544,8 @@ class TestSiteWiseGateways:
         assert result['success'] is True
         mock_client.disassociate_time_series_from_asset_property.assert_called_once_with(
             alias='/company/plant/temperature',
-            assetId='asset-123',
-            propertyId='prop-456',
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
             clientToken='disassociation-token',
         )
 
@@ -552,8 +553,8 @@ class TestSiteWiseGateways:
         mock_client.reset_mock()
         result = disassociate_time_series_from_asset_property(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-east-1',
             client_token=None,
         )
@@ -561,8 +562,8 @@ class TestSiteWiseGateways:
         assert result['success'] is True
         mock_client.disassociate_time_series_from_asset_property.assert_called_once_with(
             alias='/company/plant/temperature',
-            assetId='asset-123',
-            propertyId='prop-456',
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
         )
 
     @patch('awslabs.aws_iot_sitewise_mcp_server.tools.sitewise_gateways.create_sitewise_client')
@@ -587,23 +588,24 @@ class TestSiteWiseGateways:
         mock_client.reset_mock()
         result = delete_time_series(
             alias=None,
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-east-1',
             client_token=None,
         )
 
         assert result['success'] is True
         mock_client.delete_time_series.assert_called_once_with(
-            assetId='asset-123', propertyId='prop-456'
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
         )
 
         # Test with all parameters including client_token
         mock_client.reset_mock()
         result = delete_time_series(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
             region='us-west-2',
             client_token='delete-token',
         )
@@ -611,8 +613,8 @@ class TestSiteWiseGateways:
         assert result['success'] is True
         mock_client.delete_time_series.assert_called_once_with(
             alias='/company/plant/temperature',
-            assetId='asset-123',
-            propertyId='prop-456',
+            assetId='12345678-1234-1234-1234-123456789012',
+            propertyId='abcdef12-3456-7890-abcd-ef1234567890',
             clientToken='delete-token',
         )
 
@@ -718,8 +720,8 @@ class TestSiteWiseGateways:
         )
         result = associate_time_series_to_asset_property(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
         )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
@@ -730,8 +732,8 @@ class TestSiteWiseGateways:
         )
         result = disassociate_time_series_from_asset_property(
             alias='/company/plant/temperature',
-            asset_id='asset-123',
-            property_id='prop-456',
+            asset_id='12345678-1234-1234-1234-123456789012',
+            property_id='abcdef12-3456-7890-abcd-ef1234567890',
         )
         assert result['success'] is False
         assert result['error_code'] == 'InternalFailureException'
