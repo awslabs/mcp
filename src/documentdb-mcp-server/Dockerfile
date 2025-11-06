@@ -85,4 +85,5 @@ USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
-ENTRYPOINT ["awslabs.amazon-sns-sqs-mcp-server"]
+ENTRYPOINT ["awslabs.documentdb-mcp-server"]
+

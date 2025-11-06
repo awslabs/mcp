@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/docker/library/python:3.13-alpine@sha256:070342a0cc1011532c0e69972cce2bbc6cc633eba294bae1d12abea8bd05303b AS uv
+FROM public.ecr.aws/docker/library/python:3.11-alpine@sha256:87cf61d82df96dab95c84f0e2ef8b7e2f9c95e4ea2b4de1f63c9c8b2f8d1b5ee AS uv
 
 # Install the project into `/app`
 WORKDIR /app
@@ -50,18 +50,18 @@ RUN apk update && \
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
     pip install --require-hashes --requirement uv-requirements.txt --no-cache-dir && \
-    uv sync --python 3.13 --frozen --no-install-project --no-dev --no-editable
+    uv sync --python 3.11 --frozen --no-install-project --no-dev --no-editable
 
 # Then, add the rest of the project source code and install it
 # Installing separately from its dependencies allows optimal layer caching
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --python 3.13 --frozen --no-dev --no-editable
+    uv sync --python 3.11 --frozen --no-dev --no-editable
 
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/docker/library/python:3.13-alpine@sha256:070342a0cc1011532c0e69972cce2bbc6cc633eba294bae1d12abea8bd05303b
+FROM public.ecr.aws/docker/library/python:3.11-alpine@sha256:87cf61d82df96dab95c84f0e2ef8b7e2f9c95e4ea2b4de1f63c9c8b2f8d1b5ee
 
 # Place executables in the environment at the front of the path and include other binaries
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -85,4 +85,5 @@ USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
-ENTRYPOINT ["awslabs.amazon-sns-sqs-mcp-server"]
+ENTRYPOINT ["awslabs.amazon-keyspaces-mcp-server"]
+

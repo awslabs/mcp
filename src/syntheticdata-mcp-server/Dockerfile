@@ -45,7 +45,8 @@ RUN apk update && \
     musl-dev \
     libffi-dev \
     openssl-dev \
-    cargo
+    cargo \
+    cmake
 
 # Install the project's dependencies using the lockfile and settings
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -85,4 +86,5 @@ USER app
 
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
-ENTRYPOINT ["awslabs.amazon-sns-sqs-mcp-server"]
+ENTRYPOINT ["awslabs.syntheticdata-mcp-server"]
+
