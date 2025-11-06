@@ -36,6 +36,21 @@ class MockConfigPathNormalizer:
     in mock configs to absolute paths, enabling the mock handlers to load the files.
     """
 
+    # Supported fixture file extensions
+    _FIXTURE_EXTENSIONS = ('.json', '.txt')
+
+    @staticmethod
+    def _is_fixture_file_reference(value: str) -> bool:
+        """Check if a string value is a fixture file reference.
+
+        Args:
+            value: String to check
+
+        Returns:
+            True if value ends with a supported fixture file extension
+        """
+        return any(value.endswith(ext) for ext in MockConfigPathNormalizer._FIXTURE_EXTENSIONS)
+
     @staticmethod
     def resolve_mock_config(mock_config: Dict[str, Any], fixtures_dir: Path) -> Dict[str, Any]:
         """Resolve all relative fixture paths in a mock configuration to absolute paths.
@@ -69,12 +84,14 @@ class MockConfigPathNormalizer:
                 for item in value:
                     if isinstance(item, dict) and 'response' in item:
                         response = item['response']
-                        if isinstance(response, str) and (
-                            response.endswith('.json') or response.endswith('.txt')
-                        ):
+                        if isinstance(
+                            response, str
+                        ) and MockConfigPathNormalizer._is_fixture_file_reference(response):
                             if not Path(response).is_absolute():
                                 return True
-            elif isinstance(value, str) and (value.endswith('.json') or value.endswith('.txt')):
+            elif isinstance(value, str) and MockConfigPathNormalizer._is_fixture_file_reference(
+                value
+            ):
                 if not Path(value).is_absolute():
                     return True
         return False
@@ -115,7 +132,9 @@ class MockConfigPathNormalizer:
 
         # TODO: Add support for file references in request field (currently only response supports files)
         response = pair['response']
-        if isinstance(response, str) and (response.endswith('.json') or response.endswith('.txt')):
+        if isinstance(response, str) and MockConfigPathNormalizer._is_fixture_file_reference(
+            response
+        ):
             response = str(fixtures_dir / response)
 
         return {'request': pair['request'], 'response': response}
