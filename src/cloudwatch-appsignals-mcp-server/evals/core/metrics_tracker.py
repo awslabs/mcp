@@ -68,77 +68,122 @@ class MetricsTracker:
             }
         )
 
-    def get_metrics(self, expected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Calculate metrics.
+    @property
+    def success_rate(self) -> float:
+        """Calculate success rate of tool calls."""
+        if not self.tool_calls:
+            return 0.0
+        return sum(1 for c in self.tool_calls if c['success']) / len(self.tool_calls)
 
-        Args:
-            expected_tools: List of MCP tools expected to be used
-        """
-        tool_breakdown = {}
-        unique_tools = set()
+    @property
+    def tool_call_count(self) -> int:
+        """Return total number of tool calls."""
+        return len(self.tool_calls)
+
+    @property
+    def unique_tools_count(self) -> int:
+        """Return number of unique tools called."""
+        return len({c['tool_name'] for c in self.tool_calls})
+
+    @property
+    def task_duration(self) -> float:
+        """Calculate task duration in seconds."""
+        if self.task_start_time and self.task_end_time:
+            return self.task_end_time - self.task_start_time
+        return 0.0
+
+    @property
+    def tool_breakdown(self) -> Dict[str, Dict[str, int]]:
+        """Calculate per-tool call statistics."""
+        breakdown = {}
         for call in self.tool_calls:
             tool_name = call['tool_name']
-            unique_tools.add(tool_name)
-            if tool_name not in tool_breakdown:
-                tool_breakdown[tool_name] = {'count': 0, 'success': 0, 'failed': 0}
-            tool_breakdown[tool_name]['count'] += 1
+            if tool_name not in breakdown:
+                breakdown[tool_name] = {'count': 0, 'success': 0, 'failed': 0}
+            breakdown[tool_name]['count'] += 1
             if call['success']:
-                tool_breakdown[tool_name]['success'] += 1
+                breakdown[tool_name]['success'] += 1
             else:
-                tool_breakdown[tool_name]['failed'] += 1
+                breakdown[tool_name]['failed'] += 1
+        return breakdown
 
-        metrics = {
-            'success_rate': (
-                sum(1 for c in self.tool_calls if c['success']) / len(self.tool_calls)
-                if self.tool_calls
-                else 0.0
-            ),
-            'tool_call_count': len(self.tool_calls),
-            'unique_tools_count': len(unique_tools),
-            'turn_count': self.turn_count,
-            'tool_breakdown': tool_breakdown,
-            'task_duration': (
-                self.task_end_time - self.task_start_time
-                if self.task_start_time and self.task_end_time
-                else 0.0
-            ),
-            'tool_calls_detail': self.tool_calls,
-        }
+    @property
+    def file_operation_count(self) -> int:
+        """Return count of file operation tool calls."""
+        return len(self._get_file_operation_calls())
 
-        file_op_calls = [
+    @property
+    def file_read_count(self) -> int:
+        """Return count of read_file calls."""
+        return len(
+            [c for c in self._get_file_operation_calls() if c['tool_name'] == FILE_TOOL_READ_FILE]
+        )
+
+    @property
+    def file_write_count(self) -> int:
+        """Return count of write_file calls."""
+        return len(
+            [c for c in self._get_file_operation_calls() if c['tool_name'] == FILE_TOOL_WRITE_FILE]
+        )
+
+    def _get_file_operation_calls(self) -> List[Dict[str, Any]]:
+        """Get all file operation tool calls."""
+        return [
             c
             for c in self.tool_calls
             if c['tool_name'] in [FILE_TOOL_LIST_FILES, FILE_TOOL_READ_FILE, FILE_TOOL_WRITE_FILE]
         ]
 
-        metrics.update(
-            {
-                'file_operation_count': len(file_op_calls),
-                'file_read_count': len(
-                    [c for c in file_op_calls if c['tool_name'] == FILE_TOOL_READ_FILE]
-                ),
-                'file_write_count': len(
-                    [c for c in file_op_calls if c['tool_name'] == FILE_TOOL_WRITE_FILE]
-                ),
-            }
-        )
+    def compare_expected_tools(self, expected_tools: List[str]) -> Dict[str, Any]:
+        """Compare called tools against expected tools.
+
+        Args:
+            expected_tools: List of MCP tools expected to be used
+
+        Returns:
+            Dictionary with hit_rate, expected_tools_called, missing_expected_tools, unexpected_tools_called
+        """
+        expected_tool_set = set(expected_tools)
+        called_tool_names = {c['tool_name'] for c in self.tool_calls}
+        called_expected = called_tool_names & expected_tool_set
+        missing = expected_tool_set - called_tool_names
+        unexpected = called_tool_names - expected_tool_set
+
+        return {
+            'hit_rate': len(called_expected) / len(expected_tool_set)
+            if expected_tool_set
+            else 0.0,
+            'expected_tools_called': sorted(called_expected),
+            'missing_expected_tools': sorted(missing),
+            'unexpected_tools_called': sorted(unexpected),
+        }
+
+    def get_metrics(self, expected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Collect all metrics into a dictionary.
+
+        This is a convenience method for serialization (e.g., TaskResult).
+        Prefer accessing individual properties or compare_expected_tools() directly.
+
+        Args:
+            expected_tools: List of MCP tools expected to be used
+
+        Returns:
+            Dictionary containing all metrics
+        """
+        metrics = {
+            'success_rate': self.success_rate,
+            'tool_call_count': self.tool_call_count,
+            'unique_tools_count': self.unique_tools_count,
+            'turn_count': self.turn_count,
+            'tool_breakdown': self.tool_breakdown,
+            'task_duration': self.task_duration,
+            'tool_calls_detail': self.tool_calls,
+            'file_operation_count': self.file_operation_count,
+            'file_read_count': self.file_read_count,
+            'file_write_count': self.file_write_count,
+        }
 
         if expected_tools:
-            expected_tool_set = set(expected_tools)
-            called_tool_names = {c['tool_name'] for c in self.tool_calls}
-            called_expected = called_tool_names & expected_tool_set
-            missing = expected_tool_set - called_tool_names
-            unexpected = called_tool_names - expected_tool_set
-
-            metrics.update(
-                {
-                    'hit_rate': len(called_expected) / len(expected_tool_set)
-                    if expected_tool_set
-                    else 0.0,
-                    'expected_tools_called': sorted(called_expected),
-                    'missing_expected_tools': sorted(missing),
-                    'unexpected_tools_called': sorted(unexpected),
-                }
-            )
+            metrics.update(self.compare_expected_tools(expected_tools))
 
         return metrics
