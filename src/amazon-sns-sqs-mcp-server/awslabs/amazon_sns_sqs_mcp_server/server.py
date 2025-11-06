@@ -15,7 +15,6 @@
 """Main server module for Amazon SNS and SQS MCP server."""
 
 import argparse
-from awslabs.amazon_sns_sqs_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_sns_sqs_mcp_server.sns import register_sns_tools
 from awslabs.amazon_sns_sqs_mcp_server.sqs import register_sqs_tools
 from mcp.server.fastmcp import FastMCP
