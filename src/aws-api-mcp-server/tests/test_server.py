@@ -822,7 +822,7 @@ async def test_get_execution_plan_is_available_when_env_var_is_set():
 
     from awslabs.aws_api_mcp_server.server import server
 
-    tools = await server._list_tools()
+    tools = await server._list_tools(context=None)
     tool_names = [tool.name for tool in tools]
     assert 'get_execution_plan' in tool_names
 
@@ -838,7 +838,7 @@ async def test_get_execution_plan_is_available_when_env_var_is_not_set():
 
     from awslabs.aws_api_mcp_server.server import server
 
-    tools = await server._list_tools()
+    tools = await server._list_tools(context=None)
     tool_names = [tool.name for tool in tools]
     assert 'get_execution_plan' not in tool_names
 
