@@ -100,20 +100,17 @@ class ToolCallsCaptor(Captor):
         metrics_tracker: Any,
         project_root: Path,
     ) -> Dict[str, Any]:
-        """Capture tool call sequence."""
-        tool_calls = []
-
-        for message in messages:
-            if message.get(MESSAGE_ROLE) == ROLE_ASSISTANT:
-                for content in message.get(MESSAGE_CONTENT, []):
-                    if CONTENT_TOOL_USE in content:
-                        tool_use = content[CONTENT_TOOL_USE]
-                        tool_calls.append(
-                            {
-                                'name': tool_use['name'],
-                                'input': tool_use.get('input', {}),
-                            }
-                        )
+        """Capture tool call sequence from metrics tracker."""
+        tool_calls = [
+            {
+                'name': call['tool_name'],
+                'input': call['parameters'],
+                'success': call['success'],
+                'duration': call['duration'],
+                'error': call.get('error'),
+            }
+            for call in metrics_tracker.tool_calls
+        ]
 
         return {'tool_calls': tool_calls}
 
