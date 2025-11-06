@@ -1,6 +1,6 @@
 # .NET Lambda Function with CDK
 
-This directory contains AWS CDK code to deploy a .NET Lambda function with API Gateway.
+This directory contains AWS CDK code to deploy a .NET Lambda function with Application Load Balancer.
 
 ## Prerequisites
 

@@ -28,7 +28,8 @@ public class Function
         return new APIGatewayProxyResponse
         {
             StatusCode = 200,
-            Body = responseBody
+            Headers = new Dictionary<string, string> { { "Content-Type", "text/html" } },
+            Body = $"<html><body><h1>{responseBody}</h1></body></html>"
         };
     }
 }

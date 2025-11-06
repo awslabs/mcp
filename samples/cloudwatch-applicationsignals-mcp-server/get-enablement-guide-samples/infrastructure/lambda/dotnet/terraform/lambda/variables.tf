@@ -1,6 +1,6 @@
 variable "function_name" {
   type        = string
-  description = "Name of sample app function / API gateway"
+  description = "Name of sample app function / ALB"
   default     = "awslabs-sample-dotnet-terraform"
 }
 
