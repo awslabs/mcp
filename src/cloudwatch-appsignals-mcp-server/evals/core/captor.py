@@ -20,6 +20,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
+MESSAGE_ROLE = 'role'
+ROLE_ASSISTANT = 'assistant'
+ROLE_USER = 'user'
+MESSAGE_CONTENT = 'content'
+CONTENT_TEXT = 'text'
+CONTENT_TOOL_USE = 'toolUse'
+CONTENT_TOOL_RESULT = 'toolResult'
+
+
 class Captor(ABC):
     """Base class for capturing agent outputs."""
 
@@ -95,10 +104,10 @@ class ToolCallsCaptor(Captor):
         tool_calls = []
 
         for message in messages:
-            if message.get('role') == 'assistant':
-                for content in message.get('content', []):
-                    if 'toolUse' in content:
-                        tool_use = content['toolUse']
+            if message.get(MESSAGE_ROLE) == ROLE_ASSISTANT:
+                for content in message.get(MESSAGE_CONTENT, []):
+                    if CONTENT_TOOL_USE in content:
+                        tool_use = content[CONTENT_TOOL_USE]
                         tool_calls.append(
                             {
                                 'name': tool_use['name'],
@@ -133,10 +142,10 @@ class FinalResponseCaptor(Captor):
     ) -> Dict[str, Any]:
         """Capture final response text."""
         for message in reversed(messages):
-            if message.get('role') == 'assistant':
-                for content in message.get('content', []):
-                    if 'text' in content:
-                        return {'final_response': content['text']}
+            if message.get(MESSAGE_ROLE) == ROLE_ASSISTANT:
+                for content in message.get(MESSAGE_CONTENT, []):
+                    if CONTENT_TEXT in content:
+                        return {'final_response': content[CONTENT_TEXT]}
 
         return {'final_response': '', 'error': 'No final response found'}
 
@@ -154,14 +163,14 @@ class ToolResultsCaptor(Captor):
         tool_results = []
 
         for message in messages:
-            if message.get('role') == 'user':
-                for content in message.get('content', []):
-                    if 'toolResult' in content:
-                        tool_result = content['toolResult']
-                        result_content = tool_result.get('content', [])
+            if message.get(MESSAGE_ROLE) == ROLE_USER:
+                for content in message.get(MESSAGE_CONTENT, []):
+                    if CONTENT_TOOL_RESULT in content:
+                        tool_result = content[CONTENT_TOOL_RESULT]
+                        result_content = tool_result.get(MESSAGE_CONTENT, [])
                         result_text = ''
                         if result_content:
-                            result_text = result_content[0].get('text', '')
+                            result_text = result_content[0].get(CONTENT_TEXT, '')
 
                         tool_results.append(
                             {
