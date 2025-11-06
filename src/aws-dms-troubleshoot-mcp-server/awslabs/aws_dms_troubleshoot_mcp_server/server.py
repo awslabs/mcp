@@ -14,19 +14,17 @@
 
 """AWS DMS Troubleshooting MCP Server implementation."""
 
+import boto3
 import json
 import os
 import sys
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-
-import boto3
+from awslabs.aws_dms_troubleshoot_mcp_server import __version__
 from botocore.config import Config
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-
-from awslabs.aws_dms_troubleshoot_mcp_server import __version__
+from typing import Dict, Optional
 
 
 # User agent configuration for AWS API calls
@@ -173,8 +171,7 @@ async def list_replication_tasks(
                 'target_endpoint_arn': task.get('TargetEndpointArn'),
                 'replication_instance_arn': task.get('ReplicationInstanceArn'),
                 'table_mappings_count': len(
-                    json.loads(task.get('TableMappings', '{}'))
-                    .get('rules', [])
+                    json.loads(task.get('TableMappings', '{}')).get('rules', [])
                 ),
             }
 
@@ -325,11 +322,11 @@ async def get_task_cloudwatch_logs(
     task_identifier: str = Field(description='Replication task identifier'),
     region: str = FIELD_AWS_REGION,
     aws_profile: str = FIELD_AWS_PROFILE,
-    hours_back: int = Field(24, description='How many hours of logs to retrieve (default: 24)'),
+    hours_back: int = 24,
     filter_pattern: Optional[str] = Field(
         None, description='CloudWatch Logs filter pattern (e.g., "ERROR" or "FATAL")'
     ),
-    max_events: int = Field(100, description='Maximum number of log events to return'),
+    max_events: int = 100,
 ) -> Dict:
     """Retrieve CloudWatch logs for a replication task.
 
@@ -352,7 +349,7 @@ async def get_task_cloudwatch_logs(
         log_group_name = f'dms-tasks-{task_identifier}'
 
         # Calculate time range
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(hours=hours_back)
 
         try:
@@ -536,7 +533,9 @@ async def analyze_endpoint(
         # Check connection status
         if endpoint.get('Status') != 'active':
             potential_issues.append(f"Endpoint status is '{endpoint.get('Status')}' (not active)")
-            recommendations.append('Test endpoint connection and verify credentials and network access')
+            recommendations.append(
+                'Test endpoint connection and verify credentials and network access'
+            )
 
         # Engine-specific checks
         if 'mysql' in engine_name:
@@ -618,7 +617,12 @@ async def diagnose_replication_issue(
 
         # Get recent logs with errors
         logs = await get_task_cloudwatch_logs(
-            task_identifier, region, aws_profile, hours_back=24, filter_pattern='ERROR', max_events=50
+            task_identifier,
+            region,
+            aws_profile,
+            hours_back=24,
+            filter_pattern='ERROR',
+            max_events=50,
         )
 
         # Analyze endpoints
@@ -641,16 +645,16 @@ async def diagnose_replication_issue(
             severity = 'CRITICAL'
 
             if task_details.get('last_error'):
-                root_causes.append(f"Task error: {task_details['last_error']}")
+                root_causes.append(f'Task error: {task_details["last_error"]}')
 
             if task_details.get('stop_reason'):
-                root_causes.append(f"Stop reason: {task_details['stop_reason']}")
+                root_causes.append(f'Stop reason: {task_details["stop_reason"]}')
 
         # Analyze statistics
         stats = task_details.get('statistics', {})
         if stats.get('tables_errored', 0) > 0:
             root_causes.append(
-                f"{stats['tables_errored']} table(s) encountered errors during replication"
+                f'{stats["tables_errored"]} table(s) encountered errors during replication'
             )
             recommendations.append(
                 'Review table-level errors in CloudWatch Logs and check for schema differences'
@@ -659,7 +663,7 @@ async def diagnose_replication_issue(
         # Analyze logs
         if logs.get('log_summary', {}).get('errors', 0) > 10:
             root_causes.append(
-                f"High error rate detected: {logs['log_summary']['errors']} errors in last 24 hours"
+                f'High error rate detected: {logs["log_summary"]["errors"]} errors in last 24 hours'
             )
             recommendations.append(
                 'Review error patterns in CloudWatch Logs to identify recurring issues'
@@ -800,9 +804,7 @@ async def get_troubleshooting_recommendations(
                     '6. Verify DMS has permissions to read CDC logs',
                 ]
             )
-            doc_links.append(
-                'https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html'
-            )
+            doc_links.append('https://docs.aws.amazon.com/dms/latest/userguide/CHAP_Task.CDC.html')
 
         # Table-level issues
         if any(
@@ -876,9 +878,7 @@ async def get_troubleshooting_recommendations(
 
         # Always add general documentation
         doc_links.append('https://docs.aws.amazon.com/dms/latest/userguide/Welcome.html')
-        doc_links.append(
-            'https://repost.aws/knowledge-center/dms-common-errors'
-        )
+        doc_links.append('https://repost.aws/knowledge-center/dms-common-errors')
 
         return {
             'query': error_pattern,
@@ -941,9 +941,6 @@ async def analyze_security_groups(
 
         instance = instances[0]
         vpc_security_groups = instance.get('VpcSecurityGroups', [])
-        subnet_id = instance.get('ReplicationSubnetGroup', {}).get('Subnets', [{}])[0].get(
-            'SubnetIdentifier'
-        )
 
         if not vpc_security_groups:
             return {
@@ -982,9 +979,7 @@ async def analyze_security_groups(
 
                 # Get source information
                 for ip_range in rule.get('IpRanges', []):
-                    rule_info['sources'].append(
-                        {'type': 'cidr', 'value': ip_range.get('CidrIp')}
-                    )
+                    rule_info['sources'].append({'type': 'cidr', 'value': ip_range.get('CidrIp')})
                 for sg_ref in rule.get('UserIdGroupPairs', []):
                     rule_info['sources'].append(
                         {'type': 'security_group', 'value': sg_ref.get('GroupId')}
@@ -1016,10 +1011,10 @@ async def analyze_security_groups(
             # Check for common issues
             if not sg_info['egress_rules']:
                 connectivity_issues.append(
-                    f"Security group {sg.get('GroupName')} has no egress rules"
+                    f'Security group {sg.get("GroupName")} has no egress rules'
                 )
                 recommendations.append(
-                    f"Add egress rules to {sg.get('GroupName')} to allow outbound traffic"
+                    f'Add egress rules to {sg.get("GroupName")} to allow outbound traffic'
                 )
 
             # Check if egress allows database ports
@@ -1038,7 +1033,7 @@ async def analyze_security_groups(
 
             if not has_db_egress:
                 connectivity_issues.append(
-                    f"Security group {sg.get('GroupName')} may not allow database port access"
+                    f'Security group {sg.get("GroupName")} may not allow database port access'
                 )
                 recommendations.append(
                     'Ensure egress rules allow traffic to database ports (MySQL:3306, PostgreSQL:5432, Oracle:1521, SQL Server:1433)'
@@ -1227,7 +1222,7 @@ async def diagnose_network_connectivity(
                 {
                     'check': 'Security Groups',
                     'status': 'ANALYZED',
-                    'details': f"Found {len(sg_analysis.get('security_groups', []))} security group(s)",
+                    'details': f'Found {len(sg_analysis.get("security_groups", []))} security group(s)',
                 }
             )
             if 'connectivity_issues' in sg_analysis and sg_analysis['connectivity_issues']:
@@ -1288,7 +1283,9 @@ async def diagnose_network_connectivity(
             'task_identifier': task_identifier,
             'network_summary': network_summary,
             'connectivity_checks': connectivity_checks,
-            'identified_issues': identified_issues if identified_issues else ['No critical issues identified'],
+            'identified_issues': identified_issues
+            if identified_issues
+            else ['No critical issues identified'],
             'recommendations': recommendations
             if recommendations
             else ['Network configuration appears healthy'],
@@ -1356,9 +1353,7 @@ async def check_vpc_configuration(
             recommendations.append('Enable DNS hostnames for the VPC')
 
         # Analyze route tables
-        rt_response = ec2.describe_route_tables(
-            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
-        )
+        rt_response = ec2.describe_route_tables(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
 
         routing_analysis = {'route_tables': [], 'internet_gateway': None, 'nat_gateways': []}
 
@@ -1442,9 +1437,7 @@ async def check_vpc_configuration(
             connectivity_options['transit_gateway'] = []
 
         # Analyze Network ACLs
-        nacl_response = ec2.describe_network_acls(
-            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
-        )
+        nacl_response = ec2.describe_network_acls(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
 
         network_acl_analysis = []
         for nacl in nacl_response.get('NetworkAcls', []):
