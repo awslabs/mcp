@@ -133,6 +133,9 @@ def main():
 
     args = parser.parse_args()
 
+    # TODO: Improve logging configuration for subprocess.
+    # Current setup uses Python's last resort handler (stderr only, no formatting).
+    # Consider: proper handler configuration, file output, integration with parent process logs.
     log_level = os.environ.get('TEMP_SERVER_WRAPPER_LOG_LEVEL', 'INFO').upper()
     mcp_logger = logging.getLogger('mcp')
     mcp_logger.setLevel(getattr(logging, log_level))

@@ -68,6 +68,8 @@ class EvalRunner:
 
         Connects to MCP server and executes prompt via PromptExecutor.
         """
+        # TODO: Separate server config from tasks. Task should specify server name,
+        # and a separate module should handle server setup/configuration.
         server_file = str(task.get_server_file())
         server_root_dir = str(task.get_server_root_directory())
         mock_config = task.resolved_mock_config

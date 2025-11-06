@@ -23,6 +23,10 @@ This framework provides reusable components for evaluating MCP tools:
 - MetricsTracker: Track tool usage, success rates, hit rates
 """
 
+# TODO: Reorganize file structure in focused follow-up PR.
+# Current structure has inconsistent naming and all modules in single core/ directory.
+# Consider: grouping related modules into subdirectories (validation/, mocking/, execution/, etc.)
+
 # Core abstractions
 from .task import Task
 from .captor import (

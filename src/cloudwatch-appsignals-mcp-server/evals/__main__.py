@@ -40,6 +40,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
+# TODO: Review print() vs logger usage pattern for consistency.
+# Currently: print() for clean user output, logger for errors/debug with timestamps.
+# TODO: Fix logging gap between module import and main() execution.
+# Current logger.remove() disables logging during this period. Need better handler management.
 logger.remove()
 
 
@@ -102,6 +106,8 @@ def _report_task_results(task: Any, result: TaskResult) -> None:
         task: Task instance
         result: TaskResult from EvalRunner
     """
+    # TODO: Export detailed results to file and print only brief summary (pass/fail).
+    # Need more usage/feedback to determine what belongs in summary vs detailed report.
     print('\n' + '=' * 60)
     print(f'EVALUATION COMPLETE: {task.id}')
     print('=' * 60)
