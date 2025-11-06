@@ -36,7 +36,7 @@ from .captor import (
 from .validator import Validator, LLMJudgeValidator, BuildValidator
 from .llm_provider import LLMProvider, BedrockLLMProvider
 from .process_executor import ProcessExecutor, SubprocessExecutor
-from .fixture_resolver import FixtureResolver
+from .mock_config_path_normalizer import MockConfigPathNormalizer
 from .eval_runner import EvalRunner
 from .task_result import TaskResult
 
@@ -72,8 +72,8 @@ __all__ = [
     # Process executors
     'ProcessExecutor',
     'SubprocessExecutor',
-    # Fixture resolution
-    'FixtureResolver',
+    # Mock config path normalization
+    'MockConfigPathNormalizer',
     # Mocking
     'MockHandler',
     'Boto3MockHandler',

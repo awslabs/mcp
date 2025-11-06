@@ -15,7 +15,7 @@
 """Base Task class for MCP evaluations."""
 
 from .captor import Captor
-from .fixture_resolver import FixtureResolver
+from .mock_config_path_normalizer import MockConfigPathNormalizer
 from .process_executor import ProcessExecutor, SubprocessExecutor
 from .validator import Validator
 from abc import ABC, abstractmethod
@@ -134,14 +134,14 @@ class Task(ABC):
             return None
 
         if self.fixtures_dir is None:
-            if FixtureResolver.has_fixture_references(self.mock_config):
+            if MockConfigPathNormalizer.has_fixture_references(self.mock_config):
                 raise ValueError(
                     f"Task '{self.id}' has fixture file references in mock_config but no fixtures_dir specified. "
                     f'Either provide fixtures_dir parameter or use absolute paths/inline mock data.'
                 )
             return self.mock_config
 
-        return FixtureResolver.resolve_mock_config(self.mock_config, self.fixtures_dir)
+        return MockConfigPathNormalizer.resolve_mock_config(self.mock_config, self.fixtures_dir)
 
     def get_working_directory(self) -> Optional[Path]:
         """Return working directory for this task. None uses current directory."""
