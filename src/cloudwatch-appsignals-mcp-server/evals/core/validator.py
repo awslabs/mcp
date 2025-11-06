@@ -20,7 +20,38 @@ from .llm_provider import LLMProvider
 from abc import ABC, abstractmethod
 from loguru import logger
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal, TypedDict
+
+
+class CriterionResult(TypedDict):
+    """Result for a single validation criterion."""
+
+    criterion: str
+    status: Literal['PASS', 'FAIL']
+    reasoning: str
+
+
+class ValidationResult(TypedDict, total=False):
+    """Result from a validator's validate() method.
+
+    Required fields:
+        validator_name: Name of the validator
+        overall_pass: Whether validation passed overall
+        criteria_results: List of individual criterion results
+
+    Optional fields:
+        error: Error message if validation failed
+        raw_response: Raw LLM response (LLMJudgeValidator only)
+        build_result: Build execution details (BuildValidator only)
+    """
+
+    validator_name: str
+    overall_pass: bool
+    criteria_results: List[CriterionResult]
+
+    error: str
+    raw_response: str
+    build_result: Dict[str, Any]
 
 
 class Validator(ABC):
@@ -35,10 +66,10 @@ class Validator(ABC):
     async def validate(
         self,
         captured_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ) -> ValidationResult:
         """Validate captured data.
 
-        Returns dict with validator_name, overall_pass, criteria_results.
+        Returns ValidationResult with validator_name, overall_pass, criteria_results.
         """
         pass
 
@@ -68,7 +99,7 @@ class LLMJudgeValidator(Validator):
     async def validate(
         self,
         captured_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ) -> ValidationResult:
         """Validate using LLM as judge."""
         logger.info('Running LLM-as-judge validation...')
 
@@ -134,7 +165,7 @@ class LLMJudgeValidator(Validator):
 
         return '\n\n'.join(sections)
 
-    def _parse_llm_response(self, response_text: str, rubric: List[str]) -> List[Dict[str, Any]]:
+    def _parse_llm_response(self, response_text: str, rubric: List[str]) -> List[CriterionResult]:
         """Parse LLM response into structured criteria results.
 
         Expected format: "1. [PASS] Reasoning" or "1. [FAIL] Reasoning"
@@ -215,7 +246,7 @@ class BuildValidator(Validator):
     async def validate(
         self,
         captured_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ) -> ValidationResult:
         """Validate by running build command."""
         logger.info(f'Running build command: {self.command}')
         try:

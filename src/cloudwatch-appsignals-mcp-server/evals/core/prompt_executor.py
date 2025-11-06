@@ -18,10 +18,11 @@ from .agent_loop import run_agent_loop
 from .metrics_tracker import MetricsTracker
 from .task import Task
 from .task_result import TaskResult
+from .validator import ValidationResult
 from loguru import logger
 from mcp import ClientSession
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 class PromptExecutor:
@@ -106,7 +107,7 @@ class PromptExecutor:
         task: Task,
         context: Dict[str, Any],
         captured_data: Dict[str, Any],
-    ) -> list:
+    ) -> List[ValidationResult]:
         """Execute all validators and gather validation results."""
         validation_results = []
         validators = task.get_validators(context)
