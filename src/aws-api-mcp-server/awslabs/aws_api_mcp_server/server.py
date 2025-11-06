@@ -274,7 +274,7 @@ async def call_aws_helper(
             if policy_decision == PolicyDecision.DENY:
                 error_message = 'Execution of this operation is denied by security policy.'
                 await ctx.error(error_message)
-                raise CommandValidationError(error_message)
+                raise AwsApiMcpError(error_message)
             elif policy_decision == PolicyDecision.ELICIT:
                 await request_consent(cli_command, ctx)
         else:
@@ -284,7 +284,7 @@ async def call_aws_helper(
                     f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
                 )
                 await ctx.error(error_message)
-                raise CommandValidationError(error_message)
+                raise AwsApiMcpError(error_message)
             elif REQUIRE_MUTATION_CONSENT:
                 await request_consent(cli_command, ctx)
 
