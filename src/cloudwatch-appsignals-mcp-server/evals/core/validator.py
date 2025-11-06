@@ -160,9 +160,18 @@ class LLMJudgeValidator(Validator):
         if 'final_response' in captured_data:
             sections.append(f'**Agent Response:**\n{captured_data["final_response"]}')
 
-        if 'tool_calls' in captured_data:
-            tool_names = [t['name'] for t in captured_data['tool_calls']]
-            sections.append(f'**Tools Called:** {", ".join(tool_names)}')
+        if 'tool_calls' in captured_data and captured_data['tool_calls']:
+            tool_calls_formatted = []
+            for i, call in enumerate(captured_data['tool_calls'], 1):
+                status = '✓' if call.get('success') else '✗'
+                duration = f"{call.get('duration', 0):.2f}s"
+                tool_str = f"{i}. {status} {call['name']} ({duration})"
+                if call.get('input'):
+                    tool_str += f"\n   Input: {call['input']}"
+                if call.get('error'):
+                    tool_str += f"\n   Error: {call['error']}"
+                tool_calls_formatted.append(tool_str)
+            sections.append(f"**Tools Called:**\n{chr(10).join(tool_calls_formatted)}")
 
         return '\n\n'.join(sections)
 
