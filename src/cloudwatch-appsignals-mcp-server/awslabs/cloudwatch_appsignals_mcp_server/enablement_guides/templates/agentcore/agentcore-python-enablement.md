@@ -15,7 +15,7 @@ Add X-Ray permissions to the Bedrock AgentCore IAM execution role.
 iam.PolicyStatement(
     effect=iam.Effect.ALLOW,
     actions=[
-        "xray:PutTelemetryRecords", 
+        "xray:PutTelemetryRecords",
         "xray:GetSamplingRules",
         "xray:GetSamplingTargets"
     ],
@@ -28,7 +28,7 @@ iam.PolicyStatement(
 iam.PolicyStatement(
     effect=iam.Effect.ALLOW,
     actions=[
-        "xray:PutTelemetryRecords", 
+        "xray:PutTelemetryRecords",
         "xray:PutTraceSegments",        # Add this line
         "xray:GetSamplingRules",
         "xray:GetSamplingTargets"
