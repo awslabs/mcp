@@ -80,6 +80,10 @@ async def connect_to_mcp_server(
 
     env = os.environ.copy()
     if not verbose:
+        # Set wrapper-specific logging (for wrapper's internal logging)
+        env['TEMP_SERVER_WRAPPER_LOGURU_LEVEL'] = 'ERROR'
+        env['TEMP_SERVER_WRAPPER_LOG_LEVEL'] = 'WARNING'
+        # Set server logging (for the actual server subprocess)
         env['LOGURU_LEVEL'] = 'ERROR'
         env['MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL'] = 'WARNING'
 
@@ -91,7 +95,7 @@ async def connect_to_mcp_server(
             with os.fdopen(mock_fd, 'w') as f:
                 json.dump(mock_config, f)
 
-            env['MCP_EVAL_MOCK_FILE'] = mock_file_path
+            env['TEMP_SERVER_WRAPPER_MOCK_FILE'] = mock_file_path
 
         server_params = StdioServerParameters(
             command=sys.executable,

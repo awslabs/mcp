@@ -20,10 +20,10 @@ It reads mock configuration from a temporary file and patches libraries
 (boto3, etc.) before importing and running the actual server.
 
 Usage:
-    Set MCP_EVAL_MOCK_FILE environment variable to path of mock config JSON,
+    Set TEMP_SERVER_WRAPPER_MOCK_FILE environment variable to path of mock config JSON,
     then run this script with the server module path as argument:
 
-    MCP_EVAL_MOCK_FILE=/tmp/mocks.json python mock_server_wrapper.py path/to/server.py
+    TEMP_SERVER_WRAPPER_MOCK_FILE=/tmp/mocks.json python mock_server_wrapper.py path/to/server.py
 """
 
 import importlib.util
@@ -40,7 +40,7 @@ def load_mock_config() -> dict:
     Returns:
         Mock configuration dictionary, or empty dict if no mocks
     """
-    mock_file = os.environ.get('MCP_EVAL_MOCK_FILE')
+    mock_file = os.environ.get('TEMP_SERVER_WRAPPER_MOCK_FILE')
     if not mock_file:
         return {}
 
@@ -133,7 +133,7 @@ def main():
 
     args = parser.parse_args()
 
-    log_level = os.environ.get('MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL', 'INFO').upper()
+    log_level = os.environ.get('TEMP_SERVER_WRAPPER_LOG_LEVEL', 'INFO').upper()
     mcp_logger = logging.getLogger('mcp')
     mcp_logger.setLevel(getattr(logging, log_level))
 
