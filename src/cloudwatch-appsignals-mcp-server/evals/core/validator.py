@@ -91,6 +91,10 @@ class LLMJudgeValidator(Validator):
         self.validation_prompt_template = validation_prompt_template
         self.llm_provider = llm_provider
         self.rubric = rubric
+        self.rubric_items = '\n'.join(
+            [f'{i + 1}. {criterion}' for i, criterion in enumerate(rubric)]
+        )
+        self.num_criteria = len(rubric)
 
     def get_name(self) -> str:
         """Return validator name."""
@@ -103,15 +107,12 @@ class LLMJudgeValidator(Validator):
         """Validate using LLM as judge."""
         logger.info('Running LLM-as-judge validation...')
 
-        rubric_items = '\n'.join(
-            [f'{i + 1}. {criterion}' for i, criterion in enumerate(self.rubric)]
-        )
         captured_str = self._format_captured_data(captured_data)
 
         prompt = self.validation_prompt_template.format(
-            rubric_items=rubric_items,
+            rubric_items=self.rubric_items,
             captured_data=captured_str,
-            num_criteria=len(self.rubric),
+            num_criteria=self.num_criteria,
         )
 
         try:
