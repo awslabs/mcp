@@ -9,7 +9,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy project files
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY awslabs ./awslabs
 COPY docker-healthcheck.sh ./
 
@@ -22,9 +22,17 @@ RUN pip install --no-cache-dir uv
 # Install the package and its dependencies
 RUN uv pip install --system --no-cache .
 
+# Create application user and set ownership
+RUN groupadd -r app && \
+    useradd -r -g app -d /app -s /sbin/nologin app && \
+    chown -R app:app /app
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV FASTMCP_LOG_LEVEL=INFO
+
+# Switch to non-root user
+USER app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
