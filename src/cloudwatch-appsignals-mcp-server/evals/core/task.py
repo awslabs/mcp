@@ -48,9 +48,14 @@ class Task(ABC):
         id: Unique identifier for the task
         max_turns: Maximum conversation turns allowed (default: 20)
         expected_tools: MCP tool names expected to be called (for hit rate metric)
-        mock_config: Mock configuration for AWS APIs (relative paths, resolved via fixtures_dir)
+        mock_config: Mock configuration for AWS APIs (for initialization only - use resolved_mock_config to access)
         fixtures_dir: Base directory for resolving fixture paths
         process_executor: ProcessExecutor for shell commands (default: SubprocessExecutor)
+
+    Note:
+        When accessing mock configuration in framework code, always use the resolved_mock_config
+        property instead of reading mock_config directly. The resolved_mock_config property
+        normalizes fixture paths and should be the only way to read the configuration.
     """
 
     id: str
