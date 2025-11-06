@@ -87,7 +87,7 @@ async def store_deployment_metadata(project_name: str, metadata: Dict[str, Any])
         try:
             with open(metadata_file, 'r', encoding='utf-8') as f:
                 existing_metadata = json.load(f)
-        except Exception:
+        except Exception:  # nosec B110
             # File might not exist yet, that's ok
             pass
 
