@@ -18,7 +18,7 @@ python/
 │   └── README.md        # CDK instructions
 └── terraform/           # Terraform deployment
     ├── lambda/          # Lambda function configuration
-    └── api-gateway-proxy/ # API Gateway configuration
+    └── alb-proxy/       # Application Load Balancer configuration
 ```
 
 ## Quick Start

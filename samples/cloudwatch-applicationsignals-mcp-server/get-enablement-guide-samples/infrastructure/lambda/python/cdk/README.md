@@ -1,6 +1,6 @@
 # Python Lambda Function with CDK
 
-This directory contains AWS CDK code to deploy a Python Lambda function with API Gateway.
+This directory contains AWS CDK code to deploy a Python Lambda function with Application Load Balancer.
 
 ## Prerequisites
 

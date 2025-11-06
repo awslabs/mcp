@@ -1,3 +1,7 @@
+provider "aws" {
+  region = "us-west-1"
+}
+
 resource "random_id" "suffix" {
   byte_length = 4
 }
@@ -5,12 +9,12 @@ resource "random_id" "suffix" {
 locals {
   architecture = var.architecture == "x86_64" ? "amd64" : "arm64"
   function_name = "${var.function_name}-${random_id.suffix.hex}"
-  api_name = "ApiGateway-Lambda-python-terraform-${random_id.suffix.hex}"
+  alb_name = "python-tf-alb-${random_id.suffix.hex}"
 }
 
 module "hello-lambda-function" {
   source  = "terraform-aws-modules/lambda/aws"
-  version = ">= 2.24.0"
+  version = "7.14.0"
 
   architectures = compact([var.architecture])
   function_name = local.function_name
@@ -42,13 +46,11 @@ module "hello-lambda-function" {
   }
 }
 
-module "api-gateway" {
-  source = "../api-gateway-proxy"
+module "alb" {
+  source = "../alb-proxy"
 
-  name                = local.api_name
-  function_name       = module.hello-lambda-function.lambda_function_name
-  function_invoke_arn = module.hello-lambda-function.lambda_function_invoke_arn
-
+  name         = local.alb_name
+  function_arn = module.hello-lambda-function.lambda_function_arn
 }
 
 resource "aws_iam_role_policy_attachment" "hello-lambda-cloudwatch" {

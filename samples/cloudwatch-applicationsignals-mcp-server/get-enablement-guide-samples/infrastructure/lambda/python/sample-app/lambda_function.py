@@ -14,5 +14,8 @@ def lambda_handler(event, context):
     
     return {
         'statusCode': 200,
-        'body': response_body
+        'headers': {
+            'Content-Type': 'text/html'
+        },
+        'body': f'<html><body><h1>{response_body}</h1></body></html>'
     }

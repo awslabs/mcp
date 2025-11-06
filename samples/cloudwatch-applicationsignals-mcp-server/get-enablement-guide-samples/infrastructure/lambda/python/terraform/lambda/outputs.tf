@@ -1,5 +1,5 @@
-output "api-gateway-url" {
-  value = module.api-gateway.api_gateway_url
+output "alb-url" {
+  value = module.alb.alb_url
 }
 
 output "function_role_name" {
