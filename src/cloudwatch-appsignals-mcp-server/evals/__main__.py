@@ -118,6 +118,12 @@ def _report_task_results(task: Any, result: TaskResult) -> None:
         print('=' * 60 + '\n')
         return
 
+    if not result.metrics or not result.validation_results:
+        print('Status: ❌ ERROR')
+        logger.error('Missing metrics or validation results')
+        print('=' * 60 + '\n')
+        return
+
     metrics = result.metrics
     print(f'Duration: {metrics["task_duration"]:.2f}s')
     print(f'Turns: {metrics["turn_count"]}')

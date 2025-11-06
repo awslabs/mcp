@@ -14,6 +14,7 @@
 
 """Result types for task execution."""
 
+from .validator import ValidationResult
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -35,7 +36,7 @@ class TaskResult:
     task_id: str
     success: bool
     prompt: Optional[str] = None
-    validation_results: Optional[List[Dict[str, Any]]] = None
+    validation_results: Optional[List[ValidationResult]] = None
     metrics: Optional[Dict[str, Any]] = None
     captured_data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
@@ -46,7 +47,7 @@ class TaskResult:
         task_id: str,
         prompt: str,
         success: bool,
-        validation_results: List[Dict[str, Any]],
+        validation_results: List[ValidationResult],
         metrics: Dict[str, Any],
         captured_data: Dict[str, Any],
     ) -> 'TaskResult':
