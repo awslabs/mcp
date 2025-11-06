@@ -48,6 +48,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
     "moto>=5.1.4",
+    "cookiecutter>=2.6.0",
 ]
 
 [build-system]

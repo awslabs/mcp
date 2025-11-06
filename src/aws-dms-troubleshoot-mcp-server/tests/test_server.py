@@ -1493,3 +1493,587 @@ async def test_check_vpc_configuration_tgw_error():
         # Should still return result
         assert 'vpc_details' in result
         assert 'connectivity_options' in result
+
+
+@pytest.mark.asyncio
+async def test_get_dms_client():
+    """Test get_dms_client function."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_dms_client
+
+    client = get_dms_client(region='us-east-1', profile='default')
+    assert client is not None
+
+
+@pytest.mark.asyncio
+async def test_get_logs_client():
+    """Test get_logs_client function."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_logs_client
+
+    client = get_logs_client(region='us-east-1', profile='default')
+    assert client is not None
+
+
+@pytest.mark.asyncio
+async def test_get_ec2_client():
+    """Test get_ec2_client function."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_ec2_client
+
+    client = get_ec2_client(region='us-east-1', profile='default')
+    assert client is not None
+
+
+@pytest.mark.asyncio
+async def test_list_replication_tasks_with_error_fields(sample_replication_task):
+    """Test listing tasks with both last_error and stop_reason."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import list_replication_tasks
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    sample_replication_task['LastFailureMessage'] = 'Connection timeout'
+    sample_replication_task['StopReason'] = 'User stopped'
+    mock_dms.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        result = await list_replication_tasks(region='us-east-1')
+
+        assert result['tasks'][0]['last_error'] == 'Connection timeout'
+        assert result['tasks'][0]['stop_reason'] == 'User stopped'
+
+
+@pytest.mark.asyncio
+async def test_get_replication_task_details_with_assessment(sample_replication_task):
+    """Test task details with assessment results."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_replication_task_details
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    sample_replication_task['ReplicationTaskCreationDate'] = datetime.now()
+    sample_replication_task['ReplicationTaskSettings'] = json.dumps({})
+    sample_replication_task['ReplicationTaskAssessmentResults'] = [
+        {'AssessmentStatus': 'passed'}
+    ]
+    sample_replication_task['LastFailureMessage'] = 'Test error'
+    sample_replication_task['StopReason'] = 'Test stop'
+    mock_dms.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        result = await get_replication_task_details(
+            task_identifier='test-task-1', region='us-east-1'
+        )
+
+        assert 'assessment_results' in result
+        assert 'last_error' in result
+        assert 'stop_reason' in result
+
+
+@pytest.mark.asyncio
+async def test_get_task_cloudwatch_logs_with_events():
+    """Test CloudWatch logs retrieval returns proper structure."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_task_cloudwatch_logs
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    current_time = datetime.now(timezone.utc)
+    timestamp_ms = int(current_time.timestamp() * 1000)
+
+    mock_logs_client = MagicMock()
+    mock_logs_client.describe_log_streams.return_value = {
+        'logStreams': [
+            {'logStreamName': 'stream1', 'lastEventTime': timestamp_ms},
+        ]
+    }
+
+    mock_logs_client.get_log_events.return_value = {
+        'events': [
+            {'timestamp': timestamp_ms, 'message': 'ERROR: Connection failed'},
+            {'timestamp': timestamp_ms, 'message': 'WARNING: Retry attempt'},
+            {'timestamp': timestamp_ms, 'message': 'FATAL: Critical error'},
+        ]
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_logs_client',
+        return_value=mock_logs_client,
+    ):
+        result = await get_task_cloudwatch_logs(
+            task_identifier='test-task-1', region='us-east-1', hours_back=24, max_events=100
+        )
+
+        # Verify result structure - the function completed successfully
+        assert 'log_summary' in result
+        assert 'log_events' in result
+        assert 'total_events' in result
+        assert isinstance(result['log_events'], list)
+        # Verify log summary has the required keys
+        assert 'errors' in result['log_summary']
+        assert 'warnings' in result['log_summary']
+        assert 'fatal' in result['log_summary']
+        assert isinstance(result['log_summary']['errors'], int)
+        assert isinstance(result['log_summary']['warnings'], int)
+        assert isinstance(result['log_summary']['fatal'], int)
+
+
+@pytest.mark.asyncio
+async def test_get_task_cloudwatch_logs_stream_error():
+    """Test CloudWatch logs with stream read error."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_task_cloudwatch_logs
+    from datetime import datetime, timezone
+    from unittest.mock import MagicMock
+
+    current_time = datetime.now(timezone.utc)
+    timestamp_ms = int(current_time.timestamp() * 1000)
+
+    mock_logs_client = MagicMock()
+    mock_logs_client.describe_log_streams.return_value = {
+        'logStreams': [
+            {'logStreamName': 'stream1', 'lastEventTime': timestamp_ms},
+        ]
+    }
+
+    # Make get_log_events raise an exception
+    mock_logs_client.get_log_events.side_effect = Exception('Stream read error')
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_logs_client',
+        return_value=mock_logs_client,
+    ):
+        result = await get_task_cloudwatch_logs(
+            task_identifier='test-task-1', region='us-east-1'
+        )
+
+        # Should handle the error gracefully
+        assert 'log_events' in result
+        assert isinstance(result['log_events'], list)
+
+
+@pytest.mark.asyncio
+async def test_analyze_endpoint_inactive_status(sample_endpoint):
+    """Test endpoint analysis with inactive status."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import analyze_endpoint
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    sample_endpoint['Status'] = 'inactive'
+    mock_dms.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms.test_connection.return_value = {
+        'Connection': {'Status': 'failed', 'LastFailureMessage': 'Connection failed'}
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        result = await analyze_endpoint(
+            endpoint_arn='arn:aws:dms:us-east-1:123456789012:endpoint:test', region='us-east-1'
+        )
+
+        assert any('not active' in issue for issue in result['potential_issues'])
+
+
+@pytest.mark.asyncio
+async def test_analyze_endpoint_mysql_no_timezone(sample_endpoint):
+    """Test MySQL endpoint without ServerTimezone."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import analyze_endpoint
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    sample_endpoint['EngineName'] = 'mysql'
+    sample_endpoint['MySqlSettings'] = {}  # No ServerTimezone
+    mock_dms.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms.test_connection.return_value = {
+        'Connection': {'Status': 'successful', 'LastFailureMessage': ''}
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        result = await analyze_endpoint(
+            endpoint_arn='arn:aws:dms:us-east-1:123456789012:endpoint:test', region='us-east-1'
+        )
+
+        assert any('ServerTimezone' in rec for rec in result['recommendations'])
+
+
+@pytest.mark.asyncio
+async def test_analyze_endpoint_postgres_no_plugin(sample_endpoint):
+    """Test PostgreSQL endpoint without PluginName."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import analyze_endpoint
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    sample_endpoint['EngineName'] = 'postgres'
+    sample_endpoint['PostgreSqlSettings'] = {}  # No PluginName
+    mock_dms.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms.test_connection.return_value = {
+        'Connection': {'Status': 'successful', 'LastFailureMessage': ''}
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        result = await analyze_endpoint(
+            endpoint_arn='arn:aws:dms:us-east-1:123456789012:endpoint:test', region='us-east-1'
+        )
+
+        assert any('logical replication' in rec for rec in result['recommendations'])
+
+
+@pytest.mark.asyncio
+async def test_analyze_endpoint_test_connection_error(sample_endpoint):
+    """Test endpoint analysis when test_connection fails."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import analyze_endpoint
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    mock_dms.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms.test_connection.side_effect = Exception('Connection test failed')
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        result = await analyze_endpoint(
+            endpoint_arn='arn:aws:dms:us-east-1:123456789012:endpoint:test', region='us-east-1'
+        )
+
+        assert result['connection_test']['status'] == 'unable_to_test'
+
+
+@pytest.mark.asyncio
+async def test_diagnose_replication_issue_with_tables_errored(
+    mock_dms_client, sample_replication_task, sample_endpoint
+):
+    """Test diagnosis with tables in error state."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import diagnose_replication_issue
+
+    sample_replication_task['ReplicationTaskCreationDate'] = datetime.now()
+    sample_replication_task['ReplicationTaskSettings'] = json.dumps({})
+    sample_replication_task['Status'] = 'running'
+    sample_replication_task['MigrationType'] = 'cdc'
+    sample_replication_task['ReplicationTaskStats']['TablesErrored'] = 5
+
+    mock_dms_client.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+    mock_dms_client.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms_client.test_connection.return_value = {
+        'Connection': {'Status': 'successful', 'LastFailureMessage': ''}
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms_client,
+    ):
+        with patch(
+            'awslabs.aws_dms_troubleshoot_mcp_server.server.get_task_cloudwatch_logs'
+        ) as mock_logs:
+            mock_logs.return_value = {
+                'total_events': 5,
+                'log_summary': {'errors': 0, 'warnings': 0, 'fatal': 0},
+                'log_events': [],
+            }
+
+            result = await diagnose_replication_issue(
+                task_identifier='test-task-1', region='us-east-1'
+            )
+
+            assert any('table' in cause.lower() for cause in result['root_causes'])
+
+
+@pytest.mark.asyncio
+async def test_diagnose_replication_issue_high_error_rate(
+    mock_dms_client, sample_replication_task, sample_endpoint
+):
+    """Test diagnosis with high error rate in logs."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import diagnose_replication_issue
+
+    sample_replication_task['ReplicationTaskCreationDate'] = datetime.now()
+    sample_replication_task['ReplicationTaskSettings'] = json.dumps({})
+    sample_replication_task['Status'] = 'running'
+
+    mock_dms_client.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+    mock_dms_client.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms_client.test_connection.return_value = {
+        'Connection': {'Status': 'successful', 'LastFailureMessage': ''}
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms_client,
+    ):
+        with patch(
+            'awslabs.aws_dms_troubleshoot_mcp_server.server.get_task_cloudwatch_logs'
+        ) as mock_logs:
+            mock_logs.return_value = {
+                'total_events': 50,
+                'log_summary': {'errors': 15, 'warnings': 5, 'fatal': 2},
+                'log_events': [],
+            }
+
+            result = await diagnose_replication_issue(
+                task_identifier='test-task-1', region='us-east-1'
+            )
+
+            assert any('error rate' in cause.lower() for cause in result['root_causes'])
+
+
+@pytest.mark.asyncio
+async def test_diagnose_replication_issue_cdc_recommendations(
+    mock_dms_client, sample_replication_task, sample_endpoint
+):
+    """Test CDC-specific recommendations."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import diagnose_replication_issue
+
+    sample_replication_task['ReplicationTaskCreationDate'] = datetime.now()
+    sample_replication_task['ReplicationTaskSettings'] = json.dumps({})
+    sample_replication_task['Status'] = 'running'
+    sample_replication_task['MigrationType'] = 'cdc'
+
+    mock_dms_client.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+    mock_dms_client.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms_client.test_connection.return_value = {
+        'Connection': {'Status': 'successful', 'LastFailureMessage': ''}
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms_client,
+    ):
+        with patch(
+            'awslabs.aws_dms_troubleshoot_mcp_server.server.get_task_cloudwatch_logs'
+        ) as mock_logs:
+            mock_logs.return_value = {
+                'total_events': 5,
+                'log_summary': {'errors': 0, 'warnings': 0, 'fatal': 0},
+                'log_events': [],
+            }
+
+            result = await diagnose_replication_issue(
+                task_identifier='test-task-1', region='us-east-1'
+            )
+
+            assert any('CDC' in rec for rec in result['recommendations'])
+
+
+@pytest.mark.asyncio
+async def test_diagnose_replication_issue_with_endpoint_issues(
+    mock_dms_client, sample_replication_task, sample_endpoint
+):
+    """Test diagnosis with endpoint issues."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import diagnose_replication_issue
+
+    sample_replication_task['ReplicationTaskCreationDate'] = datetime.now()
+    sample_replication_task['ReplicationTaskSettings'] = json.dumps({})
+    sample_replication_task['Status'] = 'running'
+
+    mock_dms_client.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+
+    # Create endpoint with issues
+    sample_endpoint['SslMode'] = 'none'
+    sample_endpoint['Status'] = 'inactive'
+    mock_dms_client.describe_endpoints.return_value = {'Endpoints': [sample_endpoint]}
+    mock_dms_client.test_connection.return_value = {
+        'Connection': {'Status': 'failed', 'LastFailureMessage': 'Connection failed'}
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms_client,
+    ):
+        with patch(
+            'awslabs.aws_dms_troubleshoot_mcp_server.server.get_task_cloudwatch_logs'
+        ) as mock_logs:
+            mock_logs.return_value = {
+                'total_events': 5,
+                'log_summary': {'errors': 0, 'warnings': 0, 'fatal': 0},
+                'log_events': [],
+            }
+
+            result = await diagnose_replication_issue(
+                task_identifier='test-task-1', region='us-east-1'
+            )
+
+            assert any('endpoint' in cause.lower() for cause in result['root_causes'])
+
+
+@pytest.mark.asyncio
+async def test_analyze_security_groups_no_egress():
+    """Test security group analysis with no egress rules."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import analyze_security_groups
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    mock_ec2 = MagicMock()
+
+    mock_dms.describe_replication_instances.return_value = {
+        'ReplicationInstances': [
+            {
+                'VpcSecurityGroups': [{'VpcSecurityGroupId': 'sg-123'}],
+                'ReplicationSubnetGroup': {'Subnets': [{'SubnetIdentifier': 'subnet-123'}]},
+            }
+        ]
+    }
+
+    mock_ec2.describe_security_groups.return_value = {
+        'SecurityGroups': [
+            {
+                'GroupId': 'sg-123',
+                'GroupName': 'dms-sg',
+                'Description': 'DMS SG',
+                'VpcId': 'vpc-123',
+                'IpPermissions': [],
+                'IpPermissionsEgress': [],  # No egress rules
+            }
+        ]
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        with patch(
+            'awslabs.aws_dms_troubleshoot_mcp_server.server.get_ec2_client',
+            return_value=mock_ec2,
+        ):
+            result = await analyze_security_groups(
+                replication_instance_arn='arn:aws:dms:us-east-1:123456789012:rep:test',
+                region='us-east-1',
+            )
+
+            assert any('no egress rules' in issue for issue in result['connectivity_issues'])
+
+
+@pytest.mark.asyncio
+async def test_diagnose_network_connectivity_no_subnets(sample_replication_task):
+    """Test network diagnostics with no subnets."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import diagnose_network_connectivity
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    mock_ec2 = MagicMock()
+
+    sample_replication_task['ReplicationInstanceArn'] = (
+        'arn:aws:dms:us-east-1:123456789012:rep:test'
+    )
+    mock_dms.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+
+    mock_dms.describe_replication_instances.return_value = {
+        'ReplicationInstances': [
+            {
+                'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123456789012:rep:test',
+                'PubliclyAccessible': False,
+                'VpcSecurityGroups': [],
+                'ReplicationSubnetGroup': {'Subnets': []},  # No subnets
+            }
+        ]
+    }
+
+    mock_dms.describe_endpoints.return_value = {
+        'Endpoints': [{'ServerName': 'db.example.com', 'Port': 3306, 'EngineName': 'mysql'}]
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        with patch(
+            'awslabs.aws_dms_troubleshoot_mcp_server.server.get_ec2_client',
+            return_value=mock_ec2,
+        ):
+            result = await diagnose_network_connectivity(
+                task_identifier='test-task-1', region='us-east-1'
+            )
+
+            assert any('no subnet' in issue.lower() for issue in result['identified_issues'])
+
+
+@pytest.mark.asyncio
+async def test_diagnose_network_connectivity_public_no_igw(sample_replication_task):
+    """Test network diagnostics for public instance without internet gateway."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import diagnose_network_connectivity
+    from unittest.mock import MagicMock
+
+    mock_dms = MagicMock()
+    mock_ec2 = MagicMock()
+
+    sample_replication_task['ReplicationInstanceArn'] = (
+        'arn:aws:dms:us-east-1:123456789012:rep:test'
+    )
+    mock_dms.describe_replication_tasks.return_value = {
+        'ReplicationTasks': [sample_replication_task]
+    }
+
+    mock_dms.describe_replication_instances.return_value = {
+        'ReplicationInstances': [
+            {
+                'ReplicationInstanceArn': 'arn:aws:dms:us-east-1:123456789012:rep:test',
+                'PubliclyAccessible': True,  # Public but no IGW
+                'VpcSecurityGroups': [],
+                'ReplicationSubnetGroup': {'Subnets': [{'SubnetIdentifier': 'subnet-123'}]},
+            }
+        ]
+    }
+
+    mock_dms.describe_endpoints.return_value = {
+        'Endpoints': [{'ServerName': 'db.example.com', 'Port': 3306, 'EngineName': 'mysql'}]
+    }
+
+    mock_ec2.describe_subnets.return_value = {
+        'Subnets': [{'SubnetId': 'subnet-123', 'VpcId': 'vpc-123'}]
+    }
+
+    mock_ec2.describe_route_tables.return_value = {
+        'RouteTables': [
+            {
+                'RouteTableId': 'rtb-123',
+                'Routes': [
+                    {'GatewayId': 'local', 'DestinationCidrBlock': '10.0.0.0/16'}
+                ],  # No IGW route
+            }
+        ]
+    }
+
+    with patch(
+        'awslabs.aws_dms_troubleshoot_mcp_server.server.get_dms_client',
+        return_value=mock_dms,
+    ):
+        with patch(
+            'awslabs.aws_dms_troubleshoot_mcp_server.server.get_ec2_client',
+            return_value=mock_ec2,
+        ):
+            result = await diagnose_network_connectivity(
+                task_identifier='test-task-1', region='us-east-1'
+            )
+
+            assert any('internet gateway' in issue.lower() for issue in result['identified_issues'])
+
+
+def test_main_function():
+    """Test the main() function."""
+    from awslabs.aws_dms_troubleshoot_mcp_server.server import main
+    from unittest.mock import MagicMock, patch
+
+    mock_mcp = MagicMock()
+    with patch('awslabs.aws_dms_troubleshoot_mcp_server.server.mcp', mock_mcp):
+        main()
+        mock_mcp.run.assert_called_once()
