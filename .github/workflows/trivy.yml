@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Clear Up Space (Agressively) for Trivy Scans that Run Out of Space
         if: contains(toJson('["src/core-mcp-server"]'), matrix.dockerfile)
-        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@61ce600d5c7fd6584b22b6eac98f9b097aabce11
+        uses: awslabs/mcp/.github/actions/clear-space-ubuntu-latest-agressively@63e6709e228dd0ad4ecf5ac39f293cbdbecc74c9
 
       - name: Get Checkout Depth
         id: checkout-depth
