@@ -15,6 +15,13 @@
 """AWS IoT SiteWise Data Models and Schema Definitions."""
 
 import re
+from ..validation_utils import (
+    validate_control_characters,
+    validate_expression_variable_name,
+    validate_external_id,
+    validate_string_length,
+    validate_uuid_format,
+)
 from dataclasses import field
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Literal, Optional
@@ -31,10 +38,8 @@ class Name(BaseModel):
     @field_validator('value')
     def validate_name(cls, v):
         """Validate name field constraints."""
-        if not (1 <= len(v) <= 256):
-            raise ValueError('Name must be between 1 and 256 characters.')
-        if not CONTROL_CHAR_PATTERN.match(v):
-            raise ValueError('Name contains invalid control characters.')
+        validate_string_length(v, 1, 256, 'Name')
+        validate_control_characters(v, 'Name')
         return v
 
 
@@ -46,10 +51,8 @@ class Description(BaseModel):
     @field_validator('value')
     def validate_description(cls, v):
         """Validate description field constraints."""
-        if not (1 <= len(v) <= 2048):
-            raise ValueError('Description must be between 1 and 2048 characters.')
-        if not CONTROL_CHAR_PATTERN.match(v):
-            raise ValueError('Description contains invalid control characters.')
+        validate_string_length(v, 1, 2048, 'Description')
+        validate_control_characters(v, 'Description')
         return v
 
 
@@ -80,10 +83,7 @@ class ID(BaseModel):
     @field_validator('value')
     def validate_uuid(cls, v):
         """Validate UUID format constraints."""
-        pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
-        if not pattern.match(v):
-            raise ValueError(f'Invalid UUID: {v}')
-        return v
+        return validate_uuid_format(v, 'UUID')
 
 
 class ExternalId(BaseModel):
@@ -94,12 +94,7 @@ class ExternalId(BaseModel):
     @field_validator('value')
     def validate_external_id(cls, v):
         """Validate external ID format and length constraints."""
-        pattern = re.compile(r'^[a-zA-Z0-9_][a-zA-Z_\-0-9.:]*[a-zA-Z0-9_]+$')
-        if not (2 <= len(v) <= 128):
-            raise ValueError('ExternalId must be between 2 and 128 characters.')
-        if not pattern.match(v):
-            raise ValueError(f"ExternalId '{v}' does not match pattern.")
-        return v
+        return validate_external_id(v)
 
 
 class AttributeValue(BaseModel):
@@ -110,8 +105,7 @@ class AttributeValue(BaseModel):
     @field_validator('value')
     def validate_attribute_value(cls, v):
         """Validate attribute value constraints."""
-        if not CONTROL_CHAR_PATTERN.match(v):
-            raise ValueError('AttributeValue contains invalid control characters.')
+        validate_control_characters(v, 'AttributeValue')
         return v
 
 
@@ -123,10 +117,8 @@ class PropertyUnit(BaseModel):
     @field_validator('value')
     def validate_unit(cls, v):
         """Validate property unit constraints."""
-        if not (1 <= len(v) <= 256):
-            raise ValueError('PropertyUnit must be between 1 and 256 characters.')
-        if not CONTROL_CHAR_PATTERN.match(v):
-            raise ValueError('PropertyUnit contains invalid control characters.')
+        validate_string_length(v, 1, 256, 'PropertyUnit')
+        validate_control_characters(v, 'PropertyUnit')
         return v
 
 
@@ -138,10 +130,8 @@ class PropertyAlias(BaseModel):
     @field_validator('value')
     def validate_alias(cls, v):
         """Validate property alias constraints."""
-        if not (1 <= len(v) <= 1000):
-            raise ValueError('PropertyAlias must be between 1 and 1000 characters.')
-        if not CONTROL_CHAR_PATTERN.match(v):
-            raise ValueError('PropertyAlias contains invalid control characters.')
+        validate_string_length(v, 1, 1000, 'PropertyAlias')
+        validate_control_characters(v, 'PropertyAlias')
         return v
 
 
@@ -197,15 +187,14 @@ class TumblingWindow(BaseModel):
     @field_validator('interval')
     def validate_interval(cls, v):
         """Validate tumbling window interval constraints."""
-        if not (2 <= len(v) <= 23):
-            raise ValueError('TumblingWindow.interval must be 2–23 chars.')
+        validate_string_length(v, 2, 23, 'TumblingWindow.interval')
         return v
 
     @field_validator('offset')
     def validate_offset(cls, v):
         """Validate tumbling window offset constraints."""
-        if v and not (2 <= len(v) <= 25):
-            raise ValueError('TumblingWindow.offset must be 2–25 chars.')
+        if v:
+            validate_string_length(v, 2, 25, 'TumblingWindow.offset')
         return v
 
 
@@ -242,11 +231,7 @@ class ExpressionVariable(BaseModel):
     @field_validator('name')
     def validate_name(cls, v):
         """Validate expression variable name constraints."""
-        if not (1 <= len(v) <= 64):
-            raise ValueError('ExpressionVariable.name must be 1–64 chars.')
-        if not re.match(r'^[a-z][a-z0-9_]*$', v):
-            raise ValueError('ExpressionVariable.name must match pattern ^[a-z][a-z0-9_]*$')
-        return v
+        return validate_expression_variable_name(v)
 
 
 class Attribute(BaseModel):
@@ -257,8 +242,8 @@ class Attribute(BaseModel):
     @field_validator('defaultValue')
     def validate_default_value(cls, v):
         """Validate attribute default value constraints."""
-        if v and not CONTROL_CHAR_PATTERN.match(v):
-            raise ValueError('Attribute.defaultValue contains invalid control chars.')
+        if v:
+            validate_control_characters(v, 'Attribute.defaultValue')
         return v
 
 
@@ -272,8 +257,7 @@ class Transform(BaseModel):
     @field_validator('expression')
     def validate_expr(cls, v):
         """Validate transform expression constraints."""
-        if not (1 <= len(v) <= 1024):
-            raise ValueError('Transform.expression must be 1–1024 chars.')
+        validate_string_length(v, 1, 1024, 'Transform.expression')
         return v
 
 
@@ -294,8 +278,7 @@ class Metric(BaseModel):
     @field_validator('expression')
     def validate_expr(cls, v):
         """Validate metric expression constraints."""
-        if not (1 <= len(v) <= 1024):
-            raise ValueError('Metric.expression must be 1–1024 chars.')
+        validate_string_length(v, 1, 1024, 'Metric.expression')
         return v
 
 
@@ -362,10 +345,8 @@ class AssetModelProperty(BaseModel):
         if not (values.id or values.externalId):
             raise ValueError('AssetModelProperty must have id or externalId.')
         if values.unit:
-            if not (1 <= len(values.unit) <= 256):
-                raise ValueError('Unit must be between 1–256 chars.')
-            if not CONTROL_CHAR_PATTERN.match(values.unit):
-                raise ValueError('Unit contains invalid control chars.')
+            validate_string_length(values.unit, 1, 256, 'Unit')
+            validate_control_characters(values.unit, 'Unit')
         return values
 
 
