@@ -267,6 +267,7 @@ async def main():
                 context = {'working_directory': working_directory}
                 task.cleanup(context)
 
+        # TODO: Investigate more reliable subprocess cleanup mechanism
         # Give subprocess time to clean up before event loop closes (Python < 3.11)
         # MCP SDK's stdio_client relies on __del__ for subprocess cleanup
         await asyncio.sleep(0.1)
