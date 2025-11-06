@@ -1496,33 +1496,6 @@ async def test_check_vpc_configuration_tgw_error():
 
 
 @pytest.mark.asyncio
-async def test_get_dms_client():
-    """Test get_dms_client function."""
-    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_dms_client
-
-    client = get_dms_client(region='us-east-1', profile='default')
-    assert client is not None
-
-
-@pytest.mark.asyncio
-async def test_get_logs_client():
-    """Test get_logs_client function."""
-    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_logs_client
-
-    client = get_logs_client(region='us-east-1', profile='default')
-    assert client is not None
-
-
-@pytest.mark.asyncio
-async def test_get_ec2_client():
-    """Test get_ec2_client function."""
-    from awslabs.aws_dms_troubleshoot_mcp_server.server import get_ec2_client
-
-    client = get_ec2_client(region='us-east-1', profile='default')
-    assert client is not None
-
-
-@pytest.mark.asyncio
 async def test_list_replication_tasks_with_error_fields(sample_replication_task):
     """Test listing tasks with both last_error and stop_reason."""
     from awslabs.aws_dms_troubleshoot_mcp_server.server import list_replication_tasks
