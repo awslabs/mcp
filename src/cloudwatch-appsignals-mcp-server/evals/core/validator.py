@@ -169,17 +169,6 @@ class LLMJudgeValidator(Validator):
         if 'git_diff' in captured_data and captured_data['git_diff']:
             sections.append(f'**Git Diff:**\n```\n{captured_data["git_diff"]}\n```')
 
-        if 'build_result' in captured_data:
-            build = captured_data['build_result']
-            if build.get('success'):
-                sections.append('**Build Validation:**\n✓ Build succeeded (exit code 0)')
-            else:
-                stderr_preview = build.get('stderr', '')[:500]
-                exit_code = build.get('exit_code', 'unknown')
-                sections.append(
-                    f'**Build Validation:**\n✗ Build FAILED (exit code {exit_code})\n\nBuild errors:\n{stderr_preview}'
-                )
-
         if 'final_response' in captured_data:
             sections.append(f'**Agent Response:**\n{captured_data["final_response"]}')
 
