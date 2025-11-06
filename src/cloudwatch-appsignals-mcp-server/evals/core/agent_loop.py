@@ -134,6 +134,7 @@ async def execute_tool(
                 raise IOError(f'Failed to write file {tool_input["path"]}: {str(e)}')
 
         else:
+            # TODO: Improve MCP result handling/formatting
             mcp_result = await session.call_tool(tool_name, tool_input)
             result = {'content': [{'text': str(mcp_result.content)}]}
 
