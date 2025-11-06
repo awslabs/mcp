@@ -57,24 +57,48 @@
   ],
   "servers": [
     {
-      "category": "Documentation",
-      "description": "Get latest AWS docs and APIs",
-      "icon": "\ud83d\udcda",
-      "id": "aws-documentation-mcp-server",
-      "name": "AWS Documentation MCP Server",
-      "source_path": "src/aws-documentation-mcp-server/",
-      "subcategory": "Real-time Documentation Access",
+      "category": "Developer Tools & Support",
+      "description": "Semantic code search and repository analysis",
+      "icon": "🛠️",
+      "id": "git-repo-research-mcp-server",
+      "name": "Git Repo Research MCP Server",
+      "source_path": "src/git-repo-research-mcp-server/",
+      "subcategory": "Code Analysis",
       "tags": [
-        "documentation",
-        "real-time-access",
-        "api-reference",
+        "developer-tools",
+        "git",
+        "repository-analysis",
+        "semantic-search",
+        "code-analysis",
         "vibe-coding",
-        "conversational",
         "core-development"
       ],
       "workflows": [
+        "vibe-coding"
+      ]
+    },
+    {
+      "category": "Developer Tools & Support",
+      "description": "Comprehensive network traffic analysis and packet capture with 31 specialized tools",
+      "icon": "🛠️",
+      "id": "pcap-analyzer-mcp-server",
+      "name": "PCAP Analyzer MCP Server",
+      "source_path": "src/pcap-analyzer-mcp-server/",
+      "subcategory": "Network Analysis",
+      "tags": [
+        "developer-tools",
+        "network-analysis",
+        "packet-capture",
+        "pcap",
+        "tls-analysis",
+        "security-analysis",
+        "network-debugging",
+        "performance-monitoring",
         "vibe-coding",
-        "conversational"
+        "core-development"
+      ],
+      "workflows": [
+        "vibe-coding"
       ]
     },
     {
