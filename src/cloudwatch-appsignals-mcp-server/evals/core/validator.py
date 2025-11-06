@@ -88,6 +88,9 @@ class Validator(ABC):
         """Return validator name for display."""
         pass
 
+    # TODO: Refactor to construct validators with captors instead of passing captured_data dict.
+    # Captors should have capture() (for framework) and get() (for validators) methods.
+    # This would change validate(captured_data) -> validate(self).
     @abstractmethod
     async def validate(
         self,
