@@ -30,6 +30,22 @@ python -m evals applicationsignals --task-id <task_id> -v
 python -m evals applicationsignals --task-id <task_id> --no-cleanup
 ```
 
+### Configuration
+
+The framework can be configured via environment variables:
+
+- **MCP_EVAL_MODEL_ID**: Override default Bedrock model ID (default: `us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **MCP_EVAL_AWS_REGION**: Override default AWS region (default: `us-east-1`)
+- **MCP_EVAL_MAX_TURNS**: Override default max conversation turns (default: `20`)
+- **MCP_EVAL_TEMPERATURE**: Override default model temperature (default: `0.0`)
+
+Example:
+```bash
+export MCP_EVAL_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
+export MCP_EVAL_MAX_TURNS=30
+python -m evals applicationsignals --task-id my_task
+```
+
 ### Creating Task Files
 
 Task files follow a specific convention for auto-discovery:
