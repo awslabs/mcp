@@ -43,7 +43,7 @@ from typing import Any, Dict, List
 logger.remove()
 
 
-def discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
+def _discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
     """Auto-discover all tasks from *_tasks.py files in the specified directory.
 
     Args:
@@ -95,7 +95,7 @@ def discover_tasks(task_dir: Path) -> tuple[List[Any], Dict[str, List[Any]]]:
     return all_tasks, tasks_by_module
 
 
-def report_task_results(task: Any, result: TaskResult) -> None:
+def _report_task_results(task: Any, result: TaskResult) -> None:
     """Report results for a single task.
 
     Args:
@@ -201,7 +201,7 @@ async def main():
 
     print(f'Starting MCP tool evaluation for {args.task_dir}\n')
 
-    all_tasks, tasks_by_module = discover_tasks(task_dir)
+    all_tasks, tasks_by_module = _discover_tasks(task_dir)
 
     if not all_tasks:
         logger.error('No tasks found in *_tasks.py files')
@@ -259,7 +259,7 @@ async def main():
 
         # Report results and cleanup
         for task, result in zip(tasks, results):
-            report_task_results(task, result)
+            _report_task_results(task, result)
 
             # Call task cleanup
             if not args.no_cleanup:
