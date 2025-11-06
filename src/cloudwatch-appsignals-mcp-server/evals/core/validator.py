@@ -29,6 +29,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, TypedDict
 
 
+# Captured data dictionary keys
+GIT_DIFF = 'git_diff'
+FINAL_RESPONSE = 'final_response'
+TOOL_CALLS = 'tool_calls'
+
+
 class CriterionResult(TypedDict):
     """Result for a single validation criterion."""
 
@@ -166,15 +172,15 @@ class LLMJudgeValidator(Validator):
         """Format captured data for LLM prompt."""
         sections = []
 
-        if 'git_diff' in captured_data and captured_data['git_diff']:
-            sections.append(f'**Git Diff:**\n```\n{captured_data["git_diff"]}\n```')
+        if GIT_DIFF in captured_data and captured_data[GIT_DIFF]:
+            sections.append(f'**Git Diff:**\n```\n{captured_data[GIT_DIFF]}\n```')
 
-        if 'final_response' in captured_data:
-            sections.append(f'**Agent Response:**\n{captured_data["final_response"]}')
+        if FINAL_RESPONSE in captured_data:
+            sections.append(f'**Agent Response:**\n{captured_data[FINAL_RESPONSE]}')
 
-        if 'tool_calls' in captured_data and captured_data['tool_calls']:
+        if TOOL_CALLS in captured_data and captured_data[TOOL_CALLS]:
             tool_calls_formatted = []
-            for i, call in enumerate(captured_data['tool_calls'], 1):
+            for i, call in enumerate(captured_data[TOOL_CALLS], 1):
                 status = '✓' if call.get('success') else '✗'
                 duration = f'{call.get("duration", 0):.2f}s'
                 tool_str = f'{i}. {status} {call["name"]} ({duration})'
