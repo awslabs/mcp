@@ -45,18 +45,21 @@ logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'INFO'))
 # Server instructions
 SERVER_INSTRUCTIONS = """AWS DMS Troubleshooting MCP Server
 
-This server provides Root Cause Analysis (RCA) tools for AWS Database Migration Service (DMS) 
-post-migration troubleshooting. It helps customers diagnose and resolve replication job issues 
+This server provides Root Cause Analysis (RCA) tools for AWS Database Migration Service (DMS)
+post-migration troubleshooting. It helps customers diagnose and resolve replication job issues
 through:
 
 - Querying replication task status and details
 - Retrieving CloudWatch logs for error analysis
 - Analyzing source and target endpoints
+- Network connectivity and security group diagnostics
+- VPC routing and configuration analysis
 - Providing recommendations based on AWS DMS best practices and documentation
 
 **Primary Use Case: Post-Migration Troubleshooting**
 - Help customers when replication jobs fail or encounter issues
 - Identify root causes of CDC replication problems
+- Diagnose network connectivity and security group issues
 - Analyze error patterns and provide actionable recommendations
 
 **Available Tools:**
@@ -66,6 +69,9 @@ through:
 4. `analyze_endpoint` - Analyze source or target endpoint configuration
 5. `diagnose_replication_issue` - Comprehensive RCA for failed/stopped tasks
 6. `get_troubleshooting_recommendations` - Get recommendations based on error patterns
+7. `analyze_security_groups` - Analyze security group rules for DMS connectivity
+8. `diagnose_network_connectivity` - Comprehensive network diagnostics for DMS tasks
+9. `check_vpc_configuration` - Analyze VPC routing and network configuration
 
 **AWS Permissions Required:**
 - dms:DescribeReplicationTasks
@@ -74,6 +80,15 @@ through:
 - logs:DescribeLogStreams
 - logs:GetLogEvents
 - logs:FilterLogEvents
+- ec2:DescribeSecurityGroups
+- ec2:DescribeSecurityGroupRules
+- ec2:DescribeSubnets
+- ec2:DescribeRouteTables
+- ec2:DescribeNetworkAcls
+- ec2:DescribeVpcPeeringConnections
+- ec2:DescribeTransitGatewayAttachments
+- ec2:DescribeNatGateways
+- ec2:DescribeInternetGateways
 """
 
 # Initialize MCP Server
@@ -100,6 +115,12 @@ def get_logs_client(region: str, profile: str = 'default'):
     """Get CloudWatch Logs client with proper configuration."""
     session = boto3.Session(profile_name=profile, region_name=region)
     return session.client('logs', config=USER_AGENT_CONFIG)
+
+
+def get_ec2_client(region: str, profile: str = 'default'):
+    """Get EC2 client with proper configuration."""
+    session = boto3.Session(profile_name=profile, region_name=region)
+    return session.client('ec2', config=USER_AGENT_CONFIG)
 
 
 @mcp.tool()
@@ -877,6 +898,615 @@ async def get_troubleshooting_recommendations(
         return {
             'error': str(e),
             'message': 'Failed to generate recommendations',
+        }
+
+
+@mcp.tool()
+async def analyze_security_groups(
+    replication_instance_arn: str = Field(
+        description='DMS Replication Instance ARN to analyze security groups for'
+    ),
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+) -> Dict:
+    """Analyze security group rules for DMS replication instance connectivity.
+
+    This tool examines security group configurations to identify potential
+    network connectivity issues between the replication instance and endpoints.
+
+    Returns:
+        Dictionary containing:
+        - security_groups: List of security groups with their rules
+        - connectivity_issues: Identified connectivity problems
+        - recommendations: Security group configuration recommendations
+    """
+    try:
+        logger.info(f'Analyzing security groups for: {replication_instance_arn}')
+        dms = get_dms_client(region, aws_profile)
+        ec2 = get_ec2_client(region, aws_profile)
+
+        # Get replication instance details
+        response = dms.describe_replication_instances(
+            Filters=[
+                {'Name': 'replication-instance-arn', 'Values': [replication_instance_arn]},
+            ]
+        )
+
+        instances = response.get('ReplicationInstances', [])
+        if not instances:
+            return {
+                'error': f'Replication instance not found: {replication_instance_arn}',
+                'message': 'Instance does not exist in the specified region',
+            }
+
+        instance = instances[0]
+        vpc_security_groups = instance.get('VpcSecurityGroups', [])
+        subnet_id = instance.get('ReplicationSubnetGroup', {}).get('Subnets', [{}])[0].get(
+            'SubnetIdentifier'
+        )
+
+        if not vpc_security_groups:
+            return {
+                'message': 'No VPC security groups found for this replication instance',
+                'recommendations': [
+                    'Ensure replication instance is in a VPC with proper security groups'
+                ],
+            }
+
+        # Get security group details
+        sg_ids = [sg.get('VpcSecurityGroupId') for sg in vpc_security_groups]
+        sg_response = ec2.describe_security_groups(GroupIds=sg_ids)
+
+        security_groups = []
+        connectivity_issues = []
+        recommendations = []
+
+        for sg in sg_response.get('SecurityGroups', []):
+            sg_info = {
+                'group_id': sg.get('GroupId'),
+                'group_name': sg.get('GroupName'),
+                'description': sg.get('Description'),
+                'vpc_id': sg.get('VpcId'),
+                'ingress_rules': [],
+                'egress_rules': [],
+            }
+
+            # Analyze ingress rules
+            for rule in sg.get('IpPermissions', []):
+                rule_info = {
+                    'protocol': rule.get('IpProtocol', 'all'),
+                    'from_port': rule.get('FromPort'),
+                    'to_port': rule.get('ToPort'),
+                    'sources': [],
+                }
+
+                # Get source information
+                for ip_range in rule.get('IpRanges', []):
+                    rule_info['sources'].append(
+                        {'type': 'cidr', 'value': ip_range.get('CidrIp')}
+                    )
+                for sg_ref in rule.get('UserIdGroupPairs', []):
+                    rule_info['sources'].append(
+                        {'type': 'security_group', 'value': sg_ref.get('GroupId')}
+                    )
+
+                sg_info['ingress_rules'].append(rule_info)
+
+            # Analyze egress rules
+            for rule in sg.get('IpPermissionsEgress', []):
+                rule_info = {
+                    'protocol': rule.get('IpProtocol', 'all'),
+                    'from_port': rule.get('FromPort'),
+                    'to_port': rule.get('ToPort'),
+                    'destinations': [],
+                }
+
+                # Get destination information
+                for ip_range in rule.get('IpRanges', []):
+                    rule_info['destinations'].append(
+                        {'type': 'cidr', 'value': ip_range.get('CidrIp')}
+                    )
+                for sg_ref in rule.get('UserIdGroupPairs', []):
+                    rule_info['destinations'].append(
+                        {'type': 'security_group', 'value': sg_ref.get('GroupId')}
+                    )
+
+                sg_info['egress_rules'].append(rule_info)
+
+            # Check for common issues
+            if not sg_info['egress_rules']:
+                connectivity_issues.append(
+                    f"Security group {sg.get('GroupName')} has no egress rules"
+                )
+                recommendations.append(
+                    f"Add egress rules to {sg.get('GroupName')} to allow outbound traffic"
+                )
+
+            # Check if egress allows database ports
+            has_db_egress = False
+            for rule in sg_info['egress_rules']:
+                if rule['protocol'] in ['-1', 'all'] or (
+                    rule['from_port']
+                    and rule['to_port']
+                    and any(
+                        port in range(rule['from_port'], rule['to_port'] + 1)
+                        for port in [3306, 5432, 1521, 1433]
+                    )
+                ):
+                    has_db_egress = True
+                    break
+
+            if not has_db_egress:
+                connectivity_issues.append(
+                    f"Security group {sg.get('GroupName')} may not allow database port access"
+                )
+                recommendations.append(
+                    'Ensure egress rules allow traffic to database ports (MySQL:3306, PostgreSQL:5432, Oracle:1521, SQL Server:1433)'
+                )
+
+            security_groups.append(sg_info)
+
+        return {
+            'replication_instance_arn': replication_instance_arn,
+            'security_groups': security_groups,
+            'connectivity_issues': connectivity_issues
+            if connectivity_issues
+            else ['No obvious security group issues detected'],
+            'recommendations': recommendations
+            if recommendations
+            else ['Security group configuration appears correct'],
+        }
+
+    except Exception as e:
+        logger.error(f'Error analyzing security groups: {str(e)}')
+        return {
+            'error': str(e),
+            'message': f'Failed to analyze security groups for: {replication_instance_arn}',
+        }
+
+
+@mcp.tool()
+async def diagnose_network_connectivity(
+    task_identifier: str = Field(description='Replication task identifier to diagnose'),
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+) -> Dict:
+    """Perform comprehensive network connectivity diagnostics for a DMS task.
+
+    This tool analyzes network configuration including security groups, VPC settings,
+    subnets, and routing to identify connectivity issues between replication instance
+    and endpoints.
+
+    Returns:
+        Dictionary containing:
+        - network_summary: Overview of network configuration
+        - connectivity_analysis: Detailed connectivity checks
+        - identified_issues: List of network problems
+        - recommendations: Network troubleshooting steps
+    """
+    try:
+        logger.info(f'Diagnosing network connectivity for task: {task_identifier}')
+        dms = get_dms_client(region, aws_profile)
+        ec2 = get_ec2_client(region, aws_profile)
+
+        # Get task details
+        task_response = dms.describe_replication_tasks(
+            Filters=[{'Name': 'replication-task-id', 'Values': [task_identifier]}]
+        )
+
+        tasks = task_response.get('ReplicationTasks', [])
+        if not tasks:
+            return {
+                'error': f'Task not found: {task_identifier}',
+                'message': 'Task does not exist in the specified region',
+            }
+
+        task = tasks[0]
+        instance_arn = task.get('ReplicationInstanceArn')
+
+        # Get replication instance details
+        instance_response = dms.describe_replication_instances(
+            Filters=[{'Name': 'replication-instance-arn', 'Values': [instance_arn]}]
+        )
+
+        instances = instance_response.get('ReplicationInstances', [])
+        if not instances:
+            return {
+                'error': 'Replication instance not found',
+                'message': 'Could not retrieve replication instance details',
+            }
+
+        instance = instances[0]
+
+        # Get endpoint details
+        source_endpoint_arn = task.get('SourceEndpointArn')
+        target_endpoint_arn = task.get('TargetEndpointArn')
+
+        source_response = dms.describe_endpoints(
+            Filters=[{'Name': 'endpoint-arn', 'Values': [source_endpoint_arn]}]
+        )
+        target_response = dms.describe_endpoints(
+            Filters=[{'Name': 'endpoint-arn', 'Values': [target_endpoint_arn]}]
+        )
+
+        source_endpoint = source_response.get('Endpoints', [{}])[0]
+        target_endpoint = target_response.get('Endpoints', [{}])[0]
+
+        # Build network summary
+        network_summary = {
+            'replication_instance': {
+                'arn': instance_arn,
+                'public_ip': instance.get('ReplicationInstancePublicIpAddress'),
+                'private_ip': instance.get('ReplicationInstancePrivateIpAddress'),
+                'publicly_accessible': instance.get('PubliclyAccessible', False),
+                'multi_az': instance.get('MultiAZ', False),
+            },
+            'source_endpoint': {
+                'server': source_endpoint.get('ServerName'),
+                'port': source_endpoint.get('Port'),
+                'engine': source_endpoint.get('EngineName'),
+            },
+            'target_endpoint': {
+                'server': target_endpoint.get('ServerName'),
+                'port': target_endpoint.get('Port'),
+                'engine': target_endpoint.get('EngineName'),
+            },
+        }
+
+        # Analyze connectivity
+        connectivity_checks = []
+        identified_issues = []
+        recommendations = []
+
+        # Check 1: VPC Configuration
+        subnet_group = instance.get('ReplicationSubnetGroup', {})
+        subnets = subnet_group.get('Subnets', [])
+
+        if not subnets:
+            identified_issues.append('Replication instance has no subnet configuration')
+            recommendations.append('Configure replication subnet group with appropriate subnets')
+        else:
+            subnet_ids = [s.get('SubnetIdentifier') for s in subnets]
+            connectivity_checks.append(
+                {
+                    'check': 'VPC Subnet Configuration',
+                    'status': 'OK',
+                    'details': f'Replication instance in {len(subnets)} subnet(s)',
+                }
+            )
+
+            # Get subnet details
+            try:
+                subnet_response = ec2.describe_subnets(SubnetIds=subnet_ids)
+                vpc_id = subnet_response['Subnets'][0]['VpcId']
+                network_summary['vpc_id'] = vpc_id
+
+                # Check route tables
+                rt_response = ec2.describe_route_tables(
+                    Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+                )
+
+                has_internet_route = False
+                has_nat_route = False
+
+                for rt in rt_response.get('RouteTables', []):
+                    for route in rt.get('Routes', []):
+                        if route.get('GatewayId', '').startswith('igw-'):
+                            has_internet_route = True
+                        if route.get('NatGatewayId'):
+                            has_nat_route = True
+
+                if instance.get('PubliclyAccessible') and not has_internet_route:
+                    identified_issues.append(
+                        'Instance is public but VPC has no internet gateway route'
+                    )
+                    recommendations.append(
+                        'Add internet gateway and configure route table for public access'
+                    )
+
+                if not instance.get('PubliclyAccessible') and not has_nat_route:
+                    connectivity_checks.append(
+                        {
+                            'check': 'NAT Gateway',
+                            'status': 'WARNING',
+                            'details': 'No NAT gateway found - outbound connectivity may be limited',
+                        }
+                    )
+                    recommendations.append(
+                        'Consider adding NAT gateway for private instance outbound connectivity'
+                    )
+
+            except Exception as subnet_error:
+                logger.warning(f'Error checking subnets: {str(subnet_error)}')
+
+        # Check 2: Security Groups
+        vpc_security_groups = instance.get('VpcSecurityGroups', [])
+        if vpc_security_groups:
+            sg_analysis = await analyze_security_groups(instance_arn, region, aws_profile)
+            connectivity_checks.append(
+                {
+                    'check': 'Security Groups',
+                    'status': 'ANALYZED',
+                    'details': f"Found {len(sg_analysis.get('security_groups', []))} security group(s)",
+                }
+            )
+            if 'connectivity_issues' in sg_analysis and sg_analysis['connectivity_issues']:
+                identified_issues.extend(sg_analysis['connectivity_issues'])
+            if 'recommendations' in sg_analysis and sg_analysis['recommendations']:
+                recommendations.extend(sg_analysis['recommendations'])
+
+        # Check 3: DNS Resolution
+        source_server = source_endpoint.get('ServerName')
+        target_server = target_endpoint.get('ServerName')
+
+        if source_server and not source_server.replace('.', '').isdigit():
+            connectivity_checks.append(
+                {
+                    'check': 'Source Endpoint DNS',
+                    'status': 'INFO',
+                    'details': f'Hostname: {source_server} - Ensure DNS resolution is working',
+                }
+            )
+            recommendations.append(
+                f'Verify DNS can resolve {source_server} from replication instance VPC'
+            )
+
+        if target_server and not target_server.replace('.', '').isdigit():
+            connectivity_checks.append(
+                {
+                    'check': 'Target Endpoint DNS',
+                    'status': 'INFO',
+                    'details': f'Hostname: {target_server} - Ensure DNS resolution is working',
+                }
+            )
+            recommendations.append(
+                f'Verify DNS can resolve {target_server} from replication instance VPC'
+            )
+
+        # Check 4: Cross-VPC/Cross-Account connectivity
+        if instance.get('PubliclyAccessible'):
+            connectivity_checks.append(
+                {
+                    'check': 'Public Access',
+                    'status': 'INFO',
+                    'details': 'Replication instance is publicly accessible',
+                }
+            )
+        else:
+            connectivity_checks.append(
+                {
+                    'check': 'Private Network',
+                    'status': 'INFO',
+                    'details': 'Replication instance is private - ensure VPC connectivity to endpoints',
+                }
+            )
+            recommendations.append(
+                'For private instances, verify VPC peering, Transit Gateway, or VPN connectivity to endpoints'
+            )
+
+        return {
+            'task_identifier': task_identifier,
+            'network_summary': network_summary,
+            'connectivity_checks': connectivity_checks,
+            'identified_issues': identified_issues if identified_issues else ['No critical issues identified'],
+            'recommendations': recommendations
+            if recommendations
+            else ['Network configuration appears healthy'],
+        }
+
+    except Exception as e:
+        logger.error(f'Error diagnosing network connectivity: {str(e)}')
+        return {
+            'error': str(e),
+            'message': f'Failed to diagnose network for task: {task_identifier}',
+        }
+
+
+@mcp.tool()
+async def check_vpc_configuration(
+    vpc_id: str = Field(description='VPC ID to analyze for DMS connectivity'),
+    region: str = FIELD_AWS_REGION,
+    aws_profile: str = FIELD_AWS_PROFILE,
+) -> Dict:
+    """Analyze VPC routing, network ACLs, and connectivity configuration.
+
+    This tool examines VPC-level network configuration that may affect DMS
+    replication, including route tables, network ACLs, VPC peering, and
+    Transit Gateway attachments.
+
+    Returns:
+        Dictionary containing:
+        - vpc_details: VPC configuration information
+        - routing_analysis: Route table analysis
+        - network_acl_analysis: Network ACL configuration
+        - connectivity_options: Available connectivity methods
+        - recommendations: VPC configuration recommendations
+    """
+    try:
+        logger.info(f'Analyzing VPC configuration: {vpc_id}')
+        ec2 = get_ec2_client(region, aws_profile)
+
+        # Get VPC details
+        vpc_response = ec2.describe_vpcs(VpcIds=[vpc_id])
+        vpcs = vpc_response.get('Vpcs', [])
+
+        if not vpcs:
+            return {
+                'error': f'VPC not found: {vpc_id}',
+                'message': 'VPC does not exist in the specified region',
+            }
+
+        vpc = vpcs[0]
+
+        vpc_details = {
+            'vpc_id': vpc_id,
+            'cidr_block': vpc.get('CidrBlock'),
+            'is_default': vpc.get('IsDefault', False),
+            'state': vpc.get('State'),
+            'dns_support': vpc.get('EnableDnsSupport', False),
+            'dns_hostnames': vpc.get('EnableDnsHostnames', False),
+        }
+
+        recommendations = []
+
+        # Check DNS settings
+        if not vpc.get('EnableDnsSupport'):
+            recommendations.append('Enable DNS support for the VPC')
+        if not vpc.get('EnableDnsHostnames'):
+            recommendations.append('Enable DNS hostnames for the VPC')
+
+        # Analyze route tables
+        rt_response = ec2.describe_route_tables(
+            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+        )
+
+        routing_analysis = {'route_tables': [], 'internet_gateway': None, 'nat_gateways': []}
+
+        igw_response = ec2.describe_internet_gateways(
+            Filters=[{'Name': 'attachment.vpc-id', 'Values': [vpc_id]}]
+        )
+        if igw_response.get('InternetGateways'):
+            routing_analysis['internet_gateway'] = igw_response['InternetGateways'][0].get(
+                'InternetGatewayId'
+            )
+
+        nat_response = ec2.describe_nat_gateways(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])
+        routing_analysis['nat_gateways'] = [
+            {
+                'nat_gateway_id': nat.get('NatGatewayId'),
+                'state': nat.get('State'),
+                'subnet_id': nat.get('SubnetId'),
+            }
+            for nat in nat_response.get('NatGateways', [])
+        ]
+
+        for rt in rt_response.get('RouteTables', []):
+            rt_info = {
+                'route_table_id': rt.get('RouteTableId'),
+                'is_main': any(assoc.get('Main', False) for assoc in rt.get('Associations', [])),
+                'routes': [],
+            }
+
+            for route in rt.get('Routes', []):
+                route_info = {
+                    'destination': route.get('DestinationCidrBlock')
+                    or route.get('DestinationPrefixListId'),
+                    'target': route.get('GatewayId')
+                    or route.get('NatGatewayId')
+                    or route.get('TransitGatewayId')
+                    or route.get('VpcPeeringConnectionId')
+                    or 'local',
+                    'state': route.get('State', 'active'),
+                }
+                rt_info['routes'].append(route_info)
+
+            routing_analysis['route_tables'].append(rt_info)
+
+        # Check for VPC Peering
+        peering_response = ec2.describe_vpc_peering_connections(
+            Filters=[
+                {'Name': 'requester-vpc-info.vpc-id', 'Values': [vpc_id]},
+                {'Name': 'status-code', 'Values': ['active']},
+            ]
+        )
+
+        connectivity_options = {
+            'vpc_peering': [
+                {
+                    'peering_id': peer.get('VpcPeeringConnectionId'),
+                    'peer_vpc_id': peer.get('AccepterVpcInfo', {}).get('VpcId'),
+                    'peer_cidr': peer.get('AccepterVpcInfo', {}).get('CidrBlock'),
+                }
+                for peer in peering_response.get('VpcPeeringConnections', [])
+            ]
+        }
+
+        # Check for Transit Gateway attachments
+        try:
+            tgw_response = ec2.describe_transit_gateway_attachments(
+                Filters=[
+                    {'Name': 'vpc-id', 'Values': [vpc_id]},
+                    {'Name': 'state', 'Values': ['available']},
+                ]
+            )
+            connectivity_options['transit_gateway'] = [
+                {
+                    'attachment_id': tgw.get('TransitGatewayAttachmentId'),
+                    'transit_gateway_id': tgw.get('TransitGatewayId'),
+                    'state': tgw.get('State'),
+                }
+                for tgw in tgw_response.get('TransitGatewayAttachments', [])
+            ]
+        except Exception as tgw_error:
+            logger.warning(f'Error checking Transit Gateway: {str(tgw_error)}')
+            connectivity_options['transit_gateway'] = []
+
+        # Analyze Network ACLs
+        nacl_response = ec2.describe_network_acls(
+            Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]
+        )
+
+        network_acl_analysis = []
+        for nacl in nacl_response.get('NetworkAcls', []):
+            nacl_info = {
+                'nacl_id': nacl.get('NetworkAclId'),
+                'is_default': nacl.get('IsDefault', False),
+                'ingress_rules': [],
+                'egress_rules': [],
+            }
+
+            for entry in nacl.get('Entries', []):
+                rule = {
+                    'rule_number': entry.get('RuleNumber'),
+                    'protocol': entry.get('Protocol'),
+                    'action': entry.get('RuleAction'),
+                    'cidr': entry.get('CidrBlock'),
+                }
+
+                if entry.get('Egress'):
+                    nacl_info['egress_rules'].append(rule)
+                else:
+                    nacl_info['ingress_rules'].append(rule)
+
+            # Check for restrictive NACLs
+            if not nacl_info['is_default']:
+                has_deny_all = any(
+                    rule['rule_number'] < 32767 and rule['action'] == 'deny'
+                    for rule in nacl_info['ingress_rules'] + nacl_info['egress_rules']
+                )
+                if has_deny_all:
+                    recommendations.append(
+                        f"Network ACL {nacl.get('NetworkAclId')} has explicit deny rules - verify they don't block DMS traffic"
+                    )
+
+            network_acl_analysis.append(nacl_info)
+
+        # Generate recommendations
+        if not routing_analysis['internet_gateway'] and not routing_analysis['nat_gateways']:
+            recommendations.append(
+                'VPC has no internet gateway or NAT gateway - ensure connectivity to endpoints'
+            )
+
+        if not connectivity_options['vpc_peering'] and not connectivity_options['transit_gateway']:
+            recommendations.append(
+                'No VPC peering or Transit Gateway connections found - required for cross-VPC connectivity'
+            )
+
+        return {
+            'vpc_details': vpc_details,
+            'routing_analysis': routing_analysis,
+            'network_acl_analysis': network_acl_analysis,
+            'connectivity_options': connectivity_options,
+            'recommendations': recommendations
+            if recommendations
+            else ['VPC configuration appears appropriate for DMS'],
+        }
+
+    except Exception as e:
+        logger.error(f'Error analyzing VPC configuration: {str(e)}')
+        return {
+            'error': str(e),
+            'message': f'Failed to analyze VPC: {vpc_id}',
         }
 
 

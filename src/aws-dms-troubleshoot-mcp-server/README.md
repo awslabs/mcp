@@ -11,6 +11,8 @@ The AWS DMS Troubleshooting MCP Server is designed to assist with post-migration
 - Failed or stopped replication tasks
 - CDC (Change Data Capture) replication issues
 - Connection and authentication problems
+- Network connectivity and security group issues
+- VPC routing and configuration problems
 - Performance and latency issues
 - Configuration errors
 
@@ -31,9 +33,16 @@ The AWS DMS Troubleshooting MCP Server is designed to assist with post-migration
   - Test endpoint connectivity
   - Identify common configuration issues
 
+- **Network Diagnostics**
+  - Analyze security group rules for DMS connectivity
+  - Diagnose network connectivity issues between replication instances and endpoints
+  - Check VPC routing, network ACLs, and connectivity options
+  - Identify VPC peering and Transit Gateway configurations
+
 - **Root Cause Analysis**
   - Comprehensive diagnosis of failed tasks
   - Pattern-based error identification
+  - Network-level diagnostics integration
   - Actionable recommendations based on AWS best practices
 
 - **Documentation Integration**
@@ -129,10 +138,28 @@ The IAM user or role needs the following permissions:
         "logs:FilterLogEvents"
       ],
       "Resource": "arn:aws:logs:*:*:log-group:dms-tasks-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSecurityGroupRules",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeNetworkAcls",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeVpcPeeringConnections",
+        "ec2:DescribeTransitGatewayAttachments",
+        "ec2:DescribeNatGateways",
+        "ec2:DescribeInternetGateways"
+      ],
+      "Resource": "*"
     }
   ]
 }
 ```
+
+**Note:** Network diagnostic features require EC2 read permissions. If these permissions are not available, the server will still function but network diagnostic tools will return permission errors.
 
 ## Available Tools
 
@@ -240,70 +267,56 @@ await get_troubleshooting_recommendations(
 )
 ```
 
-## Usage Examples
+### 7. analyze_security_groups
 
-### Example 1: Diagnose a Failed Replication Task
+Analyze security group rules for DMS replication instance connectivity.
 
+**Parameters:**
+- `replication_instance_arn` (string, required): DMS Replication Instance ARN
+- `region` (string, optional): AWS region
+- `aws_profile` (string, optional): AWS profile to use
+
+**Example:**
 ```python
-# Step 1: List all failed tasks
-tasks = await list_replication_tasks(status_filter="failed")
-
-# Step 2: Get detailed diagnosis for a specific task
-diagnosis = await diagnose_replication_issue(
-    task_identifier=tasks['tasks'][0]['task_identifier']
+await analyze_security_groups(
+    replication_instance_arn="arn:aws:dms:us-east-1:123456789012:rep:ABCDEFG",
+    region="us-east-1"
 )
-
-# Step 3: Review root causes and recommendations
-print("Root Causes:", diagnosis['root_causes'])
-print("Recommendations:", diagnosis['recommendations'])
 ```
 
-### Example 2: Analyze Error Logs
+### 8. diagnose_network_connectivity
 
+Perform comprehensive network connectivity diagnostics for a DMS task.
+
+**Parameters:**
+- `task_identifier` (string, required): Task identifier to diagnose
+- `region` (string, optional): AWS region
+- `aws_profile` (string, optional): AWS profile to use
+
+**Example:**
 ```python
-# Get recent error logs
-logs = await get_task_cloudwatch_logs(
-    task_identifier="my-task",
-    hours_back=24,
-    filter_pattern="ERROR OR FATAL",
-    max_events=50
+await diagnose_network_connectivity(
+    task_identifier="my-replication-task",
+    region="us-east-1"
 )
-
-# Analyze error patterns
-for event in logs['log_events']:
-    print(f"{event['timestamp']}: {event['message']}")
-
-# Get recommendations for common errors
-if logs['log_events']:
-    error_message = logs['log_events'][0]['message']
-    recommendations = await get_troubleshooting_recommendations(
-        error_pattern=error_message
-    )
 ```
 
-### Example 3: Validate Endpoint Configuration
+### 9. check_vpc_configuration
 
+Analyze VPC routing, network ACLs, and connectivity configuration.
+
+**Parameters:**
+- `vpc_id` (string, required): VPC ID to analyze
+- `region` (string, optional): AWS region
+- `aws_profile` (string, optional): AWS profile to use
+
+**Example:**
 ```python
-# Get task details to find endpoint ARNs
-task = await get_replication_task_details(
-    task_identifier="my-task"
+await check_vpc_configuration(
+    vpc_id="vpc-12345678",
+    region="us-east-1"
 )
-
-# Analyze source endpoint
-source_analysis = await analyze_endpoint(
-    endpoint_arn=task['source_endpoint_arn']
-)
-
-# Analyze target endpoint
-target_analysis = await analyze_endpoint(
-    endpoint_arn=task['target_endpoint_arn']
-)
-
-# Review findings
-print("Source Issues:", source_analysis['potential_issues'])
-print("Target Issues:", target_analysis['potential_issues'])
 ```
-
 ## Common Use Cases
 
 ### Post-Migration Troubleshooting
@@ -313,8 +326,20 @@ When a replication task fails after migration:
 1. Use `list_replication_tasks` to identify failed tasks
 2. Run `diagnose_replication_issue` for comprehensive RCA
 3. Review `get_task_cloudwatch_logs` for detailed error context
-4. Use `get_troubleshooting_recommendations` for specific errors
-5. Apply recommended fixes and monitor results
+4. Use `diagnose_network_connectivity` to check for network issues
+5. Use `get_troubleshooting_recommendations` for specific errors
+6. Apply recommended fixes and monitor results
+
+### Network Connectivity Issues
+
+When experiencing connection timeouts or network errors:
+
+1. Run `diagnose_network_connectivity` for the failing task
+2. Use `analyze_security_groups` to verify security group rules
+3. Check `check_vpc_configuration` to validate VPC routing
+4. Verify DNS resolution for endpoint hostnames
+5. Ensure proper VPC peering or Transit Gateway configuration
+6. Validate NAT gateway or internet gateway setup
 
 ### CDC Replication Issues
 
@@ -324,7 +349,8 @@ For Change Data Capture problems:
 2. Analyze logs for CDC-specific errors
 3. Verify endpoint configurations support CDC
 4. Review recommendations for binlog/WAL configuration
-5. Check network connectivity and permissions
+5. Use `diagnose_network_connectivity` to ensure continuous connectivity
+6. Check network connectivity and permissions
 
 ### Performance Optimization
 
@@ -333,7 +359,8 @@ To investigate slow replication:
 1. Review task statistics from `get_replication_task_details`
 2. Check CloudWatch logs for warnings
 3. Analyze endpoint configurations for optimization opportunities
-4. Get performance-related recommendations
+4. Use `diagnose_network_connectivity` to identify network bottlenecks
+5. Get performance-related recommendations
 
 ## Troubleshooting
 
@@ -365,39 +392,6 @@ To investigate slow replication:
 - Check task identifier is correct
 - Ensure CloudWatch Logs permissions are granted
 - Confirm logs retention hasn't expired
-
-## Development
-
-### Running Tests
-
-```bash
-# Install development dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest tests/
-
-# Run with coverage
-pytest --cov=awslabs.aws_dms_troubleshoot_mcp_server tests/
-```
-
-### Code Style
-
-This project uses:
-- `ruff` for linting and formatting
-- `pyright` for type checking
-- `pre-commit` for automated checks
-
-```bash
-# Format code
-ruff format .
-
-# Run linter
-ruff check .
-
-# Type check
-pyright
-```
 
 ## Contributing
 
