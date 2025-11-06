@@ -42,6 +42,7 @@ class Task(ABC):
         - get_captors(context): Return captors to collect execution data
         - get_validators(context): Return validators for custom validation
         - get_working_directory(): Return task working directory
+        - setup(context): Set up workspace before task execution
         - cleanup(context): Clean up after execution
 
     Attributes:
