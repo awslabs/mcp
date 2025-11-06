@@ -20,6 +20,7 @@ import json
 import pytest
 import sys
 import uuid
+from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
 from awslabs.mysql_mcp_server.server import (
     DBConnectionSingleton,
     client_error_code_key,
@@ -30,6 +31,7 @@ from awslabs.mysql_mcp_server.server import (
     write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, MockException
+from unittest.mock import AsyncMock, Mock, patch
 
 
 SAFE_READONLY_QUERIES = [
@@ -832,6 +834,46 @@ def test_main_with_valid_asyncmy_parameters(monkeypatch, capsys):
 
     # This test of main() will succeed in parsing parameters and create connection object.
     main()
+
+
+@pytest.mark.asyncio
+async def test_get_table_schema_asyncmy_connection():
+    """Test get_table_schema with asyncmy connection type detection and SQL conversion."""
+    with patch(
+        'awslabs.mysql_mcp_server.connection.asyncmy_pool_connection._get_credentials_from_secret',
+        return_value=('user', 'pass'),
+    ):
+        DBConnectionSingleton.initialize(
+            'mock', 'mock', 'mock', hostname='mock', port=3306, readonly=False, is_test=True
+        )
+
+    # Replace the real asyncmy connection with a mock to avoid actual DB connection
+    mock_asyncmy_connection = Mock(spec=AsyncmyPoolConnection)
+    mock_asyncmy_connection.execute_query = AsyncMock(
+        return_value=get_mock_normal_query_response()
+    )
+    DBConnectionSingleton._instance._db_connection = mock_asyncmy_connection  # type: ignore
+
+    ctx = DummyCtx()
+    tool_response = await get_table_schema(table_name='table_name', database_name='mysql', ctx=ctx)
+
+    # Verify SQL was converted from :name to %s for asyncmy
+    call_args = mock_asyncmy_connection.execute_query.call_args
+    sql_used = call_args[0][0]  # First positional argument is the SQL
+
+    assert '%s' in sql_used
+    assert ':database_name' not in sql_used
+    assert ':table_name' not in sql_used
+
+    # validate tool_response
+    assert (
+        isinstance(tool_response, (list, tuple))
+        and len(tool_response) == 1
+        and isinstance(tool_response[0], dict)
+        and 'error' not in tool_response[0]
+    )
+    column_records = tool_response[0]
+    validate_normal_query_response(column_records)
 
 
 if __name__ == '__main__':
