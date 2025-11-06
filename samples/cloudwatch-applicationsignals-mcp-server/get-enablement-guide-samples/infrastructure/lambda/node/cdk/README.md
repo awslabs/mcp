@@ -1,6 +1,6 @@
-# Lambda API Gateway CDK
+# Lambda ALB CDK
 
-This CDK application converts the Terraform Lambda and API Gateway resources to AWS CDK.
+This CDK application converts the Terraform Lambda and ALB resources to AWS CDK.
 
 ## Prerequisites
 
@@ -45,5 +45,5 @@ npm run destroy
 ## Outputs
 
 After deployment, you'll get:
-- API Gateway URL
+- ALB URL
 - Lambda function role name

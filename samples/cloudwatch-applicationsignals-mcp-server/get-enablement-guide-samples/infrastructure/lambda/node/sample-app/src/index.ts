@@ -15,7 +15,10 @@ exports.handler = async (_event: APIGatewayProxyEvent, _context: Context) => {
 
   const response: APIGatewayProxyResult = {
     statusCode: 200,
-    body: `Hello lambda - found ${result.Buckets?.length || 0} buckets.`,
+    headers: {
+      'Content-Type': 'text/html'
+    },
+    body: `<html><body><h1>Hello lambda - found ${result.Buckets?.length || 0} buckets.</h1></body></html>`,
   };
   return response;
 };
