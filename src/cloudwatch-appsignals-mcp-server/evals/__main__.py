@@ -162,10 +162,11 @@ async def main():
     )
     parser.add_argument(
         '--task',
-        help='Run all tasks from specific task file (e.g., investigation_tasks, enablement_tasks)',
+        help='Run all tasks from specific task file (e.g., investigation_tasks). Can be combined with --task-id',
     )
     parser.add_argument(
-        '--task-id', help='Run specific task by ID (e.g., petclinic_scheduling_rca)'
+        '--task-id',
+        help='Run specific task by ID (e.g., petclinic_scheduling_rca). Can be combined with --task to limit scope',
     )
     parser.add_argument('--list', action='store_true', help='List all available tasks and exit')
     parser.add_argument(
