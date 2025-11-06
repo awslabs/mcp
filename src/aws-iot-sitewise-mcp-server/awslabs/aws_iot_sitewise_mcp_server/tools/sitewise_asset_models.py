@@ -158,7 +158,10 @@ def create_asset_model(
 
 @tool_metadata(readonly=True)
 def describe_asset_model(
-    asset_model_id: str = Field(..., description='The ID of the asset model'),
+    asset_model_id: str = Field(
+        ...,
+        description='The ID of the asset model (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     exclude_properties: bool = Field(
         False, description='Whether to exclude asset model properties'
@@ -170,7 +173,9 @@ def describe_asset_model(
     """Retrieve information about an asset model.
 
     Args:
-        asset_model_id: The ID of the asset model
+        asset_model_id: The ID of the asset model. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                       or external ID format (externalId:my-external-id). Use list_asset_models to get the
+                       correct ID if you only have the asset model name.
         region: AWS region (default: us-east-1)
         exclude_properties: Whether to exclude asset model properties
         asset_model_version: The version of the asset model (LATEST, ACTIVE)
@@ -300,7 +305,10 @@ def list_asset_models(
 
 @tool_metadata(readonly=False)
 def update_asset_model(
-    asset_model_id: str = Field(..., description='The ID of the asset model to update'),
+    asset_model_id: str = Field(
+        ...,
+        description='The ID of the asset model to update (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     asset_model_name: str = Field(..., description='A unique, friendly name for the asset model'),
     region: str = Field('us-east-1', description='AWS region'),
     asset_model_description: Optional[str] = Field(
@@ -325,7 +333,9 @@ def update_asset_model(
     """Update an asset model.
 
     Args:
-        asset_model_id: The ID of the asset model to update
+        asset_model_id: The ID of the asset model to update. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                       or external ID format (externalId:my-external-id). Use list_asset_models to get the
+                       correct ID if you only have the asset model name.
         asset_model_name: A unique, friendly name for the asset model
         region: AWS region (default: us-east-1)
         asset_model_description: A description for the asset model
@@ -399,7 +409,10 @@ def update_asset_model(
 
 @tool_metadata(readonly=False)
 def delete_asset_model(
-    asset_model_id: str = Field(..., description='The ID of the asset model to delete'),
+    asset_model_id: str = Field(
+        ...,
+        description='The ID of the asset model to delete (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     client_token: Optional[str] = Field(
         None, description='A unique case-sensitive identifier for the request'
@@ -408,7 +421,9 @@ def delete_asset_model(
     """Delete an asset model.
 
     Args:
-        asset_model_id: The ID of the asset model to delete
+        asset_model_id: The ID of the asset model to delete. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                       or external ID format (externalId:my-external-id). Use list_asset_models to get the
+                       correct ID if you only have the asset model name.
         region: AWS region (default: us-east-1)
         client_token: A unique case-sensitive identifier for the request
 
@@ -448,7 +463,10 @@ def delete_asset_model(
 
 @tool_metadata(readonly=True)
 def list_asset_model_properties(
-    asset_model_id: str = Field(..., description='The ID of the asset model'),
+    asset_model_id: str = Field(
+        ...,
+        description='The ID of the asset model (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     next_token: Optional[str] = Field(
         None, description='The token to be used for the next set of paginated results'
@@ -462,7 +480,9 @@ def list_asset_model_properties(
     """Retrieve a paginated list of properties associated with an asset model.
 
     Args:
-        asset_model_id: The ID of the asset model
+        asset_model_id: The ID of the asset model. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                       or external ID format (externalId:my-external-id). Use list_asset_models to get the
+                       correct ID if you only have the asset model name.
         region: AWS region (default: us-east-1)
         next_token: The token to be used for the next set of paginated results
         max_results: The maximum number of results to return (
@@ -531,7 +551,8 @@ def list_asset_model_properties(
 @tool_metadata(readonly=False)
 def create_asset_model_composite_model(
     asset_model_id: str = Field(
-        ..., description='The ID of the asset model this composite model is a part of'
+        ...,
+        description='The ID of the asset model this composite model is a part of (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
     ),
     asset_model_composite_model_name: str = Field(
         ..., description='A unique, friendly name for the composite model'
@@ -565,11 +586,9 @@ def create_asset_model_composite_model(
     """Create a composite model for an existing asset model.
 
     Args:
-        asset_model_id: The ID of the asset model this composite model is \
-            a part \
-            \
-            \
-            of
+        asset_model_id: The ID of the asset model this composite model is a part of. Accepts UUID format
+                       (12345678-1234-1234-1234-123456789012) or external ID format (externalId:my-external-id).
+                       Use list_asset_models to get the correct ID if you only have the asset model name.
         asset_model_composite_model_name: A unique, friendly name for the \
             composite model
         asset_model_composite_model_type: The type of the composite model

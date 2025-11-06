@@ -128,7 +128,10 @@ def create_asset(
 
 @tool_metadata(readonly=True)
 def describe_asset(
-    asset_id: str = Field(..., description='The ID of the asset'),
+    asset_id: str = Field(
+        ...,
+        description='The ID of the asset (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     exclude_properties: bool = Field(
         False, description='Whether to exclude asset properties from the response'
@@ -137,7 +140,9 @@ def describe_asset(
     """Retrieve information about an asset.
 
     Args:
-        asset_id: The ID of the asset
+        asset_id: The ID of the asset. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                 or external ID format (externalId:my-external-id). Use list_assets to get the
+                 correct ID if you only have the asset name.
         region: AWS region (default: us-east-1)
         exclude_properties: Whether to exclude asset properties from the \
             response
@@ -257,7 +262,10 @@ def list_assets(
 
 @tool_metadata(readonly=False)
 def update_asset(
-    asset_id: str = Field(..., description='The ID of the asset to update'),
+    asset_id: str = Field(
+        ...,
+        description='The ID of the asset to update (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     asset_name: str = Field(..., description='A friendly name for the asset'),
     region: str = Field('us-east-1', description='AWS region'),
     client_token: Optional[str] = Field(
@@ -271,7 +279,9 @@ def update_asset(
     """Update an asset's name, description, and external ID.
 
     Args:
-        asset_id: The ID of the asset to update
+        asset_id: The ID of the asset to update. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                 or external ID format (externalId:my-external-id). Use list_assets to get the
+                 correct ID if you only have the asset name.
         asset_name: A friendly name for the asset
         region: AWS region (default: us-east-1)
         client_token: A unique case-sensitive identifier for the request
@@ -314,7 +324,10 @@ def update_asset(
 
 @tool_metadata(readonly=False)
 def delete_asset(
-    asset_id: str = Field(..., description='The ID of the asset to delete'),
+    asset_id: str = Field(
+        ...,
+        description='The ID of the asset to delete (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     client_token: Optional[str] = Field(
         None, description='A unique case-sensitive identifier for the request'
@@ -323,7 +336,9 @@ def delete_asset(
     """Delete an asset.
 
     Args:
-        asset_id: The ID of the asset to delete
+        asset_id: The ID of the asset to delete. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                 or external ID format (externalId:my-external-id). Use list_assets to get the
+                 correct ID if you only have the asset name.
         region: AWS region (default: us-east-1)
         client_token: A unique case-sensitive identifier for the request
 
@@ -356,12 +371,18 @@ def delete_asset(
 
 @tool_metadata(readonly=False)
 def associate_assets(
-    asset_id: str = Field(..., description='The ID of the parent asset'),
+    asset_id: str = Field(
+        ...,
+        description='The ID of the parent asset (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     hierarchy_id: str = Field(
         ...,
         description='The ID of the hierarchy by which the child asset is associated to the parent',
     ),
-    child_asset_id: str = Field(..., description='The ID of the child asset to be associated'),
+    child_asset_id: str = Field(
+        ...,
+        description='The ID of the child asset to be associated (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     client_token: Optional[str] = Field(
         None, description='A unique case-sensitive identifier for the request'
@@ -370,9 +391,13 @@ def associate_assets(
     """Associate a child asset with the given parent asset through a hierarchy.
 
     Args:
-        asset_id: The ID of the parent asset
+        asset_id: The ID of the parent asset. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                 or external ID format (externalId:my-external-id). Use list_assets to get the
+                 correct ID if you only have the asset name.
         hierarchy_id: The ID of a hierarchy in the parent asset's model
-        child_asset_id: The ID of the child asset to be associated
+        child_asset_id: The ID of the child asset to be associated. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                       or external ID format (externalId:my-external-id). Use list_assets to get the
+                       correct ID if you only have the asset name.
         region: AWS region (default: us-east-1)
         client_token: A unique case-sensitive identifier for the request
 
@@ -412,11 +437,17 @@ def associate_assets(
 
 @tool_metadata(readonly=False)
 def disassociate_assets(
-    asset_id: str = Field(..., description='The ID of the parent asset'),
+    asset_id: str = Field(
+        ...,
+        description='The ID of the parent asset (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     hierarchy_id: str = Field(
         ..., description="The ID of a hierarchy in the parent asset's model"
     ),
-    child_asset_id: str = Field(..., description='The ID of the child asset to be disassociated'),
+    child_asset_id: str = Field(
+        ...,
+        description='The ID of the child asset to be disassociated (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     client_token: Optional[str] = Field(
         None, description='A unique case-sensitive identifier for the request'
@@ -425,9 +456,13 @@ def disassociate_assets(
     """Disassociate a child asset from the given parent asset through a hierarchy.
 
     Args:
-        asset_id: The ID of the parent asset
+        asset_id: The ID of the parent asset. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                 or external ID format (externalId:my-external-id). Use list_assets to get the
+                 correct ID if you only have the asset name.
         hierarchy_id: The ID of a hierarchy in the parent asset's model
-        child_asset_id: The ID of the child asset to be disassociated
+        child_asset_id: The ID of the child asset to be disassociated. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                       or external ID format (externalId:my-external-id). Use list_assets to get the
+                       correct ID if you only have the asset name.
         region: AWS region (default: us-east-1)
         client_token: A unique case-sensitive identifier for the request
 
@@ -467,7 +502,10 @@ def disassociate_assets(
 
 @tool_metadata(readonly=True)
 def list_associated_assets(
-    asset_id: str = Field(..., description='The ID of the asset to query'),
+    asset_id: str = Field(
+        ...,
+        description='The ID of the asset to query (UUID format: 12345678-1234-1234-1234-123456789012 or external ID format: externalId:my-external-id)',
+    ),
     region: str = Field('us-east-1', description='AWS region'),
     hierarchy_id: Optional[str] = Field(
         None, description='The ID of the hierarchy by which child assets are associated'
@@ -483,7 +521,9 @@ def list_associated_assets(
     """Retrieve a paginated list of associated assets.
 
     Args:
-        asset_id: The ID of the asset to query
+        asset_id: The ID of the asset to query. Accepts UUID format (12345678-1234-1234-1234-123456789012)
+                 or external ID format (externalId:my-external-id). Use list_assets to get the
+                 correct ID if you only have the asset name.
         region: AWS region (default: us-east-1)
         hierarchy_id: The ID of the hierarchy by which child assets are \
             associated

@@ -15,7 +15,7 @@
 """Tests for AWS IoT SiteWise Models."""
 
 import pytest
-from awslabs.aws_iot_sitewise_mcp_server.models import (
+from awslabs.aws_iot_sitewise_mcp_server.models.metadata_transfer_data_models import (
     ID,
     Asset,
     AssetHierarchy,
@@ -579,6 +579,135 @@ class TestBulkImportSchema:
         schema = BulkImportSchema(assetModels=[asset_model], assets=[valid_asset])
         assert schema.assetModels is not None and len(schema.assetModels) == 1
         assert schema.assets is not None and len(schema.assets) == 1
+
+    def test_bulk_import_schema_cross_validation_edge_cases(self):
+        """Test BulkImportSchema cross-validation edge cases to cover lines 197->199."""
+        # Test lines 197->199 - cross-validation with None or empty assets/models
+
+        # Test with None assets - should pass validation and return early
+        schema_none_assets = BulkImportSchema(
+            assetModels=[
+                AssetModel(
+                    assetModelName=Name(value='TestModel'),
+                    assetModelExternalId=ExternalId(value='test-model'),
+                )
+            ],
+            assets=None,
+        )
+        assert schema_none_assets.assets is None or schema_none_assets.assets == []
+
+        # Test with None assetModels - should pass validation and return early
+        schema_none_models = BulkImportSchema(
+            assetModels=None,
+            assets=[
+                Asset(
+                    assetName=Name(value='TestAsset'),
+                    assetExternalId=ExternalId(value='test-asset'),
+                    assetModelExternalId=ExternalId(value='test-model'),
+                )
+            ],
+        )
+        assert schema_none_models.assetModels is None or schema_none_models.assetModels == []
+
+        # Test with empty assets list - should pass validation and return early
+        schema_empty_assets = BulkImportSchema(
+            assetModels=[
+                AssetModel(
+                    assetModelName=Name(value='TestModel'),
+                    assetModelExternalId=ExternalId(value='test-model'),
+                )
+            ],
+            assets=[],
+        )
+        assert schema_empty_assets.assets == []
+
+        # Test with empty assetModels list - should pass validation and return early
+        schema_empty_models = BulkImportSchema(
+            assetModels=[],
+            assets=[
+                Asset(
+                    assetName=Name(value='TestAsset'),
+                    assetExternalId=ExternalId(value='test-asset'),
+                    assetModelExternalId=ExternalId(value='test-model'),
+                )
+            ],
+        )
+        assert schema_empty_models.assetModels == []
+
+    def test_bulk_import_schema_asset_model_external_id_validation(self):
+        """Test BulkImportSchema asset model external ID validation to cover lines 246->248."""
+        # Test lines 246->248 - asset model external ID validation
+
+        # Create asset model without assetModelExternalId (should be None)
+        asset_model_no_ext_id = AssetModel(
+            assetModelName=Name(value='TestModel'),
+            assetModelId=ID(value='12345678-1234-1234-1234-123456789012'),
+        )
+
+        # Test with asset that has no assetModelExternalId (should pass validation)
+        asset_no_model_ext_ref = Asset(
+            assetName=Name(value='TestAsset2'),
+            assetExternalId=ExternalId(value='test-asset-2'),
+            assetModelId=ID(value='87654321-4321-4321-4321-210987654321'),
+        )
+
+        schema2 = BulkImportSchema(
+            assetModels=[asset_model_no_ext_id], assets=[asset_no_model_ext_ref]
+        )
+        assert schema2.assetModels is not None and len(schema2.assetModels) == 1
+        assert schema2.assets is not None and len(schema2.assets) == 1
+
+        # Test with asset that has both assetExternalId and assetName for error message coverage
+        asset_with_both_ids = Asset(
+            assetName=Name(value='TestAssetWithBothIds'),
+            assetExternalId=ExternalId(value='test-asset-with-both'),
+            assetModelExternalId=ExternalId(value='unknown-model-external-id'),
+        )
+
+        asset_model_with_ext_id = AssetModel(
+            assetModelName=Name(value='KnownModel'),
+            assetModelExternalId=ExternalId(value='known-model-external-id'),
+        )
+
+        # This should raise a validation error with the asset external ID in the message
+        with pytest.raises(
+            ValidationError,
+            match="Asset 'test-asset-with-both' references unknown AssetModelExternalId 'unknown-model-external-id'",
+        ):
+            BulkImportSchema(assetModels=[asset_model_with_ext_id], assets=[asset_with_both_ids])
+
+        # Test with asset that has no assetExternalId but has assetName for error message coverage
+        asset_no_ext_id = Asset(
+            assetName=Name(value='TestAssetNoExtId'),
+            assetId=ID(value='12345678-1234-1234-1234-123456789012'),
+            assetModelExternalId=ExternalId(value='unknown-model-external-id-2'),
+        )
+
+        # This should raise a validation error with the asset name in the message
+        with pytest.raises(
+            ValidationError,
+            match="Asset 'TestAssetNoExtId' references unknown AssetModelExternalId 'unknown-model-external-id-2'",
+        ):
+            BulkImportSchema(assetModels=[asset_model_with_ext_id], assets=[asset_no_ext_id])
+
+        # Test case where asset model has external ID and asset references it correctly
+        asset_model_with_ext_id_2 = AssetModel(
+            assetModelName=Name(value='ValidModel'),
+            assetModelExternalId=ExternalId(value='valid-model-external-id'),
+        )
+
+        asset_with_valid_ref = Asset(
+            assetName=Name(value='ValidAsset'),
+            assetExternalId=ExternalId(value='valid-asset'),
+            assetModelExternalId=ExternalId(value='valid-model-external-id'),
+        )
+
+        # This should pass validation since the asset references a valid model external ID
+        schema_valid = BulkImportSchema(
+            assetModels=[asset_model_with_ext_id_2], assets=[asset_with_valid_ref]
+        )
+        assert schema_valid.assetModels is not None and len(schema_valid.assetModels) == 1
+        assert schema_valid.assets is not None and len(schema_valid.assets) == 1
 
 
 class TestExpressionVariable:

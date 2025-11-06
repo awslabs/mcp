@@ -39,6 +39,17 @@ A comprehensive MCP (Model Context Protocol) server that provides full AWS IoT S
 - **Multi-Source Support**: Transfer data between S3 buckets and IoT SiteWise
 - **Schema Validation**: Ensure data integrity with comprehensive validation before import
 
+#### 🤖 Anomaly Detection & Computation Models
+
+- **Anomaly Detection Models**: Create and manage ML-powered anomaly detection for industrial assets
+- **Computation Models**: Define custom data processing and analytics logic for asset properties
+- **Training & Inference**: Execute training jobs and real-time inference for anomaly detection
+- **Model Versioning**: Manage multiple versions of trained models with automatic promotion
+- **Automated Retraining**: Set up scheduled retraining to adapt to changing operational patterns
+- **Asset & Asset Model Level Configuration**: Flexible binding to specific assets or reusable across asset models
+- **Execution Monitoring**: Track training progress, inference status, and model performance
+- **Action Management**: Execute, monitor, and manage actions on computation models and assets
+
 #### 🔒 Security & Configuration
 
 - **Access Policies**: Fine-grained access control for users and resources
@@ -369,6 +380,32 @@ Configure in your workspace or global settings:
 | `unlink_time_series_asset_property` | Unlink streams |
 | `delete_time_series` | Remove time series |
 
+### Computation Models & Anomaly Detection Tools
+
+| Tool Name | Description |
+|-----------|-------------|
+| `create_computation_model` | Create generic computation models with custom configuration and data bindings - supports Asset Model Level (reusable) and Asset Level (specific) configurations |
+| `create_anomaly_detection_model` | **🤖 SPECIALIZED TOOL** - Create anomaly detection models with simplified configuration |
+| `describe_computation_model` | Get detailed computation model information including action definitions |
+| `list_computation_models` | List computation models with optional filtering by type |
+| `update_computation_model` | Update computation model configuration, data bindings, and metadata |
+| `delete_computation_model` | Delete computation models (irreversible operation) |
+| `describe_computation_model_execution_summary` | Get execution summary with intelligent configuration detection - automatically handles Asset Model vs Asset Level configurations, with smart resolve parameter usage and optional performance optimization |
+| `list_computation_model_data_binding_usages` | Find computation models using specific assets or properties |
+| `list_computation_model_resolve_to_resources` | List resources that computation models resolve to - shows specific assets associated through resolve-to relationships |
+
+### Action & Execution Management Tools
+
+| Tool Name | Description |
+|-----------|-------------|
+| `execute_action` | Execute generic actions on target resources (assets or computation models) - supports training, inference |
+| `execute_training_action` | **🎯 SPECIALIZED TOOL** - Execute training actions for anomaly detection models |
+| `execute_inference_action` | **🎯 SPECIALIZED TOOL** - Execute inference actions for real-time anomaly detection |
+| `list_actions` | List actions for specific target resources with filtering options |
+| `describe_action` | Get detailed action information including payload and execution details |
+| `list_executions` | List executions for actions with status and progress tracking |
+| `describe_execution` | Get detailed execution information including results and error details |
+
 ### Metadata Transfer & Bulk Import Tools
 
 | Tool Name | Description |
@@ -429,6 +466,23 @@ Comprehensive guidance for exploring IoT data using the executeQuery API with SQ
 
 Step-by-step guidance for setting up bulk data import from S3, including CSV validation, IAM role creation, job configuration, and monitoring.
 
+### Anomaly Detection Workflow
+
+```example
+/prompts get anomaly_detection_workflow_helper_prompt
+```
+
+Comprehensive guide for setting up anomaly detection in AWS IoT SiteWise, including:
+
+- **Configuration Strategy**: Choose between Asset Model Level (reusable across assets) or Asset Level (specific asset bindings)
+- **Asset & Property Discovery**: Step-by-step guidance for identifying input properties and result storage
+- **Model Creation**: Create anomaly detection computation models with proper data bindings
+- **Training Execution**: Configure and execute training jobs with historical data, sampling rates, and evaluation options
+- **Inference Setup**: Start real-time anomaly detection with configurable frequency and operating windows
+- **Automated Retraining**: Set up scheduled retraining to adapt to changing operational patterns
+- **Monitoring & Results**: Track anomaly scores, model performance, and execution status
+- **Best Practices**: Optimization strategies, troubleshooting guidance, and operational recommendations
+
 ## Usage Examples
 
 ### Creating an Asset Model and Asset
@@ -486,6 +540,58 @@ entries = [
 ]
 
 result = sitewise_batch_put_asset_property_value(entries=entries)
+```
+
+### Setting Up Anomaly Detection
+
+```python
+# Create an anomaly detection model for pump monitoring
+anomaly_model = create_anomaly_detection_model(
+    computation_model_name="PumpAnomalyDetection",
+    input_properties=[
+        {"assetModelProperty": {"assetModelId": "pump_model_id", "propertyId": "temperature_property_id"}},
+        {"assetModelProperty": {"assetModelId": "pump_model_id", "propertyId": "pressure_property_id"}},
+        {"assetModelProperty": {"assetModelId": "pump_model_id", "propertyId": "vibration_property_id"}}
+    ],
+    result_property={
+        "assetModelProperty": {"assetModelId": "pump_model_id", "propertyId": "anomaly_score_property_id"}
+    },
+    computation_model_description="Detects operational anomalies in industrial pumps using temperature, pressure, and vibration data"
+)
+
+# Train the model with historical data
+training_result = execute_training_action(
+    training_action_definition_id="training_action_id",  # From describe_computation_model
+    training_mode="TRAIN_MODEL",
+    target_resource={"computationModelId": anomaly_model["computationModelId"]},
+    export_data_start_time=1717225200,  # 90 days ago
+    export_data_end_time=1722789360,    # Recent data
+    target_sampling_rate="PT15M"        # 15-minute intervals
+)
+
+# Start real-time inference
+inference_result = execute_inference_action(
+    inference_action_definition_id="inference_action_id",  # From describe_computation_model
+    inference_mode="START",
+    target_resource={"computationModelId": anomaly_model["computationModelId"]},
+    data_upload_frequency="PT15M",      # Process data every 15 minutes
+    weekly_operating_window={
+        "monday": ["08:00-17:00"],      # Business hours only
+        "tuesday": ["08:00-17:00"],
+        "wednesday": ["08:00-17:00"],
+        "thursday": ["08:00-17:00"],
+        "friday": ["08:00-17:00"]
+    },
+    inference_time_zone="America/Chicago"
+)
+
+# Monitor anomaly scores
+anomaly_scores = get_asset_property_value_history(
+    asset_id="pump_asset_id",
+    property_id="anomaly_score_property_id",
+    start_date="2024-11-01T00:00:00Z",
+    end_date="2024-11-04T23:59:59Z"
+)
 ```
 
 ## Testing and Validation
