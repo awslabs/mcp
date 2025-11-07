@@ -32,6 +32,7 @@ CONTENT_TOOL_RESULT = 'toolResult'
 class Captor(ABC):
     """Base class for capturing agent outputs."""
 
+    # TODO: Return subclassed CaptureData class or use Enums to specify outputs
     @abstractmethod
     def capture(
         self,
