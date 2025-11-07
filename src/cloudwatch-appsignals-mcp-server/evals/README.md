@@ -41,7 +41,7 @@ The framework can be configured via environment variables.
 
 **Note:** These settings apply to both the agent being evaluated and the LLM judge, but MAX_TURNS is not relevant for the LLM judge (one-shot call).
 
-**MCP Server Logging:**
+**MCP Server Logging (for evaluated agent only, judge does not use MCP):**
 - **MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL**: Control MCP server log verbosity for debugging (default: `WARNING`, options: `DEBUG`, `INFO`, `WARNING`, `ERROR`)
 
 Example:
