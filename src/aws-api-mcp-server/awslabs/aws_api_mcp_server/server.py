@@ -47,6 +47,7 @@ from .core.common.models import (
 )
 from .core.metadata.read_only_operations_list import ReadOnlyOperations, get_read_only_operations
 from .core.security.policy import PolicyDecision
+from .middleware.http_header_validation_middleware import HTTPHeaderValidationMiddleware
 from botocore.exceptions import NoCredentialsError
 from fastmcp import Context, FastMCP
 from loguru import logger
@@ -70,6 +71,7 @@ server = FastMCP(
     host=HOST,
     port=PORT,
     stateless_http=STATELESS_HTTP,
+    middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
 READ_OPERATIONS_INDEX: Optional[ReadOnlyOperations] = None
 

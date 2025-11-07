@@ -21,7 +21,6 @@ from awslabs.ccapi_mcp_server.context import Context
 from awslabs.ccapi_mcp_server.errors import ClientError, handle_aws_api_error
 from awslabs.ccapi_mcp_server.impl.utils.validation import (
     cleanup_workflow_tokens,
-    ensure_region_string,
     validate_identifier,
     validate_resource_type,
     validate_workflow_token,
@@ -115,8 +114,11 @@ async def create_resource_impl(request: CreateResourceRequest, workflow_store: d
     # Use ONLY the properties that were explained - no manual override possible
     properties = workflow_data['data']['properties']
 
-    # Ensure region is a string, not a FieldInfo object
-    region_str = ensure_region_string(request.region) or 'us-east-1'
+    # Use MCP env region or session region, no hardcoded fallback
+    env_vars = aws_session_data.get('environment_variables', {})
+    region_str = env_vars.get('AWS_REGION') or aws_session_data.get('region')
+    if not region_str:
+        raise ClientError('No region configured in MCP environment or AWS session')
     cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
     try:
         response = cloudcontrol_client.create_resource(
@@ -176,8 +178,11 @@ async def update_resource_impl(request: UpdateResourceRequest, workflow_store: d
         pass
 
     validate_patch(request.patch_document)
-    # Ensure region is a string, not a FieldInfo object
-    region_str = ensure_region_string(request.region) or 'us-east-1'
+    # Use MCP env region or session region, no hardcoded fallback
+    env_vars = aws_session_data.get('environment_variables', {})
+    region_str = env_vars.get('AWS_REGION') or aws_session_data.get('region')
+    if not region_str:
+        raise ClientError('No region configured in MCP environment or AWS session')
     cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
 
     # Convert patch document to JSON string for the API
@@ -239,7 +244,11 @@ async def delete_resource_impl(request: DeleteResourceRequest, workflow_store: d
             'You have configured this tool in readonly mode. To make this change you will have to update your configuration.'
         )
 
-    cloudcontrol_client = get_aws_client('cloudcontrol', request.region or 'us-east-1')
+    env_vars = aws_session_data.get('environment_variables', {})
+    region_str = env_vars.get('AWS_REGION') or aws_session_data.get('region')
+    if not region_str:
+        raise ClientError('No region configured in MCP environment or AWS session')
+    cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
     try:
         response = cloudcontrol_client.delete_resource(
             TypeName=request.resource_type, Identifier=request.identifier
@@ -260,7 +269,11 @@ async def get_resource_impl(
     validate_resource_type(request.resource_type)
     validate_identifier(request.identifier)
 
-    cloudcontrol = get_aws_client('cloudcontrol', request.region or 'us-east-1')
+    # Use environment variables for get operations (no session data available)
+    region_str = request.region or environ.get('AWS_REGION') or environ.get('AWS_DEFAULT_REGION')
+    if not region_str:
+        raise ClientError('No region specified and no default region configured')
+    cloudcontrol = get_aws_client('cloudcontrol', region_str)
     try:
         result = cloudcontrol.get_resource(
             TypeName=request.resource_type, Identifier=request.identifier
@@ -356,7 +369,11 @@ async def get_resource_request_status_impl(request_token: str, region: str | Non
     if not request_token:
         raise ClientError('Please provide a request token to track the request')
 
-    cloudcontrol_client = get_aws_client('cloudcontrol', region or 'us-east-1')
+    # Use environment variables for status operations (no session data available)
+    region_str = region or environ.get('AWS_REGION') or environ.get('AWS_DEFAULT_REGION')
+    if not region_str:
+        raise ClientError('No region specified and no default region configured')
+    cloudcontrol_client = get_aws_client('cloudcontrol', region_str)
     try:
         response = cloudcontrol_client.get_resource_request_status(
             RequestToken=request_token,

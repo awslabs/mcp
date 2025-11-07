@@ -28,6 +28,7 @@ async def generate_infrastructure_code(
     identifier: str = '',
     patch_document: List = [],
     region: str = '',
+    environment_variables: Dict | None = None,
 ) -> Dict:
     """Generate infrastructure code for security scanning before resource creation or update."""
     if not resource_type:
@@ -42,17 +43,6 @@ async def generate_infrastructure_code(
 
     # Check if resource supports tagging
     supports_tagging = 'Tags' in schema.get('properties', {})
-
-    # Fallback: Known AWS resources that support tagging even if schema doesn't show it
-    if not supports_tagging and resource_type in [
-        'AWS::S3::Bucket',
-        'AWS::EC2::Instance',
-        'AWS::RDS::DBInstance',
-    ]:
-        supports_tagging = True
-        print(
-            f"Schema for {resource_type} doesn't show Tags property, but we know it supports tagging"
-        )
 
     if is_update:
         # This is an update operation
@@ -119,7 +109,9 @@ async def generate_infrastructure_code(
             update_properties = current_properties
 
         # V1: Always add required MCP server identification tags for updates too
-        properties_with_tags = add_default_tags(update_properties, schema)
+        properties_with_tags = add_default_tags(
+            update_properties, schema, resource_type, environment_variables
+        )
 
         operation = 'update'
     else:
@@ -128,7 +120,9 @@ async def generate_infrastructure_code(
             raise ClientError('Please provide the properties for the desired resource')
 
         # V1: Always add required MCP server identification tags
-        properties_with_tags = add_default_tags(properties, schema)
+        properties_with_tags = add_default_tags(
+            properties, schema, resource_type, environment_variables
+        )
 
         operation = 'create'
 
