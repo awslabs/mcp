@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
 
+# TODO: Move these constants to dedicated constants module during core/ directory refactor
 REQUEST = 'request'
 RESPONSE = 'response'
 
@@ -113,7 +114,12 @@ class MockHandler(ABC):
         # TODO: Add support for exception mocking (e.g., {'request': {...}, 'exception': SomeException(...)})
         response = arg_response_pair[RESPONSE]
 
-        if isinstance(response, str) and (response.endswith('.json') or response.endswith('.txt')):
+        # Import here to avoid circular dependency (mock_config_path_normalizer imports REQUEST/RESPONSE from this module)
+        from .mock_config_path_normalizer import MockConfigPathNormalizer
+
+        if isinstance(response, str) and MockConfigPathNormalizer.is_fixture_file_reference(
+            response
+        ):
             fixture_path = Path(response)
             if not fixture_path.exists():
                 raise FileNotFoundError(f'Fixture file not found: {response}')
