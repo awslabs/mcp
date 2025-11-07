@@ -57,6 +57,8 @@ def _discover_tasks(task_dir: Path) -> tuple[List[Task], Dict[str, List[Task]]]:
     all_tasks = []
     tasks_by_module = {}
 
+    # Add task directories to sys.path to enable bare module imports with importlib.import_module().
+    # Alternative: require task directories to be proper packages (with __init__.py) and use fully qualified imports.
     evals_dir = task_dir.parent
     evals_dir_str = str(evals_dir.absolute())
     if evals_dir_str not in sys.path:
