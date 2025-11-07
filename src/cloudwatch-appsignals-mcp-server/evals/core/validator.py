@@ -16,12 +16,12 @@
 
 import asyncio
 import time
-from .eval_prompts import (
+from .llm_provider import LLMProvider
+from .validation_prompts import (
     CODE_MODIFICATION_VALIDATION_PROMPT,
     DATA_INTERPRETATION_VALIDATION_PROMPT,
     WORKFLOW_VALIDATION_PROMPT,
 )
-from .llm_provider import LLMProvider
 from abc import ABC, abstractmethod
 from enum import Enum
 from loguru import logger
