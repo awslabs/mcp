@@ -51,8 +51,8 @@ async def connect_to_mcp_server(
 
     Example:
         async with connect_to_mcp_server(
-            server_file='/path/to/cloudwatch-appsignals-mcp-server/awslabs/cloudwatch_appsignals_mcp_server/server.py',
-            server_root_dir='/path/to/cloudwatch-appsignals-mcp-server',
+            server_file='/path/to/cloudwatch-applicationsignals-mcp-server/awslabs/cloudwatch_applicationsignals_mcp_server/server.py',
+            server_root_dir='/path/to/cloudwatch-applicationsignals-mcp-server',
         ) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
@@ -86,8 +86,8 @@ async def connect_to_mcp_server(
         # Set server logging (for the actual server subprocess)
         # Default to WARNING if not set by user
         env['LOGURU_LEVEL'] = 'ERROR'
-        if 'MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL' not in env:
-            env['MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL'] = 'WARNING'
+        if 'MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL' not in env:
+            env['MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL'] = 'WARNING'
 
     mock_file_path = None
 

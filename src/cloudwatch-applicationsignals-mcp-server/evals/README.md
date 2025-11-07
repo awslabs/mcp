@@ -42,13 +42,13 @@ The framework can be configured via environment variables.
 **Note:** These settings apply to both the agent being evaluated and the LLM judge, but MAX_TURNS is not relevant for the LLM judge (one-shot call).
 
 **MCP Server Logging (for evaluated agent only, judge does not use MCP):**
-- **MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL**: Control MCP server log verbosity for debugging (default: `WARNING`, options: `DEBUG`, `INFO`, `WARNING`, `ERROR`)
+- **MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL**: Control MCP server log verbosity for debugging (default: `WARNING`, options: `DEBUG`, `INFO`, `WARNING`, `ERROR`)
 
 Example:
 ```bash
 export MCP_EVAL_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
 export MCP_EVAL_MAX_TURNS=30
-export MCP_CLOUDWATCH_APPSIGNALS_LOG_LEVEL=DEBUG  # For debugging server issues
+export MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL=DEBUG  # For debugging server issues
 python -m evals applicationsignals --task-id my_task
 ```
 
