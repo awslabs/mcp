@@ -130,7 +130,7 @@ mock_config = {'boto3': {}}  # Patches boto3, but all operations raise UnmockedM
 ### Adding New Mock Handlers
 
 TODO: Add comprehensive guide for creating new mock handlers for different libraries (requests, database clients, etc.). Should cover:
-- Creating a new MockHandler subclass
+- Creating a new McpDependencyMockingHandler subclass
 - Implementing required abstract methods
 - Registering the handler in `_register_builtin_handlers()` (or consider auto-discovery pattern)
 - Testing the mock handler

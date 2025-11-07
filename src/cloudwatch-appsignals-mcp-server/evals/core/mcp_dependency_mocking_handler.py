@@ -59,7 +59,7 @@ class UnmockedMethodError(Exception):
         )
 
 
-class MockHandler(ABC):
+class McpDependencyMockingHandler(ABC):
     """Base class for library-specific mock handlers.
 
     Subclasses implement patching logic for specific libraries
@@ -195,14 +195,14 @@ class MockHandler(ABC):
         return MagicMock(side_effect=mock_implementation)
 
 
-class Boto3MockHandler(MockHandler):
+class Boto3DependencyMockingHandler(McpDependencyMockingHandler):
     """Mock handler for boto3 clients.
 
     Patches boto3.client() to return mocked clients with predefined responses.
     """
 
     def __init__(self):
-        """Initialize Boto3MockHandler with empty state."""
+        """Initialize Boto3DependencyMockingHandler with empty state."""
         self.original_client = None
         self.service_method_mock_configs: Dict[str, Dict[str, Any]] = {}
         self.fixtures_dir: Optional[Path] = None
@@ -271,38 +271,38 @@ class Boto3MockHandler(MockHandler):
         return mock_client
 
 
-class MockHandlerRegistry:
+class McpDependencyMockingHandlerRegistry:
     """Registry for mock handlers.
 
     Provides centralized management and discovery of available mock handlers.
     """
 
     def __init__(self):
-        """Initialize MockHandlerRegistry and register built-in handlers."""
-        self._handlers: Dict[str, MockHandler] = {}
+        """Initialize McpDependencyMockingHandlerRegistry and register built-in handlers."""
+        self._handlers: Dict[str, McpDependencyMockingHandler] = {}
         self._register_builtin_handlers()
 
     def _register_builtin_handlers(self):
         """Register built-in mock handlers."""
-        self.register(Boto3MockHandler())
+        self.register(Boto3DependencyMockingHandler())
 
-    def register(self, handler: MockHandler):
+    def register(self, handler: McpDependencyMockingHandler):
         """Register a mock handler.
 
         Args:
-            handler: MockHandler instance
+            handler: McpDependencyMockingHandler instance
         """
         library_name = handler.get_library_name()
         self._handlers[library_name] = handler
 
-    def get_handler(self, library_name: str) -> Optional[MockHandler]:
+    def get_handler(self, library_name: str) -> Optional[McpDependencyMockingHandler]:
         """Get handler for a library.
 
         Args:
             library_name: Name of library (e.g., 'boto3')
 
         Returns:
-            MockHandler instance or None if not found
+            McpDependencyMockingHandler instance or None if not found
         """
         return self._handlers.get(library_name)
 
@@ -338,13 +338,13 @@ class MockHandlerRegistry:
 
 
 # Global registry instance
-_registry = MockHandlerRegistry()
+_registry = McpDependencyMockingHandlerRegistry()
 
 
-def get_registry() -> MockHandlerRegistry:
+def get_registry() -> McpDependencyMockingHandlerRegistry:
     """Get the global mock handler registry.
 
     Returns:
-        MockHandlerRegistry instance
+        McpDependencyMockingHandlerRegistry instance
     """
     return _registry

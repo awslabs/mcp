@@ -54,9 +54,9 @@ from .task_result import TaskResult
 
 # Mocking system
 from .mcp_dependency_mocking_handler import (
-    MockHandler,
-    Boto3MockHandler,
-    MockHandlerRegistry,
+    McpDependencyMockingHandler,
+    Boto3DependencyMockingHandler,
+    McpDependencyMockingHandlerRegistry,
     get_registry,
 )
 
@@ -97,9 +97,9 @@ __all__ = [
     # Mock config path normalization
     'MockConfigPathNormalizer',
     # Mocking
-    'MockHandler',
-    'Boto3MockHandler',
-    'MockHandlerRegistry',
+    'McpDependencyMockingHandler',
+    'Boto3DependencyMockingHandler',
+    'McpDependencyMockingHandlerRegistry',
     'get_registry',
     # Utilities
     'MetricsTracker',
