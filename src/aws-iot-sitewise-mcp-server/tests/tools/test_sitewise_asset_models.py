@@ -52,8 +52,8 @@ class TestSiteWiseAssetModels:
 
         # Mock the response
         mock_response = {
-            'assetModelId': 'test-model-123',
-            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelId': '12345678-1234-1234-1234-123456789012',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/12345678-1234-1234-1234-123456789012',
             'assetModelStatus': {'state': 'CREATING'},
         }
         mock_client.create_asset_model.return_value = mock_response
@@ -75,10 +75,10 @@ class TestSiteWiseAssetModels:
 
         # Verify the result
         assert result['success'] is True
-        assert result['asset_model_id'] == 'test-model-123'
+        assert result['asset_model_id'] == '12345678-1234-1234-1234-123456789012'
         assert (
             result['asset_model_arn']
-            == 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123'
+            == 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/12345678-1234-1234-1234-123456789012'
         )
 
     @patch(
@@ -90,8 +90,8 @@ class TestSiteWiseAssetModels:
         mock_create_client.return_value = mock_client
 
         mock_response = {
-            'assetModelId': 'test-model-123',
-            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelId': '12345678-1234-1234-1234-123456789012',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/12345678-1234-1234-1234-123456789012',
             'assetModelName': 'Test Model',
             'assetModelDescription': 'Test description',
             'assetModelProperties': [],
@@ -110,14 +110,14 @@ class TestSiteWiseAssetModels:
         mock_client.describe_asset_model.return_value = mock_response
 
         result = describe_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             exclude_properties=False,
             asset_model_version='LATEST',
         )
 
         assert result['success'] is True
-        assert result['asset_model_id'] == 'test-model-123'
+        assert result['asset_model_id'] == '12345678-1234-1234-1234-123456789012'
         assert result['asset_model_name'] == 'Test Model'
 
     @patch(
@@ -156,7 +156,7 @@ class TestSiteWiseAssetModels:
         mock_client.update_asset_model.return_value = mock_response
 
         result = update_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_name='Updated Model',
             region='us-east-1',
             asset_model_description=None,
@@ -182,7 +182,9 @@ class TestSiteWiseAssetModels:
         mock_client.delete_asset_model.return_value = mock_response
 
         result = delete_asset_model(
-            asset_model_id='test-model-123', region='us-east-1', client_token=None
+            asset_model_id='12345678-1234-1234-1234-123456789012',
+            region='us-east-1',
+            client_token=None,
         )
 
         assert result['success'] is True
@@ -206,7 +208,7 @@ class TestSiteWiseAssetModels:
         mock_client.list_asset_model_properties.return_value = mock_response
 
         result = list_asset_model_properties(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             next_token=None,
             max_results=50,
@@ -233,7 +235,7 @@ class TestSiteWiseAssetModels:
         mock_client.create_asset_model_composite_model.return_value = mock_response
 
         result = create_asset_model_composite_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='AWS/ALARM',
             region='us-east-1',
@@ -259,8 +261,8 @@ class TestSiteWiseAssetModels:
 
         # Mock a successful response for cases that pass validation
         mock_response = {
-            'assetModelId': 'test-model-123',
-            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelId': '12345678-1234-1234-1234-123456789012',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/12345678-1234-1234-1234-123456789012',
             'assetModelStatus': {'state': 'CREATING'},
         }
         mock_client.create_asset_model.return_value = mock_response
@@ -437,8 +439,8 @@ class TestSiteWiseAssetModels:
         mock_validate_props.return_value = None
 
         mock_response = {
-            'assetModelId': 'test-model-123',
-            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelId': '12345678-1234-1234-1234-123456789012',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/12345678-1234-1234-1234-123456789012',
             'assetModelStatus': {'state': 'CREATING'},
         }
         mock_client.create_asset_model.return_value = mock_response
@@ -452,7 +454,7 @@ class TestSiteWiseAssetModels:
             asset_model_composite_models=[{'name': 'composite1'}],
             client_token='test-token',
             tags={'Environment': 'Test'},
-            asset_model_id='custom-model-id',
+            asset_model_id='abcdef12-3456-7890-abcd-ef1234567890',
             asset_model_external_id='ext-123',
             asset_model_type='COMPONENT_MODEL',
         )
@@ -467,7 +469,7 @@ class TestSiteWiseAssetModels:
             assetModelCompositeModels=[{'name': 'composite1'}],
             clientToken='test-token',
             tags={'Environment': 'Test'},
-            assetModelId='custom-model-id',
+            assetModelId='abcdef12-3456-7890-abcd-ef1234567890',
             assetModelExternalId='ext-123',
         )
 
@@ -475,7 +477,7 @@ class TestSiteWiseAssetModels:
         """Test describe asset model validation error cases."""
         # Test invalid asset model version
         result = describe_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             exclude_properties=False,
             asset_model_version='INVALID_VERSION',
@@ -492,8 +494,8 @@ class TestSiteWiseAssetModels:
         mock_create_client.return_value = mock_client
 
         mock_response = {
-            'assetModelId': 'test-model-123',
-            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/test-model-123',
+            'assetModelId': '12345678-1234-1234-1234-123456789012',
+            'assetModelArn': 'arn:aws:iotsitewise:us-east-1:123456789012:asset-model/12345678-1234-1234-1234-123456789012',
             'assetModelName': 'Test Model',
             'assetModelDescription': 'Test description',
             'assetModelProperties': [],
@@ -512,7 +514,7 @@ class TestSiteWiseAssetModels:
         mock_client.describe_asset_model.return_value = mock_response
 
         result = describe_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-west-2',
             exclude_properties=True,
             asset_model_version='ACTIVE',
@@ -520,7 +522,7 @@ class TestSiteWiseAssetModels:
 
         assert result['success'] is True
         mock_client.describe_asset_model.assert_called_once_with(
-            assetModelId='test-model-123',
+            assetModelId='12345678-1234-1234-1234-123456789012',
             assetModelVersion='ACTIVE',
             excludeProperties=True,
         )
@@ -580,7 +582,7 @@ class TestSiteWiseAssetModels:
         """Test update asset model validation error cases."""
         # Test asset model description too long
         result = update_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_name='Updated Model',
             region='us-east-1',
             asset_model_description='x' * 2049,  # Exceeds 2048 character limit
@@ -595,7 +597,7 @@ class TestSiteWiseAssetModels:
 
         # Test client token too long
         result = update_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_name='Updated Model',
             region='us-east-1',
             asset_model_description=None,
@@ -611,7 +613,7 @@ class TestSiteWiseAssetModels:
         # Test too many hierarchies
         too_many_hierarchies = [{'name': f'hierarchy{i}'} for i in range(11)]  # Exceeds 10 limit
         result = update_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_name='Updated Model',
             region='us-east-1',
             asset_model_description=None,
@@ -627,7 +629,7 @@ class TestSiteWiseAssetModels:
         # Test too many composite models
         too_many_composite = [{'name': f'composite{i}'} for i in range(11)]  # Exceeds 10 limit
         result = update_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_name='Updated Model',
             region='us-east-1',
             asset_model_description=None,
@@ -657,7 +659,7 @@ class TestSiteWiseAssetModels:
         mock_client.update_asset_model.return_value = mock_response
 
         result = update_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_name='Updated Model',
             region='us-west-2',
             asset_model_description='Updated description',
@@ -670,7 +672,7 @@ class TestSiteWiseAssetModels:
 
         assert result['success'] is True
         mock_client.update_asset_model.assert_called_once_with(
-            assetModelId='test-model-123',
+            assetModelId='12345678-1234-1234-1234-123456789012',
             assetModelName='Updated Model',
             assetModelDescription='Updated description',
             assetModelProperties=[{'name': 'property1', 'dataType': 'DOUBLE'}],
@@ -684,7 +686,7 @@ class TestSiteWiseAssetModels:
         """Test delete asset model validation error cases."""
         # Test client token too long
         result = delete_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             client_token='x' * 65,  # Exceeds 64 character limit
         )
@@ -703,21 +705,21 @@ class TestSiteWiseAssetModels:
         mock_client.delete_asset_model.return_value = mock_response
 
         result = delete_asset_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-west-2',
             client_token='delete-token',
         )
 
         assert result['success'] is True
         mock_client.delete_asset_model.assert_called_once_with(
-            assetModelId='test-model-123', clientToken='delete-token'
+            assetModelId='12345678-1234-1234-1234-123456789012', clientToken='delete-token'
         )
 
     def test_list_asset_model_properties_validation_errors(self):
         """Test list asset model properties validation error cases."""
         # Test next token too long
         result = list_asset_model_properties(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             next_token='x' * 4097,  # Exceeds 4096 character limit
             max_results=50,
@@ -729,7 +731,7 @@ class TestSiteWiseAssetModels:
 
         # Test invalid asset model version
         result = list_asset_model_properties(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             next_token=None,
             max_results=50,
@@ -741,7 +743,7 @@ class TestSiteWiseAssetModels:
 
         # Test invalid filter type
         result = list_asset_model_properties(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             next_token=None,
             max_results=50,
@@ -766,7 +768,7 @@ class TestSiteWiseAssetModels:
         mock_client.list_asset_model_properties.return_value = mock_response
 
         result = list_asset_model_properties(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-west-2',
             next_token='prev-token',
             max_results=100,
@@ -776,7 +778,7 @@ class TestSiteWiseAssetModels:
 
         assert result['success'] is True
         mock_client.list_asset_model_properties.assert_called_once_with(
-            assetModelId='test-model-123',
+            assetModelId='12345678-1234-1234-1234-123456789012',
             maxResults=100,
             assetModelVersion='ACTIVE',
             nextToken='prev-token',
@@ -787,7 +789,7 @@ class TestSiteWiseAssetModels:
         """Test create asset model composite model validation error cases."""
         # Test composite model description too long
         result = create_asset_model_composite_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
             region='us-east-1',
@@ -804,7 +806,7 @@ class TestSiteWiseAssetModels:
 
         # Test client token too long
         result = create_asset_model_composite_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
             region='us-east-1',
@@ -822,7 +824,7 @@ class TestSiteWiseAssetModels:
         # Test too many properties in composite model
         too_many_properties = [{'name': f'prop{i}'} for i in range(201)]  # Exceeds 200 limit
         result = create_asset_model_composite_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
             region='us-east-1',
@@ -853,7 +855,7 @@ class TestSiteWiseAssetModels:
         mock_client.create_asset_model_composite_model.return_value = mock_response
 
         result = create_asset_model_composite_model(
-            asset_model_id='test-model-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
             region='us-west-2',
@@ -868,7 +870,7 @@ class TestSiteWiseAssetModels:
 
         assert result['success'] is True
         mock_client.create_asset_model_composite_model.assert_called_once_with(
-            assetModelId='test-model-123',
+            assetModelId='12345678-1234-1234-1234-123456789012',
             assetModelCompositeModelName='Test Composite',
             assetModelCompositeModelType='alarms',
             assetModelCompositeModelDescription='Test composite description',
@@ -900,7 +902,7 @@ class TestSiteWiseAssetModels:
             error_response, 'DescribeAssetModel'
         )
         result = describe_asset_model(
-            asset_model_id='test-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             exclude_properties=False,
             asset_model_version='LATEST',
@@ -924,7 +926,7 @@ class TestSiteWiseAssetModels:
             error_response, 'UpdateAssetModel'
         )
         result = update_asset_model(
-            asset_model_id='test-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_name='Updated',
             region='us-east-1',
             asset_model_description=None,
@@ -942,7 +944,7 @@ class TestSiteWiseAssetModels:
             error_response, 'DeleteAssetModel'
         )
         result = delete_asset_model(
-            asset_model_id='test-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             client_token=None,
         )
@@ -954,7 +956,7 @@ class TestSiteWiseAssetModels:
             error_response, 'ListAssetModelProperties'
         )
         result = list_asset_model_properties(
-            asset_model_id='test-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             region='us-east-1',
             next_token=None,
             max_results=50,
@@ -969,7 +971,7 @@ class TestSiteWiseAssetModels:
             error_response, 'CreateAssetModelCompositeModel'
         )
         result = create_asset_model_composite_model(
-            asset_model_id='test-123',
+            asset_model_id='12345678-1234-1234-1234-123456789012',
             asset_model_composite_model_name='Test Composite',
             asset_model_composite_model_type='alarms',
             region='us-east-1',
