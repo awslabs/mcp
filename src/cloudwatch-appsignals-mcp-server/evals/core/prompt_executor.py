@@ -15,6 +15,7 @@
 """Executes prompts with agent loop, captors, and validators."""
 
 from .agent_loop import run_agent_loop
+from .eval_config import MAX_TURNS
 from .metrics_tracker import MetricsTracker
 from .task import Task
 from .task_result import TaskResult
@@ -61,7 +62,7 @@ class PromptExecutor:
             project_root=working_directory,
             mcp_tools=tools_response.tools,
             metrics_tracker=metrics_tracker,
-            max_turns=task.max_turns,
+            max_turns=MAX_TURNS,
         )
 
         captured_data = await self._execute_captors(

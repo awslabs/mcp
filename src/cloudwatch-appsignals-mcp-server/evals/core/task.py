@@ -15,7 +15,6 @@
 """Base Task class for MCP evaluations."""
 
 from .captor import Captor
-from .eval_config import MAX_TURNS
 from .mock_config_path_normalizer import MockConfigPathNormalizer
 from .process_executor import ProcessExecutor, SubprocessExecutor
 from .validator import Validator
@@ -48,7 +47,6 @@ class Task(ABC):
 
     Attributes:
         id: Unique identifier for the task
-        max_turns: Maximum conversation turns allowed (default: from MAX_TURNS config, overridable via MCP_EVAL_MAX_TURNS)
         expected_tools: MCP tool names expected to be called (for hit rate metric)
         mock_config: Mock configuration for AWS APIs (for initialization only - use resolved_mock_config to access)
         fixtures_dir: Base directory for resolving fixture paths
@@ -58,10 +56,11 @@ class Task(ABC):
         When accessing mock configuration in framework code, always use the resolved_mock_config
         property instead of reading mock_config directly. The resolved_mock_config property
         normalizes fixture paths and should be the only way to read the configuration.
+
+        Max conversation turns is controlled globally via MCP_EVAL_MAX_TURNS environment variable.
     """
 
     id: str
-    max_turns: int = MAX_TURNS
     expected_tools: List[str] = field(default_factory=list)
     mock_config: Optional[Dict[str, Any]] = None
     fixtures_dir: Optional[Path] = None
