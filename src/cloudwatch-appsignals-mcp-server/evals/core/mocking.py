@@ -117,9 +117,7 @@ class MockHandler(ABC):
         # Import here to avoid circular dependency (mock_config_path_normalizer imports REQUEST/RESPONSE from this module)
         from .mock_config_path_normalizer import MockConfigPathNormalizer
 
-        if isinstance(response, str) and MockConfigPathNormalizer.is_fixture_file_reference(
-            response
-        ):
+        if MockConfigPathNormalizer.is_fixture_file_reference(response):
             fixture_path = Path(response)
             if not fixture_path.exists():
                 raise FileNotFoundError(f'Fixture file not found: {response}')

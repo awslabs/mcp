@@ -41,16 +41,18 @@ class MockConfigPathNormalizer:
     _FIXTURE_EXTENSIONS = ('.json', '.txt')
 
     @staticmethod
-    def is_fixture_file_reference(value: str) -> bool:
-        """Check if a string value is a fixture file reference.
+    def is_fixture_file_reference(value: Any) -> bool:
+        """Check if a value is a fixture file reference.
 
         Args:
-            value: String to check
+            value: Value to check
 
         Returns:
-            True if value ends with a supported fixture file extension
+            True if value is a string ending with a supported fixture file extension
         """
-        return any(value.endswith(ext) for ext in MockConfigPathNormalizer._FIXTURE_EXTENSIONS)
+        return isinstance(value, str) and any(
+            value.endswith(ext) for ext in MockConfigPathNormalizer._FIXTURE_EXTENSIONS
+        )
 
     @staticmethod
     def resolve_mock_config(mock_config: Dict[str, Any], fixtures_dir: Path) -> Dict[str, Any]:
@@ -85,14 +87,10 @@ class MockConfigPathNormalizer:
                 for item in value:
                     if isinstance(item, dict) and RESPONSE in item:
                         response = item[RESPONSE]
-                        if isinstance(
-                            response, str
-                        ) and MockConfigPathNormalizer.is_fixture_file_reference(response):
+                        if MockConfigPathNormalizer.is_fixture_file_reference(response):
                             if not Path(response).is_absolute():
                                 return True
-            elif isinstance(value, str) and MockConfigPathNormalizer.is_fixture_file_reference(
-                value
-            ):
+            elif MockConfigPathNormalizer.is_fixture_file_reference(value):
                 if not Path(value).is_absolute():
                     return True
         return False
@@ -133,9 +131,7 @@ class MockConfigPathNormalizer:
 
         # TODO: Add support for file references in request field (currently only response supports files)
         response = pair[RESPONSE]
-        if isinstance(response, str) and MockConfigPathNormalizer.is_fixture_file_reference(
-            response
-        ):
+        if MockConfigPathNormalizer.is_fixture_file_reference(response):
             response = str(fixtures_dir / response)
 
         return {REQUEST: pair[REQUEST], RESPONSE: response}
