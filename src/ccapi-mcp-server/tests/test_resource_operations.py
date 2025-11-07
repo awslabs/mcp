@@ -107,7 +107,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -202,7 +206,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -255,7 +263,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_delete',
@@ -503,7 +515,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -620,7 +636,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -658,7 +678,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -819,7 +843,11 @@ class TestResourceOperations:
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
@@ -953,3 +981,131 @@ class TestResourceOperations:
 
         with pytest.raises(ClientError, match='Invalid AWS credentials'):
             await delete_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    async def test_create_resource_impl_no_region_configured(self):
+        """Test create_resource_impl with no region configured."""
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {},  # No AWS_REGION
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = CreateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region='us-east-1',
+        )
+
+        with patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ') as mock_env:
+            mock_env.get.return_value = 'disabled'
+            with pytest.raises(
+                ClientError, match='No region configured in MCP environment or AWS session'
+            ):
+                await create_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    async def test_update_resource_impl_no_region_configured(self):
+        """Test update_resource_impl with no region configured."""
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {},  # No AWS_REGION
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            skip_security_check=True,
+            region='us-east-1',
+        )
+
+        with patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ') as mock_env:
+            mock_env.get.return_value = 'disabled'
+            with pytest.raises(
+                ClientError, match='No region configured in MCP environment or AWS session'
+            ):
+                await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    async def test_delete_resource_impl_no_region_configured(self):
+        """Test delete_resource_impl with no region configured."""
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {},  # No AWS_REGION
+                },
+            },
+            'explained': {
+                'type': 'explained_delete',
+                'data': {'test': 'value'},
+                'operation': 'delete',
+            },
+        }
+
+        request = DeleteResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            credentials_token='creds',
+            explained_token='explained',
+            confirmed=True,
+            region='us-east-1',
+        )
+
+        with pytest.raises(
+            ClientError, match='No region configured in MCP environment or AWS session'
+        ):
+            await delete_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    async def test_get_resource_impl_security_analysis_simple(self, mock_client):
+        """Test get_resource_impl security analysis workflow - covers lines 311-345."""
+        mock_client.return_value.get_resource.return_value = {
+            'ResourceDescription': {
+                'Identifier': 'test-bucket',
+                'Properties': '{"BucketName": "test-bucket"}',
+            }
+        }
+
+        # Simple test that just triggers the security analysis code path
+        request = GetResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            region='us-east-1',
+            analyze_security=True,
+        )
+
+        # Pass empty workflow store to trigger the exception path
+        result = await get_resource_impl(request, {})
+
+        # Should have security_analysis with error since workflow_store is empty
+        assert result['identifier'] == 'test-bucket'
+        assert 'security_analysis' in result
+        assert 'error' in result['security_analysis']

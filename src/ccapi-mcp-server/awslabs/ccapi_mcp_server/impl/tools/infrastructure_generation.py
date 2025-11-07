@@ -34,8 +34,12 @@ async def generate_infrastructure_code_impl_wrapper(
     if not aws_session_data.get('credentials_valid'):
         raise ClientError('Invalid AWS credentials')
 
-    # V1: Always add required MCP server identification tags
-    # Inform user about default tags and ask if they want additional ones
+    # Get environment variables from the parent environment token
+    env_token = cred_data.get('parent_token')
+    environment_variables = None
+    if env_token and env_token in workflow_store:
+        env_data = workflow_store[env_token]['data']
+        environment_variables = env_data.get('environment_variables', {})
 
     # Generate infrastructure code using the existing implementation
     result = await generate_infrastructure_code_impl(
@@ -43,7 +47,8 @@ async def generate_infrastructure_code_impl_wrapper(
         properties=request.properties,
         identifier=request.identifier,
         patch_document=request.patch_document,
-        region=request.region or aws_session_data.get('region') or 'us-east-1',
+        region=request.region or aws_session_data.get('region'),
+        environment_variables=environment_variables or {},
     )
 
     # Generate a generated code token that enforces using the exact properties and template

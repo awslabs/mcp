@@ -85,7 +85,7 @@ class TestInfrastructureGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_infrastructure_code_known_taggable_resource(self):
-        """Test generate_infrastructure_code with known taggable resource even if schema doesn't show it."""
+        """Test generate_infrastructure_code with schema-only tagging approach."""
         with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
             mock_schema_manager = MagicMock()
             mock_schema_manager.get_schema = AsyncMock(
@@ -99,8 +99,8 @@ class TestInfrastructureGenerator:
                 region='us-east-1',
             )
 
-            # Should still support tagging for known AWS resources
-            assert result['supports_tagging'] is True
+            # Should not support tagging if schema doesn't show Tags property (schema-only approach)
+            assert result['supports_tagging'] is False
 
     # Additional coverage tests
     @pytest.mark.asyncio
@@ -383,3 +383,76 @@ class TestInfrastructureGenerator:
                 assert result['operation'] == 'update'
                 assert result['properties']['BucketName'] == 'updated-bucket'
                 assert any(tag['Key'] == 'NewTag' for tag in result['properties']['Tags'])
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_default_tags_disabled(self):
+        """Test infrastructure generator with DEFAULT_TAGS=disabled."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            result = await generate_infrastructure_code(
+                resource_type='AWS::S3::Bucket',
+                properties={'BucketName': 'test-bucket'},
+                region='us-east-1',
+                environment_variables={'DEFAULT_TAGS': 'disabled'},
+            )
+
+            # Should not add default tags when disabled
+            assert result['operation'] == 'create'
+            assert (
+                'Tags' not in result['properties']
+                or len(result['properties'].get('Tags', [])) == 0
+            )
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_default_tags_enabled(self):
+        """Test infrastructure generator with DEFAULT_TAGS=enabled."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={
+                    'properties': {'BucketName': {'type': 'string'}, 'Tags': {'type': 'array'}}
+                }
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            result = await generate_infrastructure_code(
+                resource_type='AWS::S3::Bucket',
+                properties={'BucketName': 'test-bucket'},
+                region='us-east-1',
+                environment_variables={'DEFAULT_TAGS': 'enabled'},
+            )
+
+            # Should add default tags when enabled and resource supports tagging
+            assert result['operation'] == 'create'
+            assert 'Tags' in result['properties']
+            assert len(result['properties']['Tags']) == 3  # 3 default tags
+
+    @pytest.mark.asyncio
+    async def test_infrastructure_generator_non_taggable_resource(self):
+        """Test infrastructure generator with non-taggable resource."""
+        with patch('awslabs.ccapi_mcp_server.infrastructure_generator.schema_manager') as mock_sm:
+            mock_schema_manager = MagicMock()
+            mock_schema_manager.get_schema = AsyncMock(
+                return_value={'properties': {'TargetFunctionArn': {'type': 'string'}}}
+            )
+            mock_sm.return_value = mock_schema_manager
+
+            result = await generate_infrastructure_code(
+                resource_type='AWS::Lambda::Url',
+                properties={
+                    'TargetFunctionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test'
+                },
+                region='us-east-1',
+            )
+
+            # Should not add tags to non-taggable resources
+            assert result['operation'] == 'create'
+            assert result['supports_tagging'] is False
+            assert 'Tags' not in result['properties']
