@@ -62,6 +62,7 @@ class Task(ABC):
 
     id: str
     expected_tools: List[str] = field(default_factory=list)
+    # TODO: Consider typed config classes (e.g., Boto3MockConfig) instead of Dict[str, Any] for better type safety
     mock_config: Optional[Dict[str, Any]] = None
     fixtures_dir: Optional[Path] = None
     process_executor: ProcessExecutor = field(default_factory=SubprocessExecutor)
