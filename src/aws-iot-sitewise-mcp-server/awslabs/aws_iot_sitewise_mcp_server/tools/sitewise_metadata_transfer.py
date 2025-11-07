@@ -15,7 +15,11 @@
 """AWS IoT SiteWise Bulk Metadata Transfer Job Tools."""
 
 from awslabs.aws_iot_sitewise_mcp_server.client import create_twinmaker_client
-from awslabs.aws_iot_sitewise_mcp_server.models import Asset, AssetModel, BulkImportSchema
+from awslabs.aws_iot_sitewise_mcp_server.models.metadata_transfer_data_models import (
+    Asset,
+    AssetModel,
+    BulkImportSchema,
+)
 from awslabs.aws_iot_sitewise_mcp_server.tool_metadata import tool_metadata
 from awslabs.aws_iot_sitewise_mcp_server.validation import (
     ValidationError as CustomValidationError,

@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-sns-sqs-mcp-server"
-version = "2.0.8"
+version = "2.0.9"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
