@@ -105,7 +105,7 @@ mock_config = {
 
 In this example:
 - `boto3` is patched - all calls go through the mock system
-- `list_services` is mocked - returns fixture data
+- `list_services` is mocked - returns fixture data for all requests
 - Other boto3 operations (e.g., `get_service_level_objective`) raise `UnmockedMethodError`
 - Other libraries (e.g., `requests`) make real API calls
 
