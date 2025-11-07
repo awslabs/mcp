@@ -39,6 +39,9 @@ class UnmockedMethodError(Exception):
 
     This indicates incomplete mock configuration. The error message clearly indicates
     what method is missing and how to fix it.
+
+    TODO: Investigate fail-fast behavior where UnmockedMethodError terminates the eval task
+    immediately instead of propagating to the agent (requires subprocess error propagation).
     """
 
     def __init__(self, service_name: str, method_name: str, available_methods: List[str]):
