@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-timestream-for-influxdb-mcp-server"
-version = "0.0.6"
+version = "0.0.7"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

@@ -26,7 +26,7 @@ NOTICE                                           @awslabs/mcp-admins
 /src/amazon-qbusiness-anonymous-mcp-server       @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
 /src/amazon-qindex-mcp-server                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
 /src/amazon-sns-sqs-mcp-server                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
-/src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko # @silver83 @marcbowes @kennthhz
+/src/aurora-dsql-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @gxjx-x @imforster @wcmjunior
 /src/aws-api-mcp-server                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt
 /src/aws-bedrock-custom-model-import-mcp-server  @awslabs/mcp-admins @awslabs/mcp-maintainers  @krokoko @alexa-perlov # @saidrhs
