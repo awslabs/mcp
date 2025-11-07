@@ -103,7 +103,7 @@ async def connect_to_mcp_server(
             command=sys.executable,
             args=[
                 '-m',
-                'evals.core.mock_server_wrapper',
+                'evals.core.eval_mcp_server_wrapper',
                 str(server_file_path),
                 '--server-cwd',
                 str(server_root_dir_path),

@@ -23,7 +23,7 @@ Usage:
     Set TEMP_SERVER_WRAPPER_MOCK_FILE environment variable to path of mock config JSON,
     then run this script with the server module path as argument:
 
-    TEMP_SERVER_WRAPPER_MOCK_FILE=/tmp/mocks.json python mock_server_wrapper.py path/to/server.py
+    TEMP_SERVER_WRAPPER_MOCK_FILE=/tmp/mocks.json python eval_mcp_server_wrapper.py path/to/server.py
 """
 
 import importlib.util
