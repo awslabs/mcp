@@ -17,6 +17,7 @@
 Provides list_files, read_file, and write_file tools in Bedrock format.
 """
 
+from .captor import MESSAGE_CONTENT
 from typing import Any, Dict, List
 
 
@@ -80,9 +81,9 @@ def get_file_tools() -> List[Dict[str, Any]]:
                                 'type': 'string',
                                 'description': 'Path to file (relative to project root)',
                             },
-                            'content': {'type': 'string', 'description': 'Content to write'},
+                            MESSAGE_CONTENT: {'type': 'string', 'description': 'Content to write'},
                         },
-                        'required': ['path', 'content'],
+                        'required': ['path', MESSAGE_CONTENT],
                     }
                 },
             }

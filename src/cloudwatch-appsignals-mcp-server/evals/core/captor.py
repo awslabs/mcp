@@ -179,7 +179,7 @@ class ToolResultsCaptor(Captor):
                         tool_results.append(
                             {
                                 'toolUseId': tool_result.get('toolUseId'),
-                                'content': result_text,
+                                MESSAGE_CONTENT: result_text,
                             }
                         )
 

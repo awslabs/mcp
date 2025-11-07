@@ -16,7 +16,15 @@
 
 import asyncio
 import time
-from .captor import FINAL_RESPONSE, GIT_DIFF, TOOL_CALLS
+from .captor import (
+    CONTENT_TEXT,
+    FINAL_RESPONSE,
+    GIT_DIFF,
+    MESSAGE_CONTENT,
+    MESSAGE_ROLE,
+    ROLE_USER,
+    TOOL_CALLS,
+)
 from .llm_provider import LLMProvider
 from .validation_prompts import ValidationPromptType
 from abc import ABC, abstractmethod
@@ -124,9 +132,9 @@ class LLMJudgeValidator(Validator):
         try:
             start = time.time()
             response = self.llm_provider.converse(
-                messages=[{'role': 'user', 'content': [{'text': prompt}]}]
+                messages=[{MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: [{CONTENT_TEXT: prompt}]}]
             )
-            response_text = response['output']['message']['content'][0]['text']
+            response_text = response['output']['message'][MESSAGE_CONTENT][0][CONTENT_TEXT]
             elapsed = time.time() - start
             logger.debug(f'LLM validation took {elapsed:.2f}s')
 

@@ -18,6 +18,15 @@ Provides multi-turn conversation loop and tool execution utilities.
 """
 
 import time
+from .captor import (
+    CONTENT_TEXT,
+    CONTENT_TOOL_RESULT,
+    CONTENT_TOOL_USE,
+    MESSAGE_CONTENT,
+    MESSAGE_ROLE,
+    ROLE_ASSISTANT,
+    ROLE_USER,
+)
 from .file_tools import (
     FILE_TOOL_LIST_FILES,
     FILE_TOOL_READ_FILE,
@@ -90,7 +99,7 @@ async def execute_tool(
 
             try:
                 files = [f.name for f in dir_path.iterdir()]
-                result = {'content': [{'text': '\n'.join(files)}]}
+                result = {MESSAGE_CONTENT: [{CONTENT_TEXT: '\n'.join(files)}]}
             except PermissionError:
                 raise PermissionError(
                     f'Permission denied accessing directory: {tool_input["path"]}'
@@ -106,7 +115,7 @@ async def execute_tool(
 
             try:
                 content = file_path.read_text(encoding='utf-8', errors='replace')
-                result = {'content': [{'text': content}]}
+                result = {MESSAGE_CONTENT: [{CONTENT_TEXT: content}]}
             except PermissionError:
                 raise PermissionError(f'Permission denied reading file: {tool_input["path"]}')
             except UnicodeDecodeError:
@@ -125,8 +134,12 @@ async def execute_tool(
                 raise IOError(f'Failed to create parent directory: {file_path.parent}')
 
             try:
-                file_path.write_text(tool_input['content'], encoding='utf-8')
-                result = {'content': [{'text': f'Successfully wrote to {tool_input["path"]}'}]}
+                file_path.write_text(tool_input[MESSAGE_CONTENT], encoding='utf-8')
+                result = {
+                    MESSAGE_CONTENT: [
+                        {CONTENT_TEXT: f'Successfully wrote to {tool_input["path"]}'}
+                    ]
+                }
             except PermissionError:
                 raise PermissionError(f'Permission denied writing to file: {tool_input["path"]}')
             except OSError as e:
@@ -135,14 +148,14 @@ async def execute_tool(
         else:
             # TODO: Improve MCP result handling/formatting
             mcp_result = await session.call_tool(tool_name, tool_input)
-            result = {'content': [{'text': str(mcp_result.content)}]}
+            result = {MESSAGE_CONTENT: [{CONTENT_TEXT: str(mcp_result.content)}]}
 
         return result
     except Exception as e:
         logger.error(f'Tool execution failed: {e}')
         success = False
         error = str(e)
-        return {'content': [{'text': f'Error: {str(e)}'}], 'status': 'error'}
+        return {MESSAGE_CONTENT: [{CONTENT_TEXT: f'Error: {str(e)}'}], 'status': 'error'}
     finally:
         duration = time.time() - start
         params_to_log = {k: v for k, v in tool_input.items() if k != 'toolUseId'}
@@ -180,7 +193,7 @@ async def run_agent_loop(
 
     logger.debug(f'Configured {len(all_tools)} tools')
 
-    messages = [{'role': 'user', 'content': [{'text': prompt}]}]
+    messages = [{MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: [{CONTENT_TEXT: prompt}]}]
 
     turn = 0
 
@@ -203,15 +216,18 @@ async def run_agent_loop(
             logger.debug(f'Stop reason: {response["stopReason"]}')
 
             messages.append(
-                {'role': 'assistant', 'content': response['output']['message']['content']}
+                {
+                    MESSAGE_ROLE: ROLE_ASSISTANT,
+                    MESSAGE_CONTENT: response['output']['message'][MESSAGE_CONTENT],
+                }
             )
 
             if response['stopReason'] == 'tool_use':
                 tool_results = []
 
-                for content_block in response['output']['message']['content']:
-                    if 'toolUse' in content_block:
-                        tool_use = content_block['toolUse']
+                for content_block in response['output']['message'][MESSAGE_CONTENT]:
+                    if CONTENT_TOOL_USE in content_block:
+                        tool_use = content_block[CONTENT_TOOL_USE]
                         tool_name = tool_use['name']
                         tool_input = tool_use['input']
                         tool_use_id = tool_use['toolUseId']
@@ -225,14 +241,14 @@ async def run_agent_loop(
 
                         tool_results.append(
                             {
-                                'toolResult': {
+                                CONTENT_TOOL_RESULT: {
                                     'toolUseId': tool_use_id,
-                                    'content': result['content'],
+                                    MESSAGE_CONTENT: result[MESSAGE_CONTENT],
                                 }
                             }
                         )
 
-                messages.append({'role': 'user', 'content': tool_results})
+                messages.append({MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: tool_results})
             else:
                 logger.debug(f'Agent finished: {response["stopReason"]}')
                 break
