@@ -32,7 +32,7 @@ python -m evals applicationsignals --task-id <task_id> --no-cleanup
 
 ### Configuration
 
-The framework can be configured via environment variables:
+The framework can be configured via environment variables. **Note:** These settings apply to both the agent being evaluated and the LLM judge.
 
 - **MCP_EVAL_MODEL_ID**: Override default Bedrock model ID (default: `us.anthropic.claude-sonnet-4-20250514-v1:0`)
 - **MCP_EVAL_AWS_REGION**: Override default AWS region (default: `us-east-1`)
