@@ -56,18 +56,27 @@ class BedrockLLMProvider(LLMProvider):
 
     def __init__(
         self,
-        bedrock_client: Any,
+        bedrock_client: Optional[Any] = None,
         model_id: Optional[str] = None,
         temperature: Optional[float] = None,
+        region_name: Optional[str] = None,
     ):
         """Initialize Bedrock LLM provider.
 
         Args:
-            bedrock_client: Boto3 Bedrock Runtime client
+            bedrock_client: Boto3 Bedrock Runtime client (created if not provided)
             model_id: Model ID (defaults to framework default)
             temperature: Temperature (defaults to framework default)
+            region_name: AWS region (defaults to framework default, only used if bedrock_client not provided)
         """
-        self.bedrock_client = bedrock_client
+        if bedrock_client is None:
+            import boto3
+            from .eval_config import AWS_REGION
+
+            region = region_name or AWS_REGION
+            self.bedrock_client = boto3.client(service_name='bedrock-runtime', region_name=region)
+        else:
+            self.bedrock_client = bedrock_client
         self.model_id = model_id
         self.temperature = temperature
 

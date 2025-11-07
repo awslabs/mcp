@@ -28,12 +28,10 @@ Usage:
 
 import argparse
 import asyncio
-import boto3
 import importlib
 import sys
 import traceback
 from evals.core import EvalRunner, TaskResult
-from evals.core.eval_config import AWS_REGION
 from evals.core.task import Task
 from loguru import logger
 from pathlib import Path
@@ -257,19 +255,10 @@ async def main():
         print(f'  - {task.id}')
     print('')
 
-    # Initialize Bedrock client
-    try:
-        bedrock_client = boto3.client(service_name='bedrock-runtime', region_name=AWS_REGION)
-        logger.debug('Bedrock client initialized')
-    except Exception as e:
-        logger.error(f'Failed to initialize Bedrock client: {e}')
-        logger.error('Make sure AWS credentials are configured')
-        sys.exit(1)
-
     # Create runner and execute tasks
     try:
         runner = EvalRunner(tasks=tasks)
-        results = await runner.run_all(bedrock_client, args.verbose, skip_cleanup=args.no_cleanup)
+        results = await runner.run_all(args.verbose, skip_cleanup=args.no_cleanup)
 
         # Report results
         for task, result in zip(tasks, results):

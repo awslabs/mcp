@@ -41,7 +41,6 @@ class EvalRunner:
 
     async def run_all(
         self,
-        bedrock_client: Any,
         verbose: bool = False,
         skip_cleanup: bool = False,
     ) -> List[TaskResult]:
@@ -52,7 +51,7 @@ class EvalRunner:
             logger.info(f'Running task: {task.id}')
 
             try:
-                result = await self.run_task(task, bedrock_client, verbose, skip_cleanup)
+                result = await self.run_task(task, verbose, skip_cleanup)
                 results.append(result)
             except Exception as e:
                 logger.error(f'Task {task.id} failed: {e}')
@@ -63,7 +62,6 @@ class EvalRunner:
     async def run_task(
         self,
         task: Task,
-        bedrock_client: Any,
         verbose: bool,
         skip_cleanup: bool = False,
     ) -> TaskResult:
@@ -97,7 +95,7 @@ class EvalRunner:
                 logger.debug(f'Running eval for task {task.id}')
 
                 # Execute agent loop
-                llm_provider = BedrockLLMProvider(bedrock_client)
+                llm_provider = BedrockLLMProvider()
                 metrics_tracker = MetricsTracker()
                 messages = await run_agent_loop(
                     llm_provider=llm_provider,
@@ -116,7 +114,7 @@ class EvalRunner:
 
                 # Execute validators
                 validation_results = await self._execute_validators(
-                    task, working_directory, bedrock_client, captured_data
+                    task, working_directory, captured_data
                 )
 
                 # Gather metrics
@@ -160,12 +158,11 @@ class EvalRunner:
         self,
         task: Task,
         working_directory: Path,
-        bedrock_client: Any,
         captured_data: Dict[str, Any],
     ) -> List[ValidationResult]:
         """Execute all validators and gather validation results."""
         validation_results = []
-        validators = task.get_validators(working_directory, bedrock_client)
+        validators = task.get_validators(working_directory)
 
         for validator in validators:
             validation_result = await validator.validate(captured_data)

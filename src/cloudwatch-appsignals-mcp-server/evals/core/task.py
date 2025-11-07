@@ -98,7 +98,7 @@ class Task(ABC):
         """
         return []
 
-    def get_validators(self, working_directory: Path, bedrock_client: Any) -> List[Validator]:
+    def get_validators(self, working_directory: Path) -> List[Validator]:
         """Return validators to evaluate task success.
 
         Validators evaluate captured data to determine if the agent completed the task
@@ -110,7 +110,7 @@ class Task(ABC):
             return [
                 LLMJudgeValidator(
                     validation_prompt_type=ValidationPromptType.CODE_MODIFICATION,
-                    llm_provider=BedrockLLMProvider(bedrock_client),
+                    llm_provider=BedrockLLMProvider(),
                     rubric=["Criterion 1", "Criterion 2"]
                 ),
                 BuildValidator(command="npm test", working_dir=Path(".")),
@@ -118,7 +118,6 @@ class Task(ABC):
 
         Args:
             working_directory: Path to task working directory
-            bedrock_client: Boto3 Bedrock client for LLM calls
 
         Returns:
             List of Validator instances (default: empty list)
