@@ -106,58 +106,7 @@ def _report_task_results(task: Task, result: TaskResult) -> None:
     """
     # TODO: Export detailed results to file and print only brief summary (pass/fail).
     # Need more usage/feedback to determine what belongs in summary vs detailed report.
-    print('\n' + '=' * 60)
-    print(f'EVALUATION COMPLETE: {task.id}')
-    print('=' * 60)
-
-    if result.error:
-        print('Status: ❌ ERROR')
-        logger.error(result.error)
-        print('=' * 60 + '\n')
-        return
-
-    if not result.metrics or not result.validation_results:
-        print('Status: ❌ ERROR')
-        logger.error('Missing metrics or validation results')
-        print('=' * 60 + '\n')
-        return
-
-    metrics = result.metrics
-    print(f'Duration: {metrics["task_duration"]:.2f}s')
-    print(f'Turns: {metrics["turn_count"]}')
-    print(f'Tool Calls: {metrics["tool_call_count"]} ({metrics["unique_tools_count"]} unique)')
-    print(f'Hit Rate: {metrics.get("hit_rate", 0):.1%}')
-    print(f'Success Rate: {metrics["success_rate"]:.1%}')
-    print(f'File Operations: {metrics["file_operation_count"]}')
-
-    if metrics.get('tool_breakdown'):
-        print('\nTool Breakdown:')
-        for tool_name, stats in sorted(metrics['tool_breakdown'].items()):
-            print(
-                f'  - {tool_name}: {stats["count"]} calls '
-                f'({stats["success"]} success, {stats["failed"]} failed)'
-            )
-
-    print('\nValidation Results:')
-    for validation_result in result.validation_results:
-        validator_name = validation_result.get('validator_name', 'Unknown')
-        if validation_result.get('error'):
-            print(f'  {validator_name}: ❌ ERROR')
-            logger.error(f'    {validation_result.get("error", "")}')
-        else:
-            criteria_results = validation_result.get('criteria_results', [])
-            passed = sum(1 for r in criteria_results if r['status'] == 'PASS')
-            total = len(criteria_results)
-            status = '✅ PASS' if validation_result.get('overall_pass', False) else '❌ FAIL'
-            print(f'  {validator_name}: {status} ({passed}/{total} criteria met)')
-
-            for criterion_result in criteria_results:
-                status_text = criterion_result['status']
-                print(f'    [{status_text}] {criterion_result["criterion"]}')
-
-    status = '✅ PASS' if result.success else '❌ FAIL'
-    print(f'\nOverall Task Status: {status}')
-    print('=' * 60 + '\n')
+    print(result)
 
 
 async def main():
