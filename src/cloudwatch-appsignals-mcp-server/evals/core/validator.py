@@ -18,13 +18,8 @@ import asyncio
 import time
 from .captor import FINAL_RESPONSE, GIT_DIFF, TOOL_CALLS
 from .llm_provider import LLMProvider
-from .validation_prompts import (
-    CODE_MODIFICATION_VALIDATION_PROMPT,
-    DATA_INTERPRETATION_VALIDATION_PROMPT,
-    WORKFLOW_VALIDATION_PROMPT,
-)
+from .validation_prompts import ValidationPromptType
 from abc import ABC, abstractmethod
-from enum import Enum
 from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List, Literal, TypedDict
@@ -57,20 +52,6 @@ class ValidationResult(TypedDict, total=False):
 
     error: str
     raw_validation_output: Dict[str, Any]
-
-
-class ValidationPromptType(Enum):
-    """Well-defined validation prompt templates that produce parseable output.
-
-    All templates produce responses in the format:
-    1. [PASS/FAIL] Brief reasoning
-    2. [PASS/FAIL] Brief reasoning
-    ...
-    """
-
-    CODE_MODIFICATION = CODE_MODIFICATION_VALIDATION_PROMPT
-    DATA_INTERPRETATION = DATA_INTERPRETATION_VALIDATION_PROMPT
-    WORKFLOW = WORKFLOW_VALIDATION_PROMPT
 
 
 class Validator(ABC):

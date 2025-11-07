@@ -44,8 +44,8 @@ from .validator import (
     Validator,
     LLMJudgeValidator,
     BuildValidator,
-    ValidationPromptType,
 )
+from .validation_prompts import ValidationPromptType
 from .llm_provider import LLMProvider, BedrockLLMProvider
 from .process_executor import ProcessExecutor, SubprocessExecutor
 from .mock_config_path_normalizer import MockConfigPathNormalizer

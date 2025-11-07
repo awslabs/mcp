@@ -30,6 +30,8 @@ Use this checklist to evaluate whether prompts follow LLM-as-a-Judge best practi
 Ref: https://www.evidentlyai.com/llm-guide/llm-as-a-judge
 """
 
+from enum import Enum
+
 CODE_MODIFICATION_VALIDATION_PROMPT = """You are evaluating code changes for a software modification task.
 
 **Validation Rubric:**
@@ -80,3 +82,17 @@ Respond in this EXACT format:
 ... (continue for all {num_criteria} criteria)
 
 Be strict but fair. Only mark as PASS if the criterion is clearly met."""
+
+
+class ValidationPromptType(Enum):
+    """Well-defined validation prompt templates that produce parseable output.
+
+    All templates produce responses in the format:
+    1. [PASS/FAIL] Brief reasoning
+    2. [PASS/FAIL] Brief reasoning
+    ...
+    """
+
+    CODE_MODIFICATION = CODE_MODIFICATION_VALIDATION_PROMPT
+    DATA_INTERPRETATION = DATA_INTERPRETATION_VALIDATION_PROMPT
+    WORKFLOW = WORKFLOW_VALIDATION_PROMPT
