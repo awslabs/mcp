@@ -72,7 +72,7 @@ class Task(ABC):
 
         The prompt is the core instruction that defines what the agent should do. It triggers
         the agent's reasoning loop where it will use MCP tools to complete the task. The task's
-        success is measured by how well the agent fulfills this prompt according to the rubric.
+        success is measured by how well the agent fulfills this prompt according to the validators.
 
         Args:
             context: Runtime context containing:
