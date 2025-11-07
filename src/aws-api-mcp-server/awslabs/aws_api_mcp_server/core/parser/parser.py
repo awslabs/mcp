@@ -318,7 +318,7 @@ def is_custom_operation(service, operation):
 
 
 def is_denied_custom_service(service):
-    """Returns true if the service is a cli customization that is explicitely denied."""
+    """Returns true if the service is a cli customization that is explicitly denied."""
     return service in DENIED_CUSTOM_SERVICES
 
 

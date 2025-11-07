@@ -99,7 +99,7 @@ class InvalidChoiceForParameterError(CliParsingError):
 
 
 class ServiceNotAllowedError(CliParsingError):
-    """Thrown when the given service name is explicitely not allowed."""
+    """Thrown when the given service name is explicitly not allowed."""
 
     _message = 'The given service name is not allowed: {}'
 
@@ -115,7 +115,7 @@ class ServiceNotAllowedError(CliParsingError):
 
 
 class OperationNotAllowedError(CliParsingError):
-    """Thrown when the given operation for a service is explicitely not allowed."""
+    """Thrown when the given operation for a service is explicitly not allowed."""
 
     _message = 'The given operation is not allowed: {} {}'
 

@@ -23,7 +23,7 @@ from typing import Any
 """
 EC2 does server side validation on some of the parameter values
 (for example: instance id is "i-[alphanumeric]").
-Adding this to client side validation to avoid unecessary 4XX errors during Execute.
+Adding this to client side validation to avoid unnecessary 4XX errors during Execute.
 """
 
 MALFORMED_PARAMETER_VALUE_MESSAGE: str = (
