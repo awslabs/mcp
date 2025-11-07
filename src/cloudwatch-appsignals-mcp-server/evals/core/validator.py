@@ -94,7 +94,7 @@ class LLMJudgeValidator(Validator):
             llm_provider: LLMProvider instance for text generation
             rubric: List of evaluation criteria
         """
-        self.validation_prompt_template = validation_prompt_type.value
+        self.validation_prompt_type = validation_prompt_type
         self.llm_provider = llm_provider
         self.rubric = rubric
         self.rubric_items = '\n'.join(
@@ -115,7 +115,7 @@ class LLMJudgeValidator(Validator):
 
         captured_str = self._format_captured_data(captured_data)
 
-        prompt = self.validation_prompt_template.format(
+        prompt = self.validation_prompt_type.format(
             rubric_items=self.rubric_items,
             captured_data=captured_str,
             num_criteria=self.num_criteria,

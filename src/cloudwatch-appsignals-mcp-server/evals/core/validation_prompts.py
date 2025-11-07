@@ -96,3 +96,20 @@ class ValidationPromptType(Enum):
     CODE_MODIFICATION = CODE_MODIFICATION_VALIDATION_PROMPT
     DATA_INTERPRETATION = DATA_INTERPRETATION_VALIDATION_PROMPT
     WORKFLOW = WORKFLOW_VALIDATION_PROMPT
+
+    def format(self, rubric_items: str, captured_data: str, num_criteria: int) -> str:
+        """Format the prompt template with validation parameters.
+
+        Args:
+            rubric_items: Formatted rubric criteria (e.g., "1. Criterion 1\\n2. Criterion 2")
+            captured_data: Formatted captured data (git diff, tool calls, response, etc.)
+            num_criteria: Number of criteria in the rubric
+
+        Returns:
+            Formatted prompt string ready for LLM
+        """
+        return self.value.format(
+            rubric_items=rubric_items,
+            captured_data=captured_data,
+            num_criteria=num_criteria,
+        )
