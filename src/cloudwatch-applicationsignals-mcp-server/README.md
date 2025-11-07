@@ -628,14 +628,24 @@ The server requires the following AWS IAM permissions:
         "application-signals:ListServiceLevelObjectives",
         "application-signals:GetServiceLevelObjective",
         "application-signals:BatchGetServiceLevelObjectiveBudgetReport",
+        "application-signals:ListAuditFindings",
         "cloudwatch:GetMetricData",
         "cloudwatch:GetMetricStatistics",
         "logs:GetQueryResults",
         "logs:StartQuery",
         "logs:StopQuery",
+        "logs:FilterLogEvents",
         "xray:GetTraceSummaries",
         "xray:BatchGetTraces",
-        "xray:GetTraceSegmentDestination"
+        "xray:GetTraceSegmentDestination",
+        "synthetics:GetCanary",
+        "synthetics:GetCanaryRuns",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "iam:GetRole",
+        "iam:ListAttachedRolePolicies",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
       ],
       "Resource": "*"
     }
