@@ -14,29 +14,30 @@
 
 """Evaluation runner orchestrating task execution."""
 
+from .agent_loop import run_agent_loop
+from .eval_config import MAX_TURNS
 from .llm_provider import BedrockLLMProvider
 from .mcp_client import connect_to_mcp_server
-from .prompt_executor import PromptExecutor
+from .metrics_tracker import MetricsTracker
 from .task import Task
 from .task_result import TaskResult
+from .validator import ValidationResult
 from loguru import logger
 from mcp import ClientSession
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 
 class EvalRunner:
     """Orchestrates evaluation of MCP tools using agent-based testing."""
 
-    def __init__(self, tasks: List[Task], executor: Optional[PromptExecutor] = None):
+    def __init__(self, tasks: List[Task]):
         """Initialize evaluation runner.
 
         Args:
             tasks: List of Task instances to evaluate
-            executor: PromptExecutor instance (default: creates new PromptExecutor)
         """
         self.tasks = tasks
-        self.prompt_executor = executor if executor is not None else PromptExecutor()
 
     async def run_all(
         self,
@@ -66,7 +67,7 @@ class EvalRunner:
     ) -> TaskResult:
         """Run a single task.
 
-        Connects to MCP server and executes prompt via PromptExecutor.
+        Connects to MCP server, executes agent loop, and validates results.
         """
         # TODO: Separate server config from tasks. Task should specify server name,
         # and a separate module should handle server setup/configuration.
@@ -94,15 +95,40 @@ class EvalRunner:
                 prompt = task.get_prompt(context)
 
                 logger.debug(f'Running eval for task {task.id}')
-                result = await self.prompt_executor.execute_prompt(
-                    prompt=prompt,
-                    task=task,
+
+                # Execute agent loop
+                llm_provider = context['llm_provider']
+                metrics_tracker = MetricsTracker()
+                messages = await run_agent_loop(
+                    llm_provider=llm_provider,
                     session=session,
-                    tools_response=tools_response,
-                    context=context,
+                    prompt=prompt,
+                    project_root=working_directory,
+                    mcp_tools=tools_response.tools,
+                    metrics_tracker=metrics_tracker,
+                    max_turns=MAX_TURNS,
                 )
 
-                return result
+                # Execute captors
+                captured_data = await self._execute_captors(
+                    task, context, messages, metrics_tracker, working_directory, prompt
+                )
+
+                # Execute validators
+                validation_results = await self._execute_validators(task, context, captured_data)
+
+                # Gather metrics
+                metrics = metrics_tracker.get_metrics(expected_tools=task.expected_tools)
+                overall_pass = all(v.get('overall_pass', False) for v in validation_results)
+
+                return TaskResult.from_success(
+                    task_id=task.id,
+                    prompt=prompt,
+                    success=overall_pass,
+                    validation_results=validation_results,
+                    metrics=metrics,
+                    captured_data=captured_data,
+                )
 
     def _create_context(self, working_directory: Path, bedrock_client: Any) -> Dict[str, Any]:
         """Create context dictionary for task execution."""
@@ -112,3 +138,38 @@ class EvalRunner:
             'bedrock_client': bedrock_client,
             'llm_provider': llm_provider,
         }
+
+    async def _execute_captors(
+        self,
+        task: Task,
+        context: Dict[str, Any],
+        messages: list,
+        metrics_tracker: MetricsTracker,
+        working_directory: Path,
+        prompt: str,
+    ) -> Dict[str, Any]:
+        """Execute all captors and gather captured data."""
+        captured_data = {'prompt': prompt}
+        captors = task.get_captors(context)
+
+        for captor in captors:
+            captor_output = captor.capture(messages, metrics_tracker, working_directory)
+            captured_data.update(captor_output)
+
+        return captured_data
+
+    async def _execute_validators(
+        self,
+        task: Task,
+        context: Dict[str, Any],
+        captured_data: Dict[str, Any],
+    ) -> List[ValidationResult]:
+        """Execute all validators and gather validation results."""
+        validation_results = []
+        validators = task.get_validators(context)
+
+        for validator in validators:
+            validation_result = await validator.validate(captured_data)
+            validation_results.append(validation_result)
+
+        return validation_results
