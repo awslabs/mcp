@@ -43,6 +43,7 @@ class EvalRunner:
         self,
         bedrock_client: Any,
         verbose: bool = False,
+        skip_cleanup: bool = False,
     ) -> List[TaskResult]:
         """Run all tasks and return results."""
         results = []
@@ -51,7 +52,7 @@ class EvalRunner:
             logger.info(f'Running task: {task.id}')
 
             try:
-                result = await self.run_task(task, bedrock_client, verbose)
+                result = await self.run_task(task, bedrock_client, verbose, skip_cleanup)
                 results.append(result)
             except Exception as e:
                 logger.error(f'Task {task.id} failed: {e}')
@@ -64,10 +65,11 @@ class EvalRunner:
         task: Task,
         bedrock_client: Any,
         verbose: bool,
+        skip_cleanup: bool = False,
     ) -> TaskResult:
         """Run a single task.
 
-        Connects to MCP server, executes agent loop, and validates results.
+        Connects to MCP server, executes agent loop, validates results, and cleans up.
         """
         # TODO: Separate server config from tasks. Task should specify server name,
         # and a separate module should handle server setup/configuration.
@@ -121,7 +123,7 @@ class EvalRunner:
                 metrics = metrics_tracker.get_metrics(expected_tools=task.expected_tools)
                 overall_pass = all(v.get('overall_pass', False) for v in validation_results)
 
-                return TaskResult.from_success(
+                result = TaskResult.from_success(
                     task_id=task.id,
                     prompt=prompt,
                     success=overall_pass,
@@ -129,6 +131,12 @@ class EvalRunner:
                     metrics=metrics,
                     captured_data=captured_data,
                 )
+
+                # Cleanup task changes
+                if not skip_cleanup:
+                    task.cleanup(context)
+
+                return result
 
     def _create_context(self, working_directory: Path, bedrock_client: Any) -> Dict[str, Any]:
         """Create context dictionary for task execution."""

@@ -269,17 +269,11 @@ async def main():
     # Create runner and execute tasks
     try:
         runner = EvalRunner(tasks=tasks)
-        results = await runner.run_all(bedrock_client, args.verbose)
+        results = await runner.run_all(bedrock_client, args.verbose, skip_cleanup=args.no_cleanup)
 
-        # Report results and cleanup
+        # Report results
         for task, result in zip(tasks, results):
             _report_task_results(task, result)
-
-            # Call task cleanup
-            if not args.no_cleanup:
-                working_directory = task.get_working_directory() or Path.cwd()
-                context = {'working_directory': working_directory}
-                task.cleanup(context)
 
         # TODO: Investigate more reliable subprocess cleanup mechanism
         # Give subprocess time to clean up before event loop closes (Python < 3.11)
