@@ -135,7 +135,7 @@ class MetricsTracker:
             if c['tool_name'] in [FILE_TOOL_LIST_FILES, FILE_TOOL_READ_FILE, FILE_TOOL_WRITE_FILE]
         ]
 
-    def compare_expected_tools(self, expected_tools: List[str]) -> Dict[str, Any]:
+    def _compare_expected_tools(self, expected_tools: List[str]) -> Dict[str, Any]:
         """Compare called tools against expected tools.
 
         Args:
@@ -185,6 +185,6 @@ class MetricsTracker:
         }
 
         if expected_tools:
-            metrics.update(self.compare_expected_tools(expected_tools))
+            metrics.update(self._compare_expected_tools(expected_tools))
 
         return metrics
