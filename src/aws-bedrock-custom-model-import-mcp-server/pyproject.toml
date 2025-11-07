@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aws-bedrock-custom-model-import-mcp-server"
-version = "0.0.4"
+version = "0.0.5"
 description = "An AWS Labs Model Context Protocol (MCP) server for Bedrock Custom Model Import"
 readme = "README.md"
 requires-python = ">=3.10"

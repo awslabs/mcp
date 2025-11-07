@@ -188,7 +188,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-terraform-mcp-server"
-version = "1.0.7"
+version = "1.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "asteval" },

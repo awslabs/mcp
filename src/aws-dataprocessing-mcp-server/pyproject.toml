@@ -2,7 +2,7 @@
 name = "awslabs.aws-dataprocessing-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.1.15"
+version = "0.1.16"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for dataprocessing"
 readme = "README.md"

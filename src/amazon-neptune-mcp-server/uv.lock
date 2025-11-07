@@ -46,7 +46,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-neptune-mcp-server"
-version = "1.0.6"
+version = "1.0.7"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

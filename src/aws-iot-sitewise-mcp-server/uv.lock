@@ -58,7 +58,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-iot-sitewise-mcp-server"
-version = "11.0.3"
+version = "11.0.4"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

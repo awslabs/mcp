@@ -2,7 +2,7 @@
 name = "awslabs.billing-cost-management-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.4"
+version = "0.0.5"
 
 description = "A Model Context Protocol (MCP) server that provides tools for AWS Billing and Cost Management by wrapping boto3 SDK functions."
 readme = "README.md"

@@ -2,7 +2,7 @@
 name = "awslabs.healthlake-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.3"
+version = "0.0.4"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for healthlake"
 readme = "README.md"

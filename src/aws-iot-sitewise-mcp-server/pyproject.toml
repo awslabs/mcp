@@ -2,7 +2,7 @@
 name = "awslabs.aws-iot-sitewise-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "11.0.3"
+version = "11.0.4"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for aws-iot-sitewise"
 readme = "README.md"

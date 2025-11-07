@@ -2,7 +2,7 @@
 name = "awslabs.cloudtrail-mcp-server"
 
 # NOTE: "Patch"=9223372036854775807 bumps next release to zero.
-version = "0.0.4"
+version = "0.0.5"
 
 description = "An AWS Labs Model Context Protocol (MCP) server for cloudtrail"
 readme = "README.md"

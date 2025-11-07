@@ -19,7 +19,7 @@ This Model Context Protocol (MCP) server provides tools for AWS cost optimizatio
 by wrapping boto3 SDK functions for AWS cost optimization services.
 """
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 # We don't import server here to avoid circular imports
 
